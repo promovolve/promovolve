@@ -1,0 +1,17 @@
+{{define "content"}}
+<div class="min-h-screen flex items-center justify-center p-8 bg-gray-50">
+  <div class="card max-w-md w-full text-center">
+    <p class="text-4xl mb-4">{{if .GuardExit}}👁{{else}}🔒{{end}}</p>
+    <h1 class="text-lg font-semibold mb-2">{{.Title}}</h1>
+    <p class="text-sm text-gray-500 mb-6">{{.Error}}</p>
+    <div class="flex items-center justify-center gap-3">
+      <a href="javascript:history.back()" class="btn btn-secondary">Go back</a>
+      {{if .GuardExit}}
+      <form method="POST" action="/view-as/exit" data-viewas-allowed>
+        <button type="submit" class="btn btn-primary">Exit view</button>
+      </form>
+      {{end}}
+    </div>
+  </div>
+</div>
+{{end}}

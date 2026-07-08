@@ -1,0 +1,16 @@
+# LoadBalancer — Docker Desktop binds it to localhost:9090 (verified: works
+# even on the multi-node kind cluster; the EXTERNAL-IP shown is VM-internal
+# and not host-reachable, but localhost:<port> is). Open the dashboard at
+# http://localhost:9090. No port-forward needed.
+apiVersion: v1
+kind: Service
+metadata:
+  name: promovolve-platform
+spec:
+  type: LoadBalancer
+  selector:
+    app: promovolve-platform
+  ports:
+    - name: http
+      port: 9090
+      targetPort: 9090

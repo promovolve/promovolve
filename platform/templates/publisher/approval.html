@@ -1,0 +1,601 @@
+{{define "content"}}
+{{if .BannerScriptURL}}
+<!-- Load the <expandable-magazine-banner> / <magazine-preview> component so
+     the inbox can render the live creative (click-expandable magazine). -->
+<script src="{{.BannerScriptURL}}"></script>
+{{end}}
+<!-- Fill the main content area exactly (main has p-8 → 4rem vertical padding) so
+     the inbox is a fixed-height two-pane that scrolls INTERNALLY instead of
+     growing the page. -->
+<div class="flex flex-col h-[calc(100vh-4rem)]">
+<!-- Header -->
+<div class="flex items-center justify-between mb-6 shrink-0">
+  <div>
+    <h1 class="page-title">Creative Inbox</h1>
+    <p class="page-sub">
+      {{len .Pending}} pending &middot; {{len .Serving}} serving &middot; {{len .Flagged}} flagged
+    </p>
+  </div>
+</div>
+
+<!-- Text filter over the whole inbox (client-side; matches row text + state) -->
+<div class="mb-5 shrink-0">
+  <input id="inbox-search" type="search" autocomplete="off"
+         placeholder="Filter by advertiser, campaign, landing domain, or state…"
+         oninput="applyInboxFilter()"
+         class="form-input max-w-lg">
+  <p id="inbox-nomatch" class="text-sm text-gray-400 mt-2 hidden">No creatives match your filter.</p>
+</div>
+
+<!-- SSE: real-time updates via htmx SSE extension -->
+<div class="flex-1 min-h-0 flex flex-col" {{if .SiteID}}hx-ext="sse" sse-connect="/sse/publishers/{{.SiteID}}/events"{{end}}>
+  <div id="tab-content" class="flex-1 min-h-0 flex flex-col"
+       {{if .SiteID}}
+       hx-get="/publisher/approval"
+       hx-trigger="sse:pending-updated throttle:2s, sse:approved throttle:2s, sse:rejected throttle:2s, sse:revoked throttle:2s, sse:bulk-approved throttle:2s"
+       hx-target="#tab-content"
+       hx-swap="innerHTML"
+       {{end}}>
+    {{template "approval-tab" .}}
+  </div>
+</div>
+<script>
+// Keep an open preview alive: while a detail panel is open, cancel the
+// SSE-driven content reload (it would wipe the open large view) and
+// remember it; re-apply when the viewer closes the preview.
+document.body.addEventListener('htmx:beforeRequest', function(evt) {
+  var el = evt.detail.elt;
+  // Cancel SSE-driven reloads while a preview is open (don't wipe it) —
+  // but NOT an action-triggered reload, which intentionally refreshes.
+  if (el && el.id === 'tab-content' && !window.__forceInboxReload && document.querySelector('[data-detail]:not(.hidden)')) {
+    evt.preventDefault();
+    window.__pendingApprovalRefresh = true;
+  }
+});
+window.closeDetail = function() {
+  document.querySelectorAll('[data-detail]').forEach(function(e){ e.classList.add('hidden'); });
+  document.querySelectorAll('[data-inbox-item]').forEach(function(e){
+    e.classList.remove('bg-brand-soft','border-orange-300');
+    e.classList.add('bg-white','border-gray-200');
+  });
+  if (window.__pendingApprovalRefresh) {
+    window.__pendingApprovalRefresh = false;
+    htmx.ajax('GET', '/publisher/approval', { target: '#tab-content', swap: 'innerHTML' });
+  }
+};
+// Open a creative's detail pane. SERVING creatives open COLLAPSED (the ad
+// embedded in the faux article — click to expand, close returns to it), so
+// the publisher sees it as delivered. PENDING / FLAGGED ones auto-expand to
+// the reader so the reviewer sees the full creative immediately. keep-frame
+// keeps the pane open on close.
+window.openDetail = function(key, btn) {
+  if (btn) { window.__lastEngagedCid = btn.getAttribute('data-cid'); }
+  document.querySelectorAll('[data-inbox-item]').forEach(function(e){ e.classList.remove('bg-brand-soft','border-orange-300'); e.classList.add('bg-white','border-gray-200'); });
+  if (btn) { btn.classList.remove('bg-white','border-gray-200'); btn.classList.add('bg-brand-soft','border-orange-300'); }
+  document.querySelectorAll('[data-detail]').forEach(function(e){ e.classList.add('hidden'); });
+  var d = document.getElementById('detail-' + key);
+  if (d) {
+    d.classList.remove('hidden');
+    // Chromium keeps container-query units at their viewport FALLBACK for
+    // elements whose query container was display:none when they rendered —
+    // the teaser banner built inside the hidden pane keeps design-space
+    // font sizes (huge glyphs) after reveal. Reconnecting the element once
+    // it is visible rebuilds it against the live container. Cheap: teasers
+    // are one collapsed strip, and we mark the pane so it runs only once.
+    if (!d.dataset.bannerReconnected) {
+      d.dataset.bannerReconnected = '1';
+      d.querySelectorAll('expandable-magazine-banner').forEach(function(b){
+        b.replaceWith(b.cloneNode(true));
+      });
+    }
+  }
+};
+// Site rail: scope the queue to one property (or 'all'). Selection is a
+// global so it survives SSE swaps; applyInboxFilter re-applies it + the rail
+// highlight after every render.
+window.__selectedSite = window.__selectedSite || 'all';
+window.selectSite = function(site) {
+  window.__selectedSite = site;
+  // A previously-open detail may belong to a now-hidden site → let
+  // applyInboxFilter drop it and auto-select within the new scope.
+  applyInboxFilter();
+};
+// Hide every detail pane + deselect rows, WITHOUT triggering the SSE
+// refetch (that's only for an explicit close while a preview is open).
+function clearDetailPane() {
+  document.querySelectorAll('[data-detail]').forEach(function(e){ e.classList.add('hidden'); });
+  document.querySelectorAll('[data-inbox-item]').forEach(function(e){ e.classList.remove('bg-brand-soft','border-orange-300'); e.classList.add('bg-white','border-gray-200'); });
+}
+// Text filter over the one list: match the typed query against each row's
+// text (domain, campaign, max bid) + its state. Empty query shows all. Hide
+// site groups left with no visible rows, then auto-select.
+window.applyInboxFilter = function() {
+  var inp = document.getElementById('inbox-search');
+  var q = (inp ? inp.value : '').trim().toLowerCase();
+  var site = window.__selectedSite || 'all';
+  var visible = 0, openHidden = false;
+  document.querySelectorAll('[data-inbox-item]').forEach(function(el){
+    // A row shows when it matches the selected SITE (rail) AND the text query.
+    var group = el.closest('[data-group]');
+    var siteMatch = (site === 'all') || (group && group.getAttribute('data-site') === site);
+    // Search across advertiser + campaign + landing domain (data-search) and
+    // the creative's state.
+    var hay = ((el.dataset.search || '') + ' ' + (el.dataset.state || '')).toLowerCase();
+    var show = siteMatch && (!q || hay.indexOf(q) !== -1);
+    var wasHidden = el.style.display === 'none';
+    el.style.display = show ? '' : 'none';
+    if (show) {
+      visible++;
+      // Same container-query fallback trap as the detail panes (see
+      // openDetail): a thumbnail banner rendered while its row was hidden
+      // keeps viewport-fallback font sizes — reconnect once on reveal.
+      if (wasHidden && !el.dataset.bannerReconnected) {
+        el.dataset.bannerReconnected = '1';
+        el.querySelectorAll('expandable-magazine-banner').forEach(function(b){
+          b.replaceWith(b.cloneNode(true));
+        });
+      }
+    }
+    else if (el.classList.contains('bg-brand-soft')) { openHidden = true; }
+  });
+  document.querySelectorAll('[data-group]').forEach(function(g){
+    var any = [...g.querySelectorAll('[data-inbox-item]')].some(function(el){ return el.style.display !== 'none'; });
+    g.style.display = any ? '' : 'none';
+  });
+  // Reflect the active site on the rail (re-applied after every SSE swap since
+  // the rail re-renders but __selectedSite persists).
+  document.querySelectorAll('[data-site-rail]').forEach(function(b){
+    var on = b.getAttribute('data-site-rail') === site;
+    b.classList.toggle('bg-gray-100', on);
+    b.classList.toggle('text-gray-900', on);
+    b.classList.toggle('text-gray-600', !on);
+  });
+  var nomatch = document.getElementById('inbox-nomatch');
+  if (nomatch) nomatch.classList.toggle('hidden', visible !== 0);
+  // No matches → clear the expanded view. Open row filtered out → drop it
+  // so auto-select picks a still-visible one.
+  if (!visible) { clearDetailPane(); return; }
+  if (openHidden) { clearDetailPane(); }
+  autoSelectMostRecent();
+};
+// Auto-select the most recent VISIBLE creative whenever the inbox shows up.
+// Ordered newest-first by the core, but grouped by site, so pick max data-ts.
+// Skipped when a preview is already open so it never clobbers the viewer.
+window.autoSelectMostRecent = function() {
+  if (document.querySelector('[data-detail]:not(.hidden)')) return;
+  var items = [...document.querySelectorAll('[data-inbox-item]')].filter(function(el){ return el.style.display !== 'none'; });
+  if (!items.length) return; // 0 matches → leave the pane blank (intended)
+  // Prefer the LAST-ENGAGED creative if it's still in the list — e.g. after a
+  // revoke it reappears as pending, so the pane keeps showing it instead of
+  // jumping elsewhere or going blank.
+  var cid = window.__lastEngagedCid;
+  if (cid) {
+    var prev = items.find(function(el){ return el.getAttribute('data-cid') === cid; });
+    if (prev) { prev.click(); return; }
+  }
+  var best = null, bestTs = null;
+  items.forEach(function(el){
+    var ts = el.getAttribute('data-ts') || '';
+    if (best === null || ts > bestTs) { best = el; bestTs = ts; }
+  });
+  if (best) best.click();
+};
+if (document.readyState === 'loading') {
+  document.addEventListener('DOMContentLoaded', applyInboxFilter);
+} else {
+  applyInboxFilter();
+}
+// Re-run after any swap into the inbox (SSE refresh, post-close refetch).
+document.body.addEventListener('htmx:afterSwap', function(evt){
+  if (evt.detail && evt.detail.target && evt.detail.target.id === 'tab-content') {
+    applyInboxFilter();
+  }
+});
+// After an approve / flag / revoke / unflag (htmx action, no navigation):
+// the acted creative changes state, so clear its (now-stale) detail and
+// refetch the inbox in place. A short delay lets the core propagate the
+// change before the refetch; the live SSE connection catches later settling.
+document.body.addEventListener('inboxActed', function(){
+  // Poll the inbox until the acted creative REAPPEARS in its new state (e.g.
+  // a revoked one returning to pending). With a single creative the list is
+  // momentarily empty mid-transition, so a one-shot reload would catch the
+  // blank — instead we keep the current view and only swap once the creative
+  // is back (or we give up after a few tries), then re-select it. No blank.
+  var cid = window.__lastEngagedCid;
+  var tries = 0;
+  var last = null;
+  function swap(html) {
+    var tc = document.getElementById('tab-content');
+    window.__forceInboxReload = true;
+    tc.innerHTML = html;
+    if (window.htmx) htmx.process(tc);
+    window.__forceInboxReload = false;
+    applyInboxFilter();
+  }
+  function poll() {
+    tries++;
+    fetch('/publisher/approval', { headers: { 'HX-Request': 'true' }, credentials: 'same-origin' })
+      .then(function(r){ return r.text(); })
+      .then(function(html){
+        var back = cid && html.indexOf('data-cid="' + cid + '"') !== -1;
+        var hasAny = html.indexOf('data-inbox-item') !== -1;
+        // STABILITY GATE: right after an action (esp. revoke) core is
+        // mid-transition and a snapshot can show the same creative in TWO
+        // states at once (still serving + re-pending) — swapping that in
+        // freezes a "ghost" duplicate in the DOM, and the SSE correction
+        // is suppressed while a preview is open. Only swap when two
+        // consecutive polls agree (a settled snapshot); give up after
+        // enough tries and schedule a settle-check instead.
+        var stable = last !== null && html === last;
+        last = html;
+        if ((back && stable) || tries >= 8 || (hasAny && stable && tries >= 3)) {
+          swap(html);
+          // Belt-and-braces: one delayed re-check. If the list changed
+          // again after our swap, refresh — or, if a preview is open, arm
+          // the existing close-time refresh instead of wiping it.
+          setTimeout(function(){
+            fetch('/publisher/approval', { headers: { 'HX-Request': 'true' }, credentials: 'same-origin' })
+              .then(function(r){ return r.text(); })
+              .then(function(fresh){
+                if (fresh === html) return;
+                if (document.querySelector('[data-detail]:not(.hidden)')) {
+                  window.__pendingApprovalRefresh = true;
+                } else {
+                  swap(fresh);
+                }
+              }).catch(function(){});
+          }, 3000);
+        } else {
+          setTimeout(poll, 700);
+        }
+      })
+      .catch(function(){ /* network hiccup — the live SSE will refresh */ });
+  }
+  setTimeout(poll, 400);
+});
+</script>
+{{end}}
+
+{{define "approval-tab"}}
+{{if and (not .Pending) (not .Serving) (not .Flagged)}}
+<div class="flex flex-col items-center justify-center flex-1 min-h-0 text-gray-400">
+  <div class="text-5xl mb-4">&#x2713;</div>
+  <p class="text-lg font-medium">Inbox zero</p>
+  <p class="text-sm mt-2">Creatives awaiting review, serving, and flagged ones all appear here</p>
+</div>
+{{else}}
+<div class="flex gap-6 flex-1 min-h-0">
+  <!-- Sites rail: a publisher moderates several properties, so pick one (or
+       All). The badge is the site's NEW (pending) count, so you can see at a
+       glance which properties have creatives waiting. -->
+  <div class="w-52 shrink-0 overflow-y-auto min-h-0 space-y-1 border-r border-gray-100 pr-3">
+    <div class="px-3 pt-1 pb-2 text-xs font-semibold text-gray-400 uppercase tracking-wide">Sites</div>
+    <button type="button" data-site-rail="all" onclick="selectSite('all')"
+            class="w-full flex items-center justify-between gap-2 px-3 py-2 rounded-lg text-sm text-left hover:bg-gray-50">
+      <span class="font-medium">All sites</span>
+      {{if .Pending}}<span class="inline-flex items-center justify-center min-w-[1.25rem] h-5 px-1.5 rounded-full bg-yellow-400 text-yellow-950 text-xs font-semibold">{{len .Pending}}</span>{{end}}
+    </button>
+    {{range $g, $group := .SiteGroups}}
+    <button type="button" data-site-rail="{{$group.Site.ID}}" onclick="selectSite('{{$group.Site.ID}}')"
+            class="w-full flex items-center justify-between gap-2 px-3 py-2 rounded-lg text-sm text-left hover:bg-gray-50">
+      <span class="truncate">{{if $group.Site.Domain}}{{$group.Site.Domain}}{{else}}{{$group.Site.ID}}{{end}}</span>
+      {{if $group.Pending}}<span class="inline-flex items-center justify-center min-w-[1.25rem] h-5 px-1.5 rounded-full bg-yellow-400 text-yellow-950 text-xs font-semibold shrink-0">{{len $group.Pending}}</span>{{end}}
+    </button>
+    {{end}}
+  </div>
+
+  <!-- Middle: creative list for the selected site (one row per creative,
+       grouped by site). Fills height and scrolls internally. -->
+  <div class="w-72 shrink-0 space-y-1 overflow-y-auto min-h-0">
+    {{range $g, $group := .SiteGroups}}
+    <div data-group data-site="{{$group.Site.ID}}">
+      <div class="px-3 pt-3 pb-1 text-xs font-semibold text-gray-500 uppercase tracking-wide {{if $g}}mt-3 border-t{{end}}">
+        {{if $group.Site.Domain}}{{$group.Site.Domain}}{{else}}{{$group.Site.ID}}{{end}}
+      </div>
+      {{range $i, $c := $group.Pending}}
+      {{/* WaitingFor is the honest queue age (survives the core's TTL
+           purge/re-queue cycle) — surface it right in the row so stale
+           items are visible without opening the detail pane. */}}
+      {{$sub := printf "Max bid $%s" $c.CPM}}{{if $c.WaitingFor}}{{$sub = printf "%s · waiting %s" $sub $c.WaitingFor}}{{end}}
+      {{template "inbox-row" dict "Key" (printf "pending-%s-%d" $group.Site.ID $i) "State" "pending" "Ts" $c.CreatedAt "Cid" $c.CreativeID "Label" (or $c.LandingDomain (slice $c.CreativeID 0 16)) "Sub" $sub "Asset" $c.AssetURL "Pages" $c.PagesJSON "Search" (printf "%s %s %s %s %s" $c.AdvertiserID $c.CampaignID $c.LandingDomain $c.AdvertiserName $c.CampaignName)}}
+      {{end}}
+      {{range $i, $c := $group.Serving}}
+      {{$servSub := printf "Max bid $%s" $c.CPM}}{{if $c.Benched}}{{$servSub = printf "%s · benched" $servSub}}{{end}}
+      {{template "inbox-row" dict "Key" (printf "serving-%s-%d" $group.Site.ID $i) "State" "serving" "Ts" "" "Cid" $c.CreativeID "Label" (or $c.LandingDomain (slice $c.CreativeID 0 16)) "Sub" $servSub "Asset" $c.AssetURL "Pages" $c.PagesJSON "Search" (printf "%s %s %s %s %s" $c.AdvertiserID $c.CampaignID $c.LandingDomain $c.AdvertiserName $c.CampaignName)}}
+      {{end}}
+      {{range $i, $c := $group.Flagged}}
+      {{template "inbox-row" dict "Key" (printf "flagged-%s-%d" $group.Site.ID $i) "State" "flagged" "Ts" "" "Cid" $c.CreativeID "Label" (or $c.LandingDomain (slice $c.CreativeID 0 16)) "Sub" (printf "Max bid $%s" $c.CPM) "Asset" $c.AssetURL "Pages" $c.PagesJSON "Search" (printf "%s %s %s %s %s" $c.AdvertiserID $c.CampaignID $c.LandingDomain $c.AdvertiserName $c.CampaignName)}}
+      {{end}}
+    </div>
+    {{end}}
+  </div>
+
+  <!-- Right: detail panes (one per creative across all states) -->
+  <!-- Right: detail panes (one per creative). Scrolls internally so the
+       Approve/Decline row stays reachable without scrolling the whole page. -->
+  <div class="flex-1 min-h-0 overflow-y-auto">
+    {{range $g, $group := .SiteGroups}}
+    {{$site := (or $group.Site.Domain $group.Site.ID)}}
+
+    {{range $i, $c := $group.Pending}}
+    <div id="detail-pending-{{$group.Site.ID}}-{{$i}}" data-detail class="hidden">
+      <div class="bg-white rounded-lg border p-6">
+        {{template "preview-pane" dict "Pages" $c.PagesJSON "Config" $c.BannerConfigJSON "Landing" $c.LandingURL "Asset" $c.AssetURL "Width" $c.Width "Height" $c.Height "Site" $site "Badge" "Pending" "BadgeClass" "bg-amber-100 text-amber-700"}}
+        <div class="grid grid-cols-2 gap-4 text-sm mb-6">
+          <div><p class="text-gray-500">Advertiser</p><p class="font-medium" title="{{$c.AdvertiserID}}">{{if $c.AdvertiserName}}{{$c.AdvertiserName}}{{else}}&mdash;{{end}}</p></div>
+          <div><p class="text-gray-500">Campaign</p><p class="font-medium" title="{{$c.CampaignID}}">{{if $c.CampaignName}}{{$c.CampaignName}}{{else}}&mdash;{{end}}</p></div>
+          <div><p class="text-gray-500">Max Bid</p><p class="font-medium">${{$c.CPM}}</p></div>
+          <div><p class="text-gray-500">Landing Domain</p><p class="font-medium">{{if $c.LandingDomain}}{{$c.LandingDomain}}{{else}}&mdash;{{end}}</p></div>
+          {{/* Honest queue age — survives the pending row's TTL purge /
+               re-queue churn on the core, unlike the row's created time.
+               Re-queue wave count stays in the tooltip: telemetry, not a
+               headline number. */}}
+          <div><p class="text-gray-500">In review queue</p><p class="font-medium"{{if $c.RequeueCount}} title="survived {{$c.RequeueCount}} re-queue wave{{if ne $c.RequeueCount 1}}s{{end}} unreviewed"{{end}}>{{if $c.WaitingFor}}{{$c.WaitingFor}}{{else}}&mdash;{{end}}</p></div>
+        </div>
+        {{if $c.Placements}}
+        <div class="mb-6">
+          <h3 class="text-sm font-medium text-gray-700 mb-2">Seen on {{len $c.Placements}} placement{{if ne (len $c.Placements) 1}}s{{end}}</h3>
+          <div class="bg-gray-50 rounded-lg divide-y divide-gray-200 max-h-40 overflow-y-auto">
+            {{range $pi, $p := $c.Placements}}
+            <div class="px-3 py-2 flex items-center gap-3 text-sm">
+              <span class="text-gray-400 text-xs w-5 shrink-0">{{$pi}}.</span>
+              <div class="min-w-0 flex-1">
+                <p class="truncate text-gray-700">{{$p.URL}}</p>
+                <p class="text-xs text-gray-400">{{$p.SlotID}} &middot; Max bid ${{$p.CPM}}{{if $p.Filler}} &middot; <span class="text-amber-700">Filler</span>{{else if $p.CategoryName}} &middot; <span class="text-gray-600">{{$p.CategoryName}}</span>{{end}}</p>
+              </div>
+            </div>
+            {{end}}
+          </div>
+        </div>
+        {{end}}
+
+        <!-- Match reason. Uses the distinct-categories list built
+             server-side so the text honestly reflects the fact that
+             a single creative can win on pages with different IAB
+             classifications. Filler path gets its own copy because
+             the answer is "no contextual match — advertiser opted in
+             to unmatched traffic", not a topic classification. -->
+        {{if $c.Filler}}
+        <div class="bg-amber-50 rounded-lg p-3 mb-6 text-sm ring-1 ring-inset ring-amber-200">
+          <p class="font-medium text-amber-900 mb-1">Why this ad was matched</p>
+          <p class="text-amber-800">
+            {{- $cats := $c.DistinctCategoryNames -}}
+            {{- $n := len $c.Placements -}}
+            {{if gt (len $cats) 0}}
+              {{if eq $n 1}}Your page had{{else}}Some of the {{$n}} pages had{{end}} no contextual match against the current advertiser pool. This advertiser has opted in to bid on
+              <strong>unmatched-context</strong> traffic — on pages where we did find a match, the classification was
+              {{- range $i, $name := $cats -}}
+                {{if $i}},{{end}} <strong>{{$name}}</strong>
+              {{- end}}.
+            {{else}}
+              {{if eq $n 1}}Your page was{{else}}All {{$n}} pages were{{end}} classified as having
+              <strong>no contextual match</strong> against the current advertiser pool. This advertiser has explicitly opted in to bid on unmatched-context traffic.
+            {{end}}
+            {{if $c.AdProductCategory}} Advertiser's product category: <strong>{{$c.AdProductName}}</strong> ({{$c.AdProductCategory}}).{{end}}
+          </p>
+        </div>
+        {{else}}
+        <div class="bg-blue-50 rounded-lg p-3 mb-6 text-sm">
+          <p class="font-medium text-blue-800 mb-1">Why this ad was matched</p>
+          <p class="text-blue-700">
+            {{- $cats := $c.DistinctCategoryNames -}}
+            {{- $n := len $c.Placements -}}
+            {{if gt (len $cats) 1}}
+              Your pages were classified as
+              {{- range $i, $name := $cats -}}
+                {{if $i}},{{end}} <strong>{{$name}}</strong>
+              {{- end}}.
+            {{else if eq (len $cats) 1}}
+              {{if eq $n 1}}Your page was{{else}}All {{$n}} pages were{{end}} classified as <strong>{{index $cats 0}}</strong>.
+            {{else}}
+              Your page was classified as <strong>{{$c.CategoryName}}</strong> (ID: {{$c.Category}}).
+            {{end}}
+            {{if $c.AdProductCategory}}Advertiser's product: <strong>{{$c.AdProductName}}</strong> ({{$c.AdProductCategory}}). Targeting is set from the creative's landing-page content, and matched against your page's classification (directly or via a shared ancestor in the IAB Content Taxonomy 3.0 tree).{{end}}
+          </p>
+        </div>
+        {{end}}
+
+        <div class="flex gap-3 pt-4 border-t">
+          <form method="POST" action="/publisher/approval/approve" hx-post="/publisher/approval/approve" hx-swap="none" class="flex-1">
+            <input type="hidden" name="siteId" value="{{$c.SiteID}}">
+            {{if $c.Placements}}<input type="hidden" name="url" value="{{(index $c.Placements 0).URL}}"><input type="hidden" name="slot" value="{{(index $c.Placements 0).SlotID}}">{{end}}
+            <input type="hidden" name="creativeId" value="{{$c.CreativeID}}">
+            <button type="submit" class="btn btn-success w-full py-3">Approve</button>
+          </form>
+          <form method="POST" action="/publisher/approval/flag" hx-post="/publisher/approval/flag" hx-swap="none" class="flex-1">
+            <input type="hidden" name="siteId" value="{{$c.SiteID}}">
+            {{if $c.Placements}}<input type="hidden" name="url" value="{{(index $c.Placements 0).URL}}"><input type="hidden" name="slot" value="{{(index $c.Placements 0).SlotID}}">{{end}}
+            <input type="hidden" name="creativeId" value="{{$c.CreativeID}}">
+            <input type="hidden" name="reason" value="Not relevant to my content">
+            <button type="submit" class="btn btn-danger w-full py-3">Decline</button>
+          </form>
+        </div>
+      </div>
+    </div>
+    {{end}}
+
+    {{range $i, $c := $group.Serving}}
+    <div id="detail-serving-{{$group.Site.ID}}-{{$i}}" data-detail class="hidden">
+      <div class="bg-white rounded-lg border p-6">
+        {{$badge := "Serving"}}{{$badgeClass := "bg-green-100 text-green-700"}}
+        {{if $c.BelowFloor}}{{$badge = "Pin-only (below floor)"}}{{$badgeClass = "bg-amber-100 text-amber-700"}}{{end}}
+        {{/* Benched (budget/suspension) outranks the other states: the
+             creative is approved and in the pool but cannot deliver
+             until the blocker clears. */}}
+        {{if $c.Benched}}{{$badge = $c.Benched}}{{$badgeClass = "bg-gray-200 text-gray-600"}}{{end}}
+        {{template "preview-pane" dict "Pages" $c.PagesJSON "Config" $c.BannerConfigJSON "Landing" $c.LandingURL "Asset" $c.AssetURL "Width" $c.Width "Height" $c.Height "Site" $site "Badge" $badge "BadgeClass" $badgeClass}}
+        <div class="grid grid-cols-2 gap-4 text-sm mb-6">
+          <div><p class="text-gray-500">Advertiser</p><p class="font-medium" title="{{$c.AdvertiserID}}">{{if $c.AdvertiserName}}{{$c.AdvertiserName}}{{else}}&mdash;{{end}}</p></div>
+          <div><p class="text-gray-500">Campaign</p><p class="font-medium" title="{{$c.CampaignID}}">{{if $c.CampaignName}}{{$c.CampaignName}}{{else}}&mdash;{{end}}</p></div>
+          <div><p class="text-gray-500">Max Bid</p><p class="font-medium">${{$c.CPM}}{{if $c.BelowFloor}} <span class="text-amber-600 text-xs">(floor ${{$c.FloorCPM}})</span>{{end}}</p></div>
+          <div><p class="text-gray-500">Landing Domain</p><p class="font-medium">{{if $c.LandingDomain}}{{$c.LandingDomain}}{{else}}&mdash;{{end}}</p></div>
+        </div>
+        {{if $c.Placements}}
+        <div class="mb-6">
+          <h3 class="text-sm font-medium text-gray-700 mb-2">Delivered to {{len $c.Placements}} placement{{if ne (len $c.Placements) 1}}s{{end}} <span class="text-gray-400 font-normal">(last 24h)</span></h3>
+          <div class="bg-gray-50 rounded-lg divide-y divide-gray-200 max-h-40 overflow-y-auto">
+            {{range $pi, $p := $c.Placements}}
+            <div class="px-3 py-2 flex items-center gap-3 text-sm">
+              <span class="text-gray-400 text-xs w-5 shrink-0">{{$pi}}.</span>
+              <div class="min-w-0 flex-1">
+                <p class="truncate text-gray-700">{{$p.URL}}</p>
+                <p class="text-xs text-gray-400">{{$p.SlotID}} &middot; {{$p.Impressions}} imp{{if ne $p.Impressions 1}}s{{end}}{{if $p.CategoryName}} &middot; <span class="text-gray-600">{{$p.CategoryName}}</span>{{end}}</p>
+              </div>
+            </div>
+            {{end}}
+          </div>
+        </div>
+        {{else}}
+        <p class="mb-6 text-xs text-gray-400">No deliveries recorded in the last 24h.</p>
+        {{end}}
+        <div class="pt-4 border-t">
+          <form method="POST" action="/publisher/approval/revoke" hx-post="/publisher/approval/revoke" hx-swap="none">
+            <input type="hidden" name="siteId" value="{{$group.Site.ID}}">
+            <input type="hidden" name="creativeId" value="{{$c.CreativeID}}">
+            <button type="submit" class="btn btn-danger w-full py-3">Revoke</button>
+          </form>
+        </div>
+      </div>
+    </div>
+    {{end}}
+
+    {{range $i, $c := $group.Flagged}}
+    <div id="detail-flagged-{{$group.Site.ID}}-{{$i}}" data-detail class="hidden">
+      <div class="bg-white rounded-lg border p-6">
+        {{template "preview-pane" dict "Pages" $c.PagesJSON "Config" $c.BannerConfigJSON "Landing" $c.LandingURL "Asset" $c.AssetURL "Width" $c.Width "Height" $c.Height "Site" $site "Badge" "Flagged" "BadgeClass" "bg-amber-100 text-amber-700"}}
+        <div class="grid grid-cols-2 gap-4 text-sm mb-4">
+          <div><p class="text-gray-500">Advertiser</p><p class="font-medium" title="{{$c.AdvertiserID}}">{{if $c.AdvertiserName}}{{$c.AdvertiserName}}{{else}}&mdash;{{end}}</p></div>
+          <div><p class="text-gray-500">Campaign</p><p class="font-medium" title="{{$c.CampaignID}}">{{if $c.CampaignName}}{{$c.CampaignName}}{{else}}&mdash;{{end}}</p></div>
+          <div><p class="text-gray-500">Max Bid</p><p class="font-medium">${{$c.CPM}}</p></div>
+          <div><p class="text-gray-500">Landing Domain</p><p class="font-medium">{{if $c.LandingDomain}}{{$c.LandingDomain}}{{else}}&mdash;{{end}}</p></div>
+        </div>
+        {{if $c.Reason}}
+        <div class="bg-amber-50 rounded-lg p-3 mb-6 text-sm ring-1 ring-inset ring-amber-200">
+          <p class="font-medium text-amber-900 mb-1">Flag reason</p>
+          <p class="text-amber-800">{{$c.Reason}}</p>
+        </div>
+        {{end}}
+        <div class="pt-4 border-t">
+          <form method="POST" action="/publisher/approval/unflag" hx-post="/publisher/approval/unflag" hx-swap="none">
+            <input type="hidden" name="siteId" value="{{$group.Site.ID}}">
+            <input type="hidden" name="creativeId" value="{{$c.CreativeID}}">
+            <button type="submit" class="btn btn-primary w-full py-3">Unflag</button>
+          </form>
+        </div>
+      </div>
+    </div>
+    {{end}}
+
+    {{end}}
+  </div>
+</div>
+
+{{/* Full-size preview modal: the creative gets the whole viewport instead of
+     the shrunken detail pane. Filled on open by cloning the inline
+     <magazine-preview>'s attributes into a fresh element (fresh element =
+     fresh page-turn state), emptied on close so the component tears down. */}}
+<dialog id="previewDialog" class="rounded-2xl p-0 shadow-2xl backdrop:bg-black/60" style="width:min(1100px,95vw); max-height:96vh;">
+  <div class="p-3">
+    <div class="flex items-center justify-between mb-2">
+      <h3 class="text-sm font-semibold text-gray-700">Creative preview</h3>
+      <button type="button" onclick="document.getElementById('previewDialog').close()"
+              class="p-1.5 rounded-md text-gray-400 hover:text-gray-700 hover:bg-gray-100" title="Close">
+        <svg class="w-4 h-4" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" d="M6 18L18 6M6 6l12 12"/></svg>
+      </button>
+    </div>
+    <div id="previewDialogBody" class="bg-gray-50 rounded-lg p-2 flex justify-center overflow-y-auto" style="max-height:calc(96vh - 4.5rem);"></div>
+  </div>
+</dialog>
+<script>
+function openPreviewDialog(btn) {
+  // Pages JSON comes from the teaser banner inside the button (it's big,
+  // so it lives in the DOM once); config/landing ride the button's data-*.
+  const teaser = btn.querySelector('expandable-magazine-banner');
+  const dlg = document.getElementById('previewDialog');
+  if (!teaser || !dlg) return;
+  const el = document.createElement('magazine-preview');
+  el.setAttribute('pages', teaser.getAttribute('pages'));
+  if (btn.dataset.config) el.setAttribute('config', btn.dataset.config);
+  if (btn.dataset.landing) el.setAttribute('landing-url', btn.dataset.landing);
+  el.setAttribute('keep-frame', '1');
+  // Start on the ad-in-article view and tour the standard slot sizes
+  // every 5s (hover pauses; clicking the ad opens the reader and holds).
+  el.setAttribute('start-collapsed', '1');
+  el.setAttribute('slot-tour', '1');
+  document.getElementById('previewDialogBody').replaceChildren(el);
+  dlg.showModal();
+}
+document.getElementById('previewDialog').addEventListener('close', () => {
+  // Drop the component so its observers disconnect and playback stops.
+  document.getElementById('previewDialogBody').replaceChildren();
+});
+</script>
+{{end}}
+{{end}}
+
+{{/* A single list row (button) in the unified inbox. */}}
+{{define "inbox-row"}}
+<button onclick="openDetail('{{.Key}}', this)" data-inbox-item data-state="{{.State}}" data-ts="{{.Ts}}" data-cid="{{.Cid}}" data-search="{{.Search}}"
+        class="w-full text-left p-3 rounded-lg border transition-colors bg-white border-gray-200 hover:border-gray-300">
+  <div class="flex items-center gap-2">
+    {{if .Asset}}
+    <img src="{{.Asset}}" alt="" class="w-10 h-10 object-contain rounded bg-gray-50 shrink-0">
+    {{else if .Pages}}
+    <div class="w-10 h-10 rounded overflow-hidden bg-gray-50 shrink-0" style="pointer-events:none;">
+      <expandable-magazine-banner pages="{{.Pages}}" width="40" height="40" style="display:block;width:100%;height:100%;"></expandable-magazine-banner>
+    </div>
+    {{else}}
+    <div class="w-10 h-10 rounded bg-gray-100 shrink-0"></div>
+    {{end}}
+    <div class="min-w-0 flex-1">
+      <p class="text-sm font-medium truncate">{{.Label}}</p>
+      <p class="text-xs text-gray-500 mt-0.5 truncate">{{.Sub}}</p>
+    </div>
+    {{if eq .State "pending"}}<span class="shrink-0 w-2 h-2 rounded-full bg-yellow-400" title="Pending"></span>
+    {{else if eq .State "serving"}}<span class="shrink-0 w-2 h-2 rounded-full bg-green-500" title="Serving"></span>
+    {{else}}<span class="shrink-0 w-2 h-2 rounded-full bg-red-500" title="Flagged"></span>{{end}}
+  </div>
+</button>
+{{end}}
+
+{{/* The shared preview pane: site badge + state badge + <magazine-preview>
+     (or static fallback). Used by every state's detail. */}}
+{{define "preview-pane"}}
+<div class="mb-4 flex items-center gap-2">
+  <span class="badge badge-neutral">{{.Site}}</span>
+  <span class="badge {{.BadgeClass}}">{{.Badge}}</span>
+</div>
+{{if .Pages}}
+{{/* The detail pane is too narrow for the full simulated-page preview (two
+     fixed columns eat ~480px), so it shows only the COLLAPSED ad unit — the
+     strip a visitor actually sees first — and the real preview opens in a
+     full-width dialog. The big pages JSON lives once, on the teaser; the
+     dialog clones it from there. */}}
+<div class="bg-gray-50 rounded-lg p-4 mb-6 flex items-center justify-center" style="min-height:148px;">
+  {{/* The strip IS the button: clicking the collapsed unit opens the full
+       preview, mirroring how a visitor interacts with the real ad. The
+       inner banner is pointer-events-none so its own click-to-expand
+       never fires — the wrapper handles the click. */}}
+  <button type="button" onclick="openPreviewDialog(this)"
+          {{if .Config}}data-config="{{.Config}}"{{end}}{{if .Landing}} data-landing="{{.Landing}}"{{end}}
+          class="group relative block rounded-lg overflow-hidden ring-1 ring-gray-200 hover:ring-2 hover:ring-gray-500 transition"
+          style="width:320px;max-width:100%;height:100px;">
+    <div class="pointer-events-none w-full h-full">
+      <expandable-magazine-banner pages="{{.Pages}}" width="320" height="100" style="display:block;width:100%;height:100%;"></expandable-magazine-banner>
+    </div>
+    <span class="absolute bottom-1.5 left-1.5 inline-flex items-center gap-1.5 px-2 py-1 rounded bg-black/60 text-white text-xs font-medium opacity-80 group-hover:opacity-100">
+      <svg class="w-3.5 h-3.5" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" d="M4 8V4m0 0h4M4 4l5 5m11-1V4m0 0h-4m4 0l-5 5M4 16v4m0 0h4m-4 0l5-5m11 5l-5-5m5 5v-4m0 4h-4"/></svg>
+      Preview creative
+    </span>
+  </button>
+</div>
+{{else if .Asset}}
+<div class="bg-gray-50 rounded-lg p-4 flex items-center justify-center mb-6" style="min-height:250px;">
+  <img src="{{.Asset}}" alt="Creative preview" class="max-w-full max-h-[300px] object-contain rounded">
+</div>
+{{else}}
+<div class="bg-gray-50 rounded-lg p-4 flex items-center justify-center mb-6" style="min-height:250px;">
+  <div class="text-gray-400 text-sm">{{if .Width}}{{.Width}}{{else}}300{{end}} &times; {{if .Height}}{{.Height}}{{else}}250{{end}}</div>
+</div>
+{{end}}
+{{end}}

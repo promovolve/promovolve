@@ -1,0 +1,26 @@
+{
+  "name": "Thompson Sampling Test",
+  "description": "Single campaign with multiple creatives to test TS exploration",
+
+  "setup": {
+    "mode": "performance",
+    "advertisers": 1,
+    "campaignsPerAdvertiser": 1,
+    "creativesPerCampaign": 3,
+    "category": "ts-test",
+    "budget": 100.0,
+    "cpm": 5.0
+  },
+
+  "pacing": {
+    "dayDurationSeconds": 1800
+  },
+
+  "traffic": {
+    "continuous": true,
+    "reportEvery": 50,
+    "clickRate": 0.05,
+    "variableDelay": false,
+    "delayMs": 50
+  }
+}

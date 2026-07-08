@@ -1,0 +1,227 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>スポーツデイリー — 最新スポーツニュース</title>
+  <style>
+    *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+    body { font-family: 'Noto Serif JP', 'Yu Mincho', 'Hiragino Mincho ProN', Georgia, serif; color: #222; background: #f5f5f0; line-height: 1.8; }
+    a { color: #1a5276; text-decoration: none; }
+    a:hover { text-decoration: underline; }
+
+    /* Header */
+    .site-header { background: #0d1b2a; color: #fff; padding: 12px 0; }
+    .site-header .container { display: flex; align-items: center; justify-content: space-between; }
+    .site-title { font-size: 1.8rem; font-weight: bold; letter-spacing: -0.5px; }
+    .site-title a { color: #fff; }
+    .site-tagline { font-size: 0.85rem; color: #aaa; font-style: italic; }
+    nav { background: #1b2838; padding: 8px 0; }
+    nav ul { list-style: none; display: flex; gap: 24px; }
+    nav a { color: #ddd; font-size: 0.95rem; font-family: 'Noto Sans JP', 'Yu Gothic', 'Hiragino Sans', Arial, sans-serif; }
+    nav a:hover { color: #fff; text-decoration: none; }
+
+    .container { max-width: 1100px; margin: 0 auto; padding: 0 16px; }
+
+    /* Ad slots — responsive: fill container up to the declared creative size, preserving aspect */
+    .ad-slot { background: #e8e8e0; border: 1px dashed #bbb; display: flex; align-items: center; justify-content: center; color: #888; font-family: 'Noto Sans JP', 'Yu Gothic', 'Hiragino Sans', Arial, sans-serif; font-size: 0.8rem; text-transform: uppercase; letter-spacing: 1px; margin: 16px auto; width: 100%; }
+    .ad-slot[data-w="728"][data-h="90"]  { max-width: 728px; aspect-ratio: 728/90;  }
+    .ad-slot[data-w="970"][data-h="90"]  { max-width: 970px; aspect-ratio: 970/90;  }
+    .ad-slot[data-w="300"][data-h="250"] { max-width: 300px; aspect-ratio: 300/250; }
+    .ad-slot[data-w="336"][data-h="280"] { max-width: 336px; aspect-ratio: 336/280; }
+    .ad-slot[data-w="160"][data-h="600"] { max-width: 160px; aspect-ratio: 160/600; }
+    .ad-slot[data-w="320"][data-h="50"]  { max-width: 320px; aspect-ratio: 320/50;  }
+
+    /* Layout */
+    .page-body { display: flex; gap: 24px; padding: 24px 0; }
+    .main-content { flex: 1; min-width: 0; }
+    .sidebar { width: 300px; flex-shrink: 0; }
+
+    /* Mobile: stack sidebar below main content */
+    @media (max-width: 768px) {
+      .page-body { flex-direction: column; }
+      .sidebar { width: 100%; }
+      nav ul { flex-wrap: wrap; gap: 12px; }
+    }
+
+    /* Homepage sections */
+    .section-block { margin-bottom: 32px; }
+    .section-block h2 { font-size: 1.3rem; border-bottom: 2px solid #1a5276; padding-bottom: 4px; margin-bottom: 12px; color: #0d1b2a; }
+    .story-list { list-style: none; }
+    .story-list li { padding: 8px 0; border-bottom: 1px solid #ddd; }
+    .story-list li:last-child { border-bottom: none; }
+    .story-list .headline { font-size: 1.05rem; font-weight: bold; }
+    .story-list .summary { font-size: 0.9rem; color: #555; margin-top: 2px; }
+
+    .featured { background: #fff; padding: 20px; border: 1px solid #ddd; margin-bottom: 24px; }
+    .featured h2 { font-size: 1.6rem; margin-bottom: 8px; }
+    .featured p { color: #444; }
+
+    /* Footer */
+    .site-footer { background: #0d1b2a; color: #aaa; text-align: center; padding: 20px 0; font-size: 0.85rem; margin-top: 32px; }
+  </style>
+</head>
+<body>
+
+  <header class="site-header">
+    <div class="container">
+      <div>
+        <div class="site-title"><a href="index.html">スポーツデイリー</a></div>
+        <div class="site-tagline">最新スポーツニュース</div>
+      </div>
+    </div>
+  </header>
+
+  <nav>
+    <div class="container">
+      <ul>
+        <li><a href="index.html">ホーム</a></li>
+        <li><a href="yakyu/index.html">野球</a></li>
+        <li><a href="soccer/index.html">サッカー</a></li>
+        <li><a href="basketball/index.html">バスケットボール</a></li>
+        <li><a href="sports/index.html">スポーツ総合</a></li>
+        <li><a href="keiba/index.html">競馬</a></li>
+        <li><a href="esports/index.html">eスポーツ</a></li>
+        <li><a href="health/index.html">健康</a></li>
+        <li><a href="about.html">サイトについて</a></li>
+      </ul>
+    </div>
+  </nav>
+
+  <!-- Header Banner Ad -->
+  <div class="container">
+    <div class="ad-slot" data-promovolve-slot="01JPN0A10G5YSEXN85KM4AG86R" data-w="728" data-h="90">
+      Ad — 728×90
+    </div>
+  </div>
+
+  <div class="container">
+    <div class="page-body">
+      <main class="main-content">
+
+        <div class="featured">
+          <h2><a href="yakyu/ohtani.html">大谷翔平、50-50の歴史的シーズンを達成</a></h2>
+          <p>ロサンゼルス・ドジャースの大谷翔平選手が、MLB史上初となる1シーズン50本塁打・50盗塁の偉業を成し遂げた。二刀流の枠を超え、野球の歴史を塗り替える圧巻のパフォーマンスに世界中が注目している。</p>
+        </div>
+
+        <div class="section-block">
+          <h2><a href="yakyu/index.html">野球</a></h2>
+          <ul class="story-list">
+            <li>
+              <div class="headline"><a href="yakyu/ohtani.html">大谷翔平、50-50の歴史的シーズンを達成</a></div>
+              <div class="summary">MLB史上初の快挙。打撃と走塁の両面で圧倒的な成績を残した。</div>
+            </li>
+            <li>
+              <div class="headline"><a href="yakyu/nihon-series.html">日本シリーズ2024 — 激闘の記録</a></div>
+              <div class="summary">セ・パ両リーグの覇者が激突。手に汗握る名勝負の全容を振り返る。</div>
+            </li>
+          </ul>
+        </div>
+
+        <div class="section-block">
+          <h2><a href="soccer/index.html">サッカー</a></h2>
+          <ul class="story-list">
+            <li>
+              <div class="headline"><a href="soccer/jleague.html">Jリーグ2024シーズン総括</a></div>
+              <div class="summary">優勝争い、降格争い、注目選手の活躍を徹底レビュー。</div>
+            </li>
+            <li>
+              <div class="headline"><a href="soccer/worldcup.html">日本代表、W杯アジア最終予選を突破</a></div>
+              <div class="summary">森保ジャパンが本大会出場を決めた戦いの軌跡。</div>
+            </li>
+          </ul>
+        </div>
+
+        <div class="section-block">
+          <h2><a href="basketball/index.html">バスケットボール</a></h2>
+          <ul class="story-list">
+            <li>
+              <div class="headline"><a href="basketball/bleague.html">Bリーグ観客動員数が過去最高を記録</a></div>
+              <div class="summary">日本バスケットボール界の成長を象徴する記録的な観客数。</div>
+            </li>
+          </ul>
+        </div>
+
+        <div class="section-block">
+          <h2><a href="sports/index.html">スポーツ総合</a></h2>
+          <ul class="story-list">
+            <li>
+              <div class="headline"><a href="sports/yuushou.html">東京マラソン2024 — 日本記録更新の快挙</a></div>
+              <div class="summary">国内ランナーが歴史的な日本新記録を樹立した。</div>
+            </li>
+            <li>
+              <div class="headline"><a href="sports/idai-keiyaku.html">箱根駅伝の名勝負を振り返る</a></div>
+              <div class="summary">正月の風物詩、箱根駅伝の歴史に残る名場面を特集。</div>
+            </li>
+          </ul>
+        </div>
+
+        <div class="section-block">
+          <h2><a href="keiba/index.html">競馬</a></h2>
+          <ul class="story-list">
+            <li>
+              <div class="headline"><a href="keiba/arima.html">有馬記念2024 — ドウデュースが感動のラストラン</a></div>
+              <div class="summary">中山競馬場に集まった12万人のファンの前で、有終の美を飾った。</div>
+            </li>
+            <li>
+              <div class="headline"><a href="keiba/index.html">日本ダービーの歴史 — 90年の名勝負を振り返る</a></div>
+              <div class="summary">東京優駿の歴史に刻まれた伝説のレースを特集。</div>
+            </li>
+          </ul>
+        </div>
+
+        <div class="section-block">
+          <h2><a href="esports/index.html">eスポーツ</a></h2>
+          <ul class="story-list">
+            <li>
+              <div class="headline"><a href="esports/valorant.html">ZETA DIVISION、VALORANT Champions 2024で日本チーム最高成績</a></div>
+              <div class="summary">日本代表として世界大会に挑んだZETA DIVISIONの戦いを振り返る。</div>
+            </li>
+            <li>
+              <div class="headline"><a href="esports/index.html">LoLワールズ2024 — 日本リーグからの挑戦</a></div>
+              <div class="summary">LJLチームが世界最高峰の舞台で見せた成長と課題。</div>
+            </li>
+          </ul>
+        </div>
+
+        <div class="section-block">
+          <h2><a href="health/index.html">健康・フィットネス</a></h2>
+          <ul class="story-list">
+            <li>
+              <div class="headline"><a href="health/running.html">ランニング初心者が知るべき10のこと</a></div>
+              <div class="summary">シューズ選びからフォーム、栄養管理まで、初心者のための完全ガイド。</div>
+            </li>
+            <li>
+              <div class="headline"><a href="health/index.html">ヨガとストレッチの効果 — 柔軟性がもたらすパフォーマンス向上</a></div>
+              <div class="summary">アスリートも実践するヨガの科学的効果とおすすめポーズを紹介。</div>
+            </li>
+          </ul>
+        </div>
+
+      </main>
+
+      <aside class="sidebar">
+        <!-- Sidebar Rectangle Ad -->
+        <div class="ad-slot" data-promovolve-slot="01JPN0A10HHSY1W4QF4SEZ2XTR" data-w="300" data-h="250">
+          Ad — 300×250
+        </div>
+      </aside>
+    </div>
+  </div>
+
+  <!-- Footer Banner Ad -->
+  <div class="container">
+    <div class="ad-slot" data-promovolve-slot="01JPN0A10KNA4EHRWT3FTED91V" data-w="970" data-h="90">
+      Ad — 970×90
+    </div>
+  </div>
+
+  <footer class="site-footer">
+    <div class="container">
+      &copy; 2025 スポーツデイリー。無断転載禁止。テスト用の架空メディアです。
+    </div>
+  </footer>
+
+<script src="https://pub-7ab486148c8740dbb2cc31c5072eb91c.r2.dev/promovolve-ad.js" data-pub="sports-programmer-llc" data-api="https://ads.programmer.llc"></script>
+</body>
+</html>

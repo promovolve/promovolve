@@ -1,0 +1,26 @@
+{
+  "name": "Basic Test",
+  "description": "Simple single-advertiser test with moderate budget",
+
+  "setup": {
+    "mode": "pacing",
+    "advertisers": 1,
+    "campaignsPerAdvertiser": 1,
+    "creativesPerCampaign": 2,
+    "adProductCategory": "1529",
+    "additionalCategories": ["653", "654"],
+    "budget": 50.0,
+    "cpm": 5.0,
+    "userPoolSize": 100
+  },
+  "pacing": {
+    "dayDurationSeconds": 86400
+  },
+  "traffic": {
+    "maxRequests": 500,
+    "continuous": false,
+    "clickRate": 0.05,
+    "variableDelay": true,
+    "maxDelayMs": 300
+  }
+}

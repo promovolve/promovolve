@@ -1,0 +1,22 @@
+{
+  "name": "Quick Budget Exhaustion",
+  "description": "Low budget to quickly test exhaustion and re-auction behavior",
+
+  "setup": {
+    "categories": ["tech"],
+    "advertisersPerCategory": 2,
+    "budget": 1.0,
+    "cpm": 50.0,
+    "mixed": false
+  },
+  "pacing": {
+    "dayDurationSeconds": 60
+  },
+  "traffic": {
+    "maxRequests": 500,
+    "continuous": false,
+    "clickRate": 0.10,
+    "variableDelay": false,
+    "delayMs": 50
+  }
+}

@@ -1,0 +1,40 @@
+{
+  "name": "Weekend vs Weekday Traffic",
+  "description": "Different traffic shapes on weekdays vs weekends — tests floor agent adaptation to day-type variation over 14 simulated days",
+
+  "setup": {
+    "mode": "pacing",
+    "advertisers": 5,
+    "campaignsPerAdvertiser": 1,
+    "creativesPerCampaign": 2,
+    "adProductCategory": "1529",
+    "additionalCategories": ["653", "654", "655"],
+    "budget": 15.0,
+    "cpm": 5.0,
+    "cpms": [2.0, 4.0, 6.0, 8.0, 10.0],
+    "userPoolSize": 500
+  },
+  "pacing": {
+    "dayDurationSeconds": 300,
+    "weekdayShapeVolumes": [
+      0.3, 0.2, 0.1, 0.1, 0.2, 0.4,
+      0.8, 1.8, 2.5, 2.8, 2.5, 2.0,
+      1.5, 1.8, 2.2, 2.8, 3.0, 2.5,
+      2.0, 1.5, 1.0, 0.7, 0.5, 0.3
+    ],
+    "weekendShapeVolumes": [
+      0.3, 0.2, 0.2, 0.2, 0.2, 0.3,
+      0.5, 0.8, 1.2, 1.8, 2.2, 2.5,
+      2.5, 2.5, 2.2, 2.0, 1.8, 1.5,
+      1.2, 1.0, 0.8, 0.6, 0.4, 0.3
+    ]
+  },
+  "traffic": {
+    "continuous": true,
+    "reportEvery": 500,
+    "clickRate": 0.03,
+    "variableDelay": false,
+    "delayMs": 10,
+    "stopAfterDays": 14
+  }
+}

@@ -1,0 +1,30 @@
+api: http://localhost:8080
+siteUrl: http://localhost:8888
+publisher:
+  email: publisher@publisher.com
+  id: 01KS24PVA0P24SHA9Y1JFFRC6D
+site:
+  id: localhost-8888
+  domain: localhost:8888
+  seedUrl: http://localhost:8888/
+  slotId: slot-header
+  classification:
+    sports: 0.9
+    tech: 0.8
+advertiser:
+  email: advertiser@advertiser.com
+  id: 01KS24QN8SWSHV4Z68THF45BV5
+campaigns:
+- maxCpm: 5.0
+  id: 01KS24TDW3XQCDTJYVMEDK7S7E
+- maxCpm: 6.0
+  id: 01KS24W5R85943PM8DSTAA35Z6
+- maxCpm: 7.0
+  id: 01KS24X8JY50SD3KKWX62S0G2T
+- maxCpm: 8.0
+  id: 01KS24YMJVAHDR2S2GEHF92P3R
+- maxCpm: 9.0
+  id: 01KS24ZVF0YAKJXQ73K9R7T74V
+adProductCategory: '1512'
+budgetPerCampaign: '100'
+landingUrl: 'https://clubpilates.co.jp/studio/ootakanomori/'

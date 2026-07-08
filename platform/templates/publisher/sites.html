@@ -1,0 +1,438 @@
+{{define "content"}}
+<!-- Header -->
+<div class="flex items-center justify-between mb-6">
+  <div>
+    <h1 class="page-title">Sites</h1>
+    <p class="page-sub">{{len .SitesData}} registered{{if .SiteRequests}} · {{len .SiteRequests}} awaiting review{{end}}</p>
+  </div>
+  {{/* data-viewas-block: not a POST submit itself (just reveals the form),
+       so the read-only CSS needs the explicit mark. */}}
+  <button onclick="document.getElementById('add-site-form').classList.toggle('hidden')"
+          class="btn btn-primary" data-viewas-block>
+    Add Site
+  </button>
+</div>
+
+{{if .Error}}
+<div class="bg-red-50 border border-red-200 text-red-700 rounded-lg p-3 mb-6 text-sm">{{.Error}}</div>
+{{end}}
+
+<!-- Blocked advertiser domains (publisher-wide) -->
+<div class="bg-white p-4 rounded-lg border mb-6">
+  <h2 class="font-semibold mb-1">Blocked advertiser domains</h2>
+  <p class="text-xs text-gray-500 mb-3">Ads whose landing page is one of these domains won't serve on any of your sites.</p>
+  <div class="flex flex-wrap gap-2 mb-3">
+    {{range .BlockedAdvertiserDomains}}
+    <form method="POST" action="/publisher/unblock-advertiser-domain" class="badge badge-danger gap-1">
+      <input type="hidden" name="domain" value="{{.}}">
+      <span>{{.}}</span>
+      <button type="submit" title="Unblock" class="text-red-600 hover:text-red-900 font-bold">×</button>
+    </form>
+    {{end}}
+    {{if not .BlockedAdvertiserDomains}}<span class="text-sm text-gray-400">None blocked</span>{{end}}
+  </div>
+  <form method="POST" action="/publisher/block-advertiser-domain"
+        class="relative inline-flex items-center gap-1"
+        x-data="{ query: '', results: [], open: false }"
+        onclick="event.stopPropagation();">
+    <input type="text" name="domain" x-model="query"
+      @input="if (query.length > 0) {
+          fetch('/api/advertiser-domains?q=' + encodeURIComponent(query))
+            .then(r => r.json())
+            .then(d => { results = d.data || []; open = results.length > 0; });
+        } else { results = []; open = false; }"
+      @click.outside="open = false"
+      placeholder="Search advertiser domains to block"
+      autocomplete="off"
+      class="w-72 px-2 py-1 border rounded-md text-sm focus:outline-none focus:ring-2 focus:ring-brand/20 focus:border-brand">
+    <button type="submit" class="btn btn-danger btn-sm">Block</button>
+    <div x-show="open" x-transition
+      class="absolute top-full left-0 z-10 w-72 mt-1 bg-white border rounded-md shadow-lg max-h-48 overflow-y-auto">
+      <template x-for="d in results" :key="d">
+        <button type="button" @click="query = d; open = false;"
+          class="w-full text-left px-3 py-1.5 hover:bg-gray-50 text-sm" x-text="d"></button>
+      </template>
+    </div>
+  </form>
+</div>
+
+<!-- Add Site Form -->
+<div id="add-site-form" class="hidden bg-white p-6 rounded-lg border mb-6">
+  <h2 class="font-semibold mb-4">Add a Page to Monetize</h2>
+  <form method="POST" action="/publisher/sites/create">
+    <div class="mb-4">
+      <label class="form-label">Page URL</label>
+      <input type="url" name="pageUrl" placeholder="https://myblog.com/article" required
+             class="form-input">
+      <p class="text-xs text-gray-400 mt-1">
+        Pages are classified on-demand from real traffic — no crawl needed. Ad slots are discovered as the page serves.
+      </p>
+    </div>
+    <div class="flex justify-end gap-3 pt-4 border-t">
+      <button type="button" onclick="document.getElementById('add-site-form').classList.add('hidden')"
+              class="btn btn-secondary">Cancel</button>
+      <button type="submit"
+              class="btn btn-primary">Add Site</button>
+    </div>
+  </form>
+</div>
+
+<!-- Site requests awaiting / denied admin review (no core site exists yet) -->
+{{if .SiteRequests}}
+<div class="space-y-3 mb-3">
+  {{range .SiteRequests}}
+  <div class="bg-white rounded-lg border overflow-hidden">
+    <div class="p-4 flex items-center gap-4">
+      <div class="w-2 h-2 rounded-full shrink-0 {{if eq .Status "rejected"}}bg-red-500{{else}}bg-yellow-400{{end}}"></div>
+      <div class="flex-1 min-w-0">
+        <p class="font-medium">
+          {{.Domain}}
+          {{if eq .Status "rejected"}}
+          <span class="badge badge-danger ml-2">Denied</span>
+          {{else}}
+          <span class="badge badge-warning ml-2">Awaiting approval</span>
+          {{end}}
+        </p>
+        {{if eq .Status "rejected"}}
+        <p class="text-xs text-gray-500 mt-1">{{if .RejectReason}}Reason: {{.RejectReason}}{{else}}This site was not approved.{{end}}</p>
+        {{else}}
+        <p class="text-xs text-gray-500 mt-1">An admin must approve this site before you can verify it.</p>
+        {{end}}
+      </div>
+      <div class="text-xs text-gray-400 whitespace-nowrap">{{.RequestedAt}}</div>
+      {{if eq .Status "rejected"}}
+      <form method="POST" action="/publisher/sites/requests/{{.ID}}/delete"
+            onsubmit="return confirm('Delete the denied request for {{.Domain}}?')">
+        <button type="submit" class="text-sm text-red-600 hover:underline">Delete</button>
+      </form>
+      {{else}}
+      <form method="POST" action="/publisher/sites/requests/{{.ID}}/delete"
+            onsubmit="return confirm('Cancel the request for {{.Domain}}?')">
+        <button type="submit" class="text-sm text-gray-500 hover:underline">Cancel</button>
+      </form>
+      {{end}}
+    </div>
+  </div>
+  {{end}}
+</div>
+{{end}}
+
+<!-- Sites list -->
+{{if and (not .SitesData) (not .SiteRequests)}}
+<div class="flex flex-col items-center justify-center py-32 text-gray-400">
+  <p class="text-lg font-medium">No sites registered</p>
+  <p class="text-sm mt-2">Add your first page to start monetizing with ads</p>
+</div>
+{{else}}
+<div class="space-y-3">
+  {{range .SitesData}}
+  <div class="bg-white rounded-lg border overflow-hidden">
+    <!-- Collapsed row -->
+    <div class="p-4 flex items-center gap-4 cursor-pointer hover:bg-gray-50"
+         onclick="var detail=this.nextElementSibling;detail.classList.toggle('hidden');var chevron=this.querySelector('[data-chevron]');chevron.classList.toggle('rotate-180');">
+      <div class="w-2 h-2 rounded-full shrink-0 {{if eq .VerificationStatus "verified"}}bg-green-500{{else}}bg-yellow-400{{end}}"></div>
+      <div class="flex-1 min-w-0">
+        <p class="font-medium">
+          {{.Domain}}
+          {{if eq .VerificationStatus "verified"}}
+          <span class="badge badge-success ml-2">Verified</span>
+          {{else}}
+          <span class="badge badge-warning ml-2">Unverified</span>
+          {{end}}
+        </p>
+      </div>
+      <div class="text-sm text-gray-500">
+        {{if .SlotCount}}{{.SlotCount}} slot{{if ne .SlotCount 1}}s{{end}}{{else}}Auto-detect{{end}}
+      </div>
+      <div onclick="event.stopPropagation();">
+        {{if ne .VerificationStatus "verified"}}
+        <form method="POST" action="/publisher/sites/{{.ID}}/verify" onclick="event.stopPropagation();">
+          <button type="submit" class="text-sm text-amber-600 hover:underline">Verify</button>
+        </form>
+        {{end}}
+      </div>
+      <svg data-chevron class="w-4 h-4 text-gray-400 transition-transform" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 9l-7 7-7-7" />
+      </svg>
+    </div>
+
+    <!-- Expanded details -->
+    <div class="hidden border-t px-4 py-4 bg-gray-50">
+      <div class="grid grid-cols-2 gap-6 text-sm">
+        <div>
+          <p class="text-gray-500 text-xs uppercase mb-2">Classification</p>
+          <p class="text-gray-400">Pages classified on-demand from live traffic</p>
+        </div>
+        <div>
+          <p class="text-gray-500 text-xs uppercase mb-2">Categories</p>
+          {{if .Categories}}
+          <div class="flex flex-wrap gap-1">
+            {{range .Categories}}
+            <span class="badge badge-info">{{.}}</span>
+            {{end}}
+          </div>
+          {{else}}
+          <p class="text-gray-400">Auto-classified by LLM</p>
+          {{end}}
+        </div>
+      </div>
+      {{if ne .VerificationStatus "verified"}}
+      <div class="mt-4 pt-3 border-t">
+        <p class="text-sm font-medium text-amber-700 mb-2">Domain Verification Required</p>
+        <p class="text-xs text-gray-600 mb-3">
+          To prove you own <strong>{{.Domain}}</strong>, use <em>either</em> method below, then click Verify.
+          Ad serving is blocked until verification succeeds.
+        </p>
+        <div x-data="{ token: null, loading: false }" x-init="
+          loading = true;
+          fetch('/publisher/sites/{{.ID}}/verification-token')
+            .then(r => r.json())
+            .then(d => { token = d; loading = false; })
+            .catch(() => { loading = false; });
+        ">
+          <template x-if="loading">
+            <p class="text-xs text-gray-400">Loading token...</p>
+          </template>
+          <template x-if="token">
+            <div class="space-y-2">
+              {{/* Each value gets a clipboard button (mirrors the layout's
+                   copy-field partial, but x-text-bound so it must be inline).
+                   Nested x-data still sees the parent's `token`. */}}
+              <p class="text-xs font-semibold text-gray-600">Option A — host a file</p>
+              <div>
+                <p class="text-xs text-gray-500">File path:</p>
+                <div class="flex items-center gap-2" x-data="{ copied: false }">
+                  <code x-ref="val" class="flex-1 min-w-0 bg-gray-100 px-3 py-2 rounded text-xs font-mono break-all" x-text="token.fileUrl"></code>
+                  <button type="button" class="btn btn-secondary btn-sm shrink-0"
+                    @click.stop="navigator.clipboard.writeText($refs.val.textContent.trim()).then(() => { copied = true; setTimeout(() => copied = false, 1500) })"
+                    x-text="copied ? 'Copied ✓' : 'Copy'">Copy</button>
+                </div>
+              </div>
+              <div>
+                <p class="text-xs text-gray-500">File content:</p>
+                <div class="flex items-center gap-2" x-data="{ copied: false }">
+                  <code x-ref="val" class="flex-1 min-w-0 bg-gray-100 px-3 py-2 rounded text-xs font-mono break-all" x-text="token.fileContent"></code>
+                  <button type="button" class="btn btn-secondary btn-sm shrink-0"
+                    @click.stop="navigator.clipboard.writeText($refs.val.textContent.trim()).then(() => { copied = true; setTimeout(() => copied = false, 1500) })"
+                    x-text="copied ? 'Copied ✓' : 'Copy'">Copy</button>
+                </div>
+              </div>
+              <p class="text-xs font-semibold text-gray-600 pt-1">Option B — add a DNS TXT record</p>
+              <p class="text-xs text-gray-500">Use this if you can't host a file (e.g. hosted WordPress.com).</p>
+              <div>
+                <p class="text-xs text-gray-500">Record name (TXT):</p>
+                <div class="flex items-center gap-2" x-data="{ copied: false }">
+                  <code x-ref="val" class="flex-1 min-w-0 bg-gray-100 px-3 py-2 rounded text-xs font-mono break-all" x-text="token.dnsRecordName"></code>
+                  <button type="button" class="btn btn-secondary btn-sm shrink-0"
+                    @click.stop="navigator.clipboard.writeText($refs.val.textContent.trim()).then(() => { copied = true; setTimeout(() => copied = false, 1500) })"
+                    x-text="copied ? 'Copied ✓' : 'Copy'">Copy</button>
+                </div>
+              </div>
+              <div>
+                <p class="text-xs text-gray-500">Record value:</p>
+                <div class="flex items-center gap-2" x-data="{ copied: false }">
+                  <code x-ref="val" class="flex-1 min-w-0 bg-gray-100 px-3 py-2 rounded text-xs font-mono break-all" x-text="token.dnsRecordValue"></code>
+                  <button type="button" class="btn btn-secondary btn-sm shrink-0"
+                    @click.stop="navigator.clipboard.writeText($refs.val.textContent.trim()).then(() => { copied = true; setTimeout(() => copied = false, 1500) })"
+                    x-text="copied ? 'Copied ✓' : 'Copy'">Copy</button>
+                </div>
+              </div>
+              <form method="POST" action="/publisher/sites/{{.ID}}/verify" class="pt-2">
+                <button type="submit" class="btn btn-primary">
+                  Verify Now
+                </button>
+              </form>
+            </div>
+          </template>
+        </div>
+      </div>
+      {{end}}
+      <div class="mt-4 pt-3 border-t flex items-center justify-between gap-4 flex-wrap">
+        <p class="text-xs text-gray-400">Site ID: <span class="font-mono">{{.ID}}</span>
+          · <a href="/publisher/sites/{{.ID}}/observations" class="text-brand hover:underline" onclick="event.stopPropagation();">Floor decisions →</a>
+        </p>
+        <div class="flex flex-col gap-1">
+          {{/* The site-wide sweep is the FALLBACK layer: with per-category
+                floors enforced it only prices categories that have no
+                learned floor of their own. The manually-set Floor CPM is
+                just a startup default. */}}
+          <div class="flex items-center gap-2" title="The site-wide sweep's current floor. This is a fallback: it only prices categories without their own learned floor — see Floor decisions for the per-category floors that price your actual demand.">
+            <label class="text-xs text-gray-500">Fallback floor:</label>
+            {{if .OptimizedFloor}}
+              <span class="text-sm font-semibold text-green-700">{{.OptimizedFloor}}</span>
+              {{if .OptimizedFloorDelta}}
+                <span class="text-xs
+                  {{if eq .OptimizedFloorTrend "▲"}}text-green-600{{end}}
+                  {{if eq .OptimizedFloorTrend "▼"}}text-red-600{{end}}
+                  {{if eq .OptimizedFloorTrend "="}}text-gray-400{{end}}">
+                  {{.OptimizedFloorTrend}} {{.OptimizedFloorDelta}}
+                </span>
+              {{end}}
+            {{else}}
+              <span class="text-xs text-gray-400 italic">measuring…</span>
+            {{end}}
+          </div>
+          <div class="flex items-center gap-2" title="Manually-set fallback floor. The optimizer overrides this within seconds of starting. Treat as a startup default only.">
+            <label class="text-xs text-gray-400">Starting floor:</label>
+            <span class="text-xs text-gray-500">${{if .FloorCpm}}{{.FloorCpm}}{{else}}0.50{{end}}</span>
+          </div>
+        </div>
+        <form method="POST" action="/publisher/sites/min-floor" class="flex items-center gap-2" onclick="event.stopPropagation();">
+          <input type="hidden" name="siteId" value="{{.ID}}">
+          <label class="text-xs text-gray-500">Min Floor: $</label>
+          <input type="number" name="minFloorCpm" step="0.01" min="0.01" value="{{if .MinFloorCpm}}{{.MinFloorCpm}}{{else}}0.10{{end}}"
+                 class="w-20 px-2 py-1 border rounded-md text-sm focus:outline-none focus:ring-2 focus:ring-brand/20 focus:border-brand">
+          <button type="submit" class="btn btn-primary btn-sm">Set</button>
+        </form>
+        <form method="POST" action="/publisher/sites/bid-weight" class="flex items-center gap-2" onclick="event.stopPropagation();">
+          <input type="hidden" name="siteId" value="{{.ID}}">
+          <label class="text-xs text-gray-500">Ad Priority:</label>
+          <select name="bidWeight" onchange="this.form.submit()"
+                  class="px-2 py-1 border rounded-md text-xs focus:outline-none focus:ring-2 focus:ring-brand/20 focus:border-brand">
+            <option value="0.30" {{if eq .BidWeightLabel "Discovery"}}selected{{end}}>Discovery</option>
+            <option value="0.50" {{if eq .BidWeightLabel "Balanced"}}selected{{end}}>Balanced</option>
+            <option value="0.70" {{if eq .BidWeightLabel "Revenue"}}selected{{end}}>Revenue</option>
+          </select>
+        </form>
+        <form method="POST" action="/publisher/sites/filler-traffic" class="flex items-center gap-2" onclick="event.stopPropagation();"
+              title="When off, pages with no contextual match are dropped instead of going through the filler auction.">
+          <input type="hidden" name="siteId" value="{{.ID}}">
+          <label class="inline-flex items-center gap-1.5 text-xs text-gray-500 cursor-pointer">
+            <input type="checkbox" name="acceptsFillerTraffic" {{if .AcceptsFillerTraffic}}checked{{end}}
+                   onchange="this.form.submit()"
+                   class="rounded border-gray-300 text-brand focus:ring-brand">
+            Accept filler traffic
+          </label>
+        </form>
+      </div>
+      {{if .Slots}}
+      {{$siteID := .ID}}
+      <div class="mt-3 pt-3 border-t" onclick="event.stopPropagation();">
+        <details class="text-xs">
+          <summary class="cursor-pointer text-gray-600 hover:text-gray-900">
+            Slots ({{len .Slots}}) — admin floor overrides
+          </summary>
+          <p class="mt-1 mb-2 text-gray-400">
+            Per-slot floors are normally automatic (the slot quality prior scales the site floor by ±50% based on
+            slot position + viewability). Use this only to override. Edit any rows, then Save all once.
+            Leave a field blank to clear that slot's override.
+          </p>
+          <form method="POST" action="/publisher/sites/slot-floor"
+                hx-post="/publisher/sites/slot-floor" hx-swap="none"
+                hx-on::after-request="if(event.detail.successful){const s=this.querySelector('.save-status');s.textContent='Saved ✓';setTimeout(()=>{s.textContent=''},2000)}">
+          <input type="hidden" name="siteId" value="{{$siteID}}">
+          <table class="w-full text-xs">
+            <thead class="text-gray-500">
+              <tr>
+                <th class="text-left py-1 font-normal">Slot</th>
+                <th class="text-left py-1 font-normal">Size</th>
+                <th class="text-left py-1 font-normal" title="Top IAB content category of the page this slot was found on — determines which campaigns can bid">Matched Category</th>
+                <th class="text-left py-1 font-normal">Region</th>
+                <th class="text-left py-1 font-normal" title="Slot quality score, 0..1">Prior</th>
+                <th class="text-left py-1 font-normal">Override ($)</th>
+              </tr>
+            </thead>
+            <tbody>
+              {{range .Slots}}
+              <tr class="border-t border-gray-100">
+                <td class="py-1 font-mono">{{.SlotID}}</td>
+                <td class="py-1">{{.Width}}×{{.Height}}</td>
+                <td class="py-1">
+                  {{if .MatchedCategory}}
+                    {{if eq .MatchedCategory "Filler"}}
+                      <span class="badge badge-neutral">Filler</span>
+                    {{else}}
+                      <span class="badge badge-info">{{.MatchedCategory}}</span>
+                    {{end}}
+                  {{else}}
+                    <span class="text-gray-300" title="page not yet classified">—</span>
+                  {{end}}
+                </td>
+                <td class="py-1">
+                  {{if .HasPrior}}
+                    {{.PriorRegion}}{{if .PriorAboveFold}} · fold{{end}}
+                  {{else}}
+                    <span class="text-gray-300">—</span>
+                  {{end}}
+                </td>
+                <td class="py-1">
+                  {{if .HasPrior}}
+                    {{printf "%.2f" .PriorQualityScore}}
+                  {{else}}
+                    <span class="text-gray-300">—</span>
+                  {{end}}
+                </td>
+                <td class="py-1">
+                  <input type="hidden" name="slotId" value="{{.SlotID}}">
+                  <input type="number" name="floorCpm" step="0.01" min="0" value="{{.FloorOverride}}"
+                         placeholder="auto"
+                         class="w-20 px-2 py-0.5 border rounded-md text-xs focus:outline-none focus:ring-2 focus:ring-brand/20 focus:border-brand">
+                </td>
+              </tr>
+              {{end}}
+            </tbody>
+          </table>
+          <div class="mt-2 flex items-center gap-2">
+            <button type="submit" class="btn btn-primary btn-sm">Save all overrides</button>
+            <span class="save-status text-green-600 text-xs"></span>
+          </div>
+          </form>
+        </details>
+      </div>
+      {{end}}
+      <div class="mt-3 pt-3 border-t" onclick="event.stopPropagation();">
+        <div class="flex items-center gap-2 flex-wrap">
+          <label class="text-xs text-gray-500">Blocked Categories:</label>
+          {{range .BlockedCategories}}
+          <span class="badge badge-danger gap-1">
+            {{.}}
+            <form method="POST" action="/publisher/sites/unblock-ad-product" class="inline">
+              <input type="hidden" name="siteId" value="{{$.ID}}">
+              <input type="hidden" name="category" value="{{.}}">
+              <button type="submit" class="text-red-500 hover:text-red-700 font-bold">&times;</button>
+            </form>
+          </span>
+          {{end}}
+          <form method="POST" action="/publisher/sites/block-ad-product"
+                class="relative inline-flex items-center gap-1"
+                x-data="{ query: '', results: [], selectedId: '', open: false }"
+                onclick="event.stopPropagation();">
+            <input type="hidden" name="siteId" value="{{.ID}}">
+            <input type="hidden" name="category" :value="selectedId">
+            <input type="text" x-model="query"
+              @input="selectedId = '';
+                if (query.length > 0) {
+                  fetch('/api/taxonomy/ad-products?q=' + encodeURIComponent(query))
+                    .then(r => r.json())
+                    .then(d => { results = d.data || []; open = results.length > 0; });
+                } else { results = []; open = false; }"
+              @click.outside="open = false"
+              placeholder="Search categories to block"
+              autocomplete="off"
+              class="w-48 px-2 py-0.5 border rounded-md text-xs focus:outline-none focus:ring-2 focus:ring-brand/20 focus:border-brand">
+            <button type="submit" class="btn btn-danger btn-sm">Block</button>
+            <div x-show="open" x-transition
+              class="absolute top-full left-0 z-10 w-64 mt-1 bg-white border rounded-md shadow-lg max-h-48 overflow-y-auto">
+              <template x-for="cat in results" :key="cat.id">
+                <button type="button" @click="selectedId = cat.id; query = cat.name; open = false;"
+                  class="w-full text-left px-2 py-1 hover:bg-gray-50 text-xs">
+                  <span class="font-mono text-gray-400 mr-1" x-text="cat.id"></span><span x-text="cat.name"></span>
+                </button>
+              </template>
+            </div>
+          </form>
+        </div>
+      </div>
+      <div class="mt-3 pt-3 border-t flex items-center justify-between" onclick="event.stopPropagation();">
+        <p class="text-xs text-gray-400">Removing the site stops ad serving immediately. Earnings and delivery history are kept.</p>
+        <form method="POST" action="/publisher/sites/{{.ID}}/delete"
+              onsubmit="return confirm('Remove {{.Domain}}? Ad serving stops immediately and the site disappears from this list. Earnings and delivery history are kept. Re-adding it later goes through admin approval and domain verification again.')">
+          <button type="submit" class="text-sm text-red-600 hover:underline">Remove site</button>
+        </form>
+      </div>
+    </div>
+  </div>
+  {{end}}
+</div>
+{{end}}
+{{end}}

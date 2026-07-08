@@ -1,0 +1,104 @@
+{{define "content"}}
+<div class="max-w-4xl">
+  <h1 class="page-title">Earnings</h1>
+  <p class="page-sub">Settled earnings and payouts. The Stats page shows today's live revenue; the balance here is what has been settled and is owed to you.</p>
+
+  {{with .Earnings}}
+
+  <div class="grid grid-cols-3 gap-6 mt-6">
+    <div class="bg-white p-6 rounded-lg border" title="Settled net earnings not yet paid out">
+      <p class="text-sm text-gray-500">Balance owed</p>
+      <p class="text-3xl font-semibold mt-2">${{.Accrued}}</p>
+      <p class="text-xs text-gray-400 mt-1">settled through yesterday, after platform fee</p>
+    </div>
+    <div class="bg-white p-6 rounded-lg border">
+      <p class="text-sm text-gray-500">Lifetime paid</p>
+      <p class="text-3xl font-semibold mt-2">${{.LifetimePaid}}</p>
+    </div>
+  </div>
+
+  <!-- Payout history -->
+  <div class="card mt-6 p-0 overflow-x-auto">
+    <h2 class="font-semibold text-lg px-6 pt-6">Payouts</h2>
+    <table class="w-full text-sm mt-3">
+      <thead>
+        <tr class="border-b text-left text-gray-400">
+          <th class="px-6 py-2 font-medium">Created</th>
+          <th class="px-6 py-2 font-medium">Period</th>
+          <th class="px-6 py-2 font-medium">Status</th>
+          <th class="px-6 py-2 font-medium">Reference</th>
+          <th class="px-6 py-2 font-medium text-right">Amount</th>
+        </tr>
+      </thead>
+      <tbody>
+        {{range .Payouts}}
+        <tr class="border-b last:border-0">
+          <td class="px-6 py-2 text-gray-500 whitespace-nowrap">{{.Created}}</td>
+          <td class="px-6 py-2 text-gray-500">{{.Period}}</td>
+          <td class="px-6 py-2"><span class="badge {{.StatusBadge}}">{{.Status}}</span></td>
+          <td class="px-6 py-2 text-gray-500">{{.ExternalRef}}</td>
+          <td class="px-6 py-2 text-right font-medium">${{.Amount}}</td>
+        </tr>
+        {{else}}
+        <tr><td class="px-6 py-4 text-gray-400" colspan="5">No payouts yet — they appear once your settled balance passes your minimum payout.</td></tr>
+        {{end}}
+      </tbody>
+    </table>
+  </div>
+
+  <!-- Monthly earnings -->
+  <div class="card mt-6 p-0 overflow-x-auto">
+    <h2 class="font-semibold text-lg px-6 pt-6">Monthly earnings</h2>
+    <table class="w-full text-sm mt-3">
+      <thead>
+        <tr class="border-b text-left text-gray-400">
+          <th class="px-6 py-2 font-medium">Month</th>
+          <th class="px-6 py-2 font-medium">Impressions</th>
+          <th class="px-6 py-2 font-medium text-right">Gross</th>
+          <th class="px-6 py-2 font-medium text-right">Platform fee</th>
+          <th class="px-6 py-2 font-medium text-right">Net earned</th>
+        </tr>
+      </thead>
+      <tbody>
+        {{range .Months}}
+        <tr class="border-b last:border-0">
+          <td class="px-6 py-2 font-medium">{{.Month}}</td>
+          <td class="px-6 py-2 text-gray-500">{{.Impressions}}</td>
+          <td class="px-6 py-2 text-right text-gray-500">${{.Gross}}</td>
+          <td class="px-6 py-2 text-right text-gray-500">−${{.Fee}}</td>
+          <td class="px-6 py-2 text-right font-medium">${{.Net}}</td>
+        </tr>
+        {{else}}
+        <tr><td class="px-6 py-4 text-gray-400" colspan="5">Nothing settled yet.</td></tr>
+        {{end}}
+      </tbody>
+    </table>
+  </div>
+
+  <!-- Payout method -->
+  <div class="card mt-6">
+    <h2 class="font-semibold text-lg">Payout method</h2>
+    <p class="text-sm text-gray-500 mt-1">How the operator should pay you. Free-form — include whatever your bank or provider needs.</p>
+    <form method="POST" action="/publisher/payout-method" class="mt-4 space-y-4 max-w-xl">
+      <div class="flex gap-3">
+        <div>
+          <label class="form-label">Method</label>
+          <input name="method" class="form-input w-48" value="{{.Method}}" placeholder="bank transfer">
+        </div>
+        <div>
+          <label class="form-label">Minimum payout ($)</label>
+          <input name="minPayout" class="form-input w-36" value="{{.MinPayout}}">
+          <p class="form-hint">payouts are offered once your balance passes this — platform minimum ${{.PayoutFloor}}</p>
+        </div>
+      </div>
+      <div>
+        <label class="form-label">Details</label>
+        <textarea name="details" class="form-input" rows="3" placeholder="account holder, IBAN/account number, bank name…">{{.MethodDetails}}</textarea>
+      </div>
+      <button type="submit" class="btn btn-primary">Save payout method</button>
+    </form>
+  </div>
+
+  {{end}}
+</div>
+{{end}}

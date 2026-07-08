@@ -1,0 +1,27 @@
+# LoadBalancer — Docker Desktop binds it to localhost:8080 (works on the
+# multi-node kind cluster; verified). The platform BFF reaches it in-cluster
+# via CORE_API_URL=http://promovolve-api:8080, and the browser/banner/tracking
+# reach it at http://localhost:8080 (matches CDN_BASE_URL). No port-forward needed.
+apiVersion: v1
+kind: Service
+metadata:
+  name: promovolve-api
+spec:
+  type: LoadBalancer
+  # Pin each client (notably the single platform BFF pod) to one app pod so
+  # dashboard reads see their own writes and the SSE live-event stream stays
+  # attached to the pod producing events. Without this, the round-robin LB
+  # scatters a client's create/read/SSE across both pods → "had to refresh"
+  # and blank live-data publisher pages (events fire on the other pod).
+  # Browser ad-serve/tracking traffic (varied source IPs) still spreads.
+  sessionAffinity: ClientIP
+  sessionAffinityConfig:
+    clientIP:
+      timeoutSeconds: 10800
+  selector:
+    app: promovolve-api
+    tier: app           # app pods only — crawler-tier pods serve no HTTP
+  ports:
+    - name: http
+      port: 8080
+      targetPort: 8080

@@ -1,0 +1,110 @@
+{{define "content"}}
+<div class="max-w-5xl">
+  <h1 class="page-title">Users</h1>
+  <p class="page-sub">Every account on this platform, including past requests.</p>
+
+  {{if .Error}}
+  <div class="bg-red-50 border border-red-200 text-red-700 rounded-lg p-3 mt-6 text-sm">{{.Error}}</div>
+  {{end}}
+
+  {{if .RecoveryURL}}
+  <div class="bg-amber-50 border border-amber-200 rounded-lg p-4 mt-6 text-sm">
+    <p class="font-medium text-amber-800 mb-2">One-time recovery link for {{.RecoveryEmail}} — copy it now, it won't be shown again. Valid 72&nbsp;hours, single use.</p>
+    {{template "copy-field" .RecoveryURL}}
+  </div>
+  {{end}}
+
+  <form method="GET" action="/admin/users" class="flex items-end gap-3 mt-6">
+    <div>
+      <label class="form-label">Search</label>
+      <input name="q" value="{{.Query}}" class="form-input w-72" placeholder="email, name, company, or id">
+    </div>
+    <button type="submit" class="btn btn-secondary">Search</button>
+    {{if .Query}}<a href="/admin/users" class="text-sm text-brand hover:underline pb-2">clear</a>{{end}}
+  </form>
+
+  <div class="card mt-4 overflow-x-auto p-0">
+    <table class="w-full text-sm">
+      <thead>
+        <tr class="border-b text-left text-gray-400">
+          <th class="px-4 py-3 font-medium">Email</th>
+          <th class="px-4 py-3 font-medium">Name / company</th>
+          <th class="px-4 py-3 font-medium">Role</th>
+          <th class="px-4 py-3 font-medium">Org</th>
+          <th class="px-4 py-3 font-medium">Status</th>
+          <th class="px-4 py-3 font-medium">Passkeys</th>
+          <th class="px-4 py-3 font-medium">Created</th>
+          <th class="px-4 py-3"></th>
+        </tr>
+      </thead>
+      <tbody>
+        {{range .AdminUsers}}
+        <tr class="border-b last:border-0">
+          <td class="px-4 py-3">{{.Email}}</td>
+          <td class="px-4 py-3">{{.Display}}{{if and .Company (ne .Company .Display)}} <span class="text-gray-400">({{.Company}})</span>{{end}}</td>
+          <td class="px-4 py-3">
+            {{/* Org users: show the ORG's sides (what they can operate) —
+                 the row's requested-at-signup role is meaningless once an
+                 org holds both. Pending rows keep the requested role. */}}
+            {{if eq .Role "admin"}}admin
+            {{else if .OrgDomain}}
+              {{if .OrgAdvertiser}}<span class="badge badge-success">advertiser</span>{{end}}
+              {{if .OrgPublisher}}<span class="badge badge-info">publisher</span>{{end}}
+            {{else}}{{.Role}}{{if eq .Status "pending"}} <span class="text-gray-400">(requested)</span>{{end}}{{end}}
+          </td>
+          <td class="px-4 py-3">
+            {{if .OrgDomain}}@{{.OrgDomain}} <span class="badge {{if eq .OrgRole "admin"}}badge-info{{else}}badge-neutral{{end}}">{{.OrgRole}}</span>{{else}}<span class="text-gray-300">—</span>{{end}}
+          </td>
+          <td class="px-4 py-3">
+            <span class="badge {{if eq .Status "active"}}badge-success{{else if eq .Status "pending"}}badge-warning{{else}}badge-danger{{end}}">{{.Status}}</span>
+          </td>
+          <td class="px-4 py-3">{{.Passkeys}}</td>
+          <td class="px-4 py-3 text-gray-400">{{.CreatedAt}}</td>
+          <td class="px-4 py-3 text-right whitespace-nowrap">
+            {{if .CanViewAs}}
+            <form method="POST" action="/admin/view-as" class="inline">
+              <input type="hidden" name="userId" value="{{.ID}}">
+              <button type="submit" class="btn btn-secondary btn-sm" title="Open a read-only session as this user">View as</button>
+            </form>
+            {{end}}
+            {{if eq .Status "active"}}
+            <form method="POST" action="/admin/users/recovery-link" class="inline"
+              onsubmit="return confirm('Issue a one-time passkey recovery link for {{.Email}}?')">
+              <input type="hidden" name="userId" value="{{.ID}}">
+              <button type="submit" class="btn btn-secondary btn-sm">Recovery link</button>
+            </form>
+            {{end}}
+            {{if not .IsSelf}}
+            <form method="POST" action="/admin/users/delete" class="inline"
+              onsubmit="return confirm('Delete {{.Email}} permanently? Their passkeys go with them; if they are their org's last member the org is deleted too and the domain is freed.')">
+              <input type="hidden" name="userId" value="{{.ID}}">
+              <button type="submit" class="btn btn-danger btn-sm">Delete</button>
+            </form>
+            {{end}}
+          </td>
+        </tr>
+        {{end}}
+      </tbody>
+    </table>
+  </div>
+
+  {{template "list-pagination" .}}
+
+  <div class="card mt-6">
+    <h2 class="text-lg font-medium mb-1">Add a platform admin</h2>
+    <p class="text-sm text-gray-500 mb-4">Creates another operator account and a one-time link for them to register their own passkey. Operators have full platform access — add people you trust with the money pages.</p>
+    <form method="POST" action="/admin/users/invite-admin" class="flex flex-wrap items-end gap-3"
+      onsubmit="return confirm('Add ' + this.email.value + ' as a platform admin with full operator access?')">
+      <div>
+        <label class="form-label">Email</label>
+        <input name="email" type="email" required class="form-input w-72" placeholder="colleague@yourcompany.com">
+      </div>
+      <div>
+        <label class="form-label">Name <span class="text-gray-400">(optional)</span></label>
+        <input name="displayName" class="form-input w-56">
+      </div>
+      <button type="submit" class="btn btn-primary">Create admin invite</button>
+    </form>
+  </div>
+</div>
+{{end}}

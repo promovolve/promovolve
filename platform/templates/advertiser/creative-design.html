@@ -1,0 +1,36 @@
+{{define "creative-design.html"}}<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<title>Design — {{.CreativeName}}</title>
+<script src="{{.BannerScriptURL}}"></script>
+<script>
+  // Context for the TypeScript designer (platform/creative-designer).
+  // The designer reads this on boot and mounts itself into <body>.
+  window.__DESIGNER__ = {
+    campaignId: {{.CampaignID}},
+    landingUrl: {{.LandingURL}},
+    creativeName: {{.CreativeName}},
+    bannerSize: {{.BannerSize}},
+    bannerScriptUrl: {{.BannerScriptURL}},
+    creativeId: {{.CreativeID}},
+    lpTextSnapshot: {{.LPTextSnapshot}},
+    pages: {{.PagesJSON}},
+    // Pre-generation choices from the LP-to-Creative first step.
+    // brandKitJson is a serialized {name, colors[], fonts[]} object
+    // (or empty); templateId is one of the catalog ids served by
+    // /v1/layout-templates (or empty). Designer's auto-layout call
+    // threads both into the Gemini prompt so generated layouts
+    // respect them.
+    brandKitJson: {{.BrandKitJSON}},
+    templateId: {{.TemplateID}}
+  };
+</script>
+<script src="{{asset "creative-designer.js"}}" defer></script>
+<style>
+  html, body { margin: 0; padding: 0; height: 100%; background: #0a0a0b; }
+</style>
+</head>
+<body></body>
+</html>
+{{end}}

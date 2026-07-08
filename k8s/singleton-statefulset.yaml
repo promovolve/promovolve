@@ -1,0 +1,156 @@
+# promovolve.api.Main — DEDICATED cluster-singleton tier (roles: singleton,
+# entity). ONE replica. This pod is the stable home for the cluster singletons
+# (CampaignDirectory, CategoryRegistry, Gemini rate limiter). It joins the SAME
+# cluster as the api + crawler tiers (shared discovery label app=promovolve-api),
+# but because it carries the only "singleton" role and is a separate workload,
+# rolling the api/crawler tiers does NOT migrate the singletons — which is the
+# whole point: campaign→directory registration no longer hits a singleton-in-
+# handover timeout window on ordinary deploys.
+#
+# It also keeps the "entity" role (hosts shards), so entity-role nodes =
+# 1 (here) + 2 (api) = 3 — an ODD count, preserving the split-brain quorum.
+# It does NOT carry the "api" role, so it runs no HTTP server and the
+# promovolve-api Service (selector tier=app) never routes traffic here.
+#
+# StatefulSet (not Deployment): stable identity + its own durable DData (LMDB)
+# PVC, mirroring the entity tier.
+apiVersion: apps/v1
+kind: StatefulSet
+metadata:
+  name: promovolve-singleton
+spec:
+  serviceName: promovolve-singleton
+  # CONSOLIDATED (2026-07-02): the singleton role now runs on the api pods
+  # (application-app.conf) — the CampaignDirectory robustness fix (371e058b)
+  # made singleton migration on api rolls a self-healing blip, so this tier's
+  # cost (a 3rd JVM on the shared dev VM) outweighed its benefit there.
+  # Kept at 0 as the REAL-INFRA option: scale to 1 + drop "singleton" from
+  # application-app.conf roles for a stable singleton home + odd entity count.
+  replicas: 0
+  podManagementPolicy: Parallel
+  selector:
+    matchLabels:
+      app: promovolve-api
+      tier: singleton
+  template:
+    metadata:
+      labels:
+        app: promovolve-api   # shared discovery label (joins the ONE cluster)
+        tier: singleton       # distinguishes from app/crawler tiers
+    spec:
+      serviceAccountName: promovolve-api
+      imagePullSecrets:
+        - name: regcred
+      # SOFT anti-affinity: prefer a node without an api/singleton pod so a
+      # single node loss doesn't take the singleton + an entity pod together.
+      # Soft (not hard) so it still schedules on a small cluster rather than
+      # going Pending.
+      affinity:
+        podAntiAffinity:
+          preferredDuringSchedulingIgnoredDuringExecution:
+            - weight: 100
+              podAffinityTerm:
+                topologyKey: kubernetes.io/hostname
+                labelSelector:
+                  matchExpressions:
+                    - key: tier
+                      operator: In
+                      values: ["app", "singleton"]
+      containers:
+        - name: singleton
+          image: promovolve/api:dev
+          imagePullPolicy: Always
+          ports:
+            - name: management
+              containerPort: 8558
+            - name: remoting
+              containerPort: 25520
+          env:
+            # Mounted config overlay sets roles=[singleton,entity] as a real
+            # HOCON list + clears seed-nodes for Cluster Bootstrap discovery.
+            # Bootstrap + sharding timings mirror api-statefulset.yaml (relaxed
+            # for this unreserved Docker-Desktop/kind cluster).
+            # Heap + GC visibility — see api-statefulset.yaml.
+            - name: JAVA_TOOL_OPTIONS
+              value: >-
+                -Dconfig.file=/conf/application-singleton.conf
+                -Dlogback.configurationFile=/conf/logback-debug.xml
+                -XX:MaxRAMPercentage=50
+                -Dpekko.cluster.shutdown-after-unsuccessful-join-seed-nodes=120s
+                -Dpekko.management.cluster.bootstrap.contact-point.probing-failure-timeout=30s
+                -Dpekko.management.cluster.bootstrap.contact-point.probe-interval=2s
+                -Dpekko.management.cluster.bootstrap.contact-point-discovery.stable-margin=10s
+                -Dpekko.cluster.sharding.waiting-for-state-timeout=10s
+                -Dpekko.cluster.sharding.distributed-data.majority-min-cap=2
+            # Un-mute Pekko's cluster/SBR/shutdown logging (gated by
+            # pekko.loglevel=ERROR, NOT by logback — see api-statefulset.yaml).
+            - name: LOG_LEVEL
+              value: "INFO"
+            - name: POD_IP
+              valueFrom:
+                fieldRef:
+                  fieldPath: status.podIP
+            - name: PEKKO_HOST
+              value: "$(POD_IP)"
+            - name: PEKKO_BIND_HOST
+              value: "0.0.0.0"
+            - name: PEKKO_MGMT_HOST
+              value: "$(POD_IP)"
+            - name: PEKKO_CLUSTER_BOOTSTRAP
+              value: "on"
+            # No "api" role → no HTTP server here. Chromium isn't used (no
+            # crawler role), but the flag is harmless.
+            - name: CHROMIUM_NO_SANDBOX
+              value: "true"
+            - name: DDATA_DIR
+              value: /data/ddata
+          envFrom:
+            - configMapRef:
+                name: api-config
+            - secretRef:
+                name: api-secret
+          volumeMounts:
+            - name: ddata
+              mountPath: /data
+            - name: singleton-conf
+              mountPath: /conf
+              readOnly: true
+          startupProbe:
+            # /alive, NOT /ready — don't kill a JVM mid-rejoin (see
+            # api-statefulset.yaml).
+            httpGet:
+              path: /alive
+              port: management
+            periodSeconds: 5
+            failureThreshold: 90
+          readinessProbe:
+            httpGet:
+              path: /ready
+              port: management
+            periodSeconds: 10
+            timeoutSeconds: 5
+          livenessProbe:
+            httpGet:
+              path: /alive
+              port: management
+            periodSeconds: 15
+            timeoutSeconds: 5
+            failureThreshold: 6
+          resources:
+            requests:
+              cpu: "1000m"
+              memory: 1024Mi
+            limits:
+              memory: 2048Mi
+      volumes:
+        - name: singleton-conf
+          configMap:
+            name: singleton-conf
+  volumeClaimTemplates:
+    - metadata:
+        name: ddata
+      spec:
+        accessModes: ["ReadWriteOnce"]
+        resources:
+          requests:
+            storage: 2Gi

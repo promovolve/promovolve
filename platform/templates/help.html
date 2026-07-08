@@ -1,0 +1,17 @@
+{{define "content"}}
+<div class="max-w-5xl flex gap-8 items-start">
+  <div class="card flex-1 min-w-0">
+    <article class="prose-doc">{{.HelpHTML}}</article>
+  </div>
+  {{if .HelpTOC}}
+  <nav class="w-56 shrink-0 sticky top-8 hidden lg:block">
+    <p class="text-xs font-semibold text-gray-400 uppercase tracking-wide mb-2">On this page</p>
+    <ul class="space-y-1 border-l pl-3">
+      {{range .HelpTOC}}
+      <li><a href="#{{.ID}}" class="text-sm text-gray-500 hover:text-gray-900">{{.Title}}</a></li>
+      {{end}}
+    </ul>
+  </nav>
+  {{end}}
+</div>
+{{end}}

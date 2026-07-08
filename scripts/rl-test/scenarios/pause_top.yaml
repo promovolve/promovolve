@@ -1,0 +1,29 @@
+# Non-stationary downward case: same $2-$10 diverse market, but the top
+# bidder ($10) is paused at minute 12. The agent should walk the floor
+# *down* from its converged value (~$8 in the static case) to a lower
+# cliff somewhere around $6 — the new second-highest bid after the $10
+# bidder disappears. Tests the responsive side of non-stationarity.
+#
+# Combined with coldStart: heavy + reset so the agent has fresh ε to
+# discover the original $8 cliff before the pause event hits.
+name: pause_top
+durationSeconds: 1800              # 30 min: 12 min to find $8, 18 min to react
+pollIntervalSeconds: 5
+
+site:
+  initialFloorCpm: 5.0
+  minFloorCpm: 5.0
+  bidWeight: 0.5
+  pacingDayDurationSeconds: 300
+  resetFloorAgent: true
+
+traffic:
+  workers: 4
+  intervalSeconds: 1
+  ctr: 0.10
+
+events:
+  - atSeconds: 720                 # min 12 — well after the agent should have found ~$8
+    action: pauseCampaign
+    advertiserId: 01KRXB99E0H50RMPTPXDFAVJST
+    campaignId:   01KRXBC1HR1FD696E453SX83MB    # the $10 top bidder

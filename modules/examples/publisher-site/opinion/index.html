@@ -1,0 +1,105 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <base href="/opinion/">
+  <title>Opinion — The Daily Beacon</title>
+  <style>
+    *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+    body { font-family: Georgia, 'Times New Roman', serif; color: #222; background: #f5f5f0; line-height: 1.6; }
+    a { color: #1a5276; text-decoration: none; }
+    a:hover { text-decoration: underline; }
+    .site-header { background: #1a1a2e; color: #fff; padding: 12px 0; }
+    .site-header .container { display: flex; align-items: center; justify-content: space-between; }
+    .site-title { font-size: 1.8rem; font-weight: bold; letter-spacing: -0.5px; }
+    .site-title a { color: #fff; }
+    .site-tagline { font-size: 0.85rem; color: #aaa; font-style: italic; }
+    nav { background: #16213e; padding: 8px 0; }
+    nav ul { list-style: none; display: flex; gap: 24px; }
+    nav a { color: #ddd; font-size: 0.95rem; font-family: Arial, sans-serif; }
+    nav a:hover { color: #fff; text-decoration: none; }
+    .container { max-width: 1100px; margin: 0 auto; padding: 0 16px; }
+    .ad-slot { background: #e8e8e0; border: 1px dashed #bbb; display: flex; align-items: center; justify-content: center; color: #888; font-family: Arial, sans-serif; font-size: 0.8rem; text-transform: uppercase; letter-spacing: 1px; margin: 16px auto; width: 100%; }
+    .ad-slot[data-ad-width="728"][data-ad-height="90"]  { max-width: 728px; aspect-ratio: 728/90;  }
+    .ad-slot[data-ad-width="970"][data-ad-height="90"]  { max-width: 970px; aspect-ratio: 970/90;  }
+    .ad-slot[data-ad-width="300"][data-ad-height="250"] { max-width: 300px; aspect-ratio: 300/250; }
+    .ad-slot[data-ad-width="300"][data-ad-height="600"] { max-width: 300px; aspect-ratio: 300/600; }
+    .ad-slot[data-ad-width="336"][data-ad-height="280"] { max-width: 336px; aspect-ratio: 336/280; }
+    .ad-slot[data-ad-width="160"][data-ad-height="600"] { max-width: 160px; aspect-ratio: 160/600; }
+    .ad-slot[data-ad-width="320"][data-ad-height="50"]  { max-width: 320px; aspect-ratio: 320/50;  }
+    .page-body { display: flex; gap: 24px; padding: 24px 0; }
+    .main-content { flex: 1; min-width: 0; }
+    .sidebar { width: 300px; flex-shrink: 0; }
+
+    /* Mobile: stack sidebar below main content */
+    @media (max-width: 768px) {
+      .page-body { flex-direction: column; }
+      .sidebar { width: 100%; }
+      nav ul { flex-wrap: wrap; gap: 12px; }
+    }
+    .section-heading { font-size: 1.8rem; color: #1a1a2e; border-bottom: 3px solid #8e44ad; padding-bottom: 8px; margin-bottom: 20px; }
+    .story-card { background: #fff; padding: 16px; border: 1px solid #ddd; margin-bottom: 16px; }
+    .story-card h3 { font-size: 1.2rem; margin-bottom: 6px; }
+    .story-card p { color: #555; font-size: 0.95rem; }
+    .site-footer { background: #1a1a2e; color: #aaa; text-align: center; padding: 20px 0; font-size: 0.85rem; margin-top: 32px; }
+  </style>
+</head>
+<body>
+
+  <header class="site-header">
+    <div class="container">
+      <div>
+        <div class="site-title"><a href="../index.html">The Daily Beacon</a></div>
+        <div class="site-tagline">Illuminating the news that matters</div>
+      </div>
+    </div>
+  </header>
+
+  <nav>
+    <div class="container">
+      <ul>
+        <li><a href="../index.html">Home</a></li>
+        <li><a href="../politics/index.html">Politics</a></li>
+        <li><a href="../sports/index.html">Sports</a></li>
+        <li><a href="../technology/index.html">Technology</a></li>
+        <li><a href="../opinion/index.html">Opinion</a></li>
+        <li><a href="../about.html">About</a></li>
+      </ul>
+    </div>
+  </nav>
+
+  <div class="container">
+    <div class="ad-slot" data-ad-slot="01JPN0A10G5YSEXN85KM4AG86R" data-ad-width="728" data-ad-height="90">
+      Ad — 728×90
+    </div>
+  </div>
+
+  <div class="container">
+    <div class="page-body">
+      <main class="main-content">
+        <h1 class="section-heading">Opinion</h1>
+
+        <div class="story-card">
+          <h3><a href="editorial.html">Editorial: The Case for Civic Engagement in Local Government</a></h3>
+          <p>While national politics dominates headlines and social media feeds, it is at the local level where government decisions most directly affect the daily lives of citizens. From zoning regulations that shape neighborhoods to school board policies that determine the quality of education, municipal governance touches every aspect of community life. Yet voter turnout in local elections consistently lags far behind participation in national contests.</p>
+        </div>
+      </main>
+
+      <aside class="sidebar">
+        <div class="ad-slot" data-ad-slot="01JPN0A10HHSY1W4QF4SEZ2XTR" data-ad-width="300" data-ad-height="250">
+          Ad — 300×250
+        </div>
+      </aside>
+    </div>
+  </div>
+
+  <footer class="site-footer">
+    <div class="container">
+      &copy; 2025 The Daily Beacon. All rights reserved. A fictitious publication for testing purposes.
+    </div>
+  </footer>
+
+<script src="/promovolve-ad.js?v=7" data-pub="192-168-86-242-8888"></script>
+</body>
+</html>

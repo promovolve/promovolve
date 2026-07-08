@@ -1,0 +1,56 @@
+# Sweep optimizer + responsive bidders, tight bid cluster ($5–$9).
+#
+# All 4 lower bidders raise their maxCpm when they go silent. Top
+# bidder ($9) stays static — it's the price-setter via second-price
+# clearing. As lower bidders climb past the floor, the inflection
+# point moves up too, and the sweep's argmax should drift higher
+# over the course of the run.
+#
+# Compared to the wide-cluster scenario (responsive_sweep_bidders.yaml),
+# this version starts at a tighter spread so the optimum is more
+# concretely visible from cycle 1 onward.
+#
+# Bidders are referenced by maxCpm handle (resolved against the
+# fixture YAML at runtime) rather than by hardcoded campaign ULID.
+#
+# Cluster prerequisite:
+#   ./scripts/run-dev.sh
+name: responsive_sweep_tight
+durationSeconds: 1800               # 30 min — long enough for ~5 sweep cycles + drift
+pollIntervalSeconds: 5
+
+site:
+  initialFloorCpm: 5.0
+  minFloorCpm: 1.0
+  bidWeight: 0.5
+  pacingDayDurationSeconds: 300
+
+traffic:
+  workers: 16                        # match the manual-test setup for signal density
+  intervalSeconds: 0.25              # 64 req/sec aggregate
+  ctr: 0.10
+
+events: []
+
+floorStrategy:
+  kind: sweep
+
+bidderResponse:
+  checkIntervalSeconds: 30
+  silenceWindows: 3                  # 90s silence before raising
+  # Bidders identified by maxCpm — resolved against fixtures/dev.yaml at
+  # runtime so the scenario survives campaign-ID changes. $9 (top bidder)
+  # intentionally omitted; it would walk up indefinitely if responsive.
+  campaigns:
+    - maxCpm:        5.0
+      raiseStep:     0.5
+      ceiling:       30.0
+    - maxCpm:        6.0
+      raiseStep:     0.5
+      ceiling:       30.0
+    - maxCpm:        7.0
+      raiseStep:     0.5
+      ceiling:       30.0
+    - maxCpm:        8.0
+      raiseStep:     0.5
+      ceiling:       30.0

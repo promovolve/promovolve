@@ -1,0 +1,36 @@
+services:
+  app:
+    build: .
+    container_name: promovolve-app
+    ports:
+      - "9090:9090"  # Creative Assessment UI
+    environment:
+      - GEMINI_API_KEY=${GEMINI_API_KEY}
+      - POSTGRES_HOST=postgres
+      - POSTGRES_USER=promovolve
+      - POSTGRES_PASSWORD=promovolve
+      - POSTGRES_DB=promovolve
+    depends_on:
+      postgres:
+        condition: service_healthy
+
+  postgres:
+    image: timescale/timescaledb:latest-pg15
+    container_name: promovolve-db
+    environment:
+      POSTGRES_USER: promovolve
+      POSTGRES_PASSWORD: promovolve
+      POSTGRES_DB: promovolve
+    ports:
+      - "5432:5432"
+    volumes:
+      - postgres_data:/var/lib/postgresql/data
+      - ./docker/init-db.sql:/docker-entrypoint-initdb.d/init.sql:ro
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U promovolve -d promovolve"]
+      interval: 5s
+      timeout: 5s
+      retries: 5
+
+volumes:
+  postgres_data:

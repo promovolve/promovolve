@@ -1,0 +1,72 @@
+# TimescaleDB is load-bearing: docker/init-db.sql creates hypertables
+# (tracking_events, floor_decisions) with retention + compression
+# policies, and the Thompson-Sampling read-side queries the
+# tracking_events hypertable. So this is the timescale image, run as a
+# StatefulSet (stable identity + a PVC that always reattaches the same
+# disk) — never a Deployment.
+apiVersion: apps/v1
+kind: StatefulSet
+metadata:
+  name: promovolve-db
+spec:
+  serviceName: promovolve-db
+  replicas: 1
+  selector:
+    matchLabels:
+      app: promovolve-db
+  template:
+    metadata:
+      labels:
+        app: promovolve-db
+    spec:
+      containers:
+        - name: timescaledb
+          image: timescale/timescaledb:2.17.2-pg15
+          # Each api replica opens ~4 slick pools (durable-state, snapshot,
+          # projection-offset, dashboard-projection) at up to 20 conns each,
+          # so the 3-pod entity tier + 2 crawlers + platform overrun the
+          # image-default max_connections (~100) → "FATAL: sorry, too many
+          # clients already" and entity recovery times out. Raise the ceiling
+          # (command-line -c overrides the tuned postgresql.conf).
+          args: ["-c", "max_connections=300"]
+          ports:
+            - name: postgres
+              containerPort: 5432
+          envFrom:
+            - secretRef:
+                name: db-secret
+          env:
+            # Keep PGDATA in a subdir so the volume root (with lost+found
+            # on some StorageClasses) doesn't block initdb.
+            - name: PGDATA
+              value: /var/lib/postgresql/data/pgdata
+          volumeMounts:
+            - name: data
+              mountPath: /var/lib/postgresql/data
+            - name: initdb
+              mountPath: /docker-entrypoint-initdb.d
+          readinessProbe:
+            exec:
+              command: ["pg_isready", "-U", "promovolve", "-d", "promovolve"]
+            initialDelaySeconds: 5
+            periodSeconds: 5
+          resources:
+            requests:
+              cpu: "250m"
+              memory: 512Mi
+            limits:
+              # Headroom for max_connections=300 backend processes.
+              memory: 2Gi
+      volumes:
+        - name: initdb
+          configMap:
+            # init-db.sql, pulled in by kustomize configMapGenerator.
+            name: db-initdb
+  volumeClaimTemplates:
+    - metadata:
+        name: data
+      spec:
+        accessModes: ["ReadWriteOnce"]
+        resources:
+          requests:
+            storage: 5Gi

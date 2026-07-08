@@ -1,0 +1,25 @@
+# Fixed floor at $8 — the "I happen to know the right answer" baseline.
+# In this synthetic $2-$10 market $8 is the optimal floor under
+# perfect knowledge. This run shows what the publisher *could* have
+# earned if they'd been clairvoyant. The interesting question is
+# whether the RL strategy gets close to it without prior knowledge.
+name: compare_floor_8
+durationSeconds: 1200
+pollIntervalSeconds: 5
+
+site:
+  initialFloorCpm: 8.0
+  minFloorCpm: 5.0
+  bidWeight: 0.5
+  pacingDayDurationSeconds: 300
+
+traffic:
+  workers: 4
+  intervalSeconds: 1
+  ctr: 0.10
+
+events: []
+
+floorStrategy:
+  kind: fixed
+  value: 8.0

@@ -1,0 +1,105 @@
+{{define "content"}}
+<div class="flex items-center justify-center min-h-screen bg-gray-50">
+  <div class="w-full max-w-lg p-8">
+    <h1 class="text-3xl font-semibold text-center mb-2">Promovolve</h1>
+    <p class="text-gray-500 text-center mb-10">Platform installation</p>
+
+    {{if .Error}}
+    <div class="bg-red-50 border border-red-200 text-red-700 rounded-lg p-3 mb-6 text-sm">{{.Error}}</div>
+    {{end}}
+
+    <div class="bg-white rounded-lg shadow-sm border p-8">
+      <h2 class="text-2xl font-semibold mb-1">Set up your platform</h2>
+      <p class="text-sm text-gray-500 mb-6">
+        This one-time step creates the administrator account that owns this
+        installation and sets the platform economics. The admin reviews
+        account requests and manages platform settings.
+      </p>
+
+      <div id="setup-error" class="hidden bg-red-50 border border-red-200 text-red-700 rounded-lg p-3 mb-4 text-sm"></div>
+
+      <form id="setup-form" class="space-y-4" onsubmit="return false">
+        <div>
+          <label class="form-label">Your name</label>
+          <input type="text" id="setup-name" placeholder="e.g., Haruhiko Nishi" class="form-input">
+        </div>
+        <div>
+          <label class="form-label">Email</label>
+          <input type="email" id="setup-email" autocomplete="username" placeholder="you@company.com" class="form-input">
+        </div>
+        <div>
+          <label class="form-label">Platform margin (%)</label>
+          <input type="number" id="setup-margin" min="0" max="99.99" step="0.01" value="15" class="form-input">
+          <p class="form-hint">
+            Deducted from publisher earnings as the platform fee. Publishers
+            see their net revenue with this fee itemized. You can change it
+            later in Settings; changes never rewrite past earnings.
+          </p>
+        </div>
+        <div>
+          <label class="form-label">Minimum payout ($)</label>
+          <input type="number" id="setup-payout-floor" min="0.01" step="0.01" value="50" class="form-input">
+          <p class="form-hint">
+            Publisher earnings accrue until they pass this before a payout is
+            offered — each payout costs you a transfer. Publishers can raise
+            their own threshold above it, never below. Changeable in Settings.
+          </p>
+        </div>
+        <button type="submit" id="setup-submit" class="btn btn-primary w-full">Create admin passkey &amp; finish setup</button>
+        <p class="form-hint text-center">
+          Sign-in is passkey-only — your browser will prompt you to create one
+          (Touch ID, security key, or phone).
+        </p>
+      </form>
+    </div>
+
+    {{if .DevAuth}}
+    <div class="mt-8">
+      <div class="flex items-center gap-3 mb-4">
+        <div class="h-px bg-gray-200 flex-1"></div>
+        <span class="text-xs uppercase tracking-wide text-gray-400">Development only</span>
+        <div class="h-px bg-gray-200 flex-1"></div>
+      </div>
+      <div class="bg-white rounded-lg border p-6">
+        <h3 class="font-semibold mb-3">Password admin (no passkey ceremony)</h3>
+        <form method="POST" action="/setup/dev" class="space-y-3">
+          <input type="text" name="displayName" placeholder="Name" class="form-input" value="Dev Admin">
+          <input type="email" name="email" placeholder="admin@example.com" class="form-input" value="admin@admin.com">
+          <input type="password" name="password" placeholder="Password" class="form-input">
+          <input type="number" name="marginPercent" min="0" max="99.99" step="0.01" value="15" class="form-input">
+          <input type="number" name="payoutFloor" min="0.01" step="0.01" value="50" class="form-input">
+          <button type="submit" class="btn btn-secondary w-full">Create dev admin</button>
+        </form>
+      </div>
+    </div>
+    {{end}}
+
+    <script src="{{asset "passkey.js"}}"></script>
+    <script>
+      (function () {
+        const errBox = document.getElementById('setup-error');
+        const form = document.getElementById('setup-form');
+        const submit = document.getElementById('setup-submit');
+
+        form.addEventListener('submit', async () => {
+          errBox.classList.add('hidden');
+          submit.disabled = true;
+          try {
+            const res = await Passkey.register('/webauthn/setup/begin', '/webauthn/setup/finish', {
+              displayName: document.getElementById('setup-name').value,
+              email: document.getElementById('setup-email').value,
+              marginPercent: document.getElementById('setup-margin').value,
+              payoutFloor: document.getElementById('setup-payout-floor').value,
+            });
+            if (res.redirect) window.location.href = res.redirect;
+          } catch (e) {
+            errBox.textContent = e.message || 'Setup failed';
+            errBox.classList.remove('hidden');
+            submit.disabled = false;
+          }
+        });
+      })();
+    </script>
+  </div>
+</div>
+{{end}}

@@ -1,0 +1,156 @@
+<!doctype html>
+<!--
+  Delivery harness for <expandable-magazine-banner>.
+
+  The designer (:5173 in creative-designer) renders EDIT mode; this page
+  renders the component the way a publisher slot does — DELIVERY mode, no
+  edit/preview attrs — so you can actually see delivered-ad behaviour from
+  source with HMR:
+
+    • scroll the slot into view  → the collapsed on-view teaser peel fires
+      (it's gated to the ≥50%-viewable impression hook, delivery-only)
+    • click the banner           → expands to the reader; hover the corner
+      to compare the reader's page-turn peel
+
+  Run:  npm run serve   (opens this file; edit src/banner.ts → live reload)
+-->
+<html lang="en">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <title>banner delivery harness</title>
+    <style>
+      :root { color-scheme: dark; }
+      body { margin: 0; font: 14px/1.4 system-ui, sans-serif; background: #0e0e12; color: #ddd; }
+      .bar {
+        position: fixed; top: 0; left: 0; right: 0; z-index: 1000;
+        display: flex; gap: 8px; align-items: center; flex-wrap: wrap;
+        padding: 10px 14px; background: #16161c; border-bottom: 1px solid #2a2a33;
+      }
+      .bar strong { color: #f5c518; margin-right: 6px; }
+      .bar button {
+        background: #23232c; color: #ddd; border: 1px solid #34343f;
+        border-radius: 6px; padding: 5px 10px; cursor: pointer; font: inherit;
+      }
+      .bar button.active { background: #f5c518; color: #111; border-color: #f5c518; }
+      .bar .hint { color: #888; margin-left: auto; }
+      .spacer { height: 120vh; display: flex; align-items: center; justify-content: center; color: #444; }
+      .stage { display: flex; justify-content: center; padding: 24px 0; }
+      .slot { box-shadow: 0 0 0 1px #2a2a33, 0 20px 60px rgba(0,0,0,.5); }
+      expandable-magazine-banner { display: block; width: 100%; height: 100%; }
+    </style>
+  </head>
+  <body>
+    <div class="bar">
+      <strong>delivery harness</strong>
+      <span id="sizes"></span>
+      <button id="replay" title="Re-mount the banner to replay the one-shot teaser">↻ replay teaser</button>
+      <span class="hint">scroll the slot into view → teaser · click → expand</span>
+    </div>
+
+    <div class="spacer">↓ scroll down ↓</div>
+    <div class="stage"><div class="slot" id="slot"></div></div>
+    <div class="spacer">end</div>
+
+    <!-- Registers <expandable-magazine-banner> as a side effect. -->
+    <script type="module" src="/src/index.ts"></script>
+    <script type="module">
+      // 1×1 transparent gif so fireImpression()'s beacon (which the teaser
+      // is hooked onto) loads instantly with no network error.
+      const IMP_URL =
+        "data:image/gif;base64,R0lGODlhAQABAIAAAAAAAP///yH5BAEAAAAALAAAAAABAAEAAAIBRAA7";
+
+      // Each page carries BOTH masters, like a real fanned-out creative:
+      // `layout` = the legacy 16:9 master (delivery fallback only),
+      // `banners["mobile-expanded"]` = the portrait 9:16 master the
+      // expanded reader now renders on every device. The "16:9 fallback"
+      // toggle below mounts the pages WITHOUT their portrait masters to
+      // preview how legacy creatives (authored before the portrait
+      // unification) still render.
+      const PAGES = [
+        { bg: "linear-gradient(135deg,#1a1a2e,#0f3460)", layout: [
+            { type: "text", text: "DOG-EAR",              left: 6, top: 14, width: 88, fontSize: 13, color: "#f5c518", fontWeight: 800 },
+            { type: "text", text: "scroll me into view",  left: 6, top: 46, width: 88, fontSize: 6.5, color: "#e8e8e8" },
+            { type: "text", text: "then click to expand", left: 6, top: 60, width: 88, fontSize: 5.5, color: "#99aab5" },
+        ], banners: { "mobile-expanded": [
+            { type: "text", text: "DOG-EAR",              left: 8, top: 12, width: 84, fontSize: 9,   color: "#f5c518", fontWeight: 800, textAlign: "center" },
+            { type: "text", text: "portrait sheet on PC", left: 8, top: 42, width: 84, fontSize: 5,   color: "#e8e8e8", textAlign: "center" },
+            { type: "text", text: "same layout as mobile", left: 8, top: 54, width: 84, fontSize: 3.6, color: "#99aab5", textAlign: "center" },
+        ] } },
+        { bg: "linear-gradient(135deg,#2d132c,#801336)", layout: [
+            { type: "text", text: "Page 2", left: 6, top: 42, width: 88, fontSize: 11, color: "#ffffff", fontWeight: 700 },
+        ], banners: { "mobile-expanded": [
+            { type: "text", text: "Page 2",   left: 8, top: 30, width: 84, fontSize: 8,   color: "#ffffff", fontWeight: 700, textAlign: "center" },
+            { type: "text", text: "stacked copy reads naturally in portrait — headline up top, body below, whitespace vertical.", left: 12, top: 48, width: 76, fontSize: 3.4, color: "#e8c8d4", textAlign: "center" },
+        ] } },
+        { bg: "linear-gradient(135deg,#0b3d2e,#14746f)", layout: [
+            { type: "text", text: "Page 3", left: 6, top: 42, width: 88, fontSize: 11, color: "#ffffff", fontWeight: 700 },
+        ], banners: { "mobile-expanded": [
+            { type: "text", text: "Page 3",   left: 8, top: 30, width: 84, fontSize: 8,   color: "#ffffff", fontWeight: 700, textAlign: "center" },
+            { type: "text", text: "one portrait master could serve both devices.", left: 12, top: 48, width: 76, fontSize: 3.4, color: "#c2e8dd", textAlign: "center" },
+        ] } },
+      ];
+      const CONFIG = { layout: "auto", font: "sans", showTag: false, showSub: true, expandAnimation: "fade" };
+      let legacy169 = false; // mount without portrait masters → 16:9 fallback
+
+      const SIZES = {
+        "300×250": [300, 250],
+        "970×250": [970, 250],
+        "728×90":  [728, 90],
+        "300×600": [300, 600],
+      };
+
+      const slot = document.getElementById("slot");
+      let current = "300×250";
+
+      function mount() {
+        const [w, h] = SIZES[current];
+        slot.style.width = w + "px";
+        slot.style.height = h + "px";
+        slot.replaceChildren(); // re-create so the one-shot teaser re-arms
+        const el = document.createElement("expandable-magazine-banner");
+        const pages = legacy169
+          ? PAGES.map(({ banners, ...p }) => p) // strip portrait masters
+          : PAGES;
+        el.setAttribute("pages", JSON.stringify(pages));
+        el.setAttribute("config", JSON.stringify(CONFIG));
+        el.setAttribute("width", String(w));
+        el.setAttribute("height", String(h));
+        el.setAttribute("landing-url", "https://example.com/landing");
+        el.setAttribute("imp-url", IMP_URL); // delivery mode: no preview-frame / mode=edit
+        slot.appendChild(el);
+      }
+
+      // Size switcher
+      const bar = document.getElementById("sizes");
+      for (const name of Object.keys(SIZES)) {
+        const b = document.createElement("button");
+        b.textContent = name;
+        b.className = name === current ? "active" : "";
+        b.onclick = () => {
+          current = name;
+          for (const c of bar.children) c.className = c.textContent === name ? "active" : "";
+          mount();
+        };
+        bar.appendChild(b);
+      }
+      document.getElementById("replay").onclick = mount;
+
+      // Legacy preview: mount the pages WITHOUT their portrait masters so
+      // the expanded reader falls back to the 16:9 master — how creatives
+      // authored before the portrait unification still render.
+      const pBtn = document.createElement("button");
+      pBtn.textContent = "16:9 fallback";
+      pBtn.title = "Strip portrait masters → expanded reader falls back to the legacy 16:9 master";
+      pBtn.onclick = () => {
+        legacy169 = !legacy169;
+        pBtn.className = legacy169 ? "active" : "";
+        mount();
+      };
+      document.querySelector(".bar").insertBefore(pBtn, document.querySelector(".bar .hint"));
+
+      await customElements.whenDefined("expandable-magazine-banner");
+      mount();
+    </script>
+  </body>
+</html>

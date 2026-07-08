@@ -1,0 +1,58 @@
+# api StatefulSet → single-node demo cluster on a Spot Pod.
+#
+# replicas: 1 is the documented single-node fallback (see api-statefulset.yaml
+# header): one pod carries all roles and forms a cluster of one, so there is no
+# SBR decision, no quorum to reach, and no second pod to pay for. This is the
+# biggest cost lever — the api tier is ~1 vCPU / 2.5Gi each.
+apiVersion: apps/v1
+kind: StatefulSet
+metadata:
+  name: promovolve-api
+spec:
+  replicas: 1
+  template:
+    spec:
+      # Spot Pod. On Autopilot the nodeSelector is enough (the webhook injects
+      # the toleration); the explicit toleration keeps this correct on Standard
+      # clusters too and is harmless on Autopilot.
+      nodeSelector:
+        cloud.google.com/gke-spot: "true"
+      tolerations:
+        - key: cloud.google.com/gke-spot
+          operator: Equal
+          value: "true"
+          effect: NoSchedule
+      containers:
+        - name: api
+          env:
+            # Load the single-node overlay instead of application-app.conf, and
+            # require exactly one contact point so the lone pod forms its own
+            # cluster. majority-min-cap drops to 1 to match (was 2 for the
+            # 2-pod topology). Everything else mirrors the base JAVA_TOOL_OPTIONS.
+            - name: JAVA_TOOL_OPTIONS
+              value: >-
+                -Dconfig.file=/conf/application-single.conf
+                -Dlogback.configurationFile=/conf/logback-debug.xml
+                -XX:MaxRAMPercentage=50
+                -Dpekko.cluster.shutdown-after-unsuccessful-join-seed-nodes=120s
+                -Dpekko.management.cluster.bootstrap.contact-point.probing-failure-timeout=30s
+                -Dpekko.management.cluster.bootstrap.contact-point.probe-interval=2s
+                -Dpekko.management.cluster.bootstrap.contact-point-discovery.stable-margin=10s
+                -Dpekko.cluster.sharding.waiting-for-state-timeout=10s
+                -Dpekko.cluster.sharding.distributed-data.majority-min-cap=1
+            # Explicit env overrides the api-config configMap's value (=2) via
+            # envFrom precedence: a single discovered contact point (itself) is
+            # enough to form the cluster.
+            - name: PEKKO_BOOTSTRAP_REQUIRED_CONTACT_POINTS
+              value: "1"
+          # Autopilot bills on requests and, for memory, effectively runs the
+          # container at its request. Set request == limit so the JVM
+          # (MaxRAMPercentage=50) + the Chromium pool have the room the base
+          # limit already granted. NOTE: the 1Gi memory-backed /dev/shm emptyDir
+          # is charged on TOP of this by Autopilot, so the pod bills ~3.5Gi.
+          resources:
+            requests:
+              cpu: "1000m"
+              memory: 2560Mi
+            limits:
+              memory: 2560Mi

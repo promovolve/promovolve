@@ -1,0 +1,102 @@
+{{define "content"}}
+<div class="flex items-center justify-center min-h-screen bg-gray-50">
+  <div class="w-full max-w-lg p-8">
+    <h1 class="text-3xl font-semibold text-center mb-2">Promovolve</h1>
+    <p class="text-gray-500 text-center mb-10">Request access</p>
+
+    <div id="request-card" class="bg-white rounded-lg shadow-sm border p-8">
+      <a href="/login" class="text-sm text-gray-400 hover:text-gray-600 mb-4 block">&larr; Back to sign in</a>
+      <h2 class="text-2xl font-semibold mb-1">Request an account</h2>
+      <p class="text-sm text-gray-500 mb-6">
+        Tell us about your company. An administrator reviews every request;
+        you'll be able to sign in with your passkey once it's approved.
+      </p>
+
+      <div id="request-error" class="hidden bg-red-50 border border-red-200 text-red-700 rounded-lg p-3 mb-4 text-sm"></div>
+
+      <form id="request-form" class="space-y-4" onsubmit="return false">
+        <div>
+          <label class="form-label">I am a</label>
+          <div class="grid grid-cols-2 gap-3">
+            <label class="border rounded-md px-4 py-3 flex items-center gap-2 cursor-pointer has-[:checked]:border-brand has-[:checked]:bg-brand-soft/40">
+              <input type="radio" name="role" value="publisher" checked>
+              <span class="text-sm font-medium">Publisher</span>
+            </label>
+            <label class="border rounded-md px-4 py-3 flex items-center gap-2 cursor-pointer has-[:checked]:border-brand has-[:checked]:bg-brand-soft/40">
+              <input type="radio" name="role" value="advertiser">
+              <span class="text-sm font-medium">Advertiser</span>
+            </label>
+          </div>
+        </div>
+        <div>
+          <label class="form-label">Company / publication name</label>
+          <input type="text" id="req-company" placeholder="e.g., Tokyo Travel Media K.K." class="form-input">
+        </div>
+        <div>
+          <label class="form-label">Website</label>
+          <input type="url" id="req-website" placeholder="https://example.com" class="form-input">
+        </div>
+        <div>
+          <label class="form-label">Contact name</label>
+          <input type="text" id="req-contact" placeholder="Your full name" class="form-input">
+        </div>
+        <div>
+          <label class="form-label">Email</label>
+          <input type="email" id="req-email" autocomplete="username" placeholder="you@company.com" class="form-input">
+        </div>
+        <div>
+          <label class="form-label">Anything we should know? <span class="text-gray-400 font-normal">(optional)</span></label>
+          <textarea id="req-message" rows="3" class="form-input"
+            placeholder="What you publish or advertise, expected volume, etc."></textarea>
+        </div>
+        <button type="submit" id="request-submit" class="btn btn-primary w-full">Create passkey &amp; submit request</button>
+        <p class="form-hint text-center">
+          Sign-in is passkey-only — your browser will prompt you to create one
+          (Touch ID, security key, or phone). Do this on the device you'll
+          sign in from.
+        </p>
+      </form>
+    </div>
+
+    <div id="request-done" class="hidden bg-white rounded-lg shadow-sm border p-8 text-center">
+      <div class="text-4xl mb-4">&#10003;</div>
+      <h2 class="text-2xl font-semibold mb-2">Request submitted</h2>
+      <p class="text-sm text-gray-500 mb-6">
+        Your passkey is registered on this device. Once an administrator
+        approves your request, sign in with it — no password needed.
+      </p>
+      <a href="/login" class="btn btn-primary">Back to sign in</a>
+    </div>
+
+    <script src="{{asset "passkey.js"}}"></script>
+    <script>
+      (function () {
+        const errBox = document.getElementById('request-error');
+        const form = document.getElementById('request-form');
+        const submit = document.getElementById('request-submit');
+
+        form.addEventListener('submit', async () => {
+          errBox.classList.add('hidden');
+          submit.disabled = true;
+          try {
+            await Passkey.register('/webauthn/request-account/begin', '/webauthn/request-account/finish', {
+              role: form.querySelector('input[name="role"]:checked').value,
+              companyName: document.getElementById('req-company').value,
+              websiteUrl: document.getElementById('req-website').value,
+              contactName: document.getElementById('req-contact').value,
+              email: document.getElementById('req-email').value,
+              message: document.getElementById('req-message').value,
+            });
+            document.getElementById('request-card').classList.add('hidden');
+            document.getElementById('request-done').classList.remove('hidden');
+          } catch (e) {
+            errBox.textContent = e.message || 'Request failed';
+            errBox.classList.remove('hidden');
+            submit.disabled = false;
+          }
+        });
+      })();
+    </script>
+  </div>
+</div>
+{{end}}

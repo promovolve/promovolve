@@ -1,0 +1,276 @@
+{{define "layout"}}
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>{{.Title}} — Promovolve</title>
+  {{/* Precompiled Tailwind (was the Play CDN's ~350KB in-browser JIT).
+       Design tokens live in platform/tailwind.config.js, canonical component
+       classes in platform/tailwind.input.css — see dev_docs/DESIGN_SYSTEM.md.
+       After ANY template class change run scripts/build-tailwind.sh and
+       commit static/tailwind.css, or the new class silently has no styles. */}}
+  <link rel="stylesheet" href="{{asset "tailwind.css"}}">
+  {{/* Alpine loads deferred; x-cloak'd elements must stay hidden until it
+       initializes or every x-show panel flashes on load. */}}
+  <style>[x-cloak] { display: none !important; }</style>
+  <script defer src="{{asset "alpine.min.js"}}"></script>
+  <script src="{{asset "htmx.min.js"}}"></script>
+  <script src="{{asset "htmx-sse.js"}}"></script>
+</head>
+<body class="bg-gray-50 text-gray-900 min-h-screen">
+  {{if .User}}
+  {{if .User.ViewAsBy}}
+  {{/* Read-only admin view-as: unmistakable, sticky, with the one allowed
+       mutation — leaving. Every other POST is blocked server-side; the CSS
+       below makes that visible up front by inerting every mutating control
+       (POST forms + htmx triggers) except the session's own (exit,
+       side-switch), so the operator sees "disabled", not a 403. */}}
+  <style>
+    form[method="post" i]:not([data-viewas-allowed]) button,
+    form[method="post" i]:not([data-viewas-allowed]) input,
+    form[method="post" i]:not([data-viewas-allowed]) select,
+    form[method="post" i]:not([data-viewas-allowed]) textarea,
+    [hx-post], [hx-put], [hx-delete],
+    [data-viewas-block] {
+      pointer-events: none !important;
+      opacity: .45;
+    }
+  </style>
+  <div class="sticky top-0 z-50 bg-amber-400 text-gray-950 text-sm px-4 py-2 flex items-center justify-between gap-4">
+    <span>👁 Viewing as <strong>{{.User.Email}}</strong> — read-only admin session ({{.User.ViewAsBy}})</span>
+    <form method="POST" action="/view-as/exit" data-viewas-allowed>
+      <button type="submit" class="font-semibold underline hover:no-underline">Exit view</button>
+    </form>
+  </div>
+  {{end}}
+  <div class="flex min-h-screen">
+    <aside class="w-56 bg-gray-900 text-gray-100 p-4 flex flex-col">
+      <div class="mb-8">
+        <h2 class="text-lg font-semibold">Promovolve</h2>
+        <p class="text-xs text-gray-400 mt-1">
+          {{if eq .User.Role "publisher"}}Publisher{{else if eq .User.Role "advertiser"}}Advertiser{{else}}Admin{{end}} Dashboard
+        </p>
+        {{if .User.HasBothSides}}
+        {{/* Side switcher: the org holds both accounts; one login, pick a hat. */}}
+        <div class="mt-3 grid grid-cols-2 gap-1 bg-gray-800 rounded-md p-1 text-xs">
+          <form method="POST" action="/account/switch-side" data-viewas-allowed>
+            <input type="hidden" name="side" value="advertiser">
+            <button type="submit" class="w-full px-2 py-1 rounded {{if eq .User.Role "advertiser"}}bg-brand text-gray-950 font-semibold{{else}}text-gray-300 hover:bg-gray-700{{end}}">Advertiser</button>
+          </form>
+          <form method="POST" action="/account/switch-side" data-viewas-allowed>
+            <input type="hidden" name="side" value="publisher">
+            <button type="submit" class="w-full px-2 py-1 rounded {{if eq .User.Role "publisher"}}bg-brand text-gray-950 font-semibold{{else}}text-gray-300 hover:bg-gray-700{{end}}">Publisher</button>
+          </form>
+        </div>
+        {{end}}
+      </div>
+      <nav class="flex-1 space-y-1">
+        {{if eq .User.Role "publisher"}}
+        <a href="/publisher/approval" class="block px-3 py-2 rounded text-sm {{if eq .Nav "approval"}}bg-gray-700 text-white{{else}}text-gray-300 hover:bg-gray-800{{end}}">Approval Queue</a>
+        <a href="/publisher/sites" class="block px-3 py-2 rounded text-sm {{if eq .Nav "sites"}}bg-gray-700 text-white{{else}}text-gray-300 hover:bg-gray-800{{end}}">Sites</a>
+        <a href="/publisher/stats" class="block px-3 py-2 rounded text-sm {{if eq .Nav "stats"}}bg-gray-700 text-white{{else}}text-gray-300 hover:bg-gray-800{{end}}">Stats</a>
+        {{if .User.CanBilling}}
+        <a href="/publisher/earnings" class="block px-3 py-2 rounded text-sm {{if eq .Nav "earnings"}}bg-gray-700 text-white{{else}}text-gray-300 hover:bg-gray-800{{end}}">Earnings</a>
+        {{end}}
+        <a href="/publisher/report" class="block px-3 py-2 rounded text-sm {{if eq .Nav "report"}}bg-gray-700 text-white{{else}}text-gray-300 hover:bg-gray-800{{end}}">Report</a>
+        <a href="/publisher/help" class="block px-3 py-2 rounded text-sm {{if eq .Nav "help"}}bg-gray-700 text-white{{else}}text-gray-300 hover:bg-gray-800{{end}}">Help</a>
+        {{else if eq .User.Role "advertiser"}}
+        <a href="/advertiser/account" class="block px-3 py-2 rounded text-sm {{if eq .Nav "account"}}bg-gray-700 text-white{{else}}text-gray-300 hover:bg-gray-800{{end}}">Account</a>
+        <a href="/advertiser/campaigns" class="block px-3 py-2 rounded text-sm {{if eq .Nav "campaigns"}}bg-gray-700 text-white{{else}}text-gray-300 hover:bg-gray-800{{end}}">Campaigns</a>
+        <a href="/advertiser/creatives" class="block px-3 py-2 rounded text-sm {{if eq .Nav "creatives"}}bg-gray-700 text-white{{else}}text-gray-300 hover:bg-gray-800{{end}}">Creatives</a>
+        <a href="/advertiser/stats" class="block px-3 py-2 rounded text-sm {{if eq .Nav "stats"}}bg-gray-700 text-white{{else}}text-gray-300 hover:bg-gray-800{{end}}">Stats</a>
+        <a href="/advertiser/report" class="block px-3 py-2 rounded text-sm {{if eq .Nav "report"}}bg-gray-700 text-white{{else}}text-gray-300 hover:bg-gray-800{{end}}">Report</a>
+        {{if .User.CanBilling}}
+        <a href="/advertiser/wallet" class="block px-3 py-2 rounded text-sm {{if eq .Nav "wallet"}}bg-gray-700 text-white{{else}}text-gray-300 hover:bg-gray-800{{end}}">Wallet</a>
+        {{end}}
+        <a href="/advertiser/help" class="block px-3 py-2 rounded text-sm {{if eq .Nav "help"}}bg-gray-700 text-white{{else}}text-gray-300 hover:bg-gray-800{{end}}">Help</a>
+        {{else if eq .User.Role "admin"}}
+        <a href="/admin/requests" class="block px-3 py-2 rounded text-sm {{if eq .Nav "admin-requests"}}bg-gray-700 text-white{{else}}text-gray-300 hover:bg-gray-800{{end}}">Requests</a>
+        <a href="/admin/sites" class="block px-3 py-2 rounded text-sm {{if eq .Nav "admin-sites"}}bg-gray-700 text-white{{else}}text-gray-300 hover:bg-gray-800{{end}}">Site Requests</a>
+        <a href="/admin/users" class="block px-3 py-2 rounded text-sm {{if eq .Nav "admin-users"}}bg-gray-700 text-white{{else}}text-gray-300 hover:bg-gray-800{{end}}">Users</a>
+        <a href="/admin/settings" class="block px-3 py-2 rounded text-sm {{if eq .Nav "admin-settings"}}bg-gray-700 text-white{{else}}text-gray-300 hover:bg-gray-800{{end}}">Settings</a>
+        <a href="/admin/billing" class="block px-3 py-2 rounded text-sm {{if eq .Nav "admin-billing"}}bg-gray-700 text-white{{else}}text-gray-300 hover:bg-gray-800{{end}}">Billing</a>
+        {{end}}
+      </nav>
+      <div class="border-t border-gray-700 pt-4 mt-4">
+        <p class="text-xs text-gray-400 truncate mb-2">{{.User.Email}}</p>
+        <div class="flex items-center gap-3">
+          {{if .User.Org}}
+          <a href="/org/members" class="text-sm {{if eq .Nav "team"}}text-white{{else}}text-gray-400 hover:text-white{{end}}">Team</a>
+          {{end}}
+          <a href="/account/passkeys" class="text-sm {{if eq .Nav "passkeys"}}text-white{{else}}text-gray-400 hover:text-white{{end}}">Passkeys</a>
+          <a href="/logout" class="text-sm text-gray-400 hover:text-white">Sign out</a>
+        </div>
+      </div>
+    </aside>
+    <main class="flex-1 p-8">
+      {{template "content" .}}
+    </main>
+  </div>
+  {{else}}
+  {{template "content" .}}
+  {{end}}
+</body>
+</html>
+{{end}}
+
+{{/* copy-field: a copyable value (recovery/invite links, tokens) as a
+     monospace block with a clipboard button — not a text field, nothing to
+     select by hand. Pass the string. .stop keeps the click out of any
+     enclosing accordion/card toggles. */}}
+{{define "copy-field"}}
+<div class="flex items-center gap-2" x-data="{ copied: false }">
+  <code x-ref="val" class="flex-1 min-w-0 bg-white border border-gray-200 rounded-md px-3 py-2 font-mono text-xs break-all">{{.}}</code>
+  <button type="button" class="btn btn-secondary btn-sm shrink-0"
+    @click.stop="navigator.clipboard.writeText($refs.val.textContent.trim()).then(() => { copied = true; setTimeout(() => copied = false, 1500) })"
+    x-text="copied ? 'Copied ✓' : 'Copy'">Copy</button>
+</div>
+{{end}}
+
+{{/* Sort pulldown for campaign lists (campaigns + stats pages). A GET
+     form: changing the select reloads with ?sort=…, dropping ?page so
+     a re-sort always lands on page 1. */}}
+{{define "list-sort"}}
+<div class="flex items-center justify-end mb-2">
+  <form method="GET" class="flex items-center gap-2">
+    <label class="text-xs text-gray-500">Sort:</label>
+    <select name="sort" onchange="this.form.submit()" class="px-2 py-1 border rounded text-sm bg-white">
+      <option value="newest" {{if or (not .ListNav.Sort) (eq .ListNav.Sort "newest")}}selected{{end}}>Newest first</option>
+      <option value="name" {{if eq .ListNav.Sort "name"}}selected{{end}}>Name A&ndash;Z</option>
+      <option value="spend" {{if eq .ListNav.Sort "spend"}}selected{{end}}>Spend today</option>
+      <option value="impressions" {{if eq .ListNav.Sort "impressions"}}selected{{end}}>Impressions</option>
+    </select>
+  </form>
+</div>
+{{end}}
+
+{{/* Tab header for the admin billing section. Each tab is a real page so
+     pagination and bookmarks work per tab; .Tab picks the active one. */}}
+{{define "billing-tabs"}}
+<div class="flex items-center gap-1 border-b mt-6">
+  <a href="/admin/billing" class="px-4 py-2 text-sm rounded-t {{if eq .Tab "overview"}}border border-b-0 bg-white font-medium{{else}}text-gray-500 hover:text-gray-900{{end}}">Overview</a>
+  <a href="/admin/billing/topups" class="px-4 py-2 text-sm rounded-t {{if eq .Tab "topups"}}border border-b-0 bg-white font-medium{{else}}text-gray-500 hover:text-gray-900{{end}}">Top-ups</a>
+  <a href="/admin/billing/payouts" class="px-4 py-2 text-sm rounded-t {{if eq .Tab "payouts"}}border border-b-0 bg-white font-medium{{else}}text-gray-500 hover:text-gray-900{{end}}">Payouts</a>
+  <a href="/admin/billing/journal" class="px-4 py-2 text-sm rounded-t {{if eq .Tab "journal"}}border border-b-0 bg-white font-medium{{else}}text-gray-500 hover:text-gray-900{{end}}">Journal</a>
+  <a href="/admin/billing/accounts" class="px-4 py-2 text-sm rounded-t {{if eq .Tab "accounts"}}border border-b-0 bg-white font-medium{{else}}text-gray-500 hover:text-gray-900{{end}}">Accounts</a>
+</div>
+{{end}}
+
+{{/* Pagination footer. Hidden when everything fits on one page. */}}
+{{define "list-pagination"}}
+{{if and .ListNav (gt .ListNav.TotalPages 1)}}
+<div class="flex items-center justify-between mt-4 text-sm text-gray-500">
+  <span>{{.ListNav.From}}&ndash;{{.ListNav.To}} of {{.ListNav.Total}}</span>
+  <div class="flex items-center gap-3">
+    {{if .ListNav.PrevURL}}<a href="{{.ListNav.PrevURL}}" class="text-brand hover:underline">&larr; Prev</a>{{else}}<span class="text-gray-300">&larr; Prev</span>{{end}}
+    <span>Page {{.ListNav.Page}} / {{.ListNav.TotalPages}}</span>
+    {{if .ListNav.NextURL}}<a href="{{.ListNav.NextURL}}" class="text-brand hover:underline">Next &rarr;</a>{{else}}<span class="text-gray-300">Next &rarr;</span>{{end}}
+  </div>
+</div>
+{{end}}
+{{end}}
+
+{{/* Shared date-range picker for the report pages (advertiser +
+     publisher). CSVURL is optional — pass "" (or omit) when the page
+     places its CSV link elsewhere (the advertiser page's is per-tab).
+     CSVURL must be a complete pre-built path: interpolating a query
+     FRAGMENT into an href gets component-escaped by html/template
+     (= and & become %3d/%26) and the server drops the range. */}}
+{{define "report-range-picker"}}
+{{/* Custom range calendar (Alpine) instead of two native date inputs —
+     the browser's own date popup follows the browser/OS theme and looks
+     different everywhere; this one is ours and matches the design
+     system. Click once for the start day, again for the end day. */}}
+<div class="card card-tight mb-6" x-data="reportRangeCal('{{.From}}', '{{.To}}')">
+  <form method="get" class="flex flex-wrap items-end gap-3">
+    <input type="hidden" name="from" :value="from">
+    <input type="hidden" name="to" :value="to">
+    <div class="relative">
+      <label class="form-label">Range (UTC)</label>
+      <button type="button" @click="toggle()" class="form-input inline-flex items-center gap-2 whitespace-nowrap cursor-pointer bg-white hover:bg-gray-50" style="width:auto">
+        <svg class="w-4 h-4 text-gray-500" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24"><rect x="3" y="5" width="18" height="16" rx="2"/><path d="M8 3v4M16 3v4M3 11h18"/></svg>
+        <span x-text="from + ' → ' + to">{{.From}} → {{.To}}</span>
+      </button>
+      <div x-show="open" x-cloak @click.outside="open=false" class="absolute z-50 mt-1 bg-white border border-gray-200 rounded-lg shadow-lg p-3 w-72">
+        <div class="flex items-center justify-between mb-2">
+          <button type="button" @click="nav(-1)" aria-label="Previous month" class="w-7 h-7 rounded-md hover:bg-gray-100 text-gray-600">&lsaquo;</button>
+          <span class="text-sm font-medium" x-text="monthLabel()"></span>
+          <button type="button" @click="nav(1)" aria-label="Next month" class="w-7 h-7 rounded-md hover:bg-gray-100 text-gray-600">&rsaquo;</button>
+        </div>
+        <div class="grid grid-cols-7 text-center text-xs text-gray-400 mb-1">
+          <span>Su</span><span>Mo</span><span>Tu</span><span>We</span><span>Th</span><span>Fr</span><span>Sa</span>
+        </div>
+        <div class="grid grid-cols-7 gap-y-0.5 text-center text-sm">
+          <template x-for="d in grid()" :key="d.k">
+            <button type="button" x-text="d.n" :disabled="!d.iso || d.dis" @click="pick(d.iso)" :class="cls(d)"></button>
+          </template>
+        </div>
+        <p class="text-xs text-gray-400 mt-2" x-text="sel === 'from' ? 'Pick a start day' : 'Pick an end day'"></p>
+      </div>
+    </div>
+    <button type="submit" class="btn btn-primary">Apply</button>
+    <div class="flex items-center gap-2 ml-auto">
+      {{range .Presets}}
+      <a href="{{.URL}}" class="btn btn-sm {{if eq $.Preset .Key}}btn-primary{{else}}btn-secondary{{end}}">{{.Label}}</a>
+      {{end}}
+      {{if .CSVURL}}
+      <a href="{{.CSVURL}}" class="btn btn-sm btn-secondary">Download CSV</a>
+      {{end}}
+    </div>
+  </form>
+</div>
+<script>
+// Range calendar state for the report pages' shared picker. All days are
+// UTC strings (YYYY-MM-DD) end to end — no local-timezone Date math.
+function reportRangeCal(from, to) {
+  const iso = d => d.toISOString().slice(0, 10);
+  const today = iso(new Date()); // toISOString is UTC — matches the server's UTC buckets
+  return {
+    open: false, from, to, sel: 'from',
+    vy: +to.slice(0, 4), vm: +to.slice(5, 7) - 1,
+    toggle() { this.open = !this.open; this.sel = 'from'; },
+    nav(d) {
+      const m = this.vm + d;
+      this.vy += m < 0 ? -1 : m > 11 ? 1 : 0;
+      this.vm = (m + 12) % 12;
+    },
+    monthLabel() {
+      return new Date(Date.UTC(this.vy, this.vm, 1))
+        .toLocaleDateString('en', { month: 'long', year: 'numeric', timeZone: 'UTC' });
+    },
+    grid() {
+      const lead = new Date(Date.UTC(this.vy, this.vm, 1)).getUTCDay();
+      const days = new Date(Date.UTC(this.vy, this.vm + 1, 0)).getUTCDate();
+      const cells = [];
+      for (let i = 0; i < lead; i++) cells.push({ k: 'b' + i, n: '', iso: '' });
+      for (let d = 1; d <= days; d++) {
+        const s = iso(new Date(Date.UTC(this.vy, this.vm, d)));
+        cells.push({ k: s, n: d, iso: s, dis: s > today });
+      }
+      return cells;
+    },
+    pick(s) {
+      if (!s) return;
+      if (this.sel === 'from' || s < this.from) {
+        this.from = s;
+        if (this.to < s) this.to = s;
+        this.sel = 'to';
+      } else {
+        this.to = s;
+        this.sel = 'from';
+        this.open = false;
+      }
+    },
+    cls(d) {
+      const c = 'w-8 h-8 rounded-md ';
+      if (!d.iso) return c + 'invisible';
+      if (d.dis) return c + 'text-gray-300 cursor-default';
+      if (d.iso === this.from || d.iso === this.to) return c + 'bg-brand text-gray-950 font-semibold';
+      if (d.iso > this.from && d.iso < this.to) return c + 'bg-brand-soft';
+      return c + 'hover:bg-gray-100';
+    }
+  };
+}
+</script>
+{{end}}

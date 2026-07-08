@@ -1,0 +1,235 @@
+# promovolve.api.Main — multi-pod Pekko cluster (roles singleton+entity+api).
+#
+# TOPOLOGY: replicas form ONE cluster via Pekko Management + Cluster
+# Bootstrap using Kubernetes API discovery (PEKKO_CLUSTER_BOOTSTRAP=on +
+# the application-k8s.conf overlay that empties seed-nodes). Sharded
+# entities (SiteEntity/AuctioneerEntity/CampaignEntity) distribute across
+# the pods; cluster singletons run on one. Needs the RBAC in api-rbac.yaml
+# (the ServiceAccount must list pods for discovery).
+#
+# StatefulSet (not Deployment): each pod has stable identity + its own
+# durable DData (LMDB) PVC, and Artery uses the pod IP as its address.
+apiVersion: apps/v1
+kind: StatefulSet
+metadata:
+  name: promovolve-api
+spec:
+  serviceName: promovolve-api
+  # CONSOLIDATED TOPOLOGY (2026-07-02): the cluster is exactly these replicas —
+  # every pod carries ALL roles (singleton+entity+api+crawler, see
+  # application-app.conf). The dedicated crawler tier was deleted and the
+  # dedicated singleton tier parked at 0 (see their files for the rationale
+  # and the real-infra restore path).
+  #
+  # SBR (keep-majority, role=entity) with 2 entity nodes: an even count is
+  # tolerable — a clean 1-vs-1 split is broken by the lowest-address rule
+  # (one side always survives). On REAL multi-node infra prefer an odd entity
+  # count: 2 here + the singleton pod at 1 (roles [singleton,entity]) = 3.
+  #
+  # PEKKO_BOOTSTRAP_REQUIRED_CONTACT_POINTS=2 (api-config): a NEW cluster only
+  # forms when both pods see each other (no lone-pod split clusters); rejoin
+  # of an existing cluster is unaffected.
+  # reset.sh reads the live replica count, so it restores whatever is set here.
+  #
+  # MULTI-NODE (restored 2026-07-02 after the root-cause fix): the self-down
+  # cascades were bare-tuple ask replies deserializing to null and killing
+  # Artery inbound streams (see commit 73227344 + LPWorkerSerializationSpec),
+  # NOT the topology and not only Docker Desktop. With the poison gone the
+  # 2-node cluster is expected to hold; DD's genuine VM hiccups remain
+  # possible but now cost a self-healing blip (blast radius 1, rejoin works).
+  # Single-node fallback: replicas 1, config.file=application-single.conf,
+  # CONTACT_POINTS=1 env.
+  replicas: 2
+  podManagementPolicy: Parallel
+  selector:
+    matchLabels:
+      app: promovolve-api
+  template:
+    metadata:
+      labels:
+        app: promovolve-api   # shared discovery label (joins the cluster)
+        tier: app             # distinguishes from the crawler tier (LB targets this)
+    spec:
+      # ServiceAccount with pod-list RBAC for Kubernetes API discovery.
+      serviceAccountName: promovolve-api
+      # Private Docker Hub repos → credentials needed to pull.
+      # Create `regcred` in the promovolve namespace (see k8s/README.md).
+      imagePullSecrets:
+        - name: regcred
+      # HARD anti-affinity: each entity pod MUST land on a distinct node, so a
+      # node failure loses at most ONE entity pod and the 2-of-3 majority holds
+      # (the point of an odd entity count + realistic multi-node infra). This
+      # REQUIRES ≥3 schedulable nodes (one per api replica) — with fewer, the
+      # surplus api pods stay Pending and the cluster never reaches quorum. That
+      # is deliberate: this deployment targets a multi-node cluster (see
+      # k8s/kind-cluster.yaml + README "Multi-node cluster"). For a single-node
+      # box, either set replicas: 1 or switch this to
+      # preferredDuringSchedulingIgnoredDuringExecution (soft). The selector
+      # targets only OTHER api pods (tier=app), so an api pod may still co-locate
+      # with a crawler / db / platform pod — only api↔api sharing is forbidden.
+      affinity:
+        podAntiAffinity:
+          # SOFT (preferred): on this dev box there are only 2 schedulable worker
+          # nodes (control-plane is NoSchedule-tainted), so hard anti-affinity
+          # would leave api-1 Pending. Prefer spreading api pods across nodes for
+          # resilience, but allow co-location so they always schedule.
+          preferredDuringSchedulingIgnoredDuringExecution:
+            - weight: 100
+              podAffinityTerm:
+                topologyKey: kubernetes.io/hostname
+                labelSelector:
+                  matchLabels:
+                    app: promovolve-api
+                    tier: app
+      containers:
+        - name: api
+          image: promovolve/api:dev
+          # Pulled from Docker Hub (via Docker Desktop's registry mirror).
+          # kustomize rewrites the name to docker.io/<your-namespace>/...
+          # Always, because the :dev tag is mutable.
+          imagePullPolicy: Always
+          ports:
+            - name: http
+              containerPort: 8080
+            - name: management      # Pekko management / bootstrap contact point
+              containerPort: 8558
+            - name: remoting        # Artery cluster remoting
+              containerPort: 25520
+          env:
+            # Load the k8s overlay so seed-nodes is empty and Cluster
+            # Bootstrap (not static seeds) forms the cluster. JAVA_TOOL_OPTIONS
+            # is honored by the JVM directly (no reliance on launcher arg parsing).
+            #
+            # Bootstrap probe/discovery timings are relaxed well past their
+            # defaults (probing-failure-timeout 3s, probe-interval 1s,
+            # stable-margin 5s). On this unreserved kind/Docker-Desktop cluster
+            # a restarting pod's :8558 probes contend with JVM boot, DData
+            # recovery and (crawler) Chromium warmup, so the 3s default fires
+            # "Overdue of probing-failure-timeout" and the pod can't rejoin →
+            # crash loop. 30s/2s/10s gives rejoin enough slack. Env-specific
+            # tuning, so it lives here rather than in application.conf.
+            # MaxRAMPercentage=50: the JVM default (25% of the container limit
+            # = 640MB heap) is undersized for entities + DData + serialization
+            # and a prime long-GC-pause suspect. GC logging prints every pause
+            # to stdout so a node freeze can be attributed (GC vs VM stall).
+            #
+            # shutdown-after-unsuccessful-join-seed-nodes: REQUIRED companion
+            # to the /alive startup probe. If a peer quarantines this
+            # incarnation mid-join, joining can never succeed until the
+            # process restarts (new UID) — but a never-joined node has no
+            # reason to exit and /alive stays green, so nothing recycles it
+            # (observed wedged 2026-07-02: 42 join attempts, all rejected).
+            # This makes the JVM exit after 120s of failed joining → kubelet
+            # restarts it with a fresh UID.
+            - name: JAVA_TOOL_OPTIONS
+              value: >-
+                -Dconfig.file=/conf/application-app.conf
+                -Dlogback.configurationFile=/conf/logback-debug.xml
+                -XX:MaxRAMPercentage=50
+                -Dpekko.cluster.shutdown-after-unsuccessful-join-seed-nodes=120s
+                -Dpekko.management.cluster.bootstrap.contact-point.probing-failure-timeout=30s
+                -Dpekko.management.cluster.bootstrap.contact-point.probe-interval=2s
+                -Dpekko.management.cluster.bootstrap.contact-point-discovery.stable-margin=10s
+                -Dpekko.cluster.sharding.waiting-for-state-timeout=10s
+                -Dpekko.cluster.sharding.distributed-data.majority-min-cap=2
+            # Pekko's internal logging (cluster membership, SBR decisions,
+            # CoordinatedShutdown reasons) is gated by pekko.loglevel (=ERROR
+            # in application.conf) at the EVENT-STREAM level and goes through
+            # Pekko's DefaultLogger straight to stdout — it never passes
+            # through logback (no pekko-slf4j), so logback-debug.xml cannot
+            # un-mute it. This env var is the only knob that does
+            # (application.conf: loglevel = ${?LOG_LEVEL}).
+            - name: LOG_LEVEL
+              value: "INFO"
+            # Artery + management must advertise the pod IP so peers can
+            # reach this node; bind on all interfaces.
+            - name: POD_IP
+              valueFrom:
+                fieldRef:
+                  fieldPath: status.podIP
+            - name: PEKKO_HOST
+              value: "$(POD_IP)"
+            - name: PEKKO_BIND_HOST
+              value: "0.0.0.0"
+            - name: PEKKO_MGMT_HOST
+              value: "$(POD_IP)"
+            - name: PEKKO_CLUSTER_BOOTSTRAP
+              value: "on"
+            # PEKKO_BOOTSTRAP_REQUIRED_CONTACT_POINTS comes from api-config
+            # (=2: both api pods must see each other before a NEW cluster
+            # forms, so a lone pod can never form a split cluster).
+          envFrom:
+            - configMapRef:
+                name: api-config
+            - secretRef:
+                name: api-secret
+          volumeMounts:
+            - name: ddata
+              mountPath: /data
+            - name: dshm
+              mountPath: /dev/shm
+            - name: app-conf
+              mountPath: /conf
+              readOnly: true
+          startupProbe:
+            # /alive (process up), NOT /ready (cluster membership). Gating
+            # startup on /ready means kubelet kills a healthy JVM that is
+            # mid-rejoin whenever cluster formation is slow — which resets its
+            # bootstrap from scratch and turns one downing into a restart loop
+            # (proven 2026-07-02: "failed startup probe" kills during churn).
+            # A pod that can't join stays Running/NotReady (readiness below
+            # keeps traffic away) instead of being shot every 7.5 min.
+            httpGet:
+              path: /alive
+              port: management
+            periodSeconds: 5
+            failureThreshold: 90
+          readinessProbe:
+            # Only route HTTP traffic here once the node is a cluster member.
+            httpGet:
+              path: /ready
+              port: management
+            periodSeconds: 10
+            # Give /ready room to respond while the JVM is busy replaying
+            # remember-entities shards (the default 1s flaps under that load).
+            timeoutSeconds: 5
+          livenessProbe:
+            # /alive = the management server is up (process healthy).
+            httpGet:
+              path: /alive
+              port: management
+            periodSeconds: 15
+            # During a rollout every node replays 100 remember-entities
+            # shards at once; the CPU-starved JVM can't answer /alive within
+            # the default 1s, and the default 3-miss threshold then KILLS the
+            # pod mid-replay — so the DData quorum never settles and it loops.
+            # 5s timeout + 6 misses (~90s grace) lets the replay finish.
+            timeoutSeconds: 5
+            failureThreshold: 6
+          resources:
+            requests:
+              cpu: "1000m"
+              # Headroom for the JVM + a Chromium pool (each ~150-300MB).
+              memory: 1536Mi
+            limits:
+              memory: 2560Mi
+      volumes:
+        # Chromium is unhappy with the default 64MB /dev/shm; --disable-dev-shm-usage
+        # (set via CHROMIUM_NO_SANDBOX) plus this larger tmpfs keeps renders stable.
+        - name: dshm
+          emptyDir:
+            medium: Memory
+            sizeLimit: 1Gi
+        # Role overlay (roles=[entity,api], no singleton). Replaces the old
+        # application-k8s.conf resource — see application-app.conf.
+        - name: app-conf
+          configMap:
+            name: app-conf
+  volumeClaimTemplates:
+    - metadata:
+        name: ddata
+      spec:
+        accessModes: ["ReadWriteOnce"]
+        resources:
+          requests:
+            storage: 2Gi

@@ -1,0 +1,93 @@
+{{define "content"}}
+<div class="max-w-4xl">
+  <h1 class="page-title">Account Requests</h1>
+  <p class="page-sub">Review who gets access to this platform. Approval provisions the account on the ad server.</p>
+
+  {{if .Error}}
+  <div class="bg-red-50 border border-red-200 text-red-700 rounded-lg p-3 mt-6 text-sm">{{.Error}}</div>
+  {{end}}
+
+  {{if and (not .AdminRequests) (not .AdminOrgSideRequests)}}
+  <div class="card mt-6 text-center text-gray-500">
+    <p class="text-3xl mb-2">&#10003;</p>
+    <p>No pending requests.</p>
+  </div>
+  {{end}}
+
+  {{if .AdminOrgSideRequests}}
+  <h2 class="text-lg font-medium mt-8">Organization side requests</h2>
+  <p class="text-sm text-gray-500">An existing organization asking for its other side. Approval provisions the account on the ad server.</p>
+  <div class="space-y-4 mt-4">
+    {{range .AdminOrgSideRequests}}
+    <div class="card">
+      <div class="flex items-start justify-between gap-4">
+        <div>
+          <div class="flex items-center gap-2 mb-1">
+            <h2 class="font-semibold text-lg">{{if .OrgName}}{{.OrgName}}{{else}}@{{.OrgDomain}}{{end}}</h2>
+            <span class="badge {{if eq .Side "publisher"}}badge-info{{else}}badge-success{{end}}">wants {{.Side}}</span>
+          </div>
+          <p class="text-sm text-gray-500">@{{.OrgDomain}} · requested by {{if .RequesterEmail}}{{.RequesterEmail}}{{else}}(removed member){{end}}</p>
+        </div>
+        <span class="text-xs text-gray-400 whitespace-nowrap">{{.CreatedAt.Format "2006-01-02 15:04"}}</span>
+      </div>
+      {{if .Message}}
+      <p class="mt-3 text-sm text-gray-600 bg-gray-50 border rounded-md p-3">{{.Message}}</p>
+      {{end}}
+      <div class="flex gap-3 mt-4">
+        <form method="POST" action="/admin/org-side/approve"
+          onsubmit="return confirm('Approve the {{.Side}} side for @{{.OrgDomain}}? This provisions the account on the ad server.')">
+          <input type="hidden" name="requestId" value="{{.ID}}">
+          <button type="submit" class="btn btn-success">Approve</button>
+        </form>
+        <form method="POST" action="/admin/org-side/reject">
+          <input type="hidden" name="requestId" value="{{.ID}}">
+          <button type="submit" class="btn btn-danger">Reject</button>
+        </form>
+      </div>
+    </div>
+    {{end}}
+  </div>
+  {{end}}
+
+  <div class="space-y-4 mt-6">
+    {{range .AdminRequests}}
+    <div class="card">
+      <div class="flex items-start justify-between gap-4">
+        <div>
+          <div class="flex items-center gap-2 mb-1">
+            <h2 class="font-semibold text-lg">{{.Company}}</h2>
+            <span class="badge {{if eq .Role "publisher"}}badge-info{{else}}badge-success{{end}}">{{.Role}}</span>
+          </div>
+          <p class="text-sm text-gray-500">
+            <a href="{{.Website}}" target="_blank" rel="noopener noreferrer" class="text-brand hover:underline">{{.Website}}</a>
+          </p>
+        </div>
+        <span class="text-xs text-gray-400 whitespace-nowrap">{{.RequestedAt}}</span>
+      </div>
+
+      <dl class="grid grid-cols-2 gap-x-6 gap-y-2 mt-4 text-sm">
+        <div><dt class="text-gray-400">Contact</dt><dd>{{.Contact}}</dd></div>
+        <div><dt class="text-gray-400">Email</dt><dd>{{.Email}}</dd></div>
+      </dl>
+
+      {{if .Message}}
+      <p class="mt-3 text-sm text-gray-600 bg-gray-50 border rounded-md p-3">{{.Message}}</p>
+      {{end}}
+
+      <div class="flex gap-3 mt-4">
+        <form method="POST" action="/admin/requests/approve"
+          onsubmit="return confirm('Approve {{.Company}}? This provisions their account on the ad server.')">
+          <input type="hidden" name="userId" value="{{.ID}}">
+          <button type="submit" class="btn btn-success">Approve</button>
+        </form>
+        <form method="POST" action="/admin/requests/reject"
+          onsubmit="return confirm('Reject {{.Company}}? They will not be able to sign in.')">
+          <input type="hidden" name="userId" value="{{.ID}}">
+          <button type="submit" class="btn btn-danger">Reject</button>
+        </form>
+      </div>
+    </div>
+    {{end}}
+  </div>
+</div>
+{{end}}

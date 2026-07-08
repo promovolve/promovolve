@@ -1,0 +1,98 @@
+<!doctype html>
+<!--
+  Harness for <magazine-preview> — the shared eye-icon preview wrapper.
+  Verifies the faux-newspaper backdrop frosts the glass close/nav chrome.
+  Run: npm run serve, then open /dev/preview.html
+-->
+<html lang="en">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <title>magazine-preview harness</title>
+    <style>
+      body { margin: 0; font: 14px/1.4 system-ui, sans-serif; background: #fff; color: #222; padding: 24px; }
+      #host { max-width: 960px; margin: 0 auto; }
+    </style>
+  </head>
+  <body>
+    <div id="host"></div>
+    <script type="module" src="/src/index.ts"></script>
+    <script type="module">
+      const PAGES = [
+        { bg: "linear-gradient(135deg,#1a1a2e,#0f3460)", layout: [
+            { type: "text", text: "HELLO", left: 8, top: 18, width: 84, fontSize: 14, color: "#f5c518", fontWeight: 800 },
+            { type: "text", text: "designer preview", left: 8, top: 48, width: 84, fontSize: 6, color: "#e8e8e8" },
+        ] },
+        { bg: "linear-gradient(135deg,#2d132c,#801336)", layout: [
+            { type: "text", text: "Page 2", left: 8, top: 44, width: 84, fontSize: 11, color: "#fff", fontWeight: 700 },
+        ] },
+      ];
+      const CONFIG = { layout: "auto", font: "sans", showTag: false, showSub: true, expandAnimation: "fade" };
+      await customElements.whenDefined("magazine-preview");
+      const el = document.createElement("magazine-preview");
+      el.setAttribute("pages", JSON.stringify(PAGES));
+      el.setAttribute("config", JSON.stringify(CONFIG));
+      el.setAttribute("landing-url", "https://example.com/landing");
+      if (location.hash.includes("mobile")) el.setAttribute("default-mode", "mobile");
+      // Mirror the designer/publisher: open collapsed (ad embedded in the
+      // newspaper) + keep-frame (close returns to the embedded ad).
+      el.setAttribute("start-collapsed", "1");
+      el.setAttribute("keep-frame", "1");
+
+      // #modal / #designer reproduce the designer's preview modal. #designer
+      // ALSO mimics the parked-then-shown lifecycle (built opacity:0 + inert
+      // at startup, then revealed on Preview click) — preview-button.ts.
+      if (location.hash.includes("modal") || location.hash.includes("designer")) {
+        const parked = location.hash.includes("designer");
+        const modal = document.createElement("div");
+        modal.style.cssText = "position:fixed;inset:0;z-index:500;background:rgba(0,0,0,0.78);display:flex;align-items:center;justify-content:center;transition:opacity .15s ease;" + (parked ? "opacity:0;pointer-events:none;" : "");
+        modal.addEventListener("click", (e) => { if (e.target === modal) console.log("SCRIM CLOSE"); });
+        if (parked) modal.inert = true;
+        el.style.cssText = "max-width: min(900px, 92vw); width: 100%;";
+        modal.appendChild(el);
+        document.body.appendChild(modal);
+        if (parked) {
+          setTimeout(() => { modal.inert = false; modal.style.opacity = "1"; modal.style.pointerEvents = "auto"; }, 700);
+        }
+      } else if (location.hash.includes("hidden")) {
+        // Reproduce the publisher approval pane: the preview starts in a
+        // display:none container (Tailwind `hidden`) and is revealed later.
+        const pane = document.createElement("div");
+        pane.style.display = "none";
+        pane.appendChild(el);
+        document.getElementById("host").appendChild(pane);
+        setTimeout(() => { pane.style.display = ""; }, 700);
+      } else {
+        document.getElementById("host").appendChild(el);
+      }
+
+      // Screenshot hooks (headless verification):
+      //   #expand  → auto-expand via _expand()
+      //   #click   → drive the REAL click-to-expand path (clicks the ad)
+      // Both wait for the (parked) modal to reveal first.
+      if (location.hash.includes("expand") || location.hash.includes("click")) {
+        const pickVisibleBanner = () => {
+          const banners = [...(el.shadowRoot?.querySelectorAll("expandable-magazine-banner") ?? [])];
+          return banners.find((b) => b.getBoundingClientRect().width > 0) ?? banners[0];
+        };
+        setTimeout(() => {
+          const inner = pickVisibleBanner();
+          if (location.hash.includes("click")) {
+            inner?.shadowRoot?.querySelector(".banner")?.click();
+          } else if (inner?._expand) {
+            inner._expand();
+          }
+          // #close → after expanding, click the reader's Close pill (to
+          // screenshot the close transition / verify no blank flash).
+          if (location.hash.includes("close")) {
+            setTimeout(() => {
+              const i2 = pickVisibleBanner();
+              const btns = [...(i2?.shadowRoot?.querySelectorAll(".overlay button") ?? [])];
+              (btns.find((b) => /close|閉/i.test(b.textContent || "")) || btns[0])?.click();
+            }, 1400);
+          }
+        }, 900);
+      }
+    </script>
+  </body>
+</html>

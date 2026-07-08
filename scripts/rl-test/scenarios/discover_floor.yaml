@@ -1,0 +1,28 @@
+# Discovery test: lower the minFloorCpm cap to $1 and reset the agent
+# from scratch (ε = 1.0). Bidder mix is still $2/$4/$6/$8/$10, so the
+# expected reasonable zone is [$4, $7]. The agent has no prior — it
+# must find it from the reward signal alone.
+#
+# Pass:        floor settles in [$4, $7] in last 20 min
+# Soft fail:   floor settles in [$1, $3.99] — explored but undersells
+# Hard fail:   floor pinned at $1 the whole time — Q-net never learned
+name: discover_floor
+durationSeconds: 5400             # 90 min
+pollIntervalSeconds: 5
+
+site:
+  initialFloorCpm: 5.0            # neutral midpoint, agent can go either way
+  minFloorCpm: 1.0                # widen the search range
+  bidWeight: 0.5
+  pacingDayDurationSeconds: 300
+  resetFloorAgent: true           # wipe everything, ε starts at 1.0
+
+traffic:
+  workers: 4
+  intervalSeconds: 1
+  ctr: 0.10
+
+events: []
+
+floorStrategy:
+  kind: rl

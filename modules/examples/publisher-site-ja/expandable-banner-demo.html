@@ -1,0 +1,45 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Expandable Magazine Banner Demo</title>
+  <link href="https://fonts.googleapis.com/css2?family=Noto+Serif+JP:wght@400;600&display=swap" rel="stylesheet">
+  <style>
+    body { font-family: 'Noto Serif JP', Georgia, serif; margin: 0; background: #fafaf8; color: #333; }
+    .article { max-width: 800px; margin: 0 auto; padding: 40px 20px; }
+    .meta { font-size: 10px; letter-spacing: 4px; color: #999; margin-bottom: 24px; font-family: 'Helvetica Neue', sans-serif; text-transform: uppercase; }
+    h1 { font-size: 28px; font-weight: 400; line-height: 1.6; margin-bottom: 16px; }
+    p { font-size: 15px; line-height: 2; color: #555; margin-bottom: 24px; }
+    .ad-slot { margin: 32px 0; }
+  </style>
+</head>
+<body>
+  <article class="article">
+    <div class="meta">Travel &middot; 2026.04.06</div>
+    <h1>日本の隠れた名所を巡る旅</h1>
+    <p>
+      日本各地には、まだ観光客に知られていない美しい場所が数多く存在します。
+      地元の人々だけが知る秘密の景色、季節限定の風景、そして心に残る体験。
+      この記事では、そんな隠れた名所をご紹介します。
+    </p>
+
+    <!-- Ad slot: expandable magazine banner -->
+    <div class="ad-slot">
+      <expandable-magazine-banner></expandable-magazine-banner>
+    </div>
+
+    <p>
+      旅の計画を立てる際は、地元のガイドブックやコミュニティサイトを
+      参考にすることをおすすめします。観光地化されていない場所だからこそ、
+      訪れる際のマナーや注意点を事前に確認しておくことが大切です。
+    </p>
+    <p>
+      次回の記事では、東北地方の知られざる温泉地をご紹介する予定です。
+      お楽しみに。
+    </p>
+  </article>
+
+  <script src="expandable-magazine-banner.js"></script>
+</body>
+</html>

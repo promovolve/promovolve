@@ -1,0 +1,49 @@
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+/* Canonical component classes — the design system's shared vocabulary
+   (dev_docs/DESIGN_SYSTEM.md). Moved verbatim from layout.html's
+   text/tailwindcss block when the Play CDN was replaced by this build. */
+@layer components {
+  .btn { @apply inline-flex items-center justify-center gap-1.5 px-4 py-2 text-sm font-medium rounded-md cursor-pointer transition-colors disabled:opacity-50 disabled:cursor-not-allowed; }
+  .btn-sm { @apply px-3 py-1 text-xs; }
+  .btn-primary { @apply bg-brand text-gray-950 hover:bg-brand-hover; }
+  .btn-secondary { @apply bg-white border border-gray-300 text-gray-700 hover:bg-gray-50; }
+  .btn-success { @apply bg-green-600 text-white hover:bg-green-700; }
+  .btn-danger { @apply bg-red-600 text-white hover:bg-red-700; }
+  .card { @apply bg-white border rounded-lg p-6; }
+  .card-tight { @apply p-4; }
+  .badge { @apply inline-flex items-center px-2 py-0.5 rounded-full text-xs font-medium; }
+  .badge-info { @apply bg-blue-100 text-blue-800; }
+  .badge-success { @apply bg-green-100 text-green-700; }
+  .badge-warning { @apply bg-yellow-100 text-yellow-800; }
+  .badge-danger { @apply bg-red-100 text-red-700; }
+  .badge-neutral { @apply bg-gray-100 text-gray-600; }
+  .form-label { @apply block text-sm font-medium text-gray-700 mb-1; }
+  .form-input { @apply w-full px-3 py-2 border border-gray-300 rounded-md text-sm focus:outline-none focus:ring-2 focus:ring-brand/20 focus:border-brand; }
+  .form-hint { @apply text-xs text-gray-400 mt-1; }
+  .page-title { @apply text-2xl font-semibold; }
+  .page-sub { @apply text-sm text-gray-500 mt-1; }
+
+  /* Rendered-markdown typography for the in-app Help pages (goldmark
+     output — plain h1/h2/p/pre/table tags, so descendant selectors, not
+     utilities on markup we don't control). */
+  .prose-doc { @apply text-sm text-gray-700 leading-relaxed; }
+  .prose-doc h1 { @apply text-2xl font-semibold text-gray-900 mb-2; }
+  .prose-doc h2 { @apply text-lg font-semibold text-gray-900 mt-8 mb-3 pt-4 border-t border-gray-100 scroll-mt-4; }
+  .prose-doc h3 { @apply text-base font-semibold text-gray-900 mt-5 mb-2; }
+  .prose-doc p { @apply my-3; }
+  .prose-doc ul { @apply list-disc pl-5 my-3 space-y-1; }
+  .prose-doc ol { @apply list-decimal pl-5 my-3 space-y-1; }
+  .prose-doc a { @apply text-brand hover:underline; }
+  .prose-doc strong { @apply font-semibold text-gray-900; }
+  .prose-doc code { @apply font-mono text-xs bg-gray-100 rounded px-1 py-0.5; }
+  .prose-doc pre { @apply bg-gray-900 text-gray-100 rounded-lg p-4 my-4 overflow-x-auto; }
+  .prose-doc pre code { @apply bg-transparent p-0 text-xs leading-relaxed; }
+  .prose-doc table { @apply w-full text-sm my-4 border-collapse; }
+  .prose-doc th { @apply text-left text-gray-400 font-medium border-b px-3 py-2; }
+  .prose-doc td { @apply border-b border-gray-100 px-3 py-2; }
+  .prose-doc blockquote { @apply border-l-4 border-gray-200 pl-4 text-gray-500 my-4; }
+  .prose-doc hr { @apply my-6 border-gray-100; }
+}

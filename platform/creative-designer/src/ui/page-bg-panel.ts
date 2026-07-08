@@ -1,0 +1,848 @@
+// Page Background panel. Always visible in the Properties tab of the
+// sidebar — surfaces the current page's full-bleed video background
+// with upload, fit, opacity, playback toggles, trim, and remove.
+//
+// The videoBg lives on Page (not on layout items), so auto-layout
+// regeneration ignores it and it renders in every size fanout.
+//
+// Update pattern mirrors props-panel.ts: text/number `input` events
+// go through store.replace for live preview; `change` events (blur,
+// slider release, select close) commit a single undo step.
+
+import { currentPage, setPageBg, setTextureBg, setTextureSrc, setVideoBg } from "../state";
+import type { Store } from "../store";
+import type { DesignerState, TextureBg, VideoBg } from "../types";
+import { openAssetModal } from "./asset-modal";
+import { tokens } from "./tokens";
+
+export interface PageBgPanelHandle {
+  update(state: DesignerState): void;
+}
+
+export function mountPageBgPanel(container: HTMLElement, store: Store): PageBgPanelHandle {
+  const panel = document.createElement("div");
+  panel.className = "cd-page-bg";
+  panel.style.cssText = "padding: 14px;";
+  container.appendChild(panel);
+
+  // (Section title "Page Background" is provided by the sidebar's
+  // collapsible section header — see makeSection in ui/sidebar.ts.)
+
+  // Color picker — applies to the page's solid bg fallback. Independent
+  // of any video bg above (the video sits on top when present).
+  const colorRow = mountColorRow(store);
+  panel.appendChild(colorRow.el);
+
+  // Subhead between sections so the two surfaces read as related but
+  // distinct ("Color" vs "Video").
+  const videoHeader = document.createElement("div");
+  videoHeader.style.cssText = `font-size:11px;letter-spacing:2px;color:${tokens.ink300};margin:18px 0 10px;text-transform:uppercase;`;
+  videoHeader.textContent = "Video";
+  panel.appendChild(videoHeader);
+
+  // Body — structure differs based on whether a video is set.
+  const body = document.createElement("div");
+  panel.appendChild(body);
+
+  // Subhead + body for the texture surface. A texture is a full-bleed
+  // image that fills the page behind the layout — tiled or covering.
+  const textureHeader = document.createElement("div");
+  textureHeader.style.cssText = `font-size:11px;letter-spacing:2px;color:${tokens.ink300};margin:18px 0 10px;text-transform:uppercase;`;
+  textureHeader.textContent = "Texture";
+  panel.appendChild(textureHeader);
+
+  const textureBody = document.createElement("div");
+  panel.appendChild(textureBody);
+
+  let renderedSrc: string | null | undefined = undefined;
+  // Texture rebuilds on src OR mode change (mode toggles the tile-size
+  // row in/out); opacity ticks live via patchTextureValues.
+  let renderedTextureKey: string | null | undefined = undefined;
+
+  return {
+    update(state) {
+      const page = currentPage(state);
+      colorRow.update(page?.bg ?? "");
+      const videoBg = page?.videoBg;
+      const src = videoBg?.src ?? null;
+      // Only rebuild when present/absent state flips — otherwise
+      // patching existing inputs keeps focus and avoids jitter.
+      if (renderedSrc !== src) {
+        body.innerHTML = "";
+        if (videoBg) {
+          renderWithVideo(body, videoBg, store);
+        } else {
+          renderEmpty(body, store);
+        }
+        renderedSrc = src;
+      } else if (videoBg) {
+        patchValues(body, videoBg);
+      }
+
+      const textureBg = page?.textureBg;
+      const texKey = textureBg ? `${textureBg.src}|${textureBg.mode ?? "tile"}` : null;
+      if (renderedTextureKey !== texKey) {
+        textureBody.innerHTML = "";
+        if (textureBg) {
+          renderWithTexture(textureBody, textureBg, store);
+        } else {
+          renderEmptyTexture(textureBody, store);
+        }
+        renderedTextureKey = texKey;
+      } else if (textureBg) {
+        patchTextureValues(textureBody, textureBg);
+      }
+    },
+  };
+}
+
+// ─── Background color row ──────────────────────────────────────────
+
+interface ColorRowHandle {
+  el: HTMLElement;
+  update(currentBg: string): void;
+}
+
+function mountColorRow(store: Store): ColorRowHandle {
+  const row = document.createElement("div");
+  row.style.cssText = "display:flex;align-items:center;gap:8px;";
+
+  const label = document.createElement("label");
+  label.style.cssText = `flex:0 0 80px;color:${tokens.ink300};font-size:11px;`;
+  label.textContent = "Color";
+
+  const swatch = document.createElement("input");
+  swatch.type = "color";
+  swatch.style.cssText = "width:32px;height:24px;padding:0;border:none;background:transparent;cursor:pointer;";
+
+  const text = document.createElement("input");
+  text.type = "text";
+  text.placeholder = "#1a1a1a or transparent";
+  text.style.cssText = [
+    "flex:1",
+    "min-width:0",
+    `background:${tokens.ink900}`,
+    `color:${tokens.ink100}`,
+    `border:1px solid ${tokens.ink700}`,
+    "border-radius:3px",
+    "padding:4px 6px",
+    `font-family:${tokens.sans}`,
+    "font-size:11px",
+  ].join(";");
+
+  const clear = document.createElement("button");
+  clear.type = "button";
+  clear.textContent = "Reset";
+  clear.style.cssText = [
+    "background:transparent",
+    `color:${tokens.ink300}`,
+    `border:1px solid ${tokens.ink700}`,
+    "border-radius:3px",
+    "padding:4px 8px",
+    "font-size:11px",
+    "cursor:pointer",
+  ].join(";");
+
+  row.appendChild(label);
+  row.appendChild(swatch);
+  row.appendChild(text);
+  row.appendChild(clear);
+
+  // Keep the swatch and text input in sync. Picker fires "input" on
+  // every drag tick — replace state for live preview, commit on close.
+  // Text input commits on blur via "change".
+  swatch.addEventListener("input", () => {
+    text.value = swatch.value;
+    store.replace(setPageBg(store.state, swatch.value));
+  });
+  swatch.addEventListener("change", () => {
+    store.commit(setPageBg(store.state, swatch.value));
+  });
+  text.addEventListener("change", () => {
+    const v = text.value.trim();
+    store.commit(setPageBg(store.state, v === "" ? null : v));
+  });
+  clear.addEventListener("click", () => {
+    text.value = "";
+    store.commit(setPageBg(store.state, null));
+  });
+
+  return {
+    el: row,
+    update(currentBg) {
+      // Only repopulate when the value differs from the input — avoids
+      // clobbering user input mid-edit and keeps focus/caret intact.
+      if (text.value !== currentBg) {
+        text.value = currentBg;
+      }
+      // Color picker only accepts hex; leave blank for non-hex values
+      // (e.g. "transparent", gradients) so we don't lie about the swatch.
+      if (/^#[0-9a-fA-F]{6}$/.test(currentBg)) {
+        if (swatch.value.toLowerCase() !== currentBg.toLowerCase()) {
+          swatch.value = currentBg;
+        }
+      }
+    },
+  };
+}
+
+// ─── Empty state ───────────────────────────────────────────────────
+
+function renderEmpty(body: HTMLElement, store: Store): void {
+  const hint = document.createElement("p");
+  hint.style.cssText = `color:${tokens.ink400};font-size:11px;margin:0 0 10px;line-height:1.5;`;
+  hint.textContent = "Full-bleed video plays behind every size. MP4 or WebM.";
+  body.appendChild(hint);
+
+  const btn = uploadButton(store, "Upload video…");
+  body.appendChild(btn);
+}
+
+// ─── With-video state ──────────────────────────────────────────────
+
+function renderWithVideo(body: HTMLElement, videoBg: VideoBg, store: Store): void {
+  // Inline preview — plays the current clip so the author can see
+  // exactly what's going behind the layout. Muted + playsinline so it
+  // autoplays in the panel without user interaction.
+  const preview = document.createElement("video");
+  preview.src = videoBg.src;
+  preview.muted = true;
+  preview.autoplay = true;
+  preview.loop = true;
+  preview.playsInline = true;
+  preview.controls = true;
+  preview.setAttribute("playsinline", "");
+  preview.setAttribute("muted", "");
+  preview.style.cssText = [
+    "width: 100%",
+    "aspect-ratio: 16 / 9",
+    "object-fit: cover",
+    `background: ${tokens.ink900}`,
+    `border: 1px solid ${tokens.ink500}`,
+    "border-radius: 4px",
+    "margin-bottom: 10px",
+    "display: block",
+  ].join(";");
+  // Swallow autoplay-policy rejections — the poster/first-frame still
+  // shows and the controls let the author press play.
+  preview.play().catch(() => { /* autoplay may be denied in the panel */ });
+  body.appendChild(preview);
+
+  // Current-file readout + replace button.
+  const head = document.createElement("div");
+  head.style.cssText = "display:flex;align-items:center;gap:8px;margin-bottom:12px;";
+  const filename = document.createElement("span");
+  filename.style.cssText = `flex:1;min-width:0;font-size:11px;color:${tokens.ink200};overflow:hidden;text-overflow:ellipsis;white-space:nowrap;`;
+  filename.textContent = fileNameFromUrl(videoBg.src);
+  filename.title = videoBg.src;
+  head.appendChild(filename);
+  const replace = uploadButton(store, "Replace");
+  (replace.style as CSSStyleDeclaration).cssText += ";flex:0 0 auto;";
+  head.appendChild(replace);
+  body.appendChild(head);
+
+  // Fit — cover | contain.
+  row(body, "Fit", segmented(["cover", "contain"], videoBg.fit ?? "cover",
+    (v) => commit(store, (bg) => ({ ...bg, fit: v as "cover" | "contain" })),
+  ), "data-fit");
+
+  // Opacity — 0..100% slider.
+  row(body, "Opacity", opacitySlider(videoBg.opacity ?? 1,
+    (v, commitNow) => mutate(store, (bg) => ({ ...bg, opacity: v }), commitNow),
+  ), "data-opacity");
+
+  // Loop / Muted / Autoplay toggles.
+  row(body, "Loop", toggle(videoBg.loop ?? true,
+    (v) => commit(store, (bg) => ({ ...bg, loop: v })),
+  ), "data-loop");
+  row(body, "Muted", toggle(videoBg.muted ?? true,
+    (v) => commit(store, (bg) => ({ ...bg, muted: v })),
+  ), "data-muted");
+  row(body, "Autoplay", toggle(videoBg.autoplay ?? true,
+    (v) => commit(store, (bg) => ({ ...bg, autoplay: v })),
+  ), "data-autoplay");
+
+  // Trim in/out — optional seconds. Empty = clear.
+  const trim = document.createElement("div");
+  trim.style.cssText = "display:flex;align-items:center;gap:8px;margin-bottom:6px;";
+  const trimLabel = document.createElement("span");
+  trimLabel.textContent = "Trim";
+  trimLabel.style.cssText = `flex:0 0 80px;color:${tokens.ink300};font-size:11px;`;
+  trim.appendChild(trimLabel);
+  trim.appendChild(trimInput("in", videoBg.inSec,
+    (v) => commit(store, (bg) => ({ ...bg, inSec: v })),
+  ));
+  trim.appendChild(trimInput("out", videoBg.outSec,
+    (v) => commit(store, (bg) => ({ ...bg, outSec: v })),
+  ));
+  trim.dataset.trim = "1";
+  body.appendChild(trim);
+
+  // Remove — destructive, bottom.
+  const remove = document.createElement("button");
+  remove.type = "button";
+  remove.textContent = "Remove";
+  remove.style.cssText = [
+    "margin-top: 14px",
+    "width: 100%",
+    "padding: 6px 10px",
+    "background: transparent",
+    `color: ${tokens.err}`,
+    `border: 1px solid ${tokens.err}`,
+    "border-radius: 4px",
+    "cursor: pointer",
+    "font: inherit",
+    "font-size: 11px",
+  ].join(";");
+  remove.addEventListener("click", () => {
+    store.commit(setVideoBg(store.state, null));
+  });
+  body.appendChild(remove);
+}
+
+// ─── Patch-in-place (no rebuild) ───────────────────────────────────
+
+// When the videoBg identity stays the same but values tick during a
+// live drag (opacity), sync inputs that weren't being edited without
+// destroying focus on the one that is.
+function patchValues(body: HTMLElement, videoBg: VideoBg): void {
+  const opacity = body.querySelector<HTMLInputElement>('[data-opacity] input[type="range"]');
+  if (opacity && document.activeElement !== opacity) {
+    opacity.value = String(Math.round((videoBg.opacity ?? 1) * 100));
+  }
+  const opacityReadout = body.querySelector<HTMLElement>('[data-opacity] .cd-readout');
+  if (opacityReadout) opacityReadout.textContent = `${Math.round((videoBg.opacity ?? 1) * 100)}%`;
+}
+
+// ─── Texture: empty state ──────────────────────────────────────────
+
+function renderEmptyTexture(body: HTMLElement, store: Store): void {
+  // Primary path: drop an image on the canvas (mountImageDrop →
+  // "Background texture"). Secondary: pick an existing library image —
+  // which is also where landing-page images imported during compose
+  // live, and the library modal has its own upload.
+  const hint = document.createElement("p");
+  hint.style.cssText = `color:${tokens.ink400};font-size:11px;margin:0 0 10px;line-height:1.5;`;
+  hint.innerHTML = "Full-bleed image behind every size — tiled pattern or single cover image.<br><br>"
+    + `<span style="color:${tokens.ink300}">Drag an image onto the canvas and choose <b>Background texture</b>, or:</span>`;
+  body.appendChild(hint);
+
+  body.appendChild(textureLibraryButton(store, "Choose from library…"));
+}
+
+/** Open the Images library (uploads + landing-page images, with its own
+  * upload) and route the chosen image to the texture bg instead of the
+  * main image. The full-screen modal covers the canvas, so this is the
+  * click path that complements canvas drag-drop. */
+function textureLibraryButton(store: Store, label: string): HTMLButtonElement {
+  const btn = document.createElement("button");
+  btn.type = "button";
+  btn.textContent = label;
+  btn.style.cssText = [
+    "padding: 6px 10px",
+    `background: ${tokens.ink700}`,
+    `color: ${tokens.ink100}`,
+    `border: 1px solid ${tokens.ink500}`,
+    "border-radius: 4px",
+    "cursor: pointer",
+    "font: inherit",
+    "font-size: 11px",
+  ].join(";");
+  btn.addEventListener("click", () => {
+    openAssetModal(store, (asset) => store.commit(setTextureSrc(store.state, asset.cdnUrl)));
+  });
+  return btn;
+}
+
+// ─── Texture: with-texture state ───────────────────────────────────
+
+const FILLS = "fills (no crop)";
+// How a cover image of `imageAspect` is cropped by a slot of `slotAspect`,
+// which tells the author which focal axis actually moves it there:
+//   image wider than the slot  → overflows horizontally → left/right pans
+//   image taller than the slot → overflows vertically   → up/down pans
+//   ~equal aspect              → fills exactly, no slack → focal no-op
+// The ±2% band keeps a near-match from reading as a meaningful pan.
+function focalCropLabel(imageAspect: number, slotAspect: number): string {
+  const r = imageAspect / slotAspect;
+  if (r > 1.02) return "left/right";
+  if (r < 0.98) return "up/down";
+  return FILLS;
+}
+
+function renderWithTexture(body: HTMLElement, textureBg: TextureBg, store: Store): void {
+  const mode: "tile" | "cover" = textureBg.mode ?? "tile";
+
+  // Preview — a swatch that shows the texture exactly as it renders. In
+  // cover mode it doubles as a focal-point picker: drag to choose which
+  // part of the image stays visible under the crop.
+  body.appendChild(texturePreview(textureBg, store));
+  if (mode === "cover") {
+    const tip = document.createElement("p");
+    tip.style.cssText = `color:${tokens.ink400};font-size:10px;margin:-4px 0 10px;`;
+    tip.textContent = "Drag on the preview to set the focal point.";
+    body.appendChild(tip);
+    // A cover focal point only pans on the axis the crop OVERFLOWS, and PC
+    // (16:9) and Mobile (9:16) have opposite aspects — so the same image
+    // usually pans on one device and "fills" (no slack → focal does
+    // nothing) on the other. Once the image's real aspect is known, spell
+    // out which device each axis affects, so a "fills" device doesn't look
+    // broken when dragging the marker has no visible effect there.
+    if (textureBg.src) {
+      const probe = new Image();
+      probe.onload = () => {
+        if (!probe.naturalWidth || !probe.naturalHeight) return;
+        const a = probe.naturalWidth / probe.naturalHeight;
+        const pc = focalCropLabel(a, 16 / 9);
+        const mb = focalCropLabel(a, 9 / 16);
+        if (pc === FILLS && mb === FILLS) {
+          // Image matches both slots' aspects (rare — they differ): no axis
+          // to pan anywhere, so the focal is a genuine no-op. Dim the marker.
+          tip.textContent = "This image fills every slot — the focal point has no effect here.";
+          const marker = body.querySelector<HTMLElement>("[data-tex-focus]");
+          if (marker) marker.style.opacity = "0.35";
+        } else {
+          tip.textContent = `Drag to set the focal point · PC: ${pc} · Mobile: ${mb}`;
+        }
+      };
+      probe.src = textureBg.src;
+    }
+  }
+
+  // Current-file readout + library re-pick. Replace by dropping a new
+  // image on the canvas, or picking another from the library.
+  const head = document.createElement("div");
+  head.style.cssText = "display:flex;align-items:center;gap:8px;margin-bottom:12px;";
+  const filename = document.createElement("span");
+  filename.style.cssText = `flex:1;min-width:0;font-size:11px;color:${tokens.ink200};overflow:hidden;text-overflow:ellipsis;white-space:nowrap;`;
+  filename.textContent = fileNameFromUrl(textureBg.src);
+  filename.title = textureBg.src;
+  head.appendChild(filename);
+  const library = textureLibraryButton(store, "Library");
+  (library.style as CSSStyleDeclaration).cssText += ";flex:0 0 auto;";
+  head.appendChild(library);
+  body.appendChild(head);
+
+  // Mode — tile | cover.
+  row(body, "Mode", segmented(["tile", "cover"], mode,
+    (v) => commitTex(store, (bg) => ({ ...bg, mode: v as "tile" | "cover" })),
+  ), "data-tex-mode");
+
+  // Tile size — px, tile mode only. Empty = natural pixel size.
+  if (mode === "tile") {
+    row(body, "Tile px", scaleInput(textureBg.scale,
+      (v) => commitTex(store, (bg) => ({ ...bg, scale: v })),
+    ), "data-tex-scale");
+  }
+
+  // Opacity — 0..100% slider.
+  row(body, "Opacity", opacitySlider(textureBg.opacity ?? 1,
+    (v, commitNow) => mutateTex(store, (bg) => ({ ...bg, opacity: v }), commitNow),
+  ), "data-tex-opacity");
+
+  // Blend — how the texture mixes over the page color / video.
+  row(body, "Blend", select(
+    ["normal", "multiply", "overlay", "screen", "soft-light"],
+    textureBg.blend ?? "normal",
+    (v) => commitTex(store, (bg) => ({ ...bg, blend: v as TextureBg["blend"] })),
+  ), "data-tex-blend");
+
+  // Remove — destructive, bottom.
+  const remove = document.createElement("button");
+  remove.type = "button";
+  remove.textContent = "Remove";
+  remove.style.cssText = [
+    "margin-top: 14px",
+    "width: 100%",
+    "padding: 6px 10px",
+    "background: transparent",
+    `color: ${tokens.err}`,
+    `border: 1px solid ${tokens.err}`,
+    "border-radius: 4px",
+    "cursor: pointer",
+    "font: inherit",
+    "font-size: 11px",
+  ].join(";");
+  remove.addEventListener("click", () => {
+    store.commit(setTextureBg(store.state, null));
+  });
+  body.appendChild(remove);
+}
+
+// Live opacity + focal-point ticks without rebuilding (keeps focus/drag).
+function patchTextureValues(body: HTMLElement, textureBg: TextureBg): void {
+  const opacity = body.querySelector<HTMLInputElement>('[data-tex-opacity] input[type="range"]');
+  if (opacity && document.activeElement !== opacity) {
+    opacity.value = String(Math.round((textureBg.opacity ?? 1) * 100));
+  }
+  const readout = body.querySelector<HTMLElement>('[data-tex-opacity] .cd-readout');
+  if (readout) readout.textContent = `${Math.round((textureBg.opacity ?? 1) * 100)}%`;
+
+  // Cover focal point — reposition the swatch background + marker as the
+  // author drags (mutateTex replaces state, which re-runs this patch).
+  const preview = body.querySelector<HTMLElement>("[data-tex-preview]");
+  if (preview && (textureBg.mode ?? "tile") === "cover") {
+    const fx = textureBg.focusX ?? 50;
+    const fy = textureBg.focusY ?? 50;
+    preview.style.backgroundPosition = `${fx}% ${fy}%`;
+    const marker = preview.querySelector<HTMLElement>("[data-tex-focus]");
+    if (marker) { marker.style.left = `${fx}%`; marker.style.top = `${fy}%`; }
+  }
+}
+
+// Texture preview swatch. Cover mode is an interactive focal-point
+// picker (drag a marker → focusX/focusY %); tile mode is a static
+// repeating swatch at the chosen tile size.
+function texturePreview(textureBg: TextureBg, store: Store): HTMLElement {
+  const mode: "tile" | "cover" = textureBg.mode ?? "tile";
+  const preview = document.createElement("div");
+  preview.dataset.texPreview = "1";
+  const base = [
+    "position: relative",
+    "width: 100%",
+    "height: 96px",
+    `border: 1px solid ${tokens.ink500}`,
+    "border-radius: 4px",
+    "margin-bottom: 10px",
+    "overflow: hidden",
+  ];
+
+  if (mode === "cover") {
+    const fx = textureBg.focusX ?? 50;
+    const fy = textureBg.focusY ?? 50;
+    preview.style.cssText = [
+      ...base,
+      `background: ${tokens.ink900} no-repeat url("${textureBg.src}")`,
+      "background-size: cover",
+      `background-position: ${fx}% ${fy}%`,
+      "cursor: crosshair",
+      "touch-action: none",
+    ].join(";");
+
+    const marker = document.createElement("div");
+    marker.dataset.texFocus = "1";
+    marker.style.cssText = [
+      "position: absolute",
+      `left: ${fx}%`,
+      `top: ${fy}%`,
+      "width: 18px",
+      "height: 18px",
+      "margin: -9px 0 0 -9px",
+      "border-radius: 50%",
+      "border: 2px solid #fff",
+      "box-shadow: 0 0 0 1px rgba(0,0,0,0.6), 0 1px 4px rgba(0,0,0,0.6)",
+      "pointer-events: none",
+    ].join(";");
+    preview.appendChild(marker);
+
+    const setFromEvent = (e: PointerEvent, commitNow: boolean): void => {
+      const r = preview.getBoundingClientRect();
+      const x = Math.round(Math.max(0, Math.min(100, ((e.clientX - r.left) / r.width) * 100)));
+      const y = Math.round(Math.max(0, Math.min(100, ((e.clientY - r.top) / r.height) * 100)));
+      mutateTex(store, (bg) => ({ ...bg, focusX: x, focusY: y }), commitNow);
+    };
+    let dragging = false;
+    preview.addEventListener("pointerdown", (e) => {
+      dragging = true;
+      preview.setPointerCapture(e.pointerId);
+      setFromEvent(e, false);
+    });
+    preview.addEventListener("pointermove", (e) => {
+      if (dragging) setFromEvent(e, false);
+    });
+    preview.addEventListener("pointerup", (e) => {
+      if (!dragging) return;
+      dragging = false;
+      try { preview.releasePointerCapture(e.pointerId); } catch { /* capture may already be released */ }
+      setFromEvent(e, true);  // single undo step for the whole drag
+    });
+  } else {
+    preview.style.cssText = [
+      ...base,
+      `background: ${tokens.ink900} repeat url("${textureBg.src}")`,
+      `background-size: ${typeof textureBg.scale === "number" && textureBg.scale > 0 ? `${textureBg.scale}px` : "auto"}`,
+    ].join(";");
+  }
+  return preview;
+}
+
+// Tile-size px input. Empty = natural size (undefined).
+function scaleInput(value: number | undefined, onChange: (v: number | undefined) => void): HTMLInputElement {
+  const input = document.createElement("input");
+  input.type = "number";
+  input.min = "1";
+  input.step = "1";
+  input.placeholder = "natural";
+  input.value = value == null ? "" : String(value);
+  input.style.cssText = [
+    "flex: 1",
+    "min-width: 0",
+    `background: ${tokens.ink900}`,
+    `color: ${tokens.ink100}`,
+    `border: 1px solid ${tokens.ink500}`,
+    "border-radius: 4px",
+    "padding: 4px 6px",
+    "font: inherit",
+    "font-size: 11px",
+  ].join(";");
+  input.addEventListener("change", () => {
+    const raw = input.value.trim();
+    if (raw === "") onChange(undefined);
+    else {
+      const n = Number(raw);
+      onChange(Number.isFinite(n) && n > 0 ? n : undefined);
+    }
+  });
+  return input;
+}
+
+function select(options: string[], selected: string, onChange: (v: string) => void): HTMLSelectElement {
+  const sel = document.createElement("select");
+  sel.style.cssText = [
+    "flex: 1",
+    "min-width: 0",
+    `background: ${tokens.ink900}`,
+    `color: ${tokens.ink100}`,
+    `border: 1px solid ${tokens.ink500}`,
+    "border-radius: 4px",
+    "padding: 4px 6px",
+    "font: inherit",
+    "font-size: 11px",
+    "cursor: pointer",
+  ].join(";");
+  for (const opt of options) {
+    const o = document.createElement("option");
+    o.value = opt;
+    o.textContent = opt;
+    if (opt === selected) o.selected = true;
+    sel.appendChild(o);
+  }
+  sel.addEventListener("change", () => onChange(sel.value));
+  return sel;
+}
+
+function commitTex(store: Store, fn: (bg: TextureBg) => TextureBg): void {
+  const prev = currentPage(store.state)?.textureBg;
+  if (!prev) return;
+  store.commit(setTextureBg(store.state, fn(prev)));
+}
+
+function mutateTex(store: Store, fn: (bg: TextureBg) => TextureBg, commitNow: boolean): void {
+  const prev = currentPage(store.state)?.textureBg;
+  if (!prev) return;
+  const next = setTextureBg(store.state, fn(prev));
+  if (commitNow) store.commit(next);
+  else store.replace(next);
+}
+
+// ─── Controls ──────────────────────────────────────────────────────
+
+function uploadButton(store: Store, label: string): HTMLButtonElement {
+  const btn = document.createElement("button");
+  btn.type = "button";
+  btn.textContent = label;
+  btn.style.cssText = [
+    "padding: 6px 10px",
+    `background: ${tokens.ink700}`,
+    `color: ${tokens.ink100}`,
+    `border: 1px solid ${tokens.ink500}`,
+    "border-radius: 4px",
+    "cursor: pointer",
+    "font: inherit",
+    "font-size: 11px",
+  ].join(";");
+
+  const input = document.createElement("input");
+  input.type = "file";
+  // Include both MIME types and extensions — some OS/browser combos
+  // grey out MP4 when only MIME is specified. `video/*` as a last
+  // resort covers codecs we didn't enumerate.
+  input.accept = ".mp4,.webm,video/mp4,video/webm,video/*";
+  input.style.display = "none";
+  input.addEventListener("change", async () => {
+    const file = input.files?.[0];
+    if (!file) return;
+    btn.disabled = true;
+    const orig = btn.textContent;
+    btn.textContent = "Uploading…";
+    try {
+      const url = await uploadVideo(file);
+      if (url) {
+        // Preserve existing flags when replacing — authors don't want
+        // their loop/muted/opacity reset by picking a new source.
+        const prev = currentPage(store.state)?.videoBg;
+        store.commit(setVideoBg(store.state, {
+          src: url,
+          fit: prev?.fit ?? "cover",
+          loop: prev?.loop ?? true,
+          muted: prev?.muted ?? true,
+          autoplay: prev?.autoplay ?? true,
+          opacity: prev?.opacity ?? 1,
+          inSec: prev?.inSec,
+          outSec: prev?.outSec,
+          poster: prev?.poster,
+          sizeBytes: file.size,
+        }));
+      }
+    } catch (e) {
+      console.error("[page-bg] upload failed:", e);
+    } finally {
+      btn.disabled = false;
+      btn.textContent = orig;
+      input.value = "";
+    }
+  });
+
+  btn.addEventListener("click", () => input.click());
+  btn.appendChild(input);
+  return btn;
+}
+
+interface AssetUploadResponse {
+  asset?: { cdnUrl?: string };
+}
+
+async function uploadVideo(file: File): Promise<string | null> {
+  const fd = new FormData();
+  fd.append("file", file, file.name);
+  const resp = await fetch("/advertiser/assets", { method: "POST", body: fd });
+  if (!resp.ok) throw new Error(`HTTP ${resp.status}`);
+  const data = (await resp.json()) as AssetUploadResponse;
+  return data.asset?.cdnUrl ?? null;
+}
+
+function segmented(options: string[], selected: string, onChange: (v: string) => void): HTMLElement {
+  const wrap = document.createElement("div");
+  wrap.style.cssText = [
+    "display:flex",
+    `border: 1px solid ${tokens.ink500}`,
+    "border-radius: 4px",
+    "overflow: hidden",
+    "flex: 1",
+  ].join(";");
+  for (const opt of options) {
+    const btn = document.createElement("button");
+    btn.type = "button";
+    btn.textContent = opt;
+    const isSel = opt === selected;
+    btn.style.cssText = [
+      "flex: 1",
+      "padding: 4px 6px",
+      `background: ${isSel ? tokens.amberBg : "transparent"}`,
+      `color: ${isSel ? tokens.ink100 : tokens.ink300}`,
+      "border: none",
+      "font: inherit",
+      "font-size: 11px",
+      "cursor: pointer",
+    ].join(";");
+    btn.addEventListener("click", () => onChange(opt));
+    wrap.appendChild(btn);
+  }
+  return wrap;
+}
+
+function opacitySlider(value: number, onChange: (v: number, commit: boolean) => void): HTMLElement {
+  const wrap = document.createElement("div");
+  wrap.style.cssText = "display:flex;align-items:center;gap:8px;flex:1;";
+  const input = document.createElement("input");
+  input.type = "range";
+  input.min = "0";
+  input.max = "100";
+  input.step = "1";
+  input.value = String(Math.round(value * 100));
+  input.style.cssText = `flex:1;accent-color:${tokens.amber};cursor:pointer;`;
+  const readout = document.createElement("span");
+  readout.className = "cd-readout";
+  readout.style.cssText = `flex:0 0 36px;text-align:right;color:${tokens.ink300};font-family:${tokens.sans};font-size:11px;`;
+  readout.textContent = `${Math.round(value * 100)}%`;
+  input.addEventListener("input", () => {
+    const v = Number(input.value) / 100;
+    readout.textContent = `${input.value}%`;
+    onChange(v, false);
+  });
+  input.addEventListener("change", () => {
+    const v = Number(input.value) / 100;
+    onChange(v, true);
+  });
+  wrap.append(input, readout);
+  return wrap;
+}
+
+function toggle(value: boolean, onChange: (v: boolean) => void): HTMLElement {
+  const input = document.createElement("input");
+  input.type = "checkbox";
+  input.checked = value;
+  input.style.cssText = "margin:0;cursor:pointer;";
+  input.addEventListener("change", () => onChange(input.checked));
+  return input;
+}
+
+function trimInput(placeholder: string, value: number | undefined, onChange: (v: number | undefined) => void): HTMLInputElement {
+  const input = document.createElement("input");
+  input.type = "number";
+  input.min = "0";
+  input.step = "0.1";
+  input.placeholder = placeholder;
+  input.value = value == null ? "" : String(value);
+  input.style.cssText = [
+    "flex: 1",
+    "min-width: 0",
+    `background: ${tokens.ink900}`,
+    `color: ${tokens.ink100}`,
+    `border: 1px solid ${tokens.ink500}`,
+    "border-radius: 4px",
+    "padding: 4px 6px",
+    "font: inherit",
+    "font-size: 11px",
+  ].join(";");
+  input.addEventListener("change", () => {
+    const raw = input.value.trim();
+    if (raw === "") onChange(undefined);
+    else {
+      const n = Number(raw);
+      onChange(Number.isFinite(n) ? n : undefined);
+    }
+  });
+  return input;
+}
+
+function row(body: HTMLElement, label: string, control: HTMLElement, marker?: string): void {
+  const r = document.createElement("label");
+  r.style.cssText = "display:flex;align-items:center;gap:8px;margin-bottom:6px;";
+  if (marker) r.setAttribute(marker, "1");
+  const lbl = document.createElement("span");
+  lbl.textContent = label;
+  lbl.style.cssText = `flex:0 0 80px;color:${tokens.ink300};font-size:11px;`;
+  r.append(lbl, control);
+  body.appendChild(r);
+}
+
+// ─── Commit helpers ────────────────────────────────────────────────
+
+function commit(store: Store, fn: (bg: VideoBg) => VideoBg): void {
+  const page = currentPage(store.state);
+  const prev = page?.videoBg;
+  if (!prev) return;
+  store.commit(setVideoBg(store.state, fn(prev)));
+}
+
+function mutate(store: Store, fn: (bg: VideoBg) => VideoBg, commitNow: boolean): void {
+  const page = currentPage(store.state);
+  const prev = page?.videoBg;
+  if (!prev) return;
+  const next = setVideoBg(store.state, fn(prev));
+  if (commitNow) store.commit(next);
+  else store.replace(next);
+}
+
+// ─── Utils ─────────────────────────────────────────────────────────
+
+function fileNameFromUrl(url: string): string {
+  try {
+    const u = new URL(url, window.location.origin);
+    const parts = u.pathname.split("/").filter(Boolean);
+    return parts[parts.length - 1] || url;
+  } catch {
+    return url;
+  }
+}

@@ -1,0 +1,22 @@
+# RL-controlled floor against the static $2-$10 market. One leg of the
+# three-way revenue comparison (rl / floor=$5 / floor=$8).
+name: compare_rl
+durationSeconds: 1200             # 20 min — long enough to converge but not so long that ε hits floor
+pollIntervalSeconds: 5
+
+site:
+  initialFloorCpm: 5.0
+  minFloorCpm: 5.0
+  bidWeight: 0.5
+  pacingDayDurationSeconds: 300
+  resetFloorAgent: true
+
+traffic:
+  workers: 4
+  intervalSeconds: 1
+  ctr: 0.10
+
+events: []
+
+floorStrategy:
+  kind: rl

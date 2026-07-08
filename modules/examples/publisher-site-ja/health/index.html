@@ -1,0 +1,134 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <base href="/health/">
+  <title>健康・フィットネス — スポーツデイリー</title>
+  <style>
+    *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+    body { font-family: 'Noto Serif JP', 'Yu Mincho', 'Hiragino Mincho ProN', Georgia, serif; color: #222; background: #f5f5f0; line-height: 1.8; }
+    a { color: #1a5276; text-decoration: none; }
+    a:hover { text-decoration: underline; }
+    .site-header { background: #0d1b2a; color: #fff; padding: 12px 0; }
+    .site-header .container { display: flex; align-items: center; justify-content: space-between; }
+    .site-title { font-size: 1.8rem; font-weight: bold; letter-spacing: -0.5px; }
+    .site-title a { color: #fff; }
+    .site-tagline { font-size: 0.85rem; color: #aaa; font-style: italic; font-family: 'Noto Sans JP', 'Yu Gothic', 'Hiragino Sans', Arial, sans-serif; }
+    nav { background: #1b2838; padding: 8px 0; }
+    nav ul { list-style: none; display: flex; gap: 24px; }
+    nav a { color: #ddd; font-size: 0.95rem; font-family: 'Noto Sans JP', 'Yu Gothic', 'Hiragino Sans', Arial, sans-serif; }
+    nav a:hover { color: #fff; text-decoration: none; }
+    .container { max-width: 1100px; margin: 0 auto; padding: 0 16px; }
+    .ad-slot { background: #e8e8e0; border: 1px dashed #bbb; display: flex; align-items: center; justify-content: center; color: #888; font-family: 'Noto Sans JP', Arial, sans-serif; font-size: 0.8rem; text-transform: uppercase; letter-spacing: 1px; margin: 16px auto; width: 100%; }
+    .ad-slot[data-w="728"][data-h="90"]  { max-width: 728px; aspect-ratio: 728/90;  }
+    .ad-slot[data-w="970"][data-h="90"]  { max-width: 970px; aspect-ratio: 970/90;  }
+    .ad-slot[data-w="300"][data-h="250"] { max-width: 300px; aspect-ratio: 300/250; }
+    .ad-slot[data-w="300"][data-h="600"] { max-width: 300px; aspect-ratio: 300/600; }
+    .ad-slot[data-w="336"][data-h="280"] { max-width: 336px; aspect-ratio: 336/280; }
+    .ad-slot[data-w="160"][data-h="600"] { max-width: 160px; aspect-ratio: 160/600; }
+    .ad-slot[data-w="320"][data-h="50"]  { max-width: 320px; aspect-ratio: 320/50;  }
+    .page-body { display: flex; gap: 24px; padding: 24px 0; }
+    .main-content { flex: 1; min-width: 0; }
+    .sidebar { width: 300px; flex-shrink: 0; }
+
+    /* Mobile: stack sidebar below main content */
+    @media (max-width: 768px) {
+      .page-body { flex-direction: column; }
+      .sidebar { width: 100%; }
+      nav ul { flex-wrap: wrap; gap: 12px; }
+    }
+    .section-header { margin-bottom: 20px; }
+    .section-header h1 { font-size: 2rem; line-height: 1.4; color: #0d1b2a; margin-bottom: 8px; }
+    .section-intro { font-size: 1.05rem; margin-bottom: 16px; }
+    .story-list { list-style: none; }
+    .story-list li { padding: 8px 0; border-bottom: 1px solid #ddd; }
+    .story-list li:last-child { border-bottom: none; }
+    .story-list .headline { font-size: 1.05rem; font-weight: bold; }
+    .story-list .summary { font-size: 0.9rem; color: #555; margin-top: 2px; }
+    .breadcrumb { font-size: 0.85rem; color: #777; font-family: 'Noto Sans JP', 'Yu Gothic', 'Hiragino Sans', Arial, sans-serif; margin-bottom: 16px; }
+    .site-footer { background: #0d1b2a; color: #aaa; text-align: center; padding: 20px 0; font-size: 0.85rem; margin-top: 32px; font-family: 'Noto Sans JP', 'Yu Gothic', 'Hiragino Sans', Arial, sans-serif; }
+  </style>
+</head>
+<body>
+
+  <header class="site-header">
+    <div class="container">
+      <div>
+        <div class="site-title"><a href="../index.html">スポーツデイリー</a></div>
+        <div class="site-tagline">最新スポーツニュース</div>
+      </div>
+    </div>
+  </header>
+
+  <nav>
+    <div class="container">
+      <ul>
+        <li><a href="../index.html">ホーム</a></li>
+        <li><a href="../yakyu/index.html">野球</a></li>
+        <li><a href="../soccer/index.html">サッカー</a></li>
+        <li><a href="../basketball/index.html">バスケットボール</a></li>
+        <li><a href="../sports/index.html">スポーツ総合</a></li>
+        <li><a href="../keiba/index.html">競馬</a></li>
+        <li><a href="../esports/index.html">eスポーツ</a></li>
+        <li><a href="../health/index.html">健康</a></li>
+        <li><a href="../about.html">サイトについて</a></li>
+      </ul>
+    </div>
+  </nav>
+
+  <div class="container">
+    <div class="ad-slot" data-promovolve-slot="HEALTH-SLOT-01" data-w="728" data-h="90">
+      Ad — 728×90
+    </div>
+  </div>
+
+  <div class="container">
+    <div class="page-body">
+      <main class="main-content">
+        <div class="breadcrumb">
+          <a href="../index.html">ホーム</a> &rsaquo; 健康・フィットネス
+        </div>
+
+        <div class="section-header">
+          <h1>健康・フィットネス</h1>
+        </div>
+
+        <p class="section-intro">スポーツを楽しむためには、日々の健康管理とフィットネスが欠かせない。ランニング、ヨガ、筋力トレーニングなど、自分に合った運動習慣を見つけることで、パフォーマンスの向上だけでなく、心身のリフレッシュにもつながる。本セクションでは、アスリートからスポーツ愛好家まで、すべての人に役立つ健康・フィットネス情報をお届けする。栄養管理、怪我の予防、メンタルヘルスまで、スポーツライフを支える幅広いトピックを取り上げていく。</p>
+
+        <ul class="story-list">
+          <li>
+            <div class="headline"><a href="running.html">ランニング初心者が知るべき10のこと — 怪我なく楽しく走るために</a></div>
+            <div class="summary">シューズ選びからフォーム、栄養管理まで、ランニングを始める人のための完全ガイド。</div>
+          </li>
+          <li>
+            <div class="headline"><a href="#">ヨガとストレッチの効果 — 柔軟性がもたらすスポーツパフォーマンスの向上</a></div>
+            <div class="summary">アスリートも実践するヨガの科学的効果とおすすめポーズを紹介。</div>
+          </li>
+        </ul>
+
+      </main>
+
+      <aside class="sidebar">
+        <div class="ad-slot" data-promovolve-slot="HEALTH-SLOT-02" data-w="300" data-h="250">
+          Ad — 300×250
+        </div>
+      </aside>
+    </div>
+  </div>
+
+  <div class="container">
+    <div class="ad-slot" data-promovolve-slot="HEALTH-SLOT-03" data-w="970" data-h="90">
+      Ad — 970×90
+    </div>
+  </div>
+
+  <footer class="site-footer">
+    <div class="container">
+      &copy; 2025 スポーツデイリー。無断転載禁止。テスト用の架空メディアです。
+    </div>
+  </footer>
+
+<script src="https://pub-7ab486148c8740dbb2cc31c5072eb91c.r2.dev/promovolve-ad.js" data-pub="sports-programmer-llc" data-api="https://ads.programmer.llc"></script>
+</body>
+</html>

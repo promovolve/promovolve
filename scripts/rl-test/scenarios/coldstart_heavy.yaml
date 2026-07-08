@@ -1,0 +1,25 @@
+# Same diverse-CPM market as baseline, but with the agent reset and
+# its boot-epsilon kicked up to 0.50 via `coldStart: heavy`. Tests
+# whether aggressive exploration from a low initial floor can walk
+# the agent up to the real optimum ($8) within the run.
+#
+# Compare against baseline.yaml: the two share market shape and
+# starting floor — the only differences are `coldStart` and the
+# `resetFloorAgent: true` flag.
+name: coldstart_heavy
+durationSeconds: 1800            # 30 min — gives a cold agent more room
+pollIntervalSeconds: 5
+
+site:
+  initialFloorCpm: 5.0
+  minFloorCpm: 5.0
+  bidWeight: 0.5
+  pacingDayDurationSeconds: 300
+  resetFloorAgent: true          # wipe snapshot, force-reload with the preset above
+
+traffic:
+  workers: 4
+  intervalSeconds: 1
+  ctr: 0.10
+
+events: []

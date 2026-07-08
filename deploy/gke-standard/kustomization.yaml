@@ -1,0 +1,116 @@
+# GKE Standard — production-shape multi-node overlay.
+#
+# Deploys the production cluster shape on real GKE nodes (what Docker Desktop
+# can't certify): 2 api pods (roles entity+api+crawler) + 1 dedicated singleton
+# pod (roles singleton+entity) = 3 entity nodes → an ODD count for clean
+# keep-majority quorum. The singleton role moves OFF the api pods onto the
+# dedicated pod so api rollouts never migrate the cluster singletons.
+#
+# The only deltas vs. the base k8s/ manifests:
+#   1. api-tier config → application-app-gke.conf (drops the "singleton" role;
+#      the base consolidates it onto the api pods for single-node dev).
+#   2. singleton StatefulSet replicas 0 → 1 (base parks it; here it's the
+#      stable singleton home).
+#   3. ARM64 node tolerations — the published images are arm64 (built on Apple
+#      Silicon); drop these two patches if you run amd64 nodes.
+#   4. Services → ClusterIP (reach them by port-forward; for a public URL use
+#      the deploy/gke-autopilot overlay's Ingress instead).
+#
+# This is a soak / production-validation harness, NOT the cheap demo path — for
+# a public demo use deploy/gke-autopilot (Autopilot + Spot + one Ingress).
+#
+# RUNBOOK (once: gcloud auth login):
+#   gcloud container clusters create promovolve-soak \
+#     --zone asia-northeast1-a --machine-type e2-standard-2 --num-nodes 3 \
+#     --disk-size 50
+#   kubectl create namespace promovolve
+#   # Docker Hub pull secret (private repos under `hanishi`):
+#   kubectl -n promovolve create secret docker-registry regcred \
+#     --docker-server=https://index.docker.io/v1/ \
+#     --docker-username=<user> --docker-password=<PAT>
+#   kubectl kustomize --load-restrictor LoadRestrictionsNone deploy/gke-standard \
+#     | kubectl apply -f -
+#   # Reach the dashboard / api:
+#   kubectl -n promovolve port-forward svc/promovolve-platform 9090:9090
+#   kubectl -n promovolve port-forward svc/promovolve-api      8080:8080
+#
+# PASS CRITERIA (24h soak): 0 unplanned restarts; 0 "Marking node as
+# UNREACHABLE"; 0 "SBR took decision"; then kill-pod / drain / rolling-deploy
+# drills recover with blast radius 1.
+#
+# TEARDOWN: gcloud container clusters delete promovolve-soak --zone asia-northeast1-a
+apiVersion: kustomize.config.k8s.io/v1beta1
+kind: Kustomization
+
+resources:
+  - ../../k8s
+
+configMapGenerator:
+  # Override ONLY the api-tier role config: on the multi-node shape the api pods
+  # do NOT carry the "singleton" role — the dedicated singleton pod is its stable
+  # home. behavior: merge keeps the base's application-single.conf + logback in
+  # app-conf untouched and swaps just this one file.
+  - name: app-conf
+    behavior: merge
+    files:
+      - application-app.conf=application-app-gke.conf
+
+patches:
+  # GKE taints ARM nodes (kubernetes.io/arch=arm64:NoSchedule) even on an
+  # all-ARM cluster; the arm64 images must tolerate it to schedule. Drop both
+  # patches if your nodes are amd64.
+  - target:
+      kind: StatefulSet
+    patch: |-
+      apiVersion: apps/v1
+      kind: StatefulSet
+      metadata:
+        name: any
+      spec:
+        template:
+          spec:
+            tolerations:
+              - key: kubernetes.io/arch
+                operator: Equal
+                value: arm64
+                effect: NoSchedule
+  - target:
+      kind: Deployment
+    patch: |-
+      apiVersion: apps/v1
+      kind: Deployment
+      metadata:
+        name: any
+      spec:
+        template:
+          spec:
+            tolerations:
+              - key: kubernetes.io/arch
+                operator: Equal
+                value: arm64
+                effect: NoSchedule
+  # Turn the dedicated singleton pod ON (base parks it at 0). Its JVM opts,
+  # config file, and quorum settings are already production-correct in the base
+  # manifest — replicas is the only change.
+  - patch: |-
+      apiVersion: apps/v1
+      kind: StatefulSet
+      metadata:
+        name: promovolve-singleton
+      spec:
+        replicas: 1
+  # No public load balancers — reach the cluster by port-forward.
+  - patch: |-
+      apiVersion: v1
+      kind: Service
+      metadata:
+        name: promovolve-api
+      spec:
+        type: ClusterIP
+  - patch: |-
+      apiVersion: v1
+      kind: Service
+      metadata:
+        name: promovolve-platform
+      spec:
+        type: ClusterIP

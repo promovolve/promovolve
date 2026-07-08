@@ -1,0 +1,65 @@
+# Sweep-optimizer non-stationarity test. Mirrors responsive_bidders.yaml
+# with the sweep optimizer driving the floor instead of DQN.
+#
+# Bidders $2/$4/$6/$8 raise their maxCpm by $0.25 each time they go
+# silent for 3×30s = 90s. As bids climb, the optimum floor climbs with
+# them. The sweep optimizer's resweep-after-exploit cadence determines
+# how fast it can track drift: each full sweep takes candidateCount
+# (=10) observation ticks, then exploitTicks (=12) holding at argmax,
+# so a full cycle is ~22 ticks. At pacingDayDurationSeconds=300 a tick
+# is ~5s wall (capped at the floor of the scaling formula), so one
+# cycle ≈ 110s wall. Over 40 min that's ~22 cycles — plenty of resweeps
+# to track the bidder maxCpm drift.
+#
+# Expectation: the second sweep cycle picks a higher argmax than the
+# first as the bid distribution shifts upward. Revenue ratio vs
+# compare_floor_5 should be ≥ 1.0 (positive upside from tracking
+# drift).
+#
+# Cluster prerequisite:
+#   ./scripts/run-dev.sh
+name: responsive_sweep_bidders
+durationSeconds: 2400               # 40 min
+pollIntervalSeconds: 5
+
+site:
+  initialFloorCpm: 5.0
+  minFloorCpm: 1.0                  # let the sweep explore the full range
+  bidWeight: 0.5
+  pacingDayDurationSeconds: 300
+  resetFloorAgent: true             # fresh sweep state for this run
+
+traffic:
+  workers: 4
+  intervalSeconds: 1
+  ctr: 0.10
+
+events: []
+
+floorStrategy:
+  kind: sweep
+
+bidderResponse:
+  checkIntervalSeconds: 30
+  silenceWindows: 3
+  campaigns:
+    - advertiserId:   01KRXB99E0H50RMPTPXDFAVJST
+      campaignId:     01KRXBA6ZHVGDE588TRYN7PZKJ    # was $2
+      currentMaxCpm:  2.0
+      raiseStep:      0.25
+      ceiling:        30.0
+    - advertiserId:   01KRXB99E0H50RMPTPXDFAVJST
+      campaignId:     01KRXBANV8PPDTBJESMTW4D4D9    # was $4
+      currentMaxCpm:  4.0
+      raiseStep:      0.25
+      ceiling:        30.0
+    - advertiserId:   01KRXB99E0H50RMPTPXDFAVJST
+      campaignId:     01KRXBB3PF45KN0GVM6ZA57VXP    # was $6
+      currentMaxCpm:  6.0
+      raiseStep:      0.25
+      ceiling:        30.0
+    - advertiserId:   01KRXB99E0H50RMPTPXDFAVJST
+      campaignId:     01KRXBBHXPY0B02YZJ42T8TSCA    # was $8
+      currentMaxCpm:  8.0
+      raiseStep:      0.25
+      ceiling:        30.0

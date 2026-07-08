@@ -1,0 +1,34 @@
+# Sweep-optimizer convergence test. Mirrors compare_rl_long.yaml; the
+# sweep optimizer (the sole floor mechanism) drives the floor.
+#
+# Pair with compare_floor_5 (20-min fixed-floor baseline) and check
+# (last-20-min sweep revenue) / (compare_floor_5 revenue) ≥ 0.95. At
+# pacingDayDurationSeconds=300 the observation tick is ~5s wall (capped
+# at the floor of the scaling formula), so a 10-tick sweep finishes in
+# ~50s wall and the 12-tick exploit phase holds for ~60s — a full cycle
+# is ~110s wall, so the 90-min run covers ~49 cycles.
+#
+# Cluster prerequisite:
+#   ./scripts/run-dev.sh
+name: compare_sweep_long
+durationSeconds: 5400             # 90 min
+pollIntervalSeconds: 5
+
+site:
+  initialFloorCpm: 5.0
+  minFloorCpm: 5.0
+  bidWeight: 0.5
+  pacingDayDurationSeconds: 300
+  # Reset wipes the persisted sweep state, ensuring the optimizer
+  # starts fresh for this run regardless of prior site history.
+  resetFloorAgent: true
+
+traffic:
+  workers: 4
+  intervalSeconds: 1
+  ctr: 0.10
+
+events: []
+
+floorStrategy:
+  kind: sweep

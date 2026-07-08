@@ -1,0 +1,581 @@
+{{define "content"}}
+<!-- Header -->
+<div class="flex items-center justify-between mb-6">
+  <div>
+    <h1 class="page-title">Campaigns</h1>
+    <p class="page-sub">
+      {{if .ListNav}}{{.ListNav.Total}} campaign{{if ne .ListNav.Total 1}}s{{end}}{{else}}{{len .Campaigns}} campaigns{{end}}
+    </p>
+  </div>
+  <button onclick="document.getElementById('new-campaign-form').classList.toggle('hidden')"
+          class="btn btn-primary" data-viewas-block>
+    New Campaign
+  </button>
+</div>
+
+<!-- Budget info line -->
+{{if .AdvBudget}}
+<div class="flex items-center justify-between mb-6 text-sm text-gray-500">
+  <span>Account budget: ${{.AdvBudget.DailyBudget}}/day (${{.AdvBudget.Remaining}} remaining, ${{.AdvBudget.SpendToday}} spent today)</span>
+  <a href="/advertiser/account" class="text-brand hover:underline">Edit</a>
+</div>
+{{end}}
+
+<!-- Summary cards -->
+<div class="grid grid-cols-4 gap-4 mb-6">
+  <div class="bg-white p-4 rounded-lg border">
+    <p class="text-xs text-gray-500 uppercase tracking-wide">Today's Spend</p>
+    <p class="text-2xl font-semibold mt-1">{{if .AdvBudget}}${{.AdvBudget.SpendToday}}{{else}}$0.00{{end}}</p>
+  </div>
+  <div class="bg-white p-4 rounded-lg border">
+    <p class="text-xs text-gray-500 uppercase tracking-wide">Campaigns</p>
+    <p class="text-2xl font-semibold mt-1">{{len .Campaigns}}</p>
+  </div>
+  <div class="bg-white p-4 rounded-lg border">
+    <p class="text-xs text-gray-500 uppercase tracking-wide">Avg CTR</p>
+    <p class="text-2xl font-semibold mt-1">{{if .AdvAvgCTR}}{{.AdvAvgCTR}}{{else}}&mdash;{{end}}</p>
+  </div>
+  <div class="bg-white p-4 rounded-lg border">
+    <p class="text-xs text-gray-500 uppercase tracking-wide">Avg Win Rate</p>
+    <p class="text-2xl font-semibold mt-1">{{if .AdvAvgWinRate}}{{.AdvAvgWinRate}}{{else}}&mdash;{{end}}</p>
+  </div>
+</div>
+
+<!-- Blocked Domains -->
+<div class="bg-white p-4 rounded-lg border mb-6">
+  <div class="flex items-center gap-2 flex-wrap">
+    <label class="text-sm font-medium text-gray-700">Blocked Domains:</label>
+    {{range .BlockedDomains}}
+    <span class="badge badge-danger gap-1">
+      {{.}}
+      <form method="POST" action="/advertiser/unblock-site" class="inline">
+        <input type="hidden" name="domain" value="{{.}}">
+        <button type="submit" class="text-red-500 hover:text-red-700 font-bold">&times;</button>
+      </form>
+    </span>
+    {{end}}
+    {{if not .BlockedDomains}}<span class="text-sm text-gray-400">None</span>{{end}}
+    <form method="POST" action="/advertiser/block-site" class="inline-flex items-center gap-1 ml-2">
+      <input type="text" name="domain" placeholder="example.com" list="served-sites-domains"
+             class="form-input w-56">
+      <datalist id="served-sites-domains">
+        {{range .ServedSites}}
+        <option value="{{.Domain}}">{{.Domain}} &mdash; {{.Impressions}} impressions</option>
+        {{end}}
+      </datalist>
+      <button type="submit" class="btn btn-danger btn-sm">Block</button>
+    </form>
+  </div>
+</div>
+
+<!-- New Campaign form -->
+<div id="new-campaign-form" class="hidden bg-white p-6 rounded-lg border mb-6">
+  <h2 class="font-semibold mb-4">Create Campaign</h2>
+  <form method="POST" action="/advertiser/campaigns/create">
+    <div class="mb-4">
+      <label class="form-label">Campaign Name</label>
+      <input type="text" name="name" required placeholder="Summer sale - shoes"
+             class="form-input">
+    </div>
+    <div class="mb-4" x-data="{ query: '', results: [], selectedId: '', selectedName: '', open: false }">
+      <label class="form-label">What are you advertising?</label>
+      <input type="hidden" name="adProductCategory" :value="selectedId">
+      <div class="relative">
+        <input type="text" :value="selectedName || query"
+          @input="query = $event.target.value; selectedId = ''; selectedName = '';
+            if (query.length > 0) {
+              fetch('/api/taxonomy/ad-products?q=' + encodeURIComponent(query))
+                .then(r => r.json())
+                .then(d => { results = d.data || []; open = results.length > 0; });
+            } else { results = []; open = false; }"
+          @click.outside="open = false"
+          placeholder="Search (e.g., Travel, Kitchen, Gym)"
+          class="form-input"
+          required>
+        <div x-show="open" x-transition
+          class="absolute z-10 w-full mt-1 bg-white border rounded-md shadow-lg max-h-48 overflow-y-auto">
+          <template x-for="cat in results" :key="cat.id">
+            <button type="button"
+              @click="selectedId = cat.id; selectedName = cat.name + ' (' + cat.id + ')'; open = false; query = '';"
+              class="w-full text-left px-3 py-2 hover:bg-gray-50 text-sm">
+              <span class="font-mono text-xs text-gray-400 mr-2" x-text="cat.id"></span>
+              <span x-text="cat.name"></span>
+            </button>
+          </template>
+        </div>
+      </div>
+      <p class="text-xs text-gray-400 mt-1">Search for your product category — used for verification and reporting. Matching topics are derived from your creative's landing page.</p>
+    </div>
+    <div class="mb-4" x-data="{
+        query: '',
+        results: [],
+        selected: [],
+        open: false,
+        add(c) {
+          if (!this.selected.find(x => x.id === c.id)) this.selected.push(c);
+          this.query = ''; this.results = []; this.open = false;
+        },
+        remove(id) { this.selected = this.selected.filter(x => x.id !== id); },
+        ids() { return this.selected.map(c => c.id).join(','); }
+      }">
+      <label class="form-label">Target content topics (optional)</label>
+      <input type="hidden" name="targetCategories" :value="ids()">
+      <div class="flex flex-wrap gap-1 mb-1" x-show="selected.length > 0">
+        <template x-for="c in selected" :key="c.id">
+          <span class="badge badge-info">
+            <span x-text="c.name"></span>
+            <span class="font-mono text-gray-500 ml-1" x-text="'(' + c.id + ')'"></span>
+            <button type="button" @click="remove(c.id)" class="ml-1.5 text-brand hover:text-blue-900 font-bold">×</button>
+          </span>
+        </template>
+      </div>
+      <div class="relative">
+        <input type="text" x-model="query"
+          @input="if (query.length > 0) {
+              fetch('/api/taxonomy/categories?q=' + encodeURIComponent(query))
+                .then(r => r.json())
+                .then(d => { results = (d.data || []).filter(c => !selected.find(s => s.id === c.id)); open = results.length > 0; });
+            } else { results = []; open = false; }"
+          @click.outside="open = false"
+          placeholder="Search topics (e.g., Sports, Food, Healthy Cooking)"
+          class="form-input">
+        <div x-show="open" x-transition
+          class="absolute z-10 w-full mt-1 bg-white border rounded-md shadow-lg max-h-48 overflow-y-auto">
+          <template x-for="cat in results" :key="cat.id">
+            <button type="button" @click="add(cat)"
+              class="w-full text-left px-3 py-2 hover:bg-gray-50 text-sm">
+              <span class="font-mono text-xs text-gray-400 mr-2" x-text="cat.id"></span>
+              <span x-text="cat.name"></span>
+            </button>
+          </template>
+        </div>
+      </div>
+      <p class="text-xs text-gray-400 mt-1">Leave empty to auto-derive from your creative's landing-page content. Set explicitly when you want the campaign to bid only on specific topics, or as a fallback when LLM verification can't suggest a topic confidently.</p>
+    </div>
+    <div class="mb-4" x-data="{
+        query: '',
+        results: [],
+        selected: [],
+        open: false,
+        add(s) {
+          if (!this.selected.find(x => x.siteId === s.siteId)) this.selected.push(s);
+          this.query = ''; this.results = []; this.open = false;
+        },
+        remove(id) { this.selected = this.selected.filter(x => x.siteId !== id); },
+        ids() { return this.selected.map(s => s.siteId).join(','); }
+      }">
+      <label class="form-label">Run only on these media (optional)</label>
+      <input type="hidden" name="siteAllowlist" :value="ids()">
+      <div class="flex flex-wrap gap-1 mb-1" x-show="selected.length > 0">
+        <template x-for="s in selected" :key="s.siteId">
+          <span class="badge badge-info">
+            <span x-text="s.domain"></span>
+            <button type="button" @click="remove(s.siteId)" class="ml-1.5 text-brand hover:text-blue-900 font-bold">×</button>
+          </span>
+        </template>
+      </div>
+      <div class="relative">
+        <input type="text" x-model="query"
+          @input="if (query.length > 0) {
+              fetch('/api/sites?q=' + encodeURIComponent(query))
+                .then(r => r.json())
+                .then(d => { results = (d.data || []).filter(s => !selected.find(x => x.siteId === s.siteId)); open = results.length > 0; });
+            } else { results = []; open = false; }"
+          @click.outside="open = false"
+          placeholder="Search registered sites by domain (e.g., publisher.programmer.llc)"
+          class="form-input">
+        <div x-show="open" x-transition
+          class="absolute z-10 w-full mt-1 bg-white border rounded-md shadow-lg max-h-48 overflow-y-auto">
+          <template x-for="s in results" :key="s.siteId">
+            <button type="button" @click="add(s)"
+              class="w-full text-left px-3 py-2 hover:bg-gray-50 text-sm">
+              <span x-text="s.domain"></span>
+            </button>
+          </template>
+        </div>
+      </div>
+      <p class="text-xs text-gray-400 mt-1">Leave empty to run everywhere your topics match. Pick one or more registered sites to restrict this campaign to them (still subject to topic matching on their pages).</p>
+    </div>
+    <div class="mb-4">
+      <label class="form-label">Landing URL</label>
+      <input type="url" name="landingUrl" required placeholder="https://example.com/promo"
+             class="form-input">
+    </div>
+    <div class="grid grid-cols-2 gap-4 mb-4">
+      <div>
+        <label class="form-label">Daily Budget ($)</label>
+        <input type="number" name="budget" step="0.01" min="0.01" required placeholder="25.00"
+               class="form-input">
+      </div>
+      <div>
+        <label class="form-label">Max CPM ($)</label>
+        <input type="number" name="maxCpm" step="0.01" min="0.01" required placeholder="5.00"
+               class="form-input">
+      </div>
+    </div>
+    <div class="grid grid-cols-2 gap-4 mb-4">
+      <div>
+        <label class="form-label">Start date <span class="font-normal text-gray-500">(optional — blank = start now)</span></label>
+        <input type="datetime-local" name="startAt"
+               class="form-input">
+        <p class="text-xs text-gray-500 mt-1">Campaign stays inactive (no bids) until this date.</p>
+      </div>
+      <div>
+        <label class="form-label">End date <span class="font-normal text-gray-500">(optional — blank = open-ended)</span></label>
+        <input type="datetime-local" name="endAt"
+               class="form-input">
+        <p class="text-xs text-gray-500 mt-1">Campaign stops bidding after this date. Dog-ear pins expire then.</p>
+      </div>
+    </div>
+    <div class="flex justify-end gap-3 pt-4 border-t">
+      <button type="button" onclick="document.getElementById('new-campaign-form').classList.add('hidden')"
+              class="btn btn-secondary">Cancel</button>
+      <button type="submit"
+              class="btn btn-primary">Create Campaign</button>
+    </div>
+  </form>
+</div>
+
+<!-- Campaign list -->
+{{if not .Campaigns}}
+<div class="flex flex-col items-center justify-center py-32 text-gray-400">
+  <p class="text-lg font-medium">No campaigns yet</p>
+  <p class="text-sm mt-2">Create your first campaign to start advertising</p>
+</div>
+{{else}}
+{{template "list-sort" .}}
+<div class="space-y-3">
+  {{range .Campaigns}}
+  <div class="bg-white rounded-lg border overflow-hidden" x-data="{ editOpen: false }">
+    <!-- Campaign row -->
+    <div class="p-4 flex items-center gap-4 cursor-pointer hover:bg-gray-50"
+         onclick="var detail=this.nextElementSibling;detail.classList.toggle('hidden');var chevron=this.querySelector('[data-chevron]');chevron.classList.toggle('rotate-180');">
+      <!-- Status indicator -->
+      <div class="w-2 h-2 rounded-full shrink-0 {{if eq .Status "active"}}bg-green-500{{else}}bg-gray-300{{end}}"></div>
+
+      <!-- Name & category -->
+      <div class="min-w-0 flex-1">
+        <div class="flex items-center gap-2">
+          <p class="font-medium truncate">{{if .Name}}{{.Name}}{{else}}{{.ID}}{{end}}</p>
+          {{if .Untargeted}}
+          <span class="badge badge-warning gap-1"
+                title="This campaign has no target categories. The auto-categorisation from the landing page returned nothing usable, so this campaign won't bid in any auction. Open the campaign and either set Target Categories manually or enable 'Bid on unmatched context'.">
+            ⚠ Untargeted
+          </span>
+          {{end}}
+        </div>
+        <p class="text-xs text-gray-500">{{if .AdProductCategoryName}}{{.AdProductCategoryName}}{{else if .AdProductCategory}}{{.AdProductCategory}}{{else}}No category{{end}}</p>
+      </div>
+
+      <!-- Budget bar -->
+      <div class="w-32">
+        <div class="flex justify-between text-xs text-gray-500 mb-1">
+          <span>${{.SpendToday}}</span>
+          <span>${{.DailyBudget}}</span>
+        </div>
+        <div class="h-1.5 bg-gray-200 rounded-full">
+          <div class="h-full rounded-full {{if gt .BudgetPct 90.0}}bg-red-500{{else if gt .BudgetPct 70.0}}bg-amber-500{{else}}bg-green-500{{end}}"
+               style="width:{{if .BudgetPct}}{{.BudgetPct}}{{else}}0{{end}}%;"></div>
+        </div>
+      </div>
+
+      <!-- Key metrics -->
+      <div class="text-right text-sm w-20">
+        <p class="font-medium">{{.Impressions}}</p>
+        <p class="text-xs text-gray-500">imps</p>
+      </div>
+      <div class="text-right text-sm w-16">
+        <p class="font-medium">{{.Clicks}}</p>
+        <p class="text-xs text-gray-500">clicks</p>
+      </div>
+      <div class="text-right text-sm w-16">
+        <p class="font-medium">{{if .CTR}}{{.CTR}}{{else}}&mdash;{{end}}</p>
+        <p class="text-xs text-gray-500">CTR</p>
+      </div>
+      <div class="text-right text-sm w-20">
+        <p class="font-medium {{if .WinRateClass}}{{.WinRateClass}}{{end}}">{{if .WinRate}}{{.WinRate}}{{else}}&mdash;{{end}}</p>
+        <p class="text-xs text-gray-500">imp share</p>
+      </div>
+
+      <!-- CPM -->
+      <div class="text-right text-sm w-20">
+        <p class="font-medium">${{if .MaxCPM}}{{.MaxCPM}}{{else}}&mdash;{{end}}</p>
+        <p class="text-xs text-gray-500">max CPM</p>
+      </div>
+      <div class="text-right text-sm w-20">
+        <p class="font-medium">{{if .ECPM}}{{.ECPM}}{{else}}&mdash;{{end}}</p>
+        <p class="text-xs text-gray-500">eCPM</p>
+      </div>
+
+      <!-- Edit settings (stop propagation so it doesn't toggle the row).
+           After the inline panel opens, scroll it into view so the Edit
+           Campaign form isn't left below the fold. -->
+      <button type="button" @click.stop="editOpen = true; $nextTick(() => $refs.editPanel.scrollIntoView({ behavior: 'smooth', block: 'start' }))"
+              class="px-2.5 py-1 text-xs border rounded-md hover:bg-gray-100 text-gray-600 shrink-0">
+        Edit
+      </button>
+
+      <!-- Delete: enabled only for inactive campaigns (pause an active one
+           first); shown disabled otherwise so it stays discoverable.
+           @click.stop so it doesn't toggle the row. -->
+      {{if ne .Status "active"}}
+      <form method="POST" action="/advertiser/campaigns/delete" class="shrink-0" @click.stop
+            onsubmit="return confirm('Delete this campaign? It is removed from your list. Reports are kept.')">
+        <input type="hidden" name="campaignId" value="{{.ID}}">
+        <button type="submit"
+                class="px-2.5 py-1 text-xs border border-red-300 rounded-md text-red-600 hover:bg-red-50 shrink-0">
+          Delete
+        </button>
+      </form>
+      {{else}}
+      <button type="button" disabled @click.stop
+              title="Pause this campaign before deleting it"
+              class="px-2.5 py-1 text-xs border border-gray-200 rounded-md text-gray-300 cursor-not-allowed shrink-0">
+        Delete
+      </button>
+      {{end}}
+
+      <!-- Expand chevron -->
+      <svg data-chevron class="w-4 h-4 text-gray-400 transition-transform" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 9l-7 7-7-7" />
+      </svg>
+    </div>
+
+    <!-- Expanded details -->
+    <div class="hidden border-t px-4 py-4 bg-gray-50">
+      <div class="grid grid-cols-3 gap-6 text-sm">
+        <div>
+          <p class="text-gray-500 text-xs uppercase mb-2">Campaign</p>
+          <p>Landing: {{if .LandingURL}}{{.LandingURL}}{{else}}&mdash;{{end}}</p>
+          <p class="mt-1">ID: <span class="font-mono text-xs">{{.ID}}</span></p>
+        </div>
+        <div>
+          <p class="text-gray-500 text-xs uppercase mb-2">Max Bid</p>
+          <form method="POST" action="/advertiser/campaigns/cpm" class="flex items-center gap-2 mt-1">
+            <input type="hidden" name="campaignId" value="{{.ID}}">
+            <span class="text-gray-500">$</span>
+            <input type="number" name="maxCpm" step="0.01" min="0.01" value="{{.MaxCPM}}"
+                   class="w-24 px-2 py-1 border rounded-md text-sm focus:outline-none focus:ring-2 focus:ring-brand/20 focus:border-brand">
+            <button type="submit" class="btn btn-primary btn-sm">Update</button>
+          </form>
+          <p class="text-xs text-gray-400 mt-2">You bid your max &mdash; you pay based on competition and creative quality</p>
+
+          <p class="text-gray-500 text-xs uppercase mb-2 mt-4">Schedule {{if .StartAtFuture}}<span class="text-amber-600">(starts {{.StartAtDisplay}})</span>{{else if .EndAtPassed}}<span class="text-red-600">(ended)</span>{{end}}</p>
+          <form method="POST" action="/advertiser/campaigns/schedule" class="flex flex-col gap-2 mt-1">
+            <input type="hidden" name="campaignId" value="{{.ID}}">
+            <div class="flex items-center gap-2">
+              <label class="text-xs text-gray-500 w-10">Start</label>
+              <input type="datetime-local" name="startAt" value="{{.StartAtLocal}}"
+                     class="px-2 py-1 border rounded-md text-sm focus:outline-none focus:ring-2 focus:ring-brand/20 focus:border-brand">
+            </div>
+            <div class="flex items-center gap-2">
+              <label class="text-xs text-gray-500 w-10">End</label>
+              <input type="datetime-local" name="endAt" value="{{.EndAtLocal}}"
+                     class="px-2 py-1 border rounded-md text-sm focus:outline-none focus:ring-2 focus:ring-brand/20 focus:border-brand">
+              <button type="submit" class="btn btn-primary btn-sm">Update</button>
+            </div>
+          </form>
+          <p class="text-xs text-gray-400 mt-2">{{if .EndAtDisplay}}Stops bidding {{.EndAtDisplay}}. Dog-ear pins expire then.{{else}}Open-ended &mdash; runs until paused.{{end}}</p>
+
+        </div>
+        <div>
+          <p class="text-gray-500 text-xs uppercase mb-2">Actions</p>
+          <form method="POST" action="/advertiser/campaigns/toggle">
+            <input type="hidden" name="campaignId" value="{{.ID}}">
+            {{if eq .Status "active"}}
+            <input type="hidden" name="status" value="paused">
+            <button type="submit" class="btn btn-secondary btn-sm">
+              Pause Campaign
+            </button>
+            {{else}}
+            <input type="hidden" name="status" value="active">
+            <button type="submit" class="btn btn-success btn-sm">
+              Activate Campaign
+            </button>
+            {{end}}
+          </form>
+          <form method="POST" action="/advertiser/campaigns/filler" class="mt-3"
+                title="Bid on pages with no contextual match. Creatives still go through publisher approval before serving.">
+            <input type="hidden" name="campaignId" value="{{.ID}}">
+            <label class="inline-flex items-center gap-1.5 text-xs text-gray-500 cursor-pointer">
+              <input type="checkbox" name="bidOnUnmatchedContext" {{if .BidOnUnmatchedContext}}checked{{end}}
+                     onchange="this.form.submit()"
+                     class="rounded border-gray-300 text-brand focus:ring-brand">
+              Bid on unmatched-context traffic
+            </label>
+          </form>
+        </div>
+      </div>
+    </div>
+
+    <!-- Edit settings: full-width inline panel (mirrors the New Campaign form, pre-filled) -->
+    <div x-show="editOpen" style="display:none" x-ref="editPanel" class="border-t bg-white p-6">
+      <div>
+        <div class="flex items-center justify-between mb-4">
+          <h2 class="font-semibold">Edit Campaign</h2>
+          <button type="button" @click="editOpen = false" class="text-gray-400 hover:text-gray-600 text-xl leading-none">&times;</button>
+        </div>
+        <form method="POST" action="/advertiser/campaigns/update">
+          <input type="hidden" name="campaignId" value="{{.ID}}">
+
+          <!-- Campaign name (editable — backed by the entity now) -->
+          <div class="mb-4">
+            <label class="form-label">Campaign Name</label>
+            <input type="text" name="name" required value="{{.Name}}"
+                   class="form-input">
+          </div>
+
+          <!-- What are you advertising? (read-only: fixed at creation) -->
+          <div class="mb-4">
+            <label class="form-label">What are you advertising? <span class="font-normal text-gray-500">(fixed — set at creation)</span></label>
+            <input type="text" disabled
+                   value="{{if .AdProductCategoryName}}{{.AdProductCategoryName}} ({{.AdProductCategory}}){{else if .AdProductCategory}}{{.AdProductCategory}}{{else}}No category{{end}}"
+                   class="w-full px-3 py-2 border rounded-md text-sm bg-gray-100 text-gray-500 cursor-not-allowed">
+            <p class="text-xs text-gray-400 mt-1">What a campaign advertises can't be changed after it's created. To advertise something different, create a new campaign.</p>
+          </div>
+
+          <!-- Target content topics -->
+          <!-- data-chips = explicit (advertiser-set) topics; data-suggested =
+               the Gemini-derived set auto-detected from the landing page. The
+               suggested topics are the floor effectiveCategories always falls
+               back to, so the UI shows them LOCKED (✨ 🔒, no ×): auto-derived,
+               always targeted, non-removable. The advertiser can ADD more
+               topics on top (blue, removable). ids() always submits
+               locked ∪ added, so the explicit set always contains the
+               suggested one and the campaign can't be stripped of its baseline. -->
+          <div class="mb-4" data-chips="{{.TargetCategoryChipsJSON}}" data-suggested="{{.SuggestedCategoryChipsJSON}}" x-data="{
+              query: '', results: [], open: false,
+              locked: JSON.parse($el.dataset.suggested || '[]'),
+              selected: JSON.parse($el.dataset.chips || '[]').filter(e => !JSON.parse($el.dataset.suggested || '[]').find(s => s.id === e.id)),
+              add(c) { if (!this.locked.find(x => x.id === c.id) && !this.selected.find(x => x.id === c.id)) this.selected.push(c); this.query=''; this.results=[]; this.open=false; },
+              remove(id) { this.selected = this.selected.filter(x => x.id !== id); },
+              ids() { return [...this.locked, ...this.selected].map(c => c.id).join(','); }
+            }">
+            <label class="form-label">Target content topics</label>
+            <input type="hidden" name="targetCategories" :value="ids()">
+            <div class="flex flex-wrap gap-1 mb-1" x-show="locked.length > 0 || selected.length > 0">
+              <!-- Auto-derived: locked, always targeted, can't be removed -->
+              <template x-for="c in locked" :key="c.id">
+                <span class="badge badge-neutral"
+                      title="Auto-derived from your landing page — always targeted">
+                  <span class="mr-1">✨</span>
+                  <span x-text="c.name"></span>
+                  <span class="ml-1.5 text-gray-400" title="Always targeted (auto-derived)">🔒</span>
+                </span>
+              </template>
+              <!-- Advertiser-added: removable -->
+              <template x-for="c in selected" :key="c.id">
+                <span class="badge badge-info">
+                  <span x-text="c.name"></span>
+                  <button type="button" @click="remove(c.id)" class="ml-1.5 text-brand hover:text-blue-900 font-bold">×</button>
+                </span>
+              </template>
+            </div>
+            <div class="relative">
+              <input type="text" x-model="query"
+                @input="if (query.length > 0) {
+                    fetch('/api/taxonomy/categories?q=' + encodeURIComponent(query))
+                      .then(r => r.json()).then(d => { results = (d.data || []).filter(c => !locked.find(s => s.id === c.id) && !selected.find(s => s.id === c.id)); open = results.length > 0; });
+                  } else { results = []; open = false; }"
+                @click.outside="open = false"
+                placeholder="Search topics (e.g., Sports, Food)"
+                class="form-input">
+              <div x-show="open" x-transition class="absolute z-10 w-full mt-1 bg-white border rounded-md shadow-lg max-h-48 overflow-y-auto">
+                <template x-for="cat in results" :key="cat.id">
+                  <button type="button" @click="add(cat)" class="w-full text-left px-3 py-2 hover:bg-gray-50 text-sm">
+                    <span class="font-mono text-xs text-gray-400 mr-2" x-text="cat.id"></span><span x-text="cat.name"></span>
+                  </button>
+                </template>
+              </div>
+            </div>
+            <p class="text-xs text-gray-400 mt-1">
+              <span x-show="locked.length > 0">✨ Topics auto-derived from your landing page are always targeted and can't be removed. Add more above to broaden targeting.</span>
+              <span x-show="locked.length === 0">Add the content topics this campaign should target. Leave empty to auto-derive from your landing page.</span>
+            </p>
+          </div>
+
+          <!-- Run only on these media (site allowlist) -->
+          <div class="mb-4" x-data="{
+              query: '', results: [], open: false,
+              selected: [{{range $i, $s := .SiteAllowlist}}{{if $i}},{{end}}{siteId:'{{$s}}',domain:'{{$s}}'}{{end}}],
+              add(s) { if (!this.selected.find(x => x.siteId === s.siteId)) this.selected.push(s); this.query=''; this.results=[]; this.open=false; },
+              remove(id) { this.selected = this.selected.filter(x => x.siteId !== id); },
+              ids() { return this.selected.map(s => s.siteId).join(','); }
+            }">
+            <label class="form-label">Run only on these media</label>
+            <input type="hidden" name="siteAllowlist" :value="ids()">
+            <div class="flex flex-wrap gap-1 mb-1" x-show="selected.length > 0">
+              <template x-for="s in selected" :key="s.siteId">
+                <span class="badge badge-info">
+                  <span x-text="s.domain"></span>
+                  <button type="button" @click="remove(s.siteId)" class="ml-1.5 text-brand hover:text-blue-900 font-bold">×</button>
+                </span>
+              </template>
+            </div>
+            <div class="relative">
+              <input type="text" x-model="query"
+                @input="if (query.length > 0) {
+                    fetch('/api/sites?q=' + encodeURIComponent(query))
+                      .then(r => r.json()).then(d => { results = (d.data || []).filter(s => !selected.find(x => x.siteId === s.siteId)); open = results.length > 0; });
+                  } else { results = []; open = false; }"
+                @click.outside="open = false"
+                placeholder="Search registered sites by domain"
+                class="form-input">
+              <div x-show="open" x-transition class="absolute z-10 w-full mt-1 bg-white border rounded-md shadow-lg max-h-48 overflow-y-auto">
+                <template x-for="s in results" :key="s.siteId">
+                  <button type="button" @click="add(s)" class="w-full text-left px-3 py-2 hover:bg-gray-50 text-sm">
+                    <span x-text="s.domain"></span>
+                  </button>
+                </template>
+              </div>
+            </div>
+            <p class="text-xs text-gray-400 mt-1">Remove all to run everywhere your topics match.</p>
+          </div>
+
+          <!-- Landing URL (read-only: a campaign's LP is fixed at creation) -->
+          <div class="mb-4">
+            <label class="form-label">Landing URL <span class="font-normal text-gray-500">(fixed — set at creation)</span></label>
+            <input type="url" name="landingUrl" value="{{.LandingURL}}" disabled
+                   class="w-full px-3 py-2 border rounded-md text-sm bg-gray-100 text-gray-500 cursor-not-allowed">
+            <p class="text-xs text-gray-400 mt-1">A campaign's landing page can't be changed after it's created. To promote a different page, create a new campaign.</p>
+          </div>
+
+          <div class="grid grid-cols-2 gap-4 mb-4">
+            <div>
+              <label class="form-label">Daily Budget ($)</label>
+              <input type="number" name="budget" step="0.01" min="0.01" value="{{.DailyBudget}}"
+                     class="form-input">
+            </div>
+            <div>
+              <label class="form-label">Max CPM ($)</label>
+              <input type="number" name="maxCpm" step="0.01" min="0.01" value="{{.MaxCPM}}"
+                     class="form-input">
+            </div>
+          </div>
+
+          <div class="grid grid-cols-2 gap-4 mb-4">
+            <div>
+              <label class="form-label">Start date <span class="font-normal text-gray-500">(UTC)</span></label>
+              <input type="datetime-local" name="startAt" value="{{.StartAtLocal}}"
+                     class="form-input">
+            </div>
+            <div>
+              <label class="form-label">End date <span class="font-normal text-gray-500">(blank = open-ended)</span></label>
+              <input type="datetime-local" name="endAt" value="{{.EndAtLocal}}"
+                     class="form-input">
+            </div>
+          </div>
+
+          <div class="flex justify-end gap-3 pt-4 border-t">
+            <button type="button" @click="editOpen = false" class="btn btn-secondary">Cancel</button>
+            <button type="submit" class="btn btn-primary">Save Changes</button>
+          </div>
+        </form>
+      </div>
+    </div>
+  </div>
+  {{end}}
+</div>
+{{template "list-pagination" .}}
+{{end}}
+{{end}}

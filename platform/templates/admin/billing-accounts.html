@@ -1,0 +1,47 @@
+{{define "content"}}
+<div class="max-w-5xl">
+  <h1 class="page-title">Billing</h1>
+  <p class="page-sub">Every advertiser wallet and publisher payable. Click an account for its full statement.</p>
+
+  {{template "billing-tabs" .}}
+
+  {{with .AdminAccounts}}
+
+  <form method="GET" action="/admin/billing/accounts" class="flex items-end gap-3 mt-6">
+    <div>
+      <label class="form-label">Search</label>
+      <input name="q" value="{{.Query}}" class="form-input w-72" placeholder="email or account id">
+    </div>
+    <button type="submit" class="btn btn-secondary">Search</button>
+    {{if .Query}}<a href="/admin/billing/accounts" class="text-sm text-brand hover:underline pb-2">clear</a>{{end}}
+  </form>
+
+  <div class="card mt-4 p-0 overflow-x-auto">
+    <table class="w-full text-sm mt-3">
+      <thead>
+        <tr class="border-b text-left text-gray-400">
+          <th class="px-6 py-2 font-medium">Account</th>
+          <th class="px-6 py-2 font-medium">Type</th>
+          <th class="px-6 py-2 font-medium">Status</th>
+          <th class="px-6 py-2 font-medium text-right">Balance</th>
+        </tr>
+      </thead>
+      <tbody>
+        {{range .Rows}}
+        <tr class="border-b last:border-0">
+          <td class="px-6 py-2 font-medium">
+            <a href="{{.URL}}" class="text-brand hover:underline" title="{{.ID}}">{{.Label}}</a>
+          </td>
+          <td class="px-6 py-2 text-gray-500">{{.Type}}</td>
+          <td class="px-6 py-2"><span class="badge {{.StatusBadge}}">{{.Status}}</span></td>
+          <td class="px-6 py-2 text-right font-medium">{{.Balance}}</td>
+        </tr>
+        {{else}}
+        <tr><td class="px-6 py-4 text-gray-400" colspan="4">{{if .Query}}No accounts match "{{.Query}}".{{else}}No billing accounts yet — they appear with the first top-up or settlement.{{end}}</td></tr>
+        {{end}}
+      </tbody>
+    </table>
+  </div>
+  {{end}}
+</div>
+{{end}}

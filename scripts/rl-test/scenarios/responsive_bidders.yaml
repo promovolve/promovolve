@@ -1,0 +1,61 @@
+# Endogenous-response test: same diverse market as coldstart_heavy, but
+# the lower bidders ($2, $4, $6) actively raise their `maxCpm` when they
+# lose the auction (silence) for 2 consecutive 30-second windows.
+#
+# What we expect to see:
+#   1. RL pushes the floor from $5 up toward the $8 cliff.
+#   2. The $2 / $4 / $6 bidders go silent — they're now below the floor.
+#   3. Each one raises by $1 until it either re-clears the floor or hits
+#      its ceiling.
+#   4. RL sees the bid distribution drift upward and tests yet higher
+#      floors. Floor and bids climb together until somebody can't or
+#      won't raise any more.
+#
+# That escalation pattern is what the static "pick second-highest" rule
+# cannot trigger.
+name: responsive_bidders
+durationSeconds: 2400               # 40 min — needs room for the dance
+pollIntervalSeconds: 5
+
+site:
+  initialFloorCpm: 5.0
+  minFloorCpm: 5.0
+  bidWeight: 0.5
+  pacingDayDurationSeconds: 300
+  resetFloorAgent: true             # fresh agent + heavy ε for fast climb
+
+traffic:
+  workers: 4
+  intervalSeconds: 1
+  ctr: 0.10
+
+events: []
+
+bidderResponse:
+  checkIntervalSeconds: 30
+  silenceWindows: 3                 # silent for 3×30s = 90s before raising
+                                    # (gives the agent time to settle between bidder updates)
+  # Each campaign raises by $raiseStep when silent, capped at $ceiling.
+  # Top bidder ($10) is intentionally NOT in this list — it would just
+  # walk to $20 and dominate the plot.
+  campaigns:
+    - advertiserId:   01KRXB99E0H50RMPTPXDFAVJST
+      campaignId:     01KRXBA6ZHVGDE588TRYN7PZKJ    # was $2
+      currentMaxCpm:  2.0
+      raiseStep:      0.25            # matches agent's smallest perceptible action
+      ceiling:        30.0
+    - advertiserId:   01KRXB99E0H50RMPTPXDFAVJST
+      campaignId:     01KRXBANV8PPDTBJESMTW4D4D9    # was $4
+      currentMaxCpm:  4.0
+      raiseStep:      0.25            # matches agent's smallest perceptible action
+      ceiling:        30.0
+    - advertiserId:   01KRXB99E0H50RMPTPXDFAVJST
+      campaignId:     01KRXBB3PF45KN0GVM6ZA57VXP    # was $6
+      currentMaxCpm:  6.0
+      raiseStep:      0.25            # matches agent's smallest perceptible action
+      ceiling:        30.0
+    - advertiserId:   01KRXB99E0H50RMPTPXDFAVJST
+      campaignId:     01KRXBBHXPY0B02YZJ42T8TSCA    # was $8
+      currentMaxCpm:  8.0
+      raiseStep:      0.25            # matches agent's smallest perceptible action
+      ceiling:        30.0

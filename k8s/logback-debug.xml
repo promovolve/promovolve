@@ -1,0 +1,41 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!-- Cluster logging config — mounted at /conf and selected via
+     -Dlogback.configurationFile=/conf/logback-debug.xml in each tier's
+     JAVA_TOOL_OPTIONS. Originally a TEMPORARY bootstrap-deadlock debug
+     config that muted the app (promovolve=WARN); that mute hid the
+     2026-07-06 serve-death incident for hours. Now the standing config:
+     application at INFO, pekko noise at WARN, cluster formation visible. -->
+<configuration>
+    <appender name="CONSOLE" class="ch.qos.logback.core.ConsoleAppender">
+        <encoder>
+            <pattern>%d{HH:mm:ss.SSS} %-5level [%thread] %logger{36} - %msg%n</pattern>
+        </encoder>
+    </appender>
+
+    <!-- Application logs ON: every eviction, auction outcome, and
+         approvals-load result logs at INFO. Never mute the app again. -->
+    <logger name="promovolve" level="INFO"/>
+
+    <!-- Baseline pekko at WARN (remoting/artery connection failures surface). -->
+    <logger name="org.apache.pekko" level="WARN"/>
+
+    <!-- Membership: join / Up / leader / unreachable / downing. -->
+    <logger name="org.apache.pekko.cluster" level="INFO"/>
+    <logger name="org.apache.pekko.cluster.sbr" level="DEBUG"/>
+
+    <!-- Bootstrap: contact-point discovery + who forms vs joins. -->
+    <logger name="org.apache.pekko.management" level="INFO"/>
+    <logger name="org.apache.pekko.management.cluster.bootstrap" level="DEBUG"/>
+
+    <!-- Discovery: does the k8s API actually return the peer pods? -->
+    <logger name="org.apache.pekko.discovery" level="DEBUG"/>
+
+    <!-- Reveal WHY a JVM shuts down (exit 0): Downing / Leave / self-exit.
+         This is the trigger we still can't see (it's under org.apache.pekko=WARN). -->
+    <logger name="org.apache.pekko.actor.CoordinatedShutdown" level="INFO"/>
+    <logger name="org.apache.pekko.cluster.Cluster" level="INFO"/>
+
+    <root level="INFO">
+        <appender-ref ref="CONSOLE"/>
+    </root>
+</configuration>

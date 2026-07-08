@@ -1,0 +1,26 @@
+<svg width="336" height="72" viewBox="0 0 336 72" fill="none" xmlns="http://www.w3.org/2000/svg" role="img" aria-label="Promovolve">
+  <defs>
+    <linearGradient id="pv-paper" x1="14" y1="8" x2="58" y2="64" gradientUnits="userSpaceOnUse">
+      <stop stop-color="#EF7D10"/>
+      <stop offset="1" stop-color="#C35800"/>
+    </linearGradient>
+  </defs>
+  <!-- mark: a page of content with a dog-eared (folded) corner. Amber brand
+       sheet, dark-ink content + fold (white fails AA on this amber). The notch
+       is transparent so the fold reads on any page background. -->
+  <g>
+    <!-- sheet body (top-right corner cut for the fold) -->
+    <path d="M14 8 H40 L58 26 V64 H14 Z" fill="url(#pv-paper)"/>
+    <!-- dog-ear: the folded-over corner, shown as a darker triangle -->
+    <path d="M40 8 V26 H58 Z" fill="#A84C00"/>
+    <!-- content lines -->
+    <rect x="22" y="16" width="14" height="5" rx="2.5" fill="#14110E" fill-opacity="0.85"/>
+    <rect x="22" y="36" width="28" height="4" rx="2" fill="#14110E" fill-opacity="0.55"/>
+    <rect x="22" y="44" width="28" height="4" rx="2" fill="#14110E" fill-opacity="0.55"/>
+    <rect x="22" y="52" width="18" height="4" rx="2" fill="#14110E" fill-opacity="0.55"/>
+  </g>
+  <!-- wordmark -->
+  <text x="80" y="48" font-family="'Inter','Segoe UI',system-ui,-apple-system,Helvetica,Arial,sans-serif" font-size="34" font-weight="600" letter-spacing="-0.5">
+    <tspan fill="#14110E">Promo</tspan><tspan fill="#D35F00">volve</tspan>
+  </text>
+</svg>

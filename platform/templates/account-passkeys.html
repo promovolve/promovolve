@@ -1,0 +1,71 @@
+{{define "content"}}
+<div class="max-w-2xl">
+  <h1 class="page-title">Your passkeys</h1>
+  <p class="page-sub">Passkeys registered to {{.User.Email}}. Add one on every device you sign in from.</p>
+
+  <div id="passkey-error" class="hidden bg-red-50 border border-red-200 text-red-700 rounded-lg p-3 mt-6 text-sm"></div>
+
+  <div class="card mt-6 p-0 overflow-x-auto">
+    <table class="w-full text-sm">
+      <thead>
+        <tr class="border-b text-left text-gray-400">
+          <th class="px-4 py-3 font-medium">Name</th>
+          <th class="px-4 py-3 font-medium">Added</th>
+          <th class="px-4 py-3 font-medium">Last used</th>
+          <th class="px-4 py-3"></th>
+        </tr>
+      </thead>
+      <tbody>
+        {{range .Passkeys}}
+        <tr class="border-b last:border-0">
+          <td class="px-4 py-3">{{.Name}}</td>
+          <td class="px-4 py-3 text-gray-500">{{.Created}}</td>
+          <td class="px-4 py-3 text-gray-500">{{.LastUsed}}</td>
+          <td class="px-4 py-3 text-right">
+            {{if gt (len $.Passkeys) 1}}
+            <form method="POST" action="/account/passkeys/delete" class="inline"
+              onsubmit="return confirm('Remove this passkey? Devices using it will no longer sign in.')">
+              <input type="hidden" name="credentialId" value="{{.ID}}">
+              <button type="submit" class="btn btn-secondary btn-sm">Remove</button>
+            </form>
+            {{end}}
+          </td>
+        </tr>
+        {{end}}
+      </tbody>
+    </table>
+  </div>
+
+  {{/* JS-fetch ceremony, not a POST form — needs the explicit view-as mark
+       (a passkey minted in a view-as session would be the ADMIN's device
+       holding the member's credential; the server 403s it regardless). */}}
+  <button id="add-passkey" class="btn btn-primary mt-6" data-viewas-block>Add a passkey to this device</button>
+
+  <script src="{{asset "passkey.js"}}"></script>
+  <script>
+    (function () {
+      const btn = document.getElementById('add-passkey');
+      const errBox = document.getElementById('passkey-error');
+      btn.addEventListener('click', async () => {
+        errBox.classList.add('hidden');
+        btn.disabled = true;
+        try {
+          await Passkey.register('/webauthn/passkeys/begin', '/webauthn/passkeys/finish', {});
+          window.location.reload();
+        } catch (e) {
+          // InvalidStateError = excludeCredentials matched: this device (or
+          // its sync circle, e.g. iCloud Keychain) already holds a passkey
+          // for the account.
+          if (e.name === 'InvalidStateError') {
+            errBox.textContent = 'This device already has a passkey for this account (passkeys sync across devices signed into the same Apple or Google account). Use this button on a device outside that circle — another computer, phone, or a hardware security key.';
+          } else {
+            errBox.textContent = e.message || 'Could not add a passkey';
+          }
+          errBox.classList.remove('hidden');
+          btn.disabled = false;
+        }
+      });
+    })();
+  </script>
+</div>
+{{end}}

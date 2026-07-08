@@ -1,0 +1,11 @@
+# The Go build needs go.mod/go.sum, the Go sources, and the embedded
+# static/ + templates/ dirs. Everything below is excluded from context.
+.git
+**/node_modules
+**/target
+banner-bootstrap
+banner-component
+creative-designer
+bin
+*.test
+.DS_Store

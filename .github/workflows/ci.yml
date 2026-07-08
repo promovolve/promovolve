@@ -1,0 +1,55 @@
+name: CI
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+
+# Cancel superseded runs on the same ref (e.g. rapid pushes to a PR).
+concurrency:
+  group: ci-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  scala:
+    name: Scala core (sbt)
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: "21"
+          cache: sbt
+      - uses: sbt/setup-sbt@v1
+
+      # Formatting is informational (does not fail the build) — flip to a hard
+      # gate by removing `continue-on-error` once the tree is confirmed clean.
+      - name: scalafmt check
+        run: sbt scalafmtCheckAll
+        continue-on-error: true
+
+      # Compile main + test sources. This catches build breaks and type errors.
+      # NOTE: full `sbt test` is intentionally NOT run — the core suite has a
+      # known-failing baseline (see CONTRIBUTING.md); running it here would be
+      # red on arrival. Switch this to `sbt test` once that baseline is green.
+      - name: Compile (main + test)
+        run: sbt "compile; Test/compile"
+
+  go:
+    name: Platform (go)
+    runs-on: ubuntu-latest
+    defaults:
+      run:
+        working-directory: platform
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-go@v5
+        with:
+          go-version-file: platform/go.mod
+          cache-dependency-path: platform/go.sum
+      # Scoped to ./cmd/... and the root package to avoid the Go snippets vendored
+      # under */node_modules by the JS ad-bundle toolchains.
+      - run: go build ./cmd/... .
+      - run: go vet ./cmd/... .
+      - run: go test ./cmd/... .

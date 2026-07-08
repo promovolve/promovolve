@@ -1,0 +1,17 @@
+# Keep the api build context lean (Dockerfile.api copies build.sbt,
+# project/, modules/ — everything else is noise that bloats the context).
+.git
+.idea
+.bsp
+.claude
+**/target
+target
+**/ddata-promovolve-*
+**/ddata
+book
+docs
+platform
+scripts
+*.md
+.scalafmt.conf
+.DS_Store

@@ -1,0 +1,32 @@
+{
+  "name": "IAB Travel Campaign Test",
+  "description": "Test IAB Ad Product Taxonomy targeting with Travel (1529)",
+
+  "setup": {
+    "mode": "performance",
+    "advertisers": 1,
+    "campaignsPerAdvertiser": 1,
+    "creativesPerCampaign": 2,
+    "adProductCategory": "1529",
+    "additionalCategories": ["653", "654", "655"],
+    "budget": 100.0,
+    "cpm": 8.0,
+    "userPoolSize": 500
+  },
+  "pacing": {
+    "dayDurationSeconds": 300,
+    "weekdayShapeVolumes": [
+      0.5, 0.3, 0.2, 0.2, 0.3, 0.5,
+      0.8, 1.5, 2.0, 2.5, 2.5, 2.0,
+      1.8, 2.0, 2.2, 2.5, 3.0, 2.5,
+      2.0, 1.5, 1.0, 0.8, 0.6, 0.4
+    ]
+  },
+  "traffic": {
+    "continuous": true,
+    "reportEvery": 50,
+    "clickRate": 0.03,
+    "variableDelay": false,
+    "delayMs": 10
+  }
+}

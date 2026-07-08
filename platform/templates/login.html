@@ -1,0 +1,151 @@
+{{define "content"}}
+<div class="flex items-center justify-center min-h-screen bg-gray-50">
+  <div class="w-full max-w-lg p-8">
+    <h1 class="text-3xl font-semibold text-center mb-2">Promovolve</h1>
+    <p class="text-gray-500 text-center mb-10">Content-based ad serving platform</p>
+
+    {{if .Error}}
+    <div class="bg-red-50 border border-red-200 text-red-700 rounded-lg p-3 mb-6 text-sm">{{.Error}}</div>
+    {{end}}
+
+    {{if eq .Mode "choose"}}
+    <div class="w-full max-w-md mx-auto bg-white rounded-lg shadow-sm border p-8">
+      <h2 class="text-2xl font-semibold mb-1">Sign in</h2>
+      <p class="text-sm text-gray-500 mb-6">Use the passkey you registered for this dashboard.</p>
+
+      <div id="passkey-error" class="hidden bg-red-50 border border-red-200 text-red-700 rounded-lg p-3 mb-4 text-sm"></div>
+
+      <div id="pending-panel" class="hidden bg-amber-50 border border-amber-200 text-amber-800 rounded-lg p-4 mb-4 text-sm">
+        <p class="font-medium mb-1">Your account request is pending review.</p>
+        <p>You'll be able to sign in once an administrator approves it.</p>
+      </div>
+
+      <form id="passkey-form" class="space-y-4" onsubmit="return false">
+        <div>
+          <label class="form-label">Email</label>
+          <input type="email" id="passkey-email" autocomplete="username webauthn"
+            placeholder="you@company.com" class="form-input">
+        </div>
+        <button type="submit" id="passkey-signin" class="btn btn-primary w-full">Sign in with passkey</button>
+      </form>
+
+      <p class="mt-6 text-center text-sm text-gray-500">
+        Need an account? <a href="/request-account" class="text-brand hover:underline">Request access</a>
+      </p>
+    </div>
+
+    {{if .DevAuth}}
+    <div class="w-full max-w-md mx-auto mt-8">
+      <div class="flex items-center gap-3 mb-4">
+        <div class="h-px bg-gray-200 flex-1"></div>
+        <span class="text-xs uppercase tracking-wide text-gray-400">Development only</span>
+        <div class="h-px bg-gray-200 flex-1"></div>
+      </div>
+      <div class="grid grid-cols-2 gap-4">
+        <div class="bg-white rounded-lg border p-4">
+          <h3 class="font-semibold mb-2">Publisher</h3>
+          <div class="space-y-2">
+            <a href="/login?mode=login&role=publisher" class="btn btn-primary w-full">Sign In</a>
+            <a href="/login?mode=register&role=publisher" class="btn btn-secondary w-full">Create Account</a>
+          </div>
+        </div>
+        <div class="bg-white rounded-lg border p-4">
+          <h3 class="font-semibold mb-2">Advertiser</h3>
+          <div class="space-y-2">
+            <a href="/login?mode=login&role=advertiser" class="btn btn-success w-full">Sign In</a>
+            <a href="/login?mode=register&role=advertiser" class="btn btn-secondary w-full">Create Account</a>
+          </div>
+        </div>
+      </div>
+    </div>
+    {{end}}
+
+    <script src="{{asset "passkey.js"}}"></script>
+    <script>
+      (function () {
+        const errBox = document.getElementById('passkey-error');
+        const pendingPanel = document.getElementById('pending-panel');
+        const form = document.getElementById('passkey-form');
+
+        function showError(msg) {
+          pendingPanel.classList.add('hidden');
+          errBox.textContent = msg;
+          errBox.classList.remove('hidden');
+        }
+
+        async function signIn(mediation, signal) {
+          // The email field directs the sign-in: filled in, the server
+          // restricts the ceremony to that account so the browser only
+          // offers its passkey. Empty (or conditional autofill), any
+          // passkey on the device can be picked.
+          const body = mediation === 'conditional'
+            ? {}
+            : { email: document.getElementById('passkey-email').value.trim() };
+          const res = await Passkey.login('/webauthn/login/begin', '/webauthn/login/finish', mediation, signal, body);
+          if (res.status === 'pending') {
+            errBox.classList.add('hidden');
+            pendingPanel.classList.remove('hidden');
+            return;
+          }
+          if (res.redirect) window.location.href = res.redirect;
+        }
+
+        // Conditional UI: offer passkeys through the email field's autofill.
+        // Aborted when the user clicks the explicit button instead.
+        let conditionalAbort = null;
+        Passkey.conditionalAvailable().then((ok) => {
+          if (!ok) return;
+          conditionalAbort = new AbortController();
+          signIn('conditional', conditionalAbort.signal).catch(() => {});
+        });
+
+        form.addEventListener('submit', () => {
+          if (conditionalAbort) { conditionalAbort.abort(); conditionalAbort = null; }
+          signIn().catch((e) => showError(e.message || 'Sign-in failed'));
+        });
+      })();
+    </script>
+    {{else}}
+    <div class="w-full max-w-md mx-auto bg-white rounded-lg shadow-sm border p-8">
+      <a href="/login" class="text-sm text-gray-400 hover:text-gray-600 mb-4 block">&larr; Back</a>
+      <h2 class="text-2xl font-semibold mb-1">
+        {{if eq .Mode "register"}}Create {{.RoleLabel}} Account{{else}}{{.RoleLabel}} Sign In{{end}}
+      </h2>
+      <p class="text-sm text-gray-500 mb-6">Development-only password access</p>
+      <form method="POST" action="/login" class="space-y-4">
+        <input type="hidden" name="mode" value="{{.Mode}}">
+        <input type="hidden" name="role" value="{{.Role}}">
+        {{if eq .Mode "register"}}
+        <div>
+          <label class="form-label">
+            {{if eq .Role "publisher"}}Publication Name{{else}}Business Name{{end}}
+          </label>
+          <input type="text" name="displayName"
+            placeholder="{{if eq .Role "publisher"}}e.g., Tokyo Travel Blog{{else}}e.g., Hakone Ryokan{{end}}"
+            class="form-input">
+        </div>
+        {{end}}
+        <div>
+          <label class="form-label">Email</label>
+          <input type="email" name="email" required
+            class="form-input">
+        </div>
+        <div>
+          <label class="form-label">Password</label>
+          <input type="password" name="password" required
+            class="form-input">
+        </div>
+        <button type="submit"
+          class="btn w-full {{if eq .Role "publisher"}}btn-primary{{else}}btn-success{{end}}">
+          {{if eq .Mode "register"}}Create Account{{else}}Sign In{{end}}
+        </button>
+      </form>
+      <p class="mt-4 text-center text-sm text-gray-500">
+        {{if eq .Mode "register"}}Already have an account? <a href="/login?mode=login&role={{.Role}}" class="text-brand hover:underline">Sign in</a>
+        {{else}}Don't have an account? <a href="/login?mode=register&role={{.Role}}" class="text-brand hover:underline">Register</a>{{end}}
+      </p>
+    </div>
+    {{end}}
+  </div>
+</div>
+{{end}}

@@ -1,0 +1,30 @@
+# TimescaleDB → Spot Pod, right-sized for Autopilot.
+#
+# TRADE-OFF: a Spot preemption restarts the DB pod. It reattaches its PVC (the
+# PD survives), so data is safe, but there is a ~30-60s blip. For a demo that's
+# fine. If you want the DB immune to preemption, delete the nodeSelector +
+# tolerations block below so it lands on a regular (on-demand) node.
+apiVersion: apps/v1
+kind: StatefulSet
+metadata:
+  name: promovolve-db
+spec:
+  template:
+    spec:
+      nodeSelector:
+        cloud.google.com/gke-spot: "true"
+      tolerations:
+        - key: cloud.google.com/gke-spot
+          operator: Equal
+          value: "true"
+          effect: NoSchedule
+      containers:
+        - name: timescaledb
+          # 1Gi is enough headroom for the 300-connection backend processes at
+          # demo load (the base 2Gi limit was sized for a busy multi-pod tier).
+          resources:
+            requests:
+              cpu: "250m"
+              memory: 1Gi
+            limits:
+              memory: 1Gi

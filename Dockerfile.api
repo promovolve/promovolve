@@ -1,0 +1,57 @@
+# syntax=docker/dockerfile:1
+#
+# promovolve.api.Main — the Scala/Pekko ad server.
+#
+# Two concerns make this image non-trivial (see k8s/README.md):
+#   1. The app launches headless Chromium IN-PROCESS via Playwright
+#      (crawl, LP extraction, banner render). The runtime stage is
+#      therefore Microsoft's official Playwright-for-Java image, whose
+#      bundled Chromium build is version-matched to the
+#      `com.microsoft.playwright % playwright % 1.54.0` dependency.
+#   2. The app needs Java 21 + --add-opens for LMDB durable DData. We
+#      copy a Temurin 21 JRE into the runtime image so the Java version
+#      is deterministic regardless of what the Playwright image ships.
+#
+# Build (from repo root):
+#   docker build -f Dockerfile.api -t promovolve/api:dev .
+
+# ---- build stage: compile + stage the app with sbt-native-packager ----
+# The bundled sbt/scala in the tag are irrelevant — the sbt launcher
+# auto-fetches the version pinned in project/build.properties (1.11.4)
+# and build.sbt's scalaVersion. We only need a Java 21 base.
+FROM sbtscala/scala-sbt:eclipse-temurin-21.0.8_9_1.12.11_3.8.3 AS build
+WORKDIR /src
+
+# Warm the dependency cache on build definition only.
+COPY build.sbt .
+COPY project/ project/
+RUN sbt update
+
+# Now the sources.
+COPY modules/ modules/
+RUN sbt "api/stage"
+# Output: /src/modules/api/target/universal/stage/{bin,lib}
+
+# ---- jre stage: a pinned Java 21 runtime to copy in ----
+FROM eclipse-temurin:21-jre-jammy AS jre
+
+# ---- runtime stage: Playwright (Chromium + system libs) + JRE 21 ----
+FROM mcr.microsoft.com/playwright/java:v1.54.0-jammy
+
+# Deterministic Java 21 (the Playwright image's bundled JDK version is
+# not guaranteed). The sbt-native-packager launcher prefers $JAVA_HOME.
+COPY --from=jre /opt/java/openjdk /opt/java/openjdk
+ENV JAVA_HOME=/opt/java/openjdk
+ENV PATH=$JAVA_HOME/bin:$PATH
+
+WORKDIR /app
+COPY --from=build /src/modules/api/target/universal/stage/ /app/
+
+# DData (LMDB) lives here; mount a PVC at this path in K8s.
+ENV DDATA_DIR=/data/ddata
+RUN mkdir -p /data/ddata
+
+EXPOSE 8080
+# bin/api is the native-packager launcher (mainClass=promovolve.api.Main),
+# with the --add-opens flags baked in via bashScriptExtraDefines.
+ENTRYPOINT ["/app/bin/api"]

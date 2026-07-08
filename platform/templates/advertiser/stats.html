@@ -1,0 +1,108 @@
+{{define "content"}}
+<!-- Header. (The 5s auto-refresh + Pause control were removed — the
+     page's numbers move on hourly/daily cadence; a reload is enough.) -->
+<div class="flex items-center justify-between mb-6">
+  <h1 class="page-title">Campaign Performance</h1>
+</div>
+
+{{if eq .WalletNotice "suspended"}}
+<div class="bg-red-50 border border-red-200 rounded-lg p-4 mb-6 max-w-2xl">
+  <p class="font-medium text-red-800">Serving is paused &mdash; your wallet is out of funds.</p>
+  <p class="text-sm text-red-600 mt-1">See <a href="/advertiser/wallet" class="text-brand hover:underline">Wallet</a> for details, and contact the platform operator to top up.</p>
+</div>
+{{else if eq .WalletNotice "low"}}
+<div class="bg-amber-50 border border-amber-200 rounded-lg p-4 mb-6 max-w-2xl">
+  <p class="font-medium text-amber-800">Your wallet balance is running low.</p>
+  <p class="text-sm text-amber-600 mt-1">Serving pauses when it reaches zero &mdash; see <a href="/advertiser/wallet" class="text-brand hover:underline">Wallet</a>.</p>
+</div>
+{{end}}
+{{if not .Campaigns}}
+<div class="text-center py-20 text-gray-400">
+  <p class="text-lg">No campaign data</p>
+  <p class="text-sm mt-2">Create campaigns to see performance stats</p>
+</div>
+{{else}}
+
+{{/* Hourly delivery chart — account-level, today (UTC). Static across
+     the auto-refresh (only #stats-content below is swapped); hourly
+     granularity doesn't need a 5s cadence. */}}
+{{if gt .AdvHourlyTotal 0}}
+<div class="bg-white p-4 rounded-lg border mb-6">
+  <div class="flex items-baseline justify-between mb-2">
+    <h2 class="text-sm font-semibold">Today's delivery</h2>
+    <span class="text-xs text-gray-400">{{.AdvHourlyTotal}} impressions · per UTC hour · hover for spend</span>
+  </div>
+  <div class="flex items-end gap-1 h-24">
+    {{range .AdvHourly}}
+    <div class="flex-1 flex flex-col justify-end h-full group" title="{{printf "%02d" .Hour}}:00 UTC — {{.Imps}} imp · {{.Spend}}">
+      {{if .Imps}}
+      <div class="bg-brand group-hover:bg-brand-hover rounded-t" style="height:{{.HeightPct}}%;"></div>
+      {{else}}
+      <div class="bg-gray-100 rounded-t" style="height:2px;"></div>
+      {{end}}
+    </div>
+    {{end}}
+  </div>
+  <div class="flex justify-between text-xs text-gray-400 mt-1">
+    <span>00:00</span><span>06:00</span><span>12:00</span><span>18:00</span><span>23:00</span>
+  </div>
+</div>
+{{end}}
+
+{{template "list-sort" .}}
+{{template "stats-cards" .}}
+{{template "list-pagination" .}}
+{{end}}
+{{end}}
+
+{{define "stats-cards"}}
+<div class="space-y-6">
+  {{range .Campaigns}}
+  <div class="bg-white p-6 rounded-lg border">
+    <!-- Campaign header: name (campaigns are ULID-keyed internally,
+         but the label is whatever the advertiser named it) + product
+         category on the right. -->
+    <div class="flex items-center justify-between mb-4">
+      <h2 class="font-medium text-lg">{{if .Name}}{{.Name}}{{else}}Unnamed campaign{{end}}</h2>
+      {{if .AdProductCategoryName}}<span class="text-sm text-gray-500">{{.AdProductCategoryName}}</span>{{end}}
+    </div>
+
+    <!-- Metric cards -->
+    <div class="grid grid-cols-5 gap-4 mb-4">
+      <div>
+        <p class="text-xs text-gray-500">Impressions</p>
+        <p class="text-xl font-semibold">{{.Impressions}}</p>
+      </div>
+      <div>
+        <p class="text-xs text-gray-500">Clicks</p>
+        <p class="text-xl font-semibold">{{.Clicks}}</p>
+      </div>
+      <div>
+        <p class="text-xs text-gray-500">CTR</p>
+        <p class="text-xl font-semibold">{{if .CTR}}{{.CTR}}{{else}}0.00%{{end}}</p>
+      </div>
+      <div>
+        <p class="text-xs text-gray-500">Spend</p>
+        <p class="text-xl font-semibold">${{if .SpendToday}}{{.SpendToday}}{{else}}0.00{{end}} / ${{if .DailyBudget}}{{.DailyBudget}}{{else}}0.00{{end}}</p>
+      </div>
+      <div>
+        <p class="text-xs text-gray-500">Budget Used</p>
+        <div class="mt-1 h-4 bg-gray-200 rounded-full overflow-hidden">
+          <div class="h-full bg-brand rounded-full" style="width:{{if .BudgetPct}}{{.BudgetPct}}{{else}}0{{end}}%;"></div>
+        </div>
+        <p class="text-xs text-gray-400 mt-1">{{printf "%.0f" .BudgetPct}}%</p>
+      </div>
+    </div>
+
+    <!-- Pricing footer. (The RL Multiplier / Exploration readouts are
+         gone — campaign-side RL was removed, and the handler never fed
+         those fields; they always showed the placeholder values.) -->
+    <div class="flex gap-8 text-sm text-gray-500 border-t pt-3">
+      <span>Effective CPM: <strong class="text-gray-900">{{if .ECPM}}{{.ECPM}}{{else}}&mdash;{{end}}</strong></span>
+      <span>Lifetime spend: <strong class="text-gray-900">{{if .LifetimeSpend}}{{.LifetimeSpend}}{{else}}&mdash;{{end}}</strong></span>
+      <span>Max CPM: <strong class="text-gray-900">{{if .MaxCPM}}${{.MaxCPM}}{{else}}&mdash;{{end}}</strong></span>
+    </div>
+  </div>
+  {{end}}
+</div>
+{{end}}

@@ -1,0 +1,242 @@
+{{define "content"}}
+{{if .BannerScriptURL}}
+<!-- Load the <magazine-preview> component so clicking a creative card opens
+     the live click-to-expand magazine view (same preview as the publisher
+     approval queue), not just the static PNG thumbnail. -->
+<script src="{{.BannerScriptURL}}"></script>
+{{end}}
+<!-- Header -->
+<div class="flex items-center justify-between mb-6">
+  <div>
+    <h1 class="page-title">Creatives</h1>
+    <p class="page-sub">{{if .ListNav}}{{.ListNav.Total}} creative{{if ne .ListNav.Total 1}}s{{end}}{{else}}{{len .Creatives}} creatives{{end}}</p>
+  </div>
+  <div class="flex items-center gap-3">
+    {{if .Campaigns}}
+    <form method="GET" action="/advertiser/creatives">
+      <select name="campaignId" onchange="this.form.submit()" class="px-3 py-2 border rounded-md text-sm">
+        {{range .Campaigns}}
+        <option value="{{.ID}}" {{if eq .ID $.CampaignID}}selected{{end}}>{{if .Name}}{{.Name}}{{else}}{{.ID}}{{end}}</option>
+        {{end}}
+      </select>
+    </form>
+    {{end}}
+    {{/* Entry into the authoring editor — its saves would 403 mid-work in a
+         read-only view-as session, so block the door, not just the save. */}}
+    <a href="/advertiser/creatives/editor?campaignId={{.CampaignID}}"
+       class="btn btn-primary" data-viewas-block>
+      Create Creative
+    </a>
+  </div>
+</div>
+
+<!-- Creative grid -->
+{{/* After a Publish the redirect carries ?published=1. The new creative's row
+     is written asynchronously, so it can be absent on this first load (no
+     pending card → the normal poll wouldn't start). Set a ~60s grace deadline
+     once (outside the swapped #creatives-area) so the poll runs until the
+     creative appears, then pending-based polling takes over. 60s covers the
+     residual projection lag while the post-incident backlog drains. */}}
+<script>
+  if (new URLSearchParams(location.search).get('published') && !window.__pubGrace) {
+    window.__pubGrace = Date.now() + 60000;
+  }
+</script>
+<div id="creatives-area"
+     hx-get="/advertiser/creatives?campaignId={{.CampaignID}}{{if .ListNav}}{{if .ListNav.Sort}}&amp;sort={{.ListNav.Sort}}{{end}}&amp;page={{.ListNav.Page}}{{end}}"
+     hx-trigger="every 3s [document.querySelectorAll('[data-pending-render], [data-pending-verify]').length > 0 || (window.__pubGrace && Date.now() < window.__pubGrace)]"
+     hx-select="#creatives-area"
+     hx-swap="outerHTML">
+{{if not .CampaignID}}
+<div class="text-center py-20 text-gray-400">
+  <p class="text-lg">Create a campaign first</p>
+</div>
+{{else if not .Creatives}}
+<div class="text-center py-20 text-gray-400">
+  <p class="text-lg">No creatives yet</p>
+  <p class="text-sm mt-2">Create your first ad from a landing page</p>
+</div>
+{{else}}
+{{/* Sort pulldown — creatives flavor (CTR instead of spend); keeps the
+     campaign filter via the hidden field. */}}
+<div class="flex items-center justify-end mb-2">
+  <form method="GET" class="flex items-center gap-2">
+    <input type="hidden" name="campaignId" value="{{.CampaignID}}">
+    <label class="text-xs text-gray-500">Sort:</label>
+    <select name="sort" onchange="this.form.submit()" class="px-2 py-1 border rounded text-sm bg-white">
+      <option value="newest" {{if or (not .ListNav.Sort) (eq .ListNav.Sort "newest")}}selected{{end}}>Newest first</option>
+      <option value="name" {{if eq .ListNav.Sort "name"}}selected{{end}}>Name A&ndash;Z</option>
+      <option value="impressions" {{if eq .ListNav.Sort "impressions"}}selected{{end}}>Impressions</option>
+      <option value="ctr" {{if eq .ListNav.Sort "ctr"}}selected{{end}}>CTR</option>
+    </select>
+  </form>
+</div>
+{{/* htmx in-place poll: while any card is still waiting on banner
+     render or Gemini verification, re-fetch this same page every 3s
+     and swap just the grid in place. No full-page reload, no flash.
+     Polling stops automatically when the swapped-in grid contains no
+     more pending markers — htmx re-evaluates the trigger condition
+     against the new DOM after each swap. */}}
+<div id="creatives-grid"
+     class="grid grid-cols-2 lg:grid-cols-3 gap-4">
+  {{range .Creatives}}
+  <div class="bg-white rounded-lg border overflow-hidden group"
+       {{/* Mark cards waiting on Gemini category verification so the
+            poll loop keeps reloading until matchConfidence lands.
+            Drafts skip verification; only Active creatives that haven't
+            yet reported a confidence score are pending. */}}
+       {{if and (eq .ActiveStatus "Active") (not .Confidence)}}data-pending-verify{{end}}>
+    <!-- Thumbnail area — always shown at 16:9 (PC expanded aspect),
+         since one creative now covers every slot size. -->
+    <div class="aspect-video bg-gray-50 flex items-center justify-center">
+      {{if .AssetURL}}
+      <button type="button" onclick="openCreativePreview('{{.ID}}', '{{$.CampaignID}}', '{{.AssetURL}}')"
+              class="relative w-full h-full flex items-center justify-center cursor-zoom-in"
+              title="Preview creative">
+        <img src="{{.AssetURL}}" alt="{{.Name}}" class="max-w-full max-h-full object-contain">
+        <span class="absolute bottom-1.5 left-1.5 inline-flex items-center gap-1.5 px-2 py-1 rounded bg-black/60 text-white text-xs font-medium opacity-0 group-hover:opacity-90 transition">
+          <svg class="w-3.5 h-3.5" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" d="M4 8V4m0 0h4M4 4l5 5m11-1V4m0 0h-4m4 0l-5 5M4 16v4m0 0h4m-4 0l5-5m11 5l-5-5m5 5v-4m0 4h-4"/></svg>
+          Preview
+        </span>
+      </button>
+      {{else}}
+      <div class="w-full h-full flex flex-col items-center justify-center gap-2 border-2 border-dashed border-gray-200 rounded relative" data-pending-render>
+        <svg class="animate-spin h-6 w-6 text-brand" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24">
+          <circle class="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" stroke-width="4"></circle>
+          <path class="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8v4a4 4 0 00-4 4H4z"></path>
+        </svg>
+        <span class="text-xs text-gray-400">Rendering…</span>
+      </div>
+      {{end}}
+    </div>
+    <!-- Info -->
+    <div class="p-3">
+      <div class="flex items-center justify-between mb-1">
+        <p class="text-sm font-medium truncate">{{if .Name}}{{.Name}}{{else}}{{slice .ID 0 12}}{{end}}</p>
+        <span class="badge {{if eq .ActiveStatus "Active"}}badge-success{{else if eq .ActiveStatus "Draft"}}badge-info{{else}}badge-neutral{{end}}">
+          {{if .ActiveStatus}}{{.ActiveStatus}}{{else}}{{.Status}}{{end}}
+        </span>
+      </div>
+      <div class="flex items-center gap-2 text-xs text-gray-500">
+        {{if .Confidence}}
+        <span class="badge badge-info">{{.Confidence}} match</span>
+        {{end}}
+      </div>
+      {{if or .Impressions .Clicks .CTAClicks}}
+      <div class="flex items-center gap-3 mt-2 text-xs text-gray-500">
+        <span title="Impressions">{{.Impressions}} imp</span>
+        <span title="Clicks (expand)">{{.Clicks}} clicks</span>
+        {{if .CTAClicks}}<span title="CTA clicks (navigate to LP)">{{.CTAClicks}} CTA</span>{{end}}
+        {{if .CTR}}<span title="Click-through rate on fresh impressions">{{.CTR}} CTR</span>{{end}}
+      </div>
+      {{end}}
+      {{if .DogearedImpressions}}
+      <div class="flex items-center gap-3 mt-1 text-xs text-amber-700" title="Re-encounters via honored pin (bookmark fulfillment — not billed)">
+        <span>📌 {{.DogearedImpressions}} pin re-views</span>
+        {{if .DogearedClicks}}<span>{{.DogearedClicks}} clicks</span>{{end}}
+        {{if .DogearedCTAClicks}}<span>{{.DogearedCTAClicks}} CTA</span>{{end}}
+        {{if .PinCTR}}<span title="Re-engagement click-through rate">{{.PinCTR}} pin CTR</span>{{end}}
+      </div>
+      {{end}}
+      <div class="mt-2 pt-2 border-t flex items-center justify-between">
+        {{if eq .ActiveStatus "Draft"}}
+        <form method="POST" action="/advertiser/creatives/resume-draft">
+          <input type="hidden" name="campaignId" value="{{$.CampaignID}}">
+          <input type="hidden" name="creativeId" value="{{.ID}}">
+          <button type="submit" class="text-xs text-brand hover:underline">Continue editing</button>
+        </form>
+        {{else}}
+        <form method="POST" action="/advertiser/creatives/toggle">
+          <input type="hidden" name="campaignId" value="{{$.CampaignID}}">
+          <input type="hidden" name="creativeId" value="{{.ID}}">
+          {{if eq .ActiveStatus "Active"}}
+          <input type="hidden" name="status" value="Paused">
+          <button type="submit" class="text-xs text-red-600 hover:underline">Pause</button>
+          {{else}}
+          <input type="hidden" name="status" value="Active">
+          <button type="submit" class="text-xs text-green-600 hover:underline">Activate</button>
+          {{end}}
+        </form>
+        {{end}}
+        {{if ne .ActiveStatus "Active"}}
+        <form method="POST" action="/advertiser/creatives/delete"
+              onsubmit="return confirm('Delete this creative? It is removed from the campaign; reports are kept.')">
+          <input type="hidden" name="campaignId" value="{{$.CampaignID}}">
+          <input type="hidden" name="creativeId" value="{{.ID}}">
+          <button type="submit" class="px-2.5 py-1 text-xs border border-red-300 rounded-md text-red-600 hover:bg-red-50">Delete</button>
+        </form>
+        {{else}}
+        <button type="button" disabled title="Pause this creative before deleting it"
+                class="px-2.5 py-1 text-xs border border-gray-200 rounded-md text-gray-300 cursor-not-allowed">Delete</button>
+        {{end}}
+      </div>
+    </div>
+  </div>
+  {{end}}
+</div>
+{{template "list-pagination" .}}
+{{end}}
+</div>
+
+{{/* htmx handles bfcache restore correctly — it re-evaluates triggers
+     when the page becomes visible again, so coming back from the
+     designer Back button picks up any cards that finished rendering
+     while we were away without an explicit pageshow listener. */}}
+
+{{/* Full-size preview modal — same pattern as the publisher approval queue:
+     a fresh <magazine-preview> per open (fresh page-turn state), emptied on
+     close so the component tears down. Pages are fetched lazily on click
+     (the list payload deliberately excludes the big pagesJson). */}}
+<dialog id="previewDialog" class="rounded-2xl p-0 shadow-2xl backdrop:bg-black/60" style="width:min(1100px,95vw); max-height:96vh;">
+  <div class="p-3">
+    <div class="flex items-center justify-between mb-2">
+      <h3 class="text-sm font-semibold text-gray-700">Creative preview</h3>
+      <button type="button" onclick="document.getElementById('previewDialog').close()"
+              class="p-1.5 rounded-md text-gray-400 hover:text-gray-700 hover:bg-gray-100" title="Close">
+        <svg class="w-4 h-4" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" d="M6 18L18 6M6 6l12 12"/></svg>
+      </button>
+    </div>
+    <div id="previewDialogBody" class="bg-gray-50 rounded-lg p-2 flex justify-center overflow-y-auto" style="max-height:calc(96vh - 4.5rem); min-height:200px;"></div>
+  </div>
+</dialog>
+<script>
+async function openCreativePreview(creativeId, campaignId, assetUrl) {
+  const dlg = document.getElementById('previewDialog');
+  const body = document.getElementById('previewDialogBody');
+  body.innerHTML = '<p class="text-sm text-gray-400">Loading preview…</p>';
+  dlg.showModal();
+  try {
+    const r = await fetch(`/advertiser/creatives/${encodeURIComponent(creativeId)}/pages?campaignId=${encodeURIComponent(campaignId)}`);
+    if (r.ok) {
+      const d = await r.json();
+      if (d.pagesJson && window.customElements && customElements.get('magazine-preview')) {
+        const el = document.createElement('magazine-preview');
+        el.setAttribute('pages', d.pagesJson);
+        if (d.bannerConfigJson) el.setAttribute('config', d.bannerConfigJson);
+        if (d.landingUrl) el.setAttribute('landing-url', d.landingUrl);
+        el.setAttribute('keep-frame', '1');
+  // Start on the ad-in-article view and tour the standard slot sizes
+  // every 5s (hover pauses; clicking the ad opens the reader and holds).
+  el.setAttribute('start-collapsed', '1');
+  el.setAttribute('slot-tour', '1');
+        body.replaceChildren(el);
+        return;
+      }
+    }
+  } catch (e) { /* fall through to static asset */ }
+  if (assetUrl) {
+    const img = document.createElement('img');
+    img.src = assetUrl;
+    img.className = 'max-w-full object-contain rounded';
+    img.style.maxHeight = '70vh';
+    body.replaceChildren(img);
+  } else {
+    body.innerHTML = '<p class="text-sm text-gray-400">No preview available</p>';
+  }
+}
+document.getElementById('previewDialog').addEventListener('close', () => {
+  // Drop the component so its observers disconnect and playback stops.
+  document.getElementById('previewDialogBody').replaceChildren();
+});
+</script>
+{{end}}

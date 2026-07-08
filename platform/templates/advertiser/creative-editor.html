@@ -1,0 +1,1047 @@
+{{define "content"}}
+<div x-data="creativeEditor()" class="relative">
+  <!-- Hidden handoff to Advanced Designer -->
+  <form id="designer-handoff" method="POST" action="/advertiser/creatives/design" class="hidden">
+    <input type="hidden" name="campaignId" value="{{.CampaignID}}">
+    <input type="hidden" name="pagesJson" :value="pagesJsonStr()">
+    <input type="hidden" name="landingUrl" :value="extractUrl">
+    <input type="hidden" name="creativeName" :value="creativeName.trim()">
+    <input type="hidden" name="lpTextSnapshot" :value="lpTextSnapshotStr()">
+    <!-- Pre-generation choices threaded into the designer so its
+         auto-layout call can incorporate brand colours + template
+         composition intent into the Gemini prompt. -->
+    <input type="hidden" name="brandKitJson" :value="selectedBrandKitJson()">
+    <input type="hidden" name="templateId"   :value="selectedTemplateId">
+  </form>
+
+  <!-- Full-page blocking overlay shown while generating. Covers the
+       whole editor (including the sticky Generate button) so the user
+       can't change selections mid-flight and the spinner makes the
+       wait obvious. -->
+  <div x-show="generating" x-cloak
+       class="fixed inset-0 z-50 bg-white/70 backdrop-blur-sm flex items-center justify-center"
+       @click.stop @keydown.stop>
+    <div class="flex flex-col items-center gap-3 rounded-lg bg-white shadow-lg border px-6 py-5">
+      <svg class="animate-spin h-8 w-8 text-orange-600" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24">
+        <circle class="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" stroke-width="4"></circle>
+        <path class="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8v4a4 4 0 00-4 4H4z"></path>
+      </svg>
+      <p class="text-sm font-medium text-gray-700">Generating creative…</p>
+      <p class="text-xs text-gray-500">This can take up to a minute.</p>
+    </div>
+  </div>
+
+  <!-- Header -->
+  <div class="flex items-center justify-between mb-6">
+    <div>
+      <h1 class="text-2xl font-semibold">Creative Editor</h1>
+      <p class="text-sm text-gray-500 mt-1">Build an expandable banner from your landing page</p>
+    </div>
+    <a href="/advertiser/creatives?campaignId={{.CampaignID}}"
+       class="px-4 py-2 border rounded-md text-sm hover:bg-gray-50">Back to Creatives</a>
+  </div>
+
+  <!-- ============ Landing page URL — pinned at the top ============ -->
+  <div>
+    <div class="bg-white p-4 rounded-lg border mb-6">
+      <div class="flex gap-3">
+        <input type="text" x-model="extractUrl" placeholder="Enter landing page URL"
+               {{if .LandingURL}}readonly{{end}}
+               class="flex-1 px-3 py-2 border rounded-md text-sm focus:outline-none focus:ring-2 focus:ring-orange-500 bg-gray-50{{if .LandingURL}} text-gray-500 cursor-not-allowed{{end}}"
+               @keydown.enter.prevent="(!$event.isComposing && !analyzing && extractUrl) && analyzeLP()">
+        <button @click="analyzeLP()" :disabled="analyzing || !extractUrl"
+                class="btn btn-primary whitespace-nowrap">
+          <span x-show="!analyzing">Analyze</span>
+          <span x-show="analyzing">Analyzing...</span>
+        </button>
+      </div>
+      {{if .LandingURL}}<p class="mt-2 text-xs text-gray-400">The landing page is set by the campaign and can't be changed here.</p>{{end}}
+      <p x-show="analyzeError" x-text="analyzeError" class="mt-2 text-sm text-red-600"></p>
+    </div>
+  </div>
+
+  <!-- ====== Analyzing: LP capture as a live backdrop ======
+       Fills what used to be blank white space while the (slow) Playwright +
+       Gemini extraction runs. The early viewport screenshot lands via the
+       status poll (screenshotReady) and shows blurred/dimmed behind a
+       spinner; before it's ready, a neutral placeholder pulses. -->
+  <div x-show="analyzing && step === 'analyze'" x-cloak
+       class="relative mb-6 rounded-lg border overflow-hidden bg-gray-50"
+       style="min-height: 360px">
+    <!-- Captured LP backdrop (blurred + dimmed); fades in when ready -->
+    <div x-show="lpScreenshotUrl"
+         x-transition:enter="transition ease-out duration-700"
+         x-transition:enter-start="opacity-0" x-transition:enter-end="opacity-100"
+         class="absolute inset-0"
+         :style="`background-image:url('${lpScreenshotUrl}'); background-size:cover; background-position:top center; filter: blur(2px) brightness(0.55);`"></div>
+    <!-- Gradient so the foreground text always reads over the capture -->
+    <div x-show="lpScreenshotUrl" class="absolute inset-0"
+         style="background: linear-gradient(to bottom, rgba(17,24,39,0.30), rgba(17,24,39,0.60));"></div>
+    <!-- Placeholder pulse before the capture arrives -->
+    <div x-show="!lpScreenshotUrl" class="absolute inset-0 animate-pulse bg-gradient-to-br from-gray-100 to-gray-200"></div>
+    <!-- Foreground: spinner + caption -->
+    <div class="relative flex flex-col items-center justify-center gap-3 py-24 text-center">
+      <svg class="animate-spin h-8 w-8" :class="lpScreenshotUrl ? 'text-white/90' : 'text-orange-500'" viewBox="0 0 24 24" fill="none">
+        <circle class="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" stroke-width="4"></circle>
+        <path class="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4z"></path>
+      </svg>
+      <p class="text-sm font-medium" :class="lpScreenshotUrl ? 'text-white' : 'text-gray-600'"
+         x-text="lpScreenshotUrl ? 'Reading your landing page…' : 'Opening your landing page…'"></p>
+      <p class="text-xs" :class="lpScreenshotUrl ? 'text-white/75' : 'text-gray-400'">Extracting text, images and brand colours</p>
+    </div>
+  </div>
+
+  <!-- ============ Compose — same page; reveals (animated) below the URL
+       field once Analyze populates it. step flips to 'compose' on success or
+       manual fallback. ============ -->
+  <div x-show="step === 'compose'"
+       x-cloak
+       x-transition:enter="transition ease-out duration-300"
+       x-transition:enter-start="opacity-0 translate-y-3"
+       x-transition:enter-end="opacity-100 translate-y-0">
+    <div class="mb-4">
+      <span class="text-sm text-gray-400">Pick the story arc, add anything to emphasize, then generate the 3 pages. Pick an image for each.</span>
+    </div>
+
+    <!-- Persuasion arc picker. On first generate the AI curates which arcs FIT
+         the product (e.g. drops Problem→Solution for sweets) and we show only
+         those + why; "show all" reveals the rest. Picking one re-synthesizes. -->
+    <div class="mb-4">
+      <div class="flex items-center justify-between mb-2">
+        <h3 class="text-sm font-medium text-gray-700">Story arc
+          <span class="font-normal text-gray-400">— how the 3 pages persuade</span></h3>
+        <button type="button" x-show="fitArcIds.length > 0 && fitArcIds.length < arcs.length"
+                @click="showAllArcs = !showAllArcs"
+                class="text-[11px] text-gray-400 hover:text-gray-600"
+                x-text="showAllArcs ? 'show recommended only' : 'show all arcs'"></button>
+      </div>
+      <p x-show="arcReason" x-cloak class="text-[11px] text-orange-600 mb-2">✓ Recommended: <span x-text="arcReason"></span></p>
+      <div class="grid grid-cols-2 sm:grid-cols-4 gap-2">
+        <template x-for="a in arcs.filter(a => showAllArcs || fitArcIds.length === 0 || fitArcIds.includes(a.id))" :key="a.id">
+          <button type="button" @click="selectedArcId = a.id" :disabled="generating"
+                  class="border rounded-lg p-2 text-left transition hover:border-orange-400 disabled:opacity-50 disabled:cursor-not-allowed"
+                  :class="selectedArcId === a.id ? 'border-orange-500 ring-2 ring-orange-200 bg-orange-50' : 'border-gray-200'">
+            <div class="text-xs font-medium text-gray-800" x-text="a.label"></div>
+            <div class="text-[11px] text-gray-400 mt-0.5 leading-tight" x-text="a.desc"></div>
+          </button>
+        </template>
+      </div>
+    </div>
+
+    <!-- Optional advertiser brief — just an input; it is applied together with
+         the chosen arc by the single Generate action below (no per-field apply). -->
+    <div class="mb-4">
+      <label class="block text-sm font-medium text-gray-700 mb-1">Anything to emphasize?
+        <span class="font-normal text-gray-400">(optional)</span></label>
+      <input type="text" x-model="brief" maxlength="300"
+             @keydown.enter.prevent="(!$event.isComposing && !generating && !recommending && allTexts.length) && synthesize(selectedArcId)"
+             placeholder="e.g. push the limited edition; warm, playful tone; mention free shipping"
+             class="w-full px-3 py-2 border rounded-md text-sm focus:outline-none focus:ring-2 focus:ring-orange-500">
+      <p class="text-[11px] text-gray-400 mt-1">Steers the copy. Facts you add are trusted; the AI still won’t invent beyond your landing page + this note.</p>
+    </div>
+
+    <!-- ONE generate action: applies the selected arc + the brief together. -->
+    <button type="button" @click="synthesize(selectedArcId)" :disabled="generating || recommending || allTexts.length === 0"
+            class="btn btn-primary w-full mb-5">
+      <span x-show="!generating && !recommending" x-text="synthesizedPages.length ? '↻ Regenerate copy' : 'Generate copy'"></span>
+      <span x-show="recommending && !generating">Waiting for AI recommendation…</span>
+      <span x-show="generating">Writing copy…</span>
+    </button>
+
+    <!-- Pre-generation choices that used to live here (brand-kit colour
+         editor + a template picker that opened a dialog) are gone: colours
+         are now edited in the designer, and the layout template is picked
+         inline below the per-page image+text slots (see "Layout template"
+         further down). -->
+
+    <!-- Fallback notice: scrape returned nothing. Tell the user they
+         can still proceed by uploading images and typing text. -->
+    <div x-show="manualMode" x-cloak
+         class="mb-4 p-3 rounded-md border border-amber-300 bg-amber-50 text-sm text-amber-800">
+      <p class="mb-2">We couldn't read this landing page automatically (likely a
+      bot block). Paste your landing-page copy (or a product description) below
+      and we'll write the booklet from it; upload images on the right.</p>
+      <textarea x-model="manualText" rows="4" placeholder="Paste your landing-page copy or product description…"
+                class="w-full px-2 py-1.5 border rounded text-sm text-gray-800 focus:outline-none focus:ring-1 focus:ring-orange-500 resize-y"></textarea>
+      <button type="button" @click="allTexts = manualText.trim() ? [{ heading: '', text: manualText.trim() }] : []; synthesize()"
+              :disabled="generating || manualText.trim().length < 30"
+              class="btn btn-primary btn-sm mt-2">
+        <span x-show="!generating">Write copy from this</span>
+        <span x-show="generating">Writing…</span>
+      </button>
+    </div>
+
+    <div class="flex gap-6">
+      <!-- LEFT: Page Slots -->
+      <div class="w-3/5 space-y-4">
+        <template x-for="(page, idx) in pageSlots" :key="idx">
+          <div class="rounded-lg border p-4 cursor-pointer transition-all"
+               :class="activePageIdx === idx ? 'bg-orange-50 border-orange-400 ring-2 ring-orange-200' : 'bg-white hover:border-gray-300'"
+               @click="activePageIdx = idx">
+            <!-- The per-page CTA checkbox is gone: delivery navigates on a
+                 tap anywhere on the sheet, so "which page is the CTA" is no
+                 longer an advertiser decision (and nothing downstream marks a
+                 CTA page — all pages are treated equally). The page `tag`
+                 still carries the FEATURE / EXPERIENCE-STORY / PLAN-CTA arc
+                 for Gemini's copy prompt.
+                 (Remove-page button likewise retired — pages locked at 3.) -->
+            <div class="flex items-center justify-between mb-3">
+              <h3 class="text-sm font-semibold" :class="activePageIdx === idx ? 'text-orange-700' : 'text-gray-700'"
+                  x-text="'Page ' + (idx + 1)"></h3>
+            </div>
+
+            <div class="flex gap-4">
+              <!-- Selected image -->
+              <div class="w-32 h-24 bg-gray-50 border-2 border-dashed rounded flex items-center justify-center cursor-pointer hover:border-orange-400 shrink-0"
+                   :class="page.imageIdx !== null ? 'border-solid border-gray-200' : ''"
+                   @click="openImagePicker(idx)">
+                <template x-if="page.imageIdx !== null && allImages[page.imageIdx]">
+                  <img :src="allImages[page.imageIdx].src" class="w-full h-full object-cover rounded">
+                </template>
+                <template x-if="page.imageIdx === null">
+                  <span class="text-xs text-gray-400 text-center px-2">Click to pick image</span>
+                </template>
+              </div>
+
+              <!-- Auto-written copy (synthesized from the whole LP) -->
+              <div class="flex-1 min-w-0">
+                <template x-if="synthesizedPages[idx]">
+                  <div>
+                    <span x-show="synthesizedPages[idx].tag"
+                          class="inline-block text-[10px] font-semibold uppercase tracking-wider text-orange-500 mb-0.5"
+                          x-text="synthesizedPages[idx].tag"></span>
+                    <p class="text-sm font-semibold text-gray-800" x-text="synthesizedPages[idx].headline || '—'"></p>
+                    <p class="text-xs text-gray-600 mt-0.5" x-text="synthesizedPages[idx].sub || ''"></p>
+                    <p class="text-xs text-gray-500 mt-1 line-clamp-3" x-text="synthesizedPages[idx].body || ''"></p>
+                  </div>
+                </template>
+                <template x-if="!synthesizedPages[idx]">
+                  <div class="h-full flex items-center">
+                    <span class="text-xs text-gray-400" x-text="generating ? 'Writing copy…' : 'Copy will appear here'"></span>
+                  </div>
+                </template>
+              </div>
+            </div>
+          </div>
+        </template>
+
+        <!-- Add Page retired — creatives fixed at 3 pages. The Layout template
+             moved BELOW this row so the image pool (right) flex-stretches to
+             align with the bottom of the 3 page cards, not past them. -->
+      </div>
+
+      <!-- RIGHT: Image pool — the original natural-aspect grid (w-full h-auto),
+           just with a taller max-height cap (max-h-[34rem] vs the old max-h-64)
+           so it shows more before scrolling. Tune the rem value to taste. -->
+      <div class="w-2/5">
+        <!-- Image pool -->
+        <div class="relative rounded transition-colors"
+             :class="imageDragActive ? 'ring-2 ring-orange-400 bg-orange-50/40' : ''"
+             @dragenter.prevent="imageDragDepth++"
+             @dragover.prevent
+             @dragleave.prevent="imageDragDepth = Math.max(0, imageDragDepth - 1)"
+             @drop.prevent="onImageDrop($event)">
+          <div class="flex items-center justify-between mb-2">
+            <h3 class="text-sm font-semibold text-gray-700">
+              Images <span class="font-normal text-gray-400" x-text="'(' + allImages.length + ')'"></span>
+            </h3>
+            <label class="text-xs text-orange-600 hover:text-orange-800 cursor-pointer"
+                   :class="uploadingImage ? 'opacity-50 pointer-events-none' : ''">
+              <span x-show="!uploadingImage">+ Upload</span>
+              <span x-show="uploadingImage">Uploading…</span>
+              <input type="file" accept="image/*" class="hidden" @change="uploadImage($event)">
+            </label>
+          </div>
+          <div class="grid grid-cols-3 gap-2 max-h-[34rem] overflow-y-auto">
+            <template x-for="(img, imgIdx) in allImages" :key="imgIdx">
+              <div class="relative cursor-pointer rounded border overflow-hidden hover:ring-2 hover:ring-orange-400"
+                   :class="isImageUsed(imgIdx) ? 'opacity-40 ring-1 ring-green-400' : ''"
+                   @click="assignImageToActive(imgIdx)">
+                <img :src="img.src" class="w-full h-auto block">
+                <div x-show="isImageUsed(imgIdx)" class="absolute inset-0 flex items-center justify-center bg-black/30">
+                  <span class="text-white text-xs font-bold" x-text="'P' + (imageUsedByPage(imgIdx) + 1)"></span>
+                </div>
+              </div>
+            </template>
+          </div>
+          <p x-show="allImages.length === 0" class="text-xs text-gray-400 py-4 text-center">
+            <span x-show="!imageDragActive">No images yet — drag &amp; drop or use Upload.</span>
+            <span x-show="imageDragActive" class="text-orange-600 font-medium">Drop to upload</span>
+          </p>
+          <p x-show="uploadError" x-cloak x-text="'Upload error: ' + uploadError" class="mt-2 text-xs text-red-600"></p>
+        </div>
+
+        <!-- Text Blocks pool removed: copy is auto-synthesized from the whole
+             landing page (synthesizeSections), so the user no longer picks
+             text per page. The only material choice left is images, above. -->
+      </div>
+    </div>
+
+    <!-- Layout template + Creative name + action all live BELOW the row, so the
+         image pool aligns to the bottom of the 3 page cards (the row), and these
+         stack underneath full-width. -->
+    <!-- Layout template — picking ONE named template is REQUIRED (gates Continue
+         via selectedTemplateId), so the creative is never silently defaulted. -->
+    <div class="bg-white rounded-lg border p-4 mt-6">
+      <h3 class="text-sm font-medium text-gray-700 mb-1">Layout template</h3>
+      <p class="text-xs text-gray-400 mb-3">Pick a layout. Colours are set later in the designer.</p>
+      <div class="grid grid-cols-2 sm:grid-cols-4 gap-3">
+        <template x-for="t in templates" :key="t.id">
+          <button type="button" @click="selectedTemplateId = t.id"
+                  class="border rounded-lg p-2 text-left transition hover:border-orange-400"
+                  :class="selectedTemplateId === t.id ? 'border-orange-500 ring-2 ring-orange-200' : 'border-gray-200'">
+            <div class="relative w-full h-20 rounded bg-stone-100 border border-gray-200 mb-2 overflow-hidden">
+              <template x-for="(r, ri) in _templateRects(t)" :key="ri">
+                <div class="absolute" :style="`left:${r.x}%;top:${r.y}%;width:${r.w}%;height:${r.h}%;background:${r.fill};border-radius:${r.rx}px`"></div>
+              </template>
+            </div>
+            <div class="text-xs font-medium text-gray-700 truncate" x-text="t.name"></div>
+            <div class="text-[11px] text-gray-400 leading-tight" x-text="t.description"></div>
+          </button>
+        </template>
+      </div>
+    </div>
+
+    <!-- Creative name -->
+    <div class="bg-white rounded-lg border p-4 mt-4">
+      <label class="block text-sm font-medium text-gray-700 mb-1">Creative name</label>
+      <input type="text" x-model="creativeName" required maxlength="120"
+             placeholder="e.g. Summer sale — hero v1"
+             class="w-full px-3 py-2 border rounded-md text-sm focus:outline-none focus:ring-2 focus:ring-orange-500">
+      <p class="text-xs text-gray-400 mt-1">Shown on your creatives list and in reports.</p>
+    </div>
+    <button @click="generateCopy()" :disabled="generating || !canGenerate()"
+            class="btn btn-primary w-full mt-3">
+      <span x-show="!generating">Continue to Designer</span>
+      <span x-show="generating">Writing copy…</span>
+    </button>
+    <p x-show="!canGenerate() && !generating"
+       class="mt-2 text-sm text-gray-500"
+       x-text="synthesizedPages.length < 3 ? 'Waiting for the copy to finish generating.' : (creativeName.trim() === '' ? 'Name the creative to continue.' : 'Pick a layout template to continue.')"></p>
+    <p x-show="generateError" x-text="generateError" class="mt-2 text-sm text-red-600"></p>
+  </div>
+
+  <!-- (Layout-template modal removed — the picker is now an inline grid
+       below the per-page slots in the Compose step.) -->
+
+</div>
+
+<script>
+function creativeEditor() {
+  return {
+    step: 'analyze',  // 'analyze', 'compose'
+    extractUrl: '{{.LandingURL}}',
+    extractStrategy: 'auto',
+    creativeName: '',
+    // Pre-generation pickers (Step 1). Both flow into the designer
+    // via hidden form fields, then into the auto-layout call so the
+    // Gemini prompt incorporates them.
+    templates: [],            // [{id, name, description, orientation, slots:[{role,region,prominence}]}]
+    selectedTemplateId: '',
+    brandKitColors: [],       // [{name, value}] from localStorage
+    brandKitName: '',
+    brandKitFonts: [],
+    useBrandKit: true,        // toggle: send the kit, or skip
+    // Materials from LP
+    allImages: [],    // [{src, width, height, alt}]
+    // Extracted LP section text — kept ONLY as the corpus fed to synthesis;
+    // no longer shown as a pickable pool (the model distills the whole page).
+    allTexts: [],     // [{heading, text}]
+    // The 3 pages of copy auto-written from the whole LP (synthesizeSections).
+    // The user no longer picks text per page — they only pick an image.
+    synthesizedPages: [],  // [{tag,headline,sub,body,accent,bg,imgEmoji,caption}]
+    // Persuasion arc — assigns each of the 3 pages a role so the copy is
+    // purposeful (not 3 arbitrary blurbs). ids mirror core CreativeArc.
+    selectedArcId: 'hook-proof-call',
+    arcs: [
+      { id: 'hook-proof-call',        label: 'Hook → Proof → Call',        desc: 'Grab attention → prove it → drive the click' },
+      { id: 'problem-solution-offer', label: 'Problem → Solution → Offer',  desc: 'Name the pain → how it’s solved → the deal' },
+      { id: 'feature-story-plan',     label: 'Feature → Story → Plan',      desc: 'The product → the experience → pricing & CTA' },
+      { id: 'tease-reveal-invite',    label: 'Tease → Reveal → Invite',     desc: 'Curiosity → the reveal → come see more' },
+    ],
+    fitArcIds: [],      // AI-curated subset (ids that fit this product); empty = show all
+    arcReason: '',      // one line on why the recommended arc fits
+    recommending: false, // arc recommendation in flight — gates Generate copy
+    showAllArcs: false, // reveal the arcs the AI filtered out
+    brief: '',          // optional advertiser free-text woven into the copy prompt
+    // LP's dominant background + text colours. Creative pages must
+    // match the LP's colour scheme (product restriction), so these
+    // get applied verbatim — bg to every page background, text to
+    // every text item in the generated layout. Not advertiser-editable.
+    lpColor: '',
+    lpTextColor: '',
+    // Compose step. Pages are treated equally — navigation is a
+    // whole-sheet tap in delivery, and nothing downstream marks a CTA
+    // page. The page `tag` carries the copy arc for Gemini.
+    // One image slot per page. Copy comes from synthesizedPages[idx]; the
+    // only per-page choice left is which LP image to use.
+    pageSlots: [
+      { imageIdx: null },
+      { imageIdx: null },
+      { imageIdx: null },
+    ],
+    activePageIdx: 0,
+    // Generate
+    analyzing: false,
+    analyzeError: '',
+    // Early viewport capture of the LP, surfaced mid-analysis (the status
+    // poll flips screenshotReady) and shown as the loading backdrop so the
+    // space below the URL field isn't blank white while extraction runs.
+    lpScreenshotUrl: '',
+    generating: false,
+    generateError: '',
+    // Fallback mode (scrape returned empty — user supplies content manually)
+    manualMode: false,
+    uploadingImage: false,
+    uploadError: '',
+    imageDragDepth: 0,  // dragenter/leave counter — single source avoids flicker
+    manualText: '',     // fallback corpus when the scrape is bot-blocked
+
+    get imageDragActive() { return this.imageDragDepth > 0; },
+    // Pages produced by generateCopy, handed off to the Advanced Designer
+    pages: [],
+
+    init() {
+      this.loadBrandKit();
+      this.loadTemplates();
+      // Reset in-flight flags on bfcache restore (browser Back button).
+      // Without this, navigating back from the designer would leave the
+      // overlay stuck, since Chrome preserves JS state in the
+      // back-forward cache. Gated on `persisted`: on a normal load the
+      // flags are already false, and an unconditional reset would race
+      // the auto-analyze below (pageshow fires after init), re-enabling
+      // the Analyze button while a job is in flight.
+      window.addEventListener('pageshow', (e) => {
+        if (e.persisted) {
+          this.generating = false;
+          this.analyzing = false;
+        }
+      });
+      // Auto-start the analysis when the URL is already known (the
+      // campaign pins the LP), so Create Creative lands straight in the
+      // pipeline instead of waiting for a click. Safe to run first:
+      // brand kit + layout template are picked on the compose step.
+      // The Analyze button stays as the manual retry path when this
+      // auto attempt fails (network error etc.).
+      if (this.extractUrl) this.analyzeLP(true);
+    },
+
+
+    saveBrandKitToStorage() {
+      try {
+        const key = 'promovolve.designer.brandKit.{{.CampaignID}}';
+        // No colours = treat as a delete; clearing the kit removes the
+        // localStorage entry so a future load returns the empty state
+        // instead of {colors: []}.
+        if (this.brandKitColors.length === 0) {
+          localStorage.removeItem(key);
+          this.useBrandKit = true;
+          return;
+        }
+        const kit = {
+          name: this.brandKitName || '',
+          colors: this.brandKitColors,
+          fonts: this.brandKitFonts,
+        };
+        localStorage.setItem(key, JSON.stringify(kit));
+      } catch (e) {
+        console.warn('[creative-editor] brand kit save failed', e);
+      }
+    },
+
+    // Read the campaign-scoped brand kit out of localStorage. Same key
+    // the designer's brand-kit modal writes to. Silent on absence —
+    // the picker just shows "no kit yet" and disables the Apply button.
+    loadBrandKit() {
+      try {
+        const key = 'promovolve.designer.brandKit.{{.CampaignID}}';
+        const raw = localStorage.getItem(key);
+        if (!raw) return;
+        const kit = JSON.parse(raw);
+        if (kit && Array.isArray(kit.colors)) {
+          this.brandKitColors = kit.colors;
+          this.brandKitName   = kit.name || '';
+          this.brandKitFonts  = Array.isArray(kit.fonts) ? kit.fonts : [];
+        }
+      } catch (e) {
+        console.warn('[creative-editor] brand kit load failed', e);
+      }
+    },
+
+    // Fetch the canonical layout-template list. Routed through the Go
+    // dashboard's proxy because this page is served from the dashboard
+    // origin (different port from the Scala API). The proxy forwards
+    // verbatim to /v1/layout-templates on core.
+    async loadTemplates() {
+      try {
+        const resp = await fetch('/advertiser/creatives/layout-templates');
+        if (!resp.ok) return;
+        const data = await resp.json();
+        if (Array.isArray(data.templates)) {
+          this.templates = data.templates;
+          // NO forced default — selectedTemplateId stays empty until the
+          // author picks a NAMED template from the inline grid (a pick is
+          // required, gates Generate). Forcing templates[0] here used to
+          // stamp EVERY creative with the first catalog template (Quote
+          // card), so a later Regenerate snapped the layout to a template
+          // the author never picked.
+        }
+      } catch (e) {
+        console.warn('[creative-editor] template load failed', e);
+      }
+    },
+
+    // The currently-selected template object (or null).
+    _selectedTemplate() {
+      return this.templates.find(t => t.id === this.selectedTemplateId) || null;
+    },
+
+    // Build a miniature wireframe (array of SVG rects in a 0..100 box) from a
+    // template's semantic slots — mirrors the Designer's template modal, but
+    // driven by role+region+prominence (the editor's templates carry no pixel
+    // positions). region → a 3×3 grid cell; role → a representative shape.
+    _templateRects(t) {
+      if (!t || !Array.isArray(t.slots)) return [];
+      const out = [];
+      for (const s of t.slots) {
+        const region = String(s.region || 'center');
+        const role   = String(s.role || '');
+        const prime  = String(s.prominence || '') === 'primary';
+        const col = region.includes('left') ? 0 : region.includes('right') ? 2 : 1;
+        const row = region.includes('top')  ? 0 : region.includes('bottom') ? 2 : 1;
+        const cx = 8 + col * 31;   // cell origin in the 100×100 box
+        const cy = 8 + row * 31;
+        if (role === 'hero') {
+          out.push({ x: cx, y: cy, w: 26, h: 26, rx: 1.5, fill: '#d1d5db' });
+        } else if (role === 'cta') {
+          out.push({ x: cx, y: cy + 8, w: 17, h: 8, rx: 2.5, fill: '#4f46e5' });
+        } else if (role === 'accent' || role === 'badge') {
+          out.push({ x: cx, y: cy, w: 9, h: 9, rx: 1.5, fill: '#f59e0b' });
+        } else if (role === 'divider') {
+          out.push({ x: cx, y: cy + 12, w: 26, h: 1.5, rx: 0.75, fill: '#9ca3af' });
+        } else if (role === 'headline') {
+          out.push({ x: cx, y: cy + 4, w: 26, h: prime ? 6 : 4, rx: 1, fill: '#374151' });
+        } else { // subheadline / body / default text → a couple of thin lines
+          out.push({ x: cx, y: cy + 6,  w: 24, h: 3, rx: 1, fill: '#6b7280' });
+          out.push({ x: cx, y: cy + 11, w: 18, h: 3, rx: 1, fill: '#9ca3af' });
+        }
+      }
+      return out;
+    },
+
+    // Serialize the chosen brand kit for the handoff form. Empty
+    // string when no colours are set — the designer treats that as
+    // "no kit, derive from LP only."
+    selectedBrandKitJson() {
+      if (this.brandKitColors.length === 0) return '';
+      return JSON.stringify({
+        name: this.brandKitName,
+        colors: this.brandKitColors,
+        fonts: this.brandKitFonts,
+      });
+    },
+
+    // Normalize any CSS colour to #rrggbb (what <input type=color>
+    // needs). Hex passes through; rgb()/rgba() converts; fully
+    // transparent and CSS named colours return '' (skipped — there's no
+    // reliable name→hex without a table, and getComputedStyle already
+    // hands us rgb() for everything anyway).
+    _toHex(css) {
+      if (!css) return '';
+      css = String(css).trim();
+      if (css.charAt(0) === '#') {
+        if (css.length === 4) return ('#' + css[1]+css[1] + css[2]+css[2] + css[3]+css[3]).toLowerCase();
+        if (css.length >= 7) return css.slice(0, 7).toLowerCase();
+        return '';
+      }
+      const m = css.match(/rgba?\(([^)]+)\)/i);
+      if (!m) return '';
+      const p = m[1].split(',').map(s => parseFloat(s.trim()));
+      if (p.length >= 4 && p[3] === 0) return '';
+      const h = n => Math.max(0, Math.min(255, Math.round(n || 0))).toString(16).padStart(2, '0');
+      return ('#' + h(p[0]) + h(p[1]) + h(p[2])).toLowerCase();
+    },
+
+    // Generic CSS families + common system/licensed faces — never on Google
+    // Fonts, so they have no real face to self-host (the snapped fallback IS
+    // one of these). Everything else keeps its real family: the server tries
+    // to self-host it and any non-Google face just falls back. Mirror of
+    // GoogleFontCatalog.genericFamilies / banner font-catalog.ts.
+    _genericFamilies: new Set([
+      'sans-serif','serif','monospace','cursive','fantasy',
+      'system-ui','ui-sans-serif','ui-serif','ui-monospace','ui-rounded',
+      'georgia','times','times new roman','arial','helvetica','helvetica neue',
+      'courier','courier new','verdana','tahoma','trebuchet ms','segoe ui',
+    ]),
+    _isGeneric(key) { return this._genericFamilies.has(key); },
+
+    // Classify a font name into a renderable system bucket — the always-
+    // available fallback for faces we can't self-host (non-allow-listed or
+    // licensed): monospace / Georgia (serif) / sans-serif.
+    _systemBucket(n) {
+      if (/(mono|consol|courier|menlo)/.test(n)) return 'monospace';
+      // Japanese: Gothic (ゴシック) is sans, Mincho (明朝) is serif. CJK faces
+      // can't be self-hosted (the pipeline fetches a latin-only subset), so
+      // this only steers the *system* fallback — a Japanese serif LP keeps its
+      // serif character (the OS Mincho via the generic 'serif') instead of
+      // dropping to sans. Checked before the latin serif regex.
+      if (/(gothic|ゴシック|ゴチック)/.test(n)) return 'sans-serif';
+      if (/(mincho|明朝)/.test(n)) return 'Georgia, serif';
+      // "sans serif" contains "serif" — exclude sans before matching serif.
+      const serif = /(serif|georgia|times|garamond|playfair|merriweather|lora|baskerville|cormorant|spectral|bitter|crimson|slab|noto serif|pt serif|source serif|eb garamond|libre|roboto slab)/;
+      if (serif.test(n) && !/sans/.test(n)) return 'Georgia';
+      return 'sans-serif';
+    },
+
+    // Resolve an extracted font face to the value stored in the brand
+    // kit. Allow-listed → "<Real Family>, <bucket>" (self-hosted exact in
+    // the expanded view, system fallback elsewhere). Otherwise → just the
+    // bucket (the face can't be legally/technically self-hosted).
+    // Trailing weight/style tokens, so a named instance ("Montserrat Thin")
+    // is recognised by its base family ("montserrat"). Mirror of
+    // GoogleFontCatalog.normalize / banner font-catalog.
+    _weightTokens: new Set([
+      'thin','hairline','extralight','ultralight','light','regular','normal','book',
+      'medium','semibold','demibold','bold','extrabold','ultrabold','black','heavy',
+      'extra','ultra','semi','demi','italic','oblique',
+      // variable-font builds ("Montserrat Variable") — strip to base family
+      'variable','vf',
+    ]),
+    _baseFamilyKey(lower) {
+      const toks = lower.split(/\s+/).filter(Boolean);
+      let m = toks.length;
+      while (m > 1 && this._weightTokens.has(toks[m - 1])) m--;
+      return toks.slice(0, m).join(' ');
+    },
+    _snapFont(name) {
+      if (!name) return '';
+      const family = String(name).trim().replace(/^["']|["']$/g, '');
+      const n = family.toLowerCase();
+      const bucket = this._systemBucket(n);
+      // Generic/system families have no real face to self-host → bucket only.
+      if (this._isGeneric(n) || this._isGeneric(this._baseFamilyKey(n))) return bucket;
+      // Any other family: keep the LITERAL family (incl. weight suffix) as the
+      // primary. The server self-hosts it if Google serves it (banner registers
+      // the FontFace under this literal name); a non-Google face just falls back
+      // to the bucket after the comma. No allow-list.
+      return family + ', ' + bucket;
+    },
+
+    // Seed the brand kit from the LP analysis (dominant bg + text +
+    // extracted palette, plus the LP's font faces). Always overwrites
+    // the current kit — the creative is presented as an extension of
+    // the LP, so its palette is the right default. The advertiser can
+    // still edit before handoff. Persists so the designer's own
+    // localStorage path also picks it up.
+    buildBrandKitFromLP(data) {
+      const cand = [];
+      const add = css => { const hex = this._toHex(css); if (hex) cand.push(hex); };
+      add(data.dominantColor);
+      add(data.textColor);
+      (Array.isArray(data.palette) ? data.palette : []).forEach(add);
+      const uniq = [...new Set(cand)].slice(0, 6);
+      if (uniq.length === 0) return;  // nothing extractable — leave existing kit
+      const names = ['Background', 'Text', 'Accent', 'Brand', 'Color 5', 'Color 6'];
+      this.brandKitColors = uniq.map((v, i) => ({ name: names[i] || ('Color ' + (i + 1)), value: v }));
+      // Snap each extracted face to a renderable family, dedupe (keeping
+      // heading-first order). The designer applies fonts[0] to headlines
+      // and fonts[1] to body via template-apply's role→font mapping.
+      const rawFonts = (Array.isArray(data.fonts) ? data.fonts : []).filter(Boolean);
+      const snapped = [...new Set(rawFonts.map(f => this._snapFont(f)).filter(Boolean))];
+      if (snapped.length) this.brandKitFonts = snapped.slice(0, 6);
+      if (!this.brandKitName) this.brandKitName = 'From landing page';
+      this.useBrandKit = true;
+      this.saveBrandKitToStorage();
+    },
+
+    // === Step 1: Analyze LP ===
+    async analyzeLP(auto = false) {
+      // Reentrancy guard: the button disables itself while analyzing,
+      // but Enter on the URL input (and the init() auto-start) don't
+      // go through the button — without this a second job could start
+      // mid-poll.
+      if (!this.extractUrl || this.analyzing) return;
+      this.analyzing = true;
+      this.analyzeError = '';
+      this.lpScreenshotUrl = '';
+      this.allImages = [];
+      this.allTexts = [];
+      this.synthesizedPages = [];
+      let data;
+      try {
+        const form = new URLSearchParams();
+        form.set('url', this.extractUrl);
+        form.set('strategy', this.extractStrategy);
+        // Manual clicks force a fresh scrape (the user may have just
+        // edited their LP); the auto-start rides the server's cache.
+        if (!auto) form.set('force', '1');
+        // On a deliberate click, fall through to compose in manual mode —
+        // the advertiser can still upload images and type text. Never
+        // dead-end. The auto attempt (page-load) instead stays on the
+        // analyze step with an error: silently landing someone in manual
+        // compose because of a transient failure they never saw would be
+        // confusing — the Analyze button is the retry path.
+        const toManual = () => {
+          if (auto) {
+            this.analyzeError = 'Automatic analysis failed — click Analyze to retry.';
+            return;
+          }
+          this.manualMode = true;
+          this.pageSlots.forEach(slot => { slot.imageIdx = null; });
+          this.seedCreativeName();
+          this.step = 'compose';
+        };
+        // Async: start the (slow Playwright+Gemini) extraction, then poll —
+        // so the request never blocks the transition to the Designer.
+        const startResp = await fetch('/advertiser/creatives/analyze-lp/start', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/x-www-form-urlencoded' },
+          body: form.toString()
+        });
+        if (!startResp.ok) { toManual(); return; }
+        const jobId = (await startResp.json()).jobId;
+        if (!jobId) { toManual(); return; }
+        const maxAttempts = 120; // ~3 min at 1.5s intervals
+        for (let attempt = 1; ; attempt++) {
+          await new Promise(res => setTimeout(res, 1500));
+          let s;
+          try {
+            const sResp = await fetch('/advertiser/creatives/analyze-lp/status?jobId=' + encodeURIComponent(jobId));
+            if (!sResp.ok) { if (attempt >= maxAttempts) { toManual(); return; } continue; }
+            s = await sResp.json();
+          } catch (e) { if (attempt >= maxAttempts) { toManual(); return; } continue; }
+          // The early viewport capture lands before extraction finishes —
+          // surface it as the loading backdrop as soon as it's ready.
+          if (s.screenshotReady && !this.lpScreenshotUrl) {
+            this.lpScreenshotUrl = '/advertiser/creatives/analyze-lp/screenshot?jobId=' + encodeURIComponent(jobId);
+          }
+          if (s.status === 'done') { data = s.result; break; }
+          if (s.status === 'failed' || s.status === 'not_found') { toManual(); return; }
+          if (attempt >= maxAttempts) { toManual(); return; }
+          // status === 'pending' → keep polling
+        }
+        if (!data) { toManual(); return; }
+        if (data.dominantColor) this.lpColor = data.dominantColor;
+        if (data.textColor) this.lpTextColor = data.textColor;
+        // Seed the brand kit (palette + fonts) from the LP — becomes
+        // the default that carries into the Designer view.
+        this.buildBrandKitFromLP(data);
+
+        const sections = (data.sections || []);
+
+        // Collect all unique images across all sections (sorted by area, largest first)
+        const seenSrc = new Set();
+        const imgs = [];
+        sections.forEach(s => {
+          (s.images || []).forEach(img => {
+            if (!seenSrc.has(img.src)) {
+              seenSrc.add(img.src);
+              imgs.push(img);
+            }
+          });
+        });
+        imgs.sort((a, b) => (b.width * b.height) - (a.width * a.height));
+        this.allImages = imgs;
+
+        // Collect text blocks with enough content
+        const MIN_TEXT = 30;
+        this.allTexts = sections
+          .filter(s => s.text && s.text.length >= MIN_TEXT)
+          .map(s => ({ heading: s.heading || '', text: s.text }));
+
+        // Auto-assign images to pages in order (user can re-pick). Copy is
+        // written by synthesis below, not picked per section.
+        this.pageSlots.forEach((slot, i) => {
+          slot.imageIdx = i < this.allImages.length ? i : null;
+        });
+
+        // If scrape yielded nothing, user uploads images on compose. Never dead-end.
+        this.manualMode = this.allImages.length === 0 && this.allTexts.length === 0;
+        this.seedCreativeName();
+        this.step = 'compose';
+        // Auto-write the 3 pages of copy from the WHOLE LP text. Compose shows
+        // immediately; the page cards fill in when synthesis returns.
+        if (this.allTexts.length > 0) this.recommendArc();
+      } catch (e) {
+        this.analyzeError = e.message;
+      } finally {
+        this.analyzing = false;
+      }
+    },
+
+    // === Compose helpers ===
+    openImagePicker(pageIdx) {
+      this.activePageIdx = pageIdx;
+    },
+
+    // Shared upload core — used by both the file input and the
+    // drag-and-drop handler. Posts to /upload-page-image, pushes CDN
+    // URL into allImages, auto-assigns to active page if empty.
+    async uploadImageFile(file) {
+      this.uploadError = '';
+      if (!file) { this.uploadError = 'No file'; return; }
+      if (!file.type.startsWith('image/')) { this.uploadError = 'Not an image: ' + file.type; return; }
+      this.uploadingImage = true;
+      try {
+        const fd = new FormData();
+        fd.append('file', file);
+        const resp = await fetch('/advertiser/assets', {
+          method: 'POST',
+          body: fd,
+          credentials: 'same-origin',
+        });
+        const text = await resp.text();
+        if (!resp.ok) throw new Error('HTTP ' + resp.status + ': ' + text.slice(0, 200));
+        let data;
+        try { data = JSON.parse(text); }
+        catch { throw new Error('Non-JSON response: ' + text.slice(0, 200)); }
+        const asset = data.asset;
+        if (!asset || !asset.cdnUrl) throw new Error(data.error || 'No cdnUrl in response: ' + text.slice(0, 200));
+        console.log('[upload] ok, pushing image:', asset.cdnUrl);
+        this.allImages.push({
+          src: asset.cdnUrl,
+          width: asset.width || 0,
+          height: asset.height || 0,
+          alt: '',
+        });
+        const newIdx = this.allImages.length - 1;
+        if (this.pageSlots[this.activePageIdx] && this.pageSlots[this.activePageIdx].imageIdx === null) {
+          this.pageSlots[this.activePageIdx].imageIdx = newIdx;
+        }
+      } catch (e) {
+        console.error('[upload] failed:', e);
+        this.uploadError = e.message;
+      } finally {
+        this.uploadingImage = false;
+      }
+    },
+
+    // File picker handler
+    async uploadImage(event) {
+      const file = event.target.files && event.target.files[0];
+      event.target.value = '';  // allow re-selecting the same file
+      await this.uploadImageFile(file);
+    },
+
+    // Drag-and-drop handlers — mirrors the file picker path. Accepts
+    // the first image from the drop (multi-drop is uncommon here and
+    // would race the upload counter).
+    async onImageDrop(event) {
+      this.imageDragDepth = 0;
+      const files = event.dataTransfer && event.dataTransfer.files;
+      if (!files || files.length === 0) return;
+      await this.uploadImageFile(files[0]);
+    },
+
+    assignImageToActive(imgIdx) {
+      // If already used by another page, swap
+      const other = this.pageSlots.findIndex(p => p.imageIdx === imgIdx);
+      if (other !== -1 && other !== this.activePageIdx) {
+        this.pageSlots[other].imageIdx = this.pageSlots[this.activePageIdx].imageIdx;
+      }
+      this.pageSlots[this.activePageIdx].imageIdx = imgIdx;
+    },
+
+    isImageUsed(imgIdx) {
+      return this.pageSlots.some(p => p.imageIdx === imgIdx);
+    },
+
+    imageUsedByPage(imgIdx) {
+      return this.pageSlots.findIndex(p => p.imageIdx === imgIdx);
+    },
+
+    canGenerate() {
+      // Copy is auto-synthesized (no per-page text picking), so the gate is:
+      // all 3 pages of copy have arrived, a name is set (pre-seeded from the
+      // LP hostname), and a layout template is chosen. Images are optional —
+      // pages without one fall back to the synthesized imgEmoji / gradient.
+      return this.synthesizedPages.length >= 3
+        && this.creativeName.trim() !== ''
+        && this.selectedTemplateId !== '';
+    },
+
+    // Pre-fill the creative name from the LP hostname when entering the
+    // compose step, but never clobber something the user already typed.
+    seedCreativeName() {
+      if (this.creativeName.trim()) return;
+      try {
+        this.creativeName = 'Creative - ' + new URL(this.extractUrl).hostname;
+      } catch (e) { /* unparseable URL — leave blank, input is required */ }
+    },
+
+    // === Compose → Advanced Designer: generate copy then hand off ===
+    // Auto-write the 3 pages of copy from the WHOLE LP corpus (synthesize
+    // backend path). Called on extract and by the Regenerate button. The model
+    // PRODUCES original copy from all the text, so nothing is picked per page
+    // and raw source text can never leak through.
+    // On load: curate the arc menu (which arcs fit this product) WITHOUT
+    // generating copy, so the user sets arc + emphasis first, then Generates
+    // once — no wasted first pass. Non-blocking: any failure leaves all arcs.
+    async recommendArc() {
+      if (this.allTexts.length === 0) return;
+      // Gate Generate copy while the recommendation is in flight —
+      // generating before it lands would use the default arc and then have
+      // the recommendation flip the picker after the fact. A failure or
+      // timeout unlocks the button (finally): recommendation is an
+      // enhancement, never a hard dependency.
+      this.recommending = true;
+      const ctrl = new AbortController();
+      const t = setTimeout(() => ctrl.abort(), 45000);
+      try {
+        const resp = await fetch('/advertiser/creatives/rewrite-sections', {
+          method: 'POST', headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ sections: this.allTexts, recommend: true }),
+          signal: ctrl.signal
+        });
+        if (!resp.ok) return;
+        const data = await resp.json();
+        if (data.arc) this.selectedArcId = data.arc;
+        if (Array.isArray(data.arcOptions) && data.arcOptions.length) this.fitArcIds = data.arcOptions;
+        if (data.arcReason) this.arcReason = data.arcReason;
+      } catch (e) { /* non-blocking — keep all arcs available */ }
+      finally { clearTimeout(t); this.recommending = false; }
+    },
+
+    // arcId given (Generate / Regenerate) → synthesize with it + the brief.
+    // arcId omitted → backend recommends the best arc and generates with it.
+    async synthesize(arcId) {
+      if (this.allTexts.length === 0) return;
+      this.generating = true;
+      this.generateError = '';
+      // Hard client-side cap so the "Writing copy…" state can't hang forever
+      // on a Gemini stall / dropped connection.
+      const ctrl = new AbortController();
+      const t = setTimeout(() => ctrl.abort(), 90000);
+      try {
+        const payload = { sections: this.allTexts, synthesize: true };
+        if (arcId) payload.arc = arcId;
+        if (this.brief.trim()) payload.brief = this.brief.trim();
+        const resp = await fetch('/advertiser/creatives/rewrite-sections', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify(payload),
+          signal: ctrl.signal
+        });
+        if (!resp.ok) throw new Error('Copy generation failed (HTTP ' + resp.status + ')');
+        const data = await resp.json();
+        if (data.error) throw new Error(data.error);
+        this.synthesizedPages = (data.pages || []).slice(0, 3);
+        if (data.arc) this.selectedArcId = data.arc;
+        if (Array.isArray(data.arcOptions) && data.arcOptions.length) this.fitArcIds = data.arcOptions;
+        if (data.arcReason !== undefined) this.arcReason = data.arcReason || '';
+      } catch (e) {
+        this.generateError = ctrl.signal.aborted
+          ? 'Copy generation timed out — click Regenerate to retry.'
+          : e.message;
+      } finally {
+        clearTimeout(t);
+        this.generating = false;
+      }
+    },
+
+    // Assemble the synthesized copy + each page's chosen LP image, enforce the
+    // LP's colour scheme, and hand off to the Advanced Designer. No LLM call
+    // here — the copy was already written by synthesize().
+    generateCopy() {
+      if (!this.canGenerate()) return;
+      this.generating = true;
+      this.generateError = '';
+      const pages = this.synthesizedPages.map((page, i) => {
+        const slot = this.pageSlots[i];
+        const img = slot && slot.imageIdx !== null && this.allImages[slot.imageIdx]
+          ? this.allImages[slot.imageIdx].src : null;
+        return { ...page, img: page.img || img || null, _open: i === 0 };
+      });
+      // Enforce the LP's background colour on every page — the creative reads
+      // as an extension of the LP. Fall back to page 1's bg if none resolved.
+      const enforcedBg = this.lpColor || pages[0]?.bg;
+      if (enforcedBg) pages.forEach(p => { p.bg = enforcedBg; });
+      // Enforce the LP's body text colour, but only if it has enough contrast
+      // against the bg; else fall back to black/white by bg luminance.
+      let textColor = this.lpTextColor;
+      if (textColor && enforcedBg) {
+        const ratio = contrastRatio(textColor, enforcedBg);
+        if (ratio < 4.5) textColor = readableOn(enforcedBg);
+      }
+      if (textColor) {
+        pages.forEach(p => {
+          if (Array.isArray(p.layout)) {
+            p.layout.forEach(item => { if (item && item.type === 'text') item.color = textColor; });
+          }
+        });
+      }
+      this.pages = pages;
+      // Keep generating=true through the form submit → navigation so the editor
+      // UI doesn't flash between assemble and nav-start.
+      this.$nextTick(() => document.getElementById('designer-handoff').submit());
+    },
+
+    pagesJsonStr() {
+      return JSON.stringify(this.pages.map(p => {
+        const page = {
+          tag: p.tag, headline: p.headline, sub: p.sub, body: p.body,
+          accent: p.accent, bg: p.bg, imgEmoji: p.imgEmoji, caption: p.caption
+        };
+        if (p.img) page.img = p.img;
+        if (p.layout) page.layout = p.layout;
+        if (p.banners) page.banners = p.banners;
+        return page;
+      }));
+    },
+
+    // Full concatenated LP text — every extracted section, not just what
+    // the advertiser picked for pages. Fed to Gemini for category
+    // verification instead of a rendered banner screenshot.
+    lpTextSnapshotStr() {
+      return this.allTexts
+        .map(t => {
+          const h = (t.heading || '').trim();
+          const b = (t.text || '').trim();
+          return h && b ? `${h}\n${b}` : (h || b);
+        })
+        .filter(s => s.length > 0)
+        .join('\n\n');
+    },
+
+  };
+}
+
+// WCAG relative luminance + contrast helpers. Used to catch the case
+// where the LP's extracted text+bg pair would render unreadable on
+// the creative. Small parser accepts rgb()/rgba()/#rgb/#rrggbb — any
+// other form falls back to assuming enough contrast.
+function parseRgb(s) {
+  if (!s) return null;
+  const m = /rgba?\(\s*(\d+)\s*,\s*(\d+)\s*,\s*(\d+)/i.exec(s);
+  if (m) return { r: +m[1], g: +m[2], b: +m[3] };
+  const h = /^#([0-9a-f]{3}|[0-9a-f]{6})$/i.exec(s.trim());
+  if (!h) return null;
+  const hex = h[1];
+  if (hex.length === 3) {
+    return { r: parseInt(hex[0] + hex[0], 16), g: parseInt(hex[1] + hex[1], 16), b: parseInt(hex[2] + hex[2], 16) };
+  }
+  return { r: parseInt(hex.slice(0, 2), 16), g: parseInt(hex.slice(2, 4), 16), b: parseInt(hex.slice(4, 6), 16) };
+}
+function relLuminance(c) {
+  const conv = v => {
+    const n = v / 255;
+    return n <= 0.03928 ? n / 12.92 : Math.pow((n + 0.055) / 1.055, 2.4);
+  };
+  return 0.2126 * conv(c.r) + 0.7152 * conv(c.g) + 0.0722 * conv(c.b);
+}
+function contrastRatio(fg, bg) {
+  const a = parseRgb(fg);
+  const b = parseRgb(bg);
+  if (!a || !b) return 21;
+  const la = relLuminance(a);
+  const lb = relLuminance(b);
+  const [L1, L2] = la > lb ? [la, lb] : [lb, la];
+  return (L1 + 0.05) / (L2 + 0.05);
+}
+function readableOn(bg) {
+  const c = parseRgb(bg);
+  if (!c) return '#111111';
+  return relLuminance(c) > 0.5 ? '#111111' : '#ffffff';
+}
+</script>
+{{end}}

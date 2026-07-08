@@ -1,0 +1,26 @@
+# Fixed floor at $5 (minimum). Counterfactual: what if we just left the
+# floor low and let the auction's quality-adjusted second-price do all
+# the work? RL agent still runs but its decisions are overwritten by
+# the floor-enforcer thread.
+name: compare_floor_5
+durationSeconds: 1200
+pollIntervalSeconds: 5
+
+site:
+  initialFloorCpm: 5.0
+  minFloorCpm: 5.0
+  bidWeight: 0.5
+  pacingDayDurationSeconds: 300
+  # No `resetFloorAgent` — agent state doesn't matter when the floor is
+  # being pinned. Saves an unnecessary admin call.
+
+traffic:
+  workers: 4
+  intervalSeconds: 1
+  ctr: 0.10
+
+events: []
+
+floorStrategy:
+  kind: fixed
+  value: 5.0

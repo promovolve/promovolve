@@ -1,0 +1,120 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <base href="/food/">
+  <title>食事・栄養 — スポーツデイリー</title>
+  <style>
+    *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+    body { font-family: 'Noto Serif JP', 'Yu Mincho', 'Hiragino Mincho ProN', Georgia, serif; color: #222; background: #f5f5f0; line-height: 1.8; }
+    a { color: #1a5276; text-decoration: none; }
+    a:hover { text-decoration: underline; }
+    .site-header { background: #0d1b2a; color: #fff; padding: 12px 0; }
+    .site-header .container { display: flex; align-items: center; justify-content: space-between; }
+    .site-title { font-size: 1.8rem; font-weight: bold; letter-spacing: -0.5px; }
+    .site-title a { color: #fff; }
+    .site-tagline { font-size: 0.85rem; color: #aaa; font-style: italic; font-family: 'Noto Sans JP', 'Yu Gothic', 'Hiragino Sans', Arial, sans-serif; }
+    nav { background: #1b2838; padding: 8px 0; }
+    nav ul { list-style: none; display: flex; gap: 24px; }
+    nav a { color: #ddd; font-size: 0.95rem; font-family: 'Noto Sans JP', 'Yu Gothic', 'Hiragino Sans', Arial, sans-serif; }
+    nav a:hover { color: #fff; text-decoration: none; }
+    .container { max-width: 1100px; margin: 0 auto; padding: 0 16px; }
+    .ad-slot { background: #e8e8e0; border: 1px dashed #bbb; display: flex; align-items: center; justify-content: center; color: #888; font-family: 'Noto Sans JP', Arial, sans-serif; font-size: 0.8rem; text-transform: uppercase; letter-spacing: 1px; margin: 16px auto; width: 100%; }
+    .ad-slot[data-w="728"][data-h="90"]  { max-width: 728px; aspect-ratio: 728/90;  }
+    .ad-slot[data-w="300"][data-h="250"] { max-width: 300px; aspect-ratio: 300/250; }
+    .ad-slot[data-w="300"][data-h="600"] { max-width: 300px; aspect-ratio: 300/600; }
+    .page-body { display: flex; gap: 24px; padding: 24px 0; }
+    .main-content { flex: 1; min-width: 0; }
+    .sidebar { width: 300px; flex-shrink: 0; }
+
+    @media (max-width: 768px) {
+      .page-body { flex-direction: column; }
+      .sidebar { width: 100%; }
+      nav ul { flex-wrap: wrap; gap: 12px; }
+    }
+    .section-block { margin-bottom: 32px; }
+    .section-block h2 { font-size: 1.3rem; border-bottom: 2px solid #1a5276; padding-bottom: 4px; margin-bottom: 12px; color: #0d1b2a; }
+    .story-list { list-style: none; }
+    .story-list li { padding: 8px 0; border-bottom: 1px solid #ddd; }
+    .story-list li:last-child { border-bottom: none; }
+    .story-list .headline { font-size: 1.05rem; font-weight: bold; }
+    .story-list .summary { font-size: 0.9rem; color: #555; margin-top: 2px; }
+    .breadcrumb { font-size: 0.85rem; color: #777; font-family: 'Noto Sans JP', 'Yu Gothic', 'Hiragino Sans', Arial, sans-serif; margin-bottom: 16px; }
+    .site-footer { background: #0d1b2a; color: #aaa; text-align: center; padding: 20px 0; font-size: 0.85rem; margin-top: 32px; font-family: 'Noto Sans JP', 'Yu Gothic', 'Hiragino Sans', Arial, sans-serif; }
+  </style>
+</head>
+<body>
+
+  <header class="site-header">
+    <div class="container">
+      <div>
+        <div class="site-title"><a href="../index.html">スポーツデイリー</a></div>
+        <div class="site-tagline">最新スポーツニュース</div>
+      </div>
+    </div>
+  </header>
+
+  <nav>
+    <div class="container">
+      <ul>
+        <li><a href="../index.html">ホーム</a></li>
+        <li><a href="../yakyu/index.html">野球</a></li>
+        <li><a href="../soccer/index.html">サッカー</a></li>
+        <li><a href="../basketball/index.html">バスケットボール</a></li>
+        <li><a href="../sports/index.html">スポーツ総合</a></li>
+        <li><a href="../keiba/index.html">競馬</a></li>
+        <li><a href="../esports/index.html">eスポーツ</a></li>
+        <li><a href="../health/index.html">健康</a></li>
+        <li><a href="index.html">食事・栄養</a></li>
+        <li><a href="../about.html">サイトについて</a></li>
+      </ul>
+    </div>
+  </nav>
+
+  <div class="container">
+    <div class="ad-slot" data-promovolve-slot="FOOD-INDEX-SLOT-01" data-w="728" data-h="90">
+      Ad — 728×90
+    </div>
+  </div>
+
+  <div class="container">
+    <div class="page-body">
+      <main class="main-content">
+        <div class="breadcrumb">
+          <a href="../index.html">ホーム</a> &rsaquo; 食事・栄養
+        </div>
+
+        <div class="section-block">
+          <h2>食事・栄養</h2>
+          <p>アスリートの食事、栄養管理、スポーツ向けの食材・調味料・宅配サービス情報を発信しています。トレーニングを支える食生活のヒントから、減量・増量期のレシピ、コンビニで買えるアスリート向け食品まで幅広くカバー。</p>
+        </div>
+
+        <div class="section-block">
+          <h2>最新の記事</h2>
+          <ul class="story-list">
+            <li>
+              <div class="headline"><a href="meal-delivery.html">アスリート向け食事宅配サービス徹底比較</a></div>
+              <div class="summary">高タンパク・低脂質のサブスクを実際に試して比較。マッスルデリ、ナッシュ、ゴーフード、ベースフード、ウェルネスダイニングを徹底レビュー。</div>
+            </li>
+          </ul>
+        </div>
+      </main>
+
+      <aside class="sidebar">
+        <div class="ad-slot" data-promovolve-slot="FOOD-INDEX-SLOT-02" data-w="300" data-h="600">
+          Ad — 300×600
+        </div>
+      </aside>
+    </div>
+  </div>
+
+  <footer class="site-footer">
+    <div class="container">
+      &copy; 2025 スポーツデイリー。無断転載禁止。テスト用の架空メディアです。
+    </div>
+  </footer>
+
+<script src="/promovolve-ad.js?v=7" data-pub="localhost-8888"></script>
+</body>
+</html>

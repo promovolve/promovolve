@@ -1,0 +1,10 @@
+{
+  "name": "Restart Recovery Test",
+  "description": "Verifies Thompson Sampling state is restored from tracking_events after AdServer restart",
+  "mode": "restart-recovery",
+  "adProductCategory": "1529",
+  "maxRequests": 200,
+  "delayMs": 30,
+  "clickRate": 0.05,
+  "reportEvery": 50
+}

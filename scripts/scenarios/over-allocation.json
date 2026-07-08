@@ -1,0 +1,22 @@
+{
+  "name": "Over-Allocation Test",
+  "description": "Multiple campaigns with budgets exceeding advertiser total - tests AdvertiserBudgetExhausted",
+
+  "setup": {
+    "categories": ["sports", "tech", "gaming"],
+    "advertisersPerCategory": 2,
+    "budget": 100.0,
+    "cpm": 10.0,
+    "mixed": true
+  },
+  "pacing": {
+    "dayDurationSeconds": 600
+  },
+  "traffic": {
+    "maxRequests": 3000,
+    "continuous": false,
+    "clickRate": 0.05,
+    "variableDelay": true,
+    "maxDelayMs": 200
+  }
+}

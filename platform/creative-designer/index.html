@@ -1,0 +1,69 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <title>Designer (dev harness)</title>
+    <style>
+      html, body { margin: 0; padding: 0; height: 100%; background: #0a0a0b; }
+    </style>
+  </head>
+  <body>
+    <script>
+      // Fixture context for the designer-only dev loop. The Go shell
+      // injects the same shape via window.__DESIGNER__ in production —
+      // we just hand-roll a minimal one here so the UI can boot without
+      // a server, login, or campaign records.
+      //
+      // Save / publish / auto-layout / saliency-model fetches will fail
+      // (no /v1/* endpoints, no R2). Everything else — canvas, items,
+      // drag/resize/rotate, panels — works.
+      window.__DESIGNER__ = {
+        campaignId: "dev-campaign",
+        landingUrl: "https://example.com",
+        creativeName: "Dev Harness Creative",
+        bannerSize: "expanded",
+        bannerScriptUrl: "",
+        creativeId: "",
+        lpTextSnapshot: "",
+        brandKitJson: "",
+        templateId: "",
+        // Three stub pages, matching the fixed 3-page narrative real
+        // creatives always have — a 1-page fixture hid multi-page
+        // behavior (nav arrows, page turns, the reader counter).
+        // normalizePages fills in default layouts from the flat fields.
+        pages: [
+          {
+            headline: "Hello, designer",
+            sub: "Edit src/ and save — vite HMR refreshes instantly.",
+            body: "This page is a fixture for local UI work.",
+            tag: "DEV",
+            ctaLabel: "Learn more",
+          },
+          {
+            headline: "Page two",
+            sub: "The middle of the 3-page narrative.",
+            body: "Turn pages in the preview with the side arrows or the corner peel.",
+            tag: "DEV",
+            bg: "linear-gradient(135deg,#2d132c,#801336)",
+          },
+          {
+            headline: "Page three",
+            sub: "The closing page.",
+            body: "Every real creative ships exactly three pages by design.",
+            tag: "DEV",
+            bg: "linear-gradient(135deg,#0b3d2e,#14746f)",
+          },
+        ],
+      };
+    </script>
+    <!-- Side-effect import: registers <expandable-magazine-banner>
+         as a custom element. Production loads the banner via a
+         separate <script src> from the Go template; in the harness
+         we pull it through vite's @banner alias instead. -->
+    <script type="module">
+      import "@banner";
+    </script>
+    <script type="module" src="/src/index.ts"></script>
+  </body>
+</html>

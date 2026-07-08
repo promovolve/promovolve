@@ -1,0 +1,70 @@
+target/
+!.mvn/wrapper/maven-wrapper.jar
+!**/src/main/**/target/
+!**/src/test/**/target/
+
+# Node build artefacts (banner-bootstrap, etc.)
+**/node_modules/
+**/dist/
+
+### IntelliJ IDEA ###
+.idea/
+*.iws
+*.iml
+*.ipr
+out/
+!**/src/main/**/out/
+!**/src/test/**/out/
+
+### Eclipse ###
+.apt_generated
+.classpath
+.factorypath
+.project
+.settings
+.springBeans
+.sts4-cache
+bin/
+!**/src/main/**/bin/
+!**/src/test/**/bin/
+
+### NetBeans ###
+/nbproject/private/
+/nbbuild/
+/dist/
+/nbdist/
+/.nb-gradle/
+build/
+!**/src/main/**/build/
+!**/src/test/**/build/
+
+### VS Code ###
+.vscode/
+
+### Mac OS ###
+.DS_Store
+
+### Scala ###
+.bsp/
+/scripts/scripts/.bsp/
+/scripts/scripts/.scala-build/
+/scripts/.scala-build/
+
+### PDFs ###
+*.pdf
+
+### Secrets ###
+.env
+scripts/.env
+k8s/secrets.env
+
+### Claude/AI config ###
+.claude/
+.claude-todo.md
+k8s/platform-secrets.env
+
+### Private (never ship in OSS repo) ###
+private/
+
+### Separate repo that lives in-tree (github.com/hanishi/promovolve-book) ###
+/book/

@@ -1,0 +1,183 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>The Daily Beacon — Your Trusted News Source</title>
+  <style>
+    *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+    body { font-family: Georgia, 'Times New Roman', serif; color: #222; background: #f5f5f0; line-height: 1.6; }
+    a { color: #1a5276; text-decoration: none; }
+    a:hover { text-decoration: underline; }
+
+    /* Header */
+    .site-header { background: #1a1a2e; color: #fff; padding: 12px 0; }
+    .site-header .container { display: flex; align-items: center; justify-content: space-between; }
+    .site-title { font-size: 1.8rem; font-weight: bold; letter-spacing: -0.5px; }
+    .site-title a { color: #fff; }
+    .site-tagline { font-size: 0.85rem; color: #aaa; font-style: italic; }
+    nav { background: #16213e; padding: 8px 0; }
+    nav ul { list-style: none; display: flex; gap: 24px; }
+    nav a { color: #ddd; font-size: 0.95rem; font-family: Arial, sans-serif; }
+    nav a:hover { color: #fff; text-decoration: none; }
+
+    .container { max-width: 1100px; margin: 0 auto; padding: 0 16px; }
+
+    /* Ad slots */
+    .ad-slot { background: #e8e8e0; border: 1px dashed #bbb; display: flex; align-items: center; justify-content: center; color: #888; font-family: Arial, sans-serif; font-size: 0.8rem; text-transform: uppercase; letter-spacing: 1px; margin: 16px auto; width: 100%; }
+    .ad-slot[data-ad-width="728"][data-ad-height="90"]  { max-width: 728px; aspect-ratio: 728/90;  }
+    .ad-slot[data-ad-width="970"][data-ad-height="90"]  { max-width: 970px; aspect-ratio: 970/90;  }
+    .ad-slot[data-ad-width="300"][data-ad-height="250"] { max-width: 300px; aspect-ratio: 300/250; }
+    .ad-slot[data-ad-width="300"][data-ad-height="600"] { max-width: 300px; aspect-ratio: 300/600; }
+    .ad-slot[data-ad-width="336"][data-ad-height="280"] { max-width: 336px; aspect-ratio: 336/280; }
+    .ad-slot[data-ad-width="160"][data-ad-height="600"] { max-width: 160px; aspect-ratio: 160/600; }
+    .ad-slot[data-ad-width="320"][data-ad-height="50"]  { max-width: 320px; aspect-ratio: 320/50;  }
+
+    /* Layout */
+    .page-body { display: flex; gap: 24px; padding: 24px 0; }
+    .main-content { flex: 1; min-width: 0; }
+    .sidebar { width: 300px; flex-shrink: 0; }
+
+    /* Mobile: stack sidebar below main content */
+    @media (max-width: 768px) {
+      .page-body { flex-direction: column; }
+      .sidebar { width: 100%; }
+      nav ul { flex-wrap: wrap; gap: 12px; }
+    }
+
+    /* Homepage sections */
+    .section-block { margin-bottom: 32px; }
+    .section-block h2 { font-size: 1.3rem; border-bottom: 2px solid #1a5276; padding-bottom: 4px; margin-bottom: 12px; color: #1a1a2e; }
+    .story-list { list-style: none; }
+    .story-list li { padding: 8px 0; border-bottom: 1px solid #ddd; }
+    .story-list li:last-child { border-bottom: none; }
+    .story-list .headline { font-size: 1.05rem; font-weight: bold; }
+    .story-list .summary { font-size: 0.9rem; color: #555; margin-top: 2px; }
+
+    .featured { background: #fff; padding: 20px; border: 1px solid #ddd; margin-bottom: 24px; }
+    .featured h2 { font-size: 1.6rem; margin-bottom: 8px; }
+    .featured p { color: #444; }
+
+    /* Footer */
+    .site-footer { background: #1a1a2e; color: #aaa; text-align: center; padding: 20px 0; font-size: 0.85rem; margin-top: 32px; }
+  </style>
+</head>
+<body>
+
+  <header class="site-header">
+    <div class="container">
+      <div>
+        <div class="site-title"><a href="index.html">The Daily Beacon</a></div>
+        <div class="site-tagline">Illuminating the news that matters</div>
+      </div>
+    </div>
+  </header>
+
+  <nav>
+    <div class="container">
+      <ul>
+        <li><a href="index.html">Home</a></li>
+        <li><a href="politics/index.html">Politics</a></li>
+        <li><a href="sports/index.html">Sports</a></li>
+        <li><a href="technology/index.html">Technology</a></li>
+        <li><a href="opinion/index.html">Opinion</a></li>
+        <li><a href="about.html">About</a></li>
+      </ul>
+    </div>
+  </nav>
+
+  <!-- Header Banner Ad -->
+  <div class="container">
+    <div class="ad-slot" data-ad-slot="01JPN0A10G5YSEXN85KM4AG86R" data-ad-width="728" data-ad-height="90">
+      Ad — 728×90
+    </div>
+  </div>
+
+  <div class="container">
+    <div class="page-body">
+      <main class="main-content">
+
+        <div class="featured">
+          <h2><a href="politics/election-results.html">Midterm Election Results Reshape the Political Landscape</a></h2>
+          <p>Voters across the nation delivered a mixed verdict in yesterday's midterm elections, shifting the balance of power in several key state legislatures and congressional districts. Analysts are calling it one of the most consequential elections in recent memory.</p>
+        </div>
+
+        <div class="section-block">
+          <h2><a href="politics/index.html">Politics</a></h2>
+          <ul class="story-list">
+            <li>
+              <div class="headline"><a href="politics/election-results.html">Midterm Election Results Reshape the Political Landscape</a></div>
+              <div class="summary">A comprehensive look at the winners, losers, and what it all means for governance.</div>
+            </li>
+            <li>
+              <div class="headline"><a href="politics/policy-reform.html">Bipartisan Policy Reform Gains Unexpected Momentum</a></div>
+              <div class="summary">Lawmakers from both parties find common ground on infrastructure and education.</div>
+            </li>
+          </ul>
+        </div>
+
+        <div class="section-block">
+          <h2><a href="sports/index.html">Sports</a></h2>
+          <ul class="story-list">
+            <li>
+              <div class="headline"><a href="sports/championship.html">Underdogs Triumph in Championship Upset</a></div>
+              <div class="summary">The Riverside Hawks stun the defending champions in a dramatic overtime finish.</div>
+            </li>
+            <li>
+              <div class="headline"><a href="sports/transfer-news.html">Record Transfer Deal Shakes Up League Dynamics</a></div>
+              <div class="summary">Star midfielder signs historic contract, raising questions about salary caps.</div>
+            </li>
+          </ul>
+        </div>
+
+        <div class="section-block">
+          <h2><a href="technology/index.html">Technology</a></h2>
+          <ul class="story-list">
+            <li>
+              <div class="headline"><a href="technology/ai-revolution.html">The AI Revolution: How Machine Learning Is Transforming Industries</a></div>
+              <div class="summary">From healthcare to finance, artificial intelligence is reshaping the way businesses operate.</div>
+            </li>
+            <li>
+              <div class="headline"><a href="technology/smartphone-review.html">Flagship Smartphone Review: Is the Nova X12 Worth the Hype?</a></div>
+              <div class="summary">We put the latest premium device through its paces in our comprehensive review.</div>
+            </li>
+          </ul>
+        </div>
+
+        <div class="section-block">
+          <h2><a href="opinion/index.html">Opinion</a></h2>
+          <ul class="story-list">
+            <li>
+              <div class="headline"><a href="opinion/editorial.html">Editorial: The Case for Civic Engagement in Local Government</a></div>
+              <div class="summary">Why participation in municipal politics matters more than ever.</div>
+            </li>
+          </ul>
+        </div>
+
+      </main>
+
+      <aside class="sidebar">
+        <!-- Sidebar Rectangle Ad -->
+        <div class="ad-slot" data-ad-slot="01JPN0A10HHSY1W4QF4SEZ2XTR" data-ad-width="300" data-ad-height="250">
+          Ad — 300×250
+        </div>
+      </aside>
+    </div>
+  </div>
+
+  <!-- Footer Banner Ad -->
+  <div class="container">
+    <div class="ad-slot" data-ad-slot="01JPN0A10KNA4EHRWT3FTED91V" data-ad-width="970" data-ad-height="90">
+      Ad — 970×90
+    </div>
+  </div>
+
+  <footer class="site-footer">
+    <div class="container">
+      &copy; 2025 The Daily Beacon. All rights reserved. A fictitious publication for testing purposes.
+    </div>
+  </footer>
+
+<script src="/promovolve-ad.js?v=7" data-pub="192-168-86-242-8888"></script>
+</body>
+</html>

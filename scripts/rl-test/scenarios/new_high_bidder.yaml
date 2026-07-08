@@ -1,0 +1,32 @@
+# Late-arriving high bidder: same diverse market starts, but at minute 12
+# the lowest-CPM campaign jumps from $2 to $20 — simulating a new
+# deep-pocket advertiser appearing in the auction (we can't easily
+# spawn a 6th campaign with creatives, so we hijack one).
+#
+# Expected behaviour: agent settles around $8 in the first phase, then
+# after the $20 bidder appears at min 12, exploration should drive the
+# floor up — the new second-highest is now $10 (since the original $2
+# is now $20), so floor near $10 is the new sweet spot. Tests whether
+# RL notices and adapts upward.
+name: new_high_bidder
+durationSeconds: 1800              # 30 min: 12 min phase 1, 18 min after spike
+pollIntervalSeconds: 5
+
+site:
+  initialFloorCpm: 5.0
+  minFloorCpm: 5.0
+  bidWeight: 0.5
+  pacingDayDurationSeconds: 300
+  resetFloorAgent: true
+
+traffic:
+  workers: 4
+  intervalSeconds: 1
+  ctr: 0.10
+
+events:
+  - atSeconds: 720
+    action: setCampaignMaxCpm
+    advertiserId: 01KRXB99E0H50RMPTPXDFAVJST
+    campaignId:   01KRXBA6ZHVGDE588TRYN7PZKJ    # the $2 bidder
+    maxCpm:       20.0                          # becomes new top

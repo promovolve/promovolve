@@ -1,0 +1,19 @@
+# Tiny scenario for smoke-testing the harness wiring.
+# Not a meaningful RL test — just runs long enough to record some
+# observations and produce plots.
+name: smoke
+durationSeconds: 60
+pollIntervalSeconds: 3
+
+site:
+  initialFloorCpm: 5.0
+  minFloorCpm: 5.0
+  bidWeight: 0.5
+  pacingDayDurationSeconds: 300
+
+traffic:
+  workers: 2
+  intervalSeconds: 1
+  ctr: 0.10
+
+events: []

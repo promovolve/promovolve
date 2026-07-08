@@ -1,0 +1,28 @@
+# GKE Autopilot demo overlay.
+#
+# Goal: the cheapest possible public deployment. Two changes vs. the base:
+#   1. Both LoadBalancer Services become ClusterIP + a SINGLE GCE Ingress
+#      (one L7 HTTP(S) LB) fronts them — collapses two L4 LBs into one.
+#   2. Every pod is a Spot Pod and requests are trimmed to Autopilot minimums;
+#      the api tier drops to a single-node cluster (replicas: 1) so we pay for
+#      ~1.5 vCPU instead of ~3.4.
+#
+# Prereqs & deploy steps: see README.md in this directory.
+apiVersion: kustomize.config.k8s.io/v1beta1
+kind: Kustomization
+
+namespace: promovolve
+
+resources:
+  - ../../k8s                 # the base k8s deployment (all workloads + config)
+  - backendconfig.yaml        # health checks: api→:8558/ready, platform→:9090/health
+  - managed-cert.yaml         # Google-managed TLS for both public hosts
+  - frontendconfig.yaml       # HTTP→HTTPS redirect
+  - ingress.yaml              # the one L7 LB
+
+patches:
+  - path: patch-api.yaml         # replicas:1, single-node conf, Spot, right-sized
+  - path: patch-db.yaml          # Spot, right-sized
+  - path: patch-platform.yaml    # Spot, right-sized
+  - path: patch-svc-api.yaml     # LoadBalancer → ClusterIP + NEG/BackendConfig
+  - path: patch-svc-platform.yaml

@@ -1,0 +1,58 @@
+// SiteEntity cross-node reply types — Phase 1 pilot of the protobuf wire
+// format (transport messages only; persistence stays Jackson-CBOR).
+//
+// Why protobuf for the wire: schema-defined messages cannot silently
+// deserialize to null. The predecessor of these two messages — bare Scala
+// tuples ((Double, Double) / (Double, Int)) — specialized to Tuple2$mc*$sp,
+// which jackson-cbor deserialized to NULL; Artery kills its whole inbound
+// stream (cluster heartbeats included) on a null message. That was the root
+// cause of the June/July multi-node self-down cascades. These protos make
+// the entire class of failure unrepresentable.
+syntax = "proto3";
+
+package promovolve.proto.site;
+
+import "scalapb/scalapb.proto";
+
+// flat_package: generate promovolve.proto.site.CategoryFloors directly
+// (no per-file sub-package) — keeps call sites readable.
+option (scalapb.options) = {
+  flat_package: true
+};
+option java_multiple_files = true;
+
+// Reply to SiteEntity.GetCategoryFloors. Was a bare Map[String, CPM], which
+// has no serializer binding — the ask failed loudly at the sender and timed
+// out the caller whenever the SiteEntity lived on another node.
+message CategoryFloors {
+  // category -> floor CPM in dollars
+  map<string, double> floors = 1;
+  // category -> distinct campaigns currently bidding (qualifying + below-
+  // floor rejects), from the site's live categoryBidInfo. Ephemeral —
+  // rebuilt from auction reports after a restart, so a missing key means
+  // "no auction observed yet", not "no demand". Lets dashboards tell a
+  // live floor (1 = pegged to the lone bid, 2+ = sweep-governed) from a
+  // historical row nobody bids into anymore.
+  map<string, int32> bidder_counts = 2;
+  // category -> highest observed bid (dollars) in the latest auction round.
+  map<string, double> observed_bids = 3;
+  // category -> live sweep-optimizer state, for dashboards to render
+  // "probing 3/8, decision in ~22 min" instead of a bare number. Only
+  // categories whose optimizer has been created appear here.
+  map<string, CategorySweepState> sweep_states = 4;
+  // The site's floor-observation tick interval — converts the tick counts
+  // in CategorySweepState into wall-clock estimates.
+  int32 observation_interval_seconds = 5;
+}
+
+// Live state of one per-category FloorSweepOptimizer (raw counters; the
+// dashboard turns them into language + wall-clock estimates).
+message CategorySweepState {
+  string phase = 1;                  // "init" | "sweep" | "exploit"
+  int32 cursor = 2;                  // candidate index while probing
+  int32 candidate_count = 3;
+  int32 ticks_this_candidate = 4;
+  int32 ticks_per_candidate = 5;
+  int32 exploit_ticks_remaining = 6;
+  double current_floor = 7;          // the floor being enforced right now
+}

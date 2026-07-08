@@ -1,0 +1,26 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<configuration>
+    <appender name="CONSOLE" class="ch.qos.logback.core.ConsoleAppender">
+        <encoder>
+            <pattern>%d{HH:mm:ss.SSS} %-5level [%thread] %logger{36} - %msg%n</pattern>
+        </encoder>
+    </appender>
+
+    <!-- Default the whole app to WARN: the INFO logs are high-volume
+         per-auction / per-bid / per-image / per-Put operational tracing that
+         floods the console (a single periodic re-auction fans the entire
+         pipeline across every page x slot). Warnings and errors still surface.
+         Turn any one class back up for debugging with
+         -DLOG_CLASS=promovolve.auction.AuctioneerEntity (DEBUG), or raise this
+         to INFO if you want the running commentary back. -->
+    <logger name="promovolve" level="WARN"/>
+    <logger name="org.apache.pekko" level="ERROR"/>
+    <logger name="org.apache.pekko.cluster" level="ERROR"/>
+
+    <!-- Per-class DEBUG logging: set via -DLOG_CLASS=fully.qualified.ClassName -->
+    <logger name="${LOG_CLASS:-_no_debug_target_}" level="DEBUG"/>
+
+    <root level="INFO">
+        <appender-ref ref="CONSOLE"/>
+    </root>
+</configuration>

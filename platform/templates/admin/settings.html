@@ -1,0 +1,66 @@
+{{define "content"}}
+<div class="max-w-2xl">
+  <h1 class="page-title">Platform Settings</h1>
+  <p class="page-sub">Platform economics for this installation.</p>
+
+  {{if .Error}}
+  <div class="bg-red-50 border border-red-200 text-red-700 rounded-lg p-3 mt-6 text-sm">{{.Error}}</div>
+  {{end}}
+
+  <div class="card mt-6">
+    <h2 class="font-semibold text-lg mb-1">Platform margin</h2>
+    <p class="text-sm text-gray-500 mb-4">
+      Deducted from publisher earnings as the platform fee. Publishers see net
+      revenue with this fee itemized. Changes apply from now on — past
+      earnings are never repriced.
+    </p>
+    <form method="POST" action="/admin/settings/margin" class="flex items-end gap-3">
+      <div>
+        <label class="form-label">Margin (%)</label>
+        <input type="number" name="marginPercent" min="0" max="99.99" step="0.01"
+          value="{{.MarginPct}}" class="form-input w-32">
+      </div>
+      <button type="submit" class="btn btn-primary">Update margin</button>
+    </form>
+  </div>
+
+  <div class="card mt-6">
+    <h2 class="font-semibold text-lg mb-1">Minimum payout floor</h2>
+    <p class="text-sm text-gray-500 mb-4">
+      The platform-wide minimum before a publisher payout is offered — each
+      transfer costs you a fee and manual work. Publishers can raise their
+      own threshold above this, never below.
+    </p>
+    <form method="POST" action="/admin/settings/payout-floor" class="flex items-end gap-3">
+      <div>
+        <label class="form-label">Floor ($)</label>
+        <input type="number" name="payoutFloor" min="0.01" step="0.01"
+          value="{{.PayoutFloor}}" class="form-input w-32">
+      </div>
+      <button type="submit" class="btn btn-primary">Update floor</button>
+    </form>
+  </div>
+
+  <div class="card mt-6 p-0 overflow-x-auto">
+    <h2 class="font-semibold text-lg px-6 pt-6">History</h2>
+    <table class="w-full text-sm mt-3">
+      <thead>
+        <tr class="border-b text-left text-gray-400">
+          <th class="px-6 py-2 font-medium">Margin</th>
+          <th class="px-6 py-2 font-medium">Effective from</th>
+          <th class="px-6 py-2 font-medium">Set by</th>
+        </tr>
+      </thead>
+      <tbody>
+        {{range .MarginHistory}}
+        <tr class="border-b last:border-0">
+          <td class="px-6 py-2 font-medium">{{.Percent}}%</td>
+          <td class="px-6 py-2 text-gray-500">{{.EffectiveFrom}}</td>
+          <td class="px-6 py-2 text-gray-500">{{.By}}</td>
+        </tr>
+        {{end}}
+      </tbody>
+    </table>
+  </div>
+</div>
+{{end}}

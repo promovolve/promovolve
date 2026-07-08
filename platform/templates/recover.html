@@ -1,0 +1,62 @@
+{{define "content"}}
+<div class="flex items-center justify-center min-h-screen bg-gray-50">
+  <div class="w-full max-w-md p-8">
+    <h1 class="text-3xl font-semibold text-center mb-2">Promovolve</h1>
+    <p class="text-gray-500 text-center mb-10">Account recovery</p>
+
+    {{if .Error}}
+    <div class="bg-white rounded-lg shadow-sm border p-8 text-center">
+      <p class="text-red-600 text-sm">{{.Error}}</p>
+      <a href="/login" class="btn btn-secondary mt-6">Back to sign in</a>
+    </div>
+    {{else}}
+    <div id="recover-card" class="bg-white rounded-lg shadow-sm border p-8">
+      <h2 class="text-2xl font-semibold mb-1">Register a new passkey</h2>
+      <p class="text-sm text-gray-500 mb-6">
+        This one-time link lets you add a new passkey to your account. Do this
+        on the device you'll sign in from. Your existing passkeys keep working.
+      </p>
+      <div id="recover-error" class="hidden bg-red-50 border border-red-200 text-red-700 rounded-lg p-3 mb-4 text-sm"></div>
+      <button id="recover-btn" class="btn btn-primary w-full">Create new passkey</button>
+    </div>
+
+    <div id="recover-done" class="hidden bg-white rounded-lg shadow-sm border p-8 text-center">
+      <div class="text-4xl mb-4">&#10003;</div>
+      <h2 class="text-2xl font-semibold mb-2">Passkey registered</h2>
+      <p class="text-sm text-gray-500 mb-6">You can sign in with it right away.</p>
+      <a href="/login" class="btn btn-primary">Go to sign in</a>
+    </div>
+
+    <script src="{{asset "passkey.js"}}"></script>
+    <script>
+      (function () {
+        const btn = document.getElementById('recover-btn');
+        const errBox = document.getElementById('recover-error');
+        btn.addEventListener('click', async () => {
+          errBox.classList.add('hidden');
+          btn.disabled = true;
+          try {
+            await Passkey.register('/webauthn/recover/begin', '/webauthn/recover/finish', {
+              token: {{.RecoveryToken}},
+            });
+            document.getElementById('recover-card').classList.add('hidden');
+            document.getElementById('recover-done').classList.remove('hidden');
+          } catch (e) {
+            // InvalidStateError = excludeCredentials matched: this device
+            // already holds a working passkey for the account, so recovery
+            // isn't needed here.
+            if (e.name === 'InvalidStateError') {
+              errBox.textContent = 'This device already has a passkey for this account — you can sign in with it directly. Use this link on the new device you want to add.';
+            } else {
+              errBox.textContent = e.message || 'Recovery failed';
+            }
+            errBox.classList.remove('hidden');
+            btn.disabled = false;
+          }
+        });
+      })();
+    </script>
+    {{end}}
+  </div>
+</div>
+{{end}}

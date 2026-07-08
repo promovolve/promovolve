@@ -1,0 +1,29 @@
+# k8s/kind-cluster.yaml — a reproducible MULTI-NODE cluster for the realistic
+# (production-like) PromoVolve deployment.
+#
+# Why: the app/entity tier runs 3 pods under REQUIRED pod anti-affinity (one
+# entity pod per node), so you need ≥3 SCHEDULABLE worker nodes. The control-
+# plane node is tainted NoSchedule by default and does NOT count, so this gives
+# 1 control-plane + 3 workers = 3 schedulable nodes for the 3 api replicas.
+# (Crawler / db / platform pods co-locate freely on those workers.)
+#
+# Use this standalone-kind cluster, OR Docker Desktop's built-in multi-node
+# Kubernetes (Settings → Kubernetes → enable multi-node, set node count ≥ 3).
+#
+#   kind create cluster --name promovolve --config k8s/kind-cluster.yaml
+#   kubectl config use-context kind-promovolve
+#
+# ACCESS NOTE: standalone kind has no cloud LoadBalancer, so the two
+# LoadBalancer services stay <pending> for an EXTERNAL-IP. Reach them with:
+#   kubectl -n promovolve port-forward svc/promovolve-platform 9090:9090
+#   kubectl -n promovolve port-forward svc/promovolve-api      8080:8080
+# Docker Desktop's multi-node DOES bind LoadBalancer to localhost — if you use
+# that path instead, the README's http://localhost:9090 / :8080 work unchanged.
+apiVersion: kind.x-k8s.io/v1alpha4
+kind: Cluster
+name: promovolve
+nodes:
+  - role: control-plane
+  - role: worker
+  - role: worker
+  - role: worker

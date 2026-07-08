@@ -1,0 +1,41 @@
+# Sweep-optimizer discovery test. Mirrors discover_floor.yaml but with
+# the sweep optimizer driving the floor. The DQN agent's discovery test
+# (2026-05-19) failed at ratio 0.685 — agent settled at $2 in a
+# $2/$4/$6/$8/$10 market where ~$5 was optimal. Sweep should find $5-$6
+# within the first full pass.
+#
+# With candidateCount=10 and minFloor=$1, maxFloor=$10, candidates are
+# evenly spaced at $1.00, $2.00, ..., $10.00. At pacingDayDurationSeconds
+# = 300 the observation tick scales to ~5s wall (capped at the floor of
+# the scaling formula in SiteEntity), so a 10-tick sweep finishes in ≈50s
+# wall and the 12-tick exploit phase holds for ~60s. Total cycle ≈110s
+# wall; over 90 min that's ~49 cycles, well over what's needed for the
+# first sweep to settle and produce a clean argmax.
+#
+# Pass:        floor settles in [$4, $7] in the last 20 min
+# Soft fail:   floor settles in [$1, $3.99] — sweep ran but argmax wrong
+# Hard fail:   floor pinned at any single value the whole time —
+#              optimizer never advanced (bug in sweep transition logic)
+#
+# Cluster prerequisite:
+#   ./scripts/run-dev.sh
+name: discover_sweep_floor
+durationSeconds: 900              # 15 min — ~3.5 sweep cycles, enough to see argmax stability cycle-to-cycle
+pollIntervalSeconds: 5
+
+site:
+  initialFloorCpm: 5.0            # neutral midpoint
+  minFloorCpm: 1.0                # widen the search range
+  bidWeight: 0.5
+  pacingDayDurationSeconds: 300
+  resetFloorAgent: true           # wipe sweep snapshot, start from scratch
+
+traffic:
+  workers: 4
+  intervalSeconds: 1
+  ctr: 0.10
+
+events: []
+
+floorStrategy:
+  kind: sweep

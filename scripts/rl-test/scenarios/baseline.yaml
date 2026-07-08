@@ -1,0 +1,19 @@
+# Baseline diverse-CPM market: $2/$4/$6/$8/$10.
+# Floor RL agent should converge on a floor near the second-highest bid
+# ($8) once cold-start exploration tapers off.
+name: baseline
+durationSeconds: 1200          # 20 min wall clock
+pollIntervalSeconds: 5
+
+site:
+  initialFloorCpm: 5.0
+  minFloorCpm: 5.0
+  bidWeight: 0.5
+  pacingDayDurationSeconds: 300
+
+traffic:
+  workers: 4
+  intervalSeconds: 1
+  ctr: 0.10
+
+events: []

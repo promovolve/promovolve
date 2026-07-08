@@ -1,0 +1,31 @@
+{
+  "name": "Run-of-Network Campaign Test",
+  "description": "Test run-of-network targeting (matches all inventory)",
+
+  "setup": {
+    "mode": "performance",
+    "advertisers": 1,
+    "campaignsPerAdvertiser": 1,
+    "creativesPerCampaign": 1,
+    "runOfNetwork": true,
+    "budget": 200.0,
+    "cpm": 2.0,
+    "userPoolSize": 1000
+  },
+  "pacing": {
+    "dayDurationSeconds": 600,
+    "weekdayShapeVolumes": [
+      1.0, 1.0, 1.0, 1.0, 1.0, 1.0,
+      1.0, 1.0, 1.0, 1.0, 1.0, 1.0,
+      1.0, 1.0, 1.0, 1.0, 1.0, 1.0,
+      1.0, 1.0, 1.0, 1.0, 1.0, 1.0
+    ]
+  },
+  "traffic": {
+    "continuous": true,
+    "reportEvery": 100,
+    "clickRate": 0.02,
+    "variableDelay": false,
+    "delayMs": 5
+  }
+}

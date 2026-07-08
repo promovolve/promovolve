@@ -1,0 +1,16 @@
+{
+  "mode": "pacing",
+  "advertisers": 1,
+  "campaignsPerAdvertiser": 1,
+  "creativesPerCampaign": 1,
+  "category": "perf-test",
+  "adProductCategory": "1529",
+  "budget": 5.0,
+  "cpm": 2.0,
+  "dayDurationSeconds": 120,
+  "continuous": true,
+  "stopAfterDays": 3,
+  "delayMs": 10,
+  "clickRate": 0.05,
+  "reportEvery": 200
+}

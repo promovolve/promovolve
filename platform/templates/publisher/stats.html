@@ -1,0 +1,67 @@
+{{define "content"}}
+<!-- Header -->
+<div class="flex items-center justify-between mb-6">
+  <h1 class="page-title">Site Statistics</h1>
+  {{if .Sites}}
+  <form method="GET" action="/publisher/stats">
+    <select name="siteId" onchange="this.form.submit()" class="px-3 py-2 border rounded-md text-sm">
+      {{range .Sites}}
+      <option value="{{.ID}}" {{if eq .ID $.SiteID}}selected{{end}}>{{if .Domain}}{{.Domain}}{{else}}{{.ID}}{{end}}</option>
+      {{end}}
+    </select>
+  </form>
+  {{end}}
+</div>
+
+{{if not .Stats}}
+<div class="text-center py-20 text-gray-400">
+  <p class="text-lg">No stats available</p>
+  <p class="text-sm mt-2">Stats will appear once ads start serving on your site</p>
+</div>
+{{else}}
+<!-- Headline metrics — all three share the same persistent, UTC-midnight
+     window (tracking_events), so they always reconcile with each other. -->
+<div class="grid grid-cols-3 gap-6 mb-4">
+  <div class="bg-white p-6 rounded-lg border" title="Impressions served on this site since UTC midnight today. Sourced from tracking_events.">
+    <p class="text-sm text-gray-500">Impressions Today</p>
+    <p class="text-3xl font-semibold mt-2">{{.Stats.Impressions}}</p>
+  </div>
+  <div class="bg-white p-6 rounded-lg border" title="Net earnings per 1000 impressions today (Revenue Today ÷ Impressions Today × 1000).">
+    <p class="text-sm text-gray-500">eCPM</p>
+    <p class="text-3xl font-semibold mt-2">{{if .Stats.ECPM}}${{.Stats.ECPM}}{{else}}&mdash;{{end}}</p>
+  </div>
+  <div class="bg-white p-6 rounded-lg border" title="Your net earnings today after the platform fee. Sourced from tracking_events. Resets at UTC midnight. Advertiser-side Today's Spend shows the gross amount.">
+    <p class="text-sm text-gray-500">Revenue Today</p>
+    <p class="text-3xl font-semibold mt-2">${{.Stats.Revenue}}</p>
+    {{if .Stats.FeePct}}
+    <p class="text-xs text-gray-400 mt-1">${{.Stats.GrossRevenue}} gross &minus; ${{.Stats.Fee}} platform fee ({{.Stats.FeePct}}%)</p>
+    {{end}}
+  </div>
+</div>
+
+<!-- Session diagnostics: in-memory serveStats, scoped to the current cluster
+     session (resets on every restart/deploy), so they are shown as a muted
+     footnote rather than headline tiles a publisher would compare against
+     Impressions Today. -->
+<p class="text-xs text-gray-400 mb-8" title="From in-memory serve stats since the last cluster restart — a different scope than the day-scoped tiles above. tracking_events doesn't log no-candidate batches, so true daily fill rate can't be derived from the persistent store.">
+  Since last restart: {{.Stats.Requests}} serve request{{if ne .Stats.Requests 1}}s{{end}} · {{.Stats.FillRate}} fill rate
+</p>
+
+<!-- Activity cards -->
+<div class="grid grid-cols-2 gap-6">
+  <div class="bg-white p-6 rounded-lg border">
+    <p class="text-sm text-gray-500">Creatives Served</p>
+    <p class="text-2xl font-semibold mt-2">{{.Stats.CreativesServed}}</p>
+  </div>
+  <div class="bg-white p-6 rounded-lg border">
+    <p class="text-sm text-gray-500">Pending Creatives</p>
+    <p class="text-2xl font-semibold mt-2">{{.Stats.PendingCreatives}}</p>
+    {{if .Stats.PendingCreatives}}
+    <p class="text-xs text-brand mt-2">
+      <a href="/publisher/approval{{if .SiteID}}?siteId={{.SiteID}}{{end}}" class="hover:underline">Review now &rarr;</a>
+    </p>
+    {{end}}
+  </div>
+</div>
+{{end}}
+{{end}}

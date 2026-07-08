@@ -1,0 +1,31 @@
+{
+  "name": "@promovolve/banner-component",
+  "version": "0.1.0",
+  "private": true,
+  "description": "Expandable magazine banner web component — vanilla TypeScript, no framework. Built into an IIFE bundle that publishers and the dashboard load as a script.",
+  "type": "module",
+  "scripts": {
+    "build": "vite build",
+    "dev": "vite build --watch",
+    "serve": "vite --open /dev/index.html",
+    "typecheck": "tsc --noEmit",
+    "lint": "eslint src",
+    "test": "vitest run",
+    "test:watch": "vitest",
+    "publish:r2": "node --env-file-if-exists=../../scripts/.env scripts/publish-to-r2.mjs",
+    "release": "npm run typecheck && npm run lint && npm run build && npm run publish:r2"
+  },
+  "devDependencies": {
+    "@aws-sdk/client-s3": "^3.1032.0",
+    "@eslint/js": "^9.17.0",
+    "eslint": "^9.17.0",
+    "jsdom": "^27.0.1",
+    "typescript": "~5.9.3",
+    "typescript-eslint": "^8.19.0",
+    "vite": "^7.2.4",
+    "vitest": "^2.1.8"
+  },
+  "engines": {
+    "node": ">=22"
+  }
+}

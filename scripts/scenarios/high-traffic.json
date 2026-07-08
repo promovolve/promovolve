@@ -1,0 +1,27 @@
+{
+  "name": "High Traffic Pacing Test",
+  "description": "High request rate to stress-test pacing algorithm",
+
+  "setup": {
+    "mode": "performance",
+    "advertisers": 1,
+    "campaignsPerAdvertiser": 1,
+    "creativesPerCampaign": 3,
+    "category": "perf-test",
+    "budget": 10.0,
+    "cpm": 5.0
+  },
+
+  "pacing": {
+    "dayDurationSeconds": 300
+  },
+
+  "traffic": {
+    "maxRequests": 5000,
+    "continuous": false,
+    "clickRate": 0.03,
+    "variableDelay": false,
+    "delayMs": 10,
+    "maxDelayMs": 50
+  }
+}

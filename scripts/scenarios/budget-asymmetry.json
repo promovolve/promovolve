@@ -1,0 +1,35 @@
+{
+  "name": "Budget Asymmetry",
+  "description": "1 whale ($100 budget) + 4 small ($5 budget) advertisers. Tests pacing and floor interaction under uneven budgets over 10 days",
+
+  "setup": {
+    "mode": "pacing",
+    "advertisers": 5,
+    "campaignsPerAdvertiser": 1,
+    "creativesPerCampaign": 2,
+    "adProductCategory": "1529",
+    "additionalCategories": ["653", "654", "655"],
+    "budget": 5.0,
+    "budgets": [100.0, 5.0, 5.0, 5.0, 5.0],
+    "cpm": 5.0,
+    "cpms": [8.0, 3.0, 4.0, 5.0, 6.0],
+    "userPoolSize": 500
+  },
+  "pacing": {
+    "dayDurationSeconds": 300,
+    "weekdayShapeVolumes": [
+      0.5, 0.3, 0.2, 0.2, 0.3, 0.5,
+      0.8, 1.5, 2.0, 2.5, 2.5, 2.0,
+      1.8, 2.0, 2.2, 2.5, 3.0, 2.5,
+      2.0, 1.5, 1.0, 0.8, 0.6, 0.4
+    ]
+  },
+  "traffic": {
+    "continuous": true,
+    "reportEvery": 400,
+    "clickRate": 0.03,
+    "variableDelay": false,
+    "delayMs": 10,
+    "stopAfterDays": 10
+  }
+}

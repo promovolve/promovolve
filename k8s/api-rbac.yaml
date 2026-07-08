@@ -1,0 +1,27 @@
+# Pekko Cluster Bootstrap uses the Kubernetes API to discover peer pods,
+# so the API ServiceAccount needs read access to pods in this namespace.
+apiVersion: v1
+kind: ServiceAccount
+metadata:
+  name: promovolve-api
+---
+apiVersion: rbac.authorization.k8s.io/v1
+kind: Role
+metadata:
+  name: promovolve-api-pod-reader
+rules:
+  - apiGroups: [""]
+    resources: ["pods"]
+    verbs: ["get", "list", "watch"]
+---
+apiVersion: rbac.authorization.k8s.io/v1
+kind: RoleBinding
+metadata:
+  name: promovolve-api-pod-reader
+roleRef:
+  apiGroup: rbac.authorization.k8s.io
+  kind: Role
+  name: promovolve-api-pod-reader
+subjects:
+  - kind: ServiceAccount
+    name: promovolve-api

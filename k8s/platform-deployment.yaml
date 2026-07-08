@@ -1,0 +1,64 @@
+# Go platform / dashboard BFF. Mostly stateless (durable state is in
+# Postgres), so a plain Deployment is correct here.
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: promovolve-platform
+spec:
+  # Must stay 1: in-flight WebAuthn ceremony sessions are held in memory
+  # (internal/passkey/session.go). Scaling out requires moving them to a DB
+  # table first.
+  replicas: 1
+  selector:
+    matchLabels:
+      app: promovolve-platform
+  template:
+    metadata:
+      labels:
+        app: promovolve-platform
+    spec:
+      imagePullSecrets:
+        - name: regcred
+      containers:
+        - name: platform
+          image: promovolve/platform:dev
+          imagePullPolicy: Always
+          ports:
+            - name: http
+              containerPort: 9090
+          env:
+            # The /proxy/asset/{hash} endpoint (same-origin asset proxy for the
+            # creative designer's auto-crop) needs CDN_BASE_URL. It's a public R2
+            # URL (not a secret), tracked in the api-config configMap so it
+            # matches the API tier.
+            - name: CDN_BASE_URL
+              valueFrom:
+                configMapKeyRef:
+                  name: api-config
+                  key: CDN_BASE_URL
+            # The creative-designer page (creative-design.html) injects this as
+            # window.__DESIGNER__.bannerScriptUrl; the <expandable-magazine-banner>
+            # web component is loaded from it. If empty, the custom element never
+            # upgrades and the banner renders blank (no image/text). It's a public
+            # URL (not a secret), tracked in the api-config configMap.
+            - name: BANNER_SCRIPT_URL
+              valueFrom:
+                configMapKeyRef:
+                  name: api-config
+                  key: BANNER_SCRIPT_URL
+          envFrom:
+            - configMapRef:
+                name: platform-config
+            - secretRef:
+                name: platform-secret
+          readinessProbe:
+            tcpSocket:
+              port: 9090
+            initialDelaySeconds: 3
+            periodSeconds: 10
+          resources:
+            requests:
+              cpu: "100m"
+              memory: 64Mi
+            limits:
+              memory: 256Mi

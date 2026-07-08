@@ -1,0 +1,36 @@
+{
+  "name": "Continuous Pacing Test",
+  "description": "Long-running test to observe pacing convergence over time",
+  "mode": "performance",
+  "advertisers": 1,
+  "campaignsPerAdvertiser": 1,
+  "creativesPerCampaign": 1,
+  "category": "654",
+  "adProductCategory": "1529",
+  "budget": 100.0,
+  "cpm": 5.0,
+  "userPoolSize": 1000,
+  "dayDurationSeconds": 600,
+  "weekdayShapeVolumes": [
+    0.3, 0.2, 1.0, 0.2, 0.0, 0.3,
+    0.5, 2.5, 0.1, 2.0, 1.5, 2.0,
+    2.5, 3.0, 2.5, 2.0, 1.5, 1.2,
+    1.2, 1.0, 0.4, 2.0, 5.0, 0.4
+  ],
+  "weekendShapeVolumes": [
+    0.3, 0.2, 0.1, 0.1, 0.1, 0.2,
+    0.3, 0.5, 0.8, 1.2, 1.5, 1.8,
+    2.0, 2.2, 2.3, 2.2, 2.0, 1.8,
+    2.0, 2.5, 2.8, 2.0, 1.2, 0.5
+  ],
+  "continuous": true,
+  "reportEvery": 100,
+  "clickRate": 0.05,
+  "variableDelay": false,
+  "delayMs": 1,
+  "quietPeriodProbability": 0.001,
+  "quietPeriodMinMs": 1500,
+  "quietPeriodMaxMs": 2500,
+  "refreshIntervalSeconds": 300,
+  "stopAfterDays": 10
+}

@@ -1,0 +1,25 @@
+# 90-min RL convergence test. Three-way pair: this run + the
+# existing 20-min compare_floor_5 baseline. Pass criterion is
+# (last-20-min RL revenue) / (compare_floor_5 revenue) >= 0.95.
+#
+# `resetFloorAgent` is intentionally omitted so the persisted
+# snapshot's already-cooled epsilon carries over from prior runs.
+name: compare_rl_long
+durationSeconds: 5400             # 90 min
+pollIntervalSeconds: 5
+
+site:
+  initialFloorCpm: 5.0
+  minFloorCpm: 5.0
+  bidWeight: 0.5
+  pacingDayDurationSeconds: 300
+
+traffic:
+  workers: 4
+  intervalSeconds: 1
+  ctr: 0.10
+
+events: []
+
+floorStrategy:
+  kind: rl

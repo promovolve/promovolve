@@ -1,0 +1,113 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <base href="/yakyu/">
+  <title>野球 — スポーツデイリー</title>
+  <style>
+    *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+    body { font-family: 'Noto Serif JP', 'Yu Mincho', 'Hiragino Mincho ProN', Georgia, serif; color: #222; background: #f5f5f0; line-height: 1.8; }
+    a { color: #1a5276; text-decoration: none; }
+    a:hover { text-decoration: underline; }
+    .site-header { background: #0d1b2a; color: #fff; padding: 12px 0; }
+    .site-header .container { display: flex; align-items: center; justify-content: space-between; }
+    .site-title { font-size: 1.8rem; font-weight: bold; letter-spacing: -0.5px; }
+    .site-title a { color: #fff; }
+    .site-tagline { font-size: 0.85rem; color: #aaa; font-style: italic; font-family: 'Noto Sans JP', 'Yu Gothic', 'Hiragino Sans', Arial, sans-serif; }
+    nav { background: #1b2838; padding: 8px 0; }
+    nav ul { list-style: none; display: flex; gap: 24px; }
+    nav a { color: #ddd; font-size: 0.95rem; font-family: 'Noto Sans JP', 'Yu Gothic', 'Hiragino Sans', Arial, sans-serif; }
+    nav a:hover { color: #fff; text-decoration: none; }
+    .container { max-width: 1100px; margin: 0 auto; padding: 0 16px; }
+    .ad-slot { background: #e8e8e0; border: 1px dashed #bbb; display: flex; align-items: center; justify-content: center; color: #888; font-family: 'Noto Sans JP', Arial, sans-serif; font-size: 0.8rem; text-transform: uppercase; letter-spacing: 1px; margin: 16px auto; width: 100%; }
+    .ad-slot[data-w="728"][data-h="90"]  { max-width: 728px; aspect-ratio: 728/90;  }
+    .ad-slot[data-w="970"][data-h="90"]  { max-width: 970px; aspect-ratio: 970/90;  }
+    .ad-slot[data-w="300"][data-h="250"] { max-width: 300px; aspect-ratio: 300/250; }
+    .ad-slot[data-w="300"][data-h="600"] { max-width: 300px; aspect-ratio: 300/600; }
+    .ad-slot[data-w="336"][data-h="280"] { max-width: 336px; aspect-ratio: 336/280; }
+    .ad-slot[data-w="160"][data-h="600"] { max-width: 160px; aspect-ratio: 160/600; }
+    .ad-slot[data-w="320"][data-h="50"]  { max-width: 320px; aspect-ratio: 320/50;  }
+    .page-body { display: flex; gap: 24px; padding: 24px 0; }
+    .main-content { flex: 1; min-width: 0; }
+    .sidebar { width: 300px; flex-shrink: 0; }
+
+    /* Mobile: stack sidebar below main content */
+    @media (max-width: 768px) {
+      .page-body { flex-direction: column; }
+      .sidebar { width: 100%; }
+      nav ul { flex-wrap: wrap; gap: 12px; }
+    }
+    .section-heading { font-size: 1.8rem; color: #0d1b2a; border-bottom: 3px solid #c0392b; padding-bottom: 8px; margin-bottom: 20px; }
+    .story-card { background: #fff; padding: 16px; border: 1px solid #ddd; margin-bottom: 16px; }
+    .story-card h3 { font-size: 1.2rem; margin-bottom: 6px; }
+    .story-card p { color: #555; font-size: 0.95rem; }
+    .site-footer { background: #0d1b2a; color: #aaa; text-align: center; padding: 20px 0; font-size: 0.85rem; margin-top: 32px; font-family: 'Noto Sans JP', 'Yu Gothic', 'Hiragino Sans', Arial, sans-serif; }
+  </style>
+</head>
+<body>
+
+  <header class="site-header">
+    <div class="container">
+      <div>
+        <div class="site-title"><a href="../index.html">スポーツデイリー</a></div>
+        <div class="site-tagline">最新スポーツニュース</div>
+      </div>
+    </div>
+  </header>
+
+  <nav>
+    <div class="container">
+      <ul>
+        <li><a href="../index.html">ホーム</a></li>
+        <li><a href="../yakyu/index.html">野球</a></li>
+        <li><a href="../soccer/index.html">サッカー</a></li>
+        <li><a href="../basketball/index.html">バスケットボール</a></li>
+        <li><a href="../sports/index.html">スポーツ総合</a></li>
+        <li><a href="../keiba/index.html">競馬</a></li>
+        <li><a href="../esports/index.html">eスポーツ</a></li>
+        <li><a href="../health/index.html">健康</a></li>
+        <li><a href="../about.html">サイトについて</a></li>
+      </ul>
+    </div>
+  </nav>
+
+  <div class="container">
+    <div class="ad-slot" data-promovolve-slot="01JPN0A10NG0ECWS6VPG1CV60V" data-w="728" data-h="90">
+      Ad — 728×90
+    </div>
+  </div>
+
+  <div class="container">
+    <div class="page-body">
+      <main class="main-content">
+        <h1 class="section-heading">野球</h1>
+
+        <div class="story-card">
+          <h3><a href="ohtani.html">大谷翔平、50-50の歴史的シーズンを達成</a></h3>
+          <p>ロサンゼルス・ドジャースの大谷翔平選手がMLB史上初となる1シーズン50本塁打・50盗塁の偉業を達成した。打者としての圧倒的なパワーとスピードを兼ね備えた、まさに前人未到の記録である。日本球界出身の選手がメジャーリーグの歴史を塗り替えた。</p>
+        </div>
+
+        <div class="story-card">
+          <h3><a href="nihon-series.html">日本シリーズ2024 — 激闘の記録</a></h3>
+          <p>2024年の日本シリーズは、セントラル・リーグとパシフィック・リーグの覇者が全7戦に及ぶ激闘を繰り広げた。両チームの投手陣と打線がぶつかり合い、日本プロ野球の頂点をかけた戦いは最終戦までもつれ込んだ。</p>
+        </div>
+      </main>
+
+      <aside class="sidebar">
+        <div class="ad-slot" data-promovolve-slot="01JPN0A10Q71R7S49HY0NHYPZT" data-w="300" data-h="250">
+          Ad — 300×250
+        </div>
+      </aside>
+    </div>
+  </div>
+
+  <footer class="site-footer">
+    <div class="container">
+      &copy; 2025 スポーツデイリー。無断転載禁止。テスト用の架空メディアです。
+    </div>
+  </footer>
+
+<script src="https://pub-7ab486148c8740dbb2cc31c5072eb91c.r2.dev/promovolve-ad.js" data-pub="sports-programmer-llc" data-api="https://ads.programmer.llc"></script>
+</body>
+</html>

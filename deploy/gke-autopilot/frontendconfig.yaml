@@ -1,0 +1,11 @@
+# Redirect all HTTP to HTTPS at the L7 LB. Required for the passkey RP (Secure
+# cookies) and to stop mixed-content beacon failures — the browser posts
+# tracking to https://ads.programmer.llc.
+apiVersion: networking.gke.io/v1beta1
+kind: FrontendConfig
+metadata:
+  name: promovolve-frontend
+spec:
+  redirectToHttps:
+    enabled: true
+    responseCodeName: MOVED_PERMANENTLY_DEFAULT

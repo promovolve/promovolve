@@ -1,0 +1,152 @@
+{{define "content"}}
+<div class="max-w-5xl">
+  {{with .AdminAccount}}
+  <div class="flex items-center gap-3">
+    <h1 class="page-title">{{.Label}}</h1>
+    <span class="badge badge-neutral">{{.Type}}</span>
+    <span class="badge {{.StatusBadge}}">{{.Status}}</span>
+  </div>
+  <p class="page-sub">{{.ID}}</p>
+  {{end}}
+
+  {{template "billing-tabs" .}}
+
+  {{with .AdminAccount}}
+
+  <div class="grid grid-cols-3 gap-6 mt-6">
+    <div class="bg-white p-6 rounded-lg border">
+      <p class="text-sm text-gray-500">{{if .IsPublisher}}Balance owed{{else}}Wallet balance{{end}}</p>
+      <p class="text-3xl font-semibold mt-2">{{.Balance}}</p>
+      <p class="text-xs text-gray-400 mt-1">settled through yesterday</p>
+    </div>
+    {{if .IsPublisher}}
+    <div class="bg-white p-6 rounded-lg border">
+      <p class="text-sm text-gray-500">Lifetime paid</p>
+      <p class="text-3xl font-semibold mt-2">${{.LifetimePaid}}</p>
+    </div>
+    {{end}}
+  </div>
+
+  <!-- Manual money activity -->
+  <div class="card mt-6 p-0 overflow-x-auto">
+    <h2 class="font-semibold text-lg px-6 pt-6">Top-ups, adjustments &amp; payouts</h2>
+    <table class="w-full text-sm mt-3">
+      <thead>
+        <tr class="border-b text-left text-gray-400">
+          <th class="px-6 py-2 font-medium">When</th>
+          <th class="px-6 py-2 font-medium">Kind</th>
+          <th class="px-6 py-2 font-medium">Reference</th>
+          <th class="px-6 py-2 font-medium text-right">Amount</th>
+        </tr>
+      </thead>
+      <tbody>
+        {{range .Activity}}
+        <tr class="border-b last:border-0">
+          <td class="px-6 py-2 text-gray-500 whitespace-nowrap">{{.Date}}</td>
+          <td class="px-6 py-2"><span class="badge {{.KindBadge}}">{{.Kind}}</span></td>
+          <td class="px-6 py-2 text-gray-500">{{.Memo}}</td>
+          <td class="px-6 py-2 text-right font-medium">{{.Amount}}</td>
+        </tr>
+        {{else}}
+        <tr><td class="px-6 py-4 text-gray-400" colspan="4">No manual money movement yet.</td></tr>
+        {{end}}
+      </tbody>
+    </table>
+  </div>
+
+  {{if .IsPublisher}}
+  <!-- Payout history -->
+  <div class="card mt-6 p-0 overflow-x-auto">
+    <h2 class="font-semibold text-lg px-6 pt-6">Payouts</h2>
+    <table class="w-full text-sm mt-3">
+      <thead>
+        <tr class="border-b text-left text-gray-400">
+          <th class="px-6 py-2 font-medium">Created</th>
+          <th class="px-6 py-2 font-medium">Period</th>
+          <th class="px-6 py-2 font-medium">Status</th>
+          <th class="px-6 py-2 font-medium">Reference</th>
+          <th class="px-6 py-2 font-medium text-right">Amount</th>
+        </tr>
+      </thead>
+      <tbody>
+        {{range .Payouts}}
+        <tr class="border-b last:border-0">
+          <td class="px-6 py-2 text-gray-500 whitespace-nowrap">{{.Created}}</td>
+          <td class="px-6 py-2 text-gray-500">{{.Period}}</td>
+          <td class="px-6 py-2"><span class="badge {{.StatusBadge}}">{{.Status}}</span></td>
+          <td class="px-6 py-2 text-gray-500">{{.ExternalRef}}</td>
+          <td class="px-6 py-2 text-right font-medium">${{.Amount}}</td>
+        </tr>
+        {{else}}
+        <tr><td class="px-6 py-4 text-gray-400" colspan="5">No payouts yet.</td></tr>
+        {{end}}
+      </tbody>
+    </table>
+  </div>
+  {{end}}
+
+  <!-- Monthly totals -->
+  <div class="card mt-6 p-0 overflow-x-auto">
+    <h2 class="font-semibold text-lg px-6 pt-6">Monthly {{if .IsPublisher}}earnings{{else}}spend{{end}}</h2>
+    <table class="w-full text-sm mt-3">
+      <thead>
+        <tr class="border-b text-left text-gray-400">
+          <th class="px-6 py-2 font-medium">Month</th>
+          <th class="px-6 py-2 font-medium">Impressions</th>
+          <th class="px-6 py-2 font-medium text-right">Gross</th>
+          {{if .IsPublisher}}
+          <th class="px-6 py-2 font-medium text-right">Platform fee</th>
+          <th class="px-6 py-2 font-medium text-right">Net earned</th>
+          {{end}}
+        </tr>
+      </thead>
+      <tbody>
+        {{range .Months}}
+        <tr class="border-b last:border-0">
+          <td class="px-6 py-2 font-medium">{{.Month}}</td>
+          <td class="px-6 py-2 text-gray-500">{{.Impressions}}</td>
+          <td class="px-6 py-2 text-right text-gray-500">${{.Gross}}</td>
+          {{if $.AdminAccount.IsPublisher}}
+          <td class="px-6 py-2 text-right text-gray-500">−${{.Fee}}</td>
+          <td class="px-6 py-2 text-right font-medium">${{.Net}}</td>
+          {{end}}
+        </tr>
+        {{else}}
+        <tr><td class="px-6 py-4 text-gray-400" colspan="5">Nothing settled yet.</td></tr>
+        {{end}}
+      </tbody>
+    </table>
+  </div>
+
+  <!-- Recent daily settlements -->
+  <div class="card mt-6 p-0 overflow-x-auto">
+    <h2 class="font-semibold text-lg px-6 pt-6">Recent daily settlements</h2>
+    <table class="w-full text-sm mt-3">
+      <thead>
+        <tr class="border-b text-left text-gray-400">
+          <th class="px-6 py-2 font-medium">Day</th>
+          <th class="px-6 py-2 font-medium">Campaign</th>
+          <th class="px-6 py-2 font-medium">Site</th>
+          <th class="px-6 py-2 font-medium">Impressions</th>
+          <th class="px-6 py-2 font-medium text-right">{{if .IsPublisher}}Earned (net){{else}}Charged{{end}}</th>
+        </tr>
+      </thead>
+      <tbody>
+        {{range .Statement}}
+        <tr class="border-b last:border-0">
+          <td class="px-6 py-2 text-gray-500 whitespace-nowrap">{{.Day}}</td>
+          <td class="px-6 py-2 font-medium" title="{{.CampaignID}}">{{.Campaign}}</td>
+          <td class="px-6 py-2 text-gray-500">{{.SiteID}}</td>
+          <td class="px-6 py-2 text-gray-500">{{.Impressions}}</td>
+          <td class="px-6 py-2 text-right">${{.Amount}}</td>
+        </tr>
+        {{else}}
+        <tr><td class="px-6 py-4 text-gray-400" colspan="5">No settled days yet.</td></tr>
+        {{end}}
+      </tbody>
+    </table>
+  </div>
+
+  {{end}}
+</div>
+{{end}}

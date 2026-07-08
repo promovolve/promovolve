@@ -1,0 +1,14 @@
+# Headless service → stable DNS `promovolve-db`. The API and platform
+# connect here (JDBC_URL / DATABASE_URL).
+apiVersion: v1
+kind: Service
+metadata:
+  name: promovolve-db
+spec:
+  clusterIP: None
+  selector:
+    app: promovolve-db
+  ports:
+    - name: postgres
+      port: 5432
+      targetPort: 5432

@@ -31,9 +31,6 @@ trait AuctionJsonProtocol extends DefaultJsonProtocol {
   given RootJsonFormat[CampaignBidRes]     = jsonFormat3(CampaignBidRes.apply)
   given RootJsonFormat[TestBidRes]         = jsonFormat3(TestBidRes.apply)
 
-  // Register campaigns with category
-  given RootJsonFormat[RegisterCampaignsReq] = jsonFormat2(RegisterCampaignsReq.apply)
-
   // Direct campaign bid
   given RootJsonFormat[DirectBidReq] = jsonFormat6(DirectBidReq.apply)
   given RootJsonFormat[DirectBidRes] = jsonFormat4(DirectBidRes.apply)
@@ -42,16 +39,7 @@ trait AuctionJsonProtocol extends DefaultJsonProtocol {
   given RootJsonFormat[RecordSpendReq] = jsonFormat3(RecordSpendReq.apply)
   given RootJsonFormat[RecordSpendRes] = jsonFormat3(RecordSpendRes.apply)
 
-  // Test auction flow
-  given RootJsonFormat[SlotSpecReq]     = jsonFormat3(SlotSpecReq.apply)
-  given RootJsonFormat[ClassifyPageReq] = jsonFormat4(ClassifyPageReq.apply)
-  given RootJsonFormat[ClassifyPageRes] = jsonFormat5(ClassifyPageRes.apply)
-  given RootJsonFormat[ServeIndexReq]   = jsonFormat3(ServeIndexReq.apply)
-  given RootJsonFormat[CandidateRes]    = jsonFormat5(CandidateRes.apply)
-  given RootJsonFormat[ServeIndexRes]   = jsonFormat4(ServeIndexRes.apply)
-
   // Creative metadata check
-  given RootJsonFormat[CreativeMetaReq] = jsonFormat1(CreativeMetaReq.apply)
   given RootJsonFormat[CreativeMetaRes] = jsonFormat6(CreativeMetaRes.apply)
 
   // Test tracking (bypasses HMAC)
@@ -60,43 +48,9 @@ trait AuctionJsonProtocol extends DefaultJsonProtocol {
   // Direct tracking (bypasses EventLog entirely)
   given RootJsonFormat[DirectTrackReq] = jsonFormat4(DirectTrackReq.apply)
 
-  // Test creative creation
-  given RootJsonFormat[TestCreateCreativeReq] = jsonFormat6(TestCreateCreativeReq.apply)
-  given RootJsonFormat[TestCreateCreativeRes] = jsonFormat4(TestCreateCreativeRes.apply)
-
-  // Test campaign activation
-  given RootJsonFormat[TestActivateCampaignReq] = jsonFormat2(TestActivateCampaignReq.apply)
-  given RootJsonFormat[TestActivateCampaignRes] = jsonFormat2(TestActivateCampaignRes.apply)
-
-  // Test creative approval
-  given RootJsonFormat[TestApproveCreativeReq] = jsonFormat4(TestApproveCreativeReq.apply)
-  given RootJsonFormat[TestApproveCreativeRes] = jsonFormat3(TestApproveCreativeRes.apply)
-
-  // Approve all pending creatives
-  given RootJsonFormat[ApproveAllReq] = jsonFormat3(ApproveAllReq.apply)
-  given RootJsonFormat[ApproveAllRes] = jsonFormat5(ApproveAllRes.apply)
-
   // Add candidate directly to ServeIndex
   given RootJsonFormat[AddCandidateReq] = jsonFormat11(AddCandidateReq.apply)
   given RootJsonFormat[AddCandidateRes] = jsonFormat5(AddCandidateRes.apply)
-
-  // Taxonomy stats
-  given RootJsonFormat[TaxonomyStatsReq] = jsonFormat2(TaxonomyStatsReq.apply)
-  given RootJsonFormat[TaxonomyStatsRes] = jsonFormat7(TaxonomyStatsRes.apply)
-
-  // AdServer stats
-  given RootJsonFormat[AdServerStatsReq]  = jsonFormat1(AdServerStatsReq.apply)
-  given RootJsonFormat[CreativeStatsItem] = jsonFormat4(CreativeStatsItem.apply)
-  given RootJsonFormat[AdServerStatsRes]  = jsonFormat2(AdServerStatsRes.apply)
-
-  // Serve index keys
-  given RootJsonFormat[ServeIndexKeysReq] = jsonFormat1(ServeIndexKeysReq.apply)
-  given RootJsonFormat[ServeIndexKeyItem] = jsonFormat2(ServeIndexKeyItem.apply)
-  given RootJsonFormat[ServeIndexKeysRes] = jsonFormat2(ServeIndexKeysRes.apply)
-
-  // Site serve stats (pacing monitoring)
-  given RootJsonFormat[SiteServeStatsReq] = jsonFormat1(SiteServeStatsReq.apply)
-  given RootJsonFormat[SiteServeStatsRes] = jsonFormat14(SiteServeStatsRes.apply)
 }
 
 // ---------- Request/Response Models ----------
@@ -144,14 +98,6 @@ final case class TestBidRes(
     bids: Vector[CampaignBidRes]
 )
 
-/** Register campaigns with a category (for testing)
-  * @param campaigns Map of campaignId -> advertiserId
-  */
-final case class RegisterCampaignsReq(
-    category: String,
-    campaigns: Map[String, String]
-)
-
 /** Direct bid request to a specific campaign */
 final case class DirectBidReq(
     advertiserId: String,
@@ -184,55 +130,7 @@ final case class RecordSpendRes(
     remaining: Double
 )
 
-/** Simulate page classification (triggers auction) */
-final case class ClassifyPageReq(
-    siteId: String,
-    url: String,
-    categories: Map[String, Double],  // category -> score
-    slots: Vector[SlotSpecReq]
-)
-
-final case class SlotSpecReq(
-    slotId: String,
-    width: Int,
-    height: Int
-)
-
-/** Classification response */
-final case class ClassifyPageRes(
-    siteId: String,
-    url: String,
-    status: String,
-    categoriesCount: Int,
-    slotsCount: Int
-)
-
-/** Check serve index for a URL/slot */
-final case class ServeIndexReq(
-    siteId: String,
-    url: String,
-    slotId: String
-)
-
-/** Candidate in serve index */
-final case class CandidateRes(
-    creativeId: String,
-    campaignId: String,
-    advertiserId: String,
-    cpm: Double,
-    category: String
-)
-
-/** Serve index response */
-final case class ServeIndexRes(
-    key: String,
-    found: Boolean,
-    candidateCount: Int,
-    candidates: Vector[CandidateRes]
-)
-
 /** Check creative metadata */
-final case class CreativeMetaReq(creativeId: String)
 final case class CreativeMetaRes(
     found: Boolean,
     creativeId: String,
@@ -240,67 +138,6 @@ final case class CreativeMetaRes(
     s3Key: Option[String],
     width: Option[Int],
     height: Option[Int]
-)
-
-/** Test creative creation request (bypasses route conflict) */
-final case class TestCreateCreativeReq(
-    advertiserId: String,
-    campaignId: String,
-    name: String,
-    width: Int,
-    height: Int,
-    kind: String = "image"
-)
-
-/** Test creative creation response */
-final case class TestCreateCreativeRes(
-    id: String,
-    advertiserId: String,
-    campaignId: String,
-    status: String
-)
-
-/** Test campaign activation request */
-final case class TestActivateCampaignReq(
-    advertiserId: String,
-    campaignId: String
-)
-
-/** Test campaign activation response */
-final case class TestActivateCampaignRes(
-    campaignId: String,
-    status: String
-)
-
-/** Test creative approval request */
-final case class TestApproveCreativeReq(
-    siteId: String,
-    url: String,
-    slotId: String,
-    creativeId: String
-)
-
-/** Test creative approval response */
-final case class TestApproveCreativeRes(
-    siteId: String,
-    creativeId: String,
-    status: String
-)
-
-/** Approve all pending creatives for a slot */
-final case class ApproveAllReq(
-    siteId: String,
-    url: String,
-    slotId: String
-)
-
-/** Approve all response */
-final case class ApproveAllRes(
-    siteId: String,
-    url: String,
-    slotId: String,
-    approved: Int,
-    failed: Int
 )
 
 /** Add candidate directly to ServeIndex (bypasses approval workflow) */
@@ -334,76 +171,6 @@ final case class DirectTrackReq(
     creativeId: String,
     cpm: Double = 5.0  // CPM for revenue calculation
 )
-
-/** Taxonomy stats request */
-final case class TaxonomyStatsReq(
-    category: String,
-    siteId: String
-)
-
-/** Taxonomy stats response */
-final case class TaxonomyStatsRes(
-    category: String,
-    siteId: String,
-    wins: Double,
-    clicks: Double,
-    revenue: Double,
-    ctr: Double,
-    meanCtr: Double
-)
-
-/** AdServer stats request */
-final case class AdServerStatsReq(
-    siteId: String
-)
-
-/** Per-creative stats in response */
-final case class CreativeStatsItem(
-    creativeId: String,
-    impressions: Long,
-    clicks: Long,
-    ctr: Double
-)
-
-/** AdServer stats response */
-final case class AdServerStatsRes(
-    siteId: String,
-    creatives: List[CreativeStatsItem]
-)
-
-/** Site serve stats request - for monitoring pacing and serve outcomes */
-final case class SiteServeStatsReq(
-    siteId: String
-)
-
-/** Site serve stats response - tracks serve outcomes with pacing expectations */
-final case class SiteServeStatsRes(
-    siteId: String,
-    total: Long,
-    selected: Long,
-    pacingSkipped: Long,
-    budgetExhausted: Long,
-    noCandidates: Long,
-    contentTooOld: Long,
-    totalSpend: Double,  // Actual spend in dollars (after bid shading)
-    // Pacing context for test reports
-    elapsedHours: Double,
-    expectedSpendFraction: Double,
-    pacingNote: String,
-    trafficShapeSummary: Option[String],  // Summary of learned traffic shape
-    // Learned traffic shapes for export (use with RunScenario)
-    weekdayShapeVolumes: Option[Array[Double]],  // 24 hourly values for weekday traffic
-    weekendShapeVolumes: Option[Array[Double]]   // 24 hourly values for weekend traffic
-)
-
-/** Serve index keys request - list all (url, slotId) pairs for a site */
-final case class ServeIndexKeysReq(siteId: String)
-
-/** Individual serve index key */
-final case class ServeIndexKeyItem(url: String, slotId: String)
-
-/** Serve index keys response */
-final case class ServeIndexKeysRes(siteId: String, keys: Vector[ServeIndexKeyItem])
 
 // ---------- Routes ----------
 final class AuctionRoutes(

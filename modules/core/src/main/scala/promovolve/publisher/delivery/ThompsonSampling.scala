@@ -1,6 +1,6 @@
 package promovolve.publisher.delivery
 
-import promovolve.{CPM, CreativeId}
+import promovolve.CPM
 import promovolve.publisher.CandidateView
 
 /** Thompson Sampling implementation for multi-armed bandit creative selection.

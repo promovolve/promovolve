@@ -3,7 +3,6 @@ package promovolve.advertiser
 import com.github.blemale.scaffeine.{Cache, Scaffeine}
 import com.typesafe.config.Config
 import org.apache.pekko.actor.typed.pubsub.Topic
-import org.apache.pekko.actor.typed.scaladsl.AskPattern.*
 import org.apache.pekko.actor.typed.scaladsl.Behaviors
 import org.apache.pekko.actor.typed.{ActorRef, ActorSystem, Behavior, Scheduler}
 import org.apache.pekko.cluster.ddata.{LWWMap, LWWMapKey, SelfUniqueAddress}

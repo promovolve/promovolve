@@ -811,7 +811,7 @@ final class LPExtractor(
    * from Gemini's text response — caller decides how to type it. */
   private def callGeminiRaw(
       fullPrompt: String,
-      overrideModel: String = model,
+      overrideModel: String,
       // Default 0.5 keeps deterministic-ish behavior for boot-time
       // generation (rewriteSections etc.). The user-initiated
       // generateLayout overrides to 0.95 so back-to-back regenerates

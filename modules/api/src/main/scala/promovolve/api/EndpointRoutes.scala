@@ -136,7 +136,7 @@ class EndpointRoutes(
   private def getDraftRoute: Route = {
     import org.apache.pekko.http.scaladsl.server.Directives.*
     import org.apache.pekko.http.scaladsl.model.StatusCodes
-    import spray.json.{JsObject, JsString, JsNumber, JsValue, JsNull}
+    import spray.json.{JsObject, JsString, JsValue, JsNull}
     // IDOR guard: keyed by an owner path segment (advertiserId+campaignId,
     // pinned by the BFF) and verified against the creative's own owner —
     // mirrors deleteCreativeRoute. The old owner-less /v1/creatives/{id}/draft
@@ -5008,7 +5008,7 @@ class EndpointRoutes(
 
   private def siteConfigToSlots(
       config: SiteEntity.SiteConfig,
-      slotCategories: Map[String, String] = Map.empty,
+      slotCategories: Map[String, String],
   ): Vector[SiteSlotConfig] =
     config.slots.map { s =>
       SiteSlotConfig(
@@ -5056,7 +5056,7 @@ class EndpointRoutes(
   private def buildSiteResponse(
       siteId: String, publisherId: String, config: SiteEntity.SiteConfig,
       slotCategories: Map[String, String] = Map.empty,
-      floorCpm: Option[String] = None, minFloorCpm: Option[String] = None,
+      floorCpm: Option[String] = None, minFloorCpm: Option[String],
       bidWeight: Option[String] = None,
       acceptsFillerTraffic: Option[Boolean] = None,
       status: String = "active", verificationStatus: String = "unverified",

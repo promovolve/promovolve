@@ -50,7 +50,6 @@ class CategoryBidderSeedRaceSpec extends AnyWordSpec with Matchers with BeforeAn
   )
 
   private val testKit = ActorTestKit(testConfig)
-  private given system: org.apache.pekko.actor.typed.ActorSystem[?] = testKit.system
   private val cluster = Cluster(testKit.system)
   cluster.manager ! Join(cluster.selfMember.address)
   private lazy val sharding: ClusterSharding = ClusterSharding(testKit.system)

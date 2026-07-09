@@ -2,7 +2,7 @@ package promovolve.publisher
 
 import org.scalatest.matchers.should.Matchers
 import org.scalatest.wordspec.AnyWordSpec
-import promovolve.{CPM, given}
+import promovolve.CPM
 import promovolve.publisher.SiteEntity.{AdSlotConfig, SlotPrior, effectiveFloor}
 
 /** Validates per-slot floor pricing math: the crawler-derived prior

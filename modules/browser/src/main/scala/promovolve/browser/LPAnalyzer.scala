@@ -190,7 +190,7 @@ final class LPAnalyzer(
       browser: Browser,
       url: String,
       strategy: String,
-      onScreenshot: Array[Byte] => Unit = _ => ()
+      onScreenshot: Array[Byte] => Unit
   ): (LPAnalysisResult, Map[String, LPCapturedImage]) = {
       val (locale, timezone, acceptLanguage) = LPAnalyzer.inferLocaleTZ(url)
       // Real Chrome 131 always sends these client hints. Their

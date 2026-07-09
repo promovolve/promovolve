@@ -3,7 +3,7 @@ package promovolve.browser
 import com.microsoft.playwright.*
 import com.microsoft.playwright.options.{LoadState, WaitUntilState, Proxy as PlaywrightProxy}
 import org.apache.pekko.actor.typed.{ActorRef, Behavior, PostStop}
-import org.apache.pekko.actor.typed.scaladsl.{ActorContext, Behaviors, TimerScheduler}
+import org.apache.pekko.actor.typed.scaladsl.Behaviors
 import org.slf4j.LoggerFactory
 
 import java.nio.charset.StandardCharsets

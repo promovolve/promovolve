@@ -3814,7 +3814,7 @@ private[delivery] class AdServer(
       excludedCreatives: Set[CreativeId],
       excludedCampaigns: Set[CampaignId],
       isApproved: CreativeId => Boolean,
-      pinLookupPool: Vector[CandidateView] = Vector.empty,
+      pinLookupPool: Vector[CandidateView],
   ): Future[(Vector[Protocol.BatchSlotOutcome], Map[CampaignId, Double])] =
     AdServer.batchReserveWithRetry(
       slots             = slots,

@@ -8,7 +8,7 @@ import org.scalatest.wordspec.AnyWordSpec
 
 import java.util.UUID
 import scala.collection.concurrent.TrieMap
-import scala.concurrent.{Future, Promise}
+import scala.concurrent.Promise
 import scala.concurrent.duration.*
 
 /** Covers [[LPWorker]]'s per-partition concurrency bounding (the crawler-tier

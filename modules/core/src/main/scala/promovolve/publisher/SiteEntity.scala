@@ -21,10 +21,9 @@ import org.apache.pekko.http.scaladsl.model.{HttpRequest, HttpMethods, StatusCod
 import org.apache.pekko.http.scaladsl.unmarshalling.Unmarshal
 
 import java.time.Instant
-import java.util.{Date, TimeZone}
 import scala.concurrent.{ExecutionContext, Future}
 import scala.concurrent.duration.*
-import scala.util.{Failure, Success, Try}
+import scala.util.{Failure, Success}
 
 /** Sharded entity representing a publisher's site.
   *

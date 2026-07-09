@@ -165,7 +165,7 @@ images:
     # "still in ServeIndex" must never imply "approved". Completes the
     # pause→PENDING lifecycle (approved-demand-only floors, flag-gated
     # revoke-on-pause, keysByCreative pruning) already pinned before.
-    digest: sha256:02adce5852764112bfc5471ec699b31c77fba46f51f5700deb90ef07974dcc22
+    digest: sha256:c68a6978a1e686638c9dc28e93e72355164b213385455d1adfbf7e274eefbdc2
   - name: promovolve/platform
     newName: docker.io/hanishi/promovolve-platform
     # Org membership: one org per email domain owns the core entities;
@@ -211,4 +211,4 @@ images:
     #   at viewport fallback for elements rendered display:none).
     # + preview dialogs opt into the banner slot-size tour (banner bundle
     #   780fae0bb6: slot-tour + hidden-connect self-heal).
-    digest: sha256:7fe2d26fb6b7df7235591255ff80cf68dc7047b48e372206482d8dc3afed0141
+    digest: sha256:cc8104f37b39a2e32aa2f2e5db3785c881856daadb459a522ecd6ac4765c898d

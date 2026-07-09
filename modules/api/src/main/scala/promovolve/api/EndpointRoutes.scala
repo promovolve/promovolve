@@ -3809,7 +3809,7 @@ class EndpointRoutes(
         case Some(db) =>
           import slick.jdbc.PostgresProfile.api.*
           import slick.jdbc.GetResult
-          given GetResult[(Long, Double)] = GetResult(r => (r.nextLong(), r.nextDouble()))
+          given GetResult[(Long, Double)] = GetResult(using r => (r.nextLong(), r.nextDouble()))
           val q = sql"""
             SELECT COUNT(*)::bigint, COALESCE(SUM(cpm) / 1000.0, 0.0)::double precision
             FROM tracking_events
@@ -3854,7 +3854,7 @@ class EndpointRoutes(
 
         import slick.jdbc.PostgresProfile.api.*
         import slick.jdbc.GetResult
-        given GetResult[(String, Long)] = GetResult(r => (r.nextString(), r.nextLong()))
+        given GetResult[(String, Long)] = GetResult(using r => (r.nextString(), r.nextLong()))
         // All of today's rows, filtered to this advertiser in memory —
         // campaign_daily_stats holds one row per campaign per day, and
         // the global SUM is needed anyway for the share denominator.
@@ -3901,7 +3901,7 @@ class EndpointRoutes(
           import slick.jdbc.PostgresProfile.api.*
           import slick.jdbc.GetResult
           given GetResult[(String, Long, Double)] =
-            GetResult(r => (r.nextString(), r.nextLong(), r.nextDouble()))
+            GetResult(using r => (r.nextString(), r.nextLong(), r.nextDouble()))
           val q = sql"""
             SELECT campaign_id, COUNT(*)::bigint, COALESCE(SUM(cpm) / 1000.0, 0.0)::double precision
             FROM tracking_events
@@ -3935,7 +3935,7 @@ class EndpointRoutes(
           import slick.jdbc.PostgresProfile.api.*
           import slick.jdbc.GetResult
           given GetResult[(Int, Long, Double)] =
-            GetResult(r => (r.nextInt(), r.nextLong(), r.nextDouble()))
+            GetResult(using r => (r.nextInt(), r.nextLong(), r.nextDouble()))
           val q = sql"""
             SELECT EXTRACT(HOUR FROM event_time AT TIME ZONE 'UTC')::int,
                    COUNT(*)::bigint,
@@ -3997,7 +3997,7 @@ class EndpointRoutes(
               import slick.jdbc.PostgresProfile.api.*
               import slick.jdbc.GetResult
               given GetResult[(String, String, Long, Long, Long, Double, Long)] =
-                GetResult(r =>
+                GetResult(using r =>
                   (r.nextString(), r.nextString(), r.nextLong(), r.nextLong(), r.nextLong(), r.nextDouble(),
                     r.nextLong()))
               // Ownership gate: daily stats carry no advertiser_id — same
@@ -4040,7 +4040,7 @@ class EndpointRoutes(
               import slick.jdbc.PostgresProfile.api.*
               import slick.jdbc.GetResult
               given GetResult[(String, String, Long, Long, Long, Double, Long)] =
-                GetResult(r =>
+                GetResult(using r =>
                   (r.nextString(), r.nextString(), r.nextLong(), r.nextLong(), r.nextLong(), r.nextDouble(),
                     r.nextLong()))
               val rowsQ = dim match {
@@ -4134,7 +4134,7 @@ class EndpointRoutes(
               import slick.jdbc.PostgresProfile.api.*
               import slick.jdbc.GetResult
               given GetResult[(String, String, String, Long, Long, Long, Double, Long)] =
-                GetResult(r =>
+                GetResult(using r =>
                   (r.nextString(), r.nextString(), r.nextString(), r.nextLong(), r.nextLong(), r.nextLong(),
                     r.nextDouble(), r.nextLong()))
               // Groups ordered by whole-dimension spend (window over the
@@ -4206,7 +4206,7 @@ class EndpointRoutes(
               import slick.jdbc.PostgresProfile.api.*
               import slick.jdbc.GetResult
               given GetResult[(String, String, String, Long, Long, Long, Double, Long)] =
-                GetResult(r =>
+                GetResult(using r =>
                   (r.nextString(), r.nextString(), r.nextString(), r.nextLong(), r.nextLong(), r.nextLong(),
                     r.nextDouble(), r.nextLong()))
               // Same dimension keys/labels as the range breakdown, plus the
@@ -4289,7 +4289,7 @@ class EndpointRoutes(
               import slick.jdbc.PostgresProfile.api.*
               import slick.jdbc.GetResult
               given GetResult[(String, String, String, String, Long, Long, Long, Double, Long)] =
-                GetResult(r =>
+                GetResult(using r =>
                   (r.nextString(), r.nextString(), r.nextString(), r.nextString(), r.nextLong(), r.nextLong(),
                     r.nextLong(), r.nextDouble(), r.nextLong()))
               // Same ownership gate as the range report: INNER JOIN on
@@ -4336,7 +4336,7 @@ class EndpointRoutes(
               import slick.jdbc.PostgresProfile.api.*
               import slick.jdbc.GetResult
               given GetResult[(String, String, String, Long, Long, Long, Double, Long)] =
-                GetResult(r =>
+                GetResult(using r =>
                   (r.nextString(), r.nextString(), r.nextString(), r.nextLong(), r.nextLong(), r.nextLong(),
                     r.nextDouble(), r.nextLong()))
               // Ownership gate = the INNER JOIN on publisher_id: rows from
@@ -4404,7 +4404,7 @@ class EndpointRoutes(
         case Some(db) =>
           import slick.jdbc.PostgresProfile.api.*
           import slick.jdbc.GetResult
-          given GetResult[(Long, Double)] = GetResult(r => (r.nextLong(), r.nextDouble()))
+          given GetResult[(Long, Double)] = GetResult(using r => (r.nextLong(), r.nextDouble()))
           val q = sql"""
             SELECT COUNT(*)::bigint, COALESCE(SUM(cpm) / 1000.0, 0.0)::double precision
             FROM tracking_events
@@ -4648,7 +4648,7 @@ class EndpointRoutes(
                   import slick.jdbc.PostgresProfile.api.*
                   import slick.jdbc.GetResult
                   given GetResult[(String, String, String, Option[String], Long, Double)] =
-                    GetResult(r =>
+                    GetResult(using r =>
                       (r.nextString(), r.nextString(), r.nextString(), r.nextStringOption(), r.nextLong(),
                         r.nextDouble())
                     )
@@ -4707,7 +4707,7 @@ class EndpointRoutes(
                   import slick.jdbc.PostgresProfile.api.*
                   import slick.jdbc.GetResult
                   given GetResult[(String, Double)] =
-                    GetResult(r => (r.nextString(), r.nextDouble()))
+                    GetResult(using r => (r.nextString(), r.nextDouble()))
                   val sinceDay = since.toString
                   // Same billing predicate as /metering/daily, open-ended to
                   // now: this is the not-yet-settled tail of spend.

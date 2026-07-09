@@ -62,14 +62,16 @@ class AdServerPerCategoryFloorSpec extends AnyWordSpec with Matchers {
       val floors = Map(CategoryId("sports") -> CPM(5.0), CategoryId("tech") -> CPM(1.0))
 
       val Some((winner, clearing)) =
-        AdServer.pickBestForSlot(slot, pool, Set.empty, 0.5, stats, siteFloor, rng(), categoryFloors = floors)
+        AdServer.pickBestForSlot(slot, pool, Set.empty, 0.5, stats, siteFloor, rng(),
+          categoryFloors = floors): @unchecked
       winner.category shouldBe CategoryId("sports") // higher quality+CPM wins the slot
       clearing.toDouble shouldBe 5.0 +- 0.01 // pays its OWN category floor, not dragged to tech's
 
       // Contrast: with NO per-category map, the same winner is priced against
       // the site floor and the cross-category runner-up — i.e. undercut.
       val Some((_, legacyClearing)) =
-        AdServer.pickBestForSlot(slot, pool, Set.empty, 0.5, stats, siteFloor, rng(), categoryFloors = Map.empty)
+        AdServer.pickBestForSlot(slot, pool, Set.empty, 0.5, stats, siteFloor, rng(),
+          categoryFloors = Map.empty): @unchecked
       legacyClearing.toDouble should be < 5.0
     }
 
@@ -81,7 +83,8 @@ class AdServerPerCategoryFloorSpec extends AnyWordSpec with Matchers {
       val floors = Map(CategoryId("sports") -> CPM(2.0))
 
       val Some((winner, clearing)) =
-        AdServer.pickBestForSlot(slot, pool, Set.empty, 0.5, stats, siteFloor, rng(), categoryFloors = floors)
+        AdServer.pickBestForSlot(slot, pool, Set.empty, 0.5, stats, siteFloor, rng(),
+          categoryFloors = floors): @unchecked
       winner.creativeId shouldBe CreativeId("c1") // higher CPM, equal CTR
       clearing.toDouble should be > 2.0 // priced by competition, above the floor
       clearing.toDouble should be <= 5.0 // never above its own bid
@@ -91,7 +94,7 @@ class AdServerPerCategoryFloorSpec extends AnyWordSpec with Matchers {
       val only = candidate("o", "c1", "anything", 2.0)
       val Some((_, clearing)) =
         AdServer.pickBestForSlot(slot, Vector(only), Set.empty, 0.5, Map.empty, siteFloor, rng(),
-          categoryFloors = Map.empty)
+          categoryFloors = Map.empty): @unchecked
       clearing shouldBe siteFloor // sole candidate → pays the site floor
     }
   }
@@ -116,7 +119,7 @@ class AdServerPerCategoryFloorSpec extends AnyWordSpec with Matchers {
       val cheap = candidate("c", "c1", "health", 1.0)
       val Some((_, clearing)) =
         AdServer.pickBestForSlot(slot, Vector(cheap), Set.empty, 0.5, Map.empty, CPM(5.0), rng(),
-          adminSlotFloor = Some(CPM(0.75)))
+          adminSlotFloor = Some(CPM(0.75))): @unchecked
       clearing shouldBe CPM(0.75) // pays the override floor, not $5
     }
 

@@ -931,7 +931,7 @@ object SiteEntity {
                       Future {
                         if (SiteEntity.dnsRecordMatches(SiteEntity.lookupTxt(dnsName), expected)) Right(())
                         else Left(s"no TXT at $dnsName containing '$expected'")
-                      }(blockingEc).recover {
+                      }(using blockingEc).recover {
                         case ex => Left(s"lookup failed for $dnsName: ${ex.getMessage}")
                       }
 

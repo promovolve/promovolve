@@ -674,22 +674,22 @@ class DashboardProjectionHandler extends SlickHandler[TrackingEvent] {
 object DashboardProjectionHandler {
   // Implicit SetParameter instances for SQL interpolation
 
-  given SetParameter[Instant] = SetParameter((i, pp) =>
+  given SetParameter[Instant] = SetParameter(using (i, pp) =>
     pp.setTimestamp(java.sql.Timestamp.from(i))
   )
 
-  given SetParameter[LocalDate] = SetParameter((d, pp) =>
+  given SetParameter[LocalDate] = SetParameter(using (d, pp) =>
     pp.setDate(java.sql.Date.valueOf(d))
   )
 
-  given SetParameter[Option[String]] = SetParameter((opt, pp) =>
+  given SetParameter[Option[String]] = SetParameter(using (opt, pp) =>
     opt match {
       case Some(s) => pp.setString(s)
       case None    => pp.setNull(java.sql.Types.VARCHAR)
     }
   )
 
-  given SetParameter[BigDecimal] = SetParameter((bd, pp) =>
+  given SetParameter[BigDecimal] = SetParameter(using (bd, pp) =>
     pp.setBigDecimal(bd.bigDecimal)
   )
 }

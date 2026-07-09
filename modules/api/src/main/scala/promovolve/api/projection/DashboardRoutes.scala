@@ -246,19 +246,19 @@ class DashboardRoutes(dbConfig: DatabaseConfig[PostgresProfile])(using system: A
   // Slick Implicit Converters
   // ========================================
   given instantGetResult: slick.jdbc.GetResult[Instant] =
-    slick.jdbc.GetResult(r => r.nextTimestamp().toInstant)
+    slick.jdbc.GetResult(using r => r.nextTimestamp().toInstant)
 
   given optInstantGetResult: slick.jdbc.GetResult[Option[Instant]] =
-    slick.jdbc.GetResult(r => Option(r.nextTimestamp()).map(_.toInstant))
+    slick.jdbc.GetResult(using r => Option(r.nextTimestamp()).map(_.toInstant))
 
   given localDateGetResult: slick.jdbc.GetResult[LocalDate] =
-    slick.jdbc.GetResult(r => r.nextDate().toLocalDate)
+    slick.jdbc.GetResult(using r => r.nextDate().toLocalDate)
 
   given instantSetParameter: slick.jdbc.SetParameter[Instant] =
-    slick.jdbc.SetParameter((v, pp) => pp.setTimestamp(java.sql.Timestamp.from(v)))
+    slick.jdbc.SetParameter(using (v, pp) => pp.setTimestamp(java.sql.Timestamp.from(v)))
 
   given localDateSetParameter: slick.jdbc.SetParameter[LocalDate] =
-    slick.jdbc.SetParameter((v, pp) => pp.setDate(java.sql.Date.valueOf(v)))
+    slick.jdbc.SetParameter(using (v, pp) => pp.setDate(java.sql.Date.valueOf(v)))
 }
 
 // ========================================

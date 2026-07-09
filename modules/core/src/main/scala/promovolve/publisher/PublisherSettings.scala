@@ -27,7 +27,7 @@ trait PublisherSettings {
 
   /** Default: 48 hours (news/media standard) */
   def contentRecencyWindowMs(publisherId: SiteId): Future[Long] =
-    contentRecencyWindow(publisherId).map(_.toMillis)(ExecutionContext.parasitic)
+    contentRecencyWindow(publisherId).map(_.toMillis)(using ExecutionContext.parasitic)
 }
 
 /**

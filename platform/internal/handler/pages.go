@@ -2713,15 +2713,6 @@ func sortCreatives(cs []creativeData, key string) {
 	}
 }
 
-func findByte(s string, b byte) int {
-	for i := 0; i < len(s); i++ {
-		if s[i] == b {
-			return i
-		}
-	}
-	return -1
-}
-
 // money renders a currency amount at a single, consistent 2 decimal places.
 // The core API returns amounts as 4-decimal strings (e.g. "5.5000"); this
 // normalises every displayed money value (CPM, budget, spend, remaining, floor)
@@ -2774,26 +2765,6 @@ func sanitizeID(s string) string {
 	}
 	return string(result)
 }
-
-func jsonReader(data []byte) *jsonBody {
-	return &jsonBody{data: data, pos: 0}
-}
-
-type jsonBody struct {
-	data []byte
-	pos  int
-}
-
-func (j *jsonBody) Read(p []byte) (n int, err error) {
-	if j.pos >= len(j.data) {
-		return 0, fmt.Errorf("EOF")
-	}
-	n = copy(p, j.data[j.pos:])
-	j.pos += n
-	return n, nil
-}
-
-func (j *jsonBody) Close() error { return nil }
 
 // --- Page Image Upload ---
 
@@ -3106,53 +3077,6 @@ func (h *Handler) CreativeEditor(w http.ResponseWriter, r *http.Request) {
 		Campaigns:  campaigns,
 		LandingURL: landingUrl,
 	})
-}
-
-// ExtractFromLP proxies LP extraction to core API, returns JSON for Alpine.js
-func (h *Handler) ExtractFromLP(w http.ResponseWriter, r *http.Request) {
-	_, claims := h.sessionUser(r)
-	if claims == nil {
-		http.Error(w, `{"error":"unauthorized"}`, http.StatusUnauthorized)
-		return
-	}
-
-	r.ParseForm()
-	url := r.FormValue("url")
-	if url == "" {
-		http.Error(w, `{"error":"url required"}`, http.StatusBadRequest)
-		return
-	}
-
-	reqBody, _ := json.Marshal(map[string]string{"url": url})
-	body, err := h.corePost("/v1/creatives/extract-from-lp", claims, string(reqBody))
-	if err != nil {
-		w.Header().Set("Content-Type", "application/json")
-		w.WriteHeader(http.StatusInternalServerError)
-		json.NewEncoder(w).Encode(map[string]string{"error": "extraction failed: " + err.Error()})
-		return
-	}
-	// Verify response is valid JSON before forwarding
-	if !json.Valid(body) {
-		slog.Error("ExtractFromLP: core API returned non-JSON", "body", string(body))
-		w.Header().Set("Content-Type", "application/json")
-		w.WriteHeader(http.StatusBadGateway)
-		json.NewEncoder(w).Encode(map[string]string{"error": string(body)})
-		return
-	}
-	// Check if response contains an error
-	var errCheck struct {
-		Code    string `json:"code"`
-		Message string `json:"message"`
-	}
-	if json.Unmarshal(body, &errCheck) == nil && errCheck.Code != "" {
-		slog.Error("ExtractFromLP: core API error", "code", errCheck.Code, "message", errCheck.Message)
-		w.Header().Set("Content-Type", "application/json")
-		w.WriteHeader(http.StatusBadGateway)
-		json.NewEncoder(w).Encode(map[string]string{"error": errCheck.Message})
-		return
-	}
-	w.Header().Set("Content-Type", "application/json")
-	w.Write(body)
 }
 
 // ListAdvertiserAssets proxies GET /v1/advertisers/{me}/assets.

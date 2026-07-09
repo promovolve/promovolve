@@ -86,18 +86,6 @@ func (r *Repository) ListByUser(ctx context.Context, userID string) ([]StoredCre
 	return creds, rows.Err()
 }
 
-// UserIDByCredentialID resolves which user owns a credential (assertion path).
-func (r *Repository) UserIDByCredentialID(ctx context.Context, credentialID []byte) (string, error) {
-	var userID string
-	err := r.pool.QueryRow(ctx, `
-		SELECT user_id FROM webauthn_credentials WHERE credential_id = $1`, credentialID,
-	).Scan(&userID)
-	if errors.Is(err, pgx.ErrNoRows) {
-		return "", ErrNotFound
-	}
-	return userID, err
-}
-
 // UpdateCredential persists post-login mutations (sign count, clone flags)
 // and stamps last_used_at.
 func (r *Repository) UpdateCredential(ctx context.Context, cred *webauthn.Credential) error {

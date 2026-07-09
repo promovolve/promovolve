@@ -123,7 +123,6 @@ object CreativeProcessor {
       fontProvisioner: Option[GoogleFontProvisioner] = None
   )(using system: ActorSystem[?]): Behavior[Command] = Behaviors.setup { ctx =>
     given ExecutionContext = ctx.executionContext
-    given Timeout = Timeout(5.seconds)
 
     import org.apache.pekko.actor.typed.scaladsl.adapter.*
     val httpExt = Http(system.toClassic)

@@ -131,7 +131,6 @@ object PublisherEntity {
 
           import scala.concurrent.duration.*
           given org.apache.pekko.util.Timeout = org.apache.pekko.util.Timeout(5.seconds)
-          given org.apache.pekko.actor.typed.Scheduler = ctx.system.scheduler
           ctx.pipeToSelf(
             siteRef.ask[SiteEntity.Registered](ref =>
               SiteEntity.Register(state.publisherId, ref)

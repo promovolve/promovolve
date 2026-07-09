@@ -555,7 +555,6 @@ final class ServeRoutes(
       campaignId: String,
   ): Future[Option[Long]] = {
     given Timeout = Timeout(300.millis)
-    given org.apache.pekko.actor.typed.Scheduler = system.scheduler
     val entityId = s"$advertiserId|$campaignId"
     val ref = sharding.entityRefFor(promovolve.advertiser.CampaignEntity.TypeKey, entityId)
     ref

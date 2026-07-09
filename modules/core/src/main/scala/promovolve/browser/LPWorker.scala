@@ -136,7 +136,6 @@ object LPWorker {
       settings: Settings,
   ): Behavior[Command] = Behaviors.setup { ctx =>
     val log = LoggerFactory.getLogger(s"promovolve.LPWorker.$workerIndex")
-    given ec: scala.concurrent.ExecutionContext = ctx.executionContext
 
     // running: url → (when started, who to reply to).
     val running: mutable.Map[String, Slot] = mutable.Map.empty

@@ -396,7 +396,6 @@ object SiteEntity {
         // DData replicator for pacing config distribution
         val replicator = DistributedData(system).replicator
         given selfUniqueAddress: SelfUniqueAddress = DistributedData(system).selfUniqueAddress
-        given cluster: org.apache.pekko.cluster.Cluster = org.apache.pekko.cluster.Cluster(system)
 
         // DData update response handler (ignored)
         val ddataResponseAdapter: ActorRef[Replicator.UpdateResponse[?]] =

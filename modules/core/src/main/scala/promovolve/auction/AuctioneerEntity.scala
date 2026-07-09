@@ -1332,8 +1332,7 @@ private final class AuctioneerEntity private (
       slots: List[AdSlotSpec]
   ): Unit = {
     slots.foreach { slot =>
-      val slotSizes = normalizeSizes((slot.declaredSizes :+ slot.computedSize).toSet)
-      val floor     = currentFloorCpm
+      val floor = currentFloorCpm
 
       ctx.log.debug(
         "📨 Filler bid requests: url={} slot={} campaigns={} floor={}",

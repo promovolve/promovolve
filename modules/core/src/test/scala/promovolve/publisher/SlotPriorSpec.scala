@@ -65,7 +65,6 @@ class SlotPriorSpec extends AnyWordSpec with Matchers {
       ).toDouble
 
       val articleFloor = floor(article)
-      val headerFloor  = floor(hdr)
       val sidebarFloor = floor(sidebar)
       val footerFloor  = floor(footer)
 

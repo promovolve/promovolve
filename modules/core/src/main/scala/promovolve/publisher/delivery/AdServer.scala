@@ -2184,7 +2184,7 @@ private[delivery] class AdServer(
       // can decide whether to clear the IDB pin (only emits
       // creative_removed when the creativeId is no longer in the
       // approved set — transient empty pools leave the pin alone).
-      def emptyOutcomes(cats: Set[String], reclassifyInMs: Long = Long.MaxValue): BatchSelected = BatchSelected(
+      def emptyOutcomes(cats: Set[String], reclassifyInMs: Long): BatchSelected = BatchSelected(
         slots.map(s => BatchSlotOutcome(
           slotId = s.slotId,
           winner = None,

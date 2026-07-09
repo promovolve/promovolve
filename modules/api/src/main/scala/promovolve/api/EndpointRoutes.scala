@@ -361,8 +361,6 @@ class EndpointRoutes(
     val ref = sharding.entityRefFor(promovolve.browser.LPWorker.TypeKey, idx.toString)
     // systemActorOf is async (Future); the sink stamps the screenshot URL then
     // stops. LPAnalyzer screenshots once near the start, so it's short-lived.
-    given spawnTimeout: Timeout =
-      Timeout(scala.concurrent.duration.Duration(3, java.util.concurrent.TimeUnit.SECONDS))
     val sink = system.systemActorOf(
       org.apache.pekko.actor.typed.scaladsl.Behaviors.receiveMessage[promovolve.browser.LPWorker.AnalyzeLPProgress] { p =>
         analyzeScreenshotUrls.update(jobId, (p.screenshotUrl, System.currentTimeMillis()))
@@ -774,15 +772,6 @@ class EndpointRoutes(
   private def advertiserAssetsRoute: Route = {
     import java.time.Instant
     import org.apache.pekko.http.scaladsl.model.*
-
-    val mimeToExt: String => String = {
-      case "image/png"     => "png"
-      case "image/jpeg"    => "jpg"
-      case "image/gif"     => "gif"
-      case "image/webp"    => "webp"
-      case "image/svg+xml" => "svg"
-      case _               => "bin"
-    }
 
     // Compress + dimension-clamp before hashing so the R2 object and
     // the dedup hash both reflect the optimised bytes. See

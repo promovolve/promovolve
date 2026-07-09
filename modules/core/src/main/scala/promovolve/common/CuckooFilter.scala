@@ -312,7 +312,7 @@ object CuckooFilter {
     val numBuckets = buffer.getInt()
     val bucketSize = buffer.getInt()
     val fingerprintBits = buffer.getInt()
-    val storedCount = buffer.getInt()
+    buffer.getInt() // stored count — read to advance the buffer position; value unused
 
     val bytesPerFp = (fingerprintBits + 7) / 8
     val buckets = Array.fill(numBuckets)(Array.fill(bucketSize)(0))

@@ -126,7 +126,6 @@ object CreativeAssessor {
       llmClient: LLMClient,
       metaRepo: CreativeMetadataRepo
   ): Behavior[Command] = Behaviors.setup { ctx =>
-    given ec: scala.concurrent.ExecutionContext = ctx.executionContext
 
     Behaviors.receiveMessage {
       case Assess(meta, imageBytes, adProductCategory, expectedCategories, replyTo) =>

@@ -4,7 +4,7 @@ import com.github.blemale.scaffeine.{Cache, Scaffeine}
 import com.typesafe.config.Config
 import org.apache.pekko.actor.typed.pubsub.Topic
 import org.apache.pekko.actor.typed.scaladsl.Behaviors
-import org.apache.pekko.actor.typed.{ActorRef, ActorSystem, Behavior, Scheduler}
+import org.apache.pekko.actor.typed.{ActorRef, ActorSystem, Behavior}
 import org.apache.pekko.cluster.ddata.{LWWMap, LWWMapKey, SelfUniqueAddress}
 import org.apache.pekko.cluster.ddata.typed.scaladsl.{DistributedData, Replicator}
 import org.apache.pekko.cluster.sharding.typed.scaladsl.*
@@ -73,8 +73,7 @@ object CampaignEntity {
     Behaviors.setup { ctx =>
       Behaviors.withTimers { timers =>
 
-        given askTimeout: Timeout  = Timeout(500.millis)
-        given scheduler: Scheduler = system.scheduler
+        given askTimeout: Timeout = Timeout(500.millis)
 
         val advertiserRef = sharding.entityRefFor(AdvertiserEntity.TypeKey, advertiserId.value)
 

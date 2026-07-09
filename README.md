@@ -23,7 +23,7 @@ closed ad network can offer.
 
 ## Demo
 
-[![Watch the Promovolve demo](https://img.youtube.com/vi/Ly9ZSh27oA4/maxresdefault.jpg)](https://www.youtube.com/watch?v=Ly9ZSh27oA4)
+[![Watch the Promovolve demo](https://img.youtube.com/vi/Ly9ZSh27oA4/maxresdefault.jpg)](https://www.youtube.com/playlist?list=PLTiQONjNtinE)
 
 ## How it works
 

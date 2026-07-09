@@ -23,11 +23,10 @@ jobs:
           cache: sbt
       - uses: sbt/setup-sbt@v1
 
-      # Formatting is informational (does not fail the build) — flip to a hard
-      # gate by removing `continue-on-error` once the tree is confirmed clean.
+      # Hard gate — the tree is scalafmt-clean (scala3 dialect); any drift fails
+      # CI. Run `sbt scalafmtAll` before committing.
       - name: scalafmt check
         run: sbt scalafmtCheckAll
-        continue-on-error: true
 
       # Compile main + test sources. This catches build breaks and type errors.
       # NOTE: full `sbt test` is intentionally NOT run — the core suite has a

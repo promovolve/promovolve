@@ -2,7 +2,7 @@ package promovolve.api.projection
 
 import org.apache.pekko.Done
 import org.apache.pekko.actor.typed.ActorSystem
-import org.apache.pekko.stream.{ OverflowStrategy, QueueOfferResult }
+import org.apache.pekko.stream.QueueOfferResult
 import org.apache.pekko.stream.scaladsl.{ Keep, Sink, Source }
 import slick.jdbc.PostgresProfile.api.*
 import java.time.Instant
@@ -57,7 +57,7 @@ class FloorDecisionJournal(db: slick.jdbc.JdbcBackend#Database)(
   // ~25 min in real-day pacing) so the buffer should never fill in
   // practice. 1000 is generous for hundreds of sites.
   private val (queue, done) = Source
-    .queue[FloorDecision](bufferSize = 1000, OverflowStrategy.dropNew)
+    .queue[FloorDecision](1000)
     .groupedWithin(50, 1.second)
     .mapAsync(2) { batch =>
       db.run(floorDecisions ++= batch)
@@ -73,7 +73,7 @@ class FloorDecisionJournal(db: slick.jdbc.JdbcBackend#Database)(
 
   /** Enqueue a floor decision for persistence. Non-blocking. */
   def writeDecision(d: FloorDecision): Unit = {
-    queue.offer(d).foreach {
+    queue.offer(d) match {
       case QueueOfferResult.Dropped =>
         log.warn("Floor decision dropped due to buffer overflow")
       case QueueOfferResult.Failure(ex) =>

@@ -2,7 +2,7 @@ package promovolve.api.projection
 
 import org.apache.pekko.Done
 import org.apache.pekko.actor.typed.ActorSystem
-import org.apache.pekko.stream.{ OverflowStrategy, QueueOfferResult }
+import org.apache.pekko.stream.QueueOfferResult
 import org.apache.pekko.stream.scaladsl.{ Keep, Sink, Source }
 import slick.jdbc.PostgresProfile.api.*
 import java.time.Instant
@@ -51,7 +51,7 @@ class TrackingEventJournal(db: slick.jdbc.JdbcBackend#Database)(
 
   // Bounded queue with backpressure - drops newest events if overwhelmed
   private val (queue, done) = Source
-    .queue[TrackingEvent](bufferSize = 10000, OverflowStrategy.dropNew)
+    .queue[TrackingEvent](10000)
     .groupedWithin(100, 100.millis) // Batch: max 100 events or 100ms
     .mapAsync(4) { batch => // 4 parallel DB writes
       db.run(trackingEvents ++= batch)
@@ -83,7 +83,7 @@ class TrackingEventJournal(db: slick.jdbc.JdbcBackend#Database)(
       dogeared = e.dogeared
     )
 
-    queue.offer(event).foreach {
+    queue.offer(event) match {
       case QueueOfferResult.Dropped =>
         log.warn("Tracking event dropped due to buffer overflow")
       case QueueOfferResult.Failure(ex) =>
@@ -110,7 +110,7 @@ class TrackingEventJournal(db: slick.jdbc.JdbcBackend#Database)(
       dogeared = e.dogeared
     )
 
-    queue.offer(event).foreach {
+    queue.offer(event) match {
       case QueueOfferResult.Dropped =>
         log.warn("Tracking event dropped due to buffer overflow")
       case QueueOfferResult.Failure(ex) =>
@@ -139,7 +139,7 @@ class TrackingEventJournal(db: slick.jdbc.JdbcBackend#Database)(
       requestId = e.requestId
     )
 
-    queue.offer(event).foreach {
+    queue.offer(event) match {
       case QueueOfferResult.Dropped =>
         log.warn("Tracking event dropped due to buffer overflow")
       case QueueOfferResult.Failure(ex) =>
@@ -165,7 +165,7 @@ class TrackingEventJournal(db: slick.jdbc.JdbcBackend#Database)(
       requestId = e.requestId
     )
 
-    queue.offer(event).foreach {
+    queue.offer(event) match {
       case QueueOfferResult.Dropped =>
         log.warn("Tracking event dropped due to buffer overflow")
       case QueueOfferResult.Failure(ex) =>
@@ -191,7 +191,7 @@ class TrackingEventJournal(db: slick.jdbc.JdbcBackend#Database)(
       dogeared = e.dogeared
     )
 
-    queue.offer(event).foreach {
+    queue.offer(event) match {
       case QueueOfferResult.Dropped =>
         log.warn("Tracking event dropped due to buffer overflow")
       case QueueOfferResult.Failure(ex) =>

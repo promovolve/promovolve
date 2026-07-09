@@ -4,17 +4,19 @@ import org.scalatest.matchers.should.Matchers
 import org.scalatest.wordspec.AnyWordSpec
 import promovolve.browser.UrlNormalizer
 
-/** Pure pieces of the on-demand (crawl-free) classification change:
-  * the single-flight + readiness decision precedence, and that the
-  * single-flight key (a normalized url) collapses tracking-param variants
-  * of the same page onto one key — so a story's traffic burst fires ONE
-  * Gemini call. The live serve-miss -> ClassifyUrl -> auctioneer loop needs
-  * the cluster; that's verified at run time. See
-  * docs/design/ON_DEMAND_CLASSIFICATION.md. */
+/**
+ * Pure pieces of the on-demand (crawl-free) classification change:
+ * the single-flight + readiness decision precedence, and that the
+ * single-flight key (a normalized url) collapses tracking-param variants
+ * of the same page onto one key — so a story's traffic burst fires ONE
+ * Gemini call. The live serve-miss -> ClassifyUrl -> auctioneer loop needs
+ * the cluster; that's verified at run time. See
+ * docs/design/ON_DEMAND_CLASSIFICATION.md.
+ */
 class OnDemandClassificationSpec extends AnyWordSpec with Matchers {
 
   import SiteEntity.ClassifyDecision
-  import SiteEntity.ClassifyDecision.{Accept, InFlight, NotReady}
+  import SiteEntity.ClassifyDecision.{ Accept, InFlight, NotReady }
 
   "ClassifyDecision.decide" should {
 
@@ -52,7 +54,7 @@ class OnDemandClassificationSpec extends AnyWordSpec with Matchers {
     }
 
     "keep genuinely different pages on different keys" in {
-      val sports  = UrlNormalizer.normalize("https://news.example.com/sports/game")
+      val sports = UrlNormalizer.normalize("https://news.example.com/sports/game")
       val finance = UrlNormalizer.normalize("https://news.example.com/finance/rates")
       sports should not be finance
     }

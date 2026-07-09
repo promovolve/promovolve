@@ -1,54 +1,56 @@
 package promovolve.auction
 
 import org.apache.pekko.actor.typed.pubsub.*
-import org.apache.pekko.actor.typed.scaladsl.{ActorContext, Behaviors}
-import org.apache.pekko.actor.typed.{Settings as _, *}
-import org.apache.pekko.cluster.sharding.typed.scaladsl.{ClusterSharding, EntityRef, EntityTypeKey}
+import org.apache.pekko.actor.typed.scaladsl.{ ActorContext, Behaviors }
+import org.apache.pekko.actor.typed.{ Settings as _, * }
+import org.apache.pekko.cluster.sharding.typed.scaladsl.{ ClusterSharding, EntityRef, EntityTypeKey }
 import org.apache.pekko.util.Timeout
 import promovolve.*
 import promovolve.advertiser.*
 import promovolve.auction.AuctioneerEntity.*
-import promovolve.auction.CategoryBidderEntity.{CategoryBidRequest, CategoryBidResponse}
+import promovolve.auction.CategoryBidderEntity.{ CategoryBidRequest, CategoryBidResponse }
 import promovolve.common.Aggregator
 import promovolve.publisher.SiteEntity
 import promovolve.publisher.delivery.AdServer
 import promovolve.publisher.FloorSweepOptimizer
-import promovolve.taxonomy.{TaxonomyRankerEntity, TieredCategory}
-import promovolve.taxonomy.TaxonomyRankerEntity.{Quote, Quoted}
+import promovolve.taxonomy.{ TaxonomyRankerEntity, TieredCategory }
+import promovolve.taxonomy.TaxonomyRankerEntity.{ Quote, Quoted }
 
 import java.time.Instant
 import scala.collection.immutable
 import scala.concurrent.ExecutionContext
 import scala.concurrent.duration.*
 
-/** AuctioneerEntity - Per-site real-time ad auction orchestrator.
-  *
-  * == Lifecycle ==
-  * One instance per publisher site, sharded by siteId. Subscribes to budget and
-  * campaign change topics on startup, unsubscribes on stop.
-  *
-  * == Auction Pipeline ==
-  * {{{
-  * PageCategoriesClassified
-  *   → startRanking (fan-out to TaxonomyRankerEntity)
-  *   → PageCategoriesRanked (aggregate, apply timeout fallback)
-  *   → fan-out to CategoryBidderEntity per slot
-  *   → CandidatesCollected (aggregate bids)
-  *   → completeAuction (send to AdServer)
-  * }}}
-  *
-  * == Ephemeral State ==
-  *  - `lastPage`: URL → (categories, slots, classifiedAt) for re-auction without re-scrape
-  *  - `lastQuote`: category → (weight, timestamp) for timeout fallback with decay
-  *  - `participatingCampaigns`: campaignId → URLs for targeted re-auction
-  *
-  * == Event-Driven Re-Auction ==
-  *  - CampaignChanged/BudgetReset → targeted re-auction (affected URLs only)
-  *  - AdvertiserBudgetExhausted/Reset → full site re-auction (recent pages)
-  *
-  * @see [[AUCTION.md]] for detailed architecture documentation
-  */
+/**
+ * AuctioneerEntity - Per-site real-time ad auction orchestrator.
+ *
+ * == Lifecycle ==
+ * One instance per publisher site, sharded by siteId. Subscribes to budget and
+ * campaign change topics on startup, unsubscribes on stop.
+ *
+ * == Auction Pipeline ==
+ * {{{
+ * PageCategoriesClassified
+ *   → startRanking (fan-out to TaxonomyRankerEntity)
+ *   → PageCategoriesRanked (aggregate, apply timeout fallback)
+ *   → fan-out to CategoryBidderEntity per slot
+ *   → CandidatesCollected (aggregate bids)
+ *   → completeAuction (send to AdServer)
+ * }}}
+ *
+ * == Ephemeral State ==
+ *  - `lastPage`: URL → (categories, slots, classifiedAt) for re-auction without re-scrape
+ *  - `lastQuote`: category → (weight, timestamp) for timeout fallback with decay
+ *  - `participatingCampaigns`: campaignId → URLs for targeted re-auction
+ *
+ * == Event-Driven Re-Auction ==
+ *  - CampaignChanged/BudgetReset → targeted re-auction (affected URLs only)
+ *  - AdvertiserBudgetExhausted/Reset → full site re-auction (recent pages)
+ *
+ * @see [[AUCTION.md]] for detailed architecture documentation
+ */
 object AuctioneerEntity {
+
   /** Union type for all messages this actor handles (public + internal + topic events) */
   private[auction] type Messages = Command | Internal | Quoted | BudgetEvent |
     CampaignEntity.CampaignChanged | AffinityExpander.AffinityExpansionResult
@@ -85,7 +87,7 @@ object AuctioneerEntity {
         // admin override until the next edit. Tell+tell handshake: never
         // ask from a setup block.
         sharding.entityRefFor(promovolve.publisher.SiteEntity.TypeKey, siteId.value) !
-          promovolve.publisher.SiteEntity.AuctioneerStarted
+        promovolve.publisher.SiteEntity.AuctioneerStarted
 
         new AuctioneerEntity(
           siteId,
@@ -111,13 +113,15 @@ object AuctioneerEntity {
       ts: Instant
   ) extends Command
 
-  /** Sent by `SiteEntity` when Gemini honestly classified a page as
-    * matching none of the current demand categories. The auctioneer
-    * skips the category-bidder fan-out entirely and invites only the
-    * filler pool (campaigns with `bidOnUnmatchedContext = true`) to
-    * bid directly. Survivors land in ServeIndex with
-    * `preApproved = false`, so the publisher sees them in the
-    * approval queue before they ever serve. */
+  /**
+   * Sent by `SiteEntity` when Gemini honestly classified a page as
+   * matching none of the current demand categories. The auctioneer
+   * skips the category-bidder fan-out entirely and invites only the
+   * filler pool (campaigns with `bidOnUnmatchedContext = true`) to
+   * bid directly. Survivors land in ServeIndex with
+   * `preApproved = false`, so the publisher sees them in the
+   * approval queue before they ever serve.
+   */
   final case class FillerAuctionRequested(
       url: URL,
       slots: List[AdSlotSpec],
@@ -130,28 +134,36 @@ object AuctioneerEntity {
   /** Update the floor CPM for this site (from publisher settings). */
   final case class UpdateFloorCpm(cpm: CPM) extends Command
 
-  /** Per-category floors from SiteEntity.
-    * Replaces the single floor with a per-category map for bid collection;
-    * categories absent from the map fall back to `currentFloorCpm`. */
+  /**
+   * Per-category floors from SiteEntity.
+   * Replaces the single floor with a per-category map for bid collection;
+   * categories absent from the map fall back to `currentFloorCpm`.
+   */
   final case class UpdateCategoryFloors(floors: Map[CategoryId, CPM]) extends Command
 
-  /** Per-slot floor overrides emitted by the RL agent once a slot
-    * accumulates enough auctions to diverge meaningfully from the
-    * site average. Sent alongside `UpdateFloorCpm`. Slots not in the
-    * map fall through to the site floor (with crawler prior). */
+  /**
+   * Per-slot floor overrides emitted by the RL agent once a slot
+   * accumulates enough auctions to diverge meaningfully from the
+   * site average. Sent alongside `UpdateFloorCpm`. Slots not in the
+   * map fall through to the site floor (with crawler prior).
+   */
   final case class UpdateSlotFloors(floors: Map[SlotId, CPM]) extends Command
 
-  /** Admin-set per-slot floor overrides (escape hatch for publishers).
-    * Take precedence over RL slot floors. Replaces the full admin map
-    * each call — slots not in the map have no admin override. */
+  /**
+   * Admin-set per-slot floor overrides (escape hatch for publishers).
+   * Take precedence over RL slot floors. Replaces the full admin map
+   * each call — slots not in the map have no admin override.
+   */
   final case class UpdateAdminSlotFloors(floors: Map[SlotId, CPM]) extends Command
 
-  /** Replay persisted page classifications from SiteEntity on cluster
-    * restart. SiteEntity sends this once after its DurableState
-    * recovery so the auctioneer's in-memory `lastPage` cache is ready
-    * before any traffic arrives — eliminates the bootstrap-crawl
-    * thundering herd that previously hit Playwright + Gemini on every
-    * restart. */
+  /**
+   * Replay persisted page classifications from SiteEntity on cluster
+   * restart. SiteEntity sends this once after its DurableState
+   * recovery so the auctioneer's in-memory `lastPage` cache is ready
+   * before any traffic arrives — eliminates the bootstrap-crawl
+   * thundering herd that previously hit Playwright + Gemini on every
+   * restart.
+   */
   final case class RestoreClassifications(
       classifications: Map[String, SiteEntity.ClassificationEntry]
   ) extends Command
@@ -165,27 +177,28 @@ object AuctioneerEntity {
       // Both default to None so existing call sites compile unchanged
       // and the system falls through to the site-level floor.
       prior: Option[SiteEntity.SlotPrior] = None,
-      floorOverride: Option[CPM]          = None,
+      floorOverride: Option[CPM] = None
   )
 
-  /** Topic-narrow eviction: given the URLs a campaign is currently awarded on
-    * and the per-URL classification cache, return the ServeIndex slot keys the
-    * campaign must be evicted from after it narrowed its target categories.
-    *
-    * A page contributes its slot keys iff it is CATEGORIZED (non-empty
-    * categoryScores) AND none of its categories are in the campaign's new
-    * target set — i.e. the campaign no longer targets that page's topic.
-    * Filler/uncategorized awarded pages (empty categoryScores) are skipped:
-    * category narrowing does not affect filler eligibility.
-    *
-    * Pure + side-effect-free for unit testing. An unknown campaign maps to an
-    * empty `awardedUrls` set → empty result (no crash).
-    */
+  /**
+   * Topic-narrow eviction: given the URLs a campaign is currently awarded on
+   * and the per-URL classification cache, return the ServeIndex slot keys the
+   * campaign must be evicted from after it narrowed its target categories.
+   *
+   * A page contributes its slot keys iff it is CATEGORIZED (non-empty
+   * categoryScores) AND none of its categories are in the campaign's new
+   * target set — i.e. the campaign no longer targets that page's topic.
+   * Filler/uncategorized awarded pages (empty categoryScores) are skipped:
+   * category narrowing does not affect filler eligibility.
+   *
+   * Pure + side-effect-free for unit testing. An unknown campaign maps to an
+   * empty `awardedUrls` set → empty result (no crash).
+   */
   private[auction] def topicEvictionSlotKeys(
       siteId: String,
       awardedUrls: Set[URL],
       lastPage: Map[URL, (Map[String, Double], List[AdSlotSpec], Instant)],
-      targetCategories: Set[CategoryId],
+      targetCategories: Set[CategoryId]
   ): Set[String] = {
     val newTargets = targetCategories.map(_.value)
     awardedUrls.flatMap { url =>
@@ -200,21 +213,23 @@ object AuctioneerEntity {
     }
   }
 
-  /** How long a CampaignChanged mark makes the campaign's absence from an
-    * auction result authoritative (see authoritativeRefresh). Must outlive
-    * the 1s re-auction debounce + the bid fanout; kept short so the
-    * budget-exhaustion orphan protection resumes quickly. */
+  /**
+   * How long a CampaignChanged mark makes the campaign's absence from an
+   * auction result authoritative (see authoritativeRefresh). Must outlive
+   * the 1s re-auction debounce + the bid fanout; kept short so the
+   * budget-exhaustion orphan protection resumes quickly.
+   */
   private[auction] val AuthoritativeRefreshWindow: FiniteDuration = 5.minutes
 
   final case class Settings(
-      topK: Int                         = 3,
-      askTimeout: FiniteDuration        = 800.millis,
-      priorWeight: Double               = 0.5,
-      minScore: Double                  = 0.0,
-      enableParentFallback: Boolean     = false,
-      keepCandidatesPerSlot: Int        = 3,
-      ttl: FiniteDuration               = 120.minutes,
-      priorHalfLife: FiniteDuration     = 1.hour,
+      topK: Int = 3,
+      askTimeout: FiniteDuration = 800.millis,
+      priorWeight: Double = 0.5,
+      minScore: Double = 0.0,
+      enableParentFallback: Boolean = false,
+      keepCandidatesPerSlot: Int = 3,
+      ttl: FiniteDuration = 120.minutes,
+      priorHalfLife: FiniteDuration = 1.hour,
       // Periodic backstop only. Event-driven re-auctions (campaign/budget/
       // floor changes) fire on a 1s debounce via scheduleReauction, and
       // serve-misses self-heal on demand (AdServer requests a Reevaluate),
@@ -226,14 +241,14 @@ object AuctioneerEntity {
       contentRecencyWindow: FiniteDuration =
         48.hours, // Only monetize content published within this window
       cleanupInterval: FiniteDuration = 5.minutes, // More aggressive cleanup (was 1 hour)
-      floorCpm: CPM                   = CPM(0.50), // Minimum CPM floor price (default $0.50)
-      maxPageCacheSize: Int  = 10000, // Max URLs to cache per publisher (prevents unbounded growth)
+      floorCpm: CPM = CPM(0.50), // Minimum CPM floor price (default $0.50)
+      maxPageCacheSize: Int = 10000, // Max URLs to cache per publisher (prevents unbounded growth)
       maxCategoryQuotes: Int = 500, // Max category weights to cache
       // Content-product affinity expansion
-      enableAffinityExpansion: Boolean      = false, // Off by default for safe rollout
-      minAffinityScore: Double              = 0.05,  // Min sampled CTR to include affinity pair
-      maxAffinityExpansion: Int             = 3,     // Max additional categories from affinity
-      affinityTimeout: FiniteDuration       = 300.millis
+      enableAffinityExpansion: Boolean = false, // Off by default for safe rollout
+      minAffinityScore: Double = 0.05, // Min sampled CTR to include affinity pair
+      maxAffinityExpansion: Int = 3, // Max additional categories from affinity
+      affinityTimeout: FiniteDuration = 300.millis
   )
 
   private final case class PageCategoriesRanked(
@@ -268,12 +283,14 @@ object AuctioneerEntity {
       approvedCampaignIds: Set[CampaignId] = Set.empty,
       approvedFloorRejects: Int = 0,
       maxApprovedRejectedCpm: Double = 0.0,
-      minApprovedRejectedCpm: Double = 0.0,
+      minApprovedRejectedCpm: Double = 0.0
   ) extends Internal
 
-  /** Reply from `CampaignDirectory.GetFillerCampaigns`. Adapted into
-    * the actor via `ctx.messageAdapter` so the core auctioneer flow
-    * stays typed against its own command set. */
+  /**
+   * Reply from `CampaignDirectory.GetFillerCampaigns`. Adapted into
+   * the actor via `ctx.messageAdapter` so the core auctioneer flow
+   * stays typed against its own command set.
+   */
   private final case class FillerCampaignsList(
       url: URL,
       slots: List[AdSlotSpec],
@@ -391,8 +408,8 @@ private final class AuctioneerEntity private (
       // will prune anything older than contentRecencyWindow on its
       // first tick, so the load stays bounded.
       classifications.foreach { case (urlStr, entry) =>
-        val url    = URL(urlStr)
-        val slots  = entry.slots.iterator.map(_.toAdSlotSpec).toList
+        val url = URL(urlStr)
+        val slots = entry.slots.iterator.map(_.toAdSlotSpec).toList
         val tsInst = Instant.ofEpochMilli(entry.classifiedAt)
         lastPage = lastPage.updated(url, (entry.categories, slots, tsInst))
         // Repopulate AdServer's freshness token after a restart so restored
@@ -402,7 +419,7 @@ private final class AuctioneerEntity private (
       ctx.log.info(
         "Restored {} page classifications from SiteEntity (lastPage size now {})",
         classifications.size: java.lang.Integer,
-        lastPage.size: java.lang.Integer,
+        lastPage.size: java.lang.Integer
       )
       // Kick off an immediate re-auction so ServeIndex repopulates
       // within ~1 second instead of waiting up to reauctionInterval
@@ -455,12 +472,12 @@ private final class AuctioneerEntity private (
           val expanderReplyAdapter = ctx.messageAdapter[AffinityExpander.AffinityExpansionResult](identity)
           ctx.spawnAnonymous(AffinityExpander(
             contentCategories = categoryCandidates.toSet,
-            affinityRegistry  = affinityRegistry.get,
-            sharding          = sharding,
-            minAffinityScore  = cfg.minAffinityScore,
-            maxExpansion      = cfg.maxAffinityExpansion,
-            replyTo           = expanderReplyAdapter,
-            timeout           = cfg.affinityTimeout
+            affinityRegistry = affinityRegistry.get,
+            sharding = sharding,
+            minAffinityScore = cfg.minAffinityScore,
+            maxExpansion = cfg.maxAffinityExpansion,
+            replyTo = expanderReplyAdapter,
+            timeout = cfg.affinityTimeout
           ))
         } else {
           fanOutBidRequests(url, categoryCandidates, slots)
@@ -521,8 +538,9 @@ private final class AuctioneerEntity private (
             "🫙 Filler auction requested: site={} url={} slots={}",
             siteId, url, slots.size
           )
-          val directoryAdapter = ctx.messageAdapter[promovolve.advertiser.CampaignDirectory.FillerCampaignsResult] { r =>
-            FillerCampaignsList(url, slots, r.campaigns)
+          val directoryAdapter = ctx.messageAdapter[promovolve.advertiser.CampaignDirectory.FillerCampaignsResult] {
+            r =>
+              FillerCampaignsList(url, slots, r.campaigns)
           }
           directory ! promovolve.advertiser.CampaignDirectory.GetFillerCampaigns(directoryAdapter)
         case None =>
@@ -556,7 +574,9 @@ private final class AuctioneerEntity private (
       }
       Behaviors.same
 
-    case CandidatesCollected(url, slotId, candidates, rejectedByFloor, maxRejectedCpm, minRejectedCpm, perCategoryBounds, approvedCampaignIds, approvedFloorRejects, maxApprovedRejectedCpm, minApprovedRejectedCpm) =>
+    case CandidatesCollected(url, slotId, candidates, rejectedByFloor, maxRejectedCpm, minRejectedCpm,
+          perCategoryBounds, approvedCampaignIds, approvedFloorRejects, maxApprovedRejectedCpm,
+          minApprovedRejectedCpm) =>
       // INFO only when a campaign actually won a spot; an empty auction
       // (periodic re-auction of a page nobody bids on) stays at debug.
       if (candidates.nonEmpty)
@@ -689,21 +709,21 @@ private final class AuctioneerEntity private (
       val approvedDeduped = deduped.filter(c => approvedCampaignIds.contains(c.campaignId))
       val qualifyingMax = if (approvedDeduped.nonEmpty) approvedDeduped.map(_.cpm.toDouble).max else 0.0
       val qualifyingMin = if (approvedDeduped.nonEmpty) approvedDeduped.map(_.cpm.toDouble).min else 0.0
-      val maxObserved   = math.max(qualifyingMax, maxApprovedRejectedCpm)
-      val minObserved   = (qualifyingMin, minApprovedRejectedCpm) match {
+      val maxObserved = math.max(qualifyingMax, maxApprovedRejectedCpm)
+      val minObserved = (qualifyingMin, minApprovedRejectedCpm) match {
         case (q, r) if q > 0.0 && r > 0.0 => math.min(q, r)
         case (q, _) if q > 0.0            => q
         case (_, r) if r > 0.0            => r
         case _                            => 0.0
       }
       val outcome = FloorSweepOptimizer.AuctionOutcome(
-        totalBidders    = approvedDeduped.size + approvedFloorRejects,
+        totalBidders = approvedDeduped.size + approvedFloorRejects,
         rejectedByFloor = approvedFloorRejects,
-        winnerCpm       = winnerCpm,
-        clearingPrice   = clearingPrice,
-        maxObservedCpm  = maxObserved,
-        minObservedCpm  = minObserved,
-        slotId          = Some(slotId.value),
+        winnerCpm = winnerCpm,
+        clearingPrice = clearingPrice,
+        maxObservedCpm = maxObserved,
+        minObservedCpm = minObserved,
+        slotId = Some(slotId.value)
       )
       val siteRef = sharding.entityRefFor(SiteEntity.TypeKey, siteId.value)
       // Admin-overridden slots are invisible to floor LEARNING: their
@@ -726,13 +746,13 @@ private final class AuctioneerEntity private (
       if (!slotIsOverridden) {
         perCategoryBounds.foreach { case (cat, (maxObs, minObs, rejects, bidderCount)) =>
           val catOutcome = FloorSweepOptimizer.AuctionOutcome(
-            totalBidders    = bidderCount,
+            totalBidders = bidderCount,
             rejectedByFloor = rejects,
-            winnerCpm       = None,
-            clearingPrice   = None,
-            maxObservedCpm  = maxObs,
-            minObservedCpm  = minObs,
-            slotId          = Some(slotId.value),
+            winnerCpm = None,
+            clearingPrice = None,
+            maxObservedCpm = maxObs,
+            minObservedCpm = minObs,
+            slotId = Some(slotId.value)
           )
           siteRef ! SiteEntity.AuctionOutcomeReport(catOutcome, Some(cat.value))
         }
@@ -743,7 +763,7 @@ private final class AuctioneerEntity private (
     case PeriodicReauction =>
       // Recency-only model: Only reauction recent content within contentRecencyWindow
       // (Defensive filter - CleanupStaleContent should have already removed old entries)
-      val now    = Instant.now()
+      val now = Instant.now()
       val cutoff = now.minus(java.time.Duration.ofSeconds(cfg.contentRecencyWindow.toSeconds))
 
       val recentPages = lastPage.filter { case (_, (_, _, classifiedAt)) =>
@@ -779,8 +799,8 @@ private final class AuctioneerEntity private (
 
     case CleanupStaleContent =>
       // Recency-only model: Remove classifications older than contentRecencyWindow
-      val now        = Instant.now()
-      val cutoff     = now.minus(java.time.Duration.ofSeconds(cfg.contentRecencyWindow.toSeconds))
+      val now = Instant.now()
+      val cutoff = now.minus(java.time.Duration.ofSeconds(cfg.contentRecencyWindow.toSeconds))
       val sizeBefore = lastPage.size
 
       // Find URLs being removed
@@ -873,10 +893,10 @@ private final class AuctioneerEntity private (
           // (incident 2026-07-06: boot re-registrations evicted serving slots).
           val slotKeysToEvict: Set[String] =
             AuctioneerEntity.topicEvictionSlotKeys(
-              siteId           = siteId.value,
-              awardedUrls      = awardedCampaigns.getOrElse(event.campaignId, Set.empty),
-              lastPage         = lastPage,
-              targetCategories = event.targetCategories,
+              siteId = siteId.value,
+              awardedUrls = awardedCampaigns.getOrElse(event.campaignId, Set.empty),
+              lastPage = lastPage,
+              targetCategories = event.targetCategories
             )
           if (slotKeysToEvict.nonEmpty) {
             ctx.log.info(
@@ -1111,8 +1131,10 @@ private final class AuctioneerEntity private (
   // In-memory only — lost on entity restart, backstopped by the ServeView TTL.
   private var authoritativeRefresh: Map[CampaignId, Instant] = Map.empty
 
-  /** Prune expired marks and return the campaigns whose absence from the
-    * current auction result is authoritative. */
+  /**
+   * Prune expired marks and return the campaigns whose absence from the
+   * current auction result is authoritative.
+   */
   private def currentAuthoritativeAbsent(): Set[CampaignId] = {
     val cutoff = Instant.now.minusSeconds(AuctioneerEntity.AuthoritativeRefreshWindow.toSeconds)
     authoritativeRefresh = authoritativeRefresh.filter { case (_, at) => at.isAfter(cutoff) }
@@ -1178,7 +1200,7 @@ private final class AuctioneerEntity private (
         //   4. Site floor scaled by crawler prior
         //   5. Site floor
         val adminOverride = adminSlotFloorOverrides.get(slot.slotId)
-                              .orElse(slot.floorOverride)
+          .orElse(slot.floorOverride)
         // Remember the spec-carried override (or its absence) so
         // finishAuction resolves the same effective admin floor this
         // admission used. Presence updates, absence clears — a removed
@@ -1187,20 +1209,20 @@ private final class AuctioneerEntity private (
           case Some(f) => slotSpecAdminFloors.updated(slot.slotId, f)
           case None    => slotSpecAdminFloors - slot.slotId
         }
-        val rlOverride    = slotFloorOverrides.get(slot.slotId)
+        val rlOverride = slotFloorOverrides.get(slot.slotId)
         // Per-category effective floor: the category's learned floor (or the
         // site floor when absent) scaled by the slot's quality prior. The
         // admin/RL override still takes precedence inside `effectiveFloor`.
         def floorForCategory(category: String): CPM =
           SiteEntity.effectiveFloor(
             SiteEntity.AdSlotConfig(
-              slotId        = slot.slotId.value,
-              width         = slot.computedSize.width,
-              height        = slot.computedSize.height,
-              prior         = slot.prior,
-              floorOverride = adminOverride.orElse(rlOverride),
+              slotId = slot.slotId.value,
+              width = slot.computedSize.width,
+              height = slot.computedSize.height,
+              prior = slot.prior,
+              floorOverride = adminOverride.orElse(rlOverride)
             ),
-            currentCategoryFloors.getOrElse(CategoryId(category), currentFloorCpm),
+            currentCategoryFloors.getOrElse(CategoryId(category), currentFloorCpm)
           )
 
         ctx.log.debug(
@@ -1211,7 +1233,7 @@ private final class AuctioneerEntity private (
           categoryCandidates.size,
           currentFloorCpm,
           currentCategoryFloors.size: java.lang.Integer,
-          slot.prior.map(p => f"q=${p.qualityScore}%.2f region=${p.region}").getOrElse("none"),
+          slot.prior.map(p => f"q=${p.qualityScore}%.2f region=${p.region}").getOrElse("none")
         )
 
         ctx.spawnAnonymous(
@@ -1220,32 +1242,32 @@ private final class AuctioneerEntity private (
               expandedCandidates.foreach { category =>
                 val entityId = CategoryBidderEntity.entityIdFor(category, siteId)
                 shardRef(CategoryBidderEntity.TypeKey, entityId) ! CategoryBidRequest(
-                  siteId   = siteId,
-                  url      = url.value,
-                  slotId   = slot.slotId,
-                  sizes    = slotSizes,
+                  siteId = siteId,
+                  url = url.value,
+                  slotId = slot.slotId,
+                  sizes = slotSizes,
                   floorCpm = floorForCategory(category),
-                  replyTo  = aggReply
+                  replyTo = aggReply
                 )
               }
             },
             expectedReplies = expandedCandidates.size,
-            replyTo         = ctx.self,
+            replyTo = ctx.self,
             aggregateReplies = { responses =>
               val candidates = for {
-                r           <- responses
+                r <- responses
                 campaignBid <- r.campaigns
-                creative    <- campaignBid.creatives
+                creative <- campaignBid.creatives
               } yield Candidate(
-                creativeId        = creative.id,
-                campaignId        = campaignBid.campaignId,
-                advertiserId      = campaignBid.advertiserId,
-                cpm               = campaignBid.cpm,
-                category          = r.categoryId,
-                preApproved       = false,
+                creativeId = creative.id,
+                campaignId = campaignBid.campaignId,
+                advertiserId = campaignBid.advertiserId,
+                cpm = campaignBid.cpm,
+                category = r.categoryId,
+                preApproved = false,
                 adProductCategory = campaignBid.adProductCategory,
-                landingDomain     = campaignBid.landingDomain,
-                maxCpm            = campaignBid.maxCpm,
+                landingDomain = campaignBid.landingDomain,
+                maxCpm = campaignBid.maxCpm
               )
               val totalFloorRejects = responses.collect {
                 case r: CategoryBidResponse => r.rejectedByFloor
@@ -1305,11 +1327,12 @@ private final class AuctioneerEntity private (
                   r.categoryId -> (maxObs, minObs, r.approvedRejectedByFloor, bidderCount)
                 }.toMap
               CandidatesCollected(
-                url, slot.slotId, candidates.toVector, totalFloorRejects, maxRejectedCpm, minRejectedCpm, perCategoryBounds,
-                approvedCampaignIds    = approvedCampaignIds,
-                approvedFloorRejects   = approvedFloorRejects,
+                url, slot.slotId, candidates.toVector, totalFloorRejects, maxRejectedCpm, minRejectedCpm,
+                perCategoryBounds,
+                approvedCampaignIds = approvedCampaignIds,
+                approvedFloorRejects = approvedFloorRejects,
                 maxApprovedRejectedCpm = maxApprovedRejectedCpm,
-                minApprovedRejectedCpm = minApprovedRejectedCpm,
+                minApprovedRejectedCpm = minApprovedRejectedCpm
               )
             },
             timeout = cfg.askTimeout
@@ -1319,13 +1342,15 @@ private final class AuctioneerEntity private (
     }
   }
 
-  /** Filler auction: ask each opted-in campaign directly for a bid,
-    * bypassing the category-based CategoryBidderEntity cascade. The
-    * sentinel `CategoryId.Filler` is passed as `pageCategory` so
-    * CampaignEntity.canBid takes the opt-in carve-out. Survivors
-    * flow into the regular `CandidatesCollected` path — they share
-    * the `preApproved=false` semantic with every other fresh bid, so
-    * the approval queue is what actually gates delivery. */
+  /**
+   * Filler auction: ask each opted-in campaign directly for a bid,
+   * bypassing the category-based CategoryBidderEntity cascade. The
+   * sentinel `CategoryId.Filler` is passed as `pageCategory` so
+   * CampaignEntity.canBid takes the opt-in carve-out. Survivors
+   * flow into the regular `CandidatesCollected` path — they share
+   * the `preApproved=false` semantic with every other fresh bid, so
+   * the approval queue is what actually gates delivery.
+   */
   private def fanOutFillerBidRequests(
       url: URL,
       fillerCampaigns: Map[CampaignId, AdvertiserId],
@@ -1349,32 +1374,32 @@ private final class AuctioneerEntity private (
               // startup when the ID split fails.
               val entityId = s"${advertiserId.value}|${campaignId.value}"
               shardRef(CampaignEntity.TypeKey, entityId) ! CampaignEntity.CampaignBidRequest(
-                siteId       = siteId,
-                url          = url.value,
-                slotId       = slot.slotId,
+                siteId = siteId,
+                url = url.value,
+                slotId = slot.slotId,
                 pageCategory = CategoryId.Filler,
-                floorCpm     = floor,
-                replyTo      = aggReply
+                floorCpm = floor,
+                replyTo = aggReply
               )
             }
           },
           expectedReplies = fillerCampaigns.size,
-          replyTo         = ctx.self,
+          replyTo = ctx.self,
           aggregateReplies = { responses =>
             val candidates = for {
               response <- responses
               if response.eligible
               creative <- response.creatives
             } yield Candidate(
-              creativeId        = creative.id,
-              campaignId        = response.campaignId,
-              advertiserId      = response.advertiserId,
-              cpm               = response.cpm,
-              category          = CategoryId.Filler,
-              preApproved       = false,
+              creativeId = creative.id,
+              campaignId = response.campaignId,
+              advertiserId = response.advertiserId,
+              cpm = response.cpm,
+              category = CategoryId.Filler,
+              preApproved = false,
               adProductCategory = response.adProductCategory,
-              landingDomain     = response.landingDomain,
-              maxCpm            = response.maxCpm,
+              landingDomain = response.landingDomain,
+              maxCpm = response.maxCpm
             )
             CandidatesCollected(
               url, slot.slotId, candidates.toVector, 0,
@@ -1383,7 +1408,7 @@ private final class AuctioneerEntity private (
               approvedCampaignIds = responses.iterator
                 .filter(r => r.eligible && r.hasApprovedCreative)
                 .map(_.campaignId)
-                .toSet,
+                .toSet
             )
           },
           timeout = cfg.askTimeout
@@ -1425,7 +1450,7 @@ private final class AuctioneerEntity private (
             ctx.self ! Reevaluate(url)
             Behaviors.same
           case msg =>
-            (pipeline orElse public).applyOrElse(msg, _ => Behaviors.same)
+            pipeline.orElse(public).applyOrElse(msg, _ => Behaviors.same)
         }
         .receiveSignal { case (_, PostStop) =>
           // Unsubscribe from budget events (use ctx.self with union types)
@@ -1447,40 +1472,41 @@ private final class AuctioneerEntity private (
       } else lastQuote
     }.updatedWith(category) {
       case existing @ Some((_, existingTs)) if existingTs.isAfter(timestamp) => existing
-      case _ => Some((weight, timestamp))
+      case _                                                                 => Some((weight, timestamp))
     }
   }
 
   private def normalizeSizes(sizes: Set[AdSize]): Set[AdSize] = sizes
 
-  /** Launch category ranking via scatter-gather to TaxonomyRankerEntity actors.
-    *
-    * == Design ==
-    * Each category is sharded by (category, siteId) for per-site Thompson Sampling.
-    * We send Quote requests to topK categories and aggregate responses within askTimeout.
-    *
-    * == Timeout Handling ==
-    * The Aggregator may return partial results if some TaxonomyRankerEntity actors
-    * don't respond in time. This typically happens when:
-    *   - Entity was passivated and must replay events from journal to rebuild state
-    *   - Shard rebalancing during cluster scaling
-    *   - Network partition or node failure
-    *   - GC pause or backpressure on remote node
-    *
-    * Rather than fail the auction or exclude timed-out categories (which would bias
-    * results toward faster-responding categories), we use a fallback strategy:
-    *
-    * == Fallback Strategy for Timed-out Categories ==
-    *   1. If we have a cached quote from a previous response, use it with time-decay
-    *   2. If no cache exists, use cfg.priorWeight as an uninformed prior
-    *
-    * The decay (see [[decayed]]) models our uncertainty about stale data: older cached
-    * weights are trusted less, converging toward the prior as age approaches infinity.
-    *
-    * Note: If the timeout is due to passivation, the cached weight is likely still
-    * accurate (the entity had no activity while dormant). However, we can't distinguish
-    * passivation from other causes, so we conservatively apply decay regardless.
-    */
+  /**
+   * Launch category ranking via scatter-gather to TaxonomyRankerEntity actors.
+   *
+   * == Design ==
+   * Each category is sharded by (category, siteId) for per-site Thompson Sampling.
+   * We send Quote requests to topK categories and aggregate responses within askTimeout.
+   *
+   * == Timeout Handling ==
+   * The Aggregator may return partial results if some TaxonomyRankerEntity actors
+   * don't respond in time. This typically happens when:
+   *   - Entity was passivated and must replay events from journal to rebuild state
+   *   - Shard rebalancing during cluster scaling
+   *   - Network partition or node failure
+   *   - GC pause or backpressure on remote node
+   *
+   * Rather than fail the auction or exclude timed-out categories (which would bias
+   * results toward faster-responding categories), we use a fallback strategy:
+   *
+   * == Fallback Strategy for Timed-out Categories ==
+   *   1. If we have a cached quote from a previous response, use it with time-decay
+   *   2. If no cache exists, use cfg.priorWeight as an uninformed prior
+   *
+   * The decay (see [[decayed]]) models our uncertainty about stale data: older cached
+   * weights are trusted less, converging toward the prior as age approaches infinity.
+   *
+   * Note: If the timeout is due to passivation, the cached weight is likely still
+   * accurate (the entity had no activity while dormant). However, we can't distinguish
+   * passivation from other causes, so we conservatively apply decay regardless.
+   */
   private def startRanking(
       url: URL,
       categoryScores: Map[String, Double],
@@ -1498,9 +1524,9 @@ private final class AuctioneerEntity private (
             }
           },
           expectedReplies = topK.size,
-          replyTo         = ctx.self,
+          replyTo = ctx.self,
           aggregateReplies = { replies =>
-            val now               = Instant.now
+            val now = Instant.now
             val categoriesReplied = replies.iterator.map(_.category).toSet
             val timeoutCategories = topK.iterator.map(_._1).filterNot(categoriesReplied.contains)
             val scoredFromReplies = replies.iterator.map { case Quoted(category, w, _) =>
@@ -1542,36 +1568,38 @@ private final class AuctioneerEntity private (
   private def shardRef[A](key: EntityTypeKey[A], id: String): EntityRef[A] =
     sharding.entityRefFor(key, id)
 
-  /** Apply exponential half-life decay to a cached weight.
-    *
-    * Models diminishing trust in stale data: a cached Thompson Sampling weight
-    * was accurate when recorded, but the underlying distribution evolves as new
-    * impressions/clicks arrive. Older weights are less likely to reflect current state.
-    *
-    * Formula: weight * 0.5^(age / halfLife)
-    *   - At age = 0: returns full weight (1.0x)
-    *   - At age = halfLife: returns half weight (0.5x)
-    *   - At age = 2*halfLife: returns quarter weight (0.25x)
-    *   - As age → ∞: returns → 0 (effectively falls back to prior)
-    *
-    * @param weight the cached Thompson Sampling weight
-    * @param seenAt when the weight was recorded
-    * @param now    current timestamp
-    * @return the decayed weight, reflecting uncertainty proportional to age
-    */
+  /**
+   * Apply exponential half-life decay to a cached weight.
+   *
+   * Models diminishing trust in stale data: a cached Thompson Sampling weight
+   * was accurate when recorded, but the underlying distribution evolves as new
+   * impressions/clicks arrive. Older weights are less likely to reflect current state.
+   *
+   * Formula: weight * 0.5^(age / halfLife)
+   *   - At age = 0: returns full weight (1.0x)
+   *   - At age = halfLife: returns half weight (0.5x)
+   *   - At age = 2*halfLife: returns quarter weight (0.25x)
+   *   - As age → ∞: returns → 0 (effectively falls back to prior)
+   *
+   * @param weight the cached Thompson Sampling weight
+   * @param seenAt when the weight was recorded
+   * @param now    current timestamp
+   * @return the decayed weight, reflecting uncertainty proportional to age
+   */
   private def decayed(weight: Double, seenAt: Instant, now: Instant): Double = {
     val ageSeconds = java.time.Duration.between(seenAt, now).getSeconds.max(0)
-    val hl         = cfg.priorHalfLife.toSeconds.max(1)
+    val hl = cfg.priorHalfLife.toSeconds.max(1)
     weight * math.pow(0.5, ageSeconds.toDouble / hl.toDouble)
   }
 
-  /** Candidate-free delivery to AdServer for an auction that produced no
-    * winners. Carries the same floor context as a normal delivery (site,
-    * per-category, and the slot's resolved admin override) so the serve-time
-    * floor gate stays in sync with admission even when admission rejects
-    * everything. AdServer treats zero-candidate deliveries as floor-sync
-    * only and does not modify the ServeIndex.
-    */
+  /**
+   * Candidate-free delivery to AdServer for an auction that produced no
+   * winners. Carries the same floor context as a normal delivery (site,
+   * per-category, and the slot's resolved admin override) so the serve-time
+   * floor gate stays in sync with admission even when admission rejects
+   * everything. AdServer treats zero-candidate deliveries as floor-sync
+   * only and does not modify the ServeIndex.
+   */
   private def notifyEmptyAuction(url: URL, slotId: SlotId, hadFloorRejects: Boolean): Unit = {
     val classifiedAt = lastPage.get(url) match {
       case Some((_, _, ts)) => ts
@@ -1627,7 +1655,8 @@ private final class AuctioneerEntity private (
     // used (admin map, then spec-carried) so AdServer's serve-time gate
     // agrees with the auction-time one for this slot.
     val slotAdminFloor = adminSlotFloorOverrides.get(slotId).orElse(slotSpecAdminFloors.get(slotId))
-    adServer ! AdServer.CandidatesCollected(url, slotId, ordered, classifiedAt, cfg.ttl, pageCategories, currentFloorCpm, currentCategoryFloors, slotAdminFloor,
+    adServer ! AdServer.CandidatesCollected(url, slotId, ordered, classifiedAt, cfg.ttl, pageCategories,
+      currentFloorCpm, currentCategoryFloors, slotAdminFloor,
       authoritativeAbsent = currentAuthoritativeAbsent())
   }
 

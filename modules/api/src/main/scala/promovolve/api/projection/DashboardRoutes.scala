@@ -10,8 +10,8 @@ import slick.jdbc.PostgresProfile.api.*
 import spray.json.*
 import spray.json.DefaultJsonProtocol.*
 
-import java.time.{Instant, LocalDate}
-import scala.concurrent.{ExecutionContext, Future}
+import java.time.{ Instant, LocalDate }
+import scala.concurrent.{ ExecutionContext, Future }
 
 /** Dashboard API routes for advertisers to view campaign performance. */
 class DashboardRoutes(dbConfig: DatabaseConfig[PostgresProfile])(using system: ActorSystem[?]) {
@@ -115,7 +115,8 @@ class DashboardRoutes(dbConfig: DatabaseConfig[PostgresProfile])(using system: A
     })
   }
 
-  private def getCampaignHourlyStats(advertiserId: String, campaignId: String, hours: Int): Future[Seq[HourlyStatsDTO]] = {
+  private def getCampaignHourlyStats(advertiserId: String, campaignId: String, hours: Int)
+      : Future[Seq[HourlyStatsDTO]] = {
     val cutoff = Instant.now().minusSeconds(hours * 3600L)
     // campaign_hourly_stats has no advertiser_id column, so gate on an
     // ownership EXISTS against campaign_stats (which does) — a campaign only
@@ -177,17 +178,17 @@ class DashboardRoutes(dbConfig: DatabaseConfig[PostgresProfile])(using system: A
 
     db.run(query).map(_.map { row =>
       CreativeStatsDTO(
-        creativeId          = row._1,
-        impressions         = row._2,
-        clicks              = row._3,
-        ctaClicks           = row._4,
-        totalSpend          = row._5,
-        ctr                 = if (row._2 > 0) row._3.toDouble / row._2 else 0.0,
+        creativeId = row._1,
+        impressions = row._2,
+        clicks = row._3,
+        ctaClicks = row._4,
+        totalSpend = row._5,
+        ctr = if (row._2 > 0) row._3.toDouble / row._2 else 0.0,
         dogearedImpressions = row._6,
-        dogearedClicks      = row._7,
-        dogearedCtaClicks   = row._8,
-        pinCtr              = if (row._6 > 0) row._7.toDouble / row._6 else 0.0,
-        updatedAt           = row._9.toString
+        dogearedClicks = row._7,
+        dogearedCtaClicks = row._8,
+        pinCtr = if (row._6 > 0) row._7.toDouble / row._6 else 0.0,
+        updatedAt = row._9.toString
       )
     })
   }
@@ -304,9 +305,11 @@ case class CreativeStatsDTO(
     totalSpend: BigDecimal,
     /** Click-through rate on fresh impressions: clicks / impressions. */
     ctr: Double,
-    /** Bookmark-driven re-encounter counters. Tracked separately so
-      * dashboards can surface pin engagement as its own dimension
-      * without polluting fresh CTR. */
+    /**
+     * Bookmark-driven re-encounter counters. Tracked separately so
+     * dashboards can surface pin engagement as its own dimension
+     * without polluting fresh CTR.
+     */
     dogearedImpressions: Long,
     dogearedClicks: Long,
     dogearedCtaClicks: Long,

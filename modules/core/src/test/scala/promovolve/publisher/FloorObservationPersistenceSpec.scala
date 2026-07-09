@@ -4,29 +4,31 @@ import org.scalatest.matchers.should.Matchers
 import org.scalatest.wordspec.AnyWordSpec
 import promovolve.*
 
-/** Covers the pure pieces of the persist-floor-observations change:
-  * the bounded append the tick uses and the State field it now rides
-  * in. Like the persisted-classifications change, the full
-  * recovery-hydrates-the-var loop is verified at runtime (restart the
-  * api pods, observations page keeps its rows) — old persisted states
-  * without the field deserialize to the Vector.empty default, the same
-  * proven no-migration pattern as pageClassifications and
-  * demandCategories. */
+/**
+ * Covers the pure pieces of the persist-floor-observations change:
+ * the bounded append the tick uses and the State field it now rides
+ * in. Like the persisted-classifications change, the full
+ * recovery-hydrates-the-var loop is verified at runtime (restart the
+ * api pods, observations page keeps its rows) — old persisted states
+ * without the field deserialize to the Vector.empty default, the same
+ * proven no-migration pattern as pageClassifications and
+ * demandCategories.
+ */
 class FloorObservationPersistenceSpec extends AnyWordSpec with Matchers {
 
   private val siteId = SiteId("test-site")
 
   private def obs(hour: Int): SiteEntity.FloorObservation =
     SiteEntity.FloorObservation(
-      ts                = java.time.Instant.ofEpochSecond(hour.toLong * 3600),
-      hour              = hour,
-      trafficShape      = 0.5,
-      floorBefore       = 0.10,
-      floorAfter        = 0.10,
-      epsilon           = 0.0,
-      observed          = false,
-      trainingLoss      = None,
-      slotOverrideCount = 0,
+      ts = java.time.Instant.ofEpochSecond(hour.toLong * 3600),
+      hour = hour,
+      trafficShape = 0.5,
+      floorBefore = 0.10,
+      floorAfter = 0.10,
+      epsilon = 0.0,
+      observed = false,
+      trainingLoss = None,
+      slotOverrideCount = 0
     )
 
   "appendBounded" should {

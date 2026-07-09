@@ -8,8 +8,8 @@ trait OpaqueCodec[T, U] {
 object OpaqueCodec {
 
   private def fromConversion[T, U](
-    to: T => U,
-    from: U => T
+      to: T => U,
+      from: U => T
   ): OpaqueCodec[T, U] =
     new OpaqueCodec[T, U] {
       def encode(t: T): U = to(t)

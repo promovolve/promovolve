@@ -11,35 +11,35 @@ class TrafficShapeTrackerSpec extends AnyFlatSpec with Matchers {
     val tracker = TrafficShapeTracker()
 
     // With uniform distribution, cumulative fraction should be linear
-    tracker.cumulativeFraction(0) shouldBe (1.0 / 24.0) +- 0.001  // 1/24 ≈ 0.042
-    tracker.cumulativeFraction(11) shouldBe 0.5 +- 0.001         // 12/24 = 0.5
-    tracker.cumulativeFraction(23) shouldBe 1.0 +- 0.001         // 24/24 = 1.0
+    tracker.cumulativeFraction(0) shouldBe (1.0 / 24.0) +- 0.001 // 1/24 ≈ 0.042
+    tracker.cumulativeFraction(11) shouldBe 0.5 +- 0.001 // 12/24 = 0.5
+    tracker.cumulativeFraction(23) shouldBe 1.0 +- 0.001 // 24/24 = 1.0
   }
 
   it should "calculate bucket for elapsed seconds" in {
-    val tracker = TrafficShapeTracker(bucketCount = 24)  // hourly buckets
+    val tracker = TrafficShapeTracker(bucketCount = 24) // hourly buckets
 
-    tracker.bucketForElapsed(0) shouldBe 0          // start of day
-    tracker.bucketForElapsed(3600) shouldBe 1       // 1 hour
-    tracker.bucketForElapsed(3599) shouldBe 0       // just before hour 1
-    tracker.bucketForElapsed(43200) shouldBe 12     // noon
+    tracker.bucketForElapsed(0) shouldBe 0 // start of day
+    tracker.bucketForElapsed(3600) shouldBe 1 // 1 hour
+    tracker.bucketForElapsed(3599) shouldBe 0 // just before hour 1
+    tracker.bucketForElapsed(43200) shouldBe 12 // noon
     tracker.bucketForElapsed(86400 - 1) shouldBe 23 // end of day
 
     // Edge cases
-    tracker.bucketForElapsed(-100) shouldBe 0       // before day start
-    tracker.bucketForElapsed(86400 + 100) shouldBe 23  // after day end
+    tracker.bucketForElapsed(-100) shouldBe 0 // before day start
+    tracker.bucketForElapsed(86400 + 100) shouldBe 23 // after day end
   }
 
   it should "record requests and apply EMA on bucket change" in {
     val tracker = new TrafficShapeTracker(bucketCount = 24, alpha = 0.5) // High alpha for visible effect
 
     // Simulate 100 requests in bucket 0
-    for (_ <- 1 to 100) tracker.recordRequest(1800)  // middle of first hour
+    for (_ <- 1 to 100) tracker.recordRequest(1800) // middle of first hour
 
     // Move to bucket 1 - triggers EMA update for bucket 0
-    tracker.recordRequest(3700)  // just into second hour
+    tracker.recordRequest(3700) // just into second hour
 
-    tracker.flush()  // flush bucket 1 (only 1 request)
+    tracker.flush() // flush bucket 1 (only 1 request)
 
     val vol0 = tracker.volumeForBucket(0)
     val vol1 = tracker.volumeForBucket(1)
@@ -48,11 +48,11 @@ class TrafficShapeTrackerSpec extends AnyFlatSpec with Matchers {
     // - Bucket 0: 100 requests, emaBucketRequests updates to ~50.5, observation = 100/50.5 ≈ 1.98
     // - Bucket 1: 1 request, emaBucketRequests updates to ~25.75, observation = 1/25.75 ≈ 0.04
     // Key insight: bucket 0 should have HIGHER volume than bucket 1 (more traffic)
-    vol0 should be > vol1 * 2  // Bucket 0 had way more traffic
+    vol0 should be > vol1 * 2 // Bucket 0 had way more traffic
 
     // The exact values depend on scale normalization, but relative ordering should be correct
-    vol0 should be > 1.0  // Higher than uniform initial
-    vol1 should be < 1.0  // Lower than uniform initial (very few requests)
+    vol0 should be > 1.0 // Higher than uniform initial
+    vol1 should be < 1.0 // Lower than uniform initial (very few requests)
   }
 
   it should "accumulate traffic pattern over time" in {
@@ -73,7 +73,7 @@ class TrafficShapeTrackerSpec extends AnyFlatSpec with Matchers {
 
     // With scale-invariant normalization, bucket 12 should be recognized as higher traffic
     // The exact ratio depends on how emaBucketRequests evolves, but direction should be correct
-    vol12 should be > vol0  // Bucket 12 had more traffic
+    vol12 should be > vol0 // Bucket 12 had more traffic
   }
 
   it should "calculate cumulative fraction with non-uniform distribution" in {
@@ -92,9 +92,9 @@ class TrafficShapeTrackerSpec extends AnyFlatSpec with Matchers {
 
   it should "interpolate within buckets for smooth transitions" in {
     val tracker = new TrafficShapeTracker(bucketCount = 4, alpha = 1.0)
-    tracker.restore(Array(1.0, 1.0, 1.0, 1.0))  // Uniform
+    tracker.restore(Array(1.0, 1.0, 1.0, 1.0)) // Uniform
 
-    val bucketDuration = 86400.0 / 4  // 21600 seconds per bucket
+    val bucketDuration = 86400.0 / 4 // 21600 seconds per bucket
 
     // At bucket boundaries
     tracker.cumulativeFractionAtTime(0) shouldBe 0.0 +- 0.001
@@ -110,9 +110,9 @@ class TrafficShapeTrackerSpec extends AnyFlatSpec with Matchers {
 
   it should "handle non-uniform distribution with interpolation" in {
     val tracker = new TrafficShapeTracker(bucketCount = 4, alpha = 1.0)
-    tracker.restore(Array(1.0, 2.0, 3.0, 4.0))  // Sum = 10
+    tracker.restore(Array(1.0, 2.0, 3.0, 4.0)) // Sum = 10
 
-    val bucketDuration = 86400.0 / 4  // 21600 seconds per bucket
+    val bucketDuration = 86400.0 / 4 // 21600 seconds per bucket
 
     // At start of day: 0% of bucket 0 consumed
     tracker.cumulativeFractionAtTime(0) shouldBe 0.0 +- 0.001
@@ -135,7 +135,7 @@ class TrafficShapeTrackerSpec extends AnyFlatSpec with Matchers {
     val tracker = new TrafficShapeTracker(bucketCount = 24, alpha = 1.0)
 
     // Record requests without bucket change
-    for (_ <- 1 to 50) tracker.recordRequest(1800)  // all in bucket 0
+    for (_ <- 1 to 50) tracker.recordRequest(1800) // all in bucket 0
 
     // Before flush, bucket 0 should still be at initial value
     tracker.volumeForBucket(0) shouldBe 1.0
@@ -147,7 +147,7 @@ class TrafficShapeTrackerSpec extends AnyFlatSpec with Matchers {
     // The value depends on normalization, but it should be different from initial 1.0
     // (in this case it stays 1.0 because observation = 50/50 = 1.0)
     // Let's just verify flush was called by checking it doesn't throw
-    tracker.volumeForBucket(0) should be > 0.0  // Sanity check
+    tracker.volumeForBucket(0) should be > 0.0 // Sanity check
   }
 
   it should "reset to uniform distribution" in {
@@ -166,8 +166,8 @@ class TrafficShapeTrackerSpec extends AnyFlatSpec with Matchers {
     val original = new TrafficShapeTracker(bucketCount = 24, alpha = 0.1)
 
     // Modify some buckets
-    for (_ <- 1 to 200) original.recordRequest(43200)  // noon
-    original.recordRequest(46800)  // trigger update
+    for (_ <- 1 to 200) original.recordRequest(43200) // noon
+    original.recordRequest(46800) // trigger update
     original.flush()
 
     // Create snapshot
@@ -185,7 +185,7 @@ class TrafficShapeTrackerSpec extends AnyFlatSpec with Matchers {
     val tracker = new TrafficShapeTracker(bucketCount = 24, alpha = 1.0)
     // Heavy traffic at noon, light elsewhere
     val volumes = Array.fill(24)(0.5)
-    volumes(12) = 5.0  // Noon has 10x traffic
+    volumes(12) = 5.0 // Noon has 10x traffic
     tracker.restore(volumes)
 
     val dayStart = Instant.parse("2024-01-01T00:00:00Z")
@@ -197,13 +197,13 @@ class TrafficShapeTrackerSpec extends AnyFlatSpec with Matchers {
       dailyBudget = BigDecimal(100),
       todaySpend = BigDecimal(60),
       dayStart = dayStart,
-      now = dayStart.plusSeconds(13 * 3600),  // 1pm, after noon traffic
+      now = dayStart.plusSeconds(13 * 3600), // 1pm, after noon traffic
       requestArrivalRate = 10.0,
       trafficShape = Some(tracker)
     )
 
     // Expected spend should be higher than linear (54%) due to traffic spike at noon
-    onePmCtx.expectedSpendFraction should be > 0.54  // linear would be 13/24 = 0.54
+    onePmCtx.expectedSpendFraction should be > 0.54 // linear would be 13/24 = 0.54
     onePmCtx.expectedSpendFraction should be < 0.75
     onePmCtx.expectedSpendFraction shouldBe 0.667 +- 0.01
 
@@ -225,11 +225,11 @@ class TrafficShapeTrackerSpec extends AnyFlatSpec with Matchers {
 
     // Without traffic shape, expected spend fraction = 12/24 = 0.5
     linearCtx.expectedSpendFraction shouldBe 0.5 +- 0.001
-    linearCtx.spendRatio shouldBe 1.0 +- 0.001  // 50 / (100 * 0.5) = 1.0
+    linearCtx.spendRatio shouldBe 1.0 +- 0.001 // 50 / (100 * 0.5) = 1.0
   }
 
   it should "scale elapsed time for simulated short days" in {
-    val tracker = TrafficShapeTracker()  // Uniform distribution
+    val tracker = TrafficShapeTracker() // Uniform distribution
     val dayStart = Instant.parse("2024-01-01T00:00:00Z")
 
     // Simulated 1-hour day (3600 seconds)
@@ -238,7 +238,7 @@ class TrafficShapeTrackerSpec extends AnyFlatSpec with Matchers {
       dailyBudget = BigDecimal(100),
       todaySpend = BigDecimal(50),
       dayStart = dayStart,
-      now = dayStart.plusSeconds(1800),  // 30 minutes = half day
+      now = dayStart.plusSeconds(1800), // 30 minutes = half day
       requestArrivalRate = 10.0,
       dayDurationSeconds = 3600,
       trafficShape = Some(tracker)
@@ -255,7 +255,7 @@ class TrafficShapeTrackerSpec extends AnyFlatSpec with Matchers {
 
     // Target shape: spike at noon (bucket 12), low elsewhere
     val targetShape = Array.fill(24)(1.0)
-    targetShape(12) = 10.0  // 10x traffic at noon
+    targetShape(12) = 10.0 // 10x traffic at noon
 
     // Simulate 30 days of traffic
     for (day <- 1 to 30) {
@@ -286,7 +286,7 @@ class TrafficShapeTrackerSpec extends AnyFlatSpec with Matchers {
     // With α=0.1 and 30 days, initial value weight = (1-0.1)^30 ≈ 4%
     // So volumes should be 96% determined by actual traffic
 
-    vol12 should be > vol0 * 5   // At least 5x (some dampening from EMA)
+    vol12 should be > vol0 * 5 // At least 5x (some dampening from EMA)
     vol12 should be > vol18 * 5
 
     // Print for visibility
@@ -329,7 +329,7 @@ class TrafficShapeTrackerSpec extends AnyFlatSpec with Matchers {
     // Final check: ratio should show significant differentiation
     // With scale-invariant normalization, convergence is dampened but still visible
     val finalRatio = tracker.volumeForBucket(12) / tracker.volumeForBucket(0)
-    finalRatio should be > 4.5  // Should show meaningful differentiation
+    finalRatio should be > 4.5 // Should show meaningful differentiation
   }
 
   it should "track surprise metric when pattern changes" in {
@@ -349,7 +349,7 @@ class TrafficShapeTrackerSpec extends AnyFlatSpec with Matchers {
 
     // Now drastically change the pattern - noon spike
     for (bucket <- 0 until 24) {
-      val requests = if (bucket == 12) 1000 else 100  // 10x at noon
+      val requests = if (bucket == 12) 1000 else 100 // 10x at noon
       for (_ <- 0 until requests) tracker.recordRequest(bucket * 3600 + 1800)
       if (bucket < 23) tracker.recordRequest((bucket + 1) * 3600 + 1)
     }
@@ -373,7 +373,7 @@ class TrafficShapeTrackerSpec extends AnyFlatSpec with Matchers {
     targetShape(12) = 10.0
 
     // Simulate 5 days with boosted tracker starting with 3x boost
-    boostedTracker.boostLearningRate(3.0, decayOverBuckets = 24 * 5)  // Decay over 5 days
+    boostedTracker.boostLearningRate(3.0, decayOverBuckets = 24 * 5) // Decay over 5 days
 
     for (day <- 1 to 5) {
       for (bucket <- 0 until 24) {
@@ -402,19 +402,19 @@ class TrafficShapeTrackerSpec extends AnyFlatSpec with Matchers {
 
   it should "work correctly with simulated short days" in {
     val tracker = new TrafficShapeTracker(bucketCount = 24, alpha = 0.1)
-    val dayDurationSeconds = 1800  // 30-minute simulated day
+    val dayDurationSeconds = 1800 // 30-minute simulated day
 
     // Target shape for client traffic generation
     val targetShape = Array.fill(24)(1.0)
-    targetShape(12) = 5.0  // Peak at "noon"
+    targetShape(12) = 5.0 // Peak at "noon"
 
     println("\n  Short-day simulation (1800s = 30min day):")
 
     // Simulate 20 short days
     for (day <- 1 to 20) {
       for (bucket <- 0 until 24) {
-        val bucketDuration = dayDurationSeconds / 24.0  // 75 seconds per bucket
-        val requests = (targetShape(bucket) * 10).toInt  // Fewer requests for short day
+        val bucketDuration = dayDurationSeconds / 24.0 // 75 seconds per bucket
+        val requests = (targetShape(bucket) * 10).toInt // Fewer requests for short day
 
         for (_ <- 0 until requests) {
           val elapsedSec = bucket * bucketDuration + bucketDuration / 2
@@ -428,13 +428,13 @@ class TrafficShapeTrackerSpec extends AnyFlatSpec with Matchers {
       if (day % 5 == 0) {
         val v0 = tracker.volumeForBucket(0)
         val v12 = tracker.volumeForBucket(12)
-        println(f"  Day $day%2d: bucket[0]=$v0%.3f, bucket[12]=$v12%.3f, ratio=${v12/v0}%.2fx")
+        println(f"  Day $day%2d: bucket[0]=$v0%.3f, bucket[12]=$v12%.3f, ratio=${v12 / v0}%.2fx")
       }
     }
 
     // Verify convergence
     val finalRatio = tracker.volumeForBucket(12) / tracker.volumeForBucket(0)
-    finalRatio should be > 3.0  // Should approach 5x target ratio
+    finalRatio should be > 3.0 // Should approach 5x target ratio
   }
 
   it should "preserve learned pattern across snapshot/restore" in {

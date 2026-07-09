@@ -74,10 +74,12 @@ object Protocol {
       authoritativeAbsent: Set[CampaignId] = Set.empty
   ) extends Command
 
-  /** Sent by the auctioneer the moment a page is classified (matched OR filler),
-    * INDEPENDENT of whether the auction drew a bid — so AdServer can record
-    * classifiedAt for no-bidder pages and not treat them as cold. Drives the
-    * reclassifyInMs freshness token. See docs/design/ON_DEMAND_CLASSIFICATION.md. */
+  /**
+   * Sent by the auctioneer the moment a page is classified (matched OR filler),
+   * INDEPENDENT of whether the auction drew a bid — so AdServer can record
+   * classifiedAt for no-bidder pages and not treat them as cold. Drives the
+   * reclassifyInMs freshness token. See docs/design/ON_DEMAND_CLASSIFICATION.md.
+   */
   final case class MarkClassified(url: URL, classifiedAt: Instant) extends Command
 
   /** Approve a pending creative (from publisher dashboard) */
@@ -131,9 +133,11 @@ object Protocol {
   /** Record a click for a creative (for per-creative Thompson Sampling) */
   final case class RecordClick(creativeId: CreativeId) extends Command
 
-  /** Record a fold for a creative — reader explicitly bookmarked it.
-    * Feeds Thompson Sampling alongside CTR via an independent Beta
-    * posterior. Free engagement signal, no billing impact. */
+  /**
+   * Record a fold for a creative — reader explicitly bookmarked it.
+   * Feeds Thompson Sampling alongside CTR via an independent Beta
+   * posterior. Free engagement signal, no billing impact.
+   */
   final case class RecordFold(creativeId: CreativeId) extends Command
 
   /** Get all per-creative stats (for monitoring/testing) */
@@ -144,14 +148,15 @@ object Protocol {
 
   // ==================== Batch Select (multi-slot per-page auction) ====================
 
-  /** One slot in a batch select request. Width / height used to
-    * match candidates; floorCpm optional per-slot override (currently
-    * unused — publisher's site floor applies to all slots).
-    *
-    * `pin` is a dog-ear hint from the bootstrap — "this slot is pinned to
-    * this creativeId in the reader's IndexedDB, honor it if possible".
-    * The auction bypass logic lives in `batchReserveWithRetry`.
-    */
+  /**
+   * One slot in a batch select request. Width / height used to
+   * match candidates; floorCpm optional per-slot override (currently
+   * unused — publisher's site floor applies to all slots).
+   *
+   * `pin` is a dog-ear hint from the bootstrap — "this slot is pinned to
+   * this creativeId in the reader's IndexedDB, honor it if possible".
+   * The auction bypass logic lives in `batchReserveWithRetry`.
+   */
   final case class BatchSlotSpec(
       slotId: SlotId,
       width: Int,
@@ -160,20 +165,23 @@ object Protocol {
       pin: Option[CreativeId] = None
   )
 
-  /** Outcome of attempting to honor a pin hint. `None` on a slot's outcome
-    * means the slot carried no pin hint. Today the only reason emitted on
-    * a fallthrough is `creative_removed` (the pinned creativeId is no
-    * longer in `persistedApprovedIds`); the bootstrap acts on it by
-    * deleting the IDB pin row. See `AdServer.dogearFallthrough`.
-    */
+  /**
+   * Outcome of attempting to honor a pin hint. `None` on a slot's outcome
+   * means the slot carried no pin hint. Today the only reason emitted on
+   * a fallthrough is `creative_removed` (the pinned creativeId is no
+   * longer in `persistedApprovedIds`); the bootstrap acts on it by
+   * deleting the IDB pin row. See `AdServer.dogearFallthrough`.
+   */
   final case class DogearOutcome(honored: Boolean, reason: Option[String] = None)
 
-  /** Multi-slot select. The server sees every slot on the page at
-    * once and runs a single joint auction: score each candidate once,
-    * greedy-pick (slot, candidate) pairs by descending score,
-    * enforce per-page-per-campaign cap across the batch. Avoids the
-    * "top slot wins everything, bottom slots go empty" pattern of
-    * sequential per-slot Selects on the same page. */
+  /**
+   * Multi-slot select. The server sees every slot on the page at
+   * once and runs a single joint auction: score each candidate once,
+   * greedy-pick (slot, candidate) pairs by descending score,
+   * enforce per-page-per-campaign cap across the batch. Avoids the
+   * "top slot wins everything, bottom slots go empty" pattern of
+   * sequential per-slot Selects on the same page.
+   */
   final case class BatchSelect(
       url: URL,
       slots: Vector[BatchSlotSpec],
@@ -193,10 +201,12 @@ object Protocol {
 
   sealed trait BatchSelectResult extends CborSerializable
 
-  /** Per-slot outcome in a batch response. `winner = None` means
-    * the slot could not be filled (no matching candidate, all in pool
-    * blocked, etc.). Clearing price + requestId match the single-slot
-    * flow's semantics when a winner is present. */
+  /**
+   * Per-slot outcome in a batch response. `winner = None` means
+   * the slot could not be filled (no matching candidate, all in pool
+   * blocked, etc.). Clearing price + requestId match the single-slot
+   * flow's semantics when a winner is present.
+   */
   final case class BatchSlotOutcome(
       slotId: SlotId,
       winner: Option[CandidateView],
@@ -205,22 +215,24 @@ object Protocol {
       dogear: Option[DogearOutcome] = None
   )
 
-  /** @param reclassifyInMs freshness token: ms until this page's classification
-    *   should be refreshed (= classifiedAt + recencyWindow - now). `> 0` → fresh,
-    *   the ad tag does nothing. `<= 0` → the ad tag should extract live-page text
-    *   and POST /v1/classify-page (covers BOTH the cold case — never classified,
-    *   token defaults to 0 — and the stale case — classification aged out).
-    *   Sourced from a per-url classifiedAt that is recorded the moment a page is
-    *   classified, INDEPENDENT of whether the auction drew a bid — so a
-    *   classified-but-no-bidder page is not treated as cold. Default Long.MaxValue
-    *   = "fresh, don't classify" (winner path). See docs/design/ON_DEMAND_CLASSIFICATION.md.
-    * @param needText derived legacy view: `reclassifyInMs <= 0`. Kept so the
-    *   currently-deployed bootstrap keeps working during the migration. */
+  /**
+   * @param reclassifyInMs freshness token: ms until this page's classification
+   *   should be refreshed (= classifiedAt + recencyWindow - now). `> 0` → fresh,
+   *   the ad tag does nothing. `<= 0` → the ad tag should extract live-page text
+   *   and POST /v1/classify-page (covers BOTH the cold case — never classified,
+   *   token defaults to 0 — and the stale case — classification aged out).
+   *   Sourced from a per-url classifiedAt that is recorded the moment a page is
+   *   classified, INDEPENDENT of whether the auction drew a bid — so a
+   *   classified-but-no-bidder page is not treated as cold. Default Long.MaxValue
+   *   = "fresh, don't classify" (winner path). See docs/design/ON_DEMAND_CLASSIFICATION.md.
+   * @param needText derived legacy view: `reclassifyInMs <= 0`. Kept so the
+   *   currently-deployed bootstrap keeps working during the migration.
+   */
   final case class BatchSelected(
       outcomes: Vector[BatchSlotOutcome],
       pageCategories: Set[String] = Set.empty,
       reclassifyInMs: Long = Long.MaxValue,
-      needText: Boolean = false,
+      needText: Boolean = false
   ) extends BatchSelectResult
 
   case object BatchContentTooOld extends BatchSelectResult
@@ -235,11 +247,11 @@ object Protocol {
       creativeId: String,
       cpm: Double,
       category: String,
-      s3Key: Option[String] = None,                // S3 key for CDN URL building
-      matchConfidence: Option[Double] = None,      // 0.0-1.0 verification score
-      verificationReason: Option[String] = None,   // Gemini's explanation
-      landingDomain: Option[String] = None,        // For domain blocklist filtering
-      adProductCategory: Option[String] = None,    // For ad product blocklist filtering
+      s3Key: Option[String] = None, // S3 key for CDN URL building
+      matchConfidence: Option[Double] = None, // 0.0-1.0 verification score
+      verificationReason: Option[String] = None, // Gemini's explanation
+      landingDomain: Option[String] = None, // For domain blocklist filtering
+      adProductCategory: Option[String] = None, // For ad product blocklist filtering
       campaignId: Option[String] = None,
       advertiserId: Option[String] = None,
       // Epoch millis when this creative FIRST entered the publisher's
@@ -278,48 +290,58 @@ object Protocol {
       adProductCategory: Option[String] = None
   )
 
-  /** List of flagged creatives — crosses nodes like PendingList, so it MUST be
-    * CborSerializable (see PendingList). */
+  /**
+   * List of flagged creatives — crosses nodes like PendingList, so it MUST be
+   * CborSerializable (see PendingList).
+   */
   final case class FlaggedList(items: Vector[FlaggedItem]) extends CborSerializable
 
-  /** Notifies AdServer that a campaign has been paused - remove its creatives from ServeIndex.
-    *
-    * `revokeApprovals` MUST be true ONLY for an EXPLICIT advertiser
-    * pause/delete (the promovolve.CampaignPaused topic event from
-    * CampaignEntity.UpdateStatus): pausing is leaving the site, so approvals
-    * are revoked and resume starts from PENDING. It MUST stay false for
-    * every other sender — AuctioneerEntity fires this message scope-blind
-    * on ANY CampaignChanged(isActive=false), including category
-    * re-registration churn during deploys, and revoking approvals there
-    * re-creates the 2026-07-03 "approval queue is gone" cascade that
-    * 0e1304c4 fixed. */
+  /**
+   * Notifies AdServer that a campaign has been paused - remove its creatives from ServeIndex.
+   *
+   * `revokeApprovals` MUST be true ONLY for an EXPLICIT advertiser
+   * pause/delete (the promovolve.CampaignPaused topic event from
+   * CampaignEntity.UpdateStatus): pausing is leaving the site, so approvals
+   * are revoked and resume starts from PENDING. It MUST stay false for
+   * every other sender — AuctioneerEntity fires this message scope-blind
+   * on ANY CampaignChanged(isActive=false), including category
+   * re-registration churn during deploys, and revoking approvals there
+   * re-creates the 2026-07-03 "approval queue is gone" cascade that
+   * 0e1304c4 fixed.
+   */
   final case class CampaignPaused(campaignId: CampaignId, revokeApprovals: Boolean = false) extends Command
 
-  /** Notifies AdServer that a campaign has narrowed its media targeting and is
-    * no longer allowed to bid on THIS site (the advertiser dropped this site
-    * from a non-empty siteAllowlist). Mirrors CampaignPaused removal: the
-    * campaign is wiped from every slot on this site, INCLUDING any reader pins
-    * on its creatives. A reader's pin on a site the advertiser left dies — that
-    * is the product decision for site-narrow eviction. Idempotent: a no-op when
-    * the campaign isn't present. */
+  /**
+   * Notifies AdServer that a campaign has narrowed its media targeting and is
+   * no longer allowed to bid on THIS site (the advertiser dropped this site
+   * from a non-empty siteAllowlist). Mirrors CampaignPaused removal: the
+   * campaign is wiped from every slot on this site, INCLUDING any reader pins
+   * on its creatives. A reader's pin on a site the advertiser left dies — that
+   * is the product decision for site-narrow eviction. Idempotent: a no-op when
+   * the campaign isn't present.
+   */
   final case class EvictCampaignFromSite(campaignId: CampaignId) extends Command
 
-  /** Notifies AdServer that a campaign narrowed its TOPIC targeting (dropped a
-    * category) and is awarded on specific pages it no longer targets. Removes
-    * the campaign's candidates from exactly these ServeIndex slot keys —
-    * EXCEPT reader-pinned creatives, which survive a topic drop on a still-
-    * served page (product decision). Driven by the narrowing edit only (not the
-    * generic rebuild), so it never over-evicts a temporarily-absent campaign.
-    * Idempotent: a no-op when the campaign isn't present in a key. */
+  /**
+   * Notifies AdServer that a campaign narrowed its TOPIC targeting (dropped a
+   * category) and is awarded on specific pages it no longer targets. Removes
+   * the campaign's candidates from exactly these ServeIndex slot keys —
+   * EXCEPT reader-pinned creatives, which survive a topic drop on a still-
+   * served page (product decision). Driven by the narrowing edit only (not the
+   * generic rebuild), so it never over-evicts a temporarily-absent campaign.
+   * Idempotent: a no-op when the campaign isn't present in a key.
+   */
   final case class EvictCampaignFromSlots(campaignId: CampaignId, slotKeys: Set[String]) extends Command
 
-  /** Publisher explicitly revoked a creative's approval on this site (the
-    * approval page's Revoke action — soft undo, creative returns to the
-    * pending queue on its next auction win). This is the ONLY pause-family
-    * command that deletes the persisted approval: it IS the un-approval,
-    * an explicit publisher act. CreativePaused (advertiser-side, reversible)
-    * deliberately keeps approvals — revoke must not ride that message or
-    * the kept approval re-admits the creative at the next rebuild. */
+  /**
+   * Publisher explicitly revoked a creative's approval on this site (the
+   * approval page's Revoke action — soft undo, creative returns to the
+   * pending queue on its next auction win). This is the ONLY pause-family
+   * command that deletes the persisted approval: it IS the un-approval,
+   * an explicit publisher act. CreativePaused (advertiser-side, reversible)
+   * deliberately keeps approvals — revoke must not ride that message or
+   * the kept approval re-admits the creative at the next rebuild.
+   */
   final case class RevokeCreativeApproval(creativeId: CreativeId) extends Command
 
   /** Notifies AdServer that a creative has been paused - remove it from ServeIndex */
@@ -342,7 +364,8 @@ object Protocol {
 
   // ==================== Internal Commands (pipeToSelf results) ====================
 
-  /** Per-creative stats for Thompson Sampling.
+  /**
+   * Per-creative stats for Thompson Sampling.
    *
    * ═══════════════════════════════════════════════════════════════════════════════
    * TIME-BUCKETED CREATIVE STATS
@@ -368,7 +391,6 @@ object Protocol {
    *           │(2,0) │(4,2) │(3,0) │(5,1) │(2,0) │   ...   │(3,1) │
    *           └──────┴──────┴──────┴──────┴──────┴─────────┴──────┘
    *
-   *
    * ═══════════════════════════════════════════════════════════════════════════════
    * AD REQUEST ARRIVES (e.g., at 10:47:32)
    * ═══════════════════════════════════════════════════════════════════════════════
@@ -383,7 +405,6 @@ object Protocol {
    * │ impressions = 5+3+4+2+6+...+4 = 847    │ impressions = 2+4+3+5+...+3 = 612
    * │ clicks      = 0+1+0+1+0+...+0 = 42     │ clicks      = 0+2+0+1+...+1 = 51
    * └─────────────────────────┘              └─────────────────────────┘
-   *
    *
    * Step 2: THOMPSON SAMPLING
    * ─────────────────────────
@@ -404,7 +425,6 @@ object Protocol {
    *                                          │  WINNER: Creative B │
    *                                          │  (higher sample)    │
    *                                          └─────────────────────┘
-   *
    *
    * ═══════════════════════════════════════════════════════════════════════════════
    * PRUNING (on every update)
@@ -428,7 +448,6 @@ object Protocol {
    *    └──────┴──────┴──────┴─────────┴──────┴──────┘
    *
    *     10:00 bucket is gone → old data naturally expires
-   *
    *
    * ═══════════════════════════════════════════════════════════════════════════════
    * LATE CLICK HANDLING
@@ -474,10 +493,11 @@ object Protocol {
       copy(buckets = prune(now) + (minute -> (imps, clks + 1, fds)))
     }
 
-    /** Folds are a free engagement signal: the reader explicitly bookmarked the
-      * creative. They feed Thompson Sampling alongside CTR via an independent
-      * Beta posterior in [[ThompsonSampling.scoreCandidate]]. No billing impact.
-      */
+    /**
+     * Folds are a free engagement signal: the reader explicitly bookmarked the
+     * creative. They feed Thompson Sampling alongside CTR via an independent
+     * Beta posterior in [[ThompsonSampling.scoreCandidate]]. No billing impact.
+     */
     def recordFold(now: Instant): CreativeStats = {
       val minute = now.getEpochSecond / 60
       val (imps, clks, fds) = buckets.getOrElse(minute, (0, 0, 0))
@@ -500,17 +520,17 @@ object Protocol {
   final case class ServeStats(
       siteId: String,
       selected: Long = 0,
-      pacingSkipped: Long = 0,      // Skipped by pacing gate (campaign budget pacing)
+      pacingSkipped: Long = 0, // Skipped by pacing gate (campaign budget pacing)
       budgetExhausted: Long = 0,
       noCandidates: Long = 0,
       contentTooOld: Long = 0,
-      warmup: Long = 0,             // Requests during warmup mode (traffic recorded, no ads served)
-      totalSpend: Double = 0.0,     // Actual spend in dollars
-      dayStart: Option[Instant] = None,  // Campaign day start for elapsed time calculation
-      trafficShapeSummary: Option[String] = None,  // Summary of learned traffic shape
-      hourlyImpressions: Array[Long] = Array.fill(24)(0L),  // Impressions per hour bucket
-      weekdayShapeVolumes: Option[Array[Double]] = None,  // Learned weekday traffic shape (24 hourly values)
-      weekendShapeVolumes: Option[Array[Double]] = None   // Learned weekend traffic shape (24 hourly values)
+      warmup: Long = 0, // Requests during warmup mode (traffic recorded, no ads served)
+      totalSpend: Double = 0.0, // Actual spend in dollars
+      dayStart: Option[Instant] = None, // Campaign day start for elapsed time calculation
+      trafficShapeSummary: Option[String] = None, // Summary of learned traffic shape
+      hourlyImpressions: Array[Long] = Array.fill(24)(0L), // Impressions per hour bucket
+      weekdayShapeVolumes: Option[Array[Double]] = None, // Learned weekday traffic shape (24 hourly values)
+      weekendShapeVolumes: Option[Array[Double]] = None // Learned weekend traffic shape (24 hourly values)
   ) extends CborSerializable {
     def total: Long = selected + pacingSkipped + budgetExhausted + noCandidates + contentTooOld + warmup
 
@@ -532,10 +552,11 @@ object Protocol {
       blocklist: Option[PublisherEntity.CachedDomainBlocklist]
   ) extends Command
 
-  /** Internal: full snapshot of advertiser-side site-domain blocklists from DData.
-    * AdServer keeps this as a per-advertiser map and filters candidates whose
-    * advertiser blocked the serving site's domain.
-    */
+  /**
+   * Internal: full snapshot of advertiser-side site-domain blocklists from DData.
+   * AdServer keeps this as a per-advertiser map and filters candidates whose
+   * advertiser blocked the serving site's domain.
+   */
   private[delivery] final case class AdvertiserBlocklistsUpdated(
       blocklists: Map[AdvertiserId, Set[String]]
   ) extends Command
@@ -560,9 +581,11 @@ object Protocol {
       host: Option[String]
   ) extends Command
 
-  /** Internal: per-(site,pageUrl) winner cache snapshot from DData.
-    * Carries the full map; the AdServer extracts just the entries it
-    * cares about on update. */
+  /**
+   * Internal: per-(site,pageUrl) winner cache snapshot from DData.
+   * Carries the full map; the AdServer extracts just the entries it
+   * cares about on update.
+   */
   private[delivery] final case class PageWinnersSnapshot(
       data: org.apache.pekko.cluster.ddata.LWWMap[String, AdServer.PageWinners]
   ) extends Command
@@ -575,17 +598,19 @@ object Protocol {
 
   /** Internal: debug logging for DData subscription events - helps trace blocklist update flow */
   private[delivery] final case class DDataSubscriptionDebug(
-      eventType: String,      // "Changed" or "GetSuccess" or "Other"
-      keyId: String,          // The key ID from the DData message
-      keyMatched: String,     // Which key it matched (or "unknown")
-      siteIdFound: Boolean,   // Whether our siteId was found in the data
-      dataSize: Int           // Number of entries in the map
+      eventType: String, // "Changed" or "GetSuccess" or "Other"
+      keyId: String, // The key ID from the DData message
+      keyMatched: String, // Which key it matched (or "unknown")
+      siteIdFound: Boolean, // Whether our siteId was found in the data
+      dataSize: Int // Number of entries in the map
   ) extends Command
 
-  /** Internal: response from ServeIndexDData.Get for BatchSelect.
-    * Carries the full batch spec forward so the handler can score
-    * candidates once and run the joint greedy assignment across
-    * all slots. */
+  /**
+   * Internal: response from ServeIndexDData.Get for BatchSelect.
+   * Carries the full batch spec forward so the handler can score
+   * candidates once and run the joint greedy assignment across
+   * all slots.
+   */
   private[delivery] final case class BatchSelectViewLoaded(
       view: Option[ServeView],
       url: URL,
@@ -596,8 +621,10 @@ object Protocol {
       excludedCampaigns: Set[CampaignId] = Set.empty
   ) extends Command
 
-  /** Internal: spend info fetched for BatchSelect — cache was empty
-    * so we asked CampaignEntity directly. */
+  /**
+   * Internal: spend info fetched for BatchSelect — cache was empty
+   * so we asked CampaignEntity directly.
+   */
   private[delivery] final case class BatchSpendInfoFetched(
       fetchedSpendInfo: Map[CampaignId, CachedSpendInfo],
       view: ServeView,
@@ -609,9 +636,11 @@ object Protocol {
       excludedCampaigns: Set[CampaignId]
   ) extends Command
 
-  /** Internal: pacing-gate outcome for BatchSelect. Aggregate
-    * throttle decided; if shouldServe, candidates have been
-    * filtered to campaigns with valid spend info. */
+  /**
+   * Internal: pacing-gate outcome for BatchSelect. Aggregate
+   * throttle decided; if shouldServe, candidates have been
+   * filtered to campaigns with valid spend info.
+   */
   private[delivery] final case class BatchPacingGateResult(
       shouldServe: Boolean,
       view: ServeView,
@@ -625,10 +654,12 @@ object Protocol {
       excludedCampaigns: Set[CampaignId]
   ) extends Command
 
-  /** Internal: per-winner reservations resolved. Outcomes with
-    * failed reservations have already been demoted to winner=None.
-    * Carries the per-campaign pending-spend deltas that need
-    * recording in AdServer state. */
+  /**
+   * Internal: per-winner reservations resolved. Outcomes with
+   * failed reservations have already been demoted to winner=None.
+   * Carries the per-campaign pending-spend deltas that need
+   * recording in AdServer state.
+   */
   private[delivery] final case class BatchReservationsResolved(
       outcomes: Vector[BatchSlotOutcome],
       pendingSpendDeltas: Map[CampaignId, Double],
@@ -636,7 +667,6 @@ object Protocol {
       pageCategories: Set[String],
       replyTo: ActorRef[BatchSelectResult]
   ) extends Command
-
 
   /** Internal: snapshot save completed */
   private[delivery] final case class SnapshotSaveResult(count: Int, error: Option[Throwable]) extends Command
@@ -764,7 +794,6 @@ object Protocol {
       replyTo: ActorRef[FlaggedList]
   ) extends Command
 
-
   /** Internal: ServeIndex loaded for candidate processing - determines actual pre-approval status */
   private[delivery] final case class ServeIndexLoadedForCandidates(
       url: URL,
@@ -774,7 +803,7 @@ object Protocol {
       ttl: FiniteDuration,
       slotKey: String,
       existingCreativeIds: Set[CreativeId],
-      existingView: Option[ServeView],  // Full view to preserve orphaned approved creatives
+      existingView: Option[ServeView], // Full view to preserve orphaned approved creatives
       authoritativeAbsent: Set[CampaignId]
   ) extends Command
 
@@ -788,7 +817,7 @@ object Protocol {
       ttl: FiniteDuration,
       slotKey: String,
       categoryScores: Map[CategoryId, Double],
-      existingView: Option[ServeView]  // Full view to preserve orphaned approved creatives
+      existingView: Option[ServeView] // Full view to preserve orphaned approved creatives
   ) extends Command
 
   /** Internal: upsert pending completed */
@@ -821,9 +850,11 @@ object Protocol {
       replyTo: ActorRef[ApproveAllResult]
   ) extends Command
 
-  /** Internal: creative stats loaded from tracking_events on startup.
-    * Bucket value is `(impressions, clicks, folds)`, mirroring
-    * [[CreativeStats.buckets]]. */
+  /**
+   * Internal: creative stats loaded from tracking_events on startup.
+   * Bucket value is `(impressions, clicks, folds)`, mirroring
+   * [[CreativeStats.buckets]].
+   */
   private[delivery] final case class CreativeStatsLoaded(
       stats: Map[String, Map[Long, (Int, Int, Int)]]
   ) extends Command
@@ -833,19 +864,23 @@ object Protocol {
       snapshot: Option[TrafficShapeSnapshot]
   ) extends Command
 
-  /** Internal: approved creative IDs loaded from DB on startup. Carries the
-    * owning advertiser per creative so the handler can re-announce each
-    * approval to its AdvertiserEntity (backfills `Creative.approvedSites`,
-    * which the bid path reads to tell approved demand from pending). */
+  /**
+   * Internal: approved creative IDs loaded from DB on startup. Carries the
+   * owning advertiser per creative so the handler can re-announce each
+   * approval to its AdvertiserEntity (backfills `Creative.approvedSites`,
+   * which the bid path reads to tell approved demand from pending).
+   */
   private[delivery] final case class ApprovedCreativeIdsLoaded(
       ids: Set[CreativeId],
       advertiserByCreative: Map[CreativeId, AdvertiserId] = Map.empty
   ) extends Command
 
-  /** Internal: the startup approvals load FAILED. Never coerced to an empty
-    * set — approval-by-ServeIndex-membership is circular after a restart, so
-    * a silently-empty approved set can never self-repair (incident
-    * 2026-07-06). Logged loudly + retried with backoff instead. */
+  /**
+   * Internal: the startup approvals load FAILED. Never coerced to an empty
+   * set — approval-by-ServeIndex-membership is circular after a restart, so
+   * a silently-empty approved set can never self-repair (incident
+   * 2026-07-06). Logged loudly + retried with backoff instead.
+   */
   private[delivery] final case class ApprovedCreativeIdsLoadFailed(
       reason: String,
       attempt: Int
@@ -863,9 +898,11 @@ object Protocol {
 
   // ==================== Data Models ====================
 
-  /** Acknowledgement for Reject. CborSerializable because it's returned as
-    * a StatusReply across nodes (the requesting actor may be on another
-    * node in a multi-node cluster); a bare case object has no serializer. */
+  /**
+   * Acknowledgement for Reject. CborSerializable because it's returned as
+   * a StatusReply across nodes (the requesting actor may be on another
+   * node in a multi-node cluster); a bare case object has no serializer.
+   */
   case object Done extends CborSerializable
 
   /** Internal command to purge expired pending selections */

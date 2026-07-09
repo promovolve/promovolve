@@ -3,11 +3,12 @@ package promovolve.publisher
 import slick.jdbc.PostgresProfile.api.*
 
 import java.time.Instant
-import scala.concurrent.{Await, ExecutionContext, Future}
+import scala.concurrent.{ Await, ExecutionContext, Future }
 import scala.concurrent.duration.*
 
 /** Repository for email → publisher mapping */
 trait PublisherEmailRepo {
+
   /** Find publisher ID by email */
   def findByEmail(email: String): Future[Option[String]]
 
@@ -79,9 +80,9 @@ class SlickPublisherEmailRepo(db: slick.jdbc.JdbcBackend#Database)(using ec: Exe
 
   // Table definition
   private class PublisherEmailTable(tag: Tag) extends Table[PublisherEmailRow](tag, "publisher_email") {
-    def email       = column[String]("email", O.PrimaryKey)
+    def email = column[String]("email", O.PrimaryKey)
     def publisherId = column[String]("publisher_id")
-    def createdAt   = column[Instant]("created_at")
+    def createdAt = column[Instant]("created_at")
 
     // Index for looking up all emails for a publisher
     def publisherIdx = index("idx_publisher_email_publisher", publisherId)

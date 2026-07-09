@@ -43,8 +43,8 @@ class SiteApprovalFilterSpec extends AnyFlatSpec with Matchers {
 
     // Remove site1 (reversal!)
     filter = filter.remove(site1)
-    filter.mightContain(site1) shouldBe false  // Gone!
-    filter.mightContain(site2) shouldBe true   // Still there
+    filter.mightContain(site1) shouldBe false // Gone!
+    filter.mightContain(site2) shouldBe true // Still there
 
     // Can re-add after removal
     filter = filter.add(site1)

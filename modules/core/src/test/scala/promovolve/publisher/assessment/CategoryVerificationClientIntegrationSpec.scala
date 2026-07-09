@@ -8,15 +8,16 @@ import org.scalatest.wordspec.AnyWordSpec
 import scala.concurrent.Await
 import scala.concurrent.duration.*
 
-/** Integration test for CategoryVerificationClient with real Gemini API.
-  *
-  * Tests that the extended prompt returns suggestedContentCategories
-  * alongside the existing match_confidence and safety fields.
-  *
-  * Requires:
-  *   - GEMINI_API_KEY environment variable
-  *   - Test images in resources (ad.jpg, download-1.jpg)
-  */
+/**
+ * Integration test for CategoryVerificationClient with real Gemini API.
+ *
+ * Tests that the extended prompt returns suggestedContentCategories
+ * alongside the existing match_confidence and safety fields.
+ *
+ * Requires:
+ *   - GEMINI_API_KEY environment variable
+ *   - Test images in resources (ad.jpg, download-1.jpg)
+ */
 class CategoryVerificationClientIntegrationSpec extends AnyWordSpec with Matchers with BeforeAndAfterAll {
 
   val testKit: ActorTestKit = ActorTestKit()

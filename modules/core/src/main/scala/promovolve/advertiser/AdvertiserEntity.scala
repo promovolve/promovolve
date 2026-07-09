@@ -2,33 +2,34 @@ package promovolve.advertiser
 
 import jkugiya.ulid.*
 import org.apache.pekko.actor.typed.pubsub.Topic
-import org.apache.pekko.actor.typed.scaladsl.{ActorContext, Behaviors}
-import org.apache.pekko.actor.typed.{ActorRef, ActorSystem, Behavior}
-import org.apache.pekko.cluster.ddata.typed.scaladsl.{DistributedData, Replicator}
-import org.apache.pekko.cluster.ddata.{LWWMap, LWWMapKey, SelfUniqueAddress}
-import org.apache.pekko.cluster.sharding.typed.scaladsl.{ClusterSharding, EntityTypeKey}
+import org.apache.pekko.actor.typed.scaladsl.{ ActorContext, Behaviors }
+import org.apache.pekko.actor.typed.{ ActorRef, ActorSystem, Behavior }
+import org.apache.pekko.cluster.ddata.typed.scaladsl.{ DistributedData, Replicator }
+import org.apache.pekko.cluster.ddata.{ LWWMap, LWWMapKey, SelfUniqueAddress }
+import org.apache.pekko.cluster.sharding.typed.scaladsl.{ ClusterSharding, EntityTypeKey }
 import org.apache.pekko.persistence.typed.PersistenceId
 import org.apache.pekko.persistence.typed.state.RecoveryCompleted
-import org.apache.pekko.persistence.typed.state.scaladsl.{DurableStateBehavior, Effect}
+import org.apache.pekko.persistence.typed.state.scaladsl.{ DurableStateBehavior, Effect }
 import promovolve.*
-import promovolve.common.{addRejected, mightContain, remove}
+import promovolve.common.{ addRejected, mightContain, remove }
 
-import java.time.{Instant, LocalDate, ZoneOffset}
+import java.time.{ Instant, LocalDate, ZoneOffset }
 
-/** Sharded entity representing an advertiser account.
-  *
-  * An advertiser:
-  * - Owns one or more campaigns
-  * - Has account-level site blacklist (applies to all campaigns)
-  * - Manages billing/payment (future)
-  *
-  * Uses DurableStateBehavior because:
-  * - Simple state with no need for event replay history
-  * - No downstream event consumers
-  * - Direct state persistence is simpler and more efficient
-  *
-  * Hierarchy: Advertiser → Campaign(s) → Creative(s)
-  */
+/**
+ * Sharded entity representing an advertiser account.
+ *
+ * An advertiser:
+ * - Owns one or more campaigns
+ * - Has account-level site blacklist (applies to all campaigns)
+ * - Manages billing/payment (future)
+ *
+ * Uses DurableStateBehavior because:
+ * - Simple state with no need for event replay history
+ * - No downstream event consumers
+ * - Direct state persistence is simpler and more efficient
+ *
+ * Hierarchy: Advertiser → Campaign(s) → Creative(s)
+ */
 object AdvertiserEntity {
 
   /** Type alias for DData update responses */
@@ -38,10 +39,11 @@ object AdvertiserEntity {
   val TypeKey: EntityTypeKey[Command | DDataUpdateResponse] =
     EntityTypeKey[Command | DDataUpdateResponse]("advertiser-entity")
 
-  /** DData key for advertiser-side site-domain blocklists. AdServer subscribes to this map
-    * and filters bids whose serving site domain appears in the candidate advertiser's set.
-    * Keyed by advertiserId — single entry per advertiser.
-    */
+  /**
+   * DData key for advertiser-side site-domain blocklists. AdServer subscribes to this map
+   * and filters bids whose serving site domain appears in the candidate advertiser's set.
+   * Keyed by advertiserId — single entry per advertiser.
+   */
   val DomainBlocklistCacheKey: LWWMapKey[AdvertiserId, CachedSiteDomainBlocklist] =
     LWWMapKey[AdvertiserId, CachedSiteDomainBlocklist]("advertiser-site-blocklist")
 
@@ -50,27 +52,30 @@ object AdvertiserEntity {
 
   private val MaxDDataRetries = 3
 
-  /** Permissive hostname check applied before persisting a blocklist entry.
-    * Accepts bare lowercased hostnames (lookup form): letters/digits/dot/hyphen,
-    * no leading/trailing dot or hyphen, no consecutive dots, ≤253 chars. Permits
-    * single-label hosts (e.g. "localhost") for dev parity. Caller is expected to
-    * have already lowercased + trimmed.
-    */
+  /**
+   * Permissive hostname check applied before persisting a blocklist entry.
+   * Accepts bare lowercased hostnames (lookup form): letters/digits/dot/hyphen,
+   * no leading/trailing dot or hyphen, no consecutive dots, ≤253 chars. Permits
+   * single-label hosts (e.g. "localhost") for dev parity. Caller is expected to
+   * have already lowercased + trimmed.
+   */
   private[advertiser] def isValidDomain(d: String): Boolean =
     d.nonEmpty &&
-      d.length <= 253 &&
-      d.forall(c =>
-        (c >= 'a' && c <= 'z') || (c >= '0' && c <= '9') || c == '-' || c == '.'
-      ) &&
-      !d.startsWith(".") && !d.endsWith(".") &&
-      !d.startsWith("-") && !d.endsWith("-") &&
-      !d.contains("..")
+    d.length <= 253 &&
+    d.forall(c =>
+      (c >= 'a' && c <= 'z') ||
+      (c >= '0' && c <= '9') || c == '-' || c == '.'
+    ) &&
+    !d.startsWith(".") && !d.endsWith(".") &&
+    !d.startsWith("-") && !d.endsWith("-") &&
+    !d.contains("..")
 
-  /** Normalize + validate a set of domain inputs. Lowercase, trim, drop empties
-    * and anything that fails [[isValidDomain]]. Invalid entries are silently
-    * filtered; the command response then reports the set that was actually
-    * persisted (mirrors the existing add/remove semantics).
-    */
+  /**
+   * Normalize + validate a set of domain inputs. Lowercase, trim, drop empties
+   * and anything that fails [[isValidDomain]]. Invalid entries are silently
+   * filtered; the command response then reports the set that was actually
+   * persisted (mirrors the existing add/remove semantics).
+   */
   private[advertiser] def normalizeDomains(input: Set[String]): Set[String] =
     input.iterator.map(_.toLowerCase.trim).filter(isValidDomain).toSet
 
@@ -83,8 +88,8 @@ object AdvertiserEntity {
     Behaviors.setup { ctx =>
       Behaviors.withTimers { timers =>
         given node: SelfUniqueAddress = DistributedData(system).selfUniqueAddress
-        val replicator                = DistributedData(system).replicator
-        val retryTimerKey             = "ddata-retry"
+        val replicator = DistributedData(system).replicator
+        val retryTimerKey = "ddata-retry"
 
         def syncToDData(state: State): Unit = {
           val cached = CachedSiteDomainBlocklist(state.siteDomainBlocklist)
@@ -106,7 +111,7 @@ object AdvertiserEntity {
 
         DurableStateBehavior[Command | DDataUpdateResponse, State](
           persistenceId = PersistenceId.ofUniqueId(s"advertiser-$advertiserId"),
-          emptyState    = State.empty(advertiserId),
+          emptyState = State.empty(advertiserId),
           commandHandler = (state, command) =>
             handleCommand(state, command, sharding, budgetEventTopic, syncToDData, cancelRetryTimer, scheduleRetry, ctx)
         ).receiveSignal { case (state, RecoveryCompleted) =>
@@ -134,12 +139,12 @@ object AdvertiserEntity {
   ): Effect[State] = command match {
     case cmd: Command =>
       val handlers: PartialFunction[Command, Effect[State]] =
-        campaignManagement(state, sharding, ctx) orElse
-        siteBlocklist(state, syncToDData) orElse
-        budgetAndSpend(state, budgetEventTopic, ctx) orElse
-        advertiserInfo(state, budgetEventTopic, ctx) orElse
-        creativeManagement(state, budgetEventTopic, ctx) orElse
-        ddataRetry(state, syncToDData, scheduleRetry, ctx)
+        campaignManagement(state, sharding, ctx).orElse(
+          siteBlocklist(state, syncToDData)).orElse(
+          budgetAndSpend(state, budgetEventTopic, ctx)).orElse(
+          advertiserInfo(state, budgetEventTopic, ctx)).orElse(
+          creativeManagement(state, budgetEventTopic, ctx)).orElse(
+          ddataRetry(state, syncToDData, scheduleRetry, ctx))
       handlers(cmd)
 
     case response: Replicator.UpdateResponse[?] =>
@@ -221,7 +226,7 @@ object AdvertiserEntity {
       ctx: ActorContext[Command | DDataUpdateResponse]
   ): PartialFunction[Command, Effect[State]] = {
     case CreateCampaign(replyTo) =>
-      val campaignId  = CampaignId(ULID.getGenerator().base32())
+      val campaignId = CampaignId(ULID.getGenerator().base32())
       ctx.log.info(
         "Campaign {} created for advertiser {}",
         campaignId,
@@ -262,7 +267,7 @@ object AdvertiserEntity {
       // Unblock skips the syntax check — if a bad domain somehow ended up in state
       // (older code path, manual ops), the user should still be able to remove it.
       val normalized = domains.iterator.map(_.toLowerCase.trim).filter(_.nonEmpty).toSet
-      val toRemove   = normalized.intersect(state.siteDomainBlocklist)
+      val toRemove = normalized.intersect(state.siteDomainBlocklist)
       if (toRemove.nonEmpty)
         Effect
           .persist(state.unblockDomains(toRemove))
@@ -277,13 +282,13 @@ object AdvertiserEntity {
   // ═══════════════════════════════════════════════════════════════════════════
 
   private def budgetAndSpend(
-                              state: State,
-                              budgetEventTopic: ActorRef[Topic.Command[BudgetEvent]],
-                              ctx: ActorContext[Command | DDataUpdateResponse]
+      state: State,
+      budgetEventTopic: ActorRef[Topic.Command[BudgetEvent]],
+      ctx: ActorContext[Command | DDataUpdateResponse]
   ): PartialFunction[Command, Effect[State]] = {
     case UpdateDailyBudget(newBudget, replyTo) =>
       val wasWithin = state.withinBudget
-      val newState  = state.withDailyBudget(newBudget)
+      val newState = state.withDailyBudget(newBudget)
       val nowWithin = newState.withinBudget
 
       Effect.persist(newState).thenRun { _ =>
@@ -317,14 +322,14 @@ object AdvertiserEntity {
         )
       } else {
         // Check if daily window needs rolling
-        val today        = LocalDate.ofInstant(ts, ZoneOffset.UTC).toEpochDay
-        val needsRoll    = state.lastResetEpochDay != today
+        val today = LocalDate.ofInstant(ts, ZoneOffset.UTC).toEpochDay
+        val needsRoll = state.lastResetEpochDay != today
         val wasExhausted = !state.withinBudget
-        val rolledState  = if (needsRoll) state.rollWindow(today) else state
+        val rolledState = if (needsRoll) state.rollWindow(today) else state
 
         // Record spend and track flushId for idempotency
         val wasWithin = rolledState.withinBudget
-        val newState  = rolledState.addSpend(amount).trackFlush(flushId)
+        val newState = rolledState.addSpend(amount).trackFlush(flushId)
         val nowWithin = newState.withinBudget
 
         Effect
@@ -405,9 +410,9 @@ object AdvertiserEntity {
   // ═══════════════════════════════════════════════════════════════════════════
 
   private def advertiserInfo(
-                              state: State,
-                              budgetEventTopic: ActorRef[Topic.Command[BudgetEvent]],
-                              ctx: ActorContext[Command | DDataUpdateResponse]
+      state: State,
+      budgetEventTopic: ActorRef[Topic.Command[BudgetEvent]],
+      ctx: ActorContext[Command | DDataUpdateResponse]
   ): PartialFunction[Command, Effect[State]] = {
     case GetBidContext(creativeIds, replyTo) =>
       // Use day-aware budget check to handle race condition where AdvertiserBudgetReset
@@ -480,9 +485,9 @@ object AdvertiserEntity {
   // ═══════════════════════════════════════════════════════════════════════════
 
   private def creativeManagement(
-                                  state: State,
-                                  budgetEventTopic: ActorRef[Topic.Command[BudgetEvent]],
-                                  ctx: ActorContext[Command | DDataUpdateResponse]
+      state: State,
+      budgetEventTopic: ActorRef[Topic.Command[BudgetEvent]],
+      ctx: ActorContext[Command | DDataUpdateResponse]
   ): PartialFunction[Command, Effect[State]] = {
     case AddCreative(creative, replyTo) =>
       Effect
@@ -652,9 +657,10 @@ object AdvertiserEntity {
       lastResetEpochDay: Long
   ) extends promovolve.CborSerializable
 
-  /** Reset day start for testing (simulated day rollover)
-    * @param silent if true, don't publish AdvertiserBudgetReset (used by PacingConfigUpdated to avoid re-auctions)
-    */
+  /**
+   * Reset day start for testing (simulated day rollover)
+   * @param silent if true, don't publish AdvertiserBudgetReset (used by PacingConfigUpdated to avoid re-auctions)
+   */
   case class ResetDayStart(replyTo: ActorRef[DayStartReset], silent: Boolean = false) extends Command
 
   case class DayStartReset(advertiserId: AdvertiserId, newEpochDay: Long) extends promovolve.CborSerializable
@@ -694,9 +700,10 @@ object AdvertiserEntity {
 
   case class CreativesResponse(advertiserId: AdvertiserId, creatives: Set[Creative]) extends promovolve.CborSerializable
 
-  /** Update creative active/paused status (for auction eligibility).
-    * Publishes CreativeStatusChanged event to notify AuctioneerEntity/AdServer.
-    */
+  /**
+   * Update creative active/paused status (for auction eligibility).
+   * Publishes CreativeStatusChanged event to notify AuctioneerEntity/AdServer.
+   */
   case class UpdateCreativeActiveStatus(
       creativeId: CreativeId,
       campaignId: CampaignId,
@@ -723,9 +730,10 @@ object AdvertiserEntity {
       siteId: SiteId
   ) extends promovolve.CborSerializable
 
-  /** Revoke creative approval for a site (removes from BOTH approved and rejected filters).
-    * Creative returns to "undecided" state and can go back to pending queue.
-    */
+  /**
+   * Revoke creative approval for a site (removes from BOTH approved and rejected filters).
+   * Creative returns to "undecided" state and can go back to pending queue.
+   */
   case class RevokeCreativeApproval(
       creativeId: CreativeId,
       siteId: SiteId,
@@ -755,9 +763,9 @@ object AdvertiserEntity {
   // AdServer boot from the approved_creative table.
   case class Creative(
       id: CreativeId,
-      rejectedSites: Array[Byte]      = Array.empty,
-      isActive: Boolean               = true, // Active/Paused status for auction eligibility
-      approvedSites: Set[String]      = Set.empty // siteIds where the publisher approved this creative
+      rejectedSites: Array[Byte] = Array.empty,
+      isActive: Boolean = true, // Active/Paused status for auction eligibility
+      approvedSites: Set[String] = Set.empty // siteIds where the publisher approved this creative
   ) extends CborSerializable {
 
     /** Check if creative is new for a site (not rejected). */
@@ -768,22 +776,25 @@ object AdvertiserEntity {
       if (rejectedSites.isEmpty) false
       else rejectedSites.mightContain(siteId)
 
-    /** Check if creative can participate in auction.
-      * Must be active AND not rejected by the site. Fluid creatives
-      * render at any slot dimension, so there's no per-creative size
-      * gate; slot-size policy is a publisher-side concern handled by
-      * the auctioneer's slot fan-out.
-      *
-      * NOTE: pending (not-yet-approved) creatives ARE eligible — winning
-      * an auction is how they reach the publisher's approval queue. See
-      * `isApprovedFor` for the approved-demand distinction.
-      */
+    /**
+     * Check if creative can participate in auction.
+     * Must be active AND not rejected by the site. Fluid creatives
+     * render at any slot dimension, so there's no per-creative size
+     * gate; slot-size policy is a publisher-side concern handled by
+     * the auctioneer's slot fan-out.
+     *
+     * NOTE: pending (not-yet-approved) creatives ARE eligible — winning
+     * an auction is how they reach the publisher's approval queue. See
+     * `isApprovedFor` for the approved-demand distinction.
+     */
     def isEligibleFor(siteId: SiteId): Boolean =
       isActive && !isRejectedFor(siteId)
 
-    /** Publisher-approved (servable) on this site. Distinct from
-      * `isEligibleFor`: eligible-but-not-approved = pending demand, which
-      * bids into auctions but must not teach the site's floor. */
+    /**
+     * Publisher-approved (servable) on this site. Distinct from
+     * `isEligibleFor`: eligible-but-not-approved = pending demand, which
+     * bids into auctions but must not teach the site's floor.
+     */
     def isApprovedFor(siteId: SiteId): Boolean =
       approvedSites.contains(siteId.value)
 
@@ -795,29 +806,33 @@ object AdvertiserEntity {
           // (floor-teaching) demand.
           copy(
             rejectedSites = rejectedSites.remove(siteId),
-            approvedSites = approvedSites + siteId.value,
+            approvedSites = approvedSites + siteId.value
           )
         case publisher.ApprovalStatus.Rejected =>
           // Add to rejected filter to block from future auctions; a
           // rejected creative is by definition no longer approved.
           copy(
             rejectedSites = rejectedSites.addRejected(siteId),
-            approvedSites = approvedSites - siteId.value,
+            approvedSites = approvedSites - siteId.value
           )
       }
 
-    /** Remove rejection for a site (un-reject). Creative can enter auctions
-      * again — as PENDING demand: un-flag does NOT restore approval, the
-      * publisher must approve it from the queue. */
+    /**
+     * Remove rejection for a site (un-reject). Creative can enter auctions
+     * again — as PENDING demand: un-flag does NOT restore approval, the
+     * publisher must approve it from the queue.
+     */
     def withUnrejection(siteId: SiteId): Creative =
       copy(rejectedSites = rejectedSites.remove(siteId))
 
-    /** Revoke approval for a site — SOFT undo, back to PENDING. Clears the
-      * approval (so the bid stops teaching the floor) but does NOT touch
-      * rejectedSites: the creative must keep bidding, because winning an
-      * auction is its only path back into the publisher's approval queue
-      * (AdServer's revoke removes it from serving AND pending selections).
-      * Reject/flag is the bidding block; revoke is re-evaluatable. */
+    /**
+     * Revoke approval for a site — SOFT undo, back to PENDING. Clears the
+     * approval (so the bid stops teaching the floor) but does NOT touch
+     * rejectedSites: the creative must keep bidding, because winning an
+     * auction is its only path back into the publisher's approval queue
+     * (AdServer's revoke removes it from serving AND pending selections).
+     * Reject/flag is the bidding block; revoke is re-evaluatable.
+     */
     def withRevocation(siteId: SiteId): Creative =
       copy(approvedSites = approvedSites - siteId.value)
 
@@ -837,7 +852,7 @@ object AdvertiserEntity {
       spendToday: Spend,
       lastResetEpochDay: Long,
       processedFlushIds: Set[FlushId] = Set.empty,
-      flushIdQueue: Vector[FlushId]   = Vector.empty
+      flushIdQueue: Vector[FlushId] = Vector.empty
   ) extends CborSerializable {
     def addCampaign(campaignId: CampaignId): State =
       copy(campaignIds = campaignIds + campaignId)
@@ -862,11 +877,12 @@ object AdvertiserEntity {
         // This is the boot-backfill steady state, re-announced every restart.
         case Some(creative)
             if approvalStatus == publisher.ApprovalStatus.Approved &&
-              creative.isApprovedFor(siteId) && creative.rejectedSites.isEmpty =>
+            creative.isApprovedFor(siteId) && creative.rejectedSites.isEmpty =>
           this
         case Some(creative) =>
           copy(creatives =
-            creatives.updated(creativeId, creative.withApproval(siteId, approvalStatus))
+            creatives.updated(creativeId,
+              creative.withApproval(siteId, approvalStatus))
           )
         case None => this
       }
@@ -892,17 +908,18 @@ object AdvertiserEntity {
     def addSpend(amount: Spend): State =
       copy(spendToday = Spend(spendToday.value + amount.value))
 
-    /** Track a processed flush ID for idempotency, with bounded FIFO retention.
-      * Uses Set for O(1) lookup + Queue for FIFO eviction order.
-      */
+    /**
+     * Track a processed flush ID for idempotency, with bounded FIFO retention.
+     * Uses Set for O(1) lookup + Queue for FIFO eviction order.
+     */
     def trackFlush(flushId: FlushId): State = {
-      val newSet   = processedFlushIds + flushId
+      val newSet = processedFlushIds + flushId
       val newQueue = flushIdQueue :+ flushId
       if (newQueue.size > MaxProcessedFlushIds) {
         val oldest = newQueue.head
         copy(
           processedFlushIds = newSet - oldest,
-          flushIdQueue      = newQueue.tail
+          flushIdQueue = newQueue.tail
         )
       } else {
         copy(processedFlushIds = newSet, flushIdQueue = newQueue)
@@ -912,19 +929,20 @@ object AdvertiserEntity {
     def rollWindow(newEpochDay: Long): State =
       // Clear processed flush IDs on window roll (new day = new idempotency window)
       copy(
-        spendToday        = Spend.zero,
+        spendToday = Spend.zero,
         lastResetEpochDay = newEpochDay,
         processedFlushIds = Set.empty,
-        flushIdQueue      = Vector.empty
+        flushIdQueue = Vector.empty
       )
 
     def remaining: Budget =
       Budget((dailyBudget.value - spendToday.value).max(BigDecimal(0)))
 
-    /** Day-aware remaining budget: if day has changed since last reset, treat as fresh budget.
-      * This handles the race condition where AdvertiserBudgetReset triggers re-auction before
-      * AdvertiserEntity processes its own ResetDayStart command.
-      */
+    /**
+     * Day-aware remaining budget: if day has changed since last reset, treat as fresh budget.
+     * This handles the race condition where AdvertiserBudgetReset triggers re-auction before
+     * AdvertiserEntity processes its own ResetDayStart command.
+     */
     def remainingForBidding: Budget = {
       val today = java.time.LocalDate.now(java.time.ZoneOffset.UTC).toEpochDay
       if (today > lastResetEpochDay) {
@@ -967,15 +985,15 @@ object AdvertiserEntity {
   object State {
     def empty(advertiserId: AdvertiserId): State =
       State(
-        advertiserId        = advertiserId,
-        name                = Name.empty,
-        status              = Status.Active,
-        campaignIds         = Set.empty,
-        creatives           = Map.empty,
+        advertiserId = advertiserId,
+        name = Name.empty,
+        status = Status.Active,
+        campaignIds = Set.empty,
+        creatives = Map.empty,
         siteDomainBlocklist = Set.empty,
-        dailyBudget         = Budget.zero,
-        spendToday          = Spend.zero,
-        lastResetEpochDay   = 0L
+        dailyBudget = Budget.zero,
+        spendToday = Spend.zero,
+        lastResetEpochDay = 0L
       )
   }
 

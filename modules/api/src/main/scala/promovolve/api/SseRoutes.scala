@@ -1,7 +1,7 @@
 package promovolve.api
 
 import org.apache.pekko.NotUsed
-import org.apache.pekko.actor.typed.{ActorRef, ActorSystem}
+import org.apache.pekko.actor.typed.{ ActorRef, ActorSystem }
 import org.apache.pekko.cluster.sharding.typed.scaladsl.ClusterSharding
 import org.apache.pekko.http.scaladsl.model.StatusCodes
 import org.apache.pekko.http.scaladsl.model.sse.ServerSentEvent
@@ -19,11 +19,12 @@ import scala.concurrent.Future
 import scala.concurrent.duration.*
 import scala.util.Success
 
-/** SSE routes for real-time pending creative notifications.
-  *
-  * Provides endpoint: GET /v1/publishers/{publisherId}/sites/{siteId}/events
-  * Streams "pending-updated" events when new creatives are queued for approval.
-  */
+/**
+ * SSE routes for real-time pending creative notifications.
+ *
+ * Provides endpoint: GET /v1/publishers/{publisherId}/sites/{siteId}/events
+ * Streams "pending-updated" events when new creatives are queued for approval.
+ */
 class SseRoutes(
     pendingEventHub: ActorRef[PendingEventHub.Command],
     sharding: ClusterSharding
@@ -33,10 +34,12 @@ class SseRoutes(
 
   private given Timeout = Timeout(5.seconds)
 
-  /** IDOR guard: this stream carries another publisher's live moderation
-    * activity (approve/reject/pending), so the {publisherId} path segment
-    * must actually own {siteId}. Same ConfigResult check as
-    * EndpointRoutes.requireOwnedSite. */
+  /**
+   * IDOR guard: this stream carries another publisher's live moderation
+   * activity (approve/reject/pending), so the {publisherId} path segment
+   * must actually own {siteId}. Same ConfigResult check as
+   * EndpointRoutes.requireOwnedSite.
+   */
   private def ownsSite(publisherId: String, siteId: String): Future[Boolean] =
     sharding
       .entityRefFor(SiteEntity.TypeKey, siteId)
@@ -57,12 +60,13 @@ class SseRoutes(
       }
   }
 
-  /** Create an SSE source that:
-    * 1. Creates an actor to receive PendingEvents
-    * 2. Subscribes the actor to the PendingEventHub
-    * 3. Converts events to ServerSentEvents
-    * 4. Unsubscribes on stream completion
-    */
+  /**
+   * Create an SSE source that:
+   * 1. Creates an actor to receive PendingEvents
+   * 2. Subscribes the actor to the PendingEventHub
+   * 3. Converts events to ServerSentEvents
+   * 4. Unsubscribes on stream completion
+   */
   private def createEventSource(siteId: String): Source[ServerSentEvent, NotUsed] = {
     // Create an actor source that receives PendingEvent messages
     val (actorRef, source) = ActorSource

@@ -1,6 +1,6 @@
 package promovolve.publisher.assessment
 
-import org.apache.pekko.actor.typed.{ActorRef, ActorSystem}
+import org.apache.pekko.actor.typed.{ ActorRef, ActorSystem }
 import org.apache.pekko.actor.typed.scaladsl.adapter.*
 import org.apache.pekko.http.scaladsl.Http
 import org.apache.pekko.http.scaladsl.model.*
@@ -11,18 +11,19 @@ import promovolve.publisher.AssessmentResult
 import spray.json.*
 
 import java.util.Base64
-import scala.concurrent.{ExecutionContext, Future}
+import scala.concurrent.{ ExecutionContext, Future }
 import scala.concurrent.duration.*
 import scala.util.Try
 
-/** Google Gemini API client for creative assessment.
-  *
-  * Features:
-  * - Uses Gemini 2.0 Flash for fast, cheap image analysis
-  * - JSON response mode for structured output
-  * - Retry with exponential backoff for transient errors
-  * - Cheapest option for vision tasks
-  */
+/**
+ * Google Gemini API client for creative assessment.
+ *
+ * Features:
+ * - Uses Gemini 2.0 Flash for fast, cheap image analysis
+ * - JSON response mode for structured output
+ * - Retry with exponential backoff for transient errors
+ * - Cheapest option for vision tasks
+ */
 final class GeminiClient(
     apiKey: String,
     model: String = "gemini-2.5-flash",
@@ -66,7 +67,7 @@ final class GeminiClient(
     // Acquire rate limit token before calling Gemini
     val gate: Future[Unit] = rateLimiter match {
       case Some(limiter) => GeminiRateLimiter.acquire(limiter)
-      case None => Future.successful(())
+      case None          => Future.successful(())
     }
 
     gate.flatMap { _ => http.singleRequest(request) }.flatMap { response =>
@@ -106,7 +107,7 @@ final class GeminiClient(
           }
       }
     }.recoverWith {
-      case e: GeminiApiError => Future.failed(e)
+      case e: GeminiApiError         => Future.failed(e)
       case e if attempt < maxRetries =>
         val delay = calculateBackoff(attempt)
         log.warn(
@@ -239,7 +240,8 @@ final class GeminiClient(
 
   private def buildPrompt(context: AssessmentContext): String = {
     val declaredCategoryInfo = context.declaredAdProductCategory match {
-      case Some(cat) => s"\n\nThe advertiser declared this ad as category: $cat. Verify if the visual content matches this declaration."
+      case Some(cat) =>
+        s"\n\nThe advertiser declared this ad as category: $cat. Verify if the visual content matches this declaration."
       case None => ""
     }
 
@@ -307,7 +309,7 @@ Provide your analysis in the required JSON format."""
     def getStringOrNull(key: String): Option[String] =
       input.fields.get(key).flatMap {
         case JsString(s) if s.nonEmpty => Some(s)
-        case _ => None
+        case _                         => None
       }
 
     def getStringArray(key: String): List[String] =

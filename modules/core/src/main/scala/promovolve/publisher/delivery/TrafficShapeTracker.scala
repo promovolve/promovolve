@@ -122,8 +122,8 @@ class TrafficShapeTracker(
   private var useLegacyMode: Boolean = true
   // Adaptive learning rate support
   private var alphaBoostFactor: Double = 1.0
-  private var alphaBoostDecay: Double = 0.0  // Decay per bucket update (0 = no decay)
-  private var recentSurprise: Double = 0.0   // EMA of squared prediction error
+  private var alphaBoostDecay: Double = 0.0 // Decay per bucket update (0 = no decay)
+  private var recentSurprise: Double = 0.0 // EMA of squared prediction error
   // Warmup tracking - surprise is not meaningful until all buckets have been visited.
   // Threshold is bucketCount - 1 because we count bucket transitions, not buckets.
   // Starting in bucket 0 and transitioning through all 24 buckets requires 23 transitions
@@ -815,13 +815,13 @@ object TrafficShapeTracker {
     // Check if we have separate weekday/weekend shapes
     (snapshot.weekdayVolumes, snapshot.weekendVolumes) match {
       case (Some(weekdayVols), Some(weekendVols))
-        if weekdayVols.length == snapshot.bucketCount && weekendVols.length == snapshot.bucketCount =>
+          if weekdayVols.length == snapshot.bucketCount && weekendVols.length == snapshot.bucketCount =>
         tracker.restoreBothShapes(weekdayVols, weekendVols, snapshot.emaBucketRequests)
       case _ if snapshot.volumes.length == snapshot.bucketCount =>
         // Legacy: use single volumes for both shapes
         tracker.restore(snapshot.volumes, snapshot.emaBucketRequests)
       case _ =>
-        // Incompatible snapshot, return tracker with defaults
+      // Incompatible snapshot, return tracker with defaults
     }
     tracker
   }

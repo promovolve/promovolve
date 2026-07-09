@@ -1,7 +1,7 @@
 package promovolve.publisher.assessment
 
-import org.apache.pekko.actor.typed.scaladsl.{ActorContext, Behaviors, StashBuffer, TimerScheduler}
-import org.apache.pekko.actor.typed.{ActorRef, Behavior}
+import org.apache.pekko.actor.typed.scaladsl.{ ActorContext, Behaviors, StashBuffer, TimerScheduler }
+import org.apache.pekko.actor.typed.{ ActorRef, Behavior }
 import org.apache.pekko.http.scaladsl.Http
 import org.apache.pekko.http.scaladsl.model.*
 import org.apache.pekko.http.scaladsl.model.headers.RawHeader
@@ -13,24 +13,25 @@ import spray.json.*
 import java.util.Base64
 import scala.concurrent.duration.*
 import scala.collection.mutable
-import scala.util.{Failure, Random, Success, Try}
+import scala.util.{ Failure, Random, Success, Try }
 
-/** Actor-based Anthropic client using the Message Batches API.
-  *
-  * Features:
-  * - Uses tool_use with JSON schema for reliable structured output
-  * - Queues requests until batch threshold or timer fires
-  * - Submits batches asynchronously (50% cost savings)
-  * - Polls for completion with exponential backoff
-  * - Routes results back to original callers
-  *
-  * @param apiKey Anthropic API key
-  * @param model Model to use (default: claude-sonnet-4-20250514)
-  * @param batchThreshold Submit batch when this many requests queued (default: 100)
-  * @param submitInterval Submit batch after this duration even if threshold not met (default: 5 minutes)
-  * @param pollInterval Initial poll interval for batch status (default: 30 seconds)
-  * @param maxPollInterval Maximum poll interval with backoff (default: 5 minutes)
-  */
+/**
+ * Actor-based Anthropic client using the Message Batches API.
+ *
+ * Features:
+ * - Uses tool_use with JSON schema for reliable structured output
+ * - Queues requests until batch threshold or timer fires
+ * - Submits batches asynchronously (50% cost savings)
+ * - Polls for completion with exponential backoff
+ * - Routes results back to original callers
+ *
+ * @param apiKey Anthropic API key
+ * @param model Model to use (default: claude-sonnet-4-20250514)
+ * @param batchThreshold Submit batch when this many requests queued (default: 100)
+ * @param submitInterval Submit batch after this duration even if threshold not met (default: 5 minutes)
+ * @param pollInterval Initial poll interval for batch status (default: 30 seconds)
+ * @param maxPollInterval Maximum poll interval with backoff (default: 5 minutes)
+ */
 object BatchAnthropicClient {
 
   private val log = LoggerFactory.getLogger(getClass)
@@ -63,7 +64,8 @@ object BatchAnthropicClient {
   private case class BatchCreateFailed(error: Throwable, pendingRequests: Map[String, PendingRequest]) extends Command
 
   /** Internal: Batch status response */
-  private case class BatchStatusReceived(batchId: String, status: BatchStatus, resultsUrl: Option[String]) extends Command
+  private case class BatchStatusReceived(batchId: String, status: BatchStatus, resultsUrl: Option[String])
+      extends Command
 
   /** Internal: Batch results received */
   private case class BatchResultsReceived(batchId: String, results: List[BatchResult]) extends Command
@@ -280,7 +282,7 @@ private class BatchAnthropicClient(
       }
     }) {
       case Success((batchId, reqs)) => BatchCreated(batchId, reqs)
-      case Failure(e) => BatchCreateFailed(e, requests)
+      case Failure(e)               => BatchCreateFailed(e, requests)
     }
   }
 
@@ -359,7 +361,8 @@ private class BatchAnthropicClient(
     // Define the assessment tool with JSON schema (same as AnthropicClient)
     val assessmentTool = JsObject(
       "name" -> JsString("assess_creative"),
-      "description" -> JsString("Output the creative assessment results with safety scores, content flags, and detected categories"),
+      "description" ->
+      JsString("Output the creative assessment results with safety scores, content flags, and detected categories"),
       "input_schema" -> JsObject(
         "type" -> JsString("object"),
         "properties" -> JsObject(
@@ -452,7 +455,8 @@ private class BatchAnthropicClient(
 
   private def buildPrompt(context: AssessmentContext): String = {
     val declaredCategoryInfo = context.declaredAdProductCategory match {
-      case Some(cat) => s"\n\nThe advertiser declared this ad as category: $cat. Verify if the visual content matches this declaration."
+      case Some(cat) =>
+        s"\n\nThe advertiser declared this ad as category: $cat. Verify if the visual content matches this declaration."
       case None => ""
     }
 
@@ -477,7 +481,7 @@ Use the assess_creative tool to provide your analysis."""
     Try {
       body.parseJson.asJsObject.fields("id") match {
         case JsString(id) => id
-        case _ => throw new RuntimeException("Batch ID not a string")
+        case _            => throw new RuntimeException("Batch ID not a string")
       }
     }.getOrElse(throw new RuntimeException(s"Could not extract batch ID from: $body"))
 
@@ -486,8 +490,8 @@ Use the assess_creative tool to provide your analysis."""
 
     val status = json.fields.get("processing_status").collect {
       case JsString("in_progress") => BatchStatus.InProgress
-      case JsString("canceling") => BatchStatus.Canceling
-      case JsString("ended") => BatchStatus.Ended
+      case JsString("canceling")   => BatchStatus.Canceling
+      case JsString("ended")       => BatchStatus.Ended
     }.getOrElse(throw new RuntimeException(s"Unknown batch status in: $body"))
 
     val resultsUrl = json.fields.get("results_url").collect {
@@ -528,9 +532,10 @@ Use the assess_creative tool to provide your analysis."""
             BatchResult(customId, success = true, toolInput, None)
 
           case Some(errorType) =>
-            val errorMsg = resultObj.flatMap(_.fields.get("error")).flatMap(_.asJsObject.fields.get("message")).collect {
-              case JsString(msg) => msg
-            }.getOrElse(errorType)
+            val errorMsg =
+              resultObj.flatMap(_.fields.get("error")).flatMap(_.asJsObject.fields.get("message")).collect {
+                case JsString(msg) => msg
+              }.getOrElse(errorType)
 
             BatchResult(customId, success = false, None, Some(errorMsg))
 
@@ -551,8 +556,8 @@ Use the assess_creative tool to provide your analysis."""
     def getStringOrNull(key: String): Option[String] =
       input.fields.get(key).flatMap {
         case JsString(s) if s.nonEmpty => Some(s)
-        case JsNull => None
-        case _ => None
+        case JsNull                    => None
+        case _                         => None
       }
 
     def getStringArray(key: String): List[String] =

@@ -36,8 +36,8 @@ class FloorSweepOptimizerSpec extends AnyWordSpec with Matchers {
     "return argmax of revenue across candidates" in {
       val results = Map(
         0.50 -> (1.0, 100L),
-        1.00 -> (3.0, 100L),  // winner
-        2.00 -> (2.0, 100L),
+        1.00 -> (3.0, 100L), // winner
+        2.00 -> (2.0, 100L)
       )
       FloorSweepOptimizer.pickBest(results) shouldBe 1.00
     }
@@ -46,7 +46,7 @@ class FloorSweepOptimizerSpec extends AnyWordSpec with Matchers {
       val results = Map(
         0.50 -> (2.0, 100L),
         1.00 -> (2.0, 100L),
-        2.00 -> (2.0, 100L),
+        2.00 -> (2.0, 100L)
       )
       FloorSweepOptimizer.pickBest(results) shouldBe 2.00
     }
@@ -57,9 +57,9 @@ class FloorSweepOptimizerSpec extends AnyWordSpec with Matchers {
       // signal. The evidence guard should reject it and pick the
       // lowest floor (the most-filling option).
       val results = Map(
-        1.17 -> (0.0,    0L),
-        1.43 -> (0.0014, 1L),  // would be argmax without guard
-        1.50 -> (0.0,    0L),
+        1.17 -> (0.0, 0L),
+        1.43 -> (0.0014, 1L), // would be argmax without guard
+        1.50 -> (0.0, 0L)
       )
       FloorSweepOptimizer.pickBest(results, minImpsForArgmax = 3) shouldBe 1.17
     }
@@ -67,8 +67,8 @@ class FloorSweepOptimizerSpec extends AnyWordSpec with Matchers {
     "trust the argmax once impressions clear the evidence threshold" in {
       val results = Map(
         1.17 -> (0.0024, 2L),
-        1.43 -> (0.0070, 5L),  // clears threshold and is argmax
-        1.50 -> (0.0030, 2L),
+        1.43 -> (0.0070, 5L), // clears threshold and is argmax
+        1.50 -> (0.0030, 2L)
       )
       FloorSweepOptimizer.pickBest(results, minImpsForArgmax = 3) shouldBe 1.43
     }
@@ -79,9 +79,9 @@ class FloorSweepOptimizerSpec extends AnyWordSpec with Matchers {
       // same revenue. Strict argmax is the LOW floor here; with a 5% band
       // the high floor is within tolerance and should win.
       val results = Map(
-        1.17 -> (0.385, 114L),  // strict argmax
-        4.00 -> (0.300, 80L),   // outside the band
-        7.00 -> (0.375, 55L),   // within 5% of 0.385 → promoted
+        1.17 -> (0.385, 114L), // strict argmax
+        4.00 -> (0.300, 80L), // outside the band
+        7.00 -> (0.375, 55L) // within 5% of 0.385 → promoted
       )
       FloorSweepOptimizer.pickBest(results, minImpsForArgmax = 3, tieTolerance = 0.05) shouldBe 7.00
       // Without the band, the strict argmax (low floor) wins.
@@ -94,8 +94,8 @@ class FloorSweepOptimizerSpec extends AnyWordSpec with Matchers {
       // must not be chosen — the plateau logic only promotes near-ties.
       val results = Map(
         4.00 -> (0.467, 96L),
-        5.67 -> (0.661, 109L),  // peak
-        7.00 -> (0.321, 46L),   // ~half of peak → outside band
+        5.67 -> (0.661, 109L), // peak
+        7.00 -> (0.321, 46L) // ~half of peak → outside band
       )
       FloorSweepOptimizer.pickBest(results, minImpsForArgmax = 3, tieTolerance = 0.05) shouldBe 5.67
     }
@@ -105,8 +105,8 @@ class FloorSweepOptimizerSpec extends AnyWordSpec with Matchers {
       // lucky impression must NOT be promoted — the evidence guard keeps it
       // from starving the well-measured low floor.
       val results = Map(
-        1.00 -> (0.50, 100L),  // strict argmax, well-evidenced
-        5.00 -> (0.49, 1L),    // within band but only 1 imp (< minImps)
+        1.00 -> (0.50, 100L), // strict argmax, well-evidenced
+        5.00 -> (0.49, 1L) // within band but only 1 imp (< minImps)
       )
       FloorSweepOptimizer.pickBest(results, minImpsForArgmax = 3, tieTolerance = 0.05) shouldBe 1.00
     }
@@ -119,11 +119,11 @@ class FloorSweepOptimizerSpec extends AnyWordSpec with Matchers {
       // lowest floor (fail open, admit the cheap bidders) instead of drifting
       // up and locking them out.
       val results = Map(
-        5.00 -> (0.0,    0L),
-        5.57 -> (0.0,    0L),
-        6.71 -> (0.0,    0L),
-        7.27 -> (0.018,  2L),
-        8.41 -> (0.027,  3L),  // raw argmax, but every floor below it is untested
+        5.00 -> (0.0, 0L),
+        5.57 -> (0.0, 0L),
+        6.71 -> (0.0, 0L),
+        7.27 -> (0.018, 2L),
+        8.41 -> (0.027, 3L) // raw argmax, but every floor below it is untested
       )
       FloorSweepOptimizer.pickBest(results, minImpsForArgmax = 3) shouldBe 5.00
     }
@@ -135,7 +135,7 @@ class FloorSweepOptimizerSpec extends AnyWordSpec with Matchers {
       val results = Map(
         5.00 -> (10.0, 100L),
         6.00 -> (12.0, 100L),
-        7.00 -> (15.0, 100L),  // argmax, all lower floors well-measured
+        7.00 -> (15.0, 100L) // argmax, all lower floors well-measured
       )
       FloorSweepOptimizer.pickBest(results, minImpsForArgmax = 3) shouldBe 7.00
     }
@@ -163,7 +163,7 @@ class FloorSweepOptimizerSpec extends AnyWordSpec with Matchers {
     "emit each candidate once during sweep then converge to argmax" in {
       val opt = new FloorSweepOptimizer(
         siteId,
-        FloorSweepOptimizer.Config(candidateCount = 3, ticksPerCandidate = 1, exploitTicks = 2, minImpsForArgmax = 1),
+        FloorSweepOptimizer.Config(candidateCount = 3, ticksPerCandidate = 1, exploitTicks = 2, minImpsForArgmax = 1)
       )
       opt.setMinFloor(1.0)
       opt.setInitialFloor(1.0)
@@ -210,7 +210,7 @@ class FloorSweepOptimizerSpec extends AnyWordSpec with Matchers {
     "respect minFloor at sweep start" in {
       val opt = new FloorSweepOptimizer(
         siteId,
-        FloorSweepOptimizer.Config(candidateCount = 4, ticksPerCandidate = 1, exploitTicks = 1),
+        FloorSweepOptimizer.Config(candidateCount = 4, ticksPerCandidate = 1, exploitTicks = 1)
       )
       opt.setMinFloor(2.0)
       val first = opt.observe().map(_.newFloor)
@@ -220,7 +220,7 @@ class FloorSweepOptimizerSpec extends AnyWordSpec with Matchers {
     "never exploit at a floor below the current minFloor, even if minFloor was raised mid-sweep" in {
       val opt = new FloorSweepOptimizer(
         siteId,
-        FloorSweepOptimizer.Config(candidateCount = 4, ticksPerCandidate = 1, exploitTicks = 2),
+        FloorSweepOptimizer.Config(candidateCount = 4, ticksPerCandidate = 1, exploitTicks = 2)
       )
       opt.setMinFloor(1.0)
       opt.setInitialFloor(1.0)
@@ -230,9 +230,9 @@ class FloorSweepOptimizerSpec extends AnyWordSpec with Matchers {
       // Sweep across candidates 1, 4, 7, 10. Give the lowest candidate
       // the highest revenue so it'd "win" without clamping.
       opt.observe(); opt.recordServedImpression(10.0) // floor 1.0
-      opt.observe(); opt.recordServedImpression(1.0)  // floor 4.0
-      opt.observe(); opt.recordServedImpression(1.0)  // floor 7.0
-      opt.observe(); opt.recordServedImpression(1.0)  // floor 10.0
+      opt.observe(); opt.recordServedImpression(1.0) // floor 4.0
+      opt.observe(); opt.recordServedImpression(1.0) // floor 7.0
+      opt.observe(); opt.recordServedImpression(1.0) // floor 10.0
 
       // Publisher raises minFloor mid-sweep, before the final transition.
       opt.setMinFloor(5.0)
@@ -254,7 +254,7 @@ class FloorSweepOptimizerSpec extends AnyWordSpec with Matchers {
     "resetToMinFloor collapses to min, clears the stale bid anchor, and restarts a clean sweep" in {
       val opt = new FloorSweepOptimizer(
         siteId,
-        FloorSweepOptimizer.Config(candidateCount = 3, ticksPerCandidate = 1, exploitTicks = 2, minImpsForArgmax = 1),
+        FloorSweepOptimizer.Config(candidateCount = 3, ticksPerCandidate = 1, exploitTicks = 2, minImpsForArgmax = 1)
       )
       opt.setMinFloor(1.0)
       // Drive the optimizer to a high, $50-anchored state (the flagged
@@ -279,7 +279,7 @@ class FloorSweepOptimizerSpec extends AnyWordSpec with Matchers {
     "hold each candidate for ticksPerCandidate ticks and average measurements" in {
       val opt = new FloorSweepOptimizer(
         siteId,
-        FloorSweepOptimizer.Config(candidateCount = 2, ticksPerCandidate = 3, exploitTicks = 1),
+        FloorSweepOptimizer.Config(candidateCount = 2, ticksPerCandidate = 3, exploitTicks = 1)
       )
       opt.setMinFloor(1.0)
       opt.setInitialFloor(1.0)
@@ -321,10 +321,10 @@ class FloorSweepOptimizerSpec extends AnyWordSpec with Matchers {
       opt.setMinFloor(1.0)
       opt.setInitialFloor(1.0)
       opt.recordObservedBid(5.0)
-      opt.observe(); opt.recordServedImpression(0.10)                                  // $1
+      opt.observe(); opt.recordServedImpression(0.10) // $1
       opt.observe(); opt.recordServedImpression(0.50); opt.recordServedImpression(0.50) // $3
-      opt.observe(); opt.recordServedImpression(0.20)                                  // $5
-      opt.observe()         // sweep complete → Exploit at argmax $3
+      opt.observe(); opt.recordServedImpression(0.20) // $5
+      opt.observe() // sweep complete → Exploit at argmax $3
       opt.observe() shouldBe None // exploit tick → phase flips to Init
     }
 
@@ -380,7 +380,7 @@ class FloorSweepOptimizerSpec extends AnyWordSpec with Matchers {
     "reset max-bid ceiling each cycle so a vanished high bidder doesn't permanently inflate the sweep range" in {
       val opt = new FloorSweepOptimizer(
         siteId,
-        FloorSweepOptimizer.Config(candidateCount = 3, ticksPerCandidate = 1, exploitTicks = 1),
+        FloorSweepOptimizer.Config(candidateCount = 3, ticksPerCandidate = 1, exploitTicks = 1)
       )
       opt.setMinFloor(0.10)
 
@@ -394,7 +394,7 @@ class FloorSweepOptimizerSpec extends AnyWordSpec with Matchers {
       // During cycle 1 only $2 bids arrive — the $8 bidder has vanished.
       // Mid-sweep contraction skips $4.05 and $8 immediately.
       opt.recordObservedBid(2.0); opt.observe() // → Exploit
-      opt.observe()                             // Exploit → Init
+      opt.observe() // Exploit → Init
 
       // Cycle 2 Init must rebuild the ceiling at $2, not stay at $8.
       opt.observe() // Init → Sweep, candidates rebuilt from cycle 1's $2
@@ -406,7 +406,7 @@ class FloorSweepOptimizerSpec extends AnyWordSpec with Matchers {
     "raise the sweep floor to the lowest bid observed in the prior cycle" in {
       val opt = new FloorSweepOptimizer(
         siteId,
-        FloorSweepOptimizer.Config(candidateCount = 3, ticksPerCandidate = 1, exploitTicks = 1),
+        FloorSweepOptimizer.Config(candidateCount = 3, ticksPerCandidate = 1, exploitTicks = 1)
       )
       opt.setMinFloor(0.10)
 
@@ -433,7 +433,7 @@ class FloorSweepOptimizerSpec extends AnyWordSpec with Matchers {
       // cheaper campaigns would be permanently excluded.
       val opt = new FloorSweepOptimizer(
         siteId,
-        FloorSweepOptimizer.Config(candidateCount = 3, ticksPerCandidate = 1, exploitTicks = 1),
+        FloorSweepOptimizer.Config(candidateCount = 3, ticksPerCandidate = 1, exploitTicks = 1)
       )
       opt.setMinFloor(0.10)
 
@@ -457,7 +457,7 @@ class FloorSweepOptimizerSpec extends AnyWordSpec with Matchers {
     "fall back to _minFloor when no bids were observed in the prior cycle" in {
       val opt = new FloorSweepOptimizer(
         siteId,
-        FloorSweepOptimizer.Config(candidateCount = 3, ticksPerCandidate = 1, exploitTicks = 1),
+        FloorSweepOptimizer.Config(candidateCount = 3, ticksPerCandidate = 1, exploitTicks = 1)
       )
       opt.setMinFloor(0.25)
 
@@ -484,7 +484,7 @@ class FloorSweepOptimizerSpec extends AnyWordSpec with Matchers {
       // ticksPerCandidate ticks each.
       val opt = new FloorSweepOptimizer(
         siteId,
-        FloorSweepOptimizer.Config(candidateCount = 5, ticksPerCandidate = 1, exploitTicks = 1),
+        FloorSweepOptimizer.Config(candidateCount = 5, ticksPerCandidate = 1, exploitTicks = 1)
       )
       opt.setMinFloor(0.10)
 
@@ -516,7 +516,7 @@ class FloorSweepOptimizerSpec extends AnyWordSpec with Matchers {
       // cycle build a sweep from real data.
       val opt = new FloorSweepOptimizer(
         siteId,
-        FloorSweepOptimizer.Config(candidateCount = 3, ticksPerCandidate = 1, exploitTicks = 1),
+        FloorSweepOptimizer.Config(candidateCount = 3, ticksPerCandidate = 1, exploitTicks = 1)
       )
       opt.setMinFloor(0.10)
 
@@ -535,7 +535,7 @@ class FloorSweepOptimizerSpec extends AnyWordSpec with Matchers {
       // compare at-the-bid vs under-the-bid revenue.
       val opt = new FloorSweepOptimizer(
         siteId,
-        FloorSweepOptimizer.Config(candidateCount = 4, ticksPerCandidate = 1, exploitTicks = 1),
+        FloorSweepOptimizer.Config(candidateCount = 4, ticksPerCandidate = 1, exploitTicks = 1)
       )
       opt.setMinFloor(0.10)
       // A market where every bid is the same price.
@@ -587,7 +587,7 @@ class FloorSweepOptimizerSpec extends AnyWordSpec with Matchers {
       // integration test against Pekko's durable_state serializer.
       val a = new FloorSweepOptimizer(
         siteId,
-        FloorSweepOptimizer.Config(candidateCount = 3, ticksPerCandidate = 1, exploitTicks = 1),
+        FloorSweepOptimizer.Config(candidateCount = 3, ticksPerCandidate = 1, exploitTicks = 1)
       )
       a.setMinFloor(1.0)
       a.observe()

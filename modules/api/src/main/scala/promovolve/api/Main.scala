@@ -1,8 +1,8 @@
 package promovolve.api
 
-import com.typesafe.config.{Config, ConfigFactory}
+import com.typesafe.config.{ Config, ConfigFactory }
 import org.apache.pekko.actor.typed.scaladsl.Behaviors
-import org.apache.pekko.actor.typed.{ActorSystem, Behavior}
+import org.apache.pekko.actor.typed.{ ActorSystem, Behavior }
 import org.apache.pekko.cluster.sharding.typed.scaladsl.ClusterSharding
 import promovolve.api.projection.DashboardProjection
 import promovolve.cluster.ClusterBootstrap
@@ -12,22 +12,23 @@ import slick.jdbc.PostgresProfile
 import scala.concurrent.ExecutionContext
 import scala.jdk.CollectionConverters.*
 
-/** Unified Main for all node types.
-  *
-  * Behavior is determined by cluster roles in config:
-  *   - "singleton" role: Hosts cluster singletons (CampaignDirectory, CategoryRegistry)
-  *   - "entity" role: Hosts sharded entities
-  *   - "api" role: Starts HTTP server
-  *
-  * Examples:
-  *   - API node: roles = ["api"]
-  *   - Entity node: roles = ["entity"]
-  *   - Singleton node: roles = ["singleton", "entity"]
-  *   - All-in-one (dev): roles = ["singleton", "entity", "api"]
-  *
-  * Usage:
-  *   sbt "api/run" (uses application.conf in api module)
-  */
+/**
+ * Unified Main for all node types.
+ *
+ * Behavior is determined by cluster roles in config:
+ *   - "singleton" role: Hosts cluster singletons (CampaignDirectory, CategoryRegistry)
+ *   - "entity" role: Hosts sharded entities
+ *   - "api" role: Starts HTTP server
+ *
+ * Examples:
+ *   - API node: roles = ["api"]
+ *   - Entity node: roles = ["entity"]
+ *   - Singleton node: roles = ["singleton", "entity"]
+ *   - All-in-one (dev): roles = ["singleton", "entity", "api"]
+ *
+ * Usage:
+ *   sbt "api/run" (uses application.conf in api module)
+ */
 object Main {
 
   def main(args: Array[String]): Unit = {
@@ -40,7 +41,7 @@ object Main {
   object Guardian {
     def apply(config: Config): Behavior[Nothing] = Behaviors.setup[Nothing] { context =>
       given system: ActorSystem[Nothing] = context.system
-      given ec: ExecutionContext         = context.executionContext
+      given ec: ExecutionContext = context.executionContext
 
       val roles = config.getStringList("pekko.cluster.roles").asScala.toSet
       context.log.info("Starting PromoVolve node with roles: {}", roles.mkString(", "))
@@ -73,11 +74,13 @@ object Main {
             sharding,
             topics
           )
-          (singletons.campaignDirectory, singletons.categoryRegistry, singletons.serveIndex, singletons.affinityRegistry, singletons.geminiRateLimiter, singletons.browserPool)
+          (singletons.campaignDirectory, singletons.categoryRegistry, singletons.serveIndex,
+            singletons.affinityRegistry, singletons.geminiRateLimiter, singletons.browserPool)
         } else {
           context.log.info("Initializing singleton proxies")
           val proxies = ClusterBootstrap.SingletonProxies.init(system, sharding, topics)
-          (proxies.campaignDirectory, proxies.categoryRegistry, proxies.serveIndex, proxies.affinityRegistry, proxies.geminiRateLimiter, proxies.browserPool)
+          (proxies.campaignDirectory, proxies.categoryRegistry, proxies.serveIndex, proxies.affinityRegistry,
+            proxies.geminiRateLimiter, proxies.browserPool)
         }
 
       // Content crawling has been removed — pages are classified on-demand from
@@ -94,10 +97,10 @@ object Main {
       val lpWorkerSettings = promovolve.browser.LPWorker.settingsFromConfig(config)
       val lpRunAnalysis: promovolve.browser.LPWorker.RunAnalysis =
         if (roles.contains("crawler")) {
-          val appCfg          = config.getConfig("promovolve")
-          val cdnBase         = appCfg.getString("cdn-base-url")
+          val appCfg = config.getConfig("promovolve")
+          val cdnBase = appCfg.getString("cdn-base-url")
           val bannerScriptUrl = appCfg.getString("banner-script-url")
-          val analyzer        = new promovolve.browser.LPAnalyzer(bannerScriptUrl, browserPool)
+          val analyzer = new promovolve.browser.LPAnalyzer(bannerScriptUrl, browserPool)
           promovolve.publisher.assets.R2ImageStorage.fromEnv()(using system) match {
             case Some(storage) =>
               context.log.info("LPWorker: analysis runner enabled on crawler node")
@@ -110,8 +113,8 @@ object Main {
         } else
           // Non-crawler node: the role-pinned entity factory never runs here, so
           // this is never invoked — it only satisfies initSharding's signature.
-          ((_: promovolve.browser.LPWorker.AnalyzeLP) =>
-            scala.concurrent.Future.failed(new IllegalStateException("LPWorker analysis runs only on crawler nodes")))
+          (_: promovolve.browser.LPWorker.AnalyzeLP) =>
+            scala.concurrent.Future.failed(new IllegalStateException("LPWorker analysis runs only on crawler nodes"))
       promovolve.browser.LPWorker.initSharding(system, sharding, lpRunAnalysis, lpWorkerSettings)
       promovolve.browser.LPWorker.initKeepAlive(system, sharding, lpWorkerSettings)
 
@@ -128,7 +131,7 @@ object Main {
           affinityRegistry,
           repositories,
           geminiRateLimiter,
-          browserPool,
+          browserPool
         )
 
         // Initialize dashboard projection on entity nodes
@@ -155,7 +158,7 @@ object Main {
           config,
           affinityRegistry = Some(affinityRegistry),
           geminiRateLimiter = geminiRateLimiter,
-          browserPool = browserPool,
+          browserPool = browserPool
         )
         HttpBootstrap.HttpServer.start(config, httpDeps)
       }

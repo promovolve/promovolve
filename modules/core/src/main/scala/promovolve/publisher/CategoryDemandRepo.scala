@@ -1,21 +1,26 @@
 package promovolve.publisher
 
-import scala.concurrent.{Await, ExecutionContext, Future}
+import scala.concurrent.{ Await, ExecutionContext, Future }
 import scala.concurrent.duration.*
 import slick.jdbc.PostgresProfile.api.*
 
-/** Durable record of which campaigns hold demand in which category, so a
-  * `CategoryBidderEntity` can SEED its in-memory demand on its own startup
-  * instead of waiting for the `CampaignDirectory` singleton to re-push it after
-  * a restart (the post-restart ad-dark-window).
-  *
-  * Written by `CampaignEntity` as its categories/status change (it owns its own
-  * rows; PK is (category, campaign) so there's no cross-campaign contention).
-  * Read by `CategoryBidderEntity` on startup, keyed by category. Filler demand
-  * is stored under the filler category id, same as the live fan-out. */
+/**
+ * Durable record of which campaigns hold demand in which category, so a
+ * `CategoryBidderEntity` can SEED its in-memory demand on its own startup
+ * instead of waiting for the `CampaignDirectory` singleton to re-push it after
+ * a restart (the post-restart ad-dark-window).
+ *
+ * Written by `CampaignEntity` as its categories/status change (it owns its own
+ * rows; PK is (category, campaign) so there's no cross-campaign contention).
+ * Read by `CategoryBidderEntity` on startup, keyed by category. Filler demand
+ * is stored under the filler category id, same as the live fan-out.
+ */
 trait CategoryDemandRepo {
-  /** Replace this campaign's full category set: delete its existing rows, then
-    * insert one row per current category. Empty `categoryIds` = remove all. */
+
+  /**
+   * Replace this campaign's full category set: delete its existing rows, then
+   * insert one row per current category. Empty `categoryIds` = remove all.
+   */
   def upsertCampaign(categoryIds: Set[String], campaignId: String, advertiserId: String): Future[Unit]
 
   /** Remove all of a campaign's rows (paused / deleted / inactive). */

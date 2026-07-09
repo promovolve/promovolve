@@ -1,28 +1,29 @@
 package promovolve.publisher.delivery
 
 import org.apache.pekko.actor.typed.scaladsl.Behaviors
-import org.apache.pekko.actor.typed.{ActorRef, Behavior}
-import org.apache.pekko.cluster.ddata.typed.scaladsl.{DistributedData, Replicator}
-import org.apache.pekko.cluster.ddata.{LWWMap, LWWMapKey, SelfUniqueAddress}
-import promovolve.publisher.{CandidateView, ServeView}
+import org.apache.pekko.actor.typed.{ ActorRef, Behavior }
+import org.apache.pekko.cluster.ddata.typed.scaladsl.{ DistributedData, Replicator }
+import org.apache.pekko.cluster.ddata.{ LWWMap, LWWMapKey, SelfUniqueAddress }
+import promovolve.publisher.{ CandidateView, ServeView }
 import promovolve.*
 
 import scala.concurrent.duration.*
 
-/** Replicated, in-memory index for the /serve hot path (typed DData + LWWMap buckets).
-  * - Per-publisher keyspace (derived from composite key `pub|slot`).
-  * - Bucketing keeps CRDT deltas small.
-  * - Put: WriteLocal (fast) ; Remove: WriteMajority + retry (safer takedown).
-  * - Periodic TTL sweep removes expired entries.
-  */
+/**
+ * Replicated, in-memory index for the /serve hot path (typed DData + LWWMap buckets).
+ * - Per-publisher keyspace (derived from composite key `pub|slot`).
+ * - Bucketing keeps CRDT deltas small.
+ * - Put: WriteLocal (fast) ; Remove: WriteMajority + retry (safer takedown).
+ * - Periodic TTL sweep removes expired entries.
+ */
 object ServeIndexDData {
 
   // ------- Tunables -------
-  private val Buckets             = 32 // power-of-2 recommended (32/64)
-  private val MajorityTimeout     = 800.millis // timeout for WriteMajority acks
-  private val MaxRemoveRetries    = 5 // retry attempts for Remove
+  private val Buckets = 32 // power-of-2 recommended (32/64)
+  private val MajorityTimeout = 800.millis // timeout for WriteMajority acks
+  private val MaxRemoveRetries = 5 // retry attempts for Remove
   private val InitialRetryBackoff = 200.millis // backoff base for Remove retries
-  private val SweepInterval       = 2.minutes // periodic TTL sweep
+  private val SweepInterval = 2.minutes // periodic TTL sweep
   private val MaxKeysRemovePerRun = 500 // bound per-bucket removals per sweep
 
   // ------- Behavior -------
@@ -37,10 +38,10 @@ object ServeIndexDData {
       timers.startTimerAtFixedRate(Sweep, SweepInterval)
 
       DistributedData.withReplicatorMessageAdapter[Cmd, LWWMap[String, ServeView]] { adapter =>
-
-        /** Shared helper for bucket-scan removal. Scans all entries in a bucket,
-          * filters candidates by the predicate, and updates or removes entries.
-          */
+        /**
+         * Shared helper for bucket-scan removal. Scans all entries in a bucket,
+         * filters candidates by the predicate, and updates or removes entries.
+         */
         def handleBucketRemoval(
             ns: String,
             b: Int,
@@ -57,19 +58,23 @@ object ServeIndexDData {
                 if (remaining.size < view.candidates.size) {
                   val removed = view.candidates.size - remaining.size
                   if (remaining.isEmpty) {
-                    ctx.log.info("Removing {} from key={} ({} candidates removed)", label, k, removed: java.lang.Integer)
+                    ctx.log.info("Removing {} from key={} ({} candidates removed)", label, k,
+                      removed: java.lang.Integer)
                     adapter.askUpdate(
-                      askRef => Replicator.Update(
-                        mapKey(ns, b), LWWMap.empty[String, ServeView], Replicator.WriteLocal, askRef
-                      )(_.remove(node, k)),
+                      askRef =>
+                        Replicator.Update(
+                          mapKey(ns, b), LWWMap.empty[String, ServeView], Replicator.WriteLocal, askRef
+                        )(_.remove(node, k)),
                       updateRsp => UpdateAck(ns, b, k, updateRsp)
                     )
                   } else {
-                    ctx.log.info("Removing {} from key={} ({} removed, {} remaining)", label, k, removed: java.lang.Integer, remaining.size: java.lang.Integer)
+                    ctx.log.info("Removing {} from key={} ({} removed, {} remaining)", label, k,
+                      removed: java.lang.Integer, remaining.size: java.lang.Integer)
                     adapter.askUpdate(
-                      askRef => Replicator.Update(
-                        mapKey(ns, b), LWWMap.empty[String, ServeView], Replicator.WriteLocal, askRef
-                      )(_.put(node, k, view.copy(candidates = remaining, version = now))),
+                      askRef =>
+                        Replicator.Update(
+                          mapKey(ns, b), LWWMap.empty[String, ServeView], Replicator.WriteLocal, askRef
+                        )(_.put(node, k, view.copy(candidates = remaining, version = now))),
                       updateRsp => UpdateAck(ns, b, k, updateRsp)
                     )
                   }
@@ -77,8 +82,9 @@ object ServeIndexDData {
               }
               Behaviors.same
             case _: Replicator.NotFound[?] => Behaviors.same
-            case other =>
-              ctx.log.warn("BucketRemoval({}): bucket {} unexpected: {}", label, b: java.lang.Integer, other.getClass.getSimpleName)
+            case other                     =>
+              ctx.log.warn("BucketRemoval({}): bucket {} unexpected: {}", label, b: java.lang.Integer,
+                other.getClass.getSimpleName)
               Behaviors.same
           }
         }
@@ -88,7 +94,7 @@ object ServeIndexDData {
           // --- Writes ---
           case Put(k, v) =>
             val ns = pubOf(k)
-            val b  = bucketOf(k)
+            val b = bucketOf(k)
             knownNS += ns
             ctx.log.info("ServeIndex Put: key={} candidates={}", k, v.candidates.size)
             adapter.askUpdate(
@@ -104,8 +110,8 @@ object ServeIndexDData {
             Behaviors.same
 
           case Append(k, candidate, ttlMs) =>
-            val ns  = pubOf(k)
-            val b   = bucketOf(k)
+            val ns = pubOf(k)
+            val b = bucketOf(k)
             val now = System.currentTimeMillis()
             knownNS += ns
             ctx.log.info(
@@ -130,16 +136,16 @@ object ServeIndexDData {
                       } else {
                         // Append new candidate to existing list
                         view.copy(
-                          candidates  = view.candidates :+ candidate,
-                          version     = now, // Update version timestamp
+                          candidates = view.candidates :+ candidate,
+                          version = now, // Update version timestamp
                           expiresAtMs = now + ttlMs // Refresh TTL
                         )
                       }
                     case None =>
                       // First candidate for this slot
                       ServeView(
-                        candidates  = Vector(candidate),
-                        version     = now,
+                        candidates = Vector(candidate),
+                        version = now,
                         expiresAtMs = now + ttlMs
                       )
                   }
@@ -151,7 +157,7 @@ object ServeIndexDData {
 
           case Remove(k) =>
             val ns = pubOf(k)
-            val b  = bucketOf(k)
+            val b = bucketOf(k)
             knownNS += ns
             ctx.log.info("ServeIndex Remove: key={}", k)
             adapter.askUpdate(
@@ -170,8 +176,8 @@ object ServeIndexDData {
             if (campaignCpms.isEmpty) {
               Behaviors.same
             } else {
-              val ns  = pubOf(k)
-              val b   = bucketOf(k)
+              val ns = pubOf(k)
+              val b = bucketOf(k)
               val now = System.currentTimeMillis()
               knownNS += ns
               adapter.askUpdate(
@@ -193,7 +199,7 @@ object ServeIndexDData {
                         }
                         val updatedView = view.copy(
                           candidates = updatedCandidates,
-                          version    = now // Bump version to indicate update
+                          version = now // Bump version to indicate update
                         )
                         map.put(node, k, updatedView)
                       case None =>
@@ -212,8 +218,8 @@ object ServeIndexDData {
               ctx.self ! Remove(k)
               Behaviors.same
             } else {
-              val ns  = pubOf(k)
-              val b   = bucketOf(k)
+              val ns = pubOf(k)
+              val b = bucketOf(k)
               val now = System.currentTimeMillis()
               knownNS += ns
               adapter.askUpdate(
@@ -236,7 +242,7 @@ object ServeIndexDData {
                           // Some candidates filtered - update with remaining
                           val updatedView = view.copy(
                             candidates = filteredCandidates,
-                            version    = now
+                            version = now
                           )
                           map.put(node, k, updatedView)
                         } else {
@@ -254,8 +260,8 @@ object ServeIndexDData {
             }
 
           case RemoveCampaignFromKey(k, campaignId, keepCreativeIds) =>
-            val ns  = pubOf(k)
-            val b   = bucketOf(k)
+            val ns = pubOf(k)
+            val b = bucketOf(k)
             val now = System.currentTimeMillis()
             knownNS += ns
             ctx.log.info(
@@ -289,8 +295,8 @@ object ServeIndexDData {
             Behaviors.same
 
           case RemoveCreativeFromKey(k, creativeId) =>
-            val ns  = pubOf(k)
-            val b   = bucketOf(k)
+            val ns = pubOf(k)
+            val b = bucketOf(k)
             val now = System.currentTimeMillis()
             knownNS += ns
             ctx.log.info("ServeIndex RemoveCreativeFromKey: key={} creativeId={}", k, creativeId.value)
@@ -317,8 +323,8 @@ object ServeIndexDData {
             Behaviors.same
 
           case RemoveAdvertiserFromKey(k, advertiserId) =>
-            val ns  = pubOf(k)
-            val b   = bucketOf(k)
+            val ns = pubOf(k)
+            val b = bucketOf(k)
             val now = System.currentTimeMillis()
             knownNS += ns
             ctx.log.info("ServeIndex RemoveAdvertiserFromKey: key={} advertiserId={}", k, advertiserId.value)
@@ -345,8 +351,8 @@ object ServeIndexDData {
             Behaviors.same
 
           case RefreshTTLForKey(k, newTtlMs) =>
-            val ns  = pubOf(k)
-            val b   = bucketOf(k)
+            val ns = pubOf(k)
+            val b = bucketOf(k)
             val now = System.currentTimeMillis()
             val newExpiresAt = now + newTtlMs
             knownNS += ns
@@ -377,7 +383,8 @@ object ServeIndexDData {
             } else {
               val ns = siteId
               knownNS += ns
-              ctx.log.info("Removing creatives with blocked domains {} from site {}", blockedDomains.mkString(","), siteId)
+              ctx.log.info("Removing creatives with blocked domains {} from site {}", blockedDomains.mkString(","),
+                siteId)
               // Query all buckets to find keys with blocked domains
               (0 until Buckets).foreach { bucket =>
                 adapter.askGet(
@@ -396,7 +403,8 @@ object ServeIndexDData {
             } else {
               val ns = siteId
               knownNS += ns
-              ctx.log.info("Removing creatives with blocked ad product categories {} from site {}", blockedCategories.map(_.value).mkString(","), siteId)
+              ctx.log.info("Removing creatives with blocked ad product categories {} from site {}",
+                blockedCategories.map(_.value).mkString(","), siteId)
               // Query all buckets to find keys with blocked categories
               (0 until Buckets).foreach { bucket =>
                 adapter.askGet(
@@ -458,7 +466,7 @@ object ServeIndexDData {
           // --- Reads ---
           case Get(k, replyTo) =>
             val ns = pubOf(k)
-            val b  = bucketOf(k)
+            val b = bucketOf(k)
             knownNS += ns
             adapter.askGet(
               askRef => Replicator.Get(mapKey(ns, b), Replicator.ReadLocal, askRef),
@@ -579,7 +587,7 @@ object ServeIndexDData {
               case GetBucketForSweep(ns, b, rsp) =>
                 rsp match {
                   case g @ Replicator.GetSuccess(key) if key == mapKey(ns, b) =>
-                    val m   = g.get(key)
+                    val m = g.get(key)
                     val now = System.currentTimeMillis()
                     val expired = m.entries.iterator
                       .collect { case (k, v) if v.expiresAtMs <= now => k }
@@ -648,13 +656,16 @@ object ServeIndexDData {
                   case g @ Replicator.GetSuccess(key) if key == mapKey(ns, b) =>
                     val m = g.get(key)
                     val now = System.currentTimeMillis()
-                    ctx.log.debug("GetBucketForCategoryRemoval: bucket={} has {} entries", b: java.lang.Integer, m.entries.size: java.lang.Integer)
+                    ctx.log.debug("GetBucketForCategoryRemoval: bucket={} has {} entries", b: java.lang.Integer,
+                      m.entries.size: java.lang.Integer)
                     // Find keys that have candidates with blocked categories
                     m.entries.foreach { case (k, view) =>
                       val blocked = view.candidates.filter(c => c.adProductCategory.exists(blockedCategories.contains))
                       if (blocked.nonEmpty) {
-                        ctx.log.info("Found {} candidates with blocked categories in key={}", blocked.size: java.lang.Integer, k)
-                        val remaining = view.candidates.filterNot(c => c.adProductCategory.exists(blockedCategories.contains))
+                        ctx.log.info("Found {} candidates with blocked categories in key={}",
+                          blocked.size: java.lang.Integer, k)
+                        val remaining =
+                          view.candidates.filterNot(c => c.adProductCategory.exists(blockedCategories.contains))
                         if (remaining.isEmpty) {
                           // Remove entire entry
                           ctx.log.info("Removing entire entry for key={}", k)
@@ -670,7 +681,8 @@ object ServeIndexDData {
                           )
                         } else {
                           // Update with remaining candidates
-                          ctx.log.info("Updating entry for key={} with {} remaining candidates", k, remaining.size: java.lang.Integer)
+                          ctx.log.info("Updating entry for key={} with {} remaining candidates", k,
+                            remaining.size: java.lang.Integer)
                           val updatedView = view.copy(candidates = remaining, version = now)
                           adapter.askUpdate(
                             askRef =>
@@ -690,7 +702,8 @@ object ServeIndexDData {
                     ctx.log.debug("GetBucketForCategoryRemoval: bucket {} not found (empty)", b: java.lang.Integer)
                     Behaviors.same
                   case other =>
-                    ctx.log.warn("GetBucketForCategoryRemoval: bucket {} unexpected response: {}", b: java.lang.Integer, other.getClass.getSimpleName)
+                    ctx.log.warn("GetBucketForCategoryRemoval: bucket {} unexpected response: {}", b: java.lang.Integer,
+                      other.getClass.getSimpleName)
                     Behaviors.same
                 }
 
@@ -700,12 +713,14 @@ object ServeIndexDData {
                   case g @ Replicator.GetSuccess(key) if key == mapKey(ns, b) =>
                     val m = g.get(key)
                     val now = System.currentTimeMillis()
-                    ctx.log.info("GetBucketForDomainRemoval: bucket={} has {} entries", b: java.lang.Integer, m.entries.size: java.lang.Integer)
+                    ctx.log.info("GetBucketForDomainRemoval: bucket={} has {} entries", b: java.lang.Integer,
+                      m.entries.size: java.lang.Integer)
                     // Find keys that have candidates with blocked domains
                     m.entries.foreach { case (k, view) =>
                       val blocked = view.candidates.filter(c => blockedDomains.contains(c.landingDomain))
                       if (blocked.nonEmpty) {
-                        ctx.log.info("Found {} candidates with blocked domains in key={}", blocked.size: java.lang.Integer, k)
+                        ctx.log.info("Found {} candidates with blocked domains in key={}",
+                          blocked.size: java.lang.Integer, k)
                         val remaining = view.candidates.filterNot(c => blockedDomains.contains(c.landingDomain))
                         if (remaining.isEmpty) {
                           // Remove entire entry
@@ -722,7 +737,8 @@ object ServeIndexDData {
                           )
                         } else {
                           // Update with remaining candidates
-                          ctx.log.info("Updating entry for key={} with {} remaining candidates", k, remaining.size: java.lang.Integer)
+                          ctx.log.info("Updating entry for key={} with {} remaining candidates", k,
+                            remaining.size: java.lang.Integer)
                           val updatedView = view.copy(candidates = remaining, version = now)
                           adapter.askUpdate(
                             askRef =>
@@ -742,7 +758,8 @@ object ServeIndexDData {
                     ctx.log.debug("GetBucketForDomainRemoval: bucket {} not found (empty)", b: java.lang.Integer)
                     Behaviors.same
                   case other =>
-                    ctx.log.warn("GetBucketForDomainRemoval: bucket {} unexpected response: {}", b: java.lang.Integer, other.getClass.getSimpleName)
+                    ctx.log.warn("GetBucketForDomainRemoval: bucket {} unexpected response: {}", b: java.lang.Integer,
+                      other.getClass.getSimpleName)
                     Behaviors.same
                 }
 
@@ -759,13 +776,17 @@ object ServeIndexDData {
                           k, belowFloor.size: java.lang.Integer, remaining.size: java.lang.Integer, floorCpm)
                         if (remaining.isEmpty) {
                           adapter.askUpdate(
-                            askRef => Replicator.Update(mapKey(ns, b), LWWMap.empty[String, ServeView], Replicator.WriteLocal, askRef)(_.remove(node, k)),
+                            askRef =>
+                              Replicator.Update(mapKey(ns, b), LWWMap.empty[String, ServeView], Replicator.WriteLocal,
+                                askRef)(_.remove(node, k)),
                             updateRsp => UpdateAck(ns, b, k, updateRsp)
                           )
                         } else {
                           val updatedView = view.copy(candidates = remaining, version = now)
                           adapter.askUpdate(
-                            askRef => Replicator.Update(mapKey(ns, b), LWWMap.empty[String, ServeView], Replicator.WriteLocal, askRef)(_.put(node, k, updatedView)),
+                            askRef =>
+                              Replicator.Update(mapKey(ns, b), LWWMap.empty[String, ServeView], Replicator.WriteLocal,
+                                askRef)(_.put(node, k, updatedView)),
                             updateRsp => UpdateAck(ns, b, k, updateRsp)
                           )
                         }
@@ -773,7 +794,7 @@ object ServeIndexDData {
                     }
                     Behaviors.same
                   case _: Replicator.NotFound[?] => Behaviors.same
-                  case _ => Behaviors.same
+                  case _                         => Behaviors.same
                 }
 
               case GetBucketForCreativeRemoval(ns, b, creativeId, rsp) =>
@@ -830,7 +851,7 @@ object ServeIndexDData {
   private def backoff(attempt: Int): FiniteDuration =
     InitialRetryBackoff * math.pow(2.0, (attempt - 1).toDouble) match {
       case d: FiniteDuration => d.min(5.seconds)
-      case _ => 5.seconds // fallback in case of infinite duration
+      case _                 => 5.seconds // fallback in case of infinite duration
     }
 
   // ------- Public protocol -------
@@ -847,24 +868,28 @@ object ServeIndexDData {
 
   final case class Get(k: String, replyTo: ActorRef[Option[ServeView]]) extends Cmd
 
-  /** Update CPM for existing candidates by campaignId. Used when campaign CPM changes
-    * but new creatives are pending approval - keeps existing entries but with correct price.
-    */
+  /**
+   * Update CPM for existing candidates by campaignId. Used when campaign CPM changes
+   * but new creatives are pending approval - keeps existing entries but with correct price.
+   */
   final case class UpdateCpm(k: String, campaignCpms: Map[CampaignId, CPM]) extends Cmd
 
-  /** Filter ServeIndex entries to only keep candidates with creativeIds in the given set.
-    * Removes stale entries when a creative is removed from a campaign but new creatives are pending.
-    * If no candidates remain after filtering, the entire entry is removed.
-    */
+  /**
+   * Filter ServeIndex entries to only keep candidates with creativeIds in the given set.
+   * Removes stale entries when a creative is removed from a campaign but new creatives are pending.
+   * If no candidates remain after filtering, the entire entry is removed.
+   */
   final case class FilterByCreativeIds(k: String, validCreativeIds: Set[CreativeId]) extends Cmd
 
-  /** Filter out candidates from one campaign within a specific key (O(1) bucket lookup).
-    *
-    * `keepCreativeIds` exempts specific creatives from removal: a candidate is
-    * KEPT iff it doesn't belong to `campaignId` OR its creativeId is in
-    * `keepCreativeIds`. Used by topic-narrow eviction so a reader-pinned
-    * creative survives a category drop on a still-served page (default empty =
-    * drop ALL of the campaign's candidates, preserving the original behavior). */
+  /**
+   * Filter out candidates from one campaign within a specific key (O(1) bucket lookup).
+   *
+   * `keepCreativeIds` exempts specific creatives from removal: a candidate is
+   * KEPT iff it doesn't belong to `campaignId` OR its creativeId is in
+   * `keepCreativeIds`. Used by topic-narrow eviction so a reader-pinned
+   * creative survives a category drop on a still-served page (default empty =
+   * drop ALL of the campaign's candidates, preserving the original behavior).
+   */
   final case class RemoveCampaignFromKey(
       k: String,
       campaignId: CampaignId,
@@ -880,21 +905,24 @@ object ServeIndexDData {
   /** Refresh TTL for a specific key (O(1) bucket lookup). */
   final case class RefreshTTLForKey(k: String, newTtlMs: Long) extends Cmd
 
-  /** Remove all candidates with landing domains in the blocklist across all keys for a site.
-    * Used when publisher adds domains to their blocklist - immediately removes affected creatives.
-    * If no candidates remain after filtering, the entire entry is removed.
-    */
+  /**
+   * Remove all candidates with landing domains in the blocklist across all keys for a site.
+   * Used when publisher adds domains to their blocklist - immediately removes affected creatives.
+   * If no candidates remain after filtering, the entire entry is removed.
+   */
   final case class RemoveByDomains(siteId: String, blockedDomains: Set[String]) extends Cmd
 
-  /** Remove all candidates with ad product categories in the blocklist across all keys for a site.
-    * Used when publisher adds ad product categories to their blocklist - immediately removes affected creatives.
-    * If no candidates remain after filtering, the entire entry is removed.
-    */
+  /**
+   * Remove all candidates with ad product categories in the blocklist across all keys for a site.
+   * Used when publisher adds ad product categories to their blocklist - immediately removes affected creatives.
+   * If no candidates remain after filtering, the entire entry is removed.
+   */
   final case class RemoveByAdProductCategories(siteId: String, blockedCategories: Set[AdProductCategoryId]) extends Cmd
 
-  /** Remove all candidates below the given floor CPM across all keys for a site.
-    * Used when floor CPM increases — immediately removes creatives that no longer qualify.
-    */
+  /**
+   * Remove all candidates below the given floor CPM across all keys for a site.
+   * Used when floor CPM increases — immediately removes creatives that no longer qualify.
+   */
   final case class RemoveBelowFloor(siteId: String, floorCpm: Double) extends Cmd
 
   /** Remove a creative from all slots for a site. Scans all buckets. */
@@ -906,9 +934,10 @@ object ServeIndexDData {
   /** Remove an advertiser from all slots for a site. Scans all buckets. */
   final case class RemoveAdvertiserBySite(siteId: String, advertiserId: AdvertiserId) extends Cmd
 
-  /** Get all keys (slotIds) for a given siteId.
-    * Returns a list of slotId strings that have entries in the ServeIndex.
-    */
+  /**
+   * Get all keys (slotIds) for a given siteId.
+   * Returns a list of slotId strings that have entries in the ServeIndex.
+   */
   final case class GetKeysBySite(siteId: String, replyTo: ActorRef[SiteKeys]) extends Cmd
 
   final case class SiteKeys(siteId: String, keys: Vector[String]) extends CborSerializable // slotIds

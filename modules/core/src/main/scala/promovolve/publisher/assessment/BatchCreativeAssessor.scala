@@ -1,39 +1,41 @@
 package promovolve.publisher.assessment
 
 import org.apache.pekko.actor.typed.scaladsl.Behaviors
-import org.apache.pekko.actor.typed.{ActorRef, Behavior}
+import org.apache.pekko.actor.typed.{ ActorRef, Behavior }
 import promovolve.AdProductCategoryId
-import promovolve.publisher.{AssessmentResult, CreativeMeta, CreativeMetadataRepo}
+import promovolve.publisher.{ AssessmentResult, CreativeMeta, CreativeMetadataRepo }
 
 import scala.collection.mutable
 
-/** Actor that orchestrates batch LLM-based creative assessment.
-  *
-  * Uses BatchAnthropicClient for 50% cost savings. Assessments are queued
-  * and processed in batches. Creatives remain ineligible for auction until
-  * assessment completes.
-  *
-  * Features:
-  * - Batch processing via Anthropic Message Batches API
-  * - Hash-based deduplication (same image = copy existing assessment)
-  * - Persists results with category verification to CreativeMetadataRepo
-  * - Immediate acknowledgment, async completion
-  */
+/**
+ * Actor that orchestrates batch LLM-based creative assessment.
+ *
+ * Uses BatchAnthropicClient for 50% cost savings. Assessments are queued
+ * and processed in batches. Creatives remain ineligible for auction until
+ * assessment completes.
+ *
+ * Features:
+ * - Batch processing via Anthropic Message Batches API
+ * - Hash-based deduplication (same image = copy existing assessment)
+ * - Persists results with category verification to CreativeMetadataRepo
+ * - Immediate acknowledgment, async completion
+ */
 object BatchCreativeAssessor {
 
   sealed trait Command
 
-  /** Request assessment for a creative.
-    *
-    * Returns immediately with Queued. Assessment completes asynchronously
-    * when the batch is processed. Creative is not eligible for auction
-    * until assessment completes (assessedAt is set).
-    *
-    * @param meta              Creative metadata (must already be persisted)
-    * @param imageBytes        Raw image bytes to assess
-    * @param adProductCategory Advertiser-declared ad product category for verification
-    * @param replyTo           Actor to receive acknowledgment
-    */
+  /**
+   * Request assessment for a creative.
+   *
+   * Returns immediately with Queued. Assessment completes asynchronously
+   * when the batch is processed. Creative is not eligible for auction
+   * until assessment completes (assessedAt is set).
+   *
+   * @param meta              Creative metadata (must already be persisted)
+   * @param imageBytes        Raw image bytes to assess
+   * @param adProductCategory Advertiser-declared ad product category for verification
+   * @param replyTo           Actor to receive acknowledgment
+   */
   case class Assess(
       meta: CreativeMeta,
       imageBytes: Array[Byte],
@@ -75,9 +77,10 @@ object BatchCreativeAssessor {
       expectedCategories: Set[promovolve.CategoryId]
   )
 
-  /** Create BatchCreativeAssessor with an existing BatchAnthropicClient actor ref.
-    * Use this when you want to share a batch client across multiple assessors.
-    */
+  /**
+   * Create BatchCreativeAssessor with an existing BatchAnthropicClient actor ref.
+   * Use this when you want to share a batch client across multiple assessors.
+   */
   def apply(
       batchClient: ActorRef[BatchAnthropicClient.Command],
       metaRepo: CreativeMetadataRepo
@@ -95,13 +98,14 @@ object BatchCreativeAssessor {
     behavior(batchClient, metaRepo, pending, batchResultAdapter)
   }
 
-  /** Create BatchCreativeAssessor that spawns its own BatchAnthropicClient.
-    * This is the simplest way to use batch assessment.
-    *
-    * @param apiKey    Anthropic API key
-    * @param metaRepo  Creative metadata repository
-    * @param config    Optional batch client configuration
-    */
+  /**
+   * Create BatchCreativeAssessor that spawns its own BatchAnthropicClient.
+   * This is the simplest way to use batch assessment.
+   *
+   * @param apiKey    Anthropic API key
+   * @param metaRepo  Creative metadata repository
+   * @param config    Optional batch client configuration
+   */
   def withApiKey(
       apiKey: String,
       metaRepo: CreativeMetadataRepo,
@@ -136,15 +140,17 @@ object BatchCreativeAssessor {
           Behaviors.same
         } else {
           // Check for duplicate by hash (another creative with same image) - async
-          import scala.util.{Success, Failure}
+          import scala.util.{ Success, Failure }
           ctx.pipeToSelf(metaRepo.getByHash(meta.hash)) {
-            case Success(existingOpt) => DuplicateNotFound(meta, imageBytes, adProductCategory, expectedCategories, replyTo, existingOpt)
-            case Failure(_)           => DuplicateNotFound(meta, imageBytes, adProductCategory, expectedCategories, replyTo, None)
+            case Success(existingOpt) =>
+              DuplicateNotFound(meta, imageBytes, adProductCategory, expectedCategories, replyTo, existingOpt)
+            case Failure(_) => DuplicateNotFound(meta, imageBytes, adProductCategory, expectedCategories, replyTo, None)
           }
           Behaviors.same
         }
 
-      case DuplicateNotFound(meta, imageBytes, adProductCategory, expectedCategories, replyTo, Some(existing)) if existing.isAssessed =>
+      case DuplicateNotFound(meta, imageBytes, adProductCategory, expectedCategories, replyTo, Some(existing))
+          if existing.isAssessed =>
         // Copy assessment from existing
         val result = AssessmentResult(
           safetyScore = existing.safetyScore.getOrElse(0.5),
@@ -219,7 +225,7 @@ object BatchCreativeAssessor {
 
               case BatchAnthropicClient.AssessmentFailed(_, error) =>
                 ctx.log.warn("Batch assessment failed for creative {}: {}", creativeId, error)
-                // Creative remains unassessed - will not be eligible for auction
+              // Creative remains unassessed - will not be eligible for auction
             }
 
           case None =>

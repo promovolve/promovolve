@@ -1,7 +1,7 @@
 package promovolve.publisher.assessment
 
-import org.apache.pekko.actor.typed.scaladsl.{ActorContext, Behaviors, StashBuffer, TimerScheduler}
-import org.apache.pekko.actor.typed.{ActorRef, Behavior}
+import org.apache.pekko.actor.typed.scaladsl.{ ActorContext, Behaviors, StashBuffer, TimerScheduler }
+import org.apache.pekko.actor.typed.{ ActorRef, Behavior }
 import org.apache.pekko.http.scaladsl.Http
 import org.apache.pekko.http.scaladsl.model.*
 import org.apache.pekko.http.scaladsl.model.headers.RawHeader
@@ -13,30 +13,31 @@ import spray.json.*
 import java.util.Base64
 import scala.concurrent.duration.*
 import scala.collection.mutable
-import scala.util.{Failure, Random, Success, Try}
+import scala.util.{ Failure, Random, Success, Try }
 
-/** Actor-based OpenAI client using the Batch API.
-  *
-  * Features:
-  * - Uses json_schema response_format for reliable structured output
-  * - Queues requests until batch threshold or timer fires
-  * - Submits batches asynchronously (50% cost savings)
-  * - Polls for completion with exponential backoff
-  * - Routes results back to original callers
-  *
-  * OpenAI Batch API flow:
-  * 1. Upload JSONL file with requests
-  * 2. Create batch with file ID
-  * 3. Poll for completion
-  * 4. Download results from output file
-  *
-  * @param apiKey OpenAI API key
-  * @param model Model to use (default: gpt-4o)
-  * @param batchThreshold Submit batch when this many requests queued (default: 100)
-  * @param submitInterval Submit batch after this duration even if threshold not met (default: 5 minutes)
-  * @param pollInterval Initial poll interval for batch status (default: 30 seconds)
-  * @param maxPollInterval Maximum poll interval with backoff (default: 5 minutes)
-  */
+/**
+ * Actor-based OpenAI client using the Batch API.
+ *
+ * Features:
+ * - Uses json_schema response_format for reliable structured output
+ * - Queues requests until batch threshold or timer fires
+ * - Submits batches asynchronously (50% cost savings)
+ * - Polls for completion with exponential backoff
+ * - Routes results back to original callers
+ *
+ * OpenAI Batch API flow:
+ * 1. Upload JSONL file with requests
+ * 2. Create batch with file ID
+ * 3. Poll for completion
+ * 4. Download results from output file
+ *
+ * @param apiKey OpenAI API key
+ * @param model Model to use (default: gpt-4o)
+ * @param batchThreshold Submit batch when this many requests queued (default: 100)
+ * @param submitInterval Submit batch after this duration even if threshold not met (default: 5 minutes)
+ * @param pollInterval Initial poll interval for batch status (default: 30 seconds)
+ * @param maxPollInterval Maximum poll interval with backoff (default: 5 minutes)
+ */
 object BatchOpenAIClient {
 
   private val log = LoggerFactory.getLogger(getClass)
@@ -75,7 +76,8 @@ object BatchOpenAIClient {
   private case class BatchCreateFailed(error: Throwable, pendingRequests: Map[String, PendingRequest]) extends Command
 
   /** Internal: Batch status response */
-  private case class BatchStatusReceived(batchId: String, status: BatchStatus, outputFileId: Option[String]) extends Command
+  private case class BatchStatusReceived(batchId: String, status: BatchStatus, outputFileId: Option[String])
+      extends Command
 
   /** Internal: Batch results received */
   private case class BatchResultsReceived(batchId: String, results: List[BatchResult]) extends Command
@@ -329,7 +331,7 @@ private class BatchOpenAIClient(
       }
     }) {
       case Success((fileId, reqs)) => FileUploaded(fileId, reqs)
-      case Failure(e) => FileUploadFailed(e, requests)
+      case Failure(e)              => FileUploadFailed(e, requests)
     }
   }
 
@@ -361,7 +363,7 @@ private class BatchOpenAIClient(
       }
     }) {
       case Success((batchId, reqs)) => BatchCreated(batchId, reqs)
-      case Failure(e) => BatchCreateFailed(e, requests)
+      case Failure(e)               => BatchCreateFailed(e, requests)
     }
   }
 
@@ -534,7 +536,8 @@ private class BatchOpenAIClient(
 
   private def buildPrompt(context: AssessmentContext): String = {
     val declaredCategoryInfo = context.declaredAdProductCategory match {
-      case Some(cat) => s"\n\nThe advertiser declared this ad as category: $cat. Verify if the visual content matches this declaration."
+      case Some(cat) =>
+        s"\n\nThe advertiser declared this ad as category: $cat. Verify if the visual content matches this declaration."
       case None => ""
     }
 
@@ -560,7 +563,7 @@ Provide your analysis in the required JSON format."""
     Try {
       body.parseJson.asJsObject.fields("id") match {
         case JsString(id) => id
-        case _ => throw new RuntimeException("File ID not a string")
+        case _            => throw new RuntimeException("File ID not a string")
       }
     }.getOrElse(throw new RuntimeException(s"Could not extract file ID from: $body"))
 
@@ -568,7 +571,7 @@ Provide your analysis in the required JSON format."""
     Try {
       body.parseJson.asJsObject.fields("id") match {
         case JsString(id) => id
-        case _ => throw new RuntimeException("Batch ID not a string")
+        case _            => throw new RuntimeException("Batch ID not a string")
       }
     }.getOrElse(throw new RuntimeException(s"Could not extract batch ID from: $body"))
 
@@ -576,14 +579,14 @@ Provide your analysis in the required JSON format."""
     val json = body.parseJson.asJsObject
 
     val status = json.fields.get("status").collect {
-      case JsString("validating") => BatchStatus.Validating
+      case JsString("validating")  => BatchStatus.Validating
       case JsString("in_progress") => BatchStatus.InProgress
-      case JsString("finalizing") => BatchStatus.Finalizing
-      case JsString("completed") => BatchStatus.Completed
-      case JsString("failed") => BatchStatus.Failed
-      case JsString("expired") => BatchStatus.Expired
-      case JsString("cancelling") => BatchStatus.Cancelling
-      case JsString("cancelled") => BatchStatus.Cancelled
+      case JsString("finalizing")  => BatchStatus.Finalizing
+      case JsString("completed")   => BatchStatus.Completed
+      case JsString("failed")      => BatchStatus.Failed
+      case JsString("expired")     => BatchStatus.Expired
+      case JsString("cancelling")  => BatchStatus.Cancelling
+      case JsString("cancelled")   => BatchStatus.Cancelled
     }.getOrElse(throw new RuntimeException(s"Unknown batch status in: $body"))
 
     val outputFileId = json.fields.get("output_file_id").collect {
@@ -643,8 +646,8 @@ Provide your analysis in the required JSON format."""
     def getStringOrNull(key: String): Option[String] =
       input.fields.get(key).flatMap {
         case JsString(s) if s.nonEmpty => Some(s)
-        case JsNull => None
-        case _ => None
+        case JsNull                    => None
+        case _                         => None
       }
 
     def getStringArray(key: String): List[String] =

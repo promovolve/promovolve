@@ -1,20 +1,21 @@
 package promovolve.publisher.store
 
 import promovolve.*
-import promovolve.publisher.{FirstSeen, FlaggedCreative, PendingSelectionStore}
+import promovolve.publisher.{ FirstSeen, FlaggedCreative, PendingSelectionStore }
 import slick.jdbc.PostgresProfile.api.*
 import spray.json.*
 
 import java.time.Instant
-import scala.concurrent.{ExecutionContext, Future}
+import scala.concurrent.{ ExecutionContext, Future }
 
-/** PostgreSQL-backed implementation of PendingSelectionStore using Slick.
-  *
-  * Stores pending selections in a database table for persistence across restarts.
-  */
+/**
+ * PostgreSQL-backed implementation of PendingSelectionStore using Slick.
+ *
+ * Stores pending selections in a database table for persistence across restarts.
+ */
 final class SlickPendingSelectionStore(db: Database)(using ec: ExecutionContext) extends PendingSelectionStore {
 
-  import SlickPendingSelectionStore.{given, *}
+  import SlickPendingSelectionStore.{ given, * }
 
   private val selections = TableQuery[PendingSelectionTable]
 
@@ -95,7 +96,7 @@ final class SlickPendingSelectionStore(db: Database)(using ec: ExecutionContext)
       .headOption
 
     db.run(query).flatMap {
-      case None => Future.successful(None)
+      case None      => Future.successful(None)
       case Some(row) =>
         val sel = rowToSelection(row)
         val remaining = sel.ordered.filterNot(_.creativeId.value == creativeId)
@@ -117,7 +118,7 @@ final class SlickPendingSelectionStore(db: Database)(using ec: ExecutionContext)
       .headOption
 
     db.run(query).flatMap {
-      case None => Future.successful(None)
+      case None      => Future.successful(None)
       case Some(row) =>
         val sel = rowToSelection(row)
         sel.promoteNext match {
@@ -286,7 +287,9 @@ final class SlickPendingSelectionStore(db: Database)(using ec: ExecutionContext)
 
     db.run(query).flatMap { rows =>
       val removedIds = rows
-        .flatMap(r => rowToSelection(r).ordered.filter(_.adProductCategory.exists(_.value == adProductCategory)).map(_.creativeId.value))
+        .flatMap(r =>
+          rowToSelection(r).ordered.filter(_.adProductCategory.exists(_.value == adProductCategory)).map(
+            _.creativeId.value))
         .toSet
       // Process each selection: remove candidates with the blocked ad product category
       val updates = rows.map { row =>
@@ -407,7 +410,8 @@ final class SlickPendingSelectionStore(db: Database)(using ec: ExecutionContext)
     db.run(query).map(_.toMap)
   }
 
-  def insertApproved(publisherId: String, creativeId: String, campaignId: String, advertiserId: String): Future[Unit] = {
+  def insertApproved(publisherId: String, creativeId: String, campaignId: String, advertiserId: String)
+      : Future[Unit] = {
     val row = ApprovedCreativeRow(
       publisherId = publisherId,
       creativeId = creativeId,
@@ -478,11 +482,11 @@ final class SlickPendingSelectionStore(db: Database)(using ec: ExecutionContext)
       .headOption
 
     db.run(query).flatMap {
-      case None => Future.successful(None)
+      case None      => Future.successful(None)
       case Some(row) =>
         val sel = rowToSelection(row)
         sel.ordered.find(_.creativeId.value == creativeId) match {
-          case None => Future.successful(None)
+          case None            => Future.successful(None)
           case Some(candidate) =>
             val now = Instant.now()
             // Insert into flagged table
@@ -527,7 +531,7 @@ final class SlickPendingSelectionStore(db: Database)(using ec: ExecutionContext)
       .headOption
 
     db.run(query).flatMap {
-      case None => Future.successful(None)
+      case None             => Future.successful(None)
       case Some(flaggedRow) =>
         // Build the FlaggedCreative to return
         val flaggedCreative = FlaggedCreative(
@@ -701,7 +705,8 @@ object SlickPendingSelectionStore {
 
     def pk = primaryKey("pk_flagged_creative", (publisherId, creativeId))
 
-    def * = (publisherId, creativeId, url, slotId, campaignId, advertiserId, category, cpm, reason, flaggedAt).mapTo[FlaggedCreativeRow]
+    def * = (publisherId, creativeId, url, slotId, campaignId, advertiserId, category, cpm, reason, flaggedAt).mapTo[
+      FlaggedCreativeRow]
   }
 
   // JSON serialization for Selection
@@ -710,10 +715,10 @@ object SlickPendingSelectionStore {
   given selStateFormat: JsonFormat[SelState] = new JsonFormat[SelState] {
     def write(state: SelState): JsValue = JsString(state.toString)
     def read(json: JsValue): SelState = json match {
-      case JsString("Pending") => SelState.Pending
+      case JsString("Pending")  => SelState.Pending
       case JsString("Approved") => SelState.Approved
       case JsString("Rejected") => SelState.Rejected
-      case _ => deserializationError("Expected SelState")
+      case _                    => deserializationError("Expected SelState")
     }
   }
 
@@ -721,7 +726,7 @@ object SlickPendingSelectionStore {
     def write(instant: Instant): JsValue = JsNumber(instant.toEpochMilli)
     def read(json: JsValue): Instant = json match {
       case JsNumber(n) => Instant.ofEpochMilli(n.toLong)
-      case _ => deserializationError("Expected epoch millis")
+      case _           => deserializationError("Expected epoch millis")
     }
   }
 

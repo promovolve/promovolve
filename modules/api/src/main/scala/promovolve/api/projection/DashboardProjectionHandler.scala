@@ -5,19 +5,20 @@ import org.apache.pekko.projection.slick.SlickHandler
 import slick.dbio.DBIO
 import slick.jdbc.PostgresProfile.api.*
 import slick.jdbc.SetParameter
-import java.time.{Instant, LocalDate, ZoneOffset}
+import java.time.{ Instant, LocalDate, ZoneOffset }
 import java.time.temporal.ChronoUnit
 
-/** Projection handler that updates dashboard read-side tables.
-  *
-  * Processes TrackingEvent from the journal and updates:
-  * - campaign_stats: Real-time campaign aggregates
-  * - creative_stats: Per-creative metrics
-  * - campaign_hourly_stats: Hourly time series
-  * - campaign_daily_stats: Daily aggregates
-  * - campaign_dim_daily_stats: Daily site x category rollup (advertiser report)
-  * - advertiser_summary: Advertiser-level rollup
-  */
+/**
+ * Projection handler that updates dashboard read-side tables.
+ *
+ * Processes TrackingEvent from the journal and updates:
+ * - campaign_stats: Real-time campaign aggregates
+ * - creative_stats: Per-creative metrics
+ * - campaign_hourly_stats: Hourly time series
+ * - campaign_daily_stats: Daily aggregates
+ * - campaign_dim_daily_stats: Daily site x category rollup (advertiser report)
+ * - advertiser_summary: Advertiser-level rollup
+ */
 class DashboardProjectionHandler extends SlickHandler[TrackingEvent] {
   import DashboardProjectionHandler.given
   import scala.concurrent.ExecutionContext.Implicits.global
@@ -25,7 +26,8 @@ class DashboardProjectionHandler extends SlickHandler[TrackingEvent] {
   private val log = org.slf4j.LoggerFactory.getLogger(getClass)
 
   override def process(event: TrackingEvent): DBIO[Done] = {
-    log.debug("Processing {} event: seq={} campaign={}", event.eventType, event.sequenceNr, event.campaignId.getOrElse("-"))
+    log.debug("Processing {} event: seq={} campaign={}", event.eventType, event.sequenceNr,
+      event.campaignId.getOrElse("-"))
 
     event.eventType match {
       case "impression" => processImpression(event)
@@ -33,7 +35,7 @@ class DashboardProjectionHandler extends SlickHandler[TrackingEvent] {
       case "cta_click"  => processCTAClick(event)
       case "fold"       => processFold(event)
       case "unfold"     => processUnfold(event)
-      case other =>
+      case other        =>
         log.warn("Unknown event type: {}", other)
         DBIO.successful(Done)
     }
@@ -230,12 +232,13 @@ class DashboardProjectionHandler extends SlickHandler[TrackingEvent] {
     updates
   }
 
-  /** Mirror of bumpDogearedImpression for click re-encounters. The
-    * advertiser_summary, campaign_stats, creative_stats, hourly + daily
-    * tables all carry a parallel `dogeared_clicks` counter so dashboards
-    * can show "fresh CTR" (`clicks / impressions`) and "pin re-engagement
-    * CTR" (`dogeared_clicks / dogeared_impressions`) as separate dimensions.
-    */
+  /**
+   * Mirror of bumpDogearedImpression for click re-encounters. The
+   * advertiser_summary, campaign_stats, creative_stats, hourly + daily
+   * tables all carry a parallel `dogeared_clicks` counter so dashboards
+   * can show "fresh CTR" (`clicks / impressions`) and "pin re-engagement
+   * CTR" (`dogeared_clicks / dogeared_impressions`) as separate dimensions.
+   */
   private def bumpDogearedClick(
       e: TrackingEvent,
       hourBucket: Instant,
@@ -357,7 +360,7 @@ class DashboardProjectionHandler extends SlickHandler[TrackingEvent] {
 
   private def processClick(e: TrackingEvent): DBIO[Done] = {
     val hourBucket = e.eventTime.truncatedTo(ChronoUnit.HOURS)
-    val dayBucket  = e.eventTime.atZone(ZoneOffset.UTC).toLocalDate
+    val dayBucket = e.eventTime.atZone(ZoneOffset.UTC).toLocalDate
 
     // Dogeared click = same user re-engaging with a creative they
     // already folded. Not a fresh CTR signal — skip every primary
@@ -444,7 +447,7 @@ class DashboardProjectionHandler extends SlickHandler[TrackingEvent] {
 
   private def processCTAClick(e: TrackingEvent): DBIO[Done] = {
     val hourBucket = e.eventTime.truncatedTo(ChronoUnit.HOURS)
-    val dayBucket  = e.eventTime.atZone(ZoneOffset.UTC).toLocalDate
+    val dayBucket = e.eventTime.atZone(ZoneOffset.UTC).toLocalDate
 
     // Dogeared CTA = LP click from a bookmark-driven re-encounter.
     // First-view CTA already counted on the primary surface; this is
@@ -526,13 +529,14 @@ class DashboardProjectionHandler extends SlickHandler[TrackingEvent] {
     updates.transactionally
   }
 
-  /** Dog-ear fold event. Mirrors processImpression's structure but only
-    * bumps fold counters — folds are a free engagement signal, not a
-    * billable event, so there is no per-fold spend column.
-    */
+  /**
+   * Dog-ear fold event. Mirrors processImpression's structure but only
+   * bumps fold counters — folds are a free engagement signal, not a
+   * billable event, so there is no per-fold spend column.
+   */
   private def processFold(e: TrackingEvent): DBIO[Done] = {
     val hourBucket = e.eventTime.truncatedTo(ChronoUnit.HOURS)
-    val dayBucket  = e.eventTime.atZone(ZoneOffset.UTC).toLocalDate
+    val dayBucket = e.eventTime.atZone(ZoneOffset.UTC).toLocalDate
 
     val updates = for {
       _ <- e.campaignId match {
@@ -601,14 +605,15 @@ class DashboardProjectionHandler extends SlickHandler[TrackingEvent] {
     updates.transactionally
   }
 
-  /** Dog-ear unfold event. Telemetry only — bumps the unfolds counters so
-    * the dashboard can compute pin retention as (folds - unfolds) / folds.
-    * No spend impact. UPDATE-only (no INSERT) because every unfold was
-    * preceded by a fold, which already created the row.
-    */
+  /**
+   * Dog-ear unfold event. Telemetry only — bumps the unfolds counters so
+   * the dashboard can compute pin retention as (folds - unfolds) / folds.
+   * No spend impact. UPDATE-only (no INSERT) because every unfold was
+   * preceded by a fold, which already created the row.
+   */
   private def processUnfold(e: TrackingEvent): DBIO[Done] = {
     val hourBucket = e.eventTime.truncatedTo(ChronoUnit.HOURS)
-    val dayBucket  = e.eventTime.atZone(ZoneOffset.UTC).toLocalDate
+    val dayBucket = e.eventTime.atZone(ZoneOffset.UTC).toLocalDate
 
     val updates = for {
       _ <- e.campaignId match {

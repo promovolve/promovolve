@@ -3,13 +3,13 @@ package promovolve.publisher
 import slick.jdbc.PostgresProfile.api.*
 
 import java.time.Instant
-import scala.concurrent.{Await, ExecutionContext, Future}
+import scala.concurrent.{ Await, ExecutionContext, Future }
 import scala.concurrent.duration.*
 
 /** Image asset metadata stored once per unique image (keyed by hash). */
 final case class ImageAsset(
-    hash: String,       // SHA-256, primary key
-    s3Key: String,      // "assets/{hash}.{ext}"
+    hash: String, // SHA-256, primary key
+    s3Key: String, // "assets/{hash}.{ext}"
     mime: String,
     width: Int,
     height: Int,
@@ -56,11 +56,11 @@ final class SlickImageAssetRepo(db: slick.jdbc.JdbcBackend#Database)(using ec: E
   }
 
   private class ImageAssetTable(tag: Tag) extends Table[ImageAsset](tag, "image_asset") {
-    def hash       = column[String]("hash", O.PrimaryKey)
-    def s3Key      = column[String]("s3_key")
-    def mime       = column[String]("mime")
-    def width      = column[Int]("width")
-    def height     = column[Int]("height")
+    def hash = column[String]("hash", O.PrimaryKey)
+    def s3Key = column[String]("s3_key")
+    def mime = column[String]("mime")
+    def width = column[Int]("width")
+    def height = column[Int]("height")
     def uploadedAt = column[Instant]("uploaded_at")
 
     def * = (hash, s3Key, mime, width, height, uploadedAt).mapTo[ImageAsset]

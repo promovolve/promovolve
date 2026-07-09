@@ -2,7 +2,7 @@ package promovolve.api
 
 import com.typesafe.config.Config
 import org.apache.pekko.actor.CoordinatedShutdown
-import org.apache.pekko.actor.typed.{ActorRef, ActorSystem}
+import org.apache.pekko.actor.typed.{ ActorRef, ActorSystem }
 import org.apache.pekko.cluster.sharding.typed.scaladsl.ClusterSharding
 import org.apache.pekko.http.scaladsl.Http
 import org.apache.pekko.http.scaladsl.model.HttpMethods.*
@@ -11,12 +11,21 @@ import org.apache.pekko.http.scaladsl.server.Directives.*
 import promovolve.*
 import promovolve.advertiser.CampaignDirectory
 import promovolve.api.guard.TrackingReplayGuard
-import promovolve.api.projection.{DashboardRoutes, TrackingEventJournal}
+import promovolve.api.projection.{ DashboardRoutes, TrackingEventJournal }
 import promovolve.common.EntityBackedPublisherSecretsRepo
 import promovolve.publisher.delivery.ServeIndexDData
-import promovolve.publisher.{CreativeRepo, ImageAssetRepo, SlickImageAssetRepo, EntityBackedPublisherSettings, PublisherEmailRepo, SlickPublisherEmailRepo, AdvertiserAssetRepo, SlickAdvertiserAssetRepo}
-import promovolve.publisher.assets.{ImageStorage, R2ImageStorage}
-import promovolve.advertiser.{AdvertiserEmailRepo, SlickAdvertiserEmailRepo}
+import promovolve.publisher.{
+  AdvertiserAssetRepo,
+  CreativeRepo,
+  EntityBackedPublisherSettings,
+  ImageAssetRepo,
+  PublisherEmailRepo,
+  SlickAdvertiserAssetRepo,
+  SlickImageAssetRepo,
+  SlickPublisherEmailRepo
+}
+import promovolve.publisher.assets.{ ImageStorage, R2ImageStorage }
+import promovolve.advertiser.{ AdvertiserEmailRepo, SlickAdvertiserEmailRepo }
 import scala.util.Try
 import promovolve.taxonomy.CategoryRegistry
 import org.apache.pekko.actor.typed.pubsub.Topic
@@ -25,7 +34,7 @@ import slick.jdbc.PostgresProfile
 
 import scala.concurrent.ExecutionContext
 import scala.concurrent.duration.*
-import scala.util.{Failure, Success}
+import scala.util.{ Failure, Success }
 
 /** HTTP-related initialization for API nodes. */
 object HttpBootstrap {
@@ -35,16 +44,16 @@ object HttpBootstrap {
   // ========================================
   object HttpDependencies {
     def init(
-              sharding: ClusterSharding,
-              campaignDirectory: ActorRef[CampaignDirectory.Command],
-              categoryRegistry: ActorRef[CategoryRegistry.Command],
-              serveIndex: ActorRef[ServeIndexDData.Cmd],
-              creativeRepo: CreativeRepo,
-              budgetEventTopic: ActorRef[Topic.Command[BudgetEvent]],
-              config: Config,
-              affinityRegistry: Option[ActorRef[promovolve.taxonomy.AffinityRegistryDData.Cmd]] = None,
-              geminiRateLimiter: Option[ActorRef[promovolve.GeminiRateLimiter.Command]] = None,
-              browserPool: ActorRef[promovolve.browser.BrowserSessionPool.Command],
+        sharding: ClusterSharding,
+        campaignDirectory: ActorRef[CampaignDirectory.Command],
+        categoryRegistry: ActorRef[CategoryRegistry.Command],
+        serveIndex: ActorRef[ServeIndexDData.Cmd],
+        creativeRepo: CreativeRepo,
+        budgetEventTopic: ActorRef[Topic.Command[BudgetEvent]],
+        config: Config,
+        affinityRegistry: Option[ActorRef[promovolve.taxonomy.AffinityRegistryDData.Cmd]] = None,
+        geminiRateLimiter: Option[ActorRef[promovolve.GeminiRateLimiter.Command]] = None,
+        browserPool: ActorRef[promovolve.browser.BrowserSessionPool.Command]
     )(using system: ActorSystem[?]): Refs = {
       system.log.info("Initializing HTTP routes...")
 
@@ -120,13 +129,16 @@ object HttpBootstrap {
         val advAssetRepo = new SlickAdvertiserAssetRepo(db)(using system.executionContext)
         advAssetRepo.ensureSchema()
 
-        system.log.info("ImageAssetRepo, AdvertiserEmailRepo, PublisherEmailRepo, AdvertiserAssetRepo initialized (PostgreSQL), ImageStorage: {}", storageType)
+        system.log.info(
+          "ImageAssetRepo, AdvertiserEmailRepo, PublisherEmailRepo, AdvertiserAssetRepo initialized (PostgreSQL), ImageStorage: {}",
+          storageType)
         system.log.info("Using shared CreativeRepo from ClusterBootstrap.Repositories")
-        (imgRepo: ImageAssetRepo, advEmailRepo: AdvertiserEmailRepo, pubEmailRepo: PublisherEmailRepo, advAssetRepo: AdvertiserAssetRepo)
+        (imgRepo: ImageAssetRepo, advEmailRepo: AdvertiserEmailRepo, pubEmailRepo: PublisherEmailRepo,
+          advAssetRepo: AdvertiserAssetRepo)
       } catch {
         case ex: Exception =>
           system.log.error("Failed to initialize database repos: {}", ex.getMessage)
-          throw ex  // Can't continue without database
+          throw ex // Can't continue without database
       }
 
       val serveRoutes = new ServeRoutes(
@@ -188,13 +200,14 @@ object HttpBootstrap {
       val trackRoutes = new TrackRoutes(
         secretsRepo,
         eventLog,
-        maxSkew = urlValidityWindow,  // Same source of truth
+        maxSkew = urlValidityWindow, // Same source of truth
         replayGuard = replayGuard
       )(using system)
 
       val enableTestRoutes = Try(config.getBoolean("promovolve.enable-test-routes")).getOrElse(false)
       if (enableTestRoutes) system.log.warn("Test routes enabled — do not use in production")
-      val auctionRoutes = new AuctionRoutes(sharding, serveIndex, creativeRepo, eventLog, enableTestRoutes)(using system)
+      val auctionRoutes =
+        new AuctionRoutes(sharding, serveIndex, creativeRepo, eventLog, enableTestRoutes)(using system)
 
       // Category verification client (optional, requires GEMINI_API_KEY and promovolve.gemini.enabled=true)
       val geminiEnabled = Try(config.getBoolean("promovolve.gemini.enabled")).getOrElse(false)
@@ -215,8 +228,10 @@ object HttpBootstrap {
       // the quota and 429 the whole system.
       val lpExtractor = if (geminiEnabled) {
         sys.env.get("GEMINI_API_KEY").filter(_.nonEmpty).map { apiKey =>
-          system.log.info("LPExtractor enabled (Gemini) — copy rewriting only, rate-limited={}", geminiRateLimiter.isDefined)
-          new promovolve.creative.LPExtractor(apiKey, rateLimiter = geminiRateLimiter)(using system, system.executionContext)
+          system.log.info("LPExtractor enabled (Gemini) — copy rewriting only, rate-limited={}",
+            geminiRateLimiter.isDefined)
+          new promovolve.creative.LPExtractor(apiKey, rateLimiter = geminiRateLimiter)(using system,
+            system.executionContext)
         }
       } else None
 
@@ -276,8 +291,10 @@ object HttpBootstrap {
       val lpWorkerEnabled =
         appConfig.hasPath("crawler.lp-workers.enabled") && appConfig.getBoolean("crawler.lp-workers.enabled")
       val lpWorkerNumWorkers =
-        if (appConfig.hasPath("crawler.lp-workers.num-workers")) appConfig.getInt("crawler.lp-workers.num-workers") else 4
-      if (lpWorkerEnabled) system.log.info("LP analysis dispatch: crawler-tier LPWorker (num-workers={})", lpWorkerNumWorkers)
+        if (appConfig.hasPath("crawler.lp-workers.num-workers")) appConfig.getInt("crawler.lp-workers.num-workers")
+        else 4
+      if (lpWorkerEnabled)
+        system.log.info("LP analysis dispatch: crawler-tier LPWorker (num-workers={})", lpWorkerNumWorkers)
 
       val endpointRoutes = new EndpointRoutes(
         sharding,
@@ -287,7 +304,7 @@ object HttpBootstrap {
         Some(imageAssetRepo),
         Some(creativeRepo),
         Some(imageStorage),
-        cdnBase,  // Reuse existing cdn-base-url config
+        cdnBase, // Reuse existing cdn-base-url config
         Some(advertiserEmailRepo),
         Some(publisherEmailRepo),
         budgetEventTopic,
@@ -300,7 +317,7 @@ object HttpBootstrap {
         floorDecisionJournal = floorDecisionJournal,
         trackingEventJournal = trackingJournal,
         lpWorkerEnabled = lpWorkerEnabled,
-        lpWorkerNumWorkers = lpWorkerNumWorkers,
+        lpWorkerNumWorkers = lpWorkerNumWorkers
       )(using system)
 
       // Dashboard routes for advertiser performance data
@@ -339,8 +356,8 @@ object HttpBootstrap {
       given ExecutionContext = system.executionContext
 
       val httpConfig = config.getConfig("http")
-      val host       = httpConfig.getString("host")
-      val port       = httpConfig.getInt("port")
+      val host = httpConfig.getString("host")
+      val port = httpConfig.getInt("port")
 
       val baseRoutes = deps.endpointRoutes.routes ~
         deps.serveRoutes.routes ~

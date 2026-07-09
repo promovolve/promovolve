@@ -15,9 +15,9 @@ final class BucketRotationStrategy(val bucketMs: Long) {
       val gap = nowBucket - currentBucketId
       Some(
         RotationInfo(
-          newBucket             = nowBucket,
-          previousBucket        = if (gap == 1) currentBucketId else nowBucket - 1,
-          gap                   = gap,
+          newBucket = nowBucket,
+          previousBucket = if (gap == 1) currentBucketId else nowBucket - 1,
+          gap = gap,
           shouldPreserveCurrent = gap == 1
         )
       )
@@ -56,12 +56,12 @@ final class EventTimingAnalyzer(
       currentBucket: Long,
       previousBucket: Long
   ): TimingClassification = {
-    val nowMs       = System.currentTimeMillis()
+    val nowMs = System.currentTimeMillis()
     val eventBucket = strategy.bucketOf(eventTimeMs)
-    val skewMs      = extendedSkew.toMillis
+    val skewMs = extendedSkew.toMillis
 
     val tooFuture = eventTimeMs - nowMs > skewMs
-    val tooLate   = nowMs - eventTimeMs > skewMs
+    val tooLate = nowMs - eventTimeMs > skewMs
 
     if (tooFuture) TimingClassification.TooFuture
     else if (tooLate) TimingClassification.TooLate

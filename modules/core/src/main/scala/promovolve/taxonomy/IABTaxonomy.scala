@@ -1,27 +1,28 @@
 package promovolve.taxonomy
 
-import org.apache.pekko.actor.typed.{ActorRef, ActorSystem}
+import org.apache.pekko.actor.typed.{ ActorRef, ActorSystem }
 import org.apache.pekko.http.scaladsl.Http
 import org.apache.pekko.http.scaladsl.model.*
 import org.apache.pekko.http.scaladsl.model.headers.RawHeader
 import org.apache.pekko.http.scaladsl.unmarshalling.Unmarshal
 import org.slf4j.LoggerFactory
-import promovolve.{CategoryId, Confidence, GeminiRateLimiter}
+import promovolve.{ CategoryId, Confidence, GeminiRateLimiter }
 import spray.json.*
 
-import scala.concurrent.{ExecutionContext, Future}
+import scala.concurrent.{ ExecutionContext, Future }
 import scala.concurrent.duration.*
 import scala.util.Try
 
-/** IAB Taxonomy classifier using LLM.
-  *
-  * Supports multiple providers:
-  *   - OpenAI (gpt-4o-mini) - default
-  *   - Anthropic (claude-3-haiku)
-  *   - Google Gemini (gemini-2.0-flash) - cheapest
-  *
-  * Uses Pekko HTTP for all providers.
-  */
+/**
+ * IAB Taxonomy classifier using LLM.
+ *
+ * Supports multiple providers:
+ *   - OpenAI (gpt-4o-mini) - default
+ *   - Anthropic (claude-3-haiku)
+ *   - Google Gemini (gemini-2.0-flash) - cheapest
+ *
+ * Uses Pekko HTTP for all providers.
+ */
 class IABTaxonomy(
     provider: IABTaxonomy.Provider,
     rateLimiter: Option[ActorRef[GeminiRateLimiter.Command]] = None
@@ -39,8 +40,8 @@ class IABTaxonomy(
     callTimeout = 15.seconds,
     resetTimeout = 30.seconds
   ).onOpen(logger.warn(s"Circuit breaker OPEN for ${provider.name} — failing fast"))
-   .onHalfOpen(logger.info(s"Circuit breaker HALF-OPEN for ${provider.name} — testing"))
-   .onClose(logger.info(s"Circuit breaker CLOSED for ${provider.name} — recovered"))
+    .onHalfOpen(logger.info(s"Circuit breaker HALF-OPEN for ${provider.name} — testing"))
+    .onClose(logger.info(s"Circuit breaker CLOSED for ${provider.name} — recovered"))
 
   // Classification is demand-INDEPENDENT: a page is classified against the FULL
   // IAB taxonomy (its intrinsic topic); demand is intersected later at the
@@ -52,7 +53,7 @@ class IABTaxonomy(
   def analyzeTaxonomy(
       url: String,
       text: String,
-      fallbackCategories: Set[String] = Set.empty,
+      fallbackCategories: Set[String] = Set.empty
   ): Future[List[Selection]] = {
     val candidates = buildTaxonomyCandidates()
     val prompt = buildPrompt(url, text, candidates)
@@ -74,7 +75,7 @@ class IABTaxonomy(
     // Acquire a rate limit token before calling Gemini; other providers pass through
     val rateLimitGate: Future[Unit] = (provider, rateLimiter) match {
       case (_: Provider.Gemini, Some(limiter)) => GeminiRateLimiter.acquire(limiter)
-      case _ => Future.successful(())
+      case _                                   => Future.successful(())
     }
 
     def callOnce(): Future[scala.util.Either[(Int, String, Option[FiniteDuration]), List[Selection]]] = {
@@ -98,9 +99,11 @@ class IABTaxonomy(
               }
               val (valid, invalid) = selections.partition(s => validIds.contains(s.id))
               if (invalid.nonEmpty) {
-                logger.warn(s"${provider.name} returned category IDs not in candidate set for $url: ${invalid.map(_.id).mkString(", ")} — filtered out")
+                logger.warn(
+                  s"${provider.name} returned category IDs not in candidate set for $url: ${invalid.map(_.id).mkString(", ")} — filtered out")
               }
-              logger.info(s"${provider.name} classified $url: ${valid.map(s => s"${s.id}(${s.confidence})").mkString(", ")}")
+              logger.info(
+                s"${provider.name} classified $url: ${valid.map(s => s"${s.id}(${s.confidence})").mkString(", ")}")
               Right(valid)
             } else {
               Left((response.status.intValue, responseBody, retryAfter))
@@ -119,7 +122,7 @@ class IABTaxonomy(
     //    instead of our exponential — it's authoritative about when the quota frees up.
     def withRetry(attempt: Int, maxAttempts: Int): Future[List[Selection]] = {
       callOnce().flatMap {
-        case Right(sel) => Future.successful(sel)
+        case Right(sel)                                                                                    => Future.successful(sel)
         case Left((status, body, retryAfter)) if (status == 429 || status >= 500) && attempt < maxAttempts =>
           val baseMs = if (status == 429) 5000L else 500L
           val expMs = baseMs * (1L << (attempt - 1)) // 429: 5s,10s,20s,40s | 5xx: 500ms,1s,2s,4s
@@ -164,7 +167,7 @@ class IABTaxonomy(
         }
         logger.error(
           s"IABTaxonomy ${provider.name} error for $url: ${e.getMessage} " +
-            s"— falling back to ${fallback.size} demand categories @ conf=$fallbackConfidence",
+          s"— falling back to ${fallback.size} demand categories @ conf=$fallbackConfidence",
           e
         )
         fallback
@@ -233,7 +236,8 @@ class IABTaxonomy(
               "type" -> JsString("object"),
               "properties" -> JsObject(
                 "id" -> JsObject("type" -> JsString("string"), "description" -> JsString("IAB category ID")),
-                "confidence" -> JsObject("type" -> JsString("number"), "description" -> JsString("Confidence score 0.0-1.0"))
+                "confidence" -> JsObject("type" -> JsString("number"),
+                  "description" -> JsString("Confidence score 0.0-1.0"))
               ),
               "required" -> JsArray(JsString("id"), JsString("confidence"))
             )
@@ -328,7 +332,7 @@ class IABTaxonomy(
           val input = block.asJsObject.fields("input").asJsObject
           input.fields.get("selected_taxonomy_ids") match {
             case Some(JsArray(items)) => items.flatMap(parseSelection).toList
-            case _ => List.empty
+            case _                    => List.empty
           }
         case None =>
           // Fallback: try to parse as text response
@@ -399,21 +403,22 @@ class IABTaxonomy(
 
   // ========== Helpers ==========
 
-  /** Build the LLM's candidate set.
-    *
-    * Previously this was demand-constrained: descendants of the union of all
-    * advertisers' declared categories. That was unsafe — when demand is
-    * narrow (e.g. a single Pilates advertiser → demand = {225 Fitness}), the
-    * LLM was forced to pick from {225 Fitness, 226 Participant Sports, 227
-    * Running} for every page, including unrelated baseball / soccer / keiba
-    * pages. The closest-in-the-set won, and the Pilates campaign ended up
-    * bidding on every ad unit on the site.
-    *
-    * The honest classification path is: show the LLM the full IAB 3.0
-    * topical taxonomy, let it return whatever genuinely matches (including
-    * empty), and intersect with demand downstream at the auction fan-out
-    * (which already does ancestor expansion). Always the full taxonomy.
-    */
+  /**
+   * Build the LLM's candidate set.
+   *
+   * Previously this was demand-constrained: descendants of the union of all
+   * advertisers' declared categories. That was unsafe — when demand is
+   * narrow (e.g. a single Pilates advertiser → demand = {225 Fitness}), the
+   * LLM was forced to pick from {225 Fitness, 226 Participant Sports, 227
+   * Running} for every page, including unrelated baseball / soccer / keiba
+   * pages. The closest-in-the-set won, and the Pilates campaign ended up
+   * bidding on every ad unit on the site.
+   *
+   * The honest classification path is: show the LLM the full IAB 3.0
+   * topical taxonomy, let it return whatever genuinely matches (including
+   * empty), and intersect with demand downstream at the auction fan-out
+   * (which already does ancestor expansion). Always the full taxonomy.
+   */
   private def buildTaxonomyCandidates(): Map[String, String] =
     TieredCategory.getAll
       .map(cat => cat.id -> cat.toString)

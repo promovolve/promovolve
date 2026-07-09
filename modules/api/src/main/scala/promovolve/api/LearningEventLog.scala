@@ -1,39 +1,40 @@
 package promovolve.api
 
-import org.apache.pekko.actor.typed.{ActorRef, ActorSystem}
+import org.apache.pekko.actor.typed.{ ActorRef, ActorSystem }
 import org.apache.pekko.cluster.sharding.typed.scaladsl.ClusterSharding
 import promovolve.advertiser.CampaignEntity
 import promovolve.api.projection.TrackingEventJournal
 import promovolve.publisher.SiteEntity
 import promovolve.publisher.delivery.AdServer
-import promovolve.taxonomy.{AffinityRegistryDData, ContentProductAffinityEntity, TaxonomyRankerEntity}
-import promovolve.{CreativeId, SiteId, Spend}
+import promovolve.taxonomy.{ AffinityRegistryDData, ContentProductAffinityEntity, TaxonomyRankerEntity }
+import promovolve.{ CreativeId, SiteId, Spend }
 
 import java.time.Instant
 import scala.concurrent.ExecutionContext
-import scala.util.{Failure, Success}
+import scala.util.{ Failure, Success }
 
-/** EventLog implementation that routes impression/click events to learning entities.
-  *
-  * == Learning Flow ==
-  * {{{
-  * logImpression(event) → TaxonomyRankerEntity ! RecordImpression(revenue)  // category-level
-  *                      → AdServer ! RecordImpression(creativeId)           // per-creative
-  *                      → CampaignEntity ! RecordSpend(amount)              // budget tracking
-  *                      → TrackingEventJournal.writeImpression()            // dashboard projection
-  *
-  * logClick(event)      → TaxonomyRankerEntity ! RecordClick()              // category-level
-  *                      → AdServer ! RecordClick(creativeId)                // per-creative
-  *                      → TrackingEventJournal.writeClick()                 // dashboard projection
-  * }}}
-  *
-  * == Two-Level Thompson Sampling ==
-  * - TaxonomyRankerEntity: Category-level CTR learning (Beta posterior per category per site)
-  * - AdServer: Per-creative CTR learning (in-memory, real-time feedback loop)
-  *
-  * All tracking events require campaign info to be provided directly in the TrackEvent.
-  * Budget is reserved atomically via TryReserve; RecordSpend is idempotent via requestId.
-  */
+/**
+ * EventLog implementation that routes impression/click events to learning entities.
+ *
+ * == Learning Flow ==
+ * {{{
+ * logImpression(event) → TaxonomyRankerEntity ! RecordImpression(revenue)  // category-level
+ *                      → AdServer ! RecordImpression(creativeId)           // per-creative
+ *                      → CampaignEntity ! RecordSpend(amount)              // budget tracking
+ *                      → TrackingEventJournal.writeImpression()            // dashboard projection
+ *
+ * logClick(event)      → TaxonomyRankerEntity ! RecordClick()              // category-level
+ *                      → AdServer ! RecordClick(creativeId)                // per-creative
+ *                      → TrackingEventJournal.writeClick()                 // dashboard projection
+ * }}}
+ *
+ * == Two-Level Thompson Sampling ==
+ * - TaxonomyRankerEntity: Category-level CTR learning (Beta posterior per category per site)
+ * - AdServer: Per-creative CTR learning (in-memory, real-time feedback loop)
+ *
+ * All tracking events require campaign info to be provided directly in the TrackEvent.
+ * Budget is reserved atomically via TryReserve; RecordSpend is idempotent via requestId.
+ */
 final class LearningEventLog(
     sharding: ClusterSharding,
     trackingJournal: Option[TrackingEventJournal] = None,
@@ -66,17 +67,18 @@ final class LearningEventLog(
     }
   }
 
-  /** Process impression with directly-provided campaign info.
-    *
-    * When `e.dogeared` is true the serve was a pin-honor (the user had
-    * already folded this creative). Bookmark fulfillment is not a
-    * billable re-impression and the user is the same one who already
-    * generated CTR/fold/category signal on the original view, so all
-    * entity-level dispatches are skipped and only the journal write
-    * runs. The journal entry carries the `dogeared` flag so the
-    * dashboard projection can bump the parallel `dogeared_*` counters
-    * (separate metric surface) without inflating primary totals.
-    */
+  /**
+   * Process impression with directly-provided campaign info.
+   *
+   * When `e.dogeared` is true the serve was a pin-honor (the user had
+   * already folded this creative). Bookmark fulfillment is not a
+   * billable re-impression and the user is the same one who already
+   * generated CTR/fold/category signal on the original view, so all
+   * entity-level dispatches are skipped and only the journal write
+   * runs. The journal entry carries the `dogeared` flag so the
+   * dashboard projection can bump the parallel `dogeared_*` counters
+   * (separate metric surface) without inflating primary totals.
+   */
   private def processImpression(
       e: TrackEvent,
       campaignId: String,
@@ -124,8 +126,8 @@ final class LearningEventLog(
     // 3. Use requestId from TryReserve (budget already deducted)
     // RecordSpend will see this as duplicate and skip deduction
     val requestId = e.requestId match {
-      case Some(rid) => rid  // ULID string passed directly
-      case None =>
+      case Some(rid) => rid // ULID string passed directly
+      case None      =>
         // Should not happen with current serve flow, but generate deterministic fallback
         log.warn("Missing requestId in impression event: cid={} pub={}", e.cid, e.pub)
         jkugiya.ulid.ULID.getGenerator().base32()
@@ -137,9 +139,9 @@ final class LearningEventLog(
     val campaignRef = sharding.entityRefFor(CampaignEntity.TypeKey, campaignEntityId)
     campaignRef ! CampaignEntity.RecordSpend(
       requestId = requestId,
-      amount    = Spend(cpm / 1000.0),
-      ts        = Instant.now(),
-      replyTo   = system.ignoreRef
+      amount = Spend(cpm / 1000.0),
+      ts = Instant.now(),
+      replyTo = system.ignoreRef
     )
 
     // 5. Notify SiteEntity of served impression for floor CPM optimization RL.
@@ -256,17 +258,18 @@ final class LearningEventLog(
     )
   }
 
-  /** Record a fold event. Fold tokens have already been verified upstream;
-    * campaignId/advertiserId come from the signed payload. Folds are
-    * **free** — no per-fold billing. The fold is a quality / engagement
-    * signal (like Facebook likes), not a monetized event. We still
-    * write the tracking_events row so the
-    * dashboard projection + Thompson Sampling can use the fold rate
-    * as a creative-quality input alongside CTR.
-    *
-    * Idempotency rides on `e.requestId` (the fold-token hash) — same
-    * token can't fire two journal rows.
-    */
+  /**
+   * Record a fold event. Fold tokens have already been verified upstream;
+   * campaignId/advertiserId come from the signed payload. Folds are
+   * **free** — no per-fold billing. The fold is a quality / engagement
+   * signal (like Facebook likes), not a monetized event. We still
+   * write the tracking_events row so the
+   * dashboard projection + Thompson Sampling can use the fold rate
+   * as a creative-quality input alongside CTR.
+   *
+   * Idempotency rides on `e.requestId` (the fold-token hash) — same
+   * token can't fire two journal rows.
+   */
   def logFold(e: TrackEvent): Unit = {
     (e.campaignId, e.advertiserId, e.requestId) match {
       case (Some(campId), Some(advId), Some(rid)) if campId.nonEmpty && advId.nonEmpty =>
@@ -292,20 +295,21 @@ final class LearningEventLog(
     }
   }
 
-  /** Record an unfold event. Telemetry only — no billing impact, no
-    * idempotency requirement (multiple unfolds of the same slot are
-    * uncommon and harmless to log). Looks up campaignId/advertiserId
-    * from the creative because the unfold endpoint receives only
-    * slotId+creativeId; the dashboard projection needs them to bump the
-    * campaign-level retention metrics.
-    */
+  /**
+   * Record an unfold event. Telemetry only — no billing impact, no
+   * idempotency requirement (multiple unfolds of the same slot are
+   * uncommon and harmless to log). Looks up campaignId/advertiserId
+   * from the creative because the unfold endpoint receives only
+   * slotId+creativeId; the dashboard projection needs them to bump the
+   * campaign-level retention metrics.
+   */
   def logUnfold(e: TrackEvent): Unit = {
     creativeRepo match {
       case Some(repo) =>
         repo.get(e.cid).onComplete {
           case Success(Some(creative)) =>
             val enriched = e.copy(
-              campaignId   = Some(creative.campaignId),
+              campaignId = Some(creative.campaignId),
               advertiserId = Some(creative.advertiserId)
             )
             trackingJournal.foreach(_.writeUnfold(enriched))

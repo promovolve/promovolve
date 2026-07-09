@@ -14,12 +14,13 @@ enum ApprovalStatus {
   case Approved, Rejected
 }
 
-/** Single candidate with all metadata needed for rendering and tracking.
-  *
-  * @param categoryScore Thompson-sampled CTR from TaxonomyRankerEntity, used for
-  *                      learned selection. Default 0.5 (neutral) if not yet scored.
-  * @param adProductCategory IAB Ad Product Taxonomy 2.0 category (what the campaign is selling)
-  */
+/**
+ * Single candidate with all metadata needed for rendering and tracking.
+ *
+ * @param categoryScore Thompson-sampled CTR from TaxonomyRankerEntity, used for
+ *                      learned selection. Default 0.5 (neutral) if not yet scored.
+ * @param adProductCategory IAB Ad Product Taxonomy 2.0 category (what the campaign is selling)
+ */
 final case class CandidateView(
     creativeId: CreativeId,
     campaignId: CampaignId,
@@ -30,11 +31,11 @@ final case class CandidateView(
     height: Int,
     category: CategoryId,
     cpm: CPM,
-    classifiedAtMs: Long,       // Epoch milliseconds when content was classified
+    classifiedAtMs: Long, // Epoch milliseconds when content was classified
     categoryScore: Double = 0.5, // Thompson-sampled CTR (0.5 = neutral prior)
     adProductCategory: Option[AdProductCategoryId] = None, // IAB Ad Product Taxonomy 2.0 category
-    landingDomain: String = "",  // Landing page domain for domain blocking
-    landingUrl: String = "",     // Full landing page URL for click-through
+    landingDomain: String = "", // Landing page domain for domain blocking
+    landingUrl: String = "" // Full landing page URL for click-through
 ) extends CborSerializable
 
 // ========== Domain Models ==========

@@ -8,14 +8,15 @@ import org.scalatest.wordspec.AnyWordSpec
 import scala.concurrent.Await
 import scala.concurrent.duration.*
 
-/** Integration test for GeminiClient with real Gemini API.
-  *
-  * Requires:
-  * - GEMINI_API_KEY environment variable
-  * - Test image in resources
-  *
-  * Note: This test makes real API calls. Gemini is fast and cheap.
-  */
+/**
+ * Integration test for GeminiClient with real Gemini API.
+ *
+ * Requires:
+ * - GEMINI_API_KEY environment variable
+ * - Test image in resources
+ *
+ * Note: This test makes real API calls. Gemini is fast and cheap.
+ */
 class GeminiClientIntegrationSpec extends AnyWordSpec with Matchers with BeforeAndAfterAll {
 
   val testKit: ActorTestKit = ActorTestKit()

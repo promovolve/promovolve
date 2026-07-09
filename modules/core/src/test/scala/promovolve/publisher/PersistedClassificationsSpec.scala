@@ -5,27 +5,29 @@ import org.scalatest.wordspec.AnyWordSpec
 import promovolve.*
 import promovolve.auction.AuctioneerEntity.AdSlotSpec
 
-/** Covers the pure pieces of the persist-page-classifications change:
-  * State.withClassification eviction semantics and PersistedSlot ↔
-  * AdSlotSpec round-trip. The full SiteEntity recovery → AuctioneerEntity
-  * replay loop needs the live cluster; that's verified by run-time
-  * inspection per the project note. */
+/**
+ * Covers the pure pieces of the persist-page-classifications change:
+ * State.withClassification eviction semantics and PersistedSlot ↔
+ * AdSlotSpec round-trip. The full SiteEntity recovery → AuctioneerEntity
+ * replay loop needs the live cluster; that's verified by run-time
+ * inspection per the project note.
+ */
 class PersistedClassificationsSpec extends AnyWordSpec with Matchers {
 
   private val siteId = SiteId("test-site")
 
   private def entry(ts: Long): SiteEntity.ClassificationEntry =
     SiteEntity.ClassificationEntry(
-      categories   = Map("IAB1" -> 0.8),
-      slots        = Vector(SiteEntity.PersistedSlot(
-        slotId        = "slot-1",
-        width         = 300,
-        height        = 250,
+      categories = Map("IAB1" -> 0.8),
+      slots = Vector(SiteEntity.PersistedSlot(
+        slotId = "slot-1",
+        width = 300,
+        height = 250,
         declaredSizes = Vector(SiteEntity.PersistedAdSize(300, 250)),
-        prior         = None,
-        floorOverride = None,
+        prior = None,
+        floorOverride = None
       )),
-      classifiedAt = ts,
+      classifiedAt = ts
     )
 
   "State.withClassification" should {
@@ -75,16 +77,16 @@ class PersistedClassificationsSpec extends AnyWordSpec with Matchers {
 
     def stateWithSlots(ids: String*): SiteEntity.State =
       SiteEntity.State.empty(siteId).withConfig(SiteEntity.SiteConfig(
-        publisherId    = PublisherId("pub"),
-        domain         = "example.com",
-        seedUrl        = "https://example.com/",
-        cronSchedule   = "0 0 2 * * ?",
-        maxDepth       = 3,
-        concurrency    = 1,
-        hostRegex      = ".*",
+        publisherId = PublisherId("pub"),
+        domain = "example.com",
+        seedUrl = "https://example.com/",
+        cronSchedule = "0 0 2 * * ?",
+        maxDepth = 3,
+        concurrency = 1,
+        hostRegex = ".*",
         targetElements = Nil,
-        taxonomyIds    = Set.empty,
-        slots          = ids.map(id => SiteEntity.AdSlotConfig(id, 300, 250)).toList,
+        taxonomyIds = Set.empty,
+        slots = ids.map(id => SiteEntity.AdSlotConfig(id, 300, 250)).toList
       ))
 
     "drop slots not seen this crawl and report them" in {
@@ -115,13 +117,13 @@ class PersistedClassificationsSpec extends AnyWordSpec with Matchers {
         taxonomyIds = Set.empty,
         slots = List(
           SiteEntity.AdSlotConfig("keep", 300, 250, floorOverride = Some(CPM(3.5))),
-          SiteEntity.AdSlotConfig("drop", 728, 90),
-        ),
+          SiteEntity.AdSlotConfig("drop", 728, 90)
+        )
       ))
       val (pruned, removed) = s.prunedToSeenSlots(Set("keep"))
       removed shouldBe List("drop")
-      pruned.config.get.slots.map(_.slotId)        shouldBe List("keep")
-      pruned.config.get.slots.head.floorOverride   shouldBe Some(CPM(3.5))
+      pruned.config.get.slots.map(_.slotId) shouldBe List("keep")
+      pruned.config.get.slots.head.floorOverride shouldBe Some(CPM(3.5))
     }
 
     "no-op on a state with no config" in {
@@ -136,9 +138,9 @@ class PersistedClassificationsSpec extends AnyWordSpec with Matchers {
 
     "round-trip a minimal slot" in {
       val original = AdSlotSpec(
-        slotId        = SlotId("slot-A"),
+        slotId = SlotId("slot-A"),
         declaredSizes = List(AdSize(300, 250), AdSize(336, 280)),
-        computedSize  = AdSize(300, 250),
+        computedSize = AdSize(300, 250)
       )
       val persisted = SiteEntity.PersistedSlot.from(original)
       persisted.slotId shouldBe "slot-A"
@@ -146,7 +148,7 @@ class PersistedClassificationsSpec extends AnyWordSpec with Matchers {
       persisted.height shouldBe 250
       persisted.declaredSizes shouldBe Vector(
         SiteEntity.PersistedAdSize(300, 250),
-        SiteEntity.PersistedAdSize(336, 280),
+        SiteEntity.PersistedAdSize(336, 280)
       )
 
       import SiteEntity.toAdSlotSpec
@@ -160,15 +162,15 @@ class PersistedClassificationsSpec extends AnyWordSpec with Matchers {
 
     "round-trip a slot with prior + floor override" in {
       val original = AdSlotSpec(
-        slotId        = SlotId("slot-B"),
+        slotId = SlotId("slot-B"),
         declaredSizes = List(AdSize(728, 90)),
-        computedSize  = AdSize(728, 90),
-        prior         = Some(SiteEntity.SlotPrior(
+        computedSize = AdSize(728, 90),
+        prior = Some(SiteEntity.SlotPrior(
           qualityScore = 0.82,
-          aboveFold    = true,
-          region       = "article",
+          aboveFold = true,
+          region = "article"
         )),
-        floorOverride = Some(CPM(2.75)),
+        floorOverride = Some(CPM(2.75))
       )
       import SiteEntity.toAdSlotSpec
       val restored = SiteEntity.PersistedSlot.from(original).toAdSlotSpec

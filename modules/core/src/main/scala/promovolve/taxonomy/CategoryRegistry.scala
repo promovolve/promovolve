@@ -1,50 +1,52 @@
 package promovolve.taxonomy
 
 import org.apache.pekko.actor.typed.scaladsl.Behaviors
-import org.apache.pekko.actor.typed.{ActorRef, ActorSystem, Behavior}
-import org.apache.pekko.cluster.ddata.typed.scaladsl.{DistributedData, Replicator}
-import org.apache.pekko.cluster.ddata.{LWWMap, LWWMapKey, SelfUniqueAddress}
-import org.apache.pekko.cluster.typed.{ClusterSingleton, SingletonActor}
-import promovolve.{CategoryId, SiteId}
+import org.apache.pekko.actor.typed.{ ActorRef, ActorSystem, Behavior }
+import org.apache.pekko.cluster.ddata.typed.scaladsl.{ DistributedData, Replicator }
+import org.apache.pekko.cluster.ddata.{ LWWMap, LWWMapKey, SelfUniqueAddress }
+import org.apache.pekko.cluster.typed.{ ClusterSingleton, SingletonActor }
+import promovolve.{ CategoryId, SiteId }
 
-/** CategoryRegistry - Cluster singleton aggregating publisher-declared taxonomy categories.
-  *
-  * == Purpose ==
-  * When publishers register with the platform, they declare which IAB taxonomy
-  * categories their content covers. This registry aggregates all declared categories
-  * so advertisers can browse available targeting options.
-  *
-  * == Consistency Model ==
-  * Uses DData (LWWMap) with '''WriteLocal''' for low-latency updates. This means:
-  *  - Updates are immediately visible on this node
-  *  - Other nodes converge '''eventually''' (typically sub-second in healthy cluster)
-  *  - Queries return '''locally cached''' data, not fresh reads from replicator
-  *
-  * '''Staleness expectation''': After Register/Unregister, queries may return stale
-  * data until the next `Changed` event is received (typically milliseconds).
-  * This is acceptable for advertiser API browsing use cases.
-  *
-  * == Data Flow ==
-  * {{{
-  * SiteEntity (on config load)
-  *   → RegisterPublisherCategories(siteId, categories)
-  *   → DData LWWMap update (WriteLocal)
-  *   → Changed event received
-  *   → Local cache updated + derived indices recomputed
-  * }}}
-  *
-  * == Relationship to Other Components ==
-  *  - '''CampaignDirectory''': Tracks which campaigns target which categories (demand side)
-  *  - '''CategoryRegistry''': Tracks which publishers have which categories (supply side)
-  *  - '''TaxonomyRankerEntity''': Scores categories per-site using Thompson Sampling
-  *
-  * @see [[TAXONOMY_RANKING.md]] for category scoring details
-  */
+/**
+ * CategoryRegistry - Cluster singleton aggregating publisher-declared taxonomy categories.
+ *
+ * == Purpose ==
+ * When publishers register with the platform, they declare which IAB taxonomy
+ * categories their content covers. This registry aggregates all declared categories
+ * so advertisers can browse available targeting options.
+ *
+ * == Consistency Model ==
+ * Uses DData (LWWMap) with '''WriteLocal''' for low-latency updates. This means:
+ *  - Updates are immediately visible on this node
+ *  - Other nodes converge '''eventually''' (typically sub-second in healthy cluster)
+ *  - Queries return '''locally cached''' data, not fresh reads from replicator
+ *
+ * '''Staleness expectation''': After Register/Unregister, queries may return stale
+ * data until the next `Changed` event is received (typically milliseconds).
+ * This is acceptable for advertiser API browsing use cases.
+ *
+ * == Data Flow ==
+ * {{{
+ * SiteEntity (on config load)
+ *   → RegisterPublisherCategories(siteId, categories)
+ *   → DData LWWMap update (WriteLocal)
+ *   → Changed event received
+ *   → Local cache updated + derived indices recomputed
+ * }}}
+ *
+ * == Relationship to Other Components ==
+ *  - '''CampaignDirectory''': Tracks which campaigns target which categories (demand side)
+ *  - '''CategoryRegistry''': Tracks which publishers have which categories (supply side)
+ *  - '''TaxonomyRankerEntity''': Scores categories per-site using Thompson Sampling
+ *
+ * @see [[TAXONOMY_RANKING.md]] for category scoring details
+ */
 object CategoryRegistry {
 
   // ---------- DData Response Types ----------
   private type SubscribeResponse = Replicator.SubscribeResponse[LWWMap[String, Set[String]]]
-  private type UpdateResponse    = Replicator.UpdateResponse[LWWMap[String, Set[String]]]
+  private type UpdateResponse = Replicator.UpdateResponse[LWWMap[String, Set[String]]]
+
   /** LWWMap of publisher -> their categories (single source of truth) */
   private val PublisherCategoriesKey: LWWMapKey[String, Set[String]] =
     LWWMapKey[String, Set[String]]("publisher-categories")
@@ -63,7 +65,7 @@ object CategoryRegistry {
 
   // ---------- Behavior ----------
   def apply(): Behavior[Command | SubscribeResponse | UpdateResponse] = Behaviors.setup { ctx =>
-    given system: ActorSystem[?]  = ctx.system
+    given system: ActorSystem[?] = ctx.system
     given node: SelfUniqueAddress = DistributedData(system).selfUniqueAddress
 
     val replicator = DistributedData(system).replicator
@@ -87,7 +89,7 @@ object CategoryRegistry {
             )
             Behaviors.same
           } else {
-            val pubKey     = encodePublisher(publisherId)
+            val pubKey = encodePublisher(publisherId)
             val catStrings = encodeCategories(categories)
 
             // Use explicit .put() with node context for proper LWWMap semantics
@@ -143,14 +145,14 @@ object CategoryRegistry {
           }.toVector.sortBy(_.categoryId.value)
 
           replyTo ! CategoryStatsResponse(
-            categories      = stats,
+            categories = stats,
             totalPublishers = state.publisherCategories.size,
             totalCategories = state.allCategories.size
           )
           Behaviors.same
 
         case GetPublishersForCategory(categoryId, replyTo) =>
-          val catKey    = categoryId.value
+          val catKey = categoryId.value
           val publishers = state.categoryToPublishers.getOrElse(catKey, Set.empty)
           replyTo ! PublishersForCategory(categoryId, publishers.map(decodePublisher))
           Behaviors.same
@@ -158,7 +160,7 @@ object CategoryRegistry {
         // Handle DData subscription responses (publisher map updates)
         case changed @ Replicator.Changed(PublisherCategoriesKey) =>
           val newEntries = changed.get(PublisherCategoriesKey).entries
-          val newState   = DerivedState.from(newEntries)
+          val newState = DerivedState.from(newEntries)
 
           // Log convergence metrics for observability
           val pubDelta = newState.publisherCategories.size - state.publisherCategories.size
@@ -200,22 +202,23 @@ object CategoryRegistry {
     active(DerivedState.empty)
   }
 
-  private def encodePublisher(siteId: SiteId): String       = siteId.value
-  private def decodePublisher(s: String): SiteId            = SiteId(s)
+  private def encodePublisher(siteId: SiteId): String = siteId.value
+  private def decodePublisher(s: String): SiteId = SiteId(s)
   private def encodeCategories(cats: Set[CategoryId]): Set[String] = cats.map(_.value)
-  private def decodeCategory(s: String): CategoryId         = CategoryId(s)
+  private def decodeCategory(s: String): CategoryId = CategoryId(s)
 
   // ---------- Protocol ----------
   sealed trait Command extends promovolve.CborSerializable
 
-  /** Publisher declares their taxonomy categories.
-    *
-    * Called when SiteEntity loads/reloads its configuration. '''Replaces''' any
-    * previously registered categories for this publisher (not merge).
-    *
-    * @param publisherId The site/publisher identifier
-    * @param categories  Full set of categories this publisher covers
-    */
+  /**
+   * Publisher declares their taxonomy categories.
+   *
+   * Called when SiteEntity loads/reloads its configuration. '''Replaces''' any
+   * previously registered categories for this publisher (not merge).
+   *
+   * @param publisherId The site/publisher identifier
+   * @param categories  Full set of categories this publisher covers
+   */
   final case class RegisterPublisherCategories(
       publisherId: SiteId,
       categories: Set[CategoryId]

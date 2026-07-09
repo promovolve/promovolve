@@ -3,19 +3,20 @@ package promovolve.publisher.assessment
 import promovolve.CategoryId
 import promovolve.taxonomy.TieredCategory
 
-/** Publisher-side verification that compares LLM-detected creative categories
-  * against the advertiser's declared target topics.
-  *
-  * Both sides now speak IAB Content Taxonomy 3.0 (after the 2.x→3.0 migration),
-  * so matching is hierarchical: an exact id is a strong match; sharing an
-  * ancestor in the 3.0 tree is a soft match. There is no longer a separate
-  * "ad product → content" bridge — the advertiser declares target topics
-  * directly, and that's what the creative is verified against.
-  *
-  * Key principle: err on the side of NOT blocking. Only flag Mismatch when
-  * the LLM is confident AND the detected categories share no ancestry with
-  * any declared target.
-  */
+/**
+ * Publisher-side verification that compares LLM-detected creative categories
+ * against the advertiser's declared target topics.
+ *
+ * Both sides now speak IAB Content Taxonomy 3.0 (after the 2.x→3.0 migration),
+ * so matching is hierarchical: an exact id is a strong match; sharing an
+ * ancestor in the 3.0 tree is a soft match. There is no longer a separate
+ * "ad product → content" bridge — the advertiser declares target topics
+ * directly, and that's what the creative is verified against.
+ *
+ * Key principle: err on the side of NOT blocking. Only flag Mismatch when
+ * the LLM is confident AND the detected categories share no ancestry with
+ * any declared target.
+ */
 object CategoryVerification {
 
   /** Minimum LLM confidence threshold to consider detection reliable */
@@ -25,14 +26,19 @@ object CategoryVerification {
   val HighConfidenceThreshold: Double = 0.8
 
   enum VerificationStatus {
+
     /** LLM confident + detected matches (or shares ancestry with) a target */
     case Verified
+
     /** LLM confident + detected has no overlap with declared targets */
     case Mismatch
+
     /** LLM low confidence or empty categories — neutral */
     case Unverifiable
+
     /** Creative not yet assessed by LLM */
     case NotAssessed
+
     /** Advertiser has not declared any target topics */
     case NoDeclaredCategory
   }
@@ -48,13 +54,14 @@ object CategoryVerification {
     def statusString: String = status.toString
   }
 
-  /** Verify a creative against the campaign's declared target topics.
-    *
-    * @param detectedCategories Categories the LLM detected in the creative
-    * @param categoryConfidence LLM's confidence (0.0-1.0)
-    * @param expectedCategories Advertiser-declared target content categories (IAB 3.0)
-    * @param isAssessed         Whether the LLM has run against this creative
-    */
+  /**
+   * Verify a creative against the campaign's declared target topics.
+   *
+   * @param detectedCategories Categories the LLM detected in the creative
+   * @param categoryConfidence LLM's confidence (0.0-1.0)
+   * @param expectedCategories Advertiser-declared target content categories (IAB 3.0)
+   * @param isAssessed         Whether the LLM has run against this creative
+   */
   def verify(
       detectedCategories: List[String],
       categoryConfidence: Double,
@@ -110,11 +117,12 @@ object CategoryVerification {
     baseResult
   }
 
-  /** Match detected against expected using the 3.0 hierarchy.
-    *   - Direct id match → score 1.0
-    *   - Shared ancestor → score 0.75 (fraction of detected with an
-    *     ancestor in expected)
-    */
+  /**
+   * Match detected against expected using the 3.0 hierarchy.
+   *   - Direct id match → score 1.0
+   *   - Shared ancestor → score 0.75 (fraction of detected with an
+   *     ancestor in expected)
+   */
   private def calculateMatch(
       detected: List[String],
       expected: Set[String]

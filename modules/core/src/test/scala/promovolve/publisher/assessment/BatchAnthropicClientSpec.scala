@@ -2,7 +2,7 @@ package promovolve.publisher.assessment
 
 import org.apache.pekko.actor.testkit.typed.scaladsl.ActorTestKit
 import org.apache.pekko.actor.typed.scaladsl.Behaviors
-import org.apache.pekko.actor.typed.{ActorRef, Behavior}
+import org.apache.pekko.actor.typed.{ ActorRef, Behavior }
 import org.scalatest.BeforeAndAfterAll
 import org.scalatest.matchers.should.Matchers
 import org.scalatest.wordspec.AnyWordSpec
@@ -20,14 +20,15 @@ class BatchAnthropicClientSpec extends AnyWordSpec with Matchers with BeforeAndA
     AssessmentContext(
       advertiserId = "adv-1",
       creativeId = creativeId,
-      
+
       width = 300,
       height = 250
     )
 
-  /** Mock BatchAnthropicClient that captures requests and allows manual response injection.
-    * This tests the protocol without actual HTTP calls.
-    */
+  /**
+   * Mock BatchAnthropicClient that captures requests and allows manual response injection.
+   * This tests the protocol without actual HTTP calls.
+   */
   object MockBatchClient {
     sealed trait Command
     case class Assess(
@@ -169,9 +170,10 @@ class BatchAnthropicClientSpec extends AnyWordSpec with Matchers with BeforeAndA
 
       // Complete all with success
       probes.zipWithIndex.foreach { case (probe, i) =>
-        mockClient ! MockBatchClient.SimulateSuccess(s"creative-$i", testResult.copy(
-          extractedText = Some(s"Text $i")
-        ))
+        mockClient ! MockBatchClient.SimulateSuccess(s"creative-$i",
+          testResult.copy(
+            extractedText = Some(s"Text $i")
+          ))
         val response = probe.expectMessageType[BatchAnthropicClient.AssessmentComplete]
         response.creativeId shouldBe s"creative-$i"
       }

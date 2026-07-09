@@ -15,17 +15,17 @@ class TieredCategorySpec extends AnyWordSpec with Matchers with OptionValues {
     }
 
     "map IAB 1.0 top-level IDs to Content Taxonomy 2.1 equivalents" in {
-      TieredCategory.normalize("IAB17") shouldBe "483"   // Sports
-      TieredCategory.normalize("IAB19") shouldBe "596"   // Technology & Computing
-      TieredCategory.normalize("IAB2") shouldBe "1"      // Automotive
-      TieredCategory.normalize("IAB3") shouldBe "52"     // Business
-      TieredCategory.normalize("IAB20") shouldBe "653"   // Travel
+      TieredCategory.normalize("IAB17") shouldBe "483" // Sports
+      TieredCategory.normalize("IAB19") shouldBe "596" // Technology & Computing
+      TieredCategory.normalize("IAB2") shouldBe "1" // Automotive
+      TieredCategory.normalize("IAB3") shouldBe "52" // Business
+      TieredCategory.normalize("IAB20") shouldBe "653" // Travel
     }
 
     "map IAB 1.0 sub-category IDs to parent 2.1 ID" in {
-      TieredCategory.normalize("IAB17-3") shouldBe "483"  // Sports sub-cat → Sports
-      TieredCategory.normalize("IAB19-6") shouldBe "596"  // Tech sub-cat → Tech
-      TieredCategory.normalize("IAB2-1") shouldBe "1"     // Automotive sub-cat → Automotive
+      TieredCategory.normalize("IAB17-3") shouldBe "483" // Sports sub-cat → Sports
+      TieredCategory.normalize("IAB19-6") shouldBe "596" // Tech sub-cat → Tech
+      TieredCategory.normalize("IAB2-1") shouldBe "1" // Automotive sub-cat → Automotive
     }
 
     "pass through unknown IAB IDs unchanged" in {
@@ -48,7 +48,7 @@ class TieredCategorySpec extends AnyWordSpec with Matchers with OptionValues {
 
     "return the same category for IAB 1.0 ID as for 2.1 ID" in {
       val viaIab = TieredCategory.get("IAB17")
-      val via21  = TieredCategory.get("483")
+      val via21 = TieredCategory.get("483")
 
       viaIab shouldBe defined
       via21 shouldBe defined
@@ -64,7 +64,7 @@ class TieredCategorySpec extends AnyWordSpec with Matchers with OptionValues {
 
     "return the same descendants for IAB 1.0 ID as for 2.1 ID" in {
       val viaIab = TieredCategory.getAllDescendants("IAB17")
-      val via21  = TieredCategory.getAllDescendants("483")
+      val via21 = TieredCategory.getAllDescendants("483")
 
       viaIab should not be empty
       viaIab.map(_.id) shouldBe via21.map(_.id)

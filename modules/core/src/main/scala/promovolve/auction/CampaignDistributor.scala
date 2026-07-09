@@ -1,8 +1,8 @@
 package promovolve.auction
 
 import org.apache.pekko.actor.typed.scaladsl.Behaviors
-import org.apache.pekko.actor.typed.{ActorRef, Behavior}
-import org.apache.pekko.cluster.sharding.typed.scaladsl.{ClusterSharding, EntityRef, EntityTypeKey}
+import org.apache.pekko.actor.typed.{ ActorRef, Behavior }
+import org.apache.pekko.cluster.sharding.typed.scaladsl.{ ClusterSharding, EntityRef, EntityTypeKey }
 import promovolve.*
 import promovolve.auction.CategoryBidderEntity
 import promovolve.common.Aggregator
@@ -10,25 +10,26 @@ import promovolve.common.Aggregator
 import scala.collection.immutable.Queue
 import scala.concurrent.duration.*
 
-/** CampaignDistributor - Sharded entity for broadcasting campaign updates.
-  *
-  * == Purpose ==
-  * Distributes the broadcast workload from CampaignDirectory across the cluster.
-  * Each worker handles a partition of categories based on hash(categoryId) % numWorkers.
-  *
-  * == Why Sharded? ==
-  * CampaignDirectory is a singleton that was becoming a bottleneck when broadcasting
-  * to many CategoryBidderEntity virtual shards. By offloading the actual message
-  * fan-out to N sharded workers distributed across the cluster:
-  * - Singleton only does lightweight routing
-  * - Broadcast load is distributed across nodes
-  * - Each worker can rate-limit its own concurrent broadcasts
-  *
-  * == Work Queue ==
-  * Each worker maintains a bounded queue of pending publish requests.
-  * When at max concurrent broadcasts, new requests are queued.
-  * This provides natural backpressure without dropping work.
-  */
+/**
+ * CampaignDistributor - Sharded entity for broadcasting campaign updates.
+ *
+ * == Purpose ==
+ * Distributes the broadcast workload from CampaignDirectory across the cluster.
+ * Each worker handles a partition of categories based on hash(categoryId) % numWorkers.
+ *
+ * == Why Sharded? ==
+ * CampaignDirectory is a singleton that was becoming a bottleneck when broadcasting
+ * to many CategoryBidderEntity virtual shards. By offloading the actual message
+ * fan-out to N sharded workers distributed across the cluster:
+ * - Singleton only does lightweight routing
+ * - Broadcast load is distributed across nodes
+ * - Each worker can rate-limit its own concurrent broadcasts
+ *
+ * == Work Queue ==
+ * Each worker maintains a bounded queue of pending publish requests.
+ * When at max concurrent broadcasts, new requests are queued.
+ * This provides natural backpressure without dropping work.
+ */
 object CampaignDistributor {
 
   val TypeKey: EntityTypeKey[Command] = EntityTypeKey[Command]("campaign-distributor")

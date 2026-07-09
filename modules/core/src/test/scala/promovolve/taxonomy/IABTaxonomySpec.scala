@@ -3,7 +3,7 @@ package promovolve.taxonomy
 import org.scalatest.matchers.should.Matchers
 import org.scalatest.wordspec.AnyWordSpec
 import org.scalatest.OptionValues
-import promovolve.{CategoryId, Confidence}
+import promovolve.{ CategoryId, Confidence }
 import spray.json.*
 
 class IABTaxonomySpec extends AnyWordSpec with Matchers with OptionValues {
@@ -306,7 +306,8 @@ class IABTaxonomySpec extends AnyWordSpec with Matchers with OptionValues {
     }
 
     "handle Gemini response with multiple categories" in {
-      val innerJson = """{"selected_taxonomy_ids": [{"id": "IAB3", "confidence": 0.85}, {"id": "IAB7-1", "confidence": 0.72}]}"""
+      val innerJson =
+        """{"selected_taxonomy_ids": [{"id": "IAB3", "confidence": 0.85}, {"id": "IAB7-1", "confidence": 0.72}]}"""
       val geminiResponse =
         s"""{
            |  "candidates": [
@@ -376,7 +377,7 @@ class IABTaxonomySpec extends AnyWordSpec with Matchers with OptionValues {
           val input = block.asJsObject.fields("input").asJsObject
           input.fields.get("selected_taxonomy_ids") match {
             case Some(JsArray(items)) => items.flatMap(parseSelectionHelper).toList
-            case _ => List.empty
+            case _                    => List.empty
           }
         case None =>
           // Fallback: try to parse as text response

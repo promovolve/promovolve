@@ -2,18 +2,19 @@ package promovolve.advertiser
 
 import org.scalatest.matchers.should.Matchers
 import org.scalatest.wordspec.AnyWordSpec
-import promovolve.{AdvertiserId, CreativeId, SiteId}
+import promovolve.{ AdvertiserId, CreativeId, SiteId }
 import promovolve.publisher.ApprovalStatus
 
-/** Pure-data tests for AdvertiserEntity.State helpers around the
-  * site-domain blocklist. Exercises the case-class transformations
-  * directly — no actor system, no DData, no persistence. The DData
-  * publish + retry behavior lives in the command-handler closure and
-  * is verified with an end-to-end run, not here.
-  */
+/**
+ * Pure-data tests for AdvertiserEntity.State helpers around the
+ * site-domain blocklist. Exercises the case-class transformations
+ * directly — no actor system, no DData, no persistence. The DData
+ * publish + retry behavior lives in the command-handler closure and
+ * is verified with an end-to-end run, not here.
+ */
 class AdvertiserEntitySpec extends AnyWordSpec with Matchers {
 
-  private val advId  = AdvertiserId("adv-1")
+  private val advId = AdvertiserId("adv-1")
   private val emptyState = AdvertiserEntity.State.empty(advId)
 
   "State.blockDomains" should {
@@ -56,9 +57,9 @@ class AdvertiserEntitySpec extends AnyWordSpec with Matchers {
   "State.toInfo" should {
 
     "carry the site-domain blocklist into AdvertiserInfo" in {
-      val s    = emptyState.blockDomains(Set("Foo.COM"))
+      val s = emptyState.blockDomains(Set("Foo.COM"))
       val info = s.toInfo
-      info.advertiserId        shouldBe advId
+      info.advertiserId shouldBe advId
       info.siteDomainBlocklist shouldBe Set("foo.com")
     }
 
@@ -70,9 +71,9 @@ class AdvertiserEntitySpec extends AnyWordSpec with Matchers {
   "isValidDomain" should {
 
     "accept conventional FQDNs" in {
-      AdvertiserEntity.isValidDomain("example.com")         shouldBe true
+      AdvertiserEntity.isValidDomain("example.com") shouldBe true
       AdvertiserEntity.isValidDomain("a.b.c.example.co.uk") shouldBe true
-      AdvertiserEntity.isValidDomain("xn--bcher-kva.de")    shouldBe true
+      AdvertiserEntity.isValidDomain("xn--bcher-kva.de") shouldBe true
     }
 
     "accept bare single-label hosts (dev convenience)" in {
@@ -80,8 +81,8 @@ class AdvertiserEntitySpec extends AnyWordSpec with Matchers {
     }
 
     "reject empty and whitespace" in {
-      AdvertiserEntity.isValidDomain("")    shouldBe false
-      AdvertiserEntity.isValidDomain(" ")   shouldBe false
+      AdvertiserEntity.isValidDomain("") shouldBe false
+      AdvertiserEntity.isValidDomain(" ") shouldBe false
     }
 
     "reject uppercase / non-normalized input" in {
@@ -104,10 +105,10 @@ class AdvertiserEntitySpec extends AnyWordSpec with Matchers {
     }
 
     "reject HTML / scheme-style payloads" in {
-      AdvertiserEntity.isValidDomain("<script>")              shouldBe false
-      AdvertiserEntity.isValidDomain("http://example.com")    shouldBe false
-      AdvertiserEntity.isValidDomain("example.com/path")      shouldBe false
-      AdvertiserEntity.isValidDomain("user@example.com")      shouldBe false
+      AdvertiserEntity.isValidDomain("<script>") shouldBe false
+      AdvertiserEntity.isValidDomain("http://example.com") shouldBe false
+      AdvertiserEntity.isValidDomain("example.com/path") shouldBe false
+      AdvertiserEntity.isValidDomain("user@example.com") shouldBe false
     }
 
     "reject excessive length" in {
@@ -146,7 +147,7 @@ class AdvertiserEntitySpec extends AnyWordSpec with Matchers {
 
   "Creative.withRevocation" should {
 
-    val siteId   = SiteId("test-site")
+    val siteId = SiteId("test-site")
     val creative = AdvertiserEntity.Creative(id = CreativeId("cr-1"))
 
     "return the creative to PENDING: still bidding (its way back into the approval queue) but no longer approved" in {
@@ -179,7 +180,7 @@ class AdvertiserEntitySpec extends AnyWordSpec with Matchers {
 
   "Creative approval state (approvedSites — floor-teaching demand)" should {
 
-    val siteId   = SiteId("test-site")
+    val siteId = SiteId("test-site")
     val creative = AdvertiserEntity.Creative(id = CreativeId("cr-1"))
 
     "start PENDING: eligible to bid (reaches the approval queue) but NOT approved (no floor influence)" in {
@@ -202,21 +203,21 @@ class AdvertiserEntitySpec extends AnyWordSpec with Matchers {
 
     "clear approval on revocation — revoked goes back to PENDING (still bids, no floor influence)" in {
       val approved = creative.withApproval(siteId, ApprovalStatus.Approved)
-      val revoked  = approved.withRevocation(siteId)
+      val revoked = approved.withRevocation(siteId)
       revoked.isApprovedFor(siteId) shouldBe false
       revoked.isEligibleFor(siteId) shouldBe true
     }
 
     "NOT restore approval on un-rejection — un-flag returns the creative to PENDING" in {
-      val rejected   = creative.withApproval(siteId, ApprovalStatus.Rejected)
+      val rejected = creative.withApproval(siteId, ApprovalStatus.Rejected)
       val unrejected = rejected.withUnrejection(siteId)
-      unrejected.isEligibleFor(siteId) shouldBe true   // bids again (pending)
-      unrejected.isApprovedFor(siteId) shouldBe false  // but does not teach the floor
+      unrejected.isEligibleFor(siteId) shouldBe true // bids again (pending)
+      unrejected.isApprovedFor(siteId) shouldBe false // but does not teach the floor
     }
 
     "track approval per site" in {
       val otherSite = SiteId("other-site")
-      val approved  = creative.withApproval(siteId, ApprovalStatus.Approved)
+      val approved = creative.withApproval(siteId, ApprovalStatus.Approved)
       approved.isApprovedFor(siteId) shouldBe true
       approved.isApprovedFor(otherSite) shouldBe false
     }

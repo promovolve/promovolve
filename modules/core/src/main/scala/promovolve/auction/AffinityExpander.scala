@@ -1,35 +1,36 @@
 package promovolve.auction
 
 import org.apache.pekko.actor.typed.scaladsl.Behaviors
-import org.apache.pekko.actor.typed.{ActorRef, Behavior}
+import org.apache.pekko.actor.typed.{ ActorRef, Behavior }
 import org.apache.pekko.cluster.sharding.typed.scaladsl.ClusterSharding
-import promovolve.taxonomy.{AffinityRegistryDData, ContentProductAffinityEntity}
+import promovolve.taxonomy.{ AffinityRegistryDData, ContentProductAffinityEntity }
 
 import scala.concurrent.duration.FiniteDuration
 
-/** Short-lived actor that scores content-product affinities to inform auction
-  * candidate expansion.
-  *
-  * Flow:
-  * 1. For each content category, lookup AffinityRegistryDData for known ad product pairs
-  * 2. Quote ContentProductAffinityEntity for each pair (scatter-gather)
-  * 3. Filter by minAffinityScore — this surfaces (content, adProduct) pairs the
-  *    system has actually learned from impression/click behaviour
-  *
-  * Historically step 4 mapped surviving ad products back to *other* content
-  * categories via the static IAB Content↔AdProduct bridge. That bridge has been
-  * removed: it was sparse, frequently asserted the wrong neighbourhood (e.g.
-  * "Beer ad product" → only "Alcohol" content), and silently filled the auction
-  * with categories no advertiser actually targeted. Reverse expansion will be
-  * reintroduced once AffinityRegistryDData carries an adProduct→contentSet
-  * inverse index — at which point "what other content categories does a
-  * high-affinity ad product appear with?" becomes a real, learned answer.
-  *
-  * Until then this actor returns an empty expansion set, and the auctioneer
-  * runs with its original (LLM-classified) candidate list.
-  *
-  * Self-terminates after replying or on timeout.
-  */
+/**
+ * Short-lived actor that scores content-product affinities to inform auction
+ * candidate expansion.
+ *
+ * Flow:
+ * 1. For each content category, lookup AffinityRegistryDData for known ad product pairs
+ * 2. Quote ContentProductAffinityEntity for each pair (scatter-gather)
+ * 3. Filter by minAffinityScore — this surfaces (content, adProduct) pairs the
+ *    system has actually learned from impression/click behaviour
+ *
+ * Historically step 4 mapped surviving ad products back to *other* content
+ * categories via the static IAB Content↔AdProduct bridge. That bridge has been
+ * removed: it was sparse, frequently asserted the wrong neighbourhood (e.g.
+ * "Beer ad product" → only "Alcohol" content), and silently filled the auction
+ * with categories no advertiser actually targeted. Reverse expansion will be
+ * reintroduced once AffinityRegistryDData carries an adProduct→contentSet
+ * inverse index — at which point "what other content categories does a
+ * high-affinity ad product appear with?" becomes a real, learned answer.
+ *
+ * Until then this actor returns an empty expansion set, and the auctioneer
+ * runs with its original (LLM-classified) candidate list.
+ *
+ * Self-terminates after replying or on timeout.
+ */
 object AffinityExpander {
 
   sealed trait Msg
@@ -110,7 +111,8 @@ object AffinityExpander {
             )
           }
         } else {
-          collectRegistryResults(contentCategories, newRemaining, updated, sharding, minAffinityScore, maxExpansion, replyTo)
+          collectRegistryResults(contentCategories, newRemaining, updated, sharding, minAffinityScore, maxExpansion,
+            replyTo)
         }
 
       case Timeout =>
@@ -159,12 +161,13 @@ object AffinityExpander {
     }
   }
 
-  /** Compute the expansion set.
-    *
-    * Returns empty until a reverse-affinity (adProduct → contentSet) lookup
-    * lands in AffinityRegistryDData. See the class doc for the deletion of
-    * the previous static-bridge expansion.
-    */
+  /**
+   * Compute the expansion set.
+   *
+   * Returns empty until a reverse-affinity (adProduct → contentSet) lookup
+   * lands in AffinityRegistryDData. See the class doc for the deletion of
+   * the previous static-bridge expansion.
+   */
   private def computeExpansion(
       existingCategories: Set[String],
       scored: Vector[(String, Double)],

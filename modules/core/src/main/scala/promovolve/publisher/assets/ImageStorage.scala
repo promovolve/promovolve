@@ -1,18 +1,19 @@
 package promovolve.publisher.assets
 
 import org.apache.pekko.actor.typed.ActorSystem
-import org.apache.pekko.stream.connectors.s3.{S3Attributes, S3Settings}
+import org.apache.pekko.stream.connectors.s3.{ S3Attributes, S3Settings }
 import org.apache.pekko.stream.connectors.s3.scaladsl.S3
-import org.apache.pekko.stream.scaladsl.{Sink, Source}
+import org.apache.pekko.stream.scaladsl.{ Sink, Source }
 import org.apache.pekko.util.ByteString
-import software.amazon.awssdk.auth.credentials.{AwsBasicCredentials, StaticCredentialsProvider}
+import software.amazon.awssdk.auth.credentials.{ AwsBasicCredentials, StaticCredentialsProvider }
 import software.amazon.awssdk.regions.Region
 import software.amazon.awssdk.regions.providers.AwsRegionProvider
 
-import scala.concurrent.{ExecutionContext, Future}
+import scala.concurrent.{ ExecutionContext, Future }
 
 /** Storage for image bytes. */
 trait ImageStorage {
+
   /** Store image bytes, returns the storage key. */
   def store(hash: String, bytes: Array[Byte], mimeType: String): Future[String]
 
@@ -22,38 +23,43 @@ trait ImageStorage {
   /** Check if image exists. */
   def exists(hash: String): Future[Boolean]
 
-  /** Generate a short-lived presigned URL the browser can PUT to
-    * directly. The bucket key is derived from the hash + mimeType, so a
-    * later `register` call only needs the metadata, not the bytes.
-    * Returns (url, s3Key). The URL expires after `ttlSeconds`.
-    *
-    * Default impl returns a "not supported" failure — only R2 has the
-    * SigV4 wiring; in-memory and local-disk modes return a Future
-    * failure so callers fall back to the byte-shipping upload path.
-    */
+  /**
+   * Generate a short-lived presigned URL the browser can PUT to
+   * directly. The bucket key is derived from the hash + mimeType, so a
+   * later `register` call only needs the metadata, not the bytes.
+   * Returns (url, s3Key). The URL expires after `ttlSeconds`.
+   *
+   * Default impl returns a "not supported" failure — only R2 has the
+   * SigV4 wiring; in-memory and local-disk modes return a Future
+   * failure so callers fall back to the byte-shipping upload path.
+   */
   def presignPutUrl(hash: String, mimeType: String, ttlSeconds: Int): Future[(String, String)] =
     Future.failed(new UnsupportedOperationException(
       "presigned uploads only supported on R2 storage"
     ))
 
-  /** Store a self-hosted web font woff2 at the stable, human key
-    * `fonts/<slug>-<variant>.woff2`. `variant` is `"latin"` for the latin
-    * subset (the slug is the canonical identity for a latin face, so this
-    * dedups across creatives), or a per-text content key for CJK faces
-    * (Noto Sans/Serif JP) provisioned via the `text=` subset — the latin
-    * block has no kana/kanji, so CJK is keyed by the glyphs it covers
-    * (see GoogleFontCatalog.subsetKey). Idempotent. Default impl is a no-op
-    * failure for non-R2 backends (dev/in-memory); the font provisioner
-    * treats failures as "couldn't self-host" → the creative falls back to a
-    * system font. */
+  /**
+   * Store a self-hosted web font woff2 at the stable, human key
+   * `fonts/<slug>-<variant>.woff2`. `variant` is `"latin"` for the latin
+   * subset (the slug is the canonical identity for a latin face, so this
+   * dedups across creatives), or a per-text content key for CJK faces
+   * (Noto Sans/Serif JP) provisioned via the `text=` subset — the latin
+   * block has no kana/kanji, so CJK is keyed by the glyphs it covers
+   * (see GoogleFontCatalog.subsetKey). Idempotent. Default impl is a no-op
+   * failure for non-R2 backends (dev/in-memory); the font provisioner
+   * treats failures as "couldn't self-host" → the creative falls back to a
+   * system font.
+   */
   def storeFont(slug: String, bytes: Array[Byte], variant: String = "latin"): Future[Unit] =
     Future.failed(new UnsupportedOperationException(
       "font storage only supported on R2 storage"
     ))
 
-  /** Whether a font (slug + variant) already exists in storage — lets the
-    * provisioner dedup so a face shared across creatives is fetched once.
-    * Default false (non-R2 backends never self-host). */
+  /**
+   * Whether a font (slug + variant) already exists in storage — lets the
+   * provisioner dedup so a face shared across creatives is fetched once.
+   * Default false (non-R2 backends never self-host).
+   */
   def fontExists(slug: String, variant: String = "latin"): Future[Boolean] =
     Future.successful(false)
 }
@@ -71,7 +77,7 @@ final class R2ImageStorage(
   // Configure S3 settings for R2
   private val s3Settings: S3Settings = S3Settings()
     .withEndpointUrl(s"https://$accountId.r2.cloudflarestorage.com")
-    .withAccessStyle(org.apache.pekko.stream.connectors.s3.AccessStyle.PathAccessStyle)  // R2 requires path-style
+    .withAccessStyle(org.apache.pekko.stream.connectors.s3.AccessStyle.PathAccessStyle) // R2 requires path-style
     .withCredentialsProvider(
       StaticCredentialsProvider.create(
         AwsBasicCredentials.create(accessKeyId, secretAccessKey)
@@ -100,7 +106,7 @@ final class R2ImageStorage(
     val extensions = Seq("png", "jpg", "gif", "webp", "bin")
 
     def tryFetch(remaining: List[String]): Future[Option[Array[Byte]]] = remaining match {
-      case Nil => Future.successful(None)
+      case Nil         => Future.successful(None)
       case ext :: rest =>
         val s3Key = s"assets/$hash.$ext"
         S3.getObject(bucket, s3Key)
@@ -153,18 +159,19 @@ final class R2ImageStorage(
     case _            => "bin"
   }
 
-  /** Hand-rolled S3 SigV4 query-string signing for presigned PUT URLs.
-    * Pekko-connectors-s3 1.2.0 doesn't expose a presigner; pulling AWS
-    * SDK v2 just for this would add ~5 MB of transitive deps. The algo
-    * is small and stable enough to inline here.
-    *
-    * Reference: AWS SigV4 query-string algorithm
-    * https://docs.aws.amazon.com/AmazonS3/latest/API/sigv4-query-string-auth.html
-    */
+  /**
+   * Hand-rolled S3 SigV4 query-string signing for presigned PUT URLs.
+   * Pekko-connectors-s3 1.2.0 doesn't expose a presigner; pulling AWS
+   * SDK v2 just for this would add ~5 MB of transitive deps. The algo
+   * is small and stable enough to inline here.
+   *
+   * Reference: AWS SigV4 query-string algorithm
+   * https://docs.aws.amazon.com/AmazonS3/latest/API/sigv4-query-string-auth.html
+   */
   override def presignPutUrl(
       hash: String,
       mimeType: String,
-      ttlSeconds: Int,
+      ttlSeconds: Int
   ): Future[(String, String)] = Future {
     val ext = mimeToExt(mimeType)
     val s3Key = s"assets/$hash.$ext"
@@ -183,11 +190,11 @@ final class R2ImageStorage(
 
     // Query parameters in lexical order — required by SigV4.
     val queryPairs: Seq[(String, String)] = Seq(
-      "X-Amz-Algorithm"     -> "AWS4-HMAC-SHA256",
-      "X-Amz-Credential"    -> credential,
-      "X-Amz-Date"          -> amzDate,
-      "X-Amz-Expires"       -> ttlSeconds.toString,
-      "X-Amz-SignedHeaders" -> "host",
+      "X-Amz-Algorithm" -> "AWS4-HMAC-SHA256",
+      "X-Amz-Credential" -> credential,
+      "X-Amz-Date" -> amzDate,
+      "X-Amz-Expires" -> ttlSeconds.toString,
+      "X-Amz-SignedHeaders" -> "host"
     ).sortBy(_._1)
     val canonicalQuery = queryPairs
       .map { case (k, v) => s"${rfc3986Encode(k)}=${rfc3986Encode(v)}" }
@@ -205,19 +212,19 @@ final class R2ImageStorage(
       canonicalQuery,
       canonicalHeaders,
       signedHeaders,
-      "UNSIGNED-PAYLOAD",
+      "UNSIGNED-PAYLOAD"
     ).mkString("\n")
 
     val stringToSign = Seq(
       "AWS4-HMAC-SHA256",
       amzDate,
       credentialScope,
-      sha256Hex(canonicalRequest),
+      sha256Hex(canonicalRequest)
     ).mkString("\n")
 
     // Derive the signing key per SigV4 spec.
-    val kDate    = hmacSha256(s"AWS4$secretAccessKey".getBytes("UTF-8"), shortDate)
-    val kRegion  = hmacSha256(kDate, region)
+    val kDate = hmacSha256(s"AWS4$secretAccessKey".getBytes("UTF-8"), shortDate)
+    val kRegion = hmacSha256(kDate, region)
     val kService = hmacSha256(kRegion, service)
     val kSigning = hmacSha256(kService, "aws4_request")
     val signature = hmacSha256(kSigning, stringToSign).map("%02x".format(_)).mkString
@@ -237,16 +244,17 @@ final class R2ImageStorage(
     md.digest(s.getBytes("UTF-8")).map("%02x".format(_)).mkString
   }
 
-  /** RFC 3986 percent-encoding for SigV4. Java's URLEncoder uses
-    * application/x-www-form-urlencoded which encodes `~` and uses `+`
-    * for space — both wrong for SigV4. Encode here: only A-Z, a-z, 0-9,
-    * '-', '_', '.', '~' stay literal; everything else (including '/'
-    * unless `encodeSlash=false`) becomes `%XX`.
-    */
+  /**
+   * RFC 3986 percent-encoding for SigV4. Java's URLEncoder uses
+   * application/x-www-form-urlencoded which encodes `~` and uses `+`
+   * for space — both wrong for SigV4. Encode here: only A-Z, a-z, 0-9,
+   * '-', '_', '.', '~' stay literal; everything else (including '/'
+   * unless `encodeSlash=false`) becomes `%XX`.
+   */
   private def rfc3986Encode(s: String, encodeSlash: Boolean = true): String = {
     val sb = new StringBuilder
     for (b <- s.getBytes("UTF-8")) {
-      val c = (b & 0xff).toChar
+      val c = (b & 0xFF).toChar
       val safe =
         (c >= 'A' && c <= 'Z') ||
         (c >= 'a' && c <= 'z') ||
@@ -254,19 +262,21 @@ final class R2ImageStorage(
         c == '-' || c == '_' || c == '.' || c == '~' ||
         (!encodeSlash && c == '/')
       if (safe) sb.append(c)
-      else sb.append("%%%02X".format(b & 0xff))
+      else sb.append("%%%02X".format(b & 0xFF))
     }
     sb.toString
   }
 }
 
 object R2ImageStorage {
-  /** Create from environment variables:
-    * - R2_ACCOUNT_ID
-    * - R2_ACCESS_KEY_ID
-    * - R2_SECRET_ACCESS_KEY
-    * - R2_BUCKET
-    */
+
+  /**
+   * Create from environment variables:
+   * - R2_ACCOUNT_ID
+   * - R2_ACCESS_KEY_ID
+   * - R2_SECRET_ACCESS_KEY
+   * - R2_BUCKET
+   */
   def fromEnv()(using system: ActorSystem[?]): Option[R2ImageStorage] = {
     for {
       accountId <- sys.env.get("R2_ACCOUNT_ID")

@@ -2,25 +2,27 @@ package promovolve.api.projection
 
 import org.apache.pekko.Done
 import org.apache.pekko.actor.typed.ActorSystem
-import org.apache.pekko.stream.{OverflowStrategy, QueueOfferResult}
-import org.apache.pekko.stream.scaladsl.{Keep, Sink, Source}
+import org.apache.pekko.stream.{ OverflowStrategy, QueueOfferResult }
+import org.apache.pekko.stream.scaladsl.{ Keep, Sink, Source }
 import slick.jdbc.PostgresProfile.api.*
 import java.time.Instant
-import scala.concurrent.{ExecutionContext, Future}
+import scala.concurrent.{ ExecutionContext, Future }
 import scala.concurrent.duration.*
 
-/** One persisted row per completed sweep cycle. Captures the argmax pick
-  * and the per-candidate evidence that produced it. Parallel to the
-  * existing `tracking_events` journal — same buffered-queue write
-  * pattern, separate table because the schema and lifecycle differ.
-  *
-  * The dashboard's "Optimized floor over time" chart reads from this
-  * table so history survives cluster restarts and the in-memory
-  * ring buffer's natural rollover.
-  *
-  * `candidatesJson` is an opaque JSON blob (same shape the API's
-  * `/sweep-evidence` endpoint emits) so we can later answer "what was
-  * revenue at $X on date Y" without schema migrations. */
+/**
+ * One persisted row per completed sweep cycle. Captures the argmax pick
+ * and the per-candidate evidence that produced it. Parallel to the
+ * existing `tracking_events` journal — same buffered-queue write
+ * pattern, separate table because the schema and lifecycle differ.
+ *
+ * The dashboard's "Optimized floor over time" chart reads from this
+ * table so history survives cluster restarts and the in-memory
+ * ring buffer's natural rollover.
+ *
+ * `candidatesJson` is an opaque JSON blob (same shape the API's
+ * `/sweep-evidence` endpoint emits) so we can later answer "what was
+ * revenue at $X on date Y" without schema migrations.
+ */
 case class FloorDecision(
     sequenceNr: Long,
     siteId: String,
@@ -30,15 +32,18 @@ case class FloorDecision(
     cycleRevenue: Option[BigDecimal],
     cycleImps: Option[Long],
     candidatesJson: Option[String],
-    category: Option[String] = None,
+    category: Option[String] = None
 )
 
-/** Append-only writer for floor_decisions. Pekko Streams queue +
-  * batched DB writes — same shape as `TrackingEventJournal`. Optional
-  * dependency on `creativeRepo` etc. isn't needed here because the
-  * decision row is fully self-contained from what `SiteEntity` already
-  * has at the moment of the argmax pick. */
-class FloorDecisionJournal(db: slick.jdbc.JdbcBackend#Database)(using
+/**
+ * Append-only writer for floor_decisions. Pekko Streams queue +
+ * batched DB writes — same shape as `TrackingEventJournal`. Optional
+ * dependency on `creativeRepo` etc. isn't needed here because the
+ * decision row is fully self-contained from what `SiteEntity` already
+ * has at the moment of the argmax pick.
+ */
+class FloorDecisionJournal(db: slick.jdbc.JdbcBackend#Database)(
+    using
     ec: ExecutionContext,
     system: ActorSystem[?]
 ) extends promovolve.publisher.FloorDecisionWriter {
@@ -77,9 +82,11 @@ class FloorDecisionJournal(db: slick.jdbc.JdbcBackend#Database)(using
     }
   }
 
-  /** Implements `FloorDecisionWriter`. SiteEntity (in core, no JSON deps)
-    * passes primitives + a `Vector[FloorDecisionCandidate]`; we render
-    * the candidates as a compact JSON array for storage. */
+  /**
+   * Implements `FloorDecisionWriter`. SiteEntity (in core, no JSON deps)
+   * passes primitives + a `Vector[FloorDecisionCandidate]`; we render
+   * the candidates as a compact JSON array for storage.
+   */
   override def writeDecision(
       siteId: String,
       ts: Instant,
@@ -88,9 +95,10 @@ class FloorDecisionJournal(db: slick.jdbc.JdbcBackend#Database)(using
       cycleRevenue: Double,
       cycleImps: Long,
       candidates: Vector[promovolve.publisher.FloorDecisionCandidate],
-      category: Option[String],
+      category: Option[String]
   ): Unit = {
-    val candidatesJson: Option[String] = if (candidates.isEmpty) None else {
+    val candidatesJson: Option[String] = if (candidates.isEmpty) None
+    else {
       val sb = new StringBuilder("[")
       var first = true
       candidates.foreach { c =>
@@ -106,28 +114,32 @@ class FloorDecisionJournal(db: slick.jdbc.JdbcBackend#Database)(using
     }
 
     val decision = FloorDecision(
-      sequenceNr     = 0L,  // auto-assigned by DB
-      siteId         = siteId,
-      ts             = ts,
-      argmaxFloor    = BigDecimal(argmaxFloor),
-      prevArgmax     = prevArgmax.map(BigDecimal(_)),
-      cycleRevenue   = Some(BigDecimal(cycleRevenue)),
-      cycleImps      = Some(cycleImps),
+      sequenceNr = 0L, // auto-assigned by DB
+      siteId = siteId,
+      ts = ts,
+      argmaxFloor = BigDecimal(argmaxFloor),
+      prevArgmax = prevArgmax.map(BigDecimal(_)),
+      cycleRevenue = Some(BigDecimal(cycleRevenue)),
+      cycleImps = Some(cycleImps),
       candidatesJson = candidatesJson,
-      category       = category,
+      category = category
     )
     writeDecision(decision)
   }
 
-  /** Drain on shutdown so we don't lose the last batch. Mirrors
-    * TrackingEventJournal.shutdown(). */
+  /**
+   * Drain on shutdown so we don't lose the last batch. Mirrors
+   * TrackingEventJournal.shutdown().
+   */
   def shutdown(): Future[Done] = {
     queue.complete()
     done
   }
 
-  /** Read recent decisions for a site, newest-first, capped by `limit`.
-    * Used by the `/sweep-history` endpoint. */
+  /**
+   * Read recent decisions for a site, newest-first, capped by `limit`.
+   * Used by the `/sweep-history` endpoint.
+   */
   def recent(siteId: String, limit: Int): Future[Seq[FloorDecision]] = {
     db.run(
       floorDecisions
@@ -138,12 +150,14 @@ class FloorDecisionJournal(db: slick.jdbc.JdbcBackend#Database)(using
     )
   }
 
-  /** Read all decisions for a site within a single UTC calendar day,
-    * newest-first, capped at `limit`. Used by the dashboard's
-    * date-picker filter. */
+  /**
+   * Read all decisions for a site within a single UTC calendar day,
+   * newest-first, capped at `limit`. Used by the dashboard's
+   * date-picker filter.
+   */
   def recentInDay(siteId: String, date: java.time.LocalDate, limit: Int): Future[Seq[FloorDecision]] = {
     val dayStart = date.atStartOfDay(java.time.ZoneOffset.UTC).toInstant
-    val dayEnd   = date.plusDays(1).atStartOfDay(java.time.ZoneOffset.UTC).toInstant
+    val dayEnd = date.plusDays(1).atStartOfDay(java.time.ZoneOffset.UTC).toInstant
     db.run(
       floorDecisions
         .filter(_.siteId === siteId)
@@ -161,15 +175,15 @@ object FloorDecisionJournal {
   import promovolve.SlickMappers.given
 
   class FloorDecisionsTable(tag: Tag) extends Table[FloorDecision](tag, "floor_decisions") {
-    def sequenceNr     = column[Long]("sequence_nr", O.AutoInc)
-    def siteId         = column[String]("site_id")
-    def ts             = column[Instant]("ts")
-    def argmaxFloor    = column[BigDecimal]("argmax_floor")
-    def prevArgmax     = column[Option[BigDecimal]]("prev_argmax")
-    def cycleRevenue   = column[Option[BigDecimal]]("cycle_revenue")
-    def cycleImps      = column[Option[Long]]("cycle_imps")
+    def sequenceNr = column[Long]("sequence_nr", O.AutoInc)
+    def siteId = column[String]("site_id")
+    def ts = column[Instant]("ts")
+    def argmaxFloor = column[BigDecimal]("argmax_floor")
+    def prevArgmax = column[Option[BigDecimal]]("prev_argmax")
+    def cycleRevenue = column[Option[BigDecimal]]("cycle_revenue")
+    def cycleImps = column[Option[Long]]("cycle_imps")
     def candidatesJson = column[Option[String]]("candidates_json")
-    def category       = column[Option[String]]("category")
+    def category = column[Option[String]]("category")
 
     def * = (
       sequenceNr,
@@ -180,7 +194,7 @@ object FloorDecisionJournal {
       cycleRevenue,
       cycleImps,
       candidatesJson,
-      category,
+      category
     ).mapTo[FloorDecision]
   }
 

@@ -5,22 +5,23 @@ import org.scalatest.wordspec.AnyWordSpec
 import promovolve.*
 import promovolve.taxonomy.TieredCategory
 
-/** "Always keep a Gemini-suggested category as the default."
-  *
-  * `suggestedCategories` is a durable Gemini fallback for `categories`. When
-  * the advertiser clears all explicit topics, the campaign still targets via
-  * `effectiveCategories` (= categories if non-empty, else suggestedCategories)
-  * so it never silently goes untargeted. These assert the State-level fallback
-  * that eligibility / registration / eviction / badge all hang off of, plus the
-  * message-shape plumbing onto CampaignReady / CampaignChanged.
-  */
+/**
+ * "Always keep a Gemini-suggested category as the default."
+ *
+ * `suggestedCategories` is a durable Gemini fallback for `categories`. When
+ * the advertiser clears all explicit topics, the campaign still targets via
+ * `effectiveCategories` (= categories if non-empty, else suggestedCategories)
+ * so it never silently goes untargeted. These assert the State-level fallback
+ * that eligibility / registration / eviction / badge all hang off of, plus the
+ * message-shape plumbing onto CampaignReady / CampaignChanged.
+ */
 class CampaignSuggestedCategoriesSpec extends AnyWordSpec with Matchers {
 
-  private val campaignId   = CampaignId("camp-1")
+  private val campaignId = CampaignId("camp-1")
   private val advertiserId = AdvertiserId("adv-1")
-  private val explicit     = CategoryId("100")
-  private val suggested    = CategoryId("200")
-  private val floor        = CPM(1.0)
+  private val explicit = CategoryId("100")
+  private val suggested = CategoryId("200")
+  private val floor = CPM(1.0)
 
   private def base: CampaignEntity.State =
     CampaignEntity.State
@@ -63,14 +64,14 @@ class CampaignSuggestedCategoriesSpec extends AnyWordSpec with Matchers {
       // suggested page does NOT bid: explicit set wins and excludes it
       s.canBid(SiteId("site-a"), suggested, floor) shouldBe false
       s.bidRejectReason(SiteId("site-a"), suggested, floor) shouldBe
-        Some(CampaignEntity.BidRejectReason.CategoryMismatch)
+      Some(CampaignEntity.BidRejectReason.CategoryMismatch)
     }
 
     "reject with CategoryMismatch when both sets are empty (genuinely untargeted, no filler)" in {
       val s = base // categories + suggested both empty, bidOnUnmatchedContext=false
       s.canBid(SiteId("site-a"), explicit, floor) shouldBe false
       s.bidRejectReason(SiteId("site-a"), explicit, floor) shouldBe
-        Some(CampaignEntity.BidRejectReason.CategoryMismatch)
+      Some(CampaignEntity.BidRejectReason.CategoryMismatch)
     }
 
     "still serve filler when opted in even with both sets empty" in {
@@ -93,15 +94,15 @@ class CampaignSuggestedCategoriesSpec extends AnyWordSpec with Matchers {
 
     "populate suggestedCategories and union into categories on first detection" in {
       val detected = Set(CategoryId("497")) // descendant
-      val after    = refine(base, detected)
+      val after = refine(base, detected)
       after.categories should contain(CategoryId("497"))
       after.suggestedCategories should contain(CategoryId("497"))
     }
 
     "prune ancestors out of the suggestion (most-specific only)" in {
       // 483 Sports is an ancestor of 497 Horse Racing in IAB 3.0.
-      val seeded   = base.copy(suggestedCategories = Set(CategoryId("483")))
-      val after    = refine(seeded, Set(CategoryId("497")))
+      val seeded = base.copy(suggestedCategories = Set(CategoryId("483")))
+      val after = refine(seeded, Set(CategoryId("497")))
       after.suggestedCategories should contain(CategoryId("497"))
       after.suggestedCategories should not contain CategoryId("483")
     }
@@ -113,7 +114,7 @@ class CampaignSuggestedCategoriesSpec extends AnyWordSpec with Matchers {
     // only; suggestedCategories is never touched by UpdateConfig.
     "leave suggestedCategories intact so effectiveCategories falls back" in {
       val before = base.copy(categories = Set(explicit), suggestedCategories = Set(suggested))
-      val after  = before.copy(categories = Set.empty) // UpdateConfig clears explicit only
+      val after = before.copy(categories = Set.empty) // UpdateConfig clears explicit only
       after.suggestedCategories shouldBe Set(suggested)
       after.effectiveCategories shouldBe Set(suggested)
     }
@@ -127,16 +128,16 @@ class CampaignSuggestedCategoriesSpec extends AnyWordSpec with Matchers {
       // and CampaignReady.targetCategories mirrors that.
       val s = base.copy(categories = Set.empty, suggestedCategories = Set(suggested))
       val ready = CampaignDirectory.CampaignReady(
-        campaignId            = s.campaignId,
-        advertiserId          = s.advertiserId,
-        categories            = s.effectiveCategories,
-        sizes                 = Set.empty,
-        maxCpm                = s.maxCpm,
-        dailyBudget           = s.dailyBudget,
-        status                = s.status,
-        replyTo               = null,
+        campaignId = s.campaignId,
+        advertiserId = s.advertiserId,
+        categories = s.effectiveCategories,
+        sizes = Set.empty,
+        maxCpm = s.maxCpm,
+        dailyBudget = s.dailyBudget,
+        status = s.status,
+        replyTo = null,
         bidOnUnmatchedContext = s.bidOnUnmatchedContext,
-        siteAllowlist         = s.siteAllowlist,
+        siteAllowlist = s.siteAllowlist
       )
       ready.categories shouldBe Set(suggested)
       ready.targetCategories shouldBe Set(suggested)
@@ -151,14 +152,14 @@ class CampaignSuggestedCategoriesSpec extends AnyWordSpec with Matchers {
 
     def info(cats: Set[CategoryId], sug: Set[CategoryId], filler: Boolean): CampaignEntity.CampaignInfo =
       CampaignEntity.CampaignInfo(
-        campaignId            = campaignId,
-        status                = CampaignEntity.Status.Active,
-        categories            = cats,
-        maxCpm                = CPM(5.0),
-        dailyBudget           = Budget(100),
-        creativeIds           = Set.empty,
+        campaignId = campaignId,
+        status = CampaignEntity.Status.Active,
+        categories = cats,
+        maxCpm = CPM(5.0),
+        dailyBudget = Budget(100),
+        creativeIds = Set.empty,
         bidOnUnmatchedContext = filler,
-        suggestedCategories   = sug,
+        suggestedCategories = sug
       )
 
     "be untargeted only when both sets empty and filler off" in {

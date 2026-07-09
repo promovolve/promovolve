@@ -4,24 +4,26 @@ import slick.jdbc.PostgresProfile.api.*
 
 import java.time.Instant
 import scala.concurrent.duration.*
-import scala.concurrent.{Await, ExecutionContext, Future}
+import scala.concurrent.{ Await, ExecutionContext, Future }
 
-/** Persisted traffic shape for a site.
-  *
-  * One row per site - updated periodically as the pattern is learned.
-  * Used to restore learned traffic patterns on AdServer restart.
-  */
+/**
+ * Persisted traffic shape for a site.
+ *
+ * One row per site - updated periodically as the pattern is learned.
+ * Used to restore learned traffic patterns on AdServer restart.
+ */
 final case class TrafficShapeSnapshotRow(
     siteId: String,
     bucketCount: Int,
     alpha: Double,
-    volumes: String,           // JSON array: "[0.3, 0.2, ...]"
+    volumes: String, // JSON array: "[0.3, 0.2, ...]"
     emaBucketRequests: Double,
     updatedAt: Instant
 )
 
 /** Storage for traffic shape snapshots (for pacing continuity across restarts). */
 trait TrafficShapeSnapshotRepo {
+
   /** Save or update the traffic shape for a site. */
   def upsert(siteId: String, snapshot: promovolve.publisher.delivery.TrafficShapeSnapshot): Future[Unit]
 
@@ -78,12 +80,12 @@ final class SlickTrafficShapeSnapshotRepo(db: Database)(using ec: ExecutionConte
   override def upsert(siteId: String, snapshot: TrafficShapeSnapshot): Future[Unit] = {
     val volumesJson = snapshot.volumes.mkString("[", ",", "]")
     val row = TrafficShapeSnapshotRow(
-      siteId            = siteId,
-      bucketCount       = snapshot.bucketCount,
-      alpha             = snapshot.alpha,
-      volumes           = volumesJson,
+      siteId = siteId,
+      bucketCount = snapshot.bucketCount,
+      alpha = snapshot.alpha,
+      volumes = volumesJson,
       emaBucketRequests = snapshot.emaBucketRequests,
-      updatedAt         = snapshot.updatedAt
+      updatedAt = snapshot.updatedAt
     )
 
     // Use insertOrUpdate for upsert behavior
@@ -105,11 +107,11 @@ final class SlickTrafficShapeSnapshotRepo(db: Database)(using ec: ExecutionConte
       .map(_.trim.toDouble)
 
     TrafficShapeSnapshot(
-      bucketCount       = row.bucketCount,
-      alpha             = row.alpha,
-      volumes           = volumes,
+      bucketCount = row.bucketCount,
+      alpha = row.alpha,
+      volumes = volumes,
       emaBucketRequests = row.emaBucketRequests,
-      updatedAt         = row.updatedAt
+      updatedAt = row.updatedAt
     )
   }
 
@@ -123,16 +125,16 @@ final class SlickTrafficShapeSnapshotRepo(db: Database)(using ec: ExecutionConte
     def * = (siteId, bucketCount, alpha, volumes, emaBucketRequests, updatedAt)
       .mapTo[TrafficShapeSnapshotRow]
 
-    def siteId            = column[String]("site_id", O.PrimaryKey)
+    def siteId = column[String]("site_id", O.PrimaryKey)
 
-    def bucketCount       = column[Int]("bucket_count")
+    def bucketCount = column[Int]("bucket_count")
 
-    def alpha             = column[Double]("alpha")
+    def alpha = column[Double]("alpha")
 
-    def volumes           = column[String]("volumes")  // JSON array
+    def volumes = column[String]("volumes") // JSON array
 
     def emaBucketRequests = column[Double]("ema_bucket_requests")
 
-    def updatedAt         = column[Instant]("updated_at")
+    def updatedAt = column[Instant]("updated_at")
   }
 }

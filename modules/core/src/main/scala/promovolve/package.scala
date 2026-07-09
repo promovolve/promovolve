@@ -1,6 +1,6 @@
 package promovolve
 
-import codec.{OpaqueCodec, OpaqueJsonSupport, OpaqueOrdering}
+import codec.{ OpaqueCodec, OpaqueJsonSupport, OpaqueOrdering }
 import promovolve.taxonomy.IABTaxonomy
 import spray.json.*
 
@@ -9,24 +9,24 @@ import scala.annotation.targetName
 
 // ========== Opaque Types: Domain IDs ==========
 
-opaque type Name         = String
+opaque type Name = String
 opaque type AdvertiserId = String
-opaque type PublisherId  = String
-opaque type SiteId       = String
-opaque type CampaignId   = String
-opaque type CreativeId   = String
-opaque type CategoryId          = String
+opaque type PublisherId = String
+opaque type SiteId = String
+opaque type CampaignId = String
+opaque type CreativeId = String
+opaque type CategoryId = String
 opaque type AdProductCategoryId = String
-opaque type SlotId       = String
-opaque type FlushId      = String
+opaque type SlotId = String
+opaque type FlushId = String
 opaque type VerificationToken = String
-opaque type URL          = String
-opaque type CPM          = BigDecimal
-opaque type Confidence   = Double
-opaque type Weight       = Double
-opaque type Budget       = BigDecimal
-opaque type Spend        = BigDecimal
-opaque type AdSize       = (Int, Int)
+opaque type URL = String
+opaque type CPM = BigDecimal
+opaque type Confidence = Double
+opaque type Weight = Double
+opaque type Budget = BigDecimal
+opaque type Spend = BigDecimal
+opaque type AdSize = (Int, Int)
 
 // ========== Opaque Types: Value Objects ==========
 
@@ -38,13 +38,13 @@ final case class Candidate(
     creativeId: CreativeId,
     campaignId: CampaignId,
     advertiserId: AdvertiserId,
-    cpm: CPM,                  // RL-shaded bid (for auction ranking)
+    cpm: CPM, // RL-shaded bid (for auction ranking)
     category: CategoryId,
-    creativeHash: String  = "",
+    creativeHash: String = "",
     landingDomain: String = "",
-    preApproved: Boolean  = false, // Already approved for this publisher (skip pending queue)
+    preApproved: Boolean = false, // Already approved for this publisher (skip pending queue)
     adProductCategory: Option[AdProductCategoryId] = None, // IAB Ad Product Taxonomy 2.0 category
-    maxCpm: CPM = CPM.zero,    // advertiser's max CPM (for ServeIndex/Thompson Sampling)
+    maxCpm: CPM = CPM.zero // advertiser's max CPM (for ServeIndex/Thompson Sampling)
 )
 
 final case class Selection(
@@ -108,12 +108,12 @@ object SiteId {
 
     /** FNV-1a hash for Bloom filter operations */
     inline def hash: Long = {
-      var h     = 0xcbf29ce484222325L // FNV offset basis
+      var h = 0xCBF29CE484222325L // FNV offset basis
       val bytes = id.getBytes("UTF-8")
-      var i     = 0
+      var i = 0
       while (i < bytes.length) {
-        h ^= (bytes(i) & 0xff).toLong
-        h *= 0x100000001b3L // FNV prime
+        h ^= (bytes(i) & 0xFF).toLong
+        h *= 0x100000001B3L // FNV prime
         i += 1
       }
       h
@@ -155,13 +155,15 @@ object CategoryId {
     inline def value: String = id
   }
 
-  /** Sentinel category used to route filler auctions (pages where
-    * Gemini found no match against the demand pool). Campaigns with
-    * `bidOnUnmatchedContext = true` are invited to bid on requests
-    * carrying this id — not because the page is about "filler", but
-    * because the category bid check has a carve-out for it. Keep the
-    * value prefixed with `__` so it sorts out of the way and can't
-    * collide with any real IAB numeric id. */
+  /**
+   * Sentinel category used to route filler auctions (pages where
+   * Gemini found no match against the demand pool). Campaigns with
+   * `bidOnUnmatchedContext = true` are invited to bid on requests
+   * carrying this id — not because the page is about "filler", but
+   * because the category bid check has a carve-out for it. Keep the
+   * value prefixed with `__` so it sorts out of the way and can't
+   * collide with any real IAB numeric id.
+   */
   val Filler: CategoryId = "__filler__"
 
   given OpaqueCodec[CategoryId, String] = OpaqueCodec.fromEvidence
@@ -208,11 +210,13 @@ object VerificationToken {
 object FlushId {
   inline def apply(value: String): FlushId = value
 
-  /** Generate a unique flush ID from campaign, epoch day, a per-actor-
-    * incarnation nonce, and sequence. The incarnation nonce ensures flushIds
-    * minted after a restart never collide with pre-restart ones (flushSeq
-    * resets to 0 on restart) — otherwise the advertiser dedupes them and
-    * freezes its spendToday. */
+  /**
+   * Generate a unique flush ID from campaign, epoch day, a per-actor-
+   * incarnation nonce, and sequence. The incarnation nonce ensures flushIds
+   * minted after a restart never collide with pre-restart ones (flushSeq
+   * resets to 0 on restart) — otherwise the advertiser dedupes them and
+   * freezes its spendToday.
+   */
   inline def generate(campaignId: CampaignId, epochDay: Long, incarnation: String, seq: Long): FlushId =
     s"${campaignId.value}:$epochDay:$incarnation:$seq"
 
@@ -244,31 +248,31 @@ object URL {
 
 object CPM {
   inline def apply(value: BigDecimal): CPM = value
-  inline def apply(value: Double): CPM     = BigDecimal(value)
-  inline def apply(value: Int): CPM        = BigDecimal(value)
-  inline def zero: CPM                     = BigDecimal(0)
+  inline def apply(value: Double): CPM = BigDecimal(value)
+  inline def apply(value: Int): CPM = BigDecimal(value)
+  inline def zero: CPM = BigDecimal(0)
 
   inline def max(x: CPM, y: CPM): CPM = if (x.underlying > y.underlying) x else y
   inline def min(x: CPM, y: CPM): CPM = if (x.underlying < y.underlying) x else y
 
   extension (cpm: CPM) {
-    inline def underlying: BigDecimal     = cpm
-    inline def value: BigDecimal          = cpm
-    inline def toDouble: Double           = cpm.toDouble
-    inline def +(other: CPM): CPM         = cpm + other
-    inline def -(other: CPM): CPM         = cpm - other
+    inline def underlying: BigDecimal = cpm
+    inline def value: BigDecimal = cpm
+    inline def toDouble: Double = cpm.toDouble
+    inline def +(other: CPM): CPM = cpm + other
+    inline def -(other: CPM): CPM = cpm - other
     inline def *(factor: BigDecimal): CPM = cpm * factor
     @targetName("cpmTimesDouble")
-    inline def *(factor: Double): CPM      = cpm * BigDecimal(factor)
+    inline def *(factor: Double): CPM = cpm * BigDecimal(factor)
     inline def /(divisor: BigDecimal): CPM = cpm / divisor
     @targetName("cpmDivDouble")
-    inline def /(divisor: Double): CPM  = cpm / BigDecimal(divisor)
+    inline def /(divisor: Double): CPM = cpm / BigDecimal(divisor)
     inline def compare(other: CPM): Int = cpm.compare(other)
 
     inline def >=(other: CPM): Boolean = cpm >= other
     inline def <=(other: CPM): Boolean = cpm <= other
-    inline def >(other: CPM): Boolean  = cpm > other
-    inline def <(other: CPM): Boolean  = cpm < other
+    inline def >(other: CPM): Boolean = cpm > other
+    inline def <(other: CPM): Boolean = cpm < other
   }
 
   given OpaqueCodec[CPM, BigDecimal] = OpaqueCodec.fromEvidence
@@ -278,11 +282,11 @@ object CPM {
 
 object Confidence {
   inline def apply(value: Double): Confidence = value.max(0.0).min(1.0)
-  inline def zero: Confidence                 = 0.0
-  inline def one: Confidence                  = 1.0
+  inline def zero: Confidence = 0.0
+  inline def one: Confidence = 1.0
 
   extension (conf: Confidence) {
-    inline def value: Double                    = conf
+    inline def value: Double = conf
     inline def *(other: Confidence): Confidence = conf * other
     inline def +(other: Confidence): Confidence = (conf + other).min(1.0)
   }
@@ -293,13 +297,13 @@ object Confidence {
 
 object Weight {
   inline def apply(value: Double): Weight = value.max(0.0)
-  inline def zero: Weight                 = 0.0
-  inline def one: Weight                  = 1.0
+  inline def zero: Weight = 0.0
+  inline def one: Weight = 1.0
 
   extension (w: Weight) {
-    inline def value: Double              = w
-    inline def *(other: Weight): Weight   = w * other
-    inline def +(other: Weight): Weight   = w + other
+    inline def value: Double = w
+    inline def *(other: Weight): Weight = w * other
+    inline def +(other: Weight): Weight = w + other
     inline def /(divisor: Double): Weight = w / divisor
   }
 
@@ -332,22 +336,22 @@ object Budget {
   given OpaqueCodec[Budget, BigDecimal] = OpaqueCodec.fromEvidence
 
   inline def apply(value: BigDecimal): Budget = value.max(BigDecimal(0))
-  inline def apply(value: Double): Budget     = BigDecimal(value).max(BigDecimal(0))
-  inline def apply(value: Int): Budget        = BigDecimal(value)
-  inline def zero: Budget                     = BigDecimal(0)
+  inline def apply(value: Double): Budget = BigDecimal(value).max(BigDecimal(0))
+  inline def apply(value: Int): Budget = BigDecimal(value)
+  inline def zero: Budget = BigDecimal(0)
 
   extension (b: Budget) {
-    inline def underlying: BigDecimal   = b
-    inline def value: BigDecimal        = b
-    inline def toDouble: Double         = b.toDouble
+    inline def underlying: BigDecimal = b
+    inline def value: BigDecimal = b
+    inline def toDouble: Double = b.toDouble
     inline def +(other: Budget): Budget = Budget(b + other)
-    inline def -(spend: Spend): Budget  = Budget(b - spend.underlying)
+    inline def -(spend: Spend): Budget = Budget(b - spend.underlying)
     @targetName("budgetMinusCpm")
-    inline def -(cpm: CPM): BigDecimal             = b - cpm.underlying // For probability calculations
-    inline def remaining(spend: Spend): Budget     = Budget(b - spend.underlying)
-    inline def <=(other: Budget): Boolean          = b <= other
-    inline def >=(other: Budget): Boolean          = b >= other
-    inline def >(spend: Spend): Boolean            = b > spend.underlying
+    inline def -(cpm: CPM): BigDecimal = b - cpm.underlying // For probability calculations
+    inline def remaining(spend: Spend): Budget = Budget(b - spend.underlying)
+    inline def <=(other: Budget): Boolean = b <= other
+    inline def >=(other: Budget): Boolean = b >= other
+    inline def >(spend: Spend): Boolean = b > spend.underlying
     inline def hasRemaining(spend: Spend): Boolean = b > spend.underlying
     // Cross-type comparisons with CPM (for budget throttling)
     @targetName("budgetGteCpm")
@@ -363,20 +367,20 @@ object Spend {
   given OpaqueCodec[Spend, BigDecimal] = OpaqueCodec.fromEvidence
 
   inline def apply(value: BigDecimal): Spend = value.max(BigDecimal(0))
-  inline def apply(value: Double): Spend     = BigDecimal(value).max(BigDecimal(0))
-  inline def apply(value: Int): Spend        = BigDecimal(value)
-  inline def zero: Spend                     = BigDecimal(0)
+  inline def apply(value: Double): Spend = BigDecimal(value).max(BigDecimal(0))
+  inline def apply(value: Int): Spend = BigDecimal(value)
+  inline def zero: Spend = BigDecimal(0)
 
   extension (s: Spend) {
     inline def underlying: BigDecimal = s
-    inline def value: BigDecimal      = s
-    inline def toDouble: Double       = s.toDouble
+    inline def value: BigDecimal = s
+    inline def toDouble: Double = s.toDouble
     inline def +(other: Spend): Spend = Spend(s + other)
     @targetName("addAmount")
-    inline def +(amount: BigDecimal): Spend          = Spend(s + amount)
-    inline def <=(budget: Budget): Boolean           = s <= budget.underlying
-    inline def >=(budget: Budget): Boolean           = s >= budget.underlying
-    inline def <(budget: Budget): Boolean            = s < budget.underlying
+    inline def +(amount: BigDecimal): Spend = Spend(s + amount)
+    inline def <=(budget: Budget): Boolean = s <= budget.underlying
+    inline def >=(budget: Budget): Boolean = s >= budget.underlying
+    inline def <(budget: Budget): Boolean = s < budget.underlying
     inline def withinBudget(budget: Budget): Boolean = s <= budget.underlying
     // Spend-to-Spend comparisons
     @targetName("gtSpend")
@@ -393,12 +397,12 @@ object Spend {
 
 object AdSize {
   // IAB Standard Ad Sizes
-  val MediumRectangle: AdSize      = (300, 250)
-  val Leaderboard: AdSize          = (728, 90)
-  val WideSkyscraper: AdSize       = (160, 600)
-  val MobileBanner: AdSize         = (320, 50)
-  val Billboard: AdSize            = (970, 250)
-  val HalfPage: AdSize             = (300, 600)
+  val MediumRectangle: AdSize = (300, 250)
+  val Leaderboard: AdSize = (728, 90)
+  val WideSkyscraper: AdSize = (160, 600)
+  val MobileBanner: AdSize = (320, 50)
+  val Billboard: AdSize = (970, 250)
+  val HalfPage: AdSize = (300, 600)
   val LargeMobileRectangle: AdSize = (320, 100)
 
   inline def apply(width: Int, height: Int): AdSize = (width, height)
@@ -406,26 +410,27 @@ object AdSize {
   inline def fromTuple(tuple: (Int, Int)): AdSize = tuple
 
   extension (size: AdSize) {
-    inline def width: Int           = size._1
-    inline def height: Int          = size._2
-    inline def tuple: (Int, Int)    = size
-    inline def aspectRatio: Double  = size._1.toDouble / size._2.toDouble
-    inline def area: Int            = size._1 * size._2
-    inline def isPortrait: Boolean  = size._2 > size._1
+    inline def width: Int = size._1
+    inline def height: Int = size._2
+    inline def tuple: (Int, Int) = size
+    inline def aspectRatio: Double = size._1.toDouble / size._2.toDouble
+    inline def area: Int = size._1 * size._2
+    inline def isPortrait: Boolean = size._2 > size._1
     inline def isLandscape: Boolean = size._1 > size._2
-    inline def isSquare: Boolean    = size._1 == size._2
+    inline def isSquare: Boolean = size._1 == size._2
   }
 }
 
 // ========== Domain Events ==========
 
-/** Domain events for campaign lifecycle and state changes.
-  *
-  * These events trigger re-auctions when the campaign landscape changes:
-  * - Campaign lifecycle (created/paused/resumed/deleted)
-  * - CPM changes (affects ranking and threshold filtering)
-  * - Budget state (exhausted/reset affects eligibility)
-  */
+/**
+ * Domain events for campaign lifecycle and state changes.
+ *
+ * These events trigger re-auctions when the campaign landscape changes:
+ * - Campaign lifecycle (created/paused/resumed/deleted)
+ * - CPM changes (affects ranking and threshold filtering)
+ * - Budget state (exhausted/reset affects eligibility)
+ */
 
 /** Base trait for all campaign-related events */
 sealed trait CampaignEvent extends CborSerializable {
@@ -446,9 +451,10 @@ final case class CampaignStarted(
     timestamp: Instant
 ) extends CampaignEvent
 
-/** Campaign paused by advertiser (temporarily inactive).
-  * Extends BudgetEvent so it flows through the budget topic to all AdServers.
-  */
+/**
+ * Campaign paused by advertiser (temporarily inactive).
+ * Extends BudgetEvent so it flows through the budget topic to all AdServers.
+ */
 final case class CampaignPaused(
     campaignId: CampaignId,
     timestamp: Instant
@@ -472,60 +478,64 @@ final case class CampaignDeleted(
     timestamp: Instant
 ) extends CampaignEvent
 
-/** Campaign max CPM updated
-  *
-  * Triggers re-auction if change is significant (> 5%)
-  * - Affects auction ranking (who wins)
-  * - Affects threshold filtering (who qualifies)
-  * - Affects revenue (what publisher earns)
-  */
+/**
+ * Campaign max CPM updated
+ *
+ * Triggers re-auction if change is significant (> 5%)
+ * - Affects auction ranking (who wins)
+ * - Affects threshold filtering (who qualifies)
+ * - Affects revenue (what publisher earns)
+ */
 final case class CpmUpdated(
     campaignId: CampaignId,
     oldCpm: CPM,
     newCpm: CPM,
     timestamp: Instant
 ) extends CampaignEvent {
-  def percentChange: Double =
-    ((newCpm.value - oldCpm.value).abs / oldCpm.value).toDouble
+  def percentChange: Double = ((newCpm.value - oldCpm.value).abs / oldCpm.value).toDouble
 }
 
 // ---------- Campaign-level budget events ----------
 
-/** Campaign daily budget exhausted (campaign becomes ineligible)
-  *
-  * Triggers re-auction immediately - campaign can no longer bid
-  */
+/**
+ * Campaign daily budget exhausted (campaign becomes ineligible)
+ *
+ * Triggers re-auction immediately - campaign can no longer bid
+ */
 final case class CampaignBudgetExhausted(
     campaignId: CampaignId,
     timestamp: Instant
 ) extends BudgetEvent
 
-/** Campaign daily budget reset (typically at midnight)
-  *
-  * Campaign becomes eligible again, should re-enter auctions
-  */
+/**
+ * Campaign daily budget reset (typically at midnight)
+ *
+ * Campaign becomes eligible again, should re-enter auctions
+ */
 final case class CampaignBudgetReset(
     campaignId: CampaignId,
     newBudget: Budget,
     timestamp: Instant
 ) extends BudgetEvent
 
-/** Campaign reached its scheduled endAt and was auto-flipped to Ended.
-  * Distinct from a manual pause — the campaign won't auto-resume even
-  * if the user clears the end date later (they'd need to explicitly
-  * Activate it).
-  */
+/**
+ * Campaign reached its scheduled endAt and was auto-flipped to Ended.
+ * Distinct from a manual pause — the campaign won't auto-resume even
+ * if the user clears the end date later (they'd need to explicitly
+ * Activate it).
+ */
 final case class CampaignEnded(
     campaignId: CampaignId,
     advertiserId: AdvertiserId,
     timestamp: Instant
 ) extends BudgetEvent
 
-/** Campaign spend update (pushed periodically for pacing)
-  *
-  * Published by CampaignEntity after each FlushBuffer (~500ms or 20 events).
-  * AdServer subscribes to maintain local spend cache, eliminating per-request queries.
-  */
+/**
+ * Campaign spend update (pushed periodically for pacing)
+ *
+ * Published by CampaignEntity after each FlushBuffer (~500ms or 20 events).
+ * AdServer subscribes to maintain local spend cache, eliminating per-request queries.
+ */
 final case class SpendUpdate(
     campaignId: CampaignId,
     advertiserId: AdvertiserId,
@@ -537,29 +547,32 @@ final case class SpendUpdate(
 
 // ---------- Advertiser-level budget events ----------
 
-/** Advertiser daily budget exhausted (all campaigns become ineligible)
-  *
-  * Triggers re-auction immediately - all advertiser's campaigns stop bidding
-  */
+/**
+ * Advertiser daily budget exhausted (all campaigns become ineligible)
+ *
+ * Triggers re-auction immediately - all advertiser's campaigns stop bidding
+ */
 final case class AdvertiserBudgetExhausted(
     advertiserId: AdvertiserId,
     timestamp: Instant
 ) extends BudgetEvent
 
-/** Advertiser daily budget reset (typically at midnight)
-  *
-  * All advertiser's campaigns become eligible again
-  */
+/**
+ * Advertiser daily budget reset (typically at midnight)
+ *
+ * All advertiser's campaigns become eligible again
+ */
 final case class AdvertiserBudgetReset(
     advertiserId: AdvertiserId,
     newBudget: Budget,
     timestamp: Instant
 ) extends BudgetEvent
 
-/** Advertiser status changed to Suspended or Closed
-  *
-  * All advertiser's creatives should be removed from ServeIndex
-  */
+/**
+ * Advertiser status changed to Suspended or Closed
+ *
+ * All advertiser's creatives should be removed from ServeIndex
+ */
 final case class AdvertiserSuspended(
     advertiserId: AdvertiserId,
     timestamp: Instant
@@ -567,11 +580,12 @@ final case class AdvertiserSuspended(
 
 // ---------- Creative-level events ----------
 
-/** Creative status changed (paused or reactivated)
-  *
-  * When paused: triggers removal from ServeIndex
-  * When reactivated: triggers re-auction for the campaign
-  */
+/**
+ * Creative status changed (paused or reactivated)
+ *
+ * When paused: triggers removal from ServeIndex
+ * When reactivated: triggers re-auction for the campaign
+ */
 final case class CreativeStatusChanged(
     creativeId: CreativeId,
     advertiserId: AdvertiserId,
@@ -582,11 +596,12 @@ final case class CreativeStatusChanged(
 
 // ---------- Publisher-level events (SSE notifications) ----------
 
-/** Pending creatives queued for publisher approval
-  *
-  * Published by AdServer when new creatives are queued.
-  * PendingEventHub subscribes to broadcast via SSE to publisher dashboards.
-  */
+/**
+ * Pending creatives queued for publisher approval
+ *
+ * Published by AdServer when new creatives are queued.
+ * PendingEventHub subscribes to broadcast via SSE to publisher dashboards.
+ */
 final case class PendingCreativesQueued(
     siteId: SiteId,
     url: URL,

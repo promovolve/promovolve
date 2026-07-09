@@ -2,25 +2,26 @@ package promovolve.publisher.delivery.pacing
 
 import promovolve.publisher.delivery.TrafficShapeTracker
 
-/** Tracks request rate and traffic patterns for pacing decisions.
-  *
-  * Provides synchronous rate tracking using EMA (Exponential Moving Average)
-  * and integrates with TrafficShapeTracker for pattern learning.
-  *
-  * == Rate Tracking ==
-  * Uses a sliding window approach:
-  * - Counts requests within a 1-second window
-  * - When window elapses, calculates instant rate and updates EMA
-  * - EMA smoothing prevents spiky rate estimates
-  *
-  * == Traffic Shape Integration ==
-  * Records requests to TrafficShapeTracker for learning hourly patterns.
-  * Time is scaled to standard 24h (86400s) for compatibility with
-  * traffic shape buckets regardless of simulated day duration.
-  *
-  * @param rateWindowMs Window duration for rate calculation (default 1000ms)
-  * @param rateEmaAlpha EMA smoothing factor (default 0.3)
-  */
+/**
+ * Tracks request rate and traffic patterns for pacing decisions.
+ *
+ * Provides synchronous rate tracking using EMA (Exponential Moving Average)
+ * and integrates with TrafficShapeTracker for pattern learning.
+ *
+ * == Rate Tracking ==
+ * Uses a sliding window approach:
+ * - Counts requests within a 1-second window
+ * - When window elapses, calculates instant rate and updates EMA
+ * - EMA smoothing prevents spiky rate estimates
+ *
+ * == Traffic Shape Integration ==
+ * Records requests to TrafficShapeTracker for learning hourly patterns.
+ * Time is scaled to standard 24h (86400s) for compatibility with
+ * traffic shape buckets regardless of simulated day duration.
+ *
+ * @param rateWindowMs Window duration for rate calculation (default 1000ms)
+ * @param rateEmaAlpha EMA smoothing factor (default 0.3)
+ */
 class TrafficObserver(
     rateWindowMs: Long = TrafficObserver.DefaultRateWindowMs,
     rateEmaAlpha: Double = TrafficObserver.DefaultRateEmaAlpha
@@ -36,14 +37,15 @@ class TrafficObserver(
   /** Current smoothed request rate (requests/second) */
   def smoothedRate: Double = _smoothedRate
 
-  /** Record a request arrival and update rate tracking.
-    *
-    * This method should be called synchronously on each request
-    * BEFORE any async operations to ensure accurate rate measurement.
-    *
-    * @param nowMs Current time in milliseconds
-    * @return Updated smoothed rate
-    */
+  /**
+   * Record a request arrival and update rate tracking.
+   *
+   * This method should be called synchronously on each request
+   * BEFORE any async operations to ensure accurate rate measurement.
+   *
+   * @param nowMs Current time in milliseconds
+   * @return Updated smoothed rate
+   */
   def recordRequest(nowMs: Long): Double = synchronized {
     // Initialize window on first call
     val effectiveWindowStart = if (windowStartMs == 0) nowMs else windowStartMs
@@ -67,11 +69,12 @@ class TrafficObserver(
     _smoothedRate
   }
 
-  /** Record request for traffic shape learning.
-    *
-    * @param clock DayClock for time calculations
-    * @param tracker TrafficShapeTracker to record to
-    */
+  /**
+   * Record request for traffic shape learning.
+   *
+   * @param clock DayClock for time calculations
+   * @param tracker TrafficShapeTracker to record to
+   */
   def recordForTrafficShape(clock: DayClock, tracker: TrafficShapeTracker): Unit = {
     tracker.recordRequest(clock.scaledElapsedSeconds)
   }
@@ -83,18 +86,20 @@ class TrafficObserver(
     _smoothedRate = 0.0
   }
 
-  /** Get current state as immutable snapshot.
-    *
-    * Useful for passing state through actor behavior transitions.
-    */
+  /**
+   * Get current state as immutable snapshot.
+   *
+   * Useful for passing state through actor behavior transitions.
+   */
   def snapshot: TrafficObserverState = synchronized {
     TrafficObserverState(windowStartMs, requestsInWindow, _smoothedRate)
   }
 
-  /** Restore state from snapshot.
-    *
-    * Used when recreating observer from actor state.
-    */
+  /**
+   * Restore state from snapshot.
+   *
+   * Used when recreating observer from actor state.
+   */
   def restore(state: TrafficObserverState): Unit = synchronized {
     windowStartMs = state.windowStartMs
     requestsInWindow = state.requestsInWindow
@@ -110,6 +115,7 @@ final case class TrafficObserverState(
 )
 
 object TrafficObserver {
+
   /** Default rate window: 1 second */
   val DefaultRateWindowMs: Long = 1000
 

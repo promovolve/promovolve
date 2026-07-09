@@ -7,9 +7,9 @@ import org.apache.pekko.persistence.state.DurableStateStoreRegistry
 import org.apache.pekko.persistence.testkit.PersistenceTestKitDurableStateStorePlugin
 import org.apache.pekko.persistence.testkit.state.scaladsl.PersistenceTestKitDurableStateStore
 import org.scalatest.BeforeAndAfterAll
-import org.scalatest.concurrent.{Eventually, ScalaFutures}
+import org.scalatest.concurrent.{ Eventually, ScalaFutures }
 import org.scalatest.matchers.should.Matchers
-import org.scalatest.time.{Millis, Span}
+import org.scalatest.time.{ Millis, Span }
 import org.scalatest.wordspec.AnyWordSpec
 
 import java.util.UUID
@@ -56,7 +56,7 @@ class TokenBucketLimiterSpec
   private val testKit: ActorTestKit =
     ActorTestKit("TokenBucketLimiterSpec", testConfig)
 
-  given ActorSystem[?]                    = testKit.system
+  given ActorSystem[?] = testKit.system
   given scala.concurrent.ExecutionContext = testKit.system.executionContext
 
   override def afterAll(): Unit = testKit.shutdownTestKit()
@@ -64,20 +64,20 @@ class TokenBucketLimiterSpec
   override implicit def patienceConfig: PatienceConfig =
     PatienceConfig(timeout = Span(8000, Millis), interval = Span(20, Millis))
 
-  import TokenBucketLimiter.{Acquire, Drain, Permit, Stop}
+  import TokenBucketLimiter.{ Acquire, Drain, Permit, Stop }
 
   private def settings(
       id: String,
       maxTokens: Int,
       tokensPerSecond: Double,
-      maxQueueSize: Int = 10_000,
+      maxQueueSize: Int = 10_000
   ): TokenBucketLimiter.Settings =
     TokenBucketLimiter.Settings(
-      persistenceId   = id,
-      singletonName   = id,
-      maxTokens       = maxTokens,
+      persistenceId = id,
+      singletonName = id,
+      maxTokens = maxTokens,
       tokensPerSecond = tokensPerSecond,
-      maxQueueSize    = maxQueueSize,
+      maxQueueSize = maxQueueSize
     )
 
   private def uniqueId(prefix: String): String =
@@ -86,7 +86,7 @@ class TokenBucketLimiterSpec
   "TokenBucketLimiter" should {
 
     "grant immediately when tokens are available" in {
-      val id      = uniqueId("grant")
+      val id = uniqueId("grant")
       val limiter = testKit.spawn(
         TokenBucketLimiter(settings(id, maxTokens = 3, tokensPerSecond = 1.0))
       )
@@ -94,7 +94,7 @@ class TokenBucketLimiterSpec
     }
 
     "serve queued waiters in FIFO order when the bucket starves" in {
-      val id      = uniqueId("fifo")
+      val id = uniqueId("fifo")
       // 10 tok/s → one drain every ~100ms. maxTokens=1 ensures everyone
       // past the first acquire is queued.
       val limiter = testKit.spawn(
@@ -116,7 +116,7 @@ class TokenBucketLimiterSpec
     }
 
     "reject acquires past maxQueueSize with QueueFull" in {
-      val id      = uniqueId("full")
+      val id = uniqueId("full")
       // Very slow refill so the queue does not drain during the test.
       val limiter = testKit.spawn(
         TokenBucketLimiter(
@@ -139,7 +139,7 @@ class TokenBucketLimiterSpec
     }
 
     "reply Expired when the request's deadline has already passed" in {
-      val id      = uniqueId("expired")
+      val id = uniqueId("expired")
       val limiter = testKit.spawn(
         TokenBucketLimiter(settings(id, maxTokens = 3, tokensPerSecond = 1.0))
       )
@@ -160,7 +160,7 @@ class TokenBucketLimiterSpec
     }
 
     "reply Stopping to queued waiters when the actor stops" in {
-      val id      = uniqueId("stopping")
+      val id = uniqueId("stopping")
       val limiter = testKit.spawn(
         TokenBucketLimiter(settings(id, maxTokens = 1, tokensPerSecond = 0.01))
       )
@@ -199,20 +199,20 @@ class TokenBucketLimiterSpec
         TokenBucketLimiter(settings(id, maxTokens = 1, tokensPerSecond = 0.001))
       )
       val warmup = testKit.createTestProbe[Permit]("warmup")
-      val far    = System.currentTimeMillis() + 60_000
+      val far = System.currentTimeMillis() + 60_000
       limiter ! Acquire(warmup.ref, expiresAtMillis = far)
       warmup.expectMessage(Permit.Granted)
 
-      val baseNow  = System.currentTimeMillis()
-      val live1    = testKit.createTestProbe[Permit]("live1")
+      val baseNow = System.currentTimeMillis()
+      val live1 = testKit.createTestProbe[Permit]("live1")
       val expiring = testKit.createTestProbe[Permit]("expiring")
-      val live3    = testKit.createTestProbe[Permit]("live3")
+      val live3 = testKit.createTestProbe[Permit]("live3")
 
       // Generous live deadlines, short-but-not-tiny expiring deadline.
       // 300ms gives plenty of room above scheduler jitter on CI.
-      limiter ! Acquire(live1.ref,    expiresAtMillis = baseNow + 30_000)
+      limiter ! Acquire(live1.ref, expiresAtMillis = baseNow + 30_000)
       limiter ! Acquire(expiring.ref, expiresAtMillis = baseNow + 300)
-      limiter ! Acquire(live3.ref,    expiresAtMillis = baseNow + 30_000)
+      limiter ! Acquire(live3.ref, expiresAtMillis = baseNow + 30_000)
 
       // Wait until the middle waiter's deadline is comfortably in the
       // past. The sleep gap (700ms) is much larger than the deadline
@@ -264,23 +264,23 @@ class TokenBucketLimiterSpec
       )
       // Drain the starting 3 tokens so the next Acquires queue.
       val warmup = testKit.createTestProbe[Permit]("warmup")
-      val far    = System.currentTimeMillis() + 60_000
+      val far = System.currentTimeMillis() + 60_000
       (1 to 3).foreach(_ => limiter ! Acquire(warmup.ref, expiresAtMillis = far))
       (1 to 3).foreach(_ => warmup.expectMessage(Permit.Granted))
 
-      val baseNow  = System.currentTimeMillis()
-      val live1    = testKit.createTestProbe[Permit]("live1")
+      val baseNow = System.currentTimeMillis()
+      val live1 = testKit.createTestProbe[Permit]("live1")
       val expiring = testKit.createTestProbe[Permit]("expiring")
-      val live3    = testKit.createTestProbe[Permit]("live3")
+      val live3 = testKit.createTestProbe[Permit]("live3")
 
       // expiring's deadline (+300ms) is much shorter than the live
       // deadlines (+30s) and well below the per-token refill interval
       // (1s), so expiring is guaranteed to be dead by the time any
       // token-granting Drain pass runs. live1 and live3 stay alive
       // well past the end of the test.
-      limiter ! Acquire(live1.ref,    expiresAtMillis = baseNow + 30_000)
+      limiter ! Acquire(live1.ref, expiresAtMillis = baseNow + 30_000)
       limiter ! Acquire(expiring.ref, expiresAtMillis = baseNow + 300)
-      limiter ! Acquire(live3.ref,    expiresAtMillis = baseNow + 30_000)
+      limiter ! Acquire(live3.ref, expiresAtMillis = baseNow + 30_000)
 
       // Wait until expiring is definitely expired before issuing the
       // explicit Drain. 600ms is 2× the expiring deadline + headroom
@@ -342,7 +342,7 @@ class TokenBucketLimiterSpec
       // (Permit.Granted only arrives after persist completes).
       val limiter1 = testKit.spawn(
         TokenBucketLimiter(settings(id, maxTokens = 10, tokensPerSecond = 1.0)),
-        s"$id-1",
+        s"$id-1"
       )
       TokenBucketLimiter.acquire(limiter1, 5.seconds).futureValue shouldBe Permit.Granted
       testKit.stop(limiter1)
@@ -356,10 +356,10 @@ class TokenBucketLimiterSpec
       // subsequent recovery doesn't reload a stale over-cap count).
       val limiter2 = testKit.spawn(
         TokenBucketLimiter(settings(id, maxTokens = 5, tokensPerSecond = 1.0)),
-        s"$id-2",
+        s"$id-2"
       )
 
-      val probe       = testKit.createTestProbe[Permit]()
+      val probe = testKit.createTestProbe[Permit]()
       def farFuture() = System.currentTimeMillis() + 10_000
 
       // Drain 5 — all should be Granted from the clamped pool, even

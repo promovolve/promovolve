@@ -1,14 +1,14 @@
 package promovolve.taxonomy
 
 import com.typesafe.config.ConfigFactory
-import org.apache.pekko.actor.testkit.typed.scaladsl.{ActorTestKit, TestProbe}
+import org.apache.pekko.actor.testkit.typed.scaladsl.{ ActorTestKit, TestProbe }
 import org.apache.pekko.actor.typed.ActorRef
 import org.apache.pekko.persistence.testkit.PersistenceTestKitDurableStateStorePlugin
 import org.scalatest.BeforeAndAfterAll
 import org.scalatest.matchers.should.Matchers
 import org.scalatest.wordspec.AnyWordSpec
 
-import java.time.{Clock, Instant, ZoneId}
+import java.time.{ Clock, Instant, ZoneId }
 import java.util.UUID
 import scala.concurrent.duration.*
 

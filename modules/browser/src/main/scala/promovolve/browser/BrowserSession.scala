@@ -1,51 +1,54 @@
 package promovolve.browser
 
 import com.microsoft.playwright.*
-import com.microsoft.playwright.options.{LoadState, WaitUntilState, Proxy as PlaywrightProxy}
-import org.apache.pekko.actor.typed.{ActorRef, Behavior, PostStop}
+import com.microsoft.playwright.options.{ LoadState, Proxy as PlaywrightProxy, WaitUntilState }
+import org.apache.pekko.actor.typed.{ ActorRef, Behavior, PostStop }
 import org.apache.pekko.actor.typed.scaladsl.Behaviors
 import org.slf4j.LoggerFactory
 
 import java.nio.charset.StandardCharsets
-import java.nio.file.{Files, Path}
+import java.nio.file.{ Files, Path }
 import scala.concurrent.Promise
 import scala.concurrent.duration.*
 import scala.jdk.CollectionConverters.*
-import scala.util.{Failure, Random, Success, Try}
+import scala.util.{ Failure, Random, Success, Try }
 
-/** Single Playwright + Chromium instance pinned to one thread.
-  *
-  * Playwright Java's driver is single-threaded — all API calls must
-  * originate from the thread that called `Playwright.create()`. We
-  * satisfy that by hosting each `BrowserSession` on a `PinnedDispatcher`
-  * (configured at `browser-session-dispatcher` in application.conf),
-  * so the actor lifecycle and every `receiveMessage` callback execute
-  * on the same thread.
-  *
-  * One session = one Chromium process. The system-wide
-  * [[BrowserSessionPool]] keeps a small fixed number of sessions
-  * (configured at `promovolve.browser.browser-pool.size`) and routes
-  * `Render` requests across them. Per-crawl concurrency from
-  * [[PlaywrightCrawler]] is now an in-flight cap against the shared
-  * pool rather than a count of browsers.
-  *
-  * Lazy initialization: Playwright + Browser are launched on the
-  * first `Render`, not at `Behaviors.setup`. Idle sessions cost
-  * roughly nothing; only sessions actually serving traffic hold a
-  * Chromium process.
-  */
+/**
+ * Single Playwright + Chromium instance pinned to one thread.
+ *
+ * Playwright Java's driver is single-threaded — all API calls must
+ * originate from the thread that called `Playwright.create()`. We
+ * satisfy that by hosting each `BrowserSession` on a `PinnedDispatcher`
+ * (configured at `browser-session-dispatcher` in application.conf),
+ * so the actor lifecycle and every `receiveMessage` callback execute
+ * on the same thread.
+ *
+ * One session = one Chromium process. The system-wide
+ * [[BrowserSessionPool]] keeps a small fixed number of sessions
+ * (configured at `promovolve.browser.browser-pool.size`) and routes
+ * `Render` requests across them. Per-crawl concurrency from
+ * [[PlaywrightCrawler]] is now an in-flight cap against the shared
+ * pool rather than a count of browsers.
+ *
+ * Lazy initialization: Playwright + Browser are launched on the
+ * first `Render`, not at `Behaviors.setup`. Idle sessions cost
+ * roughly nothing; only sessions actually serving traffic hold a
+ * Chromium process.
+ */
 object BrowserSession {
 
   // -- Protocol --
 
   sealed trait Command
 
-  /** Per-crawl options. Travel with each `Render` because a single
-    * session serves multiple crawls (different domains/selectors). */
+  /**
+   * Per-crawl options. Travel with each `Render` because a single
+   * session serves multiple crawls (different domains/selectors).
+   */
   final case class CrawlOpts(
       domain: String,
       hostRegex: String,
-      clickSelector: Option[String],
+      clickSelector: Option[String]
   )
 
   /** Scrape one URL and reply with [[PageScrapedResult]]. */
@@ -55,27 +58,31 @@ object BrowserSession {
       depth: Int,
       opts: CrawlOpts,
       replyTo: ActorRef[PageScrapedResult],
-      attempt: Int = 0,
+      attempt: Int = 0
   ) extends Command
 
-  /** Run arbitrary `Browser => T` work on the session's pinned thread.
-    * The function executes synchronously inside the actor's receive
-    * (already on the pinned thread, satisfying Playwright Java's
-    * single-thread invariant) and the result is delivered via the
-    * supplied Promise. Encoded with existential `Any` because Pekko
-    * Typed sealed traits cannot be polymorphic — call the typed
-    * helper [[BrowserSessionPool.submit]] rather than constructing
-    * this directly. */
+  /**
+   * Run arbitrary `Browser => T` work on the session's pinned thread.
+   * The function executes synchronously inside the actor's receive
+   * (already on the pinned thread, satisfying Playwright Java's
+   * single-thread invariant) and the result is delivered via the
+   * supplied Promise. Encoded with existential `Any` because Pekko
+   * Typed sealed traits cannot be polymorphic — call the typed
+   * helper [[BrowserSessionPool.submit]] rather than constructing
+   * this directly.
+   */
   final case class Submit(
       work: Browser => Any,
-      promise: Promise[Any],
+      promise: Promise[Any]
   ) extends Command
 
-  /** Eagerly launch Playwright + Chromium now, instead of on the first
-    * Render/Submit. Sent once at pool startup when warm-on-start is enabled
-    * so the first real crawl/LP job doesn't pay the cold Chromium launch.
-    * Best-effort: a launch failure (e.g. Chromium not installed locally) is
-    * logged and the session simply falls back to lazy init on first use. */
+  /**
+   * Eagerly launch Playwright + Chromium now, instead of on the first
+   * Render/Submit. Sent once at pool startup when warm-on-start is enabled
+   * so the first real crawl/LP job doesn't pay the cold Chromium launch.
+   * Best-effort: a launch failure (e.g. Chromium not installed locally) is
+   * logged and the session simply falls back to lazy init on first use.
+   */
   case object Warmup extends Command
 
   /** Graceful shutdown (closes Chromium). PostStop also runs cleanup. */
@@ -83,22 +90,24 @@ object BrowserSession {
 
   // -- Replies --
 
-  /** Crawl-time position/visibility signals for a detected slot.
-    * Feeds into the per-slot floor CPM prior (see SiteEntity.SlotPrior). */
+  /**
+   * Crawl-time position/visibility signals for a detected slot.
+   * Feeds into the per-slot floor CPM prior (see SiteEntity.SlotPrior).
+   */
   final case class SlotPositionSignals(
-      yTop: Int,                      // absolute y from document top, px
-      docHeight: Int,                 // document scroll height, px
-      aboveFold: Boolean,             // intersects initial viewport
-      initialViewability: Double,     // 0..1, slot area in initial viewport
-      region: String,                 // article|main|aside|footer|header|nav|unknown
-      textDensity: Double,            // 0..1, nearby text-block density
+      yTop: Int, // absolute y from document top, px
+      docHeight: Int, // document scroll height, px
+      aboveFold: Boolean, // intersects initial viewport
+      initialViewability: Double, // 0..1, slot area in initial viewport
+      region: String, // article|main|aside|footer|header|nav|unknown
+      textDensity: Double // 0..1, nearby text-block density
   )
 
   final case class DetectedSlot(
       slotId: String,
       width: Int,
       height: Int,
-      position: Option[SlotPositionSignals] = None,
+      position: Option[SlotPositionSignals] = None
   )
 
   final case class PageScrapedResult(
@@ -107,12 +116,14 @@ object BrowserSession {
       links: Seq[PageLink],
       detectedSlots: Seq[DetectedSlot],
       depth: Int,
-      status: Int,
+      status: Int
   ) extends promovolve.CborSerializable
 
-  /** A discovered link: target URL + anchor text. Was a `(String, String)`
-    * tuple; promoted to a case class so it serializes cleanly across the
-    * cluster (the crawl now runs on dedicated crawler nodes). */
+  /**
+   * A discovered link: target URL + anchor text. Was a `(String, String)`
+   * tuple; promoted to a case class so it serializes cleanly across the
+   * cluster (the crawl now runs on dedicated crawler nodes).
+   */
   final case class PageLink(url: String, text: String)
 
   /** Non-HTML response (PDF, image, etc.) — terminal failure, no retry. */
@@ -122,8 +133,8 @@ object BrowserSession {
 
   final case class Settings(
       contextRotationEvery: Int = 5,
-      navigationTimeoutMs: Int  = 15000,
-      maxRetries: Int           = 5,
+      navigationTimeoutMs: Int = 15000,
+      maxRetries: Int = 5
   )
 
   // -- Behavior --
@@ -131,17 +142,17 @@ object BrowserSession {
   def apply(
       sessionId: Int,
       proxyConfig: Option[ProxyProviderConf],
-      settings: Settings = Settings(),
+      settings: Settings = Settings()
   ): Behavior[Command] = Behaviors.setup { ctx =>
     val log = LoggerFactory.getLogger(s"promovolve.BrowserSession.$sessionId")
 
     // All of these are accessed only on the pinned thread.
-    var playwright: Playwright       = null
-    var browser: Browser             = null
+    var playwright: Playwright = null
+    var browser: Browser = null
     var browserContext: BrowserContext = null
-    var stealthScriptPath: Path      = null
-    var initScriptPath: Path         = null
-    var successCount: Int            = 0
+    var stealthScriptPath: Path = null
+    var initScriptPath: Path = null
+    var successCount: Int = 0
 
     def resolveResource(resourcePath: String, prefix: String): Path = {
       val stream = Option(getClass.getResourceAsStream(resourcePath))
@@ -160,7 +171,7 @@ object BrowserSession {
         .setUserAgent(
           // Match a current real Chrome — bot managers flag stale majors.
           "Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 " +
-            "(KHTML, like Gecko) Chrome/131.0.0.0 Safari/537.36",
+          "(KHTML, like Gecko) Chrome/131.0.0.0 Safari/537.36"
         )
         .setViewportSize(1280, 800)
         .setLocale("en-US")
@@ -197,7 +208,7 @@ object BrowserSession {
           val core = new java.util.ArrayList[String](java.util.List.of(
             "--disable-blink-features=AutomationControlled",
             "--disable-features=IsolateOrigins,site-per-process",
-            "--headless=new",
+            "--headless=new"
           ))
           if (sys.env.get("CHROMIUM_NO_SANDBOX").contains("true")) {
             core.add("--no-sandbox")
@@ -212,13 +223,13 @@ object BrowserSession {
         proxyConfig.foreach { p =>
           launchOpts.setProxy(
             new PlaywrightProxy(p.server)
-              .setUsername(p.username).setPassword(p.password),
+              .setUsername(p.username).setPassword(p.password)
           )
         }
         browser = playwright.chromium().launch(launchOpts)
         stealthScriptPath = resolveResource("/stealth.js", "stealth-")
-        initScriptPath    = resolveResource("/crawler.js", "crawler-init-")
-        browserContext    = newContext()
+        initScriptPath = resolveResource("/crawler.js", "crawler-init-")
+        browserContext = newContext()
       }
     }
 
@@ -226,7 +237,8 @@ object BrowserSession {
       successCount += 1
       if (successCount >= settings.contextRotationEvery) {
         log.info("Rotating BrowserContext after {} successful scrapes", successCount)
-        try browserContext.close() catch { case _: Exception => }
+        try browserContext.close()
+        catch { case _: Exception => }
         browserContext = newContext()
         successCount = 0
       }
@@ -234,9 +246,12 @@ object BrowserSession {
 
     def shutdown(): Unit = {
       log.info("BrowserSession {} closing Chromium", sessionId)
-      if (browserContext != null) try browserContext.close() catch { case _: Exception => }
-      if (browser != null)        try browser.close()        catch { case _: Exception => }
-      if (playwright != null)     try playwright.close()     catch { case _: Exception => }
+      if (browserContext != null) try browserContext.close()
+      catch { case _: Exception => }
+      if (browser != null) try browser.close()
+      catch { case _: Exception => }
+      if (playwright != null) try playwright.close()
+      catch { case _: Exception => }
     }
 
     Behaviors.withTimers[Command] { timers =>
@@ -261,33 +276,33 @@ object BrowserSession {
                 val rurl = req.url()
                 val isPromovolveAd =
                   rurl.contains("promovolve-bootstrap") ||
-                    rurl.contains("/v1/serve/") ||
-                    rurl.contains("/v1/imp") ||
-                    rurl.contains("/v1/click") ||
-                    rurl.contains("/v1/cta") ||
-                    rurl.contains("/v1/dogear-event")
+                  rurl.contains("/v1/serve/") ||
+                  rurl.contains("/v1/imp") ||
+                  rurl.contains("/v1/click") ||
+                  rurl.contains("/v1/cta") ||
+                  rurl.contains("/v1/dogear-event")
                 if (blockedTypes.contains(resourceType) || isPromovolveAd) route.abort()
                 else route.resume()
-              },
+              }
             )
 
             val response = page.navigate(
               url,
               new Page.NavigateOptions()
                 .setWaitUntil(WaitUntilState.DOMCONTENTLOADED)
-                .setTimeout(settings.navigationTimeoutMs),
+                .setTimeout(settings.navigationTimeoutMs)
             )
             val resp = Option(response)
               .getOrElse(throw new RuntimeException(s"No response received for $url"))
             if (resp.status() >= 400)
               throw new RuntimeException(
-                s"Bad response status ${resp.status()} for $url: ${resp.statusText()}",
+                s"Bad response status ${resp.status()} for $url: ${resp.statusText()}"
               )
 
             val contentType = Option(resp.headerValue("content-type")).getOrElse("")
             if (!contentType.contains("text/html") && !contentType.contains("application/xhtml"))
               throw new NonHtmlContentException(
-                s"Non-HTML content-type for $url: $contentType",
+                s"Non-HTML content-type for $url: $contentType"
               )
 
             page.waitForLoadState(LoadState.DOMCONTENTLOADED)
@@ -365,7 +380,7 @@ object BrowserSession {
   private def extractTextAndLinks(
       page: Page,
       regexString: String,
-      target: String,
+      target: String
   ): (String, Seq[PageLink]) = {
     val result = page.evaluate("extractContent", Array(regexString, target))
     val resultMap = result.asInstanceOf[java.util.Map[String, Any]].asScala
@@ -387,7 +402,7 @@ object BrowserSession {
         val m = slotObj.asScala
         for {
           slotId <- m.get("slotId").map(_.toString).filter(_.nonEmpty)
-          width  <- m.get("width").map(_.toString.toDouble.toInt).filter(_ > 0)
+          width <- m.get("width").map(_.toString.toDouble.toInt).filter(_ > 0)
           height <- m.get("height").map(_.toString.toDouble.toInt).filter(_ > 0)
         } yield {
           // Position signals are best-effort; if any required field is
@@ -396,19 +411,19 @@ object BrowserSession {
           // all of these, but resilience matters when crawling pages
           // with hostile layouts or fault-injected JS.
           val position = for {
-            yTop      <- m.get("yTop").map(_.toString.toDouble.toInt)
+            yTop <- m.get("yTop").map(_.toString.toDouble.toInt)
             docHeight <- m.get("docHeight").map(_.toString.toDouble.toInt).filter(_ > 0)
             aboveFold <- m.get("aboveFold").map(_.toString.toBoolean)
             viewability <- m.get("initialViewability").map(_.toString.toDouble)
-            region    <- m.get("region").map(_.toString).filter(_.nonEmpty)
-            density   <- m.get("textDensity").map(_.toString.toDouble)
+            region <- m.get("region").map(_.toString).filter(_.nonEmpty)
+            density <- m.get("textDensity").map(_.toString.toDouble)
           } yield SlotPositionSignals(
             yTop = yTop,
             docHeight = docHeight,
             aboveFold = aboveFold,
             initialViewability = viewability.max(0.0).min(1.0),
             region = region,
-            textDensity = density.max(0.0).min(1.0),
+            textDensity = density.max(0.0).min(1.0)
           )
           DetectedSlot(slotId, width, height, position)
         }

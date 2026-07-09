@@ -3,14 +3,15 @@ package promovolve.api
 import org.scalatest.matchers.should.Matchers
 import org.scalatest.wordspec.AnyWordSpec
 
-/** StalePins.derive feeds client-side DELETION of a user's bookmark
-  * (the dog-ear pin in IndexedDB), so every distinction here is
-  * safety-critical: a transient lookup failure or an on-page pin must
-  * never be reported, or a live bookmark gets destroyed; a genuinely
-  * dead pin MUST be reported, or its campaign stays excluded in that
-  * browser forever (with one campaign in the system, that's a total
-  * per-browser ad blackout — observed live 2026-06-11).
-  */
+/**
+ * StalePins.derive feeds client-side DELETION of a user's bookmark
+ * (the dog-ear pin in IndexedDB), so every distinction here is
+ * safety-critical: a transient lookup failure or an on-page pin must
+ * never be reported, or a live bookmark gets destroyed; a genuinely
+ * dead pin MUST be reported, or its campaign stays excluded in that
+ * browser forever (with one campaign in the system, that's a total
+ * per-browser ad blackout — observed live 2026-06-11).
+ */
 class StalePinsSpec extends AnyWordSpec with Matchers {
 
   private val onPage = Set("PAGE-SLOT-01")
@@ -23,7 +24,7 @@ class StalePinsSpec extends AnyWordSpec with Matchers {
         pinLookups = Vector("dead-creative" -> Some(None)),
         pins = Vector(pin("OTHER-SLOT", "dead-creative")),
         slotIdsOnPage = onPage,
-        siteSlotIds = Set("OTHER-SLOT"),
+        siteSlotIds = Set("OTHER-SLOT")
       ) shouldBe Vector("dead-creative")
     }
 
@@ -32,7 +33,7 @@ class StalePinsSpec extends AnyWordSpec with Matchers {
         pinLookups = Vector("maybe-alive" -> None),
         pins = Vector(pin("OTHER-SLOT", "maybe-alive")),
         slotIdsOnPage = onPage,
-        siteSlotIds = Set("OTHER-SLOT"),
+        siteSlotIds = Set("OTHER-SLOT")
       ) shouldBe empty
     }
 
@@ -41,7 +42,7 @@ class StalePinsSpec extends AnyWordSpec with Matchers {
         pinLookups = Vector("alive" -> Some(Some("campaign-1"))),
         pins = Vector(pin("OTHER-SLOT", "alive")),
         slotIdsOnPage = onPage,
-        siteSlotIds = Set("OTHER-SLOT"),
+        siteSlotIds = Set("OTHER-SLOT")
       ) shouldBe empty
     }
 
@@ -55,7 +56,7 @@ class StalePinsSpec extends AnyWordSpec with Matchers {
         pinLookups = Vector("alive" -> Some(Some("campaign-1"))),
         pins = Vector(pin("NOT-YET-ACTIVATED-SLOT", "alive")),
         slotIdsOnPage = onPage,
-        siteSlotIds = Set("OTHER-SLOT", "PAGE-SLOT-01"),
+        siteSlotIds = Set("OTHER-SLOT", "PAGE-SLOT-01")
       ) shouldBe empty
     }
 
@@ -66,7 +67,7 @@ class StalePinsSpec extends AnyWordSpec with Matchers {
         pinLookups = Vector.empty,
         pins = Vector(pin("PAGE-SLOT-01", "alive")),
         slotIdsOnPage = onPage,
-        siteSlotIds = Set("SOMETHING-ELSE"),
+        siteSlotIds = Set("SOMETHING-ELSE")
       ) shouldBe empty
     }
 
@@ -75,7 +76,7 @@ class StalePinsSpec extends AnyWordSpec with Matchers {
         pinLookups = Vector.empty,
         pins = Vector(pin("ANY-SLOT", "alive")),
         slotIdsOnPage = onPage,
-        siteSlotIds = Set.empty,
+        siteSlotIds = Set.empty
       ) shouldBe empty
     }
 
@@ -84,7 +85,7 @@ class StalePinsSpec extends AnyWordSpec with Matchers {
         pinLookups = Vector("dead" -> Some(None)),
         pins = Vector(pin("RENAMED-AWAY-SLOT", "dead")),
         slotIdsOnPage = onPage,
-        siteSlotIds = Set("PAGE-SLOT-01"),
+        siteSlotIds = Set("PAGE-SLOT-01")
       ) shouldBe Vector("dead")
     }
   }

@@ -8,9 +8,11 @@ import java.awt.image.BufferedImage
 import java.io.ByteArrayOutputStream
 import javax.imageio.ImageIO
 
-/** Validates that scrimage's bundled cwebp loads on this host and
-  * produces smaller output than the source PNG for a representative
-  * banner-sized image. */
+/**
+ * Validates that scrimage's bundled cwebp loads on this host and
+ * produces smaller output than the source PNG for a representative
+ * banner-sized image.
+ */
 class WebpEncoderSpec extends AnyWordSpec with Matchers {
 
   // Build a 300×250 PNG with a smooth gradient + a couple of colored
@@ -18,7 +20,7 @@ class WebpEncoderSpec extends AnyWordSpec with Matchers {
   // compress trivially in both PNG and WebP, hiding the spread).
   private def syntheticBannerPng(w: Int = 300, h: Int = 250): Array[Byte] = {
     val img = new BufferedImage(w, h, BufferedImage.TYPE_INT_RGB)
-    val g   = img.createGraphics()
+    val g = img.createGraphics()
     try {
       for (y <- 0 until h; x <- 0 until w) {
         val r = (x * 255 / w).max(0).min(255)

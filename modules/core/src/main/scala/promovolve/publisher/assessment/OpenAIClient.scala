@@ -11,18 +11,19 @@ import promovolve.publisher.AssessmentResult
 import spray.json.*
 
 import java.util.Base64
-import scala.concurrent.{ExecutionContext, Future}
+import scala.concurrent.{ ExecutionContext, Future }
 import scala.concurrent.duration.*
-import scala.util.{Random, Try}
+import scala.util.{ Random, Try }
 
-/** OpenAI API client for creative assessment.
-  *
-  * Features:
-  * - Uses json_schema response_format for reliable structured output
-  * - Supports gpt-4o (vision model) for image analysis
-  * - Retry with exponential backoff for transient errors (429, 5xx)
-  * - Configurable max retries and base delay
-  */
+/**
+ * OpenAI API client for creative assessment.
+ *
+ * Features:
+ * - Uses json_schema response_format for reliable structured output
+ * - Supports gpt-4o (vision model) for image analysis
+ * - Retry with exponential backoff for transient errors (429, 5xx)
+ * - Configurable max retries and base delay
+ */
 final class OpenAIClient(
     apiKey: String,
     model: String = "gpt-4o",
@@ -100,7 +101,7 @@ final class OpenAIClient(
           }
       }
     }.recoverWith {
-      case e: OpenAIApiError => Future.failed(e)
+      case e: OpenAIApiError         => Future.failed(e)
       case e if attempt < maxRetries =>
         val delay = calculateBackoff(attempt)
         log.warn(
@@ -122,10 +123,10 @@ final class OpenAIClient(
 
   private def isRetryable(status: StatusCode): Boolean =
     status == StatusCodes.TooManyRequests ||
-      status == StatusCodes.ServiceUnavailable ||
-      status == StatusCodes.BadGateway ||
-      status == StatusCodes.GatewayTimeout ||
-      status.intValue() >= 500
+    status == StatusCodes.ServiceUnavailable ||
+    status == StatusCodes.BadGateway ||
+    status == StatusCodes.GatewayTimeout ||
+    status.intValue() >= 500
 
   private def calculateBackoff(attempt: Int): FiniteDuration = {
     val exponentialDelay = baseDelay * math.pow(2, attempt).toLong
@@ -167,7 +168,8 @@ final class OpenAIClient(
             "detected_categories" -> JsObject(
               "type" -> JsString("array"),
               "items" -> JsObject("type" -> JsString("string")),
-              "description" -> JsString("IAB Content Taxonomy category codes detected in the creative (e.g., IAB2 for Automotive)")
+              "description" ->
+              JsString("IAB Content Taxonomy category codes detected in the creative (e.g., IAB2 for Automotive)")
             ),
             "category_confidence" -> JsObject(
               "type" -> JsString("number"),
@@ -231,7 +233,8 @@ final class OpenAIClient(
 
   private def buildPrompt(context: AssessmentContext): String = {
     val declaredCategoryInfo = context.declaredAdProductCategory match {
-      case Some(cat) => s"\n\nThe advertiser declared this ad as category: $cat. Verify if the visual content matches this declaration."
+      case Some(cat) =>
+        s"\n\nThe advertiser declared this ad as category: $cat. Verify if the visual content matches this declaration."
       case None => ""
     }
 
@@ -297,8 +300,8 @@ Provide your analysis in the required JSON format."""
     def getStringOrNull(key: String): Option[String] =
       input.fields.get(key).flatMap {
         case JsString(s) if s.nonEmpty => Some(s)
-        case JsNull => None
-        case _ => None
+        case JsNull                    => None
+        case _                         => None
       }
 
     def getStringArray(key: String): List[String] =

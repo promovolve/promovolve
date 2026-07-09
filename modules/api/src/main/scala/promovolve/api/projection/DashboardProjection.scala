@@ -4,8 +4,8 @@ import org.apache.pekko.actor.typed.ActorSystem
 import org.apache.pekko.cluster.sharding.typed.ShardedDaemonProcessSettings
 import org.apache.pekko.cluster.sharding.typed.scaladsl.ShardedDaemonProcess
 import org.apache.pekko.persistence.query.Offset
-import org.apache.pekko.persistence.query.{Sequence => PekkoSequence}
-import org.apache.pekko.projection.{ProjectionBehavior, ProjectionId}
+import org.apache.pekko.persistence.query.{ Sequence => PekkoSequence }
+import org.apache.pekko.projection.{ ProjectionBehavior, ProjectionId }
 import org.apache.pekko.projection.scaladsl.SourceProvider
 import org.apache.pekko.projection.slick.SlickProjection
 import org.apache.pekko.NotUsed
@@ -13,18 +13,19 @@ import org.apache.pekko.stream.scaladsl.Source
 import slick.basic.DatabaseConfig
 import slick.jdbc.PostgresProfile
 
-import scala.concurrent.{ExecutionContext, Future}
+import scala.concurrent.{ ExecutionContext, Future }
 
 /** Dashboard projection setup using ShardedDaemonProcess for distribution. */
 object DashboardProjection {
 
   private val log = org.slf4j.LoggerFactory.getLogger(getClass)
 
-  /** Initialize the dashboard projection across the cluster.
-    *
-    * Uses ShardedDaemonProcess to distribute projection processing
-    * across cluster nodes for scalability and fault tolerance.
-    */
+  /**
+   * Initialize the dashboard projection across the cluster.
+   *
+   * Uses ShardedDaemonProcess to distribute projection processing
+   * across cluster nodes for scalability and fault tolerance.
+   */
   def init(
       system: ActorSystem[?],
       dbConfig: DatabaseConfig[PostgresProfile]
@@ -56,11 +57,12 @@ object DashboardProjection {
     )
   }
 
-  /** Creates a source provider that reads tracking events from the journal table.
-    *
-    * Uses a custom SourceProvider that queries the tracking_events table
-    * using sequence numbers as offsets.
-    */
+  /**
+   * Creates a source provider that reads tracking events from the journal table.
+   *
+   * Uses a custom SourceProvider that queries the tracking_events table
+   * using sequence numbers as offsets.
+   */
   private def createSourceProvider(
       dbConfig: DatabaseConfig[PostgresProfile],
       partition: Int,
@@ -70,10 +72,11 @@ object DashboardProjection {
   }
 }
 
-/** Custom SourceProvider that reads from tracking_events table.
-  *
-  * Uses sequence_nr as offset for exactly-once processing.
-  */
+/**
+ * Custom SourceProvider that reads from tracking_events table.
+ *
+ * Uses sequence_nr as offset for exactly-once processing.
+ */
 class TrackingEventSourceProvider(
     dbConfig: DatabaseConfig[PostgresProfile],
     partition: Int,

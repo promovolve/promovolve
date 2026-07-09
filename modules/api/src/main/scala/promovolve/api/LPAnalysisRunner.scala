@@ -4,23 +4,25 @@ import org.apache.pekko.actor.typed.ActorSystem
 import org.apache.pekko.actor.typed.scaladsl.adapter.*
 import org.apache.pekko.pattern.after
 import org.slf4j.LoggerFactory
-import promovolve.browser.{LPAnalysisResult, LPAnalyzer, LPCapturedImage, LPWorker}
-import promovolve.publisher.{ImageAsset, ImageAssetRepo}
+import promovolve.browser.{ LPAnalysisResult, LPAnalyzer, LPCapturedImage, LPWorker }
+import promovolve.publisher.{ ImageAsset, ImageAssetRepo }
 import promovolve.publisher.assets.ImageStorage
 
 import java.time.Instant
-import scala.concurrent.{ExecutionContext, Future, Promise}
+import scala.concurrent.{ ExecutionContext, Future, Promise }
 import scala.concurrent.duration.*
 
-/** Builds the default [[LPWorker.RunAnalysis]]: run [[LPAnalyzer]] (Playwright)
-  * on the crawler tier, upload the captured bot-protected-origin bytes + the
-  * hero screenshot to R2 RIGHT HERE, rewrite each section `src` to its CDN URL,
-  * and complete with a finished `AnalyzeLPDone`. Net effect: the raw bytes
-  * never leave the pod that captured them — only URLs cross the wire back to
-  * the api node. This is the relocation of EndpointRoutes' `storeImageAsset` +
-  * `persistCapturedImages` onto the crawler tier, so Chromium + the byte
-  * handling leave the bid/serve JVMs. Constructed on crawler-role nodes (which
-  * carry R2 + JDBC creds) and passed to [[LPWorker.initSharding]]. */
+/**
+ * Builds the default [[LPWorker.RunAnalysis]]: run [[LPAnalyzer]] (Playwright)
+ * on the crawler tier, upload the captured bot-protected-origin bytes + the
+ * hero screenshot to R2 RIGHT HERE, rewrite each section `src` to its CDN URL,
+ * and complete with a finished `AnalyzeLPDone`. Net effect: the raw bytes
+ * never leave the pod that captured them — only URLs cross the wire back to
+ * the api node. This is the relocation of EndpointRoutes' `storeImageAsset` +
+ * `persistCapturedImages` onto the crawler tier, so Chromium + the byte
+ * handling leave the bid/serve JVMs. Constructed on crawler-role nodes (which
+ * carry R2 + JDBC creds) and passed to [[LPWorker.initSharding]].
+ */
 object LPAnalysisRunner {
   private val log = LoggerFactory.getLogger("promovolve.api.LPAnalysisRunner")
 
@@ -32,7 +34,7 @@ object LPAnalysisRunner {
       // DB), we just store to R2 — which is content-addressed by the hash, so
       // the upload is idempotent; we only skip the registry dedup optimization.
       imageAssetRepo: Option[ImageAssetRepo],
-      cdnBaseUrl: String,
+      cdnBaseUrl: String
   )(using system: ActorSystem[?]): LPWorker.RunAnalysis = {
     given ec: ExecutionContext = system.executionContext
 
@@ -46,7 +48,7 @@ object LPAnalysisRunner {
         case Some(repo) =>
           repo.get(hash).flatMap {
             case Some(a) => Future.successful(a.s3Key)
-            case None =>
+            case None    =>
               imageStorage.store(hash, bytes, mime).flatMap { s3Key =>
                 repo.put(ImageAsset(hash, s3Key, mime, w, h, Instant.now())).map(_ => s3Key)
               }
@@ -74,7 +76,8 @@ object LPAnalysisRunner {
               }
           }.map { pairs =>
             val urlToCdn = pairs.flatten.toMap
-            log.info("LP analysis stored {}/{} referenced images for {}", Integer.valueOf(urlToCdn.size), Integer.valueOf(toStore.size), result.url)
+            log.info("LP analysis stored {}/{} referenced images for {}", Integer.valueOf(urlToCdn.size),
+              Integer.valueOf(toStore.size), result.url)
             if (urlToCdn.isEmpty) result
             else result.copy(sections = result.sections.map { sec =>
               sec.copy(images = sec.images.map(im => urlToCdn.get(im.src).fold(im)(cdn => im.copy(src = cdn))))
@@ -107,7 +110,7 @@ object LPAnalysisRunner {
         .flatMap { finished =>
           val shotUrl = Future.firstCompletedOf(Seq(
             shot.future,
-            after(3.seconds, system.toClassic.scheduler)(Future.successful(Option.empty[String])),
+            after(3.seconds, system.toClassic.scheduler)(Future.successful(Option.empty[String]))
           ))
           shotUrl.map(u => LPWorker.AnalyzeLPDone(req.url, finished, u, None))
         }

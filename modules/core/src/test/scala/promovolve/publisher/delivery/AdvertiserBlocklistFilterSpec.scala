@@ -2,24 +2,25 @@ package promovolve.publisher.delivery
 
 import org.scalatest.matchers.should.Matchers
 import org.scalatest.wordspec.AnyWordSpec
-import promovolve.{AdvertiserId, CampaignId, Candidate, CategoryId, CPM, CreativeId}
+import promovolve.{ AdvertiserId, CPM, CampaignId, Candidate, CategoryId, CreativeId }
 
-/** Pure-function tests for AdServer's advertiser-side site-domain blocklist
-  * filter. Covers the two helpers used at serve time:
-  *   - mySiteDomainOpt: normalize the verified host into the bare-domain
-  *     shape blocklists are stored as.
-  *   - partitionByAdvertiserBlocklist: drop a candidate when its
-  *     advertiser blocks the serving site's domain.
-  */
+/**
+ * Pure-function tests for AdServer's advertiser-side site-domain blocklist
+ * filter. Covers the two helpers used at serve time:
+ *   - mySiteDomainOpt: normalize the verified host into the bare-domain
+ *     shape blocklists are stored as.
+ *   - partitionByAdvertiserBlocklist: drop a candidate when its
+ *     advertiser blocks the serving site's domain.
+ */
 class AdvertiserBlocklistFilterSpec extends AnyWordSpec with Matchers {
 
   private def candidate(advertiser: String, creative: String = "c1"): Candidate =
     Candidate(
-      creativeId   = CreativeId(creative),
-      campaignId   = CampaignId(s"camp-$advertiser"),
+      creativeId = CreativeId(creative),
+      campaignId = CampaignId(s"camp-$advertiser"),
       advertiserId = AdvertiserId(advertiser),
-      cpm          = CPM(1.0),
-      category     = CategoryId("cat")
+      cpm = CPM(1.0),
+      category = CategoryId("cat")
     )
 
   "mySiteDomainOpt" should {
@@ -29,7 +30,7 @@ class AdvertiserBlocklistFilterSpec extends AnyWordSpec with Matchers {
     }
 
     "return None for an empty / whitespace-only host" in {
-      AdServer.mySiteDomainOpt(Some(""))    shouldBe None
+      AdServer.mySiteDomainOpt(Some("")) shouldBe None
       AdServer.mySiteDomainOpt(Some("   ")) shouldBe None
     }
 
@@ -39,7 +40,7 @@ class AdvertiserBlocklistFilterSpec extends AnyWordSpec with Matchers {
 
     "strip the port if present" in {
       AdServer.mySiteDomainOpt(Some("example.com:8080")) shouldBe Some("example.com")
-      AdServer.mySiteDomainOpt(Some("LOCALHOST:9000"))   shouldBe Some("localhost")
+      AdServer.mySiteDomainOpt(Some("LOCALHOST:9000")) shouldBe Some("localhost")
     }
 
     "trim surrounding whitespace before stripping" in {
@@ -67,13 +68,13 @@ class AdvertiserBlocklistFilterSpec extends AnyWordSpec with Matchers {
     }
 
     "drop only candidates whose advertiser has blocked this domain" in {
-      val good   = candidate("a-clean", "cid-good")
-      val mixed  = candidate("a-blocks-other", "cid-mixed") // blocks a different domain
+      val good = candidate("a-clean", "cid-good")
+      val mixed = candidate("a-blocks-other", "cid-mixed") // blocks a different domain
       val target = candidate("a-blocks-us", "cid-target")
-      val pool   = Vector(good, mixed, target)
+      val pool = Vector(good, mixed, target)
       val blocklists = Map(
         AdvertiserId("a-blocks-other") -> Set("other.com"),
-        AdvertiserId("a-blocks-us")    -> Set("example.com", "another.com")
+        AdvertiserId("a-blocks-us") -> Set("example.com", "another.com")
       )
       val (blocked, allowed) =
         AdServer.partitionByAdvertiserBlocklist(pool, blocklists, Some("example.com"))
@@ -101,7 +102,7 @@ class AdvertiserBlocklistFilterSpec extends AnyWordSpec with Matchers {
       val (blocked, allowed) =
         AdServer.partitionByAdvertiserBlocklist(pool, blocklists, Some("example.com"))
       blocked.map(_.creativeId.value).toSet shouldBe Set("ca", "cb")
-      allowed                                shouldBe empty
+      allowed shouldBe empty
     }
   }
 }

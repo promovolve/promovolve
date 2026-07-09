@@ -3,27 +3,34 @@ package promovolve.cluster
 import com.typesafe.config.Config
 import org.apache.pekko.actor.typed.pubsub.Topic
 import org.apache.pekko.actor.typed.scaladsl.Behaviors
-import org.apache.pekko.actor.typed.{ActorRef, ActorSystem, SupervisorStrategy}
+import org.apache.pekko.actor.typed.{ ActorRef, ActorSystem, SupervisorStrategy }
 import org.apache.pekko.actor.typed.DispatcherSelector
-import org.apache.pekko.cluster.sharding.typed.scaladsl.{ClusterSharding, Entity}
+import org.apache.pekko.cluster.sharding.typed.scaladsl.{ ClusterSharding, Entity }
 import promovolve.*
-import promovolve.advertiser.{AdvertiserEntity, CampaignDirectory, CampaignEntity}
-import promovolve.auction.{AuctioneerEntity, CampaignDistributor, CategoryBidderEntity}
+import promovolve.advertiser.{ AdvertiserEntity, CampaignDirectory, CampaignEntity }
+import promovolve.auction.{ AuctioneerEntity, CampaignDistributor, CategoryBidderEntity }
 import promovolve.publisher.*
-import promovolve.publisher.delivery.{AdServer, AdaptivePacing, ServeIndexDData}
+import promovolve.publisher.delivery.{ AdServer, AdaptivePacing, ServeIndexDData }
 import promovolve.publisher.store.SlickPendingSelectionStore
-import promovolve.taxonomy.{AffinityRegistryDData, CategoryRegistry, ContentProductAffinityEntity, IABTaxonomy, TaxonomyRankerEntity}
+import promovolve.taxonomy.{
+  AffinityRegistryDData,
+  CategoryRegistry,
+  ContentProductAffinityEntity,
+  IABTaxonomy,
+  TaxonomyRankerEntity
+}
 
 import scala.concurrent.ExecutionContext
 import scala.concurrent.duration.*
 
-/** Shared initialization code for all node types.
-  *
-  * Different node roles use different subsets:
-  *   - API nodes: Topics, SingletonProxies, Repositories (no entity hosting)
-  *   - Entity nodes: Topics, SingletonProxies, Repositories, Entities
-  *   - Singleton nodes: Topics, Singletons, Repositories, Entities
-  */
+/**
+ * Shared initialization code for all node types.
+ *
+ * Different node roles use different subsets:
+ *   - API nodes: Topics, SingletonProxies, Repositories (no entity hosting)
+ *   - Entity nodes: Topics, SingletonProxies, Repositories, Entities
+ *   - Singleton nodes: Topics, Singletons, Repositories, Entities
+ */
 object ClusterBootstrap {
 
   // ========================================
@@ -56,6 +63,7 @@ object ClusterBootstrap {
   // Singletons - For nodes that HOST singletons
   // ========================================
   object Singletons {
+
     /** Initialize actual singletons (for singleton-role nodes). */
     def init(
         system: ActorSystem[?],
@@ -107,7 +115,7 @@ object ClusterBootstrap {
         serveIndex: ActorRef[ServeIndexDData.Cmd],
         affinityRegistry: ActorRef[AffinityRegistryDData.Cmd],
         geminiRateLimiter: Option[ActorRef[GeminiRateLimiter.Command]],
-        browserPool: ActorRef[promovolve.browser.BrowserSessionPool.Command],
+        browserPool: ActorRef[promovolve.browser.BrowserSessionPool.Command]
     )
   }
 
@@ -115,12 +123,13 @@ object ClusterBootstrap {
   // SingletonProxies - For nodes that PROXY to singletons
   // ========================================
   object SingletonProxies {
-    /** Initialize proxies to singletons (for non-singleton nodes).
-      * Note: ClusterSingleton.init() returns a proxy when the role doesn't match,
-      * so we use the same init methods but on nodes without the singleton role.
-      */
-    def init(system: ActorSystem[?], sharding: ClusterSharding, topics: Topics.Refs)(using
-        ExecutionContext
+
+    /**
+     * Initialize proxies to singletons (for non-singleton nodes).
+     * Note: ClusterSingleton.init() returns a proxy when the role doesn't match,
+     * so we use the same init methods but on nodes without the singleton role.
+     */
+    def init(system: ActorSystem[?], sharding: ClusterSharding, topics: Topics.Refs)(using ExecutionContext
     ): Refs = {
       system.log.info("Initializing singleton proxies...")
 
@@ -165,7 +174,7 @@ object ClusterBootstrap {
         serveIndex: ActorRef[ServeIndexDData.Cmd],
         affinityRegistry: ActorRef[AffinityRegistryDData.Cmd],
         geminiRateLimiter: Option[ActorRef[GeminiRateLimiter.Command]],
-        browserPool: ActorRef[promovolve.browser.BrowserSessionPool.Command],
+        browserPool: ActorRef[promovolve.browser.BrowserSessionPool.Command]
     )
   }
 
@@ -186,9 +195,11 @@ object ClusterBootstrap {
   // Repositories - Data Access
   // ========================================
   object Repositories {
-    /** Initialize with PostgreSQL-backed creative repo.
-      * Uses the same Slick DB config as pekko-persistence-jdbc.
-      */
+
+    /**
+     * Initialize with PostgreSQL-backed creative repo.
+     * Uses the same Slick DB config as pekko-persistence-jdbc.
+     */
     def init(config: com.typesafe.config.Config)(using ExecutionContext): Refs = {
       import slick.jdbc.PostgresProfile.api.*
 
@@ -244,12 +255,16 @@ object ClusterBootstrap {
         repos: Repositories.Refs
     )(using ExecutionContext): Unit = {
       // Extract refs from either Singletons.Refs or SingletonProxies.Refs
-      val (campaignDirectory, categoryRegistry, serveIndex, affinityRegistry, geminiRateLimiter, browserPool) = singletons match {
-        case s: Singletons.Refs       => (s.campaignDirectory, s.categoryRegistry, s.serveIndex, s.affinityRegistry, s.geminiRateLimiter, s.browserPool)
-        case p: SingletonProxies.Refs => (p.campaignDirectory, p.categoryRegistry, p.serveIndex, p.affinityRegistry, p.geminiRateLimiter, p.browserPool)
-      }
+      val (campaignDirectory, categoryRegistry, serveIndex, affinityRegistry, geminiRateLimiter, browserPool) =
+        singletons match {
+          case s: Singletons.Refs => (s.campaignDirectory, s.categoryRegistry, s.serveIndex, s.affinityRegistry,
+              s.geminiRateLimiter, s.browserPool)
+          case p: SingletonProxies.Refs => (p.campaignDirectory, p.categoryRegistry, p.serveIndex, p.affinityRegistry,
+              p.geminiRateLimiter, p.browserPool)
+        }
 
-      initWithRefs(system, sharding, topics, campaignDirectory, categoryRegistry, serveIndex, affinityRegistry, repos, geminiRateLimiter, browserPool)
+      initWithRefs(system, sharding, topics, campaignDirectory, categoryRegistry, serveIndex, affinityRegistry, repos,
+        geminiRateLimiter, browserPool)
     }
 
     /** Initialize with explicit refs (used by unified Main). */
@@ -263,7 +278,7 @@ object ClusterBootstrap {
         affinityRegistry: ActorRef[AffinityRegistryDData.Cmd],
         repos: Repositories.Refs,
         geminiRateLimiter: Option[ActorRef[GeminiRateLimiter.Command]] = None,
-        browserPool: ActorRef[promovolve.browser.BrowserSessionPool.Command],
+        browserPool: ActorRef[promovolve.browser.BrowserSessionPool.Command]
     )(using ec: ExecutionContext): Unit = {
       system.log.info("Initializing cluster-sharded entities...")
 
@@ -280,7 +295,8 @@ object ClusterBootstrap {
 
       // Publisher domain
       initPublisherEntity(system, sharding)
-      initAdServerEntity(system, sharding, repos.pendingSelectionStore, repos.creative, serveIndex, repos.statsSnapshot, repos.trafficShapeSnapshot, topics.budgetEvent)
+      initAdServerEntity(system, sharding, repos.pendingSelectionStore, repos.creative, serveIndex, repos.statsSnapshot,
+        repos.trafficShapeSnapshot, topics.budgetEvent)
       initSiteEntity(system, sharding, categoryRegistry, campaignDirectory, geminiRateLimiter)
     }
 
@@ -310,7 +326,7 @@ object ClusterBootstrap {
         // Entity ID format: "advertiserId|campaignId"
         val (advertiserId, campaignId) = ctx.entityId.split('|') match {
           case Array(advId, campId) => (AdvertiserId(advId), CampaignId(campId))
-          case _ => throw new IllegalArgumentException(s"Invalid CampaignEntity entityId: ${ctx.entityId}")
+          case _                    => throw new IllegalArgumentException(s"Invalid CampaignEntity entityId: ${ctx.entityId}")
         }
         CampaignEntity(
           campaignId,
@@ -455,7 +471,7 @@ object ClusterBootstrap {
         sharding: ClusterSharding,
         categoryRegistry: ActorRef[CategoryRegistry.Command],
         campaignDirectory: ActorRef[CampaignDirectory.Command],
-        geminiRateLimiter: Option[ActorRef[GeminiRateLimiter.Command]],
+        geminiRateLimiter: Option[ActorRef[GeminiRateLimiter.Command]]
     )(using ExecutionContext): Unit = {
       val config = system.settings.config
 
@@ -498,7 +514,7 @@ object ClusterBootstrap {
           categoryRegistry,
           campaignDirectory,
           llmProvider,
-          geminiRateLimiter,
+          geminiRateLimiter
         )(using system)
       }.withEntityProps(DispatcherSelector.fromConfig("entity-dispatcher")))
     }

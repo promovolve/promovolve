@@ -1,49 +1,51 @@
 package promovolve.api
 
 import org.apache.pekko.actor.typed.scaladsl.Behaviors
-import org.apache.pekko.actor.typed.{ActorRef, ActorSystem, Behavior}
+import org.apache.pekko.actor.typed.{ ActorRef, ActorSystem, Behavior }
 import org.apache.pekko.cluster.sharding.typed.scaladsl.ClusterSharding
 import org.apache.pekko.http.scaladsl.Http
 import org.apache.pekko.http.scaladsl.model.*
 import org.apache.pekko.http.scaladsl.model.headers.`User-Agent`
 import org.apache.pekko.http.scaladsl.unmarshalling.Unmarshal
 import org.apache.pekko.util.Timeout
-import promovolve.{CampaignId, CategoryId}
+import promovolve.{ CampaignId, CategoryId }
 import promovolve.advertiser.CampaignEntity
 import promovolve.taxonomy.TieredCategory
 import promovolve.creative.BannerPage
-import promovolve.publisher.{Creative, CreativeRepo, ImageAsset, ImageAssetRepo}
-import promovolve.publisher.assets.{ImageStorage, WebpEncoder}
+import promovolve.publisher.{ Creative, CreativeRepo, ImageAsset, ImageAssetRepo }
+import promovolve.publisher.assets.{ ImageStorage, WebpEncoder }
 import spray.json.*
 import spray.json.DefaultJsonProtocol.*
 
 import java.security.MessageDigest
 import java.time.Instant
-import scala.concurrent.{ExecutionContext, Future}
+import scala.concurrent.{ ExecutionContext, Future }
 import scala.concurrent.duration.*
-import scala.util.{Failure, Success}
+import scala.util.{ Failure, Success }
 
-/** Actor that processes rich creatives after initial save.
-  *
-  * Handles the full pipeline:
-  * 1. Download external images and store via ImageStorage
-  * 2. Render collapsed banner screenshot via Playwright (LPAnalyzer)
-  * 3. Store banner image + update creative record
-  * 4. Run category verification via Gemini
-  *
-  * Runs on its own dispatcher to avoid blocking the serve path.
-  */
+/**
+ * Actor that processes rich creatives after initial save.
+ *
+ * Handles the full pipeline:
+ * 1. Download external images and store via ImageStorage
+ * 2. Render collapsed banner screenshot via Playwright (LPAnalyzer)
+ * 3. Store banner image + update creative record
+ * 4. Run category verification via Gemini
+ *
+ * Runs on its own dispatcher to avoid blocking the serve path.
+ */
 object CreativeProcessor {
 
   sealed trait Command
 
-  /** Process a newly created rich creative.
-    *
-    * When `skipVerify=true` (draft save), the pipeline still imports
-    * images, renders the banner PNG, and stores it in R2 (so drafts
-    * get a real thumbnail in the list), but skips the Gemini category
-    * verification and leaves status as Draft.
-    */
+  /**
+   * Process a newly created rich creative.
+   *
+   * When `skipVerify=true` (draft save), the pipeline still imports
+   * images, renders the banner PNG, and stores it in R2 (so drafts
+   * get a real thumbnail in the list), but skips the Gemini category
+   * verification and leaves status as Draft.
+   */
   case class Process(
       creativeId: String,
       advertiserId: String,
@@ -79,10 +81,12 @@ object CreativeProcessor {
       skipVerify: Boolean
   ) extends Command
 
-  /** Internal: banner rendered and stored. `imageBytes` is whatever
-    * format we ended up storing — WebP when the re-encode succeeds,
-    * PNG when it didn't. `mime` reports which so downstream (Gemini
-    * verify) sends the right Content-Type. */
+  /**
+   * Internal: banner rendered and stored. `imageBytes` is whatever
+   * format we ended up storing — WebP when the re-encode succeeds,
+   * PNG when it didn't. `mime` reports which so downstream (Gemini
+   * verify) sends the right Content-Type.
+   */
   private case class BannerRendered(
       creativeId: String, advertiserId: String, campaignId: String,
       name: String, landingUrl: String, updatedPagesJson: String,
@@ -152,16 +156,16 @@ object CreativeProcessor {
           `User-Agent`("Mozilla/5.0 (compatible; Promovolve/1.0)"),
           org.apache.pekko.http.scaladsl.model.headers.Accept(
             org.apache.pekko.http.scaladsl.model.MediaRange(
-              org.apache.pekko.http.scaladsl.model.MediaTypes.`image/webp`,
+              org.apache.pekko.http.scaladsl.model.MediaTypes.`image/webp`
             ),
             org.apache.pekko.http.scaladsl.model.MediaRange(
-              org.apache.pekko.http.scaladsl.model.MediaTypes.`image/jpeg`,
+              org.apache.pekko.http.scaladsl.model.MediaTypes.`image/jpeg`
             ),
             org.apache.pekko.http.scaladsl.model.MediaRange(
-              org.apache.pekko.http.scaladsl.model.MediaTypes.`image/png`,
+              org.apache.pekko.http.scaladsl.model.MediaTypes.`image/png`
             ),
-            org.apache.pekko.http.scaladsl.model.MediaRanges.`image/*`,
-          ),
+            org.apache.pekko.http.scaladsl.model.MediaRanges.`image/*`
+          )
         )
       )
       httpExt.singleRequest(request).flatMap { response =>
@@ -185,7 +189,7 @@ object CreativeProcessor {
                 // Image already in storage — look up the s3Key, or reconstruct from MIME
                 imageAssetRepo.get(hash).flatMap {
                   case Some(a) => Future.successful(s"$cdnBaseUrl/${a.s3Key}")
-                  case None =>
+                  case None    =>
                     // DB row missing (e.g. after --fresh) but R2 has the file — re-insert
                     val ext = mime match {
                       case "image/jpeg"    => "jpg"
@@ -211,8 +215,10 @@ object CreativeProcessor {
 
     Behaviors.receiveMessage {
       // Step 1: Download external images
-      case Process(creativeId, advertiserId, campaignId, name, landingUrl, pages, originalPagesJson, originalHash, width, height, skipVerify) =>
-        ctx.log.info("CreativeProcessor: starting for creative {} ({}x{}) skipVerify={}", creativeId, width, height, skipVerify)
+      case Process(creativeId, advertiserId, campaignId, name, landingUrl, pages, originalPagesJson, originalHash,
+            width, height, skipVerify) =>
+        ctx.log.info("CreativeProcessor: starting for creative {} ({}x{}) skipVerify={}", creativeId, width, height,
+          skipVerify)
 
         val imgTimeout = 15.seconds
         // Best-effort, TOLERANT: download each image to R2 and rewrite its src,
@@ -242,21 +248,24 @@ object CreativeProcessor {
         ctx.pipeToSelf(downloadF) {
           case Success(results) =>
             results.flatMap(_._2).foreach(msg =>
-              ctx.log.warn("CreativeProcessor: {} kept un-downloadable image (render browser will fetch it): {}", creativeId, msg))
+              ctx.log.warn("CreativeProcessor: {} kept un-downloadable image (render browser will fetch it): {}",
+                creativeId, msg))
             val updatedPages = results.map(_._1)
             val json = updatedPages.map(p =>
               BannerPage(p.tag, p.headline, p.sub, p.body, p.accent, p.bg,
                 p.imgEmoji, p.caption, p.img,
                 p.layout, p.banners, p.designAspect, p.videoBg, p.textureBg)
             ).toJson.compactPrint
-            ImagesDownloaded(creativeId, advertiserId, campaignId, name, landingUrl, updatedPages, json, originalHash, width, height, skipVerify)
+            ImagesDownloaded(creativeId, advertiserId, campaignId, name, landingUrl, updatedPages, json, originalHash,
+              width, height, skipVerify)
           case Failure(e) =>
             StepFailed(creativeId, "image-download", e.getMessage)
         }
         Behaviors.same
 
       // Step 2: Render banner screenshot
-      case ImagesDownloaded(creativeId, advertiserId, campaignId, name, landingUrl, _, updatedPagesJson, originalHash, width, height, skipVerify) =>
+      case ImagesDownloaded(creativeId, advertiserId, campaignId, name, landingUrl, _, updatedPagesJson, originalHash,
+            width, height, skipVerify) =>
         ctx.log.info("CreativeProcessor: images done for {}, rendering banner...", creativeId)
 
         lpAnalyzer match {
@@ -279,7 +288,7 @@ object CreativeProcessor {
                     "webp encode for {} {}x{} png={}B webp={}B ({}% saved)",
                     creativeId, width: java.lang.Integer, height: java.lang.Integer,
                     pngBytes.length: java.lang.Integer, webp.length: java.lang.Integer,
-                    ((1.0 - webp.length.toDouble / pngBytes.length) * 100).toInt: java.lang.Integer,
+                    ((1.0 - webp.length.toDouble / pngBytes.length) * 100).toInt: java.lang.Integer
                   )
                   (webp, "image/webp")
                 case None =>
@@ -290,49 +299,54 @@ object CreativeProcessor {
                 .digest(bytes).map("%02x".format(_)).mkString
               for {
                 key <- imageStorage.store(imgHash, bytes, mime)
-                _   <- imageAssetRepo.put(ImageAsset(imgHash, key, mime, width, height, Instant.now()))
+                _ <- imageAssetRepo.put(ImageAsset(imgHash, key, mime, width, height, Instant.now()))
               } yield (imgHash, key, bytes, mime)
             }
 
             ctx.pipeToSelf(renderF) {
               case Success((hash, key, bytes, mime)) =>
-                BannerRendered(creativeId, advertiserId, campaignId, name, landingUrl, updatedPagesJson, hash, key, bytes, mime, width, height, skipVerify)
+                BannerRendered(creativeId, advertiserId, campaignId, name, landingUrl, updatedPagesJson, hash, key,
+                  bytes, mime, width, height, skipVerify)
               case Failure(e) =>
                 ctx.log.warn("Banner render failed for {}: {}", creativeId, e.getMessage)
-                BannerSkipped(creativeId, advertiserId, campaignId, name, landingUrl, updatedPagesJson, originalHash, width, height, skipVerify)
+                BannerSkipped(creativeId, advertiserId, campaignId, name, landingUrl, updatedPagesJson, originalHash,
+                  width, height, skipVerify)
             }
 
           case None =>
             ctx.log.info("CreativeProcessor: LPAnalyzer not available, skipping banner for {}", creativeId)
-            ctx.self ! BannerSkipped(creativeId, advertiserId, campaignId, name, landingUrl, updatedPagesJson, originalHash, width, height, skipVerify)
+            ctx.self ! BannerSkipped(creativeId, advertiserId, campaignId, name, landingUrl, updatedPagesJson,
+              originalHash, width, height, skipVerify)
         }
         Behaviors.same
 
       // Step 3a: Banner rendered — update creative + run verification
-      case BannerRendered(creativeId, advertiserId, campaignId, name, landingUrl, updatedPagesJson, bannerHash, bannerS3Key, bannerImageBytes, bannerMime, width, height, skipVerify) =>
-        ctx.log.info("CreativeProcessor: banner rendered for {}, s3Key={} mime={} skipVerify={}", creativeId, bannerS3Key, bannerMime, skipVerify)
+      case BannerRendered(creativeId, advertiserId, campaignId, name, landingUrl, updatedPagesJson, bannerHash,
+            bannerS3Key, bannerImageBytes, bannerMime, width, height, skipVerify) =>
+        ctx.log.info("CreativeProcessor: banner rendered for {}, s3Key={} mime={} skipVerify={}", creativeId,
+          bannerS3Key, bannerMime, skipVerify)
 
         // Fetch existing to preserve lp_text_snapshot + Draft status
         // + bannerConfigJson — CreativeProcessor rewrites the row
         // post-render so any field not carried explicitly gets nulled.
         val updateF = creativeRepo.get(creativeId).flatMap { existing =>
           creativeRepo.put(Creative(
-            creativeId       = creativeId,
-            imageHash        = bannerHash,
-            advertiserId     = advertiserId,
-            campaignId       = campaignId,
-            name             = name,
-            landingUrl       = landingUrl,
-            landingDomain    = scala.util.Try(java.net.URI.create(landingUrl).getHost).getOrElse("unknown"),
-            createdAt        = existing.map(_.createdAt).getOrElse(Instant.now()),
-            s3Key            = bannerS3Key,
-            mime             = "application/json+expandable",
-            width            = width,
-            height           = height,
-            pagesJson        = Some(updatedPagesJson),
+            creativeId = creativeId,
+            imageHash = bannerHash,
+            advertiserId = advertiserId,
+            campaignId = campaignId,
+            name = name,
+            landingUrl = landingUrl,
+            landingDomain = scala.util.Try(java.net.URI.create(landingUrl).getHost).getOrElse("unknown"),
+            createdAt = existing.map(_.createdAt).getOrElse(Instant.now()),
+            s3Key = bannerS3Key,
+            mime = "application/json+expandable",
+            width = width,
+            height = height,
+            pagesJson = Some(updatedPagesJson),
             bannerConfigJson = existing.flatMap(_.bannerConfigJson),
-            lpTextSnapshot   = existing.flatMap(_.lpTextSnapshot),
-            status           = existing.map(_.status).getOrElse(promovolve.publisher.CreativeStatus.Active)
+            lpTextSnapshot = existing.flatMap(_.lpTextSnapshot),
+            status = existing.map(_.status).getOrElse(promovolve.publisher.CreativeStatus.Active)
           )).map(_ => existing.flatMap(_.lpTextSnapshot))
         }
 
@@ -370,14 +384,14 @@ object CreativeProcessor {
                     if (designerText.nonEmpty) (client.verifyText(designerText, declaredCat), "designer-text")
                     else lpText match {
                       case Some(text) if text.nonEmpty => (client.verifyText(text, declaredCat), "lp-snapshot")
-                      case _                            => (client.verify(bannerImageBytes, bannerMime, declaredCat), "image")
+                      case _                           => (client.verify(bannerImageBytes, bannerMime, declaredCat), "image")
                     }
                   system.log.info(
                     "CreativeProcessor: {} verifying via {} ({} chars)",
                     creativeId, source,
                     (if (source == "designer-text") designerText.length
                      else if (source == "lp-snapshot") lpText.map(_.length).getOrElse(0)
-                     else bannerImageBytes.length): java.lang.Integer,
+                     else bannerImageBytes.length): java.lang.Integer
                   )
                   verifyF.foreach { result =>
                     creativeRepo.updateVerification(
@@ -385,7 +399,8 @@ object CreativeProcessor {
                       result.adultContent, result.violence, result.hateSpeech,
                       result.safetyScore, result.suggestedContentCategories
                     )
-                    system.log.info("CreativeProcessor: {} verified: {}% match", creativeId, (result.matchConfidence * 100).toInt)
+                    system.log.info("CreativeProcessor: {} verified: {}% match", creativeId,
+                      (result.matchConfidence * 100).toInt)
                     // Auto-derive campaign targeting from the LLM's suggested
                     // content categories. Before the IAB 3.0 migration, target
                     // categories were auto-derived from adProductCategory via
@@ -417,7 +432,8 @@ object CreativeProcessor {
                         CampaignEntity.RefineCategoriesFromCreative(refined, _)
                       )(using Timeout(3.seconds))
                         .recover { case ex =>
-                          system.log.warn("CreativeProcessor: refine categories failed for {}: {}", creativeId, ex.getMessage)
+                          system.log.warn("CreativeProcessor: refine categories failed for {}: {}", creativeId,
+                            ex.getMessage)
                           CampaignEntity.CategoriesRefined(CampaignId(campaignId))
                         }
                     } else {
@@ -435,7 +451,7 @@ object CreativeProcessor {
                         creativeId,
                         rawIds.mkString(","),
                         specificIds.mkString(","),
-                        campaignId,
+                        campaignId
                       )
                     }
                   }
@@ -446,26 +462,27 @@ object CreativeProcessor {
         Behaviors.same
 
       // Step 3b: Banner skipped — still update creative with stored images
-      case BannerSkipped(creativeId, advertiserId, campaignId, name, landingUrl, updatedPagesJson, originalHash, width, height, _) =>
+      case BannerSkipped(creativeId, advertiserId, campaignId, name, landingUrl, updatedPagesJson, originalHash, width,
+            height, _) =>
         ctx.log.info("CreativeProcessor: updating creative {} (no banner)", creativeId)
         creativeRepo.get(creativeId).foreach { existing =>
           creativeRepo.put(Creative(
-            creativeId       = creativeId,
-            imageHash        = originalHash,
-            advertiserId     = advertiserId,
-            campaignId       = campaignId,
-            name             = name,
-            landingUrl       = landingUrl,
-            landingDomain    = scala.util.Try(java.net.URI.create(landingUrl).getHost).getOrElse("unknown"),
-            createdAt        = existing.map(_.createdAt).getOrElse(Instant.now()),
-            s3Key            = "",
-            mime             = "application/json+expandable",
-            width            = width,
-            height           = height,
-            pagesJson        = Some(updatedPagesJson),
+            creativeId = creativeId,
+            imageHash = originalHash,
+            advertiserId = advertiserId,
+            campaignId = campaignId,
+            name = name,
+            landingUrl = landingUrl,
+            landingDomain = scala.util.Try(java.net.URI.create(landingUrl).getHost).getOrElse("unknown"),
+            createdAt = existing.map(_.createdAt).getOrElse(Instant.now()),
+            s3Key = "",
+            mime = "application/json+expandable",
+            width = width,
+            height = height,
+            pagesJson = Some(updatedPagesJson),
             bannerConfigJson = existing.flatMap(_.bannerConfigJson),
-            lpTextSnapshot   = existing.flatMap(_.lpTextSnapshot),
-            status           = existing.map(_.status).getOrElse(promovolve.publisher.CreativeStatus.Active)
+            lpTextSnapshot = existing.flatMap(_.lpTextSnapshot),
+            status = existing.map(_.status).getOrElse(promovolve.publisher.CreativeStatus.Active)
           ))
         }
         Behaviors.same
@@ -474,7 +491,7 @@ object CreativeProcessor {
         ctx.log.info("CreativeProcessor: scanning for creatives pending banner render...")
         ctx.pipeToSelf(creativeRepo.getPendingRender()) {
           case Success(creatives) => PendingFound(creatives)
-          case Failure(e) =>
+          case Failure(e)         =>
             ctx.log.warn("CreativeProcessor: scan failed: {}", e.getMessage)
             PendingFound(Vector.empty)
         }
@@ -494,11 +511,12 @@ object CreativeProcessor {
                   campaignId = c.campaignId,
                   name = c.name,
                   landingUrl = c.landingUrl,
-                  pages = pages.map(p => PageData(
-                    p.tag, p.headline, p.sub, p.body, p.accent, p.bg,
-                    p.imgEmoji, p.caption, p.img,
-                    p.layout, p.banners, p.designAspect, p.videoBg, p.textureBg
-                  )),
+                  pages = pages.map(p =>
+                    PageData(
+                      p.tag, p.headline, p.sub, p.body, p.accent, p.bg,
+                      p.imgEmoji, p.caption, p.img,
+                      p.layout, p.banners, p.designAspect, p.videoBg, p.textureBg
+                    )),
                   originalPagesJson = json,
                   originalHash = c.imageHash,
                   width = c.width,
@@ -522,16 +540,17 @@ object CreativeProcessor {
     }
   }
 
-  /** Extract the user-authored text from a serialised pages JSON array
-    * for feeding into the Gemini category-verify call. Joins every
-    * page's headline + sub + body + caption + tag + ctaLabel into a
-    * single space-separated string. Returns "" if the JSON doesn't
-    * parse — caller should fall back to lpTextSnapshot in that case.
-    *
-    * This is the bridge between the Designer's audience-signal chip
-    * and the server's category classifier: whatever words the
-    * advertiser adds in the Designer reach Gemini through this path.
-    */
+  /**
+   * Extract the user-authored text from a serialised pages JSON array
+   * for feeding into the Gemini category-verify call. Joins every
+   * page's headline + sub + body + caption + tag + ctaLabel into a
+   * single space-separated string. Returns "" if the JSON doesn't
+   * parse — caller should fall back to lpTextSnapshot in that case.
+   *
+   * This is the bridge between the Designer's audience-signal chip
+   * and the server's category classifier: whatever words the
+   * advertiser adds in the Designer reach Gemini through this path.
+   */
   private[api] def textFromPagesJson(pagesJson: String): String = {
     import spray.json.*
     val textFields = Vector("headline", "sub", "body", "caption", "tag", "ctaLabel")
@@ -543,7 +562,7 @@ object CreativeProcessor {
               textFields.flatMap { k =>
                 obj.fields.get(k) match {
                   case Some(JsString(s)) if s.trim.nonEmpty => Some(s.trim)
-                  case _                                     => None
+                  case _                                    => None
                 }
               }
             case _ => Vector.empty
@@ -553,18 +572,20 @@ object CreativeProcessor {
     }.getOrElse("")
   }
 
-  /** Concatenated content text the creative renders — headline/sub/body/tag/
-    * caption across all pages, PLUS every text item's baked `text` override in
-    * page.layout and every banner bucket. A size-specific text edit renders
-    * characters the page fields don't contain; without collecting them the
-    * CJK subset misses those glyphs and the browser falls back PER-GLYPH —
-    * mixed typefaces mid-sentence. Fed to the CJK font provisioner as the
-    * `text=` subset and keyed by GoogleFontCatalog.subsetKey. MUST mirror the
-    * banner's collectSubsetText (banner/font-catalog.ts) — same page fields
-    * AND item texts (order is irrelevant: subsetKey canonicalizes to the
-    * sorted unique code-point set) — or the server-stored CJK woff2 and the
-    * banner's derived URL won't agree (the banner then 404s and falls back to
-    * the system font). Best-effort. */
+  /**
+   * Concatenated content text the creative renders — headline/sub/body/tag/
+   * caption across all pages, PLUS every text item's baked `text` override in
+   * page.layout and every banner bucket. A size-specific text edit renders
+   * characters the page fields don't contain; without collecting them the
+   * CJK subset misses those glyphs and the browser falls back PER-GLYPH —
+   * mixed typefaces mid-sentence. Fed to the CJK font provisioner as the
+   * `text=` subset and keyed by GoogleFontCatalog.subsetKey. MUST mirror the
+   * banner's collectSubsetText (banner/font-catalog.ts) — same page fields
+   * AND item texts (order is irrelevant: subsetKey canonicalizes to the
+   * sorted unique code-point set) — or the server-stored CJK woff2 and the
+   * banner's derived URL won't agree (the banner then 404s and falls back to
+   * the system font). Best-effort.
+   */
   private[api] def subsetTextFromPagesJson(pagesJson: String): String = {
     import spray.json.*
     val fields = Vector("headline", "sub", "body", "tag", "caption")
@@ -584,7 +605,7 @@ object CreativeProcessor {
         case JsArray(pages) =>
           pages.flatMap { page =>
             val f = page.asJsObject.fields
-            val pageFields  = fields.flatMap(k => f.get(k).collect { case JsString(s) => s })
+            val pageFields = fields.flatMap(k => f.get(k).collect { case JsString(s) => s })
             val layoutTexts = f.get("layout").toVector.flatMap(itemTexts)
             val bannerTexts = f.get("banners") match {
               case Some(b: JsObject) => b.fields.values.toVector.flatMap(itemTexts)
@@ -597,25 +618,29 @@ object CreativeProcessor {
     }.getOrElse("")
   }
 
-  /** Distinct font-family stacks referenced by text items across page.layout
-    * AND every per-size banner bucket. The banner self-hosts a font used by
-    * ANY bucket (banner/font-catalog.ts collectExpandedFonts scans them all),
-    * so the provisioner MUST too — otherwise a family/weight that appears only
-    * in a collapsed IAB size (e.g. a bold tag/CTA) is never fetched and the
-    * banner 404s for it. Fed to the provisioner at publish so allow-listed
-    * Google fonts get self-hosted. Best-effort: a parse failure → empty set. */
-  /** Distinct (font-family stack, CSS font-weight) pairs used by text items.
-    * The weight lets the provisioner fetch the exact face (e.g. Montserrat
-    * Thin = 100) instead of the family's default 400. */
+  /**
+   * Distinct font-family stacks referenced by text items across page.layout
+   * AND every per-size banner bucket. The banner self-hosts a font used by
+   * ANY bucket (banner/font-catalog.ts collectExpandedFonts scans them all),
+   * so the provisioner MUST too — otherwise a family/weight that appears only
+   * in a collapsed IAB size (e.g. a bold tag/CTA) is never fetched and the
+   * banner 404s for it. Fed to the provisioner at publish so allow-listed
+   * Google fonts get self-hosted. Best-effort: a parse failure → empty set.
+   */
+  /**
+   * Distinct (font-family stack, CSS font-weight) pairs used by text items.
+   * The weight lets the provisioner fetch the exact face (e.g. Montserrat
+   * Thin = 100) instead of the family's default 400.
+   */
   private[api] def fontsFromPagesJson(pagesJson: String): Set[(String, Option[Int])] = {
     import spray.json.*
     def weightOf(v: Option[JsValue]): Option[Int] = v.flatMap {
       case JsNumber(n) => Some(n.toInt)
       case JsString(s) => s.trim.toLowerCase match {
-        case "bold"   => Some(700)
-        case "normal" => Some(400)
-        case w        => w.toIntOption
-      }
+          case "bold"   => Some(700)
+          case "normal" => Some(400)
+          case w        => w.toIntOption
+        }
       case _ => None
     }.filter(w => w >= 100 && w <= 900 && w % 100 == 0)
     scala.util.Try {
@@ -623,10 +648,11 @@ object CreativeProcessor {
         case JsArray(pages) =>
           pages.flatMap { page =>
             val obj = page.asJsObject
-            val groups = Vector(obj.fields.get("layout")) ++ (obj.fields.get("banners") match {
-              case Some(b: JsObject) => b.fields.values.map(Some(_)).toVector
-              case _                 => Vector.empty
-            })
+            val groups = Vector(obj.fields.get("layout")) ++
+              (obj.fields.get("banners") match {
+                case Some(b: JsObject) => b.fields.values.map(Some(_)).toVector
+                case _                 => Vector.empty
+              })
             groups.flatten.flatMap {
               case JsArray(items) =>
                 items.flatMap { item =>

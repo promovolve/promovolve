@@ -1,19 +1,20 @@
 package promovolve.taxonomy
 
 import org.apache.pekko.actor.typed.scaladsl.Behaviors
-import org.apache.pekko.actor.typed.{ActorRef, Behavior}
-import org.apache.pekko.cluster.ddata.typed.scaladsl.{DistributedData, Replicator}
-import org.apache.pekko.cluster.ddata.{ORMap, ORMapKey, ORSet, SelfUniqueAddress}
+import org.apache.pekko.actor.typed.{ ActorRef, Behavior }
+import org.apache.pekko.cluster.ddata.typed.scaladsl.{ DistributedData, Replicator }
+import org.apache.pekko.cluster.ddata.{ ORMap, ORMapKey, ORSet, SelfUniqueAddress }
 
-/** Lightweight DData registry tracking which (contentCategory, adProductCategory) pairs exist.
-  *
-  * Used for discovery at auction time: "For content category X, which ad product categories
-  * have ever had impressions?" The AffinityExpander then queries ContentProductAffinityEntity
-  * for scores on those pairs.
-  *
-  * Uses ORMap[String, ORSet[String]] replicated via gossip. Writes are local (fast),
-  * reads are local (instant). Eventually consistent across the cluster.
-  */
+/**
+ * Lightweight DData registry tracking which (contentCategory, adProductCategory) pairs exist.
+ *
+ * Used for discovery at auction time: "For content category X, which ad product categories
+ * have ever had impressions?" The AffinityExpander then queries ContentProductAffinityEntity
+ * for scores on those pairs.
+ *
+ * Uses ORMap[String, ORSet[String]] replicated via gossip. Writes are local (fast),
+ * reads are local (instant). Eventually consistent across the cluster.
+ */
 object AffinityRegistryDData {
 
   private val DataKey = ORMapKey[String, ORSet[String]]("affinity-registry")
@@ -38,20 +39,20 @@ object AffinityRegistryDData {
     given node: SelfUniqueAddress = DistributedData(ctx.system).selfUniqueAddress
 
     DistributedData.withReplicatorMessageAdapter[Cmd, ORMap[String, ORSet[String]]] { adapter =>
-
       Behaviors.receiveMessage {
         case Register(contentCategory, adProductCategory) =>
           adapter.askUpdate(
-            askRef => Replicator.Update(
-              DataKey,
-              ORMap.empty[String, ORSet[String]],
-              Replicator.WriteLocal,
-              askRef
-            ) { existing =>
-              existing.updated(node, contentCategory, ORSet.empty[String]) { set =>
-                set :+ adProductCategory
-              }
-            },
+            askRef =>
+              Replicator.Update(
+                DataKey,
+                ORMap.empty[String, ORSet[String]],
+                Replicator.WriteLocal,
+                askRef
+              ) { existing =>
+                existing.updated(node, contentCategory, ORSet.empty[String]) { set =>
+                  set :+ adProductCategory
+                }
+              },
             rsp => UpdateResult(rsp)
           )
           Behaviors.same
@@ -83,7 +84,7 @@ object AffinityRegistryDData {
         case UpdateResult(rsp) =>
           rsp match {
             case _: Replicator.UpdateSuccess[?] => // ok
-            case other => ctx.log.warn("AffinityRegistry update failed: {}", other)
+            case other                          => ctx.log.warn("AffinityRegistry update failed: {}", other)
           }
           Behaviors.same
       }

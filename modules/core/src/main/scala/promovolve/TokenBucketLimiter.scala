@@ -1,11 +1,11 @@
 package promovolve
 
-import org.apache.pekko.actor.typed.{ActorRef, ActorSystem, Behavior, SupervisorStrategy}
-import org.apache.pekko.actor.typed.scaladsl.{AskPattern, Behaviors}
-import org.apache.pekko.cluster.typed.{ClusterSingleton, ClusterSingletonSettings, SingletonActor}
+import org.apache.pekko.actor.typed.{ ActorRef, ActorSystem, Behavior, SupervisorStrategy }
+import org.apache.pekko.actor.typed.scaladsl.{ AskPattern, Behaviors }
+import org.apache.pekko.cluster.typed.{ ClusterSingleton, ClusterSingletonSettings, SingletonActor }
 import org.apache.pekko.persistence.typed.PersistenceId
 import org.apache.pekko.persistence.typed.state.RecoveryCompleted
-import org.apache.pekko.persistence.typed.state.scaladsl.{DurableStateBehavior, Effect}
+import org.apache.pekko.persistence.typed.state.scaladsl.{ DurableStateBehavior, Effect }
 import org.apache.pekko.util.Timeout
 import org.slf4j.LoggerFactory
 
@@ -13,36 +13,37 @@ import scala.collection.mutable
 import scala.concurrent.Future
 import scala.concurrent.duration.*
 
-/** Cluster-wide token-bucket rate limiter built as a Pekko cluster
-  * singleton. One actor owns the bucket; every node sends `Acquire`
-  * to the same logical address; Pekko routes it to whichever node
-  * holds the singleton at the moment. The actor's single-threaded
-  * message loop means token math has no races.
-  *
-  * See `TokenBucketLimiter.md` for sequence diagrams covering the
-  * fast path, the queue+Drain path, and the mixed-queue case the
-  * `drainGranting` helper was written to handle.
-  *
-  * Persistence model: durable state is `(tokens, updatedAtMillis)`.
-  * Refill is computed lazily from elapsed time on every command, so
-  * the actor doesn't have to wake up on a fixed schedule just to
-  * advance the bucket. An idle bucket therefore never writes to the
-  * journal — the first command after a quiet period reconstructs the
-  * correct count from the persisted timestamp.
-  *
-  * The waiter queue is in-memory by design. On failover any pending
-  * ask future times out and the caller's normal retry path takes
-  * over. Persisting waiter refs would buy nothing because reply refs
-  * only complete the Future on the actor system that issued the ask.
-  *
-  * All externally observable side effects (replies, queue mutation,
-  * timer scheduling, logs about what was done) happen inside
-  * `.thenRun`, so a persist failure cannot leak a reply that the
-  * recovered state then contradicts.
-  *
-  * For Gemini-specific defaults see [[GeminiRateLimiter]] which is a
-  * thin wrapper supplying the env-var-driven Settings + persistenceId.
-  */
+/**
+ * Cluster-wide token-bucket rate limiter built as a Pekko cluster
+ * singleton. One actor owns the bucket; every node sends `Acquire`
+ * to the same logical address; Pekko routes it to whichever node
+ * holds the singleton at the moment. The actor's single-threaded
+ * message loop means token math has no races.
+ *
+ * See `TokenBucketLimiter.md` for sequence diagrams covering the
+ * fast path, the queue+Drain path, and the mixed-queue case the
+ * `drainGranting` helper was written to handle.
+ *
+ * Persistence model: durable state is `(tokens, updatedAtMillis)`.
+ * Refill is computed lazily from elapsed time on every command, so
+ * the actor doesn't have to wake up on a fixed schedule just to
+ * advance the bucket. An idle bucket therefore never writes to the
+ * journal — the first command after a quiet period reconstructs the
+ * correct count from the persisted timestamp.
+ *
+ * The waiter queue is in-memory by design. On failover any pending
+ * ask future times out and the caller's normal retry path takes
+ * over. Persisting waiter refs would buy nothing because reply refs
+ * only complete the Future on the actor system that issued the ask.
+ *
+ * All externally observable side effects (replies, queue mutation,
+ * timer scheduling, logs about what was done) happen inside
+ * `.thenRun`, so a persist failure cannot leak a reply that the
+ * recovered state then contradicts.
+ *
+ * For Gemini-specific defaults see [[GeminiRateLimiter]] which is a
+ * thin wrapper supplying the env-var-driven Settings + persistenceId.
+ */
 object TokenBucketLimiter {
 
   // -- Protocol --
@@ -54,7 +55,7 @@ object TokenBucketLimiter {
   // API rather than building this directly.
   private[promovolve] final case class Acquire(
       replyTo: ActorRef[Permit],
-      expiresAtMillis: Long,
+      expiresAtMillis: Long
   ) extends Command
   // Internal timer: drain as many live waiters as currently-available
   // tokens permit. Self-scheduled while the queue is non-empty.
@@ -77,10 +78,10 @@ object TokenBucketLimiter {
   /** Reply for [[acquire]]. */
   sealed trait Permit extends CborSerializable
   object Permit {
-    case object Granted   extends Permit
+    case object Granted extends Permit
     case object QueueFull extends Permit
-    case object Expired   extends Permit
-    case object Stopping  extends Permit
+    case object Expired extends Permit
+    case object Stopping extends Permit
   }
 
   // -- Persistent State --
@@ -90,33 +91,34 @@ object TokenBucketLimiter {
   // (grant, drain, clamp) actually persist.
   final case class State(
       tokens: Double,
-      updatedAtMillis: Long,
+      updatedAtMillis: Long
   ) extends CborSerializable
 
   private final case class Waiter(
       replyTo: ActorRef[Permit],
-      expiresAtMillis: Long,
+      expiresAtMillis: Long
   )
 
   // -- Settings --
 
-  /** @param persistenceId    Durable-state journal key. Pick something
-    *                         stable per logical limiter so the token
-    *                         count survives restart.
-    * @param singletonName    Cluster-singleton name. Usually matches
-    *                         persistenceId.
-    * @param maxTokens        Burst cap — the most tokens the bucket
-    *                         can hold at once.
-    * @param tokensPerSecond  Drip rate. The average sustained throughput.
-    * @param maxQueueSize     Backpressure cap on the in-memory waiter
-    *                         queue. New acquires past this get
-    *                         [[Permit.QueueFull]].
-    * @param askTimeout       Default ask timeout for [[acquire]] /
-    *                         [[acquireOrFail]] when the caller does
-    *                         not supply one.
-    * @param singletonRole    Cluster role that hosts the singleton.
-    *                         `None` allows any node.
-    */
+  /**
+   * @param persistenceId    Durable-state journal key. Pick something
+   *                         stable per logical limiter so the token
+   *                         count survives restart.
+   * @param singletonName    Cluster-singleton name. Usually matches
+   *                         persistenceId.
+   * @param maxTokens        Burst cap — the most tokens the bucket
+   *                         can hold at once.
+   * @param tokensPerSecond  Drip rate. The average sustained throughput.
+   * @param maxQueueSize     Backpressure cap on the in-memory waiter
+   *                         queue. New acquires past this get
+   *                         [[Permit.QueueFull]].
+   * @param askTimeout       Default ask timeout for [[acquire]] /
+   *                         [[acquireOrFail]] when the caller does
+   *                         not supply one.
+   * @param singletonRole    Cluster role that hosts the singleton.
+   *                         `None` allows any node.
+   */
   final case class Settings(
       persistenceId: String,
       singletonName: String,
@@ -124,7 +126,7 @@ object TokenBucketLimiter {
       tokensPerSecond: Double,
       maxQueueSize: Int = 10_000,
       askTimeout: FiniteDuration = 30.seconds,
-      singletonRole: Option[String] = Some("singleton"),
+      singletonRole: Option[String] = Some("singleton")
   )
 
   // -- Behavior --
@@ -164,10 +166,10 @@ object TokenBucketLimiter {
           else state.copy(tokens = capped)
         } else {
           val elapsedSeconds = (now - state.updatedAtMillis).toDouble / 1000.0
-          val refilled       = capped + elapsedSeconds * settings.tokensPerSecond
+          val refilled = capped + elapsedSeconds * settings.tokensPerSecond
           state.copy(
-            tokens          = math.min(refilled, settings.maxTokens.toDouble),
-            updatedAtMillis = now,
+            tokens = math.min(refilled, settings.maxTokens.toDouble),
+            updatedAtMillis = now
           )
         }
       }
@@ -177,16 +179,15 @@ object TokenBucketLimiter {
         if (refilled.tokens >= 1.0) 0L
         else {
           val missing = 1.0 - refilled.tokens
-          val millis  = math.ceil((missing / settings.tokensPerSecond) * 1000.0).toLong
+          val millis = math.ceil((missing / settings.tokensPerSecond) * 1000.0).toLong
           math.max(1L, millis)
         }
       }
 
       Behaviors.withTimers { timers =>
-
         def scheduleNextDrain(state: State): Unit =
           if (waiting.nonEmpty) {
-            val now   = nowMillis()
+            val now = nowMillis()
             val delay = millisUntilNextToken(state, now).millis
             // startSingleTimer replaces any prior Drain — only one
             // outstanding wake-up is needed at a time. Re-arming with
@@ -215,8 +216,8 @@ object TokenBucketLimiter {
         // expired one. The full-queue walk below preserves FIFO order
         // among live waiters and never grants an expired one.
         def drainGranting(now: Long, grantCount: Int): (Int, Int) = {
-          var granted   = 0
-          var expired   = 0
+          var granted = 0
+          var expired = 0
           val survivors = mutable.Queue.empty[Waiter]
           while (waiting.nonEmpty) {
             val w = waiting.dequeue()
@@ -237,7 +238,7 @@ object TokenBucketLimiter {
         def commandHandler(state: State, cmd: Command): Effect[State] = cmd match {
 
           case Acquire(replyTo, expiresAtMillis) =>
-            val now      = nowMillis()
+            val now = nowMillis()
             val refilled = refill(state, now)
 
             if (expiresAtMillis <= now) {
@@ -254,7 +255,7 @@ object TokenBucketLimiter {
                 log.warn(
                   "Token bucket queue full: size={}, maxQueueSize={}",
                   waiting.size,
-                  settings.maxQueueSize,
+                  settings.maxQueueSize
                 )
                 replyTo ! Permit.QueueFull
               }
@@ -270,20 +271,20 @@ object TokenBucketLimiter {
                 log.debug(
                   "Queued request: waiting={}, tokens={}",
                   waiting.size,
-                  f"${refilled.tokens}%.3f",
+                  f"${refilled.tokens}%.3f"
                 )
                 scheduleNextDrain(refilled)
               }
             }
 
           case Drain =>
-            val now       = nowMillis()
-            val refilled  = refill(state, now)
+            val now = nowMillis()
+            val refilled = refill(state, now)
             // Count *live* waiters across the whole queue, not just the
             // prefix — interleaved expired waiters mustn't inflate this.
             val liveCount = waiting.count(_.expiresAtMillis > now)
             val available = math.floor(refilled.tokens).toInt
-            val toGrant   = math.min(available, liveCount)
+            val toGrant = math.min(available, liveCount)
 
             if (toGrant > 0) {
               val next = refilled.copy(tokens = refilled.tokens - toGrant.toDouble)
@@ -296,14 +297,14 @@ object TokenBucketLimiter {
                 // draining, and the persisted decrement is now wrong.
                 assert(
                   granted == toGrant,
-                  s"drainGranting granted $granted of intended $toGrant",
+                  s"drainGranting granted $granted of intended $toGrant"
                 )
                 if (granted > 0 || expired > 0 || waiting.nonEmpty)
                   log.debug(
                     "Drained: granted={}, expired={}, still queued={}",
                     granted,
                     expired,
-                    waiting.size,
+                    waiting.size
                   )
                 scheduleNextDrain(next)
               }
@@ -317,7 +318,7 @@ object TokenBucketLimiter {
                   log.debug(
                     "Drain sweep: expired={}, still queued={}",
                     expired,
-                    waiting.size,
+                    waiting.size
                   )
                 scheduleNextDrain(refilled)
               }
@@ -326,8 +327,8 @@ object TokenBucketLimiter {
             }
 
           case ClampToCap(cap) =>
-            val now           = nowMillis()
-            val refilled      = refill(state, now)
+            val now = nowMillis()
+            val refilled = refill(state, now)
             val clampedTokens = math.min(refilled.tokens, cap.toDouble)
 
             if (clampedTokens == state.tokens) {
@@ -340,7 +341,7 @@ object TokenBucketLimiter {
                 log.info(
                   "Clamped tokens {} -> {} after cap shrink",
                   f"${state.tokens}%.3f",
-                  f"$clampedTokens%.3f",
+                  f"$clampedTokens%.3f"
                 )
               }
             }
@@ -363,7 +364,7 @@ object TokenBucketLimiter {
           f"${settings.tokensPerSecond}%.3f",
           f"${settings.tokensPerSecond * 60}%.0f",
           settings.maxQueueSize,
-          settings.askTimeout,
+          settings.askTimeout
         )
 
         DurableStateBehavior[Command, State](
@@ -372,20 +373,20 @@ object TokenBucketLimiter {
           // whatever was persisted; lazy refill catches up from
           // updatedAtMillis on the first command.
           emptyState = State(
-            tokens          = settings.maxTokens.toDouble,
-            updatedAtMillis = initialNow,
+            tokens = settings.maxTokens.toDouble,
+            updatedAtMillis = initialNow
           ),
-          commandHandler = commandHandler,
+          commandHandler = commandHandler
         ).receiveSignal {
           case (state, RecoveryCompleted) =>
-            val now       = nowMillis()
+            val now = nowMillis()
             val recovered = refill(state, now)
             log.info(
               "Recovered: {}/{} tokens, updatedAtMillis={}, rate={} tokens/s",
               f"${recovered.tokens}%.3f",
               settings.maxTokens,
               recovered.updatedAtMillis,
-              f"${settings.tokensPerSecond}%.3f",
+              f"${settings.tokensPerSecond}%.3f"
             )
             // Compare against the *raw* persisted count, not the
             // post-refill view: refill caps to maxTokens on read, so
@@ -402,7 +403,7 @@ object TokenBucketLimiter {
 
   def singletonInit(
       system: ActorSystem[?],
-      settings: Settings,
+      settings: Settings
   ): ActorRef[Command] = {
     val baseSettings = ClusterSingletonSettings(system)
     val singletonSettings = settings.singletonRole match {
@@ -414,7 +415,7 @@ object TokenBucketLimiter {
         Behaviors
           .supervise(TokenBucketLimiter(settings))
           .onFailure[Exception](SupervisorStrategy.restart),
-        settings.singletonName,
+        settings.singletonName
       ).withStopMessage(Stop)
         .withSettings(singletonSettings)
     )
@@ -422,19 +423,20 @@ object TokenBucketLimiter {
 
   // -- Client API --
 
-  /** Acquire a token. Completes with [[Permit.Granted]] once the
-    * caller may proceed, or one of the denied variants when the
-    * limiter refuses (queue full, deadline passed, shutting down).
-    * Fails with `AskTimeoutException` after the ask timeout when the
-    * singleton is unreachable.
-    *
-    * `timeout` controls both the ask deadline and the actor-side
-    * expiry stamped on the request, so a queued caller whose Future
-    * has already timed out client-side won't get served by Drain.
-    */
+  /**
+   * Acquire a token. Completes with [[Permit.Granted]] once the
+   * caller may proceed, or one of the denied variants when the
+   * limiter refuses (queue full, deadline passed, shutting down).
+   * Fails with `AskTimeoutException` after the ask timeout when the
+   * singleton is unreachable.
+   *
+   * `timeout` controls both the ask deadline and the actor-side
+   * expiry stamped on the request, so a queued caller whose Future
+   * has already timed out client-side won't get served by Drain.
+   */
   def acquire(
       limiter: ActorRef[Command],
-      timeout: FiniteDuration,
+      timeout: FiniteDuration
   )(using system: ActorSystem[?]): Future[Permit] = {
     given Timeout = Timeout(timeout)
     import AskPattern.*
@@ -442,26 +444,30 @@ object TokenBucketLimiter {
     limiter.ask[Permit](replyTo => Acquire(replyTo, expiresAtMillis))
   }
 
-  /** Acquire a token using the limiter's configured `askTimeout`.
-    * Prefer this overload in production — keeping the timeout on the
-    * Settings record means there's a single source of truth for the
-    * acquire deadline (instead of an independent default tucked into
-    * the API surface that drifts from what the limiter was configured
-    * for). */
+  /**
+   * Acquire a token using the limiter's configured `askTimeout`.
+   * Prefer this overload in production — keeping the timeout on the
+   * Settings record means there's a single source of truth for the
+   * acquire deadline (instead of an independent default tucked into
+   * the API surface that drifts from what the limiter was configured
+   * for).
+   */
   def acquire(
       limiter: ActorRef[Command],
-      settings: Settings,
+      settings: Settings
   )(using system: ActorSystem[?]): Future[Permit] =
     acquire(limiter, settings.askTimeout)
 
-  /** Convenience: acquire a token and return a unit Future that
-    * fails with a [[LimiterDenied]] subtype when the limiter
-    * declined. Callers that don't need to distinguish denial reasons
-    * can use this and let their normal failure path handle all four
-    * outcomes (timeout, queue full, expired, stopping). */
+  /**
+   * Convenience: acquire a token and return a unit Future that
+   * fails with a [[LimiterDenied]] subtype when the limiter
+   * declined. Callers that don't need to distinguish denial reasons
+   * can use this and let their normal failure path handle all four
+   * outcomes (timeout, queue full, expired, stopping).
+   */
   def acquireOrFail(
       limiter: ActorRef[Command],
-      timeout: FiniteDuration,
+      timeout: FiniteDuration
   )(using system: ActorSystem[?]): Future[Unit] = {
     given scala.concurrent.ExecutionContext = system.executionContext
     acquire(limiter, timeout).flatMap {
@@ -475,14 +481,14 @@ object TokenBucketLimiter {
   /** [[acquireOrFail]] using the limiter's configured `askTimeout`. */
   def acquireOrFail(
       limiter: ActorRef[Command],
-      settings: Settings,
+      settings: Settings
   )(using system: ActorSystem[?]): Future[Unit] =
     acquireOrFail(limiter, settings.askTimeout)
 
   sealed abstract class LimiterDenied(msg: String)
       extends RuntimeException(msg)
       with scala.util.control.NoStackTrace
-  case object LimiterQueueFull       extends LimiterDenied("rate limiter queue full")
-  case object LimiterAcquireExpired  extends LimiterDenied("rate limiter acquire expired")
-  case object LimiterStopping        extends LimiterDenied("rate limiter stopping")
+  case object LimiterQueueFull extends LimiterDenied("rate limiter queue full")
+  case object LimiterAcquireExpired extends LimiterDenied("rate limiter acquire expired")
+  case object LimiterStopping extends LimiterDenied("rate limiter stopping")
 }

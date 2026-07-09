@@ -2,28 +2,29 @@ package promovolve.publisher.delivery
 
 import org.scalatest.concurrent.ScalaFutures
 import org.scalatest.matchers.should.Matchers
-import org.scalatest.time.{Millis, Seconds, Span}
+import org.scalatest.time.{ Millis, Seconds, Span }
 import org.scalatest.wordspec.AnyWordSpec
-import promovolve.{AdvertiserId, CampaignId, CategoryId, CPM, CreativeId, SlotId}
-import promovolve.publisher.{CandidateView, CDNPath, MimeType}
+import promovolve.{ AdvertiserId, CPM, CampaignId, CategoryId, CreativeId, SlotId }
+import promovolve.publisher.{ CDNPath, CandidateView, MimeType }
 
-import scala.concurrent.{ExecutionContext, Future}
+import scala.concurrent.{ ExecutionContext, Future }
 
-/** Pure-function tests for AdServer.batchReserveWithRetry — the
-  * greedy assignment + per-slot retry loop that kicks in when a
-  * winner's TryReserve fails. The reservation primitive is injected
-  * as a function parameter, so tests wire in mocks returning
-  * deterministic success/failure patterns without needing an actor
-  * system or real CampaignEntity / AdvertiserEntity.
-  */
+/**
+ * Pure-function tests for AdServer.batchReserveWithRetry — the
+ * greedy assignment + per-slot retry loop that kicks in when a
+ * winner's TryReserve fails. The reservation primitive is injected
+ * as a function parameter, so tests wire in mocks returning
+ * deterministic success/failure patterns without needing an actor
+ * system or real CampaignEntity / AdvertiserEntity.
+ */
 class AdServerBatchRetrySpec extends AnyWordSpec with Matchers with ScalaFutures {
 
   import promovolve.publisher.delivery.Protocol.*
 
   given ExecutionContext = ExecutionContext.global
   given PatienceConfig = PatienceConfig(
-    timeout  = Span(5, Seconds),
-    interval = Span(50, Millis),
+    timeout = Span(5, Seconds),
+    interval = Span(50, Millis)
   )
 
   // ─── Test helpers ─────────────────────────────────────────────
@@ -34,19 +35,19 @@ class AdServerBatchRetrySpec extends AnyWordSpec with Matchers with ScalaFutures
       w: Int,
       h: Int,
       cpm: Double,
-      categoryScore: Double = 0.5,
+      categoryScore: Double = 0.5
   ): CandidateView = CandidateView(
-    creativeId     = CreativeId(cid),
-    campaignId     = CampaignId(campaign),
-    advertiserId   = AdvertiserId(s"adv-$campaign"),
-    assetUrl       = CDNPath(s"/assets/$cid.png"),
-    mime           = MimeType.imagePng,
-    width          = w,
-    height         = h,
-    category       = CategoryId("cat-test"),
-    cpm            = CPM(cpm),
+    creativeId = CreativeId(cid),
+    campaignId = CampaignId(campaign),
+    advertiserId = AdvertiserId(s"adv-$campaign"),
+    assetUrl = CDNPath(s"/assets/$cid.png"),
+    mime = MimeType.imagePng,
+    width = w,
+    height = h,
+    category = CategoryId("cat-test"),
+    cpm = CPM(cpm),
     classifiedAtMs = 0L,
-    categoryScore  = categoryScore,
+    categoryScore = categoryScore
   )
 
   private def slot(id: String, w: Int, h: Int): BatchSlotSpec =
@@ -54,24 +55,29 @@ class AdServerBatchRetrySpec extends AnyWordSpec with Matchers with ScalaFutures
 
   private def seedRng(): scala.util.Random = new scala.util.Random(42L)
 
-  /** A reservation mock. Pass a predicate that takes the candidate
-    * and returns whether the reservation succeeds. */
+  /**
+   * A reservation mock. Pass a predicate that takes the candidate
+   * and returns whether the reservation succeeds.
+   */
   private def reserveFn(
-      rule: CandidateView => Boolean,
+      rule: CandidateView => Boolean
   ): (CandidateView, CPM, String) => Future[Boolean] =
     (c, _, _) => Future.successful(rule(c))
 
-  /** Reservation mock that tracks attempts per creative. Handy for
-    * "fail on first attempt, succeed on second" style tests. */
+  /**
+   * Reservation mock that tracks attempts per creative. Handy for
+   * "fail on first attempt, succeed on second" style tests.
+   */
   private def reserveTrackingAttempts(
-      succeedsAfter: Map[String, Int], // cid → attempts required to pass
+      succeedsAfter: Map[String, Int] // cid → attempts required to pass
   ): (CandidateView, CPM, String) => Future[Boolean] = {
     val attempts = scala.collection.mutable.Map.empty[String, Int].withDefaultValue(0)
-    (c, _, _) => Future.successful {
-      val n = attempts(c.creativeId.value) + 1
-      attempts.update(c.creativeId.value, n)
-      n >= succeedsAfter.getOrElse(c.creativeId.value, 1)
-    }
+    (c, _, _) =>
+      Future.successful {
+        val n = attempts(c.creativeId.value) + 1
+        attempts.update(c.creativeId.value, n)
+        n >= succeedsAfter.getOrElse(c.creativeId.value, 1)
+      }
   }
 
   // ─── Tests ────────────────────────────────────────────────────
@@ -84,14 +90,14 @@ class AdServerBatchRetrySpec extends AnyWordSpec with Matchers with ScalaFutures
       // floor price, not the winner's bid.
       val c = candidate("c1", "camp1", 300, 250, cpm = 5.0)
       val (outcomes, pending) = AdServer.batchReserveWithRetry(
-        slots       = Vector(slot("s1", 300, 250)),
-        pool        = Vector(c),
+        slots = Vector(slot("s1", 300, 250)),
+        pool = Vector(c),
         pageBlocked = Set.empty,
-        alpha       = 0.5,
-        stats       = Map.empty,
-        siteFloor   = CPM(0.5),
-        reserve     = reserveFn(_ => true),
-        rng         = seedRng(),
+        alpha = 0.5,
+        stats = Map.empty,
+        siteFloor = CPM(0.5),
+        reserve = reserveFn(_ => true),
+        rng = seedRng()
       ).futureValue
       outcomes should have size 1
       outcomes.head.winner.map(_.creativeId.value) shouldBe Some("c1")
@@ -106,14 +112,14 @@ class AdServerBatchRetrySpec extends AnyWordSpec with Matchers with ScalaFutures
       val c1 = candidate("c1", "campA", 300, 250, cpm = 5.0)
       val c2 = candidate("c2", "campB", 300, 250, cpm = 3.0)
       val (outcomes, pending) = AdServer.batchReserveWithRetry(
-        slots       = Vector(slot("s1", 300, 250)),
-        pool        = Vector(c1, c2),
+        slots = Vector(slot("s1", 300, 250)),
+        pool = Vector(c1, c2),
         pageBlocked = Set.empty,
-        alpha       = 0.5,
-        stats       = Map.empty,
-        siteFloor   = CPM(0.5),
-        reserve     = reserveFn(c => c.creativeId.value == "c2"),
-        rng         = seedRng(),
+        alpha = 0.5,
+        stats = Map.empty,
+        siteFloor = CPM(0.5),
+        reserve = reserveFn(c => c.creativeId.value == "c2"),
+        rng = seedRng()
       ).futureValue
       outcomes should have size 1
       outcomes.head.winner.map(_.creativeId.value) shouldBe Some("c2")
@@ -124,14 +130,14 @@ class AdServerBatchRetrySpec extends AnyWordSpec with Matchers with ScalaFutures
       val c1 = candidate("c1", "campA", 300, 250, cpm = 5.0)
       val c2 = candidate("c2", "campB", 300, 250, cpm = 3.0)
       val (outcomes, pending) = AdServer.batchReserveWithRetry(
-        slots       = Vector(slot("s1", 300, 250)),
-        pool        = Vector(c1, c2),
+        slots = Vector(slot("s1", 300, 250)),
+        pool = Vector(c1, c2),
         pageBlocked = Set.empty,
-        alpha       = 0.5,
-        stats       = Map.empty,
-        siteFloor   = CPM(0.5),
-        reserve     = reserveFn(_ => false),
-        rng         = seedRng(),
+        alpha = 0.5,
+        stats = Map.empty,
+        siteFloor = CPM(0.5),
+        reserve = reserveFn(_ => false),
+        rng = seedRng()
       ).futureValue
       outcomes should have size 1
       outcomes.head.winner shouldBe None
@@ -145,14 +151,14 @@ class AdServerBatchRetrySpec extends AnyWordSpec with Matchers with ScalaFutures
       // soft-preference fallback lets the sole advertiser repeat instead.
       val c = candidate("c1", "camp1", 300, 250, cpm = 5.0)
       val (outcomes, _) = AdServer.batchReserveWithRetry(
-        slots       = Vector(slot("s1", 300, 250)),
-        pool        = Vector(c),
+        slots = Vector(slot("s1", 300, 250)),
+        pool = Vector(c),
         pageBlocked = Set("camp1"), // camp1 won this page on a recent reload
-        alpha       = 0.5,
-        stats       = Map.empty,
-        siteFloor   = CPM(0.5),
-        reserve     = reserveFn(_ => true),
-        rng         = seedRng(),
+        alpha = 0.5,
+        stats = Map.empty,
+        siteFloor = CPM(0.5),
+        reserve = reserveFn(_ => true),
+        rng = seedRng()
       ).futureValue
       outcomes.head.winner.map(_.campaignId.value) shouldBe Some("camp1")
     }
@@ -164,14 +170,14 @@ class AdServerBatchRetrySpec extends AnyWordSpec with Matchers with ScalaFutures
       val cA = candidate("cA", "campA", 300, 250, cpm = 9.0)
       val cB = candidate("cB", "campB", 300, 250, cpm = 3.0)
       val (outcomes, _) = AdServer.batchReserveWithRetry(
-        slots       = Vector(slot("s1", 300, 250)),
-        pool        = Vector(cA, cB),
+        slots = Vector(slot("s1", 300, 250)),
+        pool = Vector(cA, cB),
         pageBlocked = Set("campA"),
-        alpha       = 0.5,
-        stats       = Map.empty,
-        siteFloor   = CPM(0.5),
-        reserve     = reserveFn(_ => true),
-        rng         = seedRng(),
+        alpha = 0.5,
+        stats = Map.empty,
+        siteFloor = CPM(0.5),
+        reserve = reserveFn(_ => true),
+        rng = seedRng()
       ).futureValue
       outcomes.head.winner.map(_.campaignId.value) shouldBe Some("campB")
     }
@@ -184,14 +190,14 @@ class AdServerBatchRetrySpec extends AnyWordSpec with Matchers with ScalaFutures
       val c1 = candidate("c1", "campA", 970, 250, cpm = 5.0)
       val c2 = candidate("c2", "campB", 300, 250, cpm = 3.0)
       val (outcomes, pending) = AdServer.batchReserveWithRetry(
-        slots       = Vector(slot("s1", 970, 250), slot("s2", 300, 250)),
-        pool        = Vector(c1, c2),
+        slots = Vector(slot("s1", 970, 250), slot("s2", 300, 250)),
+        pool = Vector(c1, c2),
         pageBlocked = Set.empty,
-        alpha       = 0.5,
-        stats       = Map.empty,
-        siteFloor   = CPM(0.5),
-        reserve     = reserveFn(c => c.creativeId.value == "c2"),
-        rng         = seedRng(),
+        alpha = 0.5,
+        stats = Map.empty,
+        siteFloor = CPM(0.5),
+        reserve = reserveFn(c => c.creativeId.value == "c2"),
+        rng = seedRng()
       ).futureValue
       val byId = outcomes.map(o => o.slotId.value -> o.winner.map(_.creativeId.value)).toMap
       byId("s2") shouldBe Some("c2")
@@ -208,14 +214,14 @@ class AdServerBatchRetrySpec extends AnyWordSpec with Matchers with ScalaFutures
       val c2 = candidate("c2", "campB", 300, 250, cpm = 5.0)
       val c3 = candidate("c3", "campC", 300, 250, cpm = 2.0)
       val (outcomes, _) = AdServer.batchReserveWithRetry(
-        slots       = Vector(slot("s1", 300, 250), slot("s2", 300, 250)),
-        pool        = Vector(c1, c2, c3),
+        slots = Vector(slot("s1", 300, 250), slot("s2", 300, 250)),
+        pool = Vector(c1, c2, c3),
         pageBlocked = Set.empty,
-        alpha       = 0.5,
-        stats       = Map.empty,
-        siteFloor   = CPM(0.5),
-        reserve     = reserveFn(c => c.creativeId.value != "c1"),
-        rng         = seedRng(),
+        alpha = 0.5,
+        stats = Map.empty,
+        siteFloor = CPM(0.5),
+        reserve = reserveFn(c => c.creativeId.value != "c1"),
+        rng = seedRng()
       ).futureValue
       val winners = outcomes.flatMap(_.winner).map(_.creativeId.value).toSet
       winners should contain("c2")
@@ -234,14 +240,14 @@ class AdServerBatchRetrySpec extends AnyWordSpec with Matchers with ScalaFutures
       val c2 = candidate("c2", "campA", 300, 250, cpm = 8.0)
       val c3 = candidate("c3", "campB", 300, 250, cpm = 5.0)
       val (outcomes, _) = AdServer.batchReserveWithRetry(
-        slots       = Vector(slot("s1", 300, 250), slot("s2", 300, 250)),
-        pool        = Vector(c1, c2, c3),
+        slots = Vector(slot("s1", 300, 250), slot("s2", 300, 250)),
+        pool = Vector(c1, c2, c3),
         pageBlocked = Set.empty,
-        alpha       = 0.5,
-        stats       = Map.empty,
-        siteFloor   = CPM(0.5),
-        reserve     = reserveFn(c => c.creativeId.value != "c1"),
-        rng         = seedRng(),
+        alpha = 0.5,
+        stats = Map.empty,
+        siteFloor = CPM(0.5),
+        reserve = reserveFn(c => c.creativeId.value != "c1"),
+        rng = seedRng()
       ).futureValue
       val winners = outcomes.flatMap(_.winner).map(_.creativeId.value).toSet
       // s1 retries with c2 (campA — OK since c1's reservation failed
@@ -261,14 +267,14 @@ class AdServerBatchRetrySpec extends AnyWordSpec with Matchers with ScalaFutures
         Future.successful(false)
       }
       val (outcomes, pending) = AdServer.batchReserveWithRetry(
-        slots       = Vector(slot("s1", 300, 250)),
-        pool        = Vector(c1, c2, c3),
+        slots = Vector(slot("s1", 300, 250)),
+        pool = Vector(c1, c2, c3),
         pageBlocked = Set.empty,
-        alpha       = 0.5,
-        stats       = Map.empty,
-        siteFloor   = CPM(0.5),
-        reserve     = tracking,
-        rng         = seedRng(),
+        alpha = 0.5,
+        stats = Map.empty,
+        siteFloor = CPM(0.5),
+        reserve = tracking,
+        rng = seedRng()
       ).futureValue
       outcomes.head.winner shouldBe None
       pending shouldBe empty
@@ -283,17 +289,17 @@ class AdServerBatchRetrySpec extends AnyWordSpec with Matchers with ScalaFutures
       // (dimensions don't gate), so c1 wins against c2 as runner-up — the
       // quality-adjusted second price clamps to c1's bid (4.0). Pending
       // records ONLY the confirmed c1 win, at its clearing price.
-      val c1 = candidate("c1", "campA", 300, 250, cpm = 4.0)  // reservation passes
-      val c2 = candidate("c2", "campB", 300, 250, cpm = 6.0)  // reservation fails
+      val c1 = candidate("c1", "campA", 300, 250, cpm = 4.0) // reservation passes
+      val c2 = candidate("c2", "campB", 300, 250, cpm = 6.0) // reservation fails
       val (outcomes, pending) = AdServer.batchReserveWithRetry(
-        slots       = Vector(slot("s1", 300, 250), slot("s2", 300, 250)),
-        pool        = Vector(c1, c2),
+        slots = Vector(slot("s1", 300, 250), slot("s2", 300, 250)),
+        pool = Vector(c1, c2),
         pageBlocked = Set.empty,
-        alpha       = 0.5,
-        stats       = Map.empty,
-        siteFloor   = CPM(0.5),
-        reserve     = reserveFn(c => c.creativeId.value == "c1"),
-        rng         = seedRng(),
+        alpha = 0.5,
+        stats = Map.empty,
+        siteFloor = CPM(0.5),
+        reserve = reserveFn(c => c.creativeId.value == "c1"),
+        rng = seedRng()
       ).futureValue
       val confirmed = outcomes.flatMap(_.winner).map(_.creativeId.value).toSet
       confirmed shouldBe Set("c1")
@@ -307,14 +313,14 @@ class AdServerBatchRetrySpec extends AnyWordSpec with Matchers with ScalaFutures
       val c1 = candidate("c1", "campA", 300, 250, cpm = 5.0)
       val c2 = candidate("c2", "campB", 300, 250, cpm = 4.0)
       val (outcomes, _) = AdServer.batchReserveWithRetry(
-        slots       = Vector(slot("s1", 300, 250)),
-        pool        = Vector(c1, c2),
+        slots = Vector(slot("s1", 300, 250)),
+        pool = Vector(c1, c2),
         pageBlocked = Set("campA"),
-        alpha       = 0.5,
-        stats       = Map.empty,
-        siteFloor   = CPM(0.5),
-        reserve     = reserveFn(_ => true),
-        rng         = seedRng(),
+        alpha = 0.5,
+        stats = Map.empty,
+        siteFloor = CPM(0.5),
+        reserve = reserveFn(_ => true),
+        rng = seedRng()
       ).futureValue
       outcomes.head.winner.map(_.campaignId.value) shouldBe Some("campB")
     }
@@ -327,15 +333,15 @@ class AdServerBatchRetrySpec extends AnyWordSpec with Matchers with ScalaFutures
       val c1 = candidate("c1", "campA", 300, 250, cpm = 10.0)
       val c2 = candidate("c2", "campB", 300, 250, cpm = 3.0)
       val (outcomes, pending) = AdServer.batchReserveWithRetry(
-        slots             = Vector(slot("s1", 300, 250)),
-        pool              = Vector(c1, c2),
-        pageBlocked       = Set.empty,
-        alpha             = 0.5,
-        stats             = Map.empty,
-        siteFloor         = CPM(0.5),
-        reserve           = reserveFn(_ => true),
-        rng               = seedRng(),
-        excludedCreatives = Set(CreativeId("c1")),
+        slots = Vector(slot("s1", 300, 250)),
+        pool = Vector(c1, c2),
+        pageBlocked = Set.empty,
+        alpha = 0.5,
+        stats = Map.empty,
+        siteFloor = CPM(0.5),
+        reserve = reserveFn(_ => true),
+        rng = seedRng(),
+        excludedCreatives = Set(CreativeId("c1"))
       ).futureValue
       outcomes should have size 1
       outcomes.head.winner.map(_.creativeId.value) shouldBe Some("c2")
@@ -353,15 +359,15 @@ class AdServerBatchRetrySpec extends AnyWordSpec with Matchers with ScalaFutures
         Future.successful(true)
       }
       val (outcomes, pending) = AdServer.batchReserveWithRetry(
-        slots             = Vector(slot("s1", 300, 250)),
-        pool              = Vector(c1),
-        pageBlocked       = Set.empty,
-        alpha             = 0.5,
-        stats             = Map.empty,
-        siteFloor         = CPM(0.5),
-        reserve           = countingReserve,
-        rng               = seedRng(),
-        excludedCreatives = Set(CreativeId("c1")),
+        slots = Vector(slot("s1", 300, 250)),
+        pool = Vector(c1),
+        pageBlocked = Set.empty,
+        alpha = 0.5,
+        stats = Map.empty,
+        siteFloor = CPM(0.5),
+        reserve = countingReserve,
+        rng = seedRng(),
+        excludedCreatives = Set(CreativeId("c1"))
       ).futureValue
       outcomes.head.winner shouldBe None
       pending shouldBe empty
@@ -375,8 +381,8 @@ class AdServerBatchRetrySpec extends AnyWordSpec with Matchers with ScalaFutures
       // used below and this confirms its semantics.
       val c = candidate("c1", "campA", 300, 250, cpm = 5.0)
       val reserve = reserveTrackingAttempts(Map("c1" -> 2))
-      reserve(c, CPM(5.0), "r1").futureValue shouldBe false  // attempt 1
-      reserve(c, CPM(5.0), "r2").futureValue shouldBe true   // attempt 2
+      reserve(c, CPM(5.0), "r1").futureValue shouldBe false // attempt 1
+      reserve(c, CPM(5.0), "r2").futureValue shouldBe true // attempt 2
     }
   }
 }

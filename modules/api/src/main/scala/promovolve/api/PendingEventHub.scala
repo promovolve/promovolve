@@ -1,16 +1,17 @@
 package promovolve.api
 
-import org.apache.pekko.actor.typed.{ActorRef, Behavior}
+import org.apache.pekko.actor.typed.{ ActorRef, Behavior }
 import org.apache.pekko.actor.typed.scaladsl.Behaviors
 
 import java.time.Instant
 import scala.concurrent.duration._
 
-/** Event hub for pending creative notifications via SSE.
-  *
-  * Manages SSE subscribers per site and broadcasts pending updates
-  * when new creatives are queued for approval.
-  */
+/**
+ * Event hub for pending creative notifications via SSE.
+ *
+ * Manages SSE subscribers per site and broadcasts pending updates
+ * when new creatives are queued for approval.
+ */
 object PendingEventHub {
 
   sealed trait Command

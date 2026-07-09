@@ -1,7 +1,7 @@
 package promovolve.taxonomy
 
 import org.apache.pekko.actor.testkit.typed.scaladsl.ActorTestKit
-import org.scalatest.{BeforeAndAfterAll, Tag}
+import org.scalatest.{ BeforeAndAfterAll, Tag }
 import org.scalatest.matchers.should.Matchers
 import org.scalatest.wordspec.AnyWordSpec
 
@@ -36,8 +36,8 @@ class IABTaxonomyIntegrationSpec extends AnyWordSpec with Matchers with BeforeAn
 
     "classify tech content correctly" taggedAs Integration in {
       val apiKey = sys.env.getOrElse("OPENAI_API_KEY", {
-        cancel("OPENAI_API_KEY not set - skipping integration test")
-      })
+          cancel("OPENAI_API_KEY not set - skipping integration test")
+        })
 
       val taxonomy = new IABTaxonomy(
         IABTaxonomy.Provider.OpenAI(apiKey)
@@ -68,8 +68,8 @@ class IABTaxonomyIntegrationSpec extends AnyWordSpec with Matchers with BeforeAn
 
     "classify tech content correctly" taggedAs Integration in {
       val apiKey = sys.env.getOrElse("ANTHROPIC_API_KEY", {
-        cancel("ANTHROPIC_API_KEY not set - skipping integration test")
-      })
+          cancel("ANTHROPIC_API_KEY not set - skipping integration test")
+        })
 
       val taxonomy = new IABTaxonomy(
         IABTaxonomy.Provider.Anthropic(apiKey)
@@ -100,8 +100,8 @@ class IABTaxonomyIntegrationSpec extends AnyWordSpec with Matchers with BeforeAn
 
     "classify tech content correctly" taggedAs Integration in {
       val apiKey = sys.env.getOrElse("GEMINI_API_KEY", {
-        cancel("GEMINI_API_KEY not set - skipping integration test")
-      })
+          cancel("GEMINI_API_KEY not set - skipping integration test")
+        })
 
       val taxonomy = new IABTaxonomy(
         IABTaxonomy.Provider.Gemini(apiKey)

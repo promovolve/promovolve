@@ -1,14 +1,15 @@
 package promovolve.api
 
-import org.apache.pekko.actor.typed.{ActorRef, Behavior}
+import org.apache.pekko.actor.typed.{ ActorRef, Behavior }
 import org.apache.pekko.actor.typed.scaladsl.Behaviors
-import promovolve.{BudgetEvent, PendingCreativesQueued}
+import promovolve.{ BudgetEvent, PendingCreativesQueued }
 
-/** Adapter actor that converts BudgetEvents to PendingEventHub commands.
-  *
-  * Subscribed to the BudgetEvent topic, filters for PendingCreativesQueued events,
-  * and forwards them to the PendingEventHub.
-  */
+/**
+ * Adapter actor that converts BudgetEvents to PendingEventHub commands.
+ *
+ * Subscribed to the BudgetEvent topic, filters for PendingCreativesQueued events,
+ * and forwards them to the PendingEventHub.
+ */
 object PendingEventHubAdapter {
 
   def apply(hub: ActorRef[PendingEventHub.Command]): Behavior[BudgetEvent] =

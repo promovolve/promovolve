@@ -11,17 +11,18 @@ import promovolve.publisher.AssessmentResult
 import spray.json.*
 
 import java.util.Base64
-import scala.concurrent.{ExecutionContext, Future}
+import scala.concurrent.{ ExecutionContext, Future }
 import scala.concurrent.duration.*
-import scala.util.{Random, Try}
+import scala.util.{ Random, Try }
 
-/** Anthropic Claude API client for creative assessment.
-  *
-  * Features:
-  * - Uses tool_use with JSON schema for reliable structured output
-  * - Retry with exponential backoff for transient errors (429, 5xx)
-  * - Configurable max retries and base delay
-  */
+/**
+ * Anthropic Claude API client for creative assessment.
+ *
+ * Features:
+ * - Uses tool_use with JSON schema for reliable structured output
+ * - Retry with exponential backoff for transient errors (429, 5xx)
+ * - Configurable max retries and base delay
+ */
 final class AnthropicClient(
     apiKey: String,
     model: String = "claude-sonnet-4-20250514",
@@ -100,7 +101,7 @@ final class AnthropicClient(
           }
       }
     }.recoverWith {
-      case e: AnthropicApiError => Future.failed(e)
+      case e: AnthropicApiError      => Future.failed(e)
       case e if attempt < maxRetries =>
         val delay = calculateBackoff(attempt)
         log.warn(
@@ -122,10 +123,10 @@ final class AnthropicClient(
 
   private def isRetryable(status: StatusCode): Boolean =
     status == StatusCodes.TooManyRequests ||
-      status == StatusCodes.ServiceUnavailable ||
-      status == StatusCodes.BadGateway ||
-      status == StatusCodes.GatewayTimeout ||
-      status.intValue() >= 500
+    status == StatusCodes.ServiceUnavailable ||
+    status == StatusCodes.BadGateway ||
+    status == StatusCodes.GatewayTimeout ||
+    status.intValue() >= 500
 
   private def calculateBackoff(attempt: Int): FiniteDuration = {
     val exponentialDelay = baseDelay * math.pow(2, attempt).toLong
@@ -138,7 +139,8 @@ final class AnthropicClient(
     // Define the assessment tool with JSON schema
     val assessmentTool = JsObject(
       "name" -> JsString("assess_creative"),
-      "description" -> JsString("Output the creative assessment results with safety scores, content flags, and detected categories"),
+      "description" ->
+      JsString("Output the creative assessment results with safety scores, content flags, and detected categories"),
       "input_schema" -> JsObject(
         "type" -> JsString("object"),
         "properties" -> JsObject(
@@ -165,7 +167,8 @@ final class AnthropicClient(
           "detected_categories" -> JsObject(
             "type" -> JsString("array"),
             "items" -> JsObject("type" -> JsString("string")),
-            "description" -> JsString("IAB Content Taxonomy category codes detected in the creative (e.g., IAB2 for Automotive)")
+            "description" ->
+            JsString("IAB Content Taxonomy category codes detected in the creative (e.g., IAB2 for Automotive)")
           ),
           "category_confidence" -> JsObject(
             "type" -> JsString("number"),
@@ -225,7 +228,8 @@ final class AnthropicClient(
 
   private def buildPrompt(context: AssessmentContext): String = {
     val declaredCategoryInfo = context.declaredAdProductCategory match {
-      case Some(cat) => s"\n\nThe advertiser declared this ad as category: $cat. Verify if the visual content matches this declaration."
+      case Some(cat) =>
+        s"\n\nThe advertiser declared this ad as category: $cat. Verify if the visual content matches this declaration."
       case None => ""
     }
 
@@ -293,8 +297,8 @@ Use the assess_creative tool to provide your analysis."""
     def getStringOrNull(key: String): Option[String] =
       input.fields.get(key).flatMap {
         case JsString(s) if s.nonEmpty => Some(s)
-        case JsNull => None
-        case _ => None
+        case JsNull                    => None
+        case _                         => None
       }
 
     def getStringArray(key: String): List[String] =

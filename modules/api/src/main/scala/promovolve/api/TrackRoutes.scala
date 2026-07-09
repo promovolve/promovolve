@@ -1,24 +1,25 @@
 package promovolve.api
 
 import org.apache.pekko.actor.typed.scaladsl.AskPattern.*
-import org.apache.pekko.actor.typed.{ActorRef, ActorSystem, Scheduler}
+import org.apache.pekko.actor.typed.{ ActorRef, ActorSystem, Scheduler }
 import org.apache.pekko.http.scaladsl.marshallers.sprayjson.SprayJsonSupport.*
 import org.apache.pekko.http.scaladsl.model.StatusCodes
 import org.apache.pekko.http.scaladsl.server.Directives.*
 import org.apache.pekko.http.scaladsl.server.Route
 import org.apache.pekko.util.Timeout
-import promovolve.api.guard.{ReplayGuard, TrackingReplayGuard}
-import promovolve.common.{FoldToken, PublisherSecretsRepo, Signer, hash}
+import promovolve.api.guard.{ ReplayGuard, TrackingReplayGuard }
+import promovolve.common.{ hash, FoldToken, PublisherSecretsRepo, Signer }
 import spray.json.*
 
 import scala.concurrent.duration.*
-import scala.concurrent.{ExecutionContext, Future}
+import scala.concurrent.{ ExecutionContext, Future }
 
-/** POST /v1/dogear-event request body. `pub` is needed for the unfold path
-  * (no foldToken to derive it from); for fold, the foldToken's payload
-  * carries pub redundantly, but a body field keeps both paths uniform.
-  * `foldToken` is required for fold, ignored for unfold.
-  */
+/**
+ * POST /v1/dogear-event request body. `pub` is needed for the unfold path
+ * (no foldToken to derive it from); for fold, the foldToken's payload
+ * carries pub redundantly, but a body field keeps both paths uniform.
+ * `foldToken` is required for fold, ignored for unfold.
+ */
 final case class DogearEventReq(
     pub: String,
     url: String,
@@ -36,7 +37,7 @@ trait DogearEventJson extends DefaultJsonProtocol {
 final class TrackRoutes(
     secrets: PublisherSecretsRepo,
     events: EventLog,
-    bucketMs: Long          = 60 * 1000L,
+    bucketMs: Long = 60 * 1000L,
     maxSkew: FiniteDuration = 3.minutes,
     replayGuard: Option[ActorRef[TrackingReplayGuard.Command]] = None
 )(using system: ActorSystem[?]) extends DogearEventJson {
@@ -54,31 +55,32 @@ final class TrackRoutes(
               ) { (pub, url, slot, cid, v, b, tok, camp, adv, cpm, cat, rid, apc, pcats, dogeared) =>
                 onSuccess(validateImp(pub, url, slot, cid, v, b, tok, rid)) {
                   case false => complete(StatusCodes.Forbidden)
-                  case true =>
+                  case true  =>
                     // Include rid in replay key to allow multiple impressions of same creative
-                    val canonical = Signer.canonical(pub, url, slot, cid, v, b, "imp") + rid.map(r => s"|$r").getOrElse("")
+                    val canonical = Signer.canonical(pub, url, slot, cid, v, b, "imp") +
+                      rid.map(r => s"|$r").getOrElse("")
                     onSuccess(checkReplay(canonical)) {
                       case false => complete(StatusCodes.Conflict)
-                      case true =>
+                      case true  =>
                         events.logImpression(
                           TrackEvent(
-                            pub     = pub,
-                            url     = url,
-                            slot    = slot,
-                            cid     = cid,
+                            pub = pub,
+                            url = url,
+                            slot = slot,
+                            cid = cid,
                             version = v,
-                            bucket  = b,
-                            ts      = System.currentTimeMillis(),
-                            ip      = ip.toOption.map(_.getHostAddress).getOrElse(""),
-                            ua      = ua,
-                            campaignId   = camp,
+                            bucket = b,
+                            ts = System.currentTimeMillis(),
+                            ip = ip.toOption.map(_.getHostAddress).getOrElse(""),
+                            ua = ua,
+                            campaignId = camp,
                             advertiserId = adv,
-                            cpm          = cpm,
-                            category     = cat,
-                            requestId    = rid,
+                            cpm = cpm,
+                            category = cat,
+                            requestId = rid,
                             adProductCategory = apc,
                             pageCategories = pcats,
-                            dogeared     = dogeared.getOrElse(false)
+                            dogeared = dogeared.getOrElse(false)
                           )
                         )
                         complete(StatusCodes.NoContent)
@@ -89,33 +91,35 @@ final class TrackRoutes(
           } ~
           pathPrefix("click") {
             get {
-              parameters("pub", "url", "slot", "cid", "v".as[Long], "b".as[Long], "tok", "cat".?, "camp".?, "adv".?, "rid".?, "apc".?, "pcats".?, "dogeared".as[Boolean].?) {
+              parameters("pub", "url", "slot", "cid", "v".as[Long], "b".as[Long], "tok", "cat".?, "camp".?, "adv".?,
+                "rid".?, "apc".?, "pcats".?, "dogeared".as[Boolean].?) {
                 (pub, url, slot, cid, v, b, tok, cat, camp, adv, rid, apc, pcats, dogeared) =>
                   onSuccess(validateClick(pub, url, slot, cid, v, b, tok, rid)) {
                     case false => complete(StatusCodes.Forbidden)
-                    case true =>
-                      val canonical = Signer.canonical(pub, url, slot, cid, v, b, "click") + rid.map(r => s"|$r").getOrElse("")
+                    case true  =>
+                      val canonical = Signer.canonical(pub, url, slot, cid, v, b, "click") +
+                        rid.map(r => s"|$r").getOrElse("")
                       onSuccess(checkReplay(canonical)) {
                         case false => complete(StatusCodes.Conflict)
-                        case true =>
+                        case true  =>
                           events.logClick(
                             TrackEvent(
-                              pub          = pub,
-                              url          = url,
-                              slot         = slot,
-                              cid          = cid,
-                              version      = v,
-                              bucket       = b,
-                              ts           = System.currentTimeMillis(),
-                              ip           = ip.toOption.map(_.getHostAddress).getOrElse(""),
-                              ua           = ua,
-                              category     = cat,
-                              campaignId   = camp,
+                              pub = pub,
+                              url = url,
+                              slot = slot,
+                              cid = cid,
+                              version = v,
+                              bucket = b,
+                              ts = System.currentTimeMillis(),
+                              ip = ip.toOption.map(_.getHostAddress).getOrElse(""),
+                              ua = ua,
+                              category = cat,
+                              campaignId = camp,
                               advertiserId = adv,
-                              requestId    = rid,
+                              requestId = rid,
                               adProductCategory = apc,
                               pageCategories = pcats,
-                              dogeared     = dogeared.getOrElse(false)
+                              dogeared = dogeared.getOrElse(false)
                             )
                           )
                           complete(StatusCodes.NoContent)
@@ -150,18 +154,18 @@ final class TrackRoutes(
                             val tokenHash = "%016x".format(token.hash)
                             events.logFold(
                               TrackEvent(
-                                pub          = ctx.pub,
-                                url          = ctx.url,
-                                slot         = ctx.slot,
-                                cid          = ctx.cid,
-                                version      = ctx.ver,
-                                bucket       = ctx.bucket,
-                                ts           = System.currentTimeMillis(),
-                                ip           = "",
-                                ua           = "",
-                                campaignId   = Some(ctx.camp),
+                                pub = ctx.pub,
+                                url = ctx.url,
+                                slot = ctx.slot,
+                                cid = ctx.cid,
+                                version = ctx.ver,
+                                bucket = ctx.bucket,
+                                ts = System.currentTimeMillis(),
+                                ip = "",
+                                ua = "",
+                                campaignId = Some(ctx.camp),
                                 advertiserId = Some(ctx.adv),
-                                requestId    = Some(tokenHash)
+                                requestId = Some(tokenHash)
                               )
                             )
                             complete(StatusCodes.NoContent)
@@ -173,15 +177,15 @@ final class TrackRoutes(
                     // DashboardProjection ((folds - unfolds) / folds).
                     events.logUnfold(
                       TrackEvent(
-                        pub  = req.pub,
-                        url  = req.url,
+                        pub = req.pub,
+                        url = req.url,
                         slot = req.slotId,
-                        cid  = req.creativeId,
+                        cid = req.creativeId,
                         version = 0L,
-                        bucket  = 0L,
-                        ts   = System.currentTimeMillis(),
-                        ip   = "",
-                        ua   = ""
+                        bucket = 0L,
+                        ts = System.currentTimeMillis(),
+                        ip = "",
+                        ua = ""
                       )
                     )
                     complete(StatusCodes.NoContent)
@@ -193,33 +197,35 @@ final class TrackRoutes(
           } ~
           pathPrefix("cta") {
             get {
-              parameters("pub", "url", "slot", "cid", "v".as[Long], "b".as[Long], "tok", "cat".?, "camp".?, "adv".?, "rid".?, "apc".?, "pcats".?, "dogeared".as[Boolean].?) {
+              parameters("pub", "url", "slot", "cid", "v".as[Long], "b".as[Long], "tok", "cat".?, "camp".?, "adv".?,
+                "rid".?, "apc".?, "pcats".?, "dogeared".as[Boolean].?) {
                 (pub, url, slot, cid, v, b, tok, cat, camp, adv, rid, apc, pcats, dogeared) =>
                   onSuccess(validateCTA(pub, url, slot, cid, v, b, tok, rid)) {
                     case false => complete(StatusCodes.Forbidden)
-                    case true =>
-                      val canonical = Signer.canonical(pub, url, slot, cid, v, b, "cta") + rid.map(r => s"|$r").getOrElse("")
+                    case true  =>
+                      val canonical = Signer.canonical(pub, url, slot, cid, v, b, "cta") +
+                        rid.map(r => s"|$r").getOrElse("")
                       onSuccess(checkReplay(canonical)) {
                         case false => complete(StatusCodes.Conflict)
-                        case true =>
+                        case true  =>
                           events.logCTAClick(
                             TrackEvent(
-                              pub          = pub,
-                              url          = url,
-                              slot         = slot,
-                              cid          = cid,
-                              version      = v,
-                              bucket       = b,
-                              ts           = System.currentTimeMillis(),
-                              ip           = ip.toOption.map(_.getHostAddress).getOrElse(""),
-                              ua           = ua,
-                              category     = cat,
-                              campaignId   = camp,
+                              pub = pub,
+                              url = url,
+                              slot = slot,
+                              cid = cid,
+                              version = v,
+                              bucket = b,
+                              ts = System.currentTimeMillis(),
+                              ip = ip.toOption.map(_.getHostAddress).getOrElse(""),
+                              ua = ua,
+                              category = cat,
+                              campaignId = camp,
                               advertiserId = adv,
-                              requestId    = rid,
+                              requestId = rid,
                               adProductCategory = apc,
                               pageCategories = pcats,
-                              dogeared     = dogeared.getOrElse(false)
+                              dogeared = dogeared.getOrElse(false)
                             )
                           )
                           complete(StatusCodes.NoContent)
@@ -251,7 +257,7 @@ final class TrackRoutes(
   ): Future[Boolean] =
     secrets.secretFor(pub).map {
       case Some(sec) =>
-        val data   = Signer.canonical(pub, url, slot, cid, ver, b, "imp") + rid.map(r => s"|$r").getOrElse("")
+        val data = Signer.canonical(pub, url, slot, cid, ver, b, "imp") + rid.map(r => s"|$r").getOrElse("")
         val expect = Signer.hmac256(data, sec)
         Signer.safeEq(expect, tok) && freshBucket(b)
       case None => false
@@ -270,7 +276,7 @@ final class TrackRoutes(
   ): Future[Boolean] =
     secrets.secretFor(pub).map {
       case Some(sec) =>
-        val data   = Signer.canonical(pub, url, slot, cid, ver, b, "click") + rid.map(r => s"|$r").getOrElse("")
+        val data = Signer.canonical(pub, url, slot, cid, ver, b, "click") + rid.map(r => s"|$r").getOrElse("")
         val expect = Signer.hmac256(data, sec)
         Signer.safeEq(expect, tok) && freshBucket(b)
       case None => false
@@ -289,17 +295,18 @@ final class TrackRoutes(
   ): Future[Boolean] =
     secrets.secretFor(pub).map {
       case Some(sec) =>
-        val data   = Signer.canonical(pub, url, slot, cid, ver, b, "cta") + rid.map(r => s"|$r").getOrElse("")
+        val data = Signer.canonical(pub, url, slot, cid, ver, b, "cta") + rid.map(r => s"|$r").getOrElse("")
         val expect = Signer.hmac256(data, sec)
         Signer.safeEq(expect, tok) && freshBucket(b)
       case None => false
     }
 
-  /** Verify a fold token. Looks up publisher secret, then delegates to
-    * FoldToken.verify which checks signature, freshness, and slot/cid
-    * binding. Returns Left(reason) on any failure (string matches the
-    * reasons documented on FoldToken.verify), Right(Context) on success.
-    */
+  /**
+   * Verify a fold token. Looks up publisher secret, then delegates to
+   * FoldToken.verify which checks signature, freshness, and slot/cid
+   * binding. Returns Left(reason) on any failure (string matches the
+   * reasons documented on FoldToken.verify), Right(Context) on success.
+   */
   private def verifyFold(
       pub: String,
       slot: String,

@@ -5,7 +5,7 @@ import org.scalatest.matchers.should.Matchers
 import org.scalatest.wordspec.AnyWordSpec
 import org.scalatestplus.scalacheck.ScalaCheckPropertyChecks
 import promovolve.SiteId
-import promovolve.common.{BloomFilter, add, mightContain}
+import promovolve.common.{ add, mightContain, BloomFilter }
 
 class BloomFilterSpec extends AnyWordSpec with Matchers with ScalaCheckPropertyChecks {
 
@@ -284,11 +284,11 @@ class BloomFilterSpec extends AnyWordSpec with Matchers with ScalaCheckPropertyC
     "compute correct parameters for various configurations" in {
       val configs = Table(
         ("expectedN", "fpr", "maxMemoryBytes"),
-        (1000, 0.01, 2000),     // 1K items @ 1% FPR
-        (1000, 0.001, 3000),    // 1K items @ 0.1% FPR
-        (1000, 0.0001, 4000),   // 1K items @ 0.01% FPR
-        (5000, 0.0001, 15000),  // 5K items @ 0.01% FPR
-        (10000, 0.0001, 30000)  // 10K items @ 0.01% FPR
+        (1000, 0.01, 2000), // 1K items @ 1% FPR
+        (1000, 0.001, 3000), // 1K items @ 0.1% FPR
+        (1000, 0.0001, 4000), // 1K items @ 0.01% FPR
+        (5000, 0.0001, 15000), // 5K items @ 0.01% FPR
+        (10000, 0.0001, 30000) // 10K items @ 0.01% FPR
       )
 
       forAll(configs) { (n, fpr, maxBytes) =>
@@ -321,12 +321,12 @@ class BloomFilterSpec extends AnyWordSpec with Matchers with ScalaCheckPropertyC
 
   // Helper to hash strings (matches BloomFilterOps implementation)
   private def hashString(s: String): Long = {
-    var hash = 0xcbf29ce484222325L
+    var hash = 0xCBF29CE484222325L
     val bytes = s.getBytes("UTF-8")
     var i = 0
     while (i < bytes.length) {
-      hash ^= (bytes(i) & 0xff).toLong
-      hash *= 0x100000001b3L
+      hash ^= (bytes(i) & 0xFF).toLong
+      hash *= 0x100000001B3L
       i += 1
     }
     hash

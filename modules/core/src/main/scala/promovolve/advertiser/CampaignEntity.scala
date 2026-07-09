@@ -1,78 +1,80 @@
 package promovolve.advertiser
 
-import com.github.blemale.scaffeine.{Cache, Scaffeine}
+import com.github.blemale.scaffeine.{ Cache, Scaffeine }
 import com.typesafe.config.Config
 import org.apache.pekko.actor.typed.pubsub.Topic
 import org.apache.pekko.actor.typed.scaladsl.Behaviors
-import org.apache.pekko.actor.typed.{ActorRef, ActorSystem, Behavior}
-import org.apache.pekko.cluster.ddata.{LWWMap, LWWMapKey, SelfUniqueAddress}
-import org.apache.pekko.cluster.ddata.typed.scaladsl.{DistributedData, Replicator}
+import org.apache.pekko.actor.typed.{ ActorRef, ActorSystem, Behavior }
+import org.apache.pekko.cluster.ddata.{ LWWMap, LWWMapKey, SelfUniqueAddress }
+import org.apache.pekko.cluster.ddata.typed.scaladsl.{ DistributedData, Replicator }
 import org.apache.pekko.cluster.sharding.typed.scaladsl.*
 import org.apache.pekko.persistence.typed.PersistenceId
 import org.apache.pekko.persistence.typed.state.*
-import org.apache.pekko.persistence.typed.state.scaladsl.{DurableStateBehavior, Effect}
+import org.apache.pekko.persistence.typed.state.scaladsl.{ DurableStateBehavior, Effect }
 import org.apache.pekko.util.Timeout
 import promovolve.*
 import promovolve.advertiser.AdvertiserEntity.CampaignSpendRecorded
-import promovolve.taxonomy.{Iab2xTo3xMigration, TieredCategory}
-import promovolve.common.{BloomFilter, hash}
+import promovolve.taxonomy.{ Iab2xTo3xMigration, TieredCategory }
+import promovolve.common.{ hash, BloomFilter }
 import promovolve.publisher.CategoryDemandRepo
 
 import java.time
-import java.time.{Instant, LocalDate, ZoneOffset}
+import java.time.{ Instant, LocalDate, ZoneOffset }
 import java.util.concurrent.TimeUnit.NANOSECONDS
 import scala.concurrent.*
 import scala.concurrent.duration.*
-import scala.util.{Failure, Success}
+import scala.util.{ Failure, Success }
 
-/** Sharded entity representing a single advertising campaign.
-  *
-  * == Architecture ==
-  * Uses DurableStateBehavior (JDBC-backed) for persistence with ephemeral in-memory buffering
-  * for high-throughput spend tracking.
-  *
-  * == State Management ==
-  *   - '''Persistent State''' (`State`): Targeting config, budget, accumulated spend, pending reports
-  *   - '''Ephemeral State''' (`EphemeralState`): Spend buffer, flush sequence (lost on restart)
-  *
-  * == Spend Flow ==
-  * {{{
-  *   RecordSpend → buffer (ephemeral) → FlushBuffer → persist + report to AdvertiserEntity
-  *                     ↓                                    ↓
-  *              (batch/timer)                    (at-least-once delivery)
-  * }}}
-  *
-  * == Key Features ==
-  *   - '''Buffered Spend''': Batches spend events to reduce persistence overhead
-  *   - '''Idempotency''': Scaffeine cache prevents duplicate spend recording
-  *   - '''At-Least-Once Delivery''': Pending reports survive restarts via `pendingReports` in State
-  *   - '''Probabilistic Throttling''': Gradually reduces bid probability as budget depletes
-  *   - '''Daily Budget Windows''': Auto-resets at UTC midnight
-  */
+/**
+ * Sharded entity representing a single advertising campaign.
+ *
+ * == Architecture ==
+ * Uses DurableStateBehavior (JDBC-backed) for persistence with ephemeral in-memory buffering
+ * for high-throughput spend tracking.
+ *
+ * == State Management ==
+ *   - '''Persistent State''' (`State`): Targeting config, budget, accumulated spend, pending reports
+ *   - '''Ephemeral State''' (`EphemeralState`): Spend buffer, flush sequence (lost on restart)
+ *
+ * == Spend Flow ==
+ * {{{
+ *   RecordSpend → buffer (ephemeral) → FlushBuffer → persist + report to AdvertiserEntity
+ *                     ↓                                    ↓
+ *              (batch/timer)                    (at-least-once delivery)
+ * }}}
+ *
+ * == Key Features ==
+ *   - '''Buffered Spend''': Batches spend events to reduce persistence overhead
+ *   - '''Idempotency''': Scaffeine cache prevents duplicate spend recording
+ *   - '''At-Least-Once Delivery''': Pending reports survive restarts via `pendingReports` in State
+ *   - '''Probabilistic Throttling''': Gradually reduces bid probability as budget depletes
+ *   - '''Daily Budget Windows''': Auto-resets at UTC midnight
+ */
 object CampaignEntity {
 
   val TypeKey: EntityTypeKey[Command] = EntityTypeKey[Command]("campaign-entity")
 
-  /** DData key: campaignId -> registered landing-page (LP) domain. Each campaign
-    * publishes its LP domain so the publisher's advertiser-domain block picker
-    * can list all advertiser domains. Mirrors SiteEntity.VerifiedHostKey. */
+  /**
+   * DData key: campaignId -> registered landing-page (LP) domain. Each campaign
+   * publishes its LP domain so the publisher's advertiser-domain block picker
+   * can list all advertiser domains. Mirrors SiteEntity.VerifiedHostKey.
+   */
   val AdvertiserDomainKey: LWWMapKey[CampaignId, String] = LWWMapKey("advertiser-lp-domain")
 
   // ---------- Behavior ----------
   def apply(
-             campaignId: CampaignId,
-             advertiserId: AdvertiserId,
-             directory: ActorRef[CampaignDirectory.Command],
-             sharding: ClusterSharding,
-             categoryDemandRepo: CategoryDemandRepo,
-             budgetEventTopic: ActorRef[Topic.Command[BudgetEvent]],
-             flushInterval: FiniteDuration = 500.millis, // Very tight: flush every 500ms
-             maxBatchSize: Int             = 20, // Very tight: flush every 20 events
-             simDayDurationSeconds: Double = 86400.0 // Simulated day length (compresses budget days for scenario testing; 86400 = real day)
+      campaignId: CampaignId,
+      advertiserId: AdvertiserId,
+      directory: ActorRef[CampaignDirectory.Command],
+      sharding: ClusterSharding,
+      categoryDemandRepo: CategoryDemandRepo,
+      budgetEventTopic: ActorRef[Topic.Command[BudgetEvent]],
+      flushInterval: FiniteDuration = 500.millis, // Very tight: flush every 500ms
+      maxBatchSize: Int = 20, // Very tight: flush every 20 events
+      simDayDurationSeconds: Double = 86400.0 // Simulated day length (compresses budget days for scenario testing; 86400 = real day)
   )(using system: ActorSystem[?], ec: ExecutionContext): Behavior[Command] =
     Behaviors.setup { ctx =>
       Behaviors.withTimers { timers =>
-
         given askTimeout: Timeout = Timeout(500.millis)
 
         val advertiserRef = sharding.entityRefFor(AdvertiserEntity.TypeKey, advertiserId.value)
@@ -125,8 +127,6 @@ object CampaignEntity {
         // reconciles without a fixed-interval retry storm across all campaigns.
         var registrationPending: Boolean = false
         var directoryRetryCount: Int = 0
-
-
 
         // ---- Idempotency config (safe defaults, overridable via application.conf)
         val config: Config = ctx.system.settings.config
@@ -186,10 +186,11 @@ object CampaignEntity {
         def resetFilter(): Unit =
           ephemeral = ephemeral.withFreshFilter
 
-        /** Try to mark a day roll. Returns true if already rolled (guard prevents double roll).
-          * This prevents the race condition where both RecordSpend and CheckWindowRoll
-          * try to roll to the same day, causing the bloom filter to reset twice.
-          */
+        /**
+         * Try to mark a day roll. Returns true if already rolled (guard prevents double roll).
+         * This prevents the race condition where both RecordSpend and CheckWindowRoll
+         * try to roll to the same day, causing the bloom filter to reset twice.
+         */
         def tryMarkDayRoll(epochDay: Long): Boolean = {
           val (alreadyRolled, updated) = ephemeral.tryMarkRolled(epochDay)
           ephemeral = updated
@@ -203,14 +204,15 @@ object CampaignEntity {
           id
         }
 
-        /** Check if request was already processed (idempotency).
-          *
-          * Checks both:
-          * 1. In-memory Scaffeine cache (fast path for normal operation)
-          * 2. Ephemeral bloom filter (includes recovery data + current session)
-          *
-          * Semantics: sliding window — every observed requestId refreshes its TTL.
-          */
+        /**
+         * Check if request was already processed (idempotency).
+         *
+         * Checks both:
+         * 1. In-memory Scaffeine cache (fast path for normal operation)
+         * 2. Ephemeral bloom filter (includes recovery data + current session)
+         *
+         * Semantics: sliding window — every observed requestId refreshes its TTL.
+         */
         def isDuplicate(requestId: String): Boolean = {
           // Fast path: check in-memory cache first
           val inCache = processed.getIfPresent(requestId).isDefined
@@ -226,10 +228,10 @@ object CampaignEntity {
         // ========== At-least-once delivery to AdvertiserEntity ==========
         // Spend reports are persisted in pendingReports and retried until acknowledged.
         // On restart, pending reports are re-driven from recovered state.
-        val maxRetries     = 5
+        val maxRetries = 5
         val initialBackoff = 100.millis
-        val maxBackoff     = 5.seconds
-        val maxPendingAge  = 24.hours // Drop stale pending reports (e.g., from previous day)
+        val maxBackoff = 5.seconds
+        val maxPendingAge = 24.hours // Drop stale pending reports (e.g., from previous day)
 
         /** Send spend report to AdvertiserEntity via ask pattern */
         def attemptSpendReport(
@@ -256,36 +258,40 @@ object CampaignEntity {
         ): Unit =
           ctx.pipeToSelf(attemptSpendReport(flushId, amount, ts)) {
             case Success(recorded) => SpendReportSuccess(recorded, flushId)
-            case Failure(ex) => SpendReportFailure(flushId, amount, ts, retryCount, ex.getMessage)
+            case Failure(ex)       => SpendReportFailure(flushId, amount, ts, retryCount, ex.getMessage)
           }
 
         // ========== Directory & Budget helpers ==========
-        /** Send CampaignReady as a fire-and-forget tell. The CampaignRegistered
-          * ack returns asynchronously via directoryAckAdapter — no ask, no
-          * timeout. Shared by notifyDirectory and the backoff re-tell. */
+        /**
+         * Send CampaignReady as a fire-and-forget tell. The CampaignRegistered
+         * ack returns asynchronously via directoryAckAdapter — no ask, no
+         * timeout. Shared by notifyDirectory and the backoff re-tell.
+         */
         def sendCampaignReady(state: State, configEdit: Boolean): Unit =
           directory ! CampaignDirectory.CampaignReady(
-            campaignId            = campaignId,
-            advertiserId          = state.advertiserId,
+            campaignId = campaignId,
+            advertiserId = state.advertiserId,
             // Effective set so a campaign with empty explicit categories but a
             // non-empty Gemini suggestion is still registered/invited to bid.
-            categories            = state.effectiveCategories,
+            categories = state.effectiveCategories,
             // Fluid creatives have no per-creative size gate — empty = any size.
-            sizes                 = Set.empty[AdSize],
-            maxCpm                = state.maxCpm,
-            dailyBudget           = state.dailyBudget,
-            status                = state.status,
-            replyTo               = directoryAckAdapter,
+            sizes = Set.empty[AdSize],
+            maxCpm = state.maxCpm,
+            dailyBudget = state.dailyBudget,
+            status = state.status,
+            replyTo = directoryAckAdapter,
             bidOnUnmatchedContext = state.bidOnUnmatchedContext,
-            siteAllowlist         = state.siteAllowlist,
-            configEdit            = configEdit
+            siteAllowlist = state.siteAllowlist,
+            configEdit = configEdit
           )
 
-        /** Mirror this campaign's demand into the durable `category_demand` table
-          * (best-effort) so CategoryBidders can SEED from it after a restart
-          * instead of waiting on the singleton's re-push. Replace-all semantics:
-          * removes the campaign's old rows and writes one per current category;
-          * `active=false` removes all its rows. */
+        /**
+         * Mirror this campaign's demand into the durable `category_demand` table
+         * (best-effort) so CategoryBidders can SEED from it after a restart
+         * instead of waiting on the singleton's re-push. Replace-all semantics:
+         * removes the campaign's old rows and writes one per current category;
+         * `active=false` removes all its rows.
+         */
         def writeDemandTable(state: State, active: Boolean): Unit = {
           val f =
             if (!active) categoryDemandRepo.removeCampaign(campaignId.value)
@@ -297,14 +303,16 @@ object CampaignEntity {
           ctx.pipeToSelf(f)(t => DemandTableResult(t.failed.toOption.map(_.getMessage)))
         }
 
-        /** Notify CampaignDirectory when a campaign becomes active/inactive or
-          * its demand-relevant config changes. Fire-and-forget: registration
-          * completes asynchronously (DirectoryRegistered flips the campaign to
-          * biddable); the API reply is sent after persist by the caller, so
-          * nothing blocks on the singleton. */
+        /**
+         * Notify CampaignDirectory when a campaign becomes active/inactive or
+         * its demand-relevant config changes. Fire-and-forget: registration
+         * completes asynchronously (DirectoryRegistered flips the campaign to
+         * biddable); the API reply is sent after persist by the caller, so
+         * nothing blocks on the singleton.
+         */
         def notifyDirectory(state: State, previousState: Option[State]): Unit = {
           val wasActive = previousState.exists(_.status == Status.Active)
-          val isActive  = state.status == Status.Active
+          val isActive = state.status == Status.Active
 
           val configChanged = previousState.exists { prev =>
             prev.maxCpm != state.maxCpm ||
@@ -410,12 +418,12 @@ object CampaignEntity {
             ctx.pipeToSelf(fetchBidContext(state.creativeAssignments)) {
               case Success(bidContext) =>
                 BidRequest(
-                  siteId       = siteId,
+                  siteId = siteId,
                   pageCategory = pageCategory,
-                  floorCpm     = floorCpm,
-                  replyTo      = replyTo,
+                  floorCpm = floorCpm,
+                  replyTo = replyTo,
                   advRemaining = bidContext.remaining,
-                  creatives    = bidContext.creatives
+                  creatives = bidContext.creatives
                 )
               case Failure(ex) =>
                 ctx.log.error(
@@ -424,12 +432,12 @@ object CampaignEntity {
                   ex.getMessage
                 )
                 BidRequest(
-                  siteId       = siteId,
+                  siteId = siteId,
                   pageCategory = pageCategory,
-                  floorCpm     = floorCpm,
-                  replyTo      = replyTo,
+                  floorCpm = floorCpm,
+                  replyTo = replyTo,
                   advRemaining = Budget.zero,
-                  creatives    = Set.empty
+                  creatives = Set.empty
                 )
             }
             Effect.none
@@ -457,7 +465,7 @@ object CampaignEntity {
             val rejection = state.bidRejectReason(siteId, pageCategory, floorCpm)
             val (eligible, reason) = rejection match {
               case Some(r) => (Set.empty[AdvertiserEntity.Creative], Some(r))
-              case None =>
+              case None    =>
                 if (campaignRemaining <= Budget.zero || advRemaining <= Budget.zero)
                   (Set.empty[AdvertiserEntity.Creative], Some(BidRejectReason.BudgetExhausted))
                 else {
@@ -471,8 +479,7 @@ object CampaignEntity {
                       )
                     }
                     (filtered, Some(BidRejectReason.NoCreatives))
-                  }
-                  else (filtered, None)
+                  } else (filtered, None)
                 }
             }
 
@@ -487,23 +494,24 @@ object CampaignEntity {
 
             if (eligible.nonEmpty) {
               ephemeral = ephemeral.incrementBids
-              ctx.log.info("BidsToday incremented to {} for campaign {}", ephemeral.bidsToday: java.lang.Long, campaignId.value)
+              ctx.log.info("BidsToday incremented to {} for campaign {}", ephemeral.bidsToday: java.lang.Long,
+                campaignId.value)
             }
 
             replyTo ! CampaignBidResponse(
               campaignId,
               state.advertiserId,
               eligible,
-              cpm    = if (eligible.nonEmpty) bidCpm else CPM.zero,
+              cpm = if (eligible.nonEmpty) bidCpm else CPM.zero,
               maxCpm = state.maxCpm,
               adProductCategory = state.adProductCategory,
-              landingDomain     = landingDomain,
-              rejectReason      = reason,
+              landingDomain = landingDomain,
+              rejectReason = reason,
               // Computed from the full fetched set (not `eligible`) so
               // below-floor rejects still carry it — an approved bidder
               // priced out by the current floor must keep teaching the
               // sweep range downward.
-              hasApprovedCreative = creatives.exists(c => c.isActive && c.isApprovedFor(siteId)),
+              hasApprovedCreative = creatives.exists(c => c.isActive && c.isApprovedFor(siteId))
             )
             Effect.none
         }
@@ -530,7 +538,7 @@ object CampaignEntity {
             } else {
               // Check daily window roll (skip in simulated mode — day resets driven by ResetDayStart)
               val simulatedMode = simDayDurationSeconds < 86400.0
-              val today     = LocalDate.ofInstant(ts, ZoneOffset.UTC).toEpochDay
+              val today = LocalDate.ofInstant(ts, ZoneOffset.UTC).toEpochDay
               val needsRoll = !simulatedMode && epochDayOf(state.lastResetInstant) != today
 
               // Guard against double roll: if CheckWindowRoll already rolled to this day, skip
@@ -538,8 +546,8 @@ object CampaignEntity {
 
               if (needsRoll && !alreadyRolled) {
                 // Flush and roll window - persist new state.
-                val wasExhausted     = !withinBudget(state)
-                val flushedAmount    = drainBuffer()
+                val wasExhausted = !withinBudget(state)
+                val flushedAmount = drainBuffer()
                 val cpmFlushId =
                   if (flushedAmount.isPositive)
                     Some(nextFlushId(epochDayOf(state.lastResetInstant)))
@@ -557,10 +565,10 @@ object CampaignEntity {
                     }
 
                 val newState = state.copy(
-                  spendToday        = Spend.zero, // New day starts at zero
-                  lastResetInstant  = ts, // Reset to actual time (not midnight)
-                  pendingReports    = updatedPending,
-                  processedFilter   = Array.emptyByteArray // Fresh filter persisted on next flush
+                  spendToday = Spend.zero, // New day starts at zero
+                  lastResetInstant = ts, // Reset to actual time (not midnight)
+                  pendingReports = updatedPending,
+                  processedFilter = Array.emptyByteArray // Fresh filter persisted on next flush
                 )
 
                 replyTo ! SpendRecorded(totalSpend(newState), remainingBudget(newState), today)
@@ -576,12 +584,12 @@ object CampaignEntity {
                   // Publish spend update after window roll
                   budgetEventTopic ! Topic.Publish(
                     promovolve.SpendUpdate(
-                      campaignId   = campaignId,
+                      campaignId = campaignId,
                       advertiserId = advertiserId,
-                      dailyBudget  = newState.dailyBudget,
-                      todaySpend   = totalSpend(newState),
-                      dayStart     = newState.lastResetInstant,
-                      timestamp    = ts
+                      dailyBudget = newState.dailyBudget,
+                      todaySpend = totalSpend(newState),
+                      dayStart = newState.lastResetInstant,
+                      timestamp = ts
                     )
                   )
                 }
@@ -613,7 +621,7 @@ object CampaignEntity {
           case FlushBuffer(ts) =>
             val amount = drainBuffer()
             if (amount.isPositive) {
-              val flushId       = nextFlushId(epochDayOf(state.lastResetInstant))
+              val flushId = nextFlushId(epochDayOf(state.lastResetInstant))
               val newSpendToday = state.spendToday + amount
 
               // Serialize ephemeral bloom filter for persistence
@@ -621,8 +629,8 @@ object CampaignEntity {
 
               val pending = PendingReport(amount = amount, ts = ts, retryCount = 1)
               val newState = state.copy(
-                spendToday      = newSpendToday,
-                pendingReports  = state.pendingReports.updated(flushId, pending),
+                spendToday = newSpendToday,
+                pendingReports = state.pendingReports.updated(flushId, pending),
                 processedFilter = updatedFilter
               )
 
@@ -631,12 +639,12 @@ object CampaignEntity {
                 // Publish spend update for AdServer pacing cache
                 budgetEventTopic ! Topic.Publish(
                   promovolve.SpendUpdate(
-                    campaignId   = campaignId,
+                    campaignId = campaignId,
                     advertiserId = advertiserId,
-                    dailyBudget  = newState.dailyBudget,
-                    todaySpend   = newState.spendToday,
-                    dayStart     = newState.lastResetInstant,
-                    timestamp    = ts
+                    dailyBudget = newState.dailyBudget,
+                    todaySpend = newState.spendToday,
+                    dayStart = newState.lastResetInstant,
+                    timestamp = ts
                   )
                 )
               }
@@ -675,48 +683,48 @@ object CampaignEntity {
                 )
               }
             } else {
-            // Skip in simulated mode — day resets driven by ResetDayStart
-            val simulatedMode = simDayDurationSeconds < 86400.0
-            val today     = LocalDate.now(ZoneOffset.UTC).toEpochDay
-            val needsRoll = !simulatedMode && epochDayOf(state.lastResetInstant) != today
-            // Guard against double roll: if RecordSpend already rolled to this day, skip
-            val alreadyRolled = if (needsRoll) tryMarkDayRoll(today) else false
+              // Skip in simulated mode — day resets driven by ResetDayStart
+              val simulatedMode = simDayDurationSeconds < 86400.0
+              val today = LocalDate.now(ZoneOffset.UTC).toEpochDay
+              val needsRoll = !simulatedMode && epochDayOf(state.lastResetInstant) != today
+              // Guard against double roll: if RecordSpend already rolled to this day, skip
+              val alreadyRolled = if (needsRoll) tryMarkDayRoll(today) else false
 
-            if (needsRoll && !alreadyRolled) {
-              ctx.log.info(
-                "Rolling budget window for campaign {} to epoch day {}",
-                campaignId.value,
-                today
-              )
-              // Flush before rolling.
-              val amount = drainBuffer()
+              if (needsRoll && !alreadyRolled) {
+                ctx.log.info(
+                  "Rolling budget window for campaign {} to epoch day {}",
+                  campaignId.value,
+                  today
+                )
+                // Flush before rolling.
+                val amount = drainBuffer()
 
-              // Reset ephemeral filter for new day (old day's filter discarded)
-              resetFilter()
+                // Reset ephemeral filter for new day (old day's filter discarded)
+                resetFilter()
 
-              val now = Instant.now()
-              val cpmFlushId =
-                if (amount.isPositive)
-                  Some(nextFlushId(epochDayOf(state.lastResetInstant)))
-                else None
+                val now = Instant.now()
+                val cpmFlushId =
+                  if (amount.isPositive)
+                    Some(nextFlushId(epochDayOf(state.lastResetInstant)))
+                  else None
 
-              val updatedPending =
-                cpmFlushId.map(id => id -> amount).toList
-                  .foldLeft(state.pendingReports) { case (p, (id, amt)) =>
-                    p.updated(id, PendingReport(amt, now, 1))
-                  }
+                val updatedPending =
+                  cpmFlushId.map(id => id -> amount).toList
+                    .foldLeft(state.pendingReports) { case (p, (id, amt)) =>
+                      p.updated(id, PendingReport(amt, now, 1))
+                    }
 
-              val newState = state.copy(
-                spendToday       = Spend.zero,
-                lastResetInstant = now, // Reset to actual time
-                pendingReports   = updatedPending,
-                processedFilter  = Array.emptyByteArray // Fresh filter for new day
-              )
+                val newState = state.copy(
+                  spendToday = Spend.zero,
+                  lastResetInstant = now, // Reset to actual time
+                  pendingReports = updatedPending,
+                  processedFilter = Array.emptyByteArray // Fresh filter for new day
+                )
 
-              Effect.persist(newState).thenRun { _ =>
-                cpmFlushId.foreach(id => initiateSpendReport(id, amount, now))
-              }
-            } else Effect.none
+                Effect.persist(newState).thenRun { _ =>
+                  cpmFlushId.foreach(id => initiateSpendReport(id, amount, now))
+                }
+              } else Effect.none
             }
         }
 
@@ -768,9 +776,7 @@ object CampaignEntity {
 
           case SpendReportRetry(flushId, amount, ts, retryCount) =>
             if (!state.pendingReports.contains(flushId)) Effect.none
-            else if (
-              time.Duration.between(ts, Instant.now()).toMillis > maxPendingAge.toMillis
-            ) {
+            else if (time.Duration.between(ts, Instant.now()).toMillis > maxPendingAge.toMillis) {
               ctx.log.warn(
                 "STALE_PENDING_REPORT: Dropping spend report older than {} for flush {}. Amount: {}",
                 maxPendingAge,
@@ -825,10 +831,11 @@ object CampaignEntity {
             Effect.none
 
           case DemandTableResult(err) =>
-            err.foreach(e => ctx.log.warn(
-              "Campaign[{}] category_demand write failed (best-effort, heals on next change): {}",
-              campaignId.value, e
-            ))
+            err.foreach(e =>
+              ctx.log.warn(
+                "Campaign[{}] category_demand write failed (best-effort, heals on next change): {}",
+                campaignId.value, e
+              ))
             Effect.none
         }
 
@@ -840,20 +847,20 @@ object CampaignEntity {
         def configManagement(state: State): PartialFunction[Command, Effect[State]] = {
           case GetCampaign(replyTo) =>
             replyTo ! CampaignInfo(
-              campaignId            = campaignId,
-              status                = state.status,
-              categories            = state.categories,
-              maxCpm                = state.maxCpm,
-              dailyBudget           = state.dailyBudget,
-              creativeIds           = state.creativeAssignments,
-              adProductCategory     = state.adProductCategory,
-              landingUrl            = state.landingUrl,
+              campaignId = campaignId,
+              status = state.status,
+              categories = state.categories,
+              maxCpm = state.maxCpm,
+              dailyBudget = state.dailyBudget,
+              creativeIds = state.creativeAssignments,
+              adProductCategory = state.adProductCategory,
+              landingUrl = state.landingUrl,
               bidOnUnmatchedContext = state.bidOnUnmatchedContext,
-              startAt               = state.startAt,
-              endAt                 = state.endAt,
-              siteAllowlist         = state.siteAllowlist,
-              suggestedCategories   = state.suggestedCategories,
-              name                  = state.name,
+              startAt = state.startAt,
+              endAt = state.endAt,
+              siteAllowlist = state.siteAllowlist,
+              suggestedCategories = state.suggestedCategories,
+              name = state.name
             )
             Effect.none
 
@@ -867,12 +874,12 @@ object CampaignEntity {
               if (state.status != Status.Active && newStatus == Status.Active) {
                 budgetEventTopic ! Topic.Publish(
                   promovolve.SpendUpdate(
-                    campaignId   = campaignId,
+                    campaignId = campaignId,
                     advertiserId = advertiserId,
-                    dailyBudget  = newState.dailyBudget,
-                    todaySpend   = totalSpend(newState),
-                    dayStart     = newState.lastResetInstant,
-                    timestamp    = Instant.now()
+                    dailyBudget = newState.dailyBudget,
+                    todaySpend = totalSpend(newState),
+                    dayStart = newState.lastResetInstant,
+                    timestamp = Instant.now()
                   )
                 )
               }
@@ -881,14 +888,16 @@ object CampaignEntity {
               // for Deleted too — otherwise AdServers keep the campaign in
               // their local candidate set until the next refresh.
               if (state.status == Status.Active &&
-                  (newStatus == Status.Paused || newStatus == Status.Deleted)) {
+                (newStatus == Status.Paused || newStatus == Status.Deleted)) {
                 budgetEventTopic ! Topic.Publish(
-                  promovolve.CampaignPaused(campaignId, Instant.now())
+                  promovolve.CampaignPaused(campaignId,
+                    Instant.now())
                 )
               }
             }
 
-          case UpdateConfig(maxCpm, dailyBudget, adProductCat, categoriesOpt, landingUrlOpt, bidOnUnmatchedCtx, startAtOpt, endAtOpt, siteAllowlistOpt, nameOpt, replyTo) =>
+          case UpdateConfig(maxCpm, dailyBudget, adProductCat, categoriesOpt, landingUrlOpt, bidOnUnmatchedCtx,
+                startAtOpt, endAtOpt, siteAllowlistOpt, nameOpt, replyTo) =>
             val newAdProductCategory = adProductCat.getOrElse(state.adProductCategory)
             // Target categories are now an explicit advertiser declaration —
             // no longer derived from adProductCategory. Any 2.x ids the
@@ -902,18 +911,18 @@ object CampaignEntity {
             val budgetChanged = dailyBudget.exists(_ != state.dailyBudget)
             val adProductChanged = adProductCat.exists(_ != state.adProductCategory)
             val newState = state.copy(
-              maxCpm                = maxCpm.getOrElse(state.maxCpm),
-              dailyBudget           = dailyBudget.getOrElse(state.dailyBudget),
-              adProductCategory     = newAdProductCategory,
-              landingUrl            = landingUrlOpt.getOrElse(state.landingUrl),
-              categories            = newCategories,
+              maxCpm = maxCpm.getOrElse(state.maxCpm),
+              dailyBudget = dailyBudget.getOrElse(state.dailyBudget),
+              adProductCategory = newAdProductCategory,
+              landingUrl = landingUrlOpt.getOrElse(state.landingUrl),
+              categories = newCategories,
               bidOnUnmatchedContext = bidOnUnmatchedCtx.getOrElse(state.bidOnUnmatchedContext),
               // Schedule. startAt = Some(value) sets, None = no change.
               // endAt = Some(Some(value)) sets, Some(None) clears, None = no change.
-              startAt               = startAtOpt.getOrElse(state.startAt),
-              endAt                 = endAtOpt.getOrElse(state.endAt),
-              siteAllowlist         = siteAllowlistOpt.getOrElse(state.siteAllowlist),
-              name                  = nameOpt.map(_.trim).filter(_.nonEmpty).getOrElse(state.name)
+              startAt = startAtOpt.getOrElse(state.startAt),
+              endAt = endAtOpt.getOrElse(state.endAt),
+              siteAllowlist = siteAllowlistOpt.getOrElse(state.siteAllowlist),
+              name = nameOpt.map(_.trim).filter(_.nonEmpty).getOrElse(state.name)
             )
             val nowWithin = withinBudget(newState)
             // Defer reply until directory registration completes
@@ -940,12 +949,12 @@ object CampaignEntity {
 
                 budgetEventTopic ! Topic.Publish(
                   promovolve.SpendUpdate(
-                    campaignId   = campaignId,
+                    campaignId = campaignId,
                     advertiserId = advertiserId,
-                    dailyBudget  = newState.dailyBudget,
-                    todaySpend   = totalSpend(newState),
-                    dayStart     = newState.lastResetInstant,
-                    timestamp    = ts
+                    dailyBudget = newState.dailyBudget,
+                    todaySpend = totalSpend(newState),
+                    dayStart = newState.lastResetInstant,
+                    timestamp = ts
                   )
                 )
               }
@@ -1029,16 +1038,16 @@ object CampaignEntity {
           case GetBudgetInfo(replyTo) =>
             replyTo ! BudgetInfo(
               dailyBudget = state.dailyBudget,
-              spent       = totalSpend(state),
-              remaining   = remainingBudget(state)
+              spent = totalSpend(state),
+              remaining = remainingBudget(state)
             )
             Effect.none
 
           case GetCampaignStats(replyTo) =>
             replyTo ! CampaignStats(
-              campaignId  = campaignId,
-              bidsToday   = ephemeral.bidsToday,
-              spendToday  = totalSpend(state),
+              campaignId = campaignId,
+              bidsToday = ephemeral.bidsToday,
+              spendToday = totalSpend(state),
               dailyBudget = state.dailyBudget
             )
             Effect.none
@@ -1047,8 +1056,8 @@ object CampaignEntity {
             // Return actual reset time (not midnight) for accurate pacing
             replyTo ! SpendInfo(
               dailyBudget = state.dailyBudget,
-              todaySpend  = totalSpend(state),
-              dayStart    = state.lastResetInstant
+              todaySpend = totalSpend(state),
+              dayStart = state.lastResetInstant
             )
             Effect.none
 
@@ -1098,10 +1107,10 @@ object CampaignEntity {
                   }
 
               val newState = state.copy(
-                spendToday       = Spend.zero,
+                spendToday = Spend.zero,
                 lastResetInstant = now,
-                pendingReports   = updatedPending,
-                processedFilter  = Array.emptyByteArray
+                pendingReports = updatedPending,
+                processedFilter = Array.emptyByteArray
               )
 
               Effect.persist(newState).thenRun { _ =>
@@ -1116,12 +1125,12 @@ object CampaignEntity {
                 // Publish updated spend info so AdServer gets new dayStart with zero spend
                 budgetEventTopic ! Topic.Publish(
                   promovolve.SpendUpdate(
-                    campaignId   = campaignId,
+                    campaignId = campaignId,
                     advertiserId = advertiserId,
-                    dailyBudget  = newState.dailyBudget,
-                    todaySpend   = Spend.zero,
-                    dayStart     = now,
-                    timestamp    = now
+                    dailyBudget = newState.dailyBudget,
+                    todaySpend = Spend.zero,
+                    dayStart = now,
+                    timestamp = now
                   )
                 )
               }.thenReply(replyTo)(_ => DayStartReset(campaignId, now))
@@ -1139,7 +1148,7 @@ object CampaignEntity {
               Effect.none
             } else {
               val remaining = remainingBudget(state)
-              if (amount <= remaining) {  // Spend <= Budget comparison
+              if (amount <= remaining) { // Spend <= Budget comparison
                 // Have budget - reserve it NOW (before reply)
                 markProcessed(requestId)
                 val wasWithin = withinBudget(state)
@@ -1160,7 +1169,8 @@ object CampaignEntity {
                 // Publish budget exhaustion event when transitioning from within-budget to exhausted
                 if (wasWithin && !nowWithin) {
                   budgetEventTopic ! Topic.Publish(
-                    promovolve.CampaignBudgetExhausted(campaignId, Instant.now())
+                    promovolve.CampaignBudgetExhausted(campaignId,
+                      Instant.now())
                   )
                   ctx.log.warn("Budget exhausted for campaign {}", campaignId.value)
                 }
@@ -1218,12 +1228,12 @@ object CampaignEntity {
               // Publish spend update with new budget
               budgetEventTopic ! Topic.Publish(
                 promovolve.SpendUpdate(
-                  campaignId   = campaignId,
+                  campaignId = campaignId,
                   advertiserId = advertiserId,
-                  dailyBudget  = newBudget,
-                  todaySpend   = spendTotal,
-                  dayStart     = state.lastResetInstant,
-                  timestamp    = ts
+                  dailyBudget = newBudget,
+                  todaySpend = spendTotal,
+                  dayStart = state.lastResetInstant,
+                  timestamp = ts
                 )
               )
 
@@ -1249,7 +1259,8 @@ object CampaignEntity {
             // pre-3.0. Pekko DurableState already wrote the snapshot, so we
             // only re-persist when migration actually changed the set.
             val migratedCategories = Iab2xTo3xMigration.migrateSet(state.categories.map(_.value)).map(CategoryId(_))
-            val migratedBlocklist = Iab2xTo3xMigration.migrateSet(state.categoryBlocklist.map(_.value)).map(CategoryId(_))
+            val migratedBlocklist =
+              Iab2xTo3xMigration.migrateSet(state.categoryBlocklist.map(_.value)).map(CategoryId(_))
             if (migratedCategories == state.categories && migratedBlocklist == state.categoryBlocklist) {
               Effect.none
             } else {
@@ -1288,8 +1299,8 @@ object CampaignEntity {
               Effect
                 .persist(
                   state.copy(
-                    spendToday      = state.spendToday + amount,
-                    pendingReports  = updatedPending,
+                    spendToday = state.spendToday + amount,
+                    pendingReports = updatedPending,
                     processedFilter = updatedFilter
                   )
                 )
@@ -1306,16 +1317,16 @@ object CampaignEntity {
 
         DurableStateBehavior[Command, State](
           persistenceId = PersistenceId.ofUniqueId(s"campaign-$campaignId"),
-          emptyState    = State.empty(campaignId, advertiserId),
+          emptyState = State.empty(campaignId, advertiserId),
           commandHandler = (state, command) => {
             // Compose partial functions for each concern area
             val handlers: PartialFunction[Command, Effect[State]] =
-              bidding(state) orElse
-              spendRecording(state) orElse
-              spendReportDelivery(state) orElse
-              configManagement(state) orElse
-              budgetManagement(state) orElse
-              lifecycle(state)
+              bidding(state).orElse(
+                spendRecording(state)).orElse(
+                spendReportDelivery(state)).orElse(
+                configManagement(state)).orElse(
+                budgetManagement(state)).orElse(
+                lifecycle(state))
 
             handlers(command)
           }
@@ -1381,9 +1392,11 @@ object CampaignEntity {
 
   private sealed trait Internal extends Command
 
-  /** Self-message sent once after recovery if persisted state still carries
-    * legacy IAB 2.x category ids. Handler in `lifecycle` normalizes the
-    * set through [[Iab2xTo3xMigration]] and persists if anything changed. */
+  /**
+   * Self-message sent once after recovery if persisted state still carries
+   * legacy IAB 2.x category ids. Handler in `lifecycle` normalizes the
+   * set through [[Iab2xTo3xMigration]] and persists if anything changed.
+   */
   private case object MigrateLegacyCategories extends Internal
   private case object IgnoreDDataResponse extends Internal
 
@@ -1392,8 +1405,8 @@ object CampaignEntity {
   /** Immutable spend buffer - pure state transitions */
   final case class SpendBuffer(spend: Spend, count: Int) {
     def add(amount: Spend): SpendBuffer = SpendBuffer(spend + amount, count + 1)
-    def drain: (Spend, SpendBuffer)     = (spend, SpendBuffer.empty)
-    def isPositive: Boolean             = spend.isPositive
+    def drain: (Spend, SpendBuffer) = (spend, SpendBuffer.empty)
+    def isPositive: Boolean = spend.isPositive
   }
 
   /** Ephemeral state - not persisted, lost on actor restart. Pure transformations. */
@@ -1402,10 +1415,10 @@ object CampaignEntity {
       flushSeq: Long,
       idempotencyFilter: BloomFilter, // Bloom filter for idempotency (serialized on flush)
       lastRolledEpochDay: Long = -1L, // Guard against double day-roll (prevents race between RecordSpend and CheckWindowRoll)
-      bidsToday: Long = 0             // Eligible bid count today (for win rate: impressions / bidsToday)
+      bidsToday: Long = 0 // Eligible bid count today (for win rate: impressions / bidsToday)
   ) {
     def spend: Spend = buffer.spend
-    def count: Int   = buffer.count
+    def count: Int = buffer.count
 
     def incrementBids: EphemeralState = copy(bidsToday = bidsToday + 1)
 
@@ -1438,18 +1451,20 @@ object CampaignEntity {
     def withFreshFilter: EphemeralState =
       copy(idempotencyFilter = EphemeralState.createFilter(), bidsToday = 0)
 
-    /** Check if we've already rolled to the given epoch day (guards against double roll).
-      * Returns (alreadyRolled, updatedState).
-      * If not already rolled, updates lastRolledEpochDay to prevent future double rolls.
-      */
+    /**
+     * Check if we've already rolled to the given epoch day (guards against double roll).
+     * Returns (alreadyRolled, updatedState).
+     * If not already rolled, updates lastRolledEpochDay to prevent future double rolls.
+     */
     def tryMarkRolled(epochDay: Long): (Boolean, EphemeralState) =
       if (lastRolledEpochDay >= epochDay) (true, this)
       else (false, copy(lastRolledEpochDay = epochDay))
   }
 
-  /** Refine targeting categories from creative image analysis.
-    * Unions detected categories with existing campaign categories (additive).
-    */
+  /**
+   * Refine targeting categories from creative image analysis.
+   * Unions detected categories with existing campaign categories (additive).
+   */
   final case class RefineCategoriesFromCreative(
       detectedCategories: Set[CategoryId],
       replyTo: ActorRef[CategoriesRefined]
@@ -1463,7 +1478,8 @@ object CampaignEntity {
       replyTo: ActorRef[CreativesAssigned]
   ) extends Command
 
-  final case class CreativesAssigned(campaignId: CampaignId, creativeIds: Set[CreativeId]) extends promovolve.CborSerializable
+  final case class CreativesAssigned(campaignId: CampaignId, creativeIds: Set[CreativeId])
+      extends promovolve.CborSerializable
 
   /** Unassign creatives from this campaign */
   final case class UnassignCreatives(
@@ -1471,7 +1487,8 @@ object CampaignEntity {
       replyTo: ActorRef[CreativesUnassigned]
   ) extends Command
 
-  final case class CreativesUnassigned(campaignId: CampaignId, creativeIds: Set[CreativeId]) extends promovolve.CborSerializable
+  final case class CreativesUnassigned(campaignId: CampaignId, creativeIds: Set[CreativeId])
+      extends promovolve.CborSerializable
 
   final case class GetCampaign(replyTo: ActorRef[CampaignInfo]) extends Command
 
@@ -1485,7 +1502,7 @@ object CampaignEntity {
       adProductCategory: Option[AdProductCategoryId] = None,
       landingUrl: Option[String] = None,
       bidOnUnmatchedContext: Boolean = false,
-      startAt: Instant = Instant.EPOCH,    // populated from State.startAt by the GetCampaign handler
+      startAt: Instant = Instant.EPOCH, // populated from State.startAt by the GetCampaign handler
       endAt: Option[Instant] = None,
       siteAllowlist: Set[String] = Set.empty,
       // Durable Gemini suggestion (fallback default). Exposed so the dashboard
@@ -1495,7 +1512,7 @@ object CampaignEntity {
       suggestedCategories: Set[CategoryId] = Set.empty,
       // Advertiser-provided display name; "" for legacy campaigns
       // created before the name was persisted (API falls back to id).
-      name: String = "",
+      name: String = ""
   ) extends promovolve.CborSerializable
 
   final case class UpdateStatus(status: Status, replyTo: ActorRef[StatusUpdated]) extends Command
@@ -1545,8 +1562,8 @@ object CampaignEntity {
       campaignId: CampaignId,
       advertiserId: AdvertiserId,
       creatives: Set[AdvertiserEntity.Creative],
-      cpm: CPM,                // bid price (for auction ranking)
-      maxCpm: CPM = CPM.zero,  // advertiser's max CPM (for ServeIndex/Thompson Sampling)
+      cpm: CPM, // bid price (for auction ranking)
+      maxCpm: CPM = CPM.zero, // advertiser's max CPM (for ServeIndex/Thompson Sampling)
       adProductCategory: Option[AdProductCategoryId] = None,
       landingDomain: String = "",
       rejectReason: Option[BidRejectReason] = None,
@@ -1555,14 +1572,14 @@ object CampaignEntity {
       // approval queue but are invisible to floor pricing. Set on rejects
       // too (a below-floor APPROVED bidder must still widen the sweep
       // range; a below-floor pending one must not).
-      hasApprovedCreative: Boolean = false,
+      hasApprovedCreative: Boolean = false
   ) extends promovolve.CborSerializable {
     def eligible: Boolean = creatives.nonEmpty
   }
 
   enum BidRejectReason:
     case Paused, CategoryMismatch, CategoryBlocked, SizeMismatch,
-         BelowFloor, BudgetExhausted, NoCreatives, SiteNotAllowed
+      BelowFloor, BudgetExhausted, NoCreatives, SiteNotAllowed
 
   /** Record spend (buffered, flushed periodically) */
   final case class RecordSpend(
@@ -1608,9 +1625,10 @@ object CampaignEntity {
 
   final case class DayStartReset(campaignId: CampaignId, newDayStart: Instant) extends promovolve.CborSerializable
 
-  /** Atomic budget reservation - checks AND deducts in one message to eliminate race conditions.
-    * Use this instead of HasBudget + RecordSpend for serve-time budget enforcement.
-    */
+  /**
+   * Atomic budget reservation - checks AND deducts in one message to eliminate race conditions.
+   * Use this instead of HasBudget + RecordSpend for serve-time budget enforcement.
+   */
   final case class TryReserve(
       requestId: String,
       amount: Spend,
@@ -1619,9 +1637,10 @@ object CampaignEntity {
 
   final case class Reserved(remaining: Budget) extends ReserveResult
 
-  /** Replenish campaign budget (e.g., daily reset or manual top-up).
-    * Publishes CampaignBudgetReset event so AuctioneerEntity triggers re-auction.
-    */
+  /**
+   * Replenish campaign budget (e.g., daily reset or manual top-up).
+   * Publishes CampaignBudgetReset event so AuctioneerEntity triggers re-auction.
+   */
   final case class ReplenishBudget(
       newBudget: Budget,
       replyTo: ActorRef[ReplenishResult]
@@ -1632,14 +1651,16 @@ object CampaignEntity {
   final case class ReplenishRejected(campaignId: CampaignId, currentSpend: Spend, requestedBudget: Budget)
       extends ReplenishResult
 
-  /** Published when campaign changes affect auction eligibility.
-    *
-    * `siteAllowlist` mirrors `State.siteAllowlist`: empty = bid everywhere,
-    * non-empty = bid ONLY on these siteIds. Per-site AuctioneerEntities use it
-    * to detect a site-narrow exclusion (`siteAllowlist.nonEmpty &&
-    * !siteAllowlist.contains(thisSite)`) and evict the campaign from a site the
-    * advertiser dropped. Carried on the ephemeral pub/sub event; the default
-    * keeps deserialization of any older in-flight events safe. */
+  /**
+   * Published when campaign changes affect auction eligibility.
+   *
+   * `siteAllowlist` mirrors `State.siteAllowlist`: empty = bid everywhere,
+   * non-empty = bid ONLY on these siteIds. Per-site AuctioneerEntities use it
+   * to detect a site-narrow exclusion (`siteAllowlist.nonEmpty &&
+   * !siteAllowlist.contains(thisSite)`) and evict the campaign from a site the
+   * advertiser dropped. Carried on the ephemeral pub/sub event; the default
+   * keeps deserialization of any older in-flight events safe.
+   */
   final case class CampaignChanged(
       campaignId: CampaignId,
       categories: Set[CategoryId],
@@ -1718,30 +1739,33 @@ object CampaignEntity {
       name: String = ""
   ) extends CborSerializable {
 
-    /** Effective targeting set used for eligibility/registration/eviction.
-      * Advertiser's explicit `categories` win when present; otherwise the
-      * durable Gemini suggestion is the fallback so an empty explicit set
-      * does not silently untarget the campaign. `categories` itself keeps
-      * its own meaning/visibility unchanged.
-      */
+    /**
+     * Effective targeting set used for eligibility/registration/eviction.
+     * Advertiser's explicit `categories` win when present; otherwise the
+     * durable Gemini suggestion is the fallback so an empty explicit set
+     * does not silently untarget the campaign. `categories` itself keeps
+     * its own meaning/visibility unchanged.
+     */
     def effectiveCategories: Set[CategoryId] =
       if (categories.nonEmpty) categories else suggestedCategories
 
-    /** True when `now` is within the campaign's [startAt, endAt) window.
-      * Open-ended endAt = always after start. Used both for canBid
-      * eligibility and for deriving the dog-ear pin TTL ceiling.
-      */
+    /**
+     * True when `now` is within the campaign's [startAt, endAt) window.
+     * Open-ended endAt = always after start. Used both for canBid
+     * eligibility and for deriving the dog-ear pin TTL ceiling.
+     */
     def isWithinSchedule(now: Instant): Boolean =
       !now.isBefore(startAt) && endAt.forall(now.isBefore(_))
 
-    /** Deterministic campaign eligibility checks (no probabilistic budget throttling).
-      * Fluid creatives render at any slot dimension, so there's no
-      * size gate here — the auctioneer's slot fan-out picks which
-      * categories' campaigns to ask, and the creative-level isEligibleFor
-      * handles per-creative active/rejection state.
-      *
-      * Site-domain blocklist is enforced at AdServer via DData; not checked here.
-      */
+    /**
+     * Deterministic campaign eligibility checks (no probabilistic budget throttling).
+     * Fluid creatives render at any slot dimension, so there's no
+     * size gate here — the auctioneer's slot fan-out picks which
+     * categories' campaigns to ask, and the creative-level isEligibleFor
+     * handles per-creative active/rejection state.
+     *
+     * Site-domain blocklist is enforced at AdServer via DData; not checked here.
+     */
     def canBid(
         siteId: SiteId,
         pageCategory: CategoryId,
@@ -1751,18 +1775,17 @@ object CampaignEntity {
       // into `bidOnUnmatchedContext` bypass the normal category
       // containment check for these. They're still subject to every
       // other eligibility rule (status, CPM floor).
-      val categoryOk =
-        (pageCategory == CategoryId.Filler && bidOnUnmatchedContext) ||
-          effectiveCategories.contains(pageCategory)
+      val categoryOk = (pageCategory == CategoryId.Filler && bidOnUnmatchedContext) ||
+        effectiveCategories.contains(pageCategory)
       // Media targeting: empty allowlist = bid anywhere; otherwise only the
       // listed sites. Purely a "where" filter on top of category matching.
       val siteOk = siteAllowlist.isEmpty || siteAllowlist.contains(siteId.value)
       status == Status.Active &&
-        isWithinSchedule(Instant.now()) &&
-        siteOk &&
-        categoryOk &&
-        !categoryBlocklist.contains(pageCategory) &&
-        maxCpm >= floorCpm
+      isWithinSchedule(Instant.now()) &&
+      siteOk &&
+      categoryOk &&
+      !categoryBlocklist.contains(pageCategory) &&
+      maxCpm >= floorCpm
     }
 
     def bidRejectReason(
@@ -1824,34 +1847,38 @@ object CampaignEntity {
       retryCount: Int
   ) extends Internal
 
-  /** Internal: Acknowledgment from CampaignDirectory that registration completed
-    * (demand propagated to the category bidders). Flips the campaign biddable. */
+  /**
+   * Internal: Acknowledgment from CampaignDirectory that registration completed
+   * (demand propagated to the category bidders). Flips the campaign biddable.
+   */
   private case class DirectoryRegistered(campaignId: CampaignId) extends Internal
+
   /** Self-message: re-tell CampaignReady while still awaiting the ack. */
   private case object RetryDirectoryRegistration extends Internal
+
   /** Internal: result of a best-effort category_demand table write. */
   private case class DemandTableResult(error: Option[String]) extends Internal
 
   case object InsufficientBudget extends ReserveResult
 
-  case object Throttled extends ReserveResult  // Pacing rejection (has budget, but pacing)
+  case object Throttled extends ReserveResult // Pacing rejection (has budget, but pacing)
 
   case object Stop extends Command
 
   object State {
     def empty(campaignId: CampaignId, advertiserId: AdvertiserId): State = State(
-      campaignId          = campaignId,
-      advertiserId        = advertiserId,
-      status              = Status.Paused,
-      categories          = Set.empty,
-      categoryBlocklist   = Set.empty,
-      maxCpm              = CPM(5.0),
-      dailyBudget         = Budget(100.0),
+      campaignId = campaignId,
+      advertiserId = advertiserId,
+      status = Status.Paused,
+      categories = Set.empty,
+      categoryBlocklist = Set.empty,
+      maxCpm = CPM(5.0),
+      dailyBudget = Budget(100.0),
       creativeAssignments = Set.empty,
-      spendToday          = Spend.zero,
-      lastResetInstant    = Instant.now(),
-      pendingReports      = Map.empty,
-      processedFilter     = Array.emptyByteArray
+      spendToday = Spend.zero,
+      lastResetInstant = Instant.now(),
+      pendingReports = Map.empty,
+      processedFilter = Array.emptyByteArray
     )
   }
 
@@ -1862,7 +1889,7 @@ object CampaignEntity {
   private object EphemeralState {
     // Bloom filter sizing for idempotency
     private val FilterCapacity = 50000 // Expected unique requestIds per day
-    private val FilterFpp      = 0.0001 // 0.01% false positive rate (lower than before for fewer false skips)
+    private val FilterFpp = 0.0001 // 0.01% false positive rate (lower than before for fewer false skips)
 
     def empty: EphemeralState =
       EphemeralState(SpendBuffer.empty, 0L, createFilter())

@@ -1,15 +1,15 @@
 package promovolve.browser
 
 import com.microsoft.playwright.*
-import com.microsoft.playwright.options.{LoadState, WaitUntilState}
-import org.apache.pekko.actor.typed.{ActorRef, ActorSystem}
+import com.microsoft.playwright.options.{ LoadState, WaitUntilState }
+import org.apache.pekko.actor.typed.{ ActorRef, ActorSystem }
 import org.slf4j.LoggerFactory
 import spray.json.*
 import spray.json.DefaultJsonProtocol.*
 
 import java.nio.charset.StandardCharsets
-import java.nio.file.{Files, Path}
-import scala.concurrent.{ExecutionContext, Future}
+import java.nio.file.{ Files, Path }
+import scala.concurrent.{ ExecutionContext, Future }
 import scala.jdk.CollectionConverters.*
 import scala.util.Try
 
@@ -62,42 +62,53 @@ object LPAnalysisResult {
   given RootJsonFormat[LPAnalysisResult] = jsonFormat6(LPAnalysisResult.apply)
 }
 
-/** Raw bytes of an LP image, captured during analysis from the one
-  * browser context that could actually fetch it (it solved the
-  * origin's bot manager). Carried OUT-OF-BAND from [[LPAnalysisResult]]
-  * — that record is JSON-serialized, so bytes must never live on it.
-  * The consumer (API layer) stores these once and rewrites the section
-  * `src` to the resulting CDN URL, so the protected origin is never
-  * re-fetched server-side. `mime` is the response content-type. */
+/**
+ * Raw bytes of an LP image, captured during analysis from the one
+ * browser context that could actually fetch it (it solved the
+ * origin's bot manager). Carried OUT-OF-BAND from [[LPAnalysisResult]]
+ * — that record is JSON-serialized, so bytes must never live on it.
+ * The consumer (API layer) stores these once and rewrites the section
+ * `src` to the resulting CDN URL, so the protected origin is never
+ * re-fetched server-side. `mime` is the response content-type.
+ */
 final case class LPCapturedImage(bytes: Array[Byte], mime: String)
 
 object LPAnalyzer {
-  /** Per-image cap on captured bytes. Skips oversized assets (hero
-    * videos mislabelled as images, giant source PNGs) so a single page
-    * can't balloon the out-of-band map. */
+
+  /**
+   * Per-image cap on captured bytes. Skips oversized assets (hero
+   * videos mislabelled as images, giant source PNGs) so a single page
+   * can't balloon the out-of-band map.
+   */
   val MaxCapturedImageBytes: Int = 8 * 1024 * 1024
 
-  /** Per-image floor on captured bytes. Skips icons, tracking pixels and
-    * sprite chips — never referenced as section imagery, but each still
-    * costs a blocking `body()` download. */
+  /**
+   * Per-image floor on captured bytes. Skips icons, tracking pixels and
+   * sprite chips — never referenced as section imagery, but each still
+   * costs a blocking `body()` download.
+   */
   val MinCapturedImageBytes: Int = 3 * 1024
 
-  /** Hard cap on how many image bodies one analysis will download.
-    * Heavy pages (news homepages) emit hundreds of image responses, and
-    * blocking on `body()` for every one is what made analysis run for
-    * minutes and time out. Referenced section images are a few dozen, well
-    * under this; anything past the cap falls back to og:image / re-fetch. */
+  /**
+   * Hard cap on how many image bodies one analysis will download.
+   * Heavy pages (news homepages) emit hundreds of image responses, and
+   * blocking on `body()` for every one is what made analysis run for
+   * minutes and time out. Referenced section images are a few dozen, well
+   * under this; anything past the cap falls back to og:image / re-fetch.
+   */
   val MaxCapturedImages: Int = 200
 
   // Match a real, current Chrome. Bot managers flag stale majors.
   val UserAgent: String =
     "Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 " +
-      "(KHTML, like Gecko) Chrome/131.0.0.0 Safari/537.36"
+    "(KHTML, like Gecko) Chrome/131.0.0.0 Safari/537.36"
 
-  /** Infer (locale, tz, Accept-Language) from the LP URL so the
-    * browser context's locale matches the content being scraped.
-    * Mismatched locales (en-US context hitting /jp/ja-jp/) are a
-    * strong bot signal. */
+  /**
+   * Infer (locale, tz, Accept-Language) from the LP URL so the
+   * browser context's locale matches the content being scraped.
+   * Mismatched locales (en-US context hitting /jp/ja-jp/) are a
+   * strong bot signal.
+   */
   def inferLocaleTZ(url: String): (String, String, String) = {
     val u = scala.util.Try(new java.net.URI(url)).toOption
     val host = u.flatMap(x => Option(x.getHost)).getOrElse("").toLowerCase
@@ -132,7 +143,7 @@ object LPAnalyzer {
  */
 final class LPAnalyzer(
     bannerScriptUrl: String,
-    browserPool: ActorRef[BrowserSessionPool.Command],
+    browserPool: ActorRef[BrowserSessionPool.Command]
 )(using system: ActorSystem[?]) {
 
   private val log = LoggerFactory.getLogger(getClass)
@@ -154,9 +165,11 @@ final class LPAnalyzer(
   private val stealthScriptPath: Path = resolveResourceToTemp("/stealth.js", "stealth-")
   private val initScriptPath: Path = resolveResourceToTemp("/lp-analyzer.js", "lp-analyzer-")
 
-  /** Analyze a landing page URL and extract content sections with images.
-    * The Playwright work is dispatched to a pool session; the archive.org
-    * fallback runs on `system.executionContext` if the direct nav 4xx/5xxs. */
+  /**
+   * Analyze a landing page URL and extract content sections with images.
+   * The Playwright work is dispatched to a pool session; the archive.org
+   * fallback runs on `system.executionContext` if the direct nav 4xx/5xxs.
+   */
   def analyze(
       url: String,
       strategy: String = "heading",
@@ -182,323 +195,332 @@ final class LPAnalyzer(
       }
   }
 
-  /** Playwright-driven analysis. Runs on the pool session's pinned
-    * thread (caller routes via [[BrowserSessionPool.submit]]). Throws
-    * `RuntimeException("HTTP nnn …")` when the nav response is an
-    * error, so [[analyze]] can decide whether to fall back. */
+  /**
+   * Playwright-driven analysis. Runs on the pool session's pinned
+   * thread (caller routes via [[BrowserSessionPool.submit]]). Throws
+   * `RuntimeException("HTTP nnn …")` when the nav response is an
+   * error, so [[analyze]] can decide whether to fall back.
+   */
   private def analyzeDirect(
       browser: Browser,
       url: String,
       strategy: String,
       onScreenshot: Array[Byte] => Unit
   ): (LPAnalysisResult, Map[String, LPCapturedImage]) = {
-      val (locale, timezone, acceptLanguage) = LPAnalyzer.inferLocaleTZ(url)
-      // Real Chrome 131 always sends these client hints. Their
-      // absence (or mismatch with the UA) is a strong bot signal for
-      // Akamai / Cloudflare bot managers.
-      val extraHeaders = new java.util.HashMap[String, String]()
-      extraHeaders.put("Accept-Language", acceptLanguage)
-      extraHeaders.put("sec-ch-ua", "\"Google Chrome\";v=\"131\", \"Chromium\";v=\"131\", \"Not_A Brand\";v=\"24\"")
-      extraHeaders.put("sec-ch-ua-mobile", "?0")
-      extraHeaders.put("sec-ch-ua-platform", "\"macOS\"")
-      val context = browser.newContext(
-        new Browser.NewContextOptions()
-          .setUserAgent(LPAnalyzer.UserAgent)
-          .setViewportSize(1280, 800)
-          .setLocale(locale)
-          .setTimezoneId(timezone)
-          .setExtraHTTPHeaders(extraHeaders)
-      )
+    val (locale, timezone, acceptLanguage) = LPAnalyzer.inferLocaleTZ(url)
+    // Real Chrome 131 always sends these client hints. Their
+    // absence (or mismatch with the UA) is a strong bot signal for
+    // Akamai / Cloudflare bot managers.
+    val extraHeaders = new java.util.HashMap[String, String]()
+    extraHeaders.put("Accept-Language", acceptLanguage)
+    extraHeaders.put("sec-ch-ua", "\"Google Chrome\";v=\"131\", \"Chromium\";v=\"131\", \"Not_A Brand\";v=\"24\"")
+    extraHeaders.put("sec-ch-ua-mobile", "?0")
+    extraHeaders.put("sec-ch-ua-platform", "\"macOS\"")
+    val context = browser.newContext(
+      new Browser.NewContextOptions()
+        .setUserAgent(LPAnalyzer.UserAgent)
+        .setViewportSize(1280, 800)
+        .setLocale(locale)
+        .setTimezoneId(timezone)
+        .setExtraHTTPHeaders(extraHeaders)
+    )
+
+    try {
+      // stealth patches must run BEFORE extractor — addInitScript
+      // ordering is preserved by Playwright.
+      context.addInitScript(stealthScriptPath)
+      context.addInitScript(initScriptPath)
+      val page = context.newPage()
 
       try {
-        // stealth patches must run BEFORE extractor — addInitScript
-        // ordering is preserved by Playwright.
-        context.addInitScript(stealthScriptPath)
-        context.addInitScript(initScriptPath)
-        val page = context.newPage()
-
-        try {
-          // Block fonts and media but NOT images (we need them)
-          page.route("**", route => {
+        // Block fonts and media but NOT images (we need them)
+        page.route("**",
+          route => {
             val resourceType = route.request().resourceType()
             if (resourceType == "font" || resourceType == "media") route.abort()
             else route.resume()
           })
 
-          // Track asset URLs that the CDN (typically Akamai on asset
-          // subdomains) rejects. The main nav may succeed while a
-          // pile of image/asset requests 403/502 — we swap those src
-          // refs for og:image after extraction.
-          val failedAssetUrls = scala.collection.mutable.Set.empty[String]
-          // Capture image bytes as they arrive on THIS context — the
-          // one that beat the origin's bot manager (Akamai _abck etc.).
-          // The plain server-side re-fetch in import-urls gets tarpitted
-          // by those same hosts, so we keep the bytes we already have and
-          // hand them out-of-band. Single-threaded with the rest of
-          // analyzeDirect (Playwright events fire on the pinned pool
-          // thread), so the mutable map needs no synchronisation.
-          val capturedImages = scala.collection.mutable.Map.empty[String, LPCapturedImage]
-          page.onResponse { resp =>
-            val s = resp.status()
-            if (s == 403 || s == 502 || s == 503 || s == 504) {
-              failedAssetUrls += resp.url()
-            } else if (s >= 200 && s < 300 && capturedImages.size < LPAnalyzer.MaxCapturedImages
-                       && !capturedImages.contains(resp.url())) {
-              val contentType = Option(resp.headers().get("content-type")).getOrElse("")
-              val resourceType = scala.util.Try(resp.request().resourceType()).toOption.getOrElse("")
-              if (resourceType == "image" || contentType.startsWith("image/")) {
-                // Skip icons/pixels and oversized assets BEFORE the blocking
-                // body() download, using the declared length when present —
-                // a heavy page emits hundreds of image responses and
-                // downloading all of them is what blew the time budget.
-                val declaredLen = scala.util.Try(Option(resp.headers().get("content-length")).map(_.toLong)).toOption.flatten
-                val inRange = declaredLen.forall(l => l >= LPAnalyzer.MinCapturedImageBytes && l <= LPAnalyzer.MaxCapturedImageBytes)
-                if (inRange) {
-                  // body() blocks until the response body is downloaded;
-                  // wrap defensively — aborted/streaming responses throw.
-                  scala.util.Try(resp.body()).foreach { b =>
-                    if (b != null && b.length >= LPAnalyzer.MinCapturedImageBytes && b.length <= LPAnalyzer.MaxCapturedImageBytes) {
-                      val mime =
-                        if (contentType.startsWith("image/")) contentType.takeWhile(_ != ';').trim
-                        else "image/*"
-                      capturedImages.update(resp.url(), LPCapturedImage(b, mime))
-                    }
+        // Track asset URLs that the CDN (typically Akamai on asset
+        // subdomains) rejects. The main nav may succeed while a
+        // pile of image/asset requests 403/502 — we swap those src
+        // refs for og:image after extraction.
+        val failedAssetUrls = scala.collection.mutable.Set.empty[String]
+        // Capture image bytes as they arrive on THIS context — the
+        // one that beat the origin's bot manager (Akamai _abck etc.).
+        // The plain server-side re-fetch in import-urls gets tarpitted
+        // by those same hosts, so we keep the bytes we already have and
+        // hand them out-of-band. Single-threaded with the rest of
+        // analyzeDirect (Playwright events fire on the pinned pool
+        // thread), so the mutable map needs no synchronisation.
+        val capturedImages = scala.collection.mutable.Map.empty[String, LPCapturedImage]
+        page.onResponse { resp =>
+          val s = resp.status()
+          if (s == 403 || s == 502 || s == 503 || s == 504) {
+            failedAssetUrls += resp.url()
+          } else if (s >= 200 && s < 300 && capturedImages.size < LPAnalyzer.MaxCapturedImages
+            && !capturedImages.contains(resp.url())) {
+            val contentType = Option(resp.headers().get("content-type")).getOrElse("")
+            val resourceType = scala.util.Try(resp.request().resourceType()).toOption.getOrElse("")
+            if (resourceType == "image" || contentType.startsWith("image/")) {
+              // Skip icons/pixels and oversized assets BEFORE the blocking
+              // body() download, using the declared length when present —
+              // a heavy page emits hundreds of image responses and
+              // downloading all of them is what blew the time budget.
+              val declaredLen =
+                scala.util.Try(Option(resp.headers().get("content-length")).map(_.toLong)).toOption.flatten
+              val inRange =
+                declaredLen.forall(l => l >= LPAnalyzer.MinCapturedImageBytes && l <= LPAnalyzer.MaxCapturedImageBytes)
+              if (inRange) {
+                // body() blocks until the response body is downloaded;
+                // wrap defensively — aborted/streaming responses throw.
+                scala.util.Try(resp.body()).foreach { b =>
+                  if (b != null && b.length >= LPAnalyzer.MinCapturedImageBytes &&
+                    b.length <= LPAnalyzer.MaxCapturedImageBytes) {
+                    val mime =
+                      if (contentType.startsWith("image/")) contentType.takeWhile(_ != ';').trim
+                      else "image/*"
+                    capturedImages.update(resp.url(), LPCapturedImage(b, mime))
                   }
                 }
               }
             }
           }
+        }
 
-          // Akamai-fronted SSR (e.g. ASICS PWA) often 502s the very
-          // first navigation because `_abck` is unsolved — the edge
-          // still sets the cookie though. Retry once: wait for the
-          // cookie to solve, then navigate again.
-          val navOpts = new Page.NavigateOptions()
-            .setWaitUntil(WaitUntilState.DOMCONTENTLOADED)
-            .setTimeout(15000)
-          var response = page.navigate(url, navOpts)
-          if (response != null && response.status() >= 500) {
-            log.info("LPAnalyzer: first nav {} for {}, waiting for _abck then retrying",
-              response.status(), url)
-            try {
-              page.waitForFunction(
-                "() => /_abck=[^;]*~[0-9]+~/.test(document.cookie)",
-                null,
-                new Page.WaitForFunctionOptions().setTimeout(8000)
-              )
-            } catch { case _: Exception => () }
-            response = page.navigate(url, navOpts)
-          }
-
-          Option(response).foreach { resp =>
-            if (resp.status() >= 400)
-              throw new RuntimeException(s"HTTP ${resp.status()} for $url")
-          }
-
-          // Wait for images to load, but don't wait for network idle (analytics/chat never stop)
-          try {
-            page.waitForLoadState(LoadState.LOAD, new Page.WaitForLoadStateOptions().setTimeout(10000))
-          } catch {
-            case _: Exception => log.info("LPAnalyzer: load timeout for {}, proceeding with partial content", url)
-          }
-
-          // Akamai Bot Manager sets `_abck=...~-1~...` on first response
-          // and mutates it to a solved form once its JS challenge runs.
-          // If we start extracting before the cookie resolves, some SSR
-          // backends (e.g. the PWA Lambda in front of SFCC) refuse
-          // follow-up requests and return 502 upstream. Cheap to wait —
-          // if the cookie isn't present the predicate is immediately
-          // true.
+        // Akamai-fronted SSR (e.g. ASICS PWA) often 502s the very
+        // first navigation because `_abck` is unsolved — the edge
+        // still sets the cookie though. Retry once: wait for the
+        // cookie to solve, then navigate again.
+        val navOpts = new Page.NavigateOptions()
+          .setWaitUntil(WaitUntilState.DOMCONTENTLOADED)
+          .setTimeout(15000)
+        var response = page.navigate(url, navOpts)
+        if (response != null && response.status() >= 500) {
+          log.info("LPAnalyzer: first nav {} for {}, waiting for _abck then retrying",
+            response.status(), url)
           try {
             page.waitForFunction(
-              "() => !document.cookie.match(/_abck=[^;]*~-1~/)",
+              "() => /_abck=[^;]*~[0-9]+~/.test(document.cookie)",
               null,
               new Page.WaitForFunctionOptions().setTimeout(8000)
             )
-          } catch {
-            case _: Exception => log.info("LPAnalyzer: _abck unresolved after 8s for {}, proceeding", url)
-          }
-
-          // Force layout + lazy-load settle. Many sites apply CSS classes or
-          // attach background-images via JS after LOAD, and IntersectionObserver
-          // lazy loaders only fire once the element enters the viewport — a
-          // single jump to the bottom SKIPS everything in the middle. Ported
-          // from pekko-dast's navScroll (loop-until-stable + NETWORKIDLE wait)
-          // with stepping added: walk DOWN one viewport at a time so the IO
-          // fires for every element passed, waiting for NETWORKIDLE after each
-          // step so the fetched images actually settle (not a fixed guess).
-          // Stop once we've reached the bottom and the document stopped growing
-          // (two consecutive stable reads), capped to bound the time. Then
-          // scroll back to the top so getBoundingClientRect coords are from-top
-          // and the hero screenshot below is above-the-fold.
-          try {
-            def docHeight(): Double = page.evaluate("() => document.documentElement.scrollHeight") match {
-              case n: java.lang.Number => n.doubleValue()
-              case _                   => 0.0
-            }
-            def viewport(): Double = page.evaluate("() => window.innerHeight") match {
-              case n: java.lang.Number => n.doubleValue()
-              case _                   => 800.0
-            }
-            val vp   = viewport()
-            val step = math.max(vp * 0.9, 400.0)
-            var y      = 0.0
-            var lastH  = -1.0
-            var stable = 0
-            var i      = 0
-            while (i < 12 && stable < 2) {
-              y += step
-              page.evaluate(s"() => window.scrollTo(0, ${y.toInt})")
-              try page.waitForLoadState(
-                LoadState.NETWORKIDLE,
-                new Page.WaitForLoadStateOptions().setTimeout(1200),
-              )
-              catch { case _: Exception => () }
-              val h = docHeight()
-              if (y >= h - vp && h <= lastH + 1) stable += 1 else stable = 0
-              lastH = h
-              i += 1
-            }
-            page.evaluate("() => new Promise(r => { window.scrollTo(0, 0); setTimeout(r, 200); })")
-          } catch {
-            case _: Exception => ()
-          }
-
-          // Early preview: the page has loaded + lazy-images settled and
-          // we're scrolled back to the top, so a viewport screenshot now is
-          // the recognisable above-the-fold hero. Hand it to the caller
-          // before the slow extraction so a preview can render while the
-          // rest of the analysis continues. Best-effort — never let a
-          // screenshot failure derail the analysis.
-          try {
-            val shot = page.screenshot(new Page.ScreenshotOptions()
-              .setType(com.microsoft.playwright.options.ScreenshotType.PNG))
-            if (shot != null && shot.nonEmpty) onScreenshot(shot)
-          } catch {
-            case e: Exception => log.info("LPAnalyzer: preview screenshot failed for {}: {}", url, e.getMessage)
-          }
-
-          // Run both extraction strategies and log comparison
-          val headingResult = page.evaluate("extractSections('heading')")
-          val imageResult = page.evaluate("extractSections('image')")
-          val headingSections = parseSections(headingResult)
-          val imageSections = parseSections(imageResult)
-
-          def logSections(label: String, secs: Vector[LPSection]): Unit = {
-            val totalImages = secs.map(_.images.size).sum
-            log.info("{} strategy: {} sections, {} images", label, secs.size, totalImages)
-            secs.zipWithIndex.foreach { case (s, i) =>
-              val heading = if (s.heading.nonEmpty) s.heading.take(60) else "(no heading)"
-              val textPreview = s.text.take(80).replace("\n", " ")
-              val imgSummary = s.images.map(img => s"${img.width}x${img.height}").mkString(", ")
-              log.info("  {} {}: [{}] \"{}\" — {} imgs [{}]",
-                label, i + 1, heading, textPreview, s.images.size, imgSummary)
-            }
-          }
-
-          logSections("HEADING", headingSections)
-          logSections("IMAGE", imageSections)
-
-          val sections = strategy match {
-            case "image"   => imageSections
-            case "heading" => headingSections
-            case _ => // "auto": try heading, fall back to image if too few
-              if (headingSections.size >= 3) headingSections
-              else {
-                log.info("Heading strategy found only {} sections, falling back to image strategy", headingSections.size)
-                imageSections
-              }
-          }
-          log.info("Using {} strategy — returning {} sections",
-            if (strategy == "auto" || strategy == "heading") { if (sections eq headingSections) "heading" else "image" } else strategy,
-            sections.size)
-
-          // Sample the LP's dominant background + text colours so
-          // the creative can use them verbatim — the creative is
-          // presented as an extension of the LP, so colour scheme
-          // must match.
-          val dominantColor = scala.util.Try {
-            val raw = page.evaluate("extractDominantColor()")
-            Option(raw).map(_.toString).filter(_.nonEmpty)
-          }.toOption.flatten
-          val textColor = scala.util.Try {
-            val raw = page.evaluate("extractTextColor()")
-            Option(raw).map(_.toString).filter(_.nonEmpty)
-          }.toOption.flatten
-          log.info("LP colours: bg={}, text={}",
-            dominantColor.getOrElse("(none)"), textColor.getOrElse("(none)"))
-
-          // Brand palette + font faces — seed the creative's brand kit
-          // so it matches the LP. Both extractors return JSON-string
-          // arrays; parse defensively (default empty on any failure).
-          def parseStringArray(js: String): Vector[String] =
-            scala.util.Try {
-              val raw = page.evaluate(js)
-              Option(raw).map(_.toString).filter(_.nonEmpty) match {
-                case Some(s) => s.parseJson.convertTo[Vector[String]]
-                case None    => Vector.empty
-              }
-            }.toOption.getOrElse(Vector.empty)
-          val palette = parseStringArray("extractPalette()")
-          val fonts   = parseStringArray("extractFonts()")
-          log.info("LP brand kit: palette={}, fonts={}",
-            if (palette.isEmpty) "(none)" else palette.mkString(","),
-            if (fonts.isEmpty) "(none)" else fonts.mkString(","))
-
-          // Canonical hero fallback: og:image / twitter:image / JSON-LD
-          // Product.image. Used to replace image srcs that the CDN
-          // rejected during load — those URLs will 502 again at the
-          // consumer side, so we swap them for the page's own
-          // canonical hero while we still have the DOM open.
-          val ogImage = scala.util.Try {
-            val raw = page.evaluate("extractOgImage()")
-            Option(raw).map(_.toString).filter(_.nonEmpty)
-          }.toOption.flatten
-
-          val rewrittenSections =
-            if (failedAssetUrls.isEmpty) sections
-            else {
-              var swapped = 0
-              var dropped = 0
-              val out = sections.map { sec =>
-                val imgs = sec.images.flatMap { img =>
-                  if (!failedAssetUrls.contains(img.src)) Some(img)
-                  else ogImage match {
-                    case Some(og) =>
-                      swapped += 1
-                      // Dims no longer apply since src changed — zero
-                      // them so downstream knows to re-measure.
-                      Some(img.copy(src = og, width = 0, height = 0))
-                    case None =>
-                      dropped += 1
-                      None
-                  }
-                }
-                sec.copy(images = imgs)
-              }
-              log.info("LP asset rewrite: {} failed urls → {} swapped to og:image, {} dropped (og:image {})",
-                failedAssetUrls.size, swapped, dropped,
-                ogImage.getOrElse("(none)"))
-              out
-            }
-
-          log.info("LPAnalyzer: captured bytes for {} image responses on {}",
-            capturedImages.size, url)
-          (LPAnalysisResult(url, rewrittenSections, dominantColor, textColor, palette, fonts), capturedImages.toMap)
-        } finally {
-          page.close()
+          } catch { case _: Exception => () }
+          response = page.navigate(url, navOpts)
         }
+
+        Option(response).foreach { resp =>
+          if (resp.status() >= 400)
+            throw new RuntimeException(s"HTTP ${resp.status()} for $url")
+        }
+
+        // Wait for images to load, but don't wait for network idle (analytics/chat never stop)
+        try {
+          page.waitForLoadState(LoadState.LOAD, new Page.WaitForLoadStateOptions().setTimeout(10000))
+        } catch {
+          case _: Exception => log.info("LPAnalyzer: load timeout for {}, proceeding with partial content", url)
+        }
+
+        // Akamai Bot Manager sets `_abck=...~-1~...` on first response
+        // and mutates it to a solved form once its JS challenge runs.
+        // If we start extracting before the cookie resolves, some SSR
+        // backends (e.g. the PWA Lambda in front of SFCC) refuse
+        // follow-up requests and return 502 upstream. Cheap to wait —
+        // if the cookie isn't present the predicate is immediately
+        // true.
+        try {
+          page.waitForFunction(
+            "() => !document.cookie.match(/_abck=[^;]*~-1~/)",
+            null,
+            new Page.WaitForFunctionOptions().setTimeout(8000)
+          )
+        } catch {
+          case _: Exception => log.info("LPAnalyzer: _abck unresolved after 8s for {}, proceeding", url)
+        }
+
+        // Force layout + lazy-load settle. Many sites apply CSS classes or
+        // attach background-images via JS after LOAD, and IntersectionObserver
+        // lazy loaders only fire once the element enters the viewport — a
+        // single jump to the bottom SKIPS everything in the middle. Ported
+        // from pekko-dast's navScroll (loop-until-stable + NETWORKIDLE wait)
+        // with stepping added: walk DOWN one viewport at a time so the IO
+        // fires for every element passed, waiting for NETWORKIDLE after each
+        // step so the fetched images actually settle (not a fixed guess).
+        // Stop once we've reached the bottom and the document stopped growing
+        // (two consecutive stable reads), capped to bound the time. Then
+        // scroll back to the top so getBoundingClientRect coords are from-top
+        // and the hero screenshot below is above-the-fold.
+        try {
+          def docHeight(): Double = page.evaluate("() => document.documentElement.scrollHeight") match {
+            case n: java.lang.Number => n.doubleValue()
+            case _                   => 0.0
+          }
+          def viewport(): Double = page.evaluate("() => window.innerHeight") match {
+            case n: java.lang.Number => n.doubleValue()
+            case _                   => 800.0
+          }
+          val vp = viewport()
+          val step = math.max(vp * 0.9, 400.0)
+          var y = 0.0
+          var lastH = -1.0
+          var stable = 0
+          var i = 0
+          while (i < 12 && stable < 2) {
+            y += step
+            page.evaluate(s"() => window.scrollTo(0, ${y.toInt})")
+            try page.waitForLoadState(
+                LoadState.NETWORKIDLE,
+                new Page.WaitForLoadStateOptions().setTimeout(1200)
+              )
+            catch { case _: Exception => () }
+            val h = docHeight()
+            if (y >= h - vp && h <= lastH + 1) stable += 1 else stable = 0
+            lastH = h
+            i += 1
+          }
+          page.evaluate("() => new Promise(r => { window.scrollTo(0, 0); setTimeout(r, 200); })")
+        } catch {
+          case _: Exception => ()
+        }
+
+        // Early preview: the page has loaded + lazy-images settled and
+        // we're scrolled back to the top, so a viewport screenshot now is
+        // the recognisable above-the-fold hero. Hand it to the caller
+        // before the slow extraction so a preview can render while the
+        // rest of the analysis continues. Best-effort — never let a
+        // screenshot failure derail the analysis.
+        try {
+          val shot = page.screenshot(new Page.ScreenshotOptions()
+            .setType(com.microsoft.playwright.options.ScreenshotType.PNG))
+          if (shot != null && shot.nonEmpty) onScreenshot(shot)
+        } catch {
+          case e: Exception => log.info("LPAnalyzer: preview screenshot failed for {}: {}", url, e.getMessage)
+        }
+
+        // Run both extraction strategies and log comparison
+        val headingResult = page.evaluate("extractSections('heading')")
+        val imageResult = page.evaluate("extractSections('image')")
+        val headingSections = parseSections(headingResult)
+        val imageSections = parseSections(imageResult)
+
+        def logSections(label: String, secs: Vector[LPSection]): Unit = {
+          val totalImages = secs.map(_.images.size).sum
+          log.info("{} strategy: {} sections, {} images", label, secs.size, totalImages)
+          secs.zipWithIndex.foreach { case (s, i) =>
+            val heading = if (s.heading.nonEmpty) s.heading.take(60) else "(no heading)"
+            val textPreview = s.text.take(80).replace("\n", " ")
+            val imgSummary = s.images.map(img => s"${img.width}x${img.height}").mkString(", ")
+            log.info("  {} {}: [{}] \"{}\" — {} imgs [{}]",
+              label, i + 1, heading, textPreview, s.images.size, imgSummary)
+          }
+        }
+
+        logSections("HEADING", headingSections)
+        logSections("IMAGE", imageSections)
+
+        val sections = strategy match {
+          case "image"   => imageSections
+          case "heading" => headingSections
+          case _         => // "auto": try heading, fall back to image if too few
+            if (headingSections.size >= 3) headingSections
+            else {
+              log.info("Heading strategy found only {} sections, falling back to image strategy", headingSections.size)
+              imageSections
+            }
+        }
+        log.info("Using {} strategy — returning {} sections",
+          if (strategy == "auto" || strategy == "heading") { if (sections eq headingSections) "heading" else "image" }
+          else strategy,
+          sections.size)
+
+        // Sample the LP's dominant background + text colours so
+        // the creative can use them verbatim — the creative is
+        // presented as an extension of the LP, so colour scheme
+        // must match.
+        val dominantColor = scala.util.Try {
+          val raw = page.evaluate("extractDominantColor()")
+          Option(raw).map(_.toString).filter(_.nonEmpty)
+        }.toOption.flatten
+        val textColor = scala.util.Try {
+          val raw = page.evaluate("extractTextColor()")
+          Option(raw).map(_.toString).filter(_.nonEmpty)
+        }.toOption.flatten
+        log.info("LP colours: bg={}, text={}",
+          dominantColor.getOrElse("(none)"), textColor.getOrElse("(none)"))
+
+        // Brand palette + font faces — seed the creative's brand kit
+        // so it matches the LP. Both extractors return JSON-string
+        // arrays; parse defensively (default empty on any failure).
+        def parseStringArray(js: String): Vector[String] =
+          scala.util.Try {
+            val raw = page.evaluate(js)
+            Option(raw).map(_.toString).filter(_.nonEmpty) match {
+              case Some(s) => s.parseJson.convertTo[Vector[String]]
+              case None    => Vector.empty
+            }
+          }.toOption.getOrElse(Vector.empty)
+        val palette = parseStringArray("extractPalette()")
+        val fonts = parseStringArray("extractFonts()")
+        log.info("LP brand kit: palette={}, fonts={}",
+          if (palette.isEmpty) "(none)" else palette.mkString(","),
+          if (fonts.isEmpty) "(none)" else fonts.mkString(","))
+
+        // Canonical hero fallback: og:image / twitter:image / JSON-LD
+        // Product.image. Used to replace image srcs that the CDN
+        // rejected during load — those URLs will 502 again at the
+        // consumer side, so we swap them for the page's own
+        // canonical hero while we still have the DOM open.
+        val ogImage = scala.util.Try {
+          val raw = page.evaluate("extractOgImage()")
+          Option(raw).map(_.toString).filter(_.nonEmpty)
+        }.toOption.flatten
+
+        val rewrittenSections =
+          if (failedAssetUrls.isEmpty) sections
+          else {
+            var swapped = 0
+            var dropped = 0
+            val out = sections.map { sec =>
+              val imgs = sec.images.flatMap { img =>
+                if (!failedAssetUrls.contains(img.src)) Some(img)
+                else ogImage match {
+                  case Some(og) =>
+                    swapped += 1
+                    // Dims no longer apply since src changed — zero
+                    // them so downstream knows to re-measure.
+                    Some(img.copy(src = og, width = 0, height = 0))
+                  case None =>
+                    dropped += 1
+                    None
+                }
+              }
+              sec.copy(images = imgs)
+            }
+            log.info("LP asset rewrite: {} failed urls → {} swapped to og:image, {} dropped (og:image {})",
+              failedAssetUrls.size, swapped, dropped,
+              ogImage.getOrElse("(none)"))
+            out
+          }
+
+        log.info("LPAnalyzer: captured bytes for {} image responses on {}",
+          capturedImages.size, url)
+        (LPAnalysisResult(url, rewrittenSections, dominantColor, textColor, palette, fonts), capturedImages.toMap)
       } finally {
-        context.close()
+        page.close()
       }
+    } finally {
+      context.close()
+    }
   }
 
-  /** Fallback path: fetch `web.archive.org/web/2/<url>` via plain
-    * Java HTTP and build a minimal LPAnalysisResult from the page's
-    * og:image / og:title / og:description. Used when direct
-    * navigation via Playwright is rejected (403/502 etc). Returns
-    * None when the archive has no snapshot or the HTML parse yields
-    * nothing usable. */
+  /**
+   * Fallback path: fetch `web.archive.org/web/2/<url>` via plain
+   * Java HTTP and build a minimal LPAnalysisResult from the page's
+   * og:image / og:title / og:description. Used when direct
+   * navigation via Playwright is rejected (403/502 etc). Returns
+   * None when the archive has no snapshot or the HTML parse yields
+   * nothing usable.
+   */
   private def archiveOrgFallback(targetUrl: String): Option[LPAnalysisResult] = {
     val archiveUrl = s"https://web.archive.org/web/2/$targetUrl"
     val client = java.net.http.HttpClient.newBuilder()
@@ -513,10 +535,11 @@ final class LPAnalyzer(
       .GET()
       .build()
     val resp = try client.send(req, java.net.http.HttpResponse.BodyHandlers.ofString())
-               catch { case e: Exception =>
-                 log.info("LPAnalyzer: archive.org fetch failed for {}: {}", targetUrl, e.getMessage)
-                 return None
-               }
+    catch {
+      case e: Exception =>
+        log.info("LPAnalyzer: archive.org fetch failed for {}: {}", targetUrl, e.getMessage)
+        return None
+    }
     if (resp.statusCode() < 200 || resp.statusCode() >= 300) {
       log.info("LPAnalyzer: archive.org returned {} for {}", resp.statusCode(), targetUrl)
       return None
@@ -534,7 +557,7 @@ final class LPAnalyzer(
       val section = LPSection(
         heading = ogTitle.getOrElse(""),
         text = ogDescription.getOrElse(""),
-        images = images,
+        images = images
       )
       log.info("LPAnalyzer: archive.org fallback hit for {} — title={} img={}",
         targetUrl, ogTitle.getOrElse("(none)"), ogImage.getOrElse("(none)"))
@@ -542,9 +565,11 @@ final class LPAnalyzer(
     }
   }
 
-  /** Read a `<meta property="name" content="...">` (or `name="name"`)
-    * from raw HTML without pulling in a full parser. Handles both
-    * `property`/`name` attribute placements and attribute orderings. */
+  /**
+   * Read a `<meta property="name" content="...">` (or `name="name"`)
+   * from raw HTML without pulling in a full parser. Handles both
+   * `property`/`name` attribute placements and attribute orderings.
+   */
   private def extractMetaContent(html: String, prop: String): Option[String] = {
     val q = java.util.regex.Pattern.quote(prop)
     val contentFirst = s"""(?is)<meta[^>]+content\\s*=\\s*["']([^"']+)["'][^>]+(?:property|name)\\s*=\\s*["']$q["']""".r
@@ -572,10 +597,10 @@ final class LPAnalyzer(
                   case imgMap: java.util.Map[?, ?] =>
                     val im = imgMap.asInstanceOf[java.util.Map[String, Any]]
                     Some(LPImage(
-                      src    = Option(im.get("src")).map(_.toString).getOrElse(""),
-                      width  = toInt(im.get("width")),
+                      src = Option(im.get("src")).map(_.toString).getOrElse(""),
+                      width = toInt(im.get("width")),
                       height = toInt(im.get("height")),
-                      alt    = Option(im.get("alt")).map(_.toString).getOrElse("")
+                      alt = Option(im.get("alt")).map(_.toString).getOrElse("")
                     ))
                   case _ => None
                 }.toVector
@@ -590,10 +615,9 @@ final class LPAnalyzer(
 
   private def toInt(v: Any): Int = v match {
     case n: java.lang.Number => n.intValue()
-    case s: String => Try(s.toInt).getOrElse(0)
-    case _ => 0
+    case s: String           => Try(s.toInt).getOrElse(0)
+    case _                   => 0
   }
-
 
   /**
    * Render a collapsed banner image from pages JSON using Playwright.
@@ -661,7 +685,9 @@ final class LPAnalyzer(
       }
     }
 
-  /** No-op — LPAnalyzer no longer owns Playwright resources; the pool
-    * manages browser lifecycle. Kept for backward source compatibility. */
+  /**
+   * No-op — LPAnalyzer no longer owns Playwright resources; the pool
+   * manages browser lifecycle. Kept for backward source compatibility.
+   */
   def close(): Unit = ()
 }

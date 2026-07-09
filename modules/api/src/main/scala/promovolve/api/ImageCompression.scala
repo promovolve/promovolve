@@ -4,8 +4,8 @@ import org.slf4j.LoggerFactory
 
 import java.awt.RenderingHints
 import java.awt.image.BufferedImage
-import java.io.{ByteArrayInputStream, ByteArrayOutputStream}
-import javax.imageio.{IIOImage, ImageIO, ImageWriteParam}
+import java.io.{ ByteArrayInputStream, ByteArrayOutputStream }
+import javax.imageio.{ IIOImage, ImageIO, ImageWriteParam }
 
 /**
  * Server-side image compression for asset ingest. Runs in `storeIfNew`
@@ -38,10 +38,11 @@ object ImageCompression {
   private val MaxEdge = 2000
   private val JpegQuality = 0.82f
 
-  /** Compress bytes if beneficial. Returns (bytes, mime, width, height).
-    * Never throws — on any decode/encode failure, returns the input
-    * bytes with detected dims (or 0/0 if dim detection also failed).
-    */
+  /**
+   * Compress bytes if beneficial. Returns (bytes, mime, width, height).
+   * Never throws — on any decode/encode failure, returns the input
+   * bytes with detected dims (or 0/0 if dim detection also failed).
+   */
   def compress(bytes: Array[Byte], mime: String): (Array[Byte], String, Int, Int) = {
     // SVG: sanitize (strip script/event handlers/javascript: hrefs)
     // and pass through. ImageIO has no SVG decoder, so dims come from
@@ -51,7 +52,7 @@ object ImageCompression {
       val (w, h) = SvgSanitizer.extractDims(cleaned)
       log.info(
         "image-compress svg-sanitize mime={} bytes={}→{} dims={}x{}",
-        mime, bytes.length, cleaned.length, w, h,
+        mime, bytes.length, cleaned.length, w, h
       )
       return (cleaned, mime, w, h)
     }
@@ -62,7 +63,7 @@ object ImageCompression {
       val (w, h) = detectDims(bytes)
       log.info(
         "image-compress pass-through mime={} bytes={} dims={}x{}",
-        mime, bytes.length, w, h,
+        mime, bytes.length, w, h
       )
       return (bytes, mime, w, h)
     }
@@ -99,7 +100,7 @@ object ImageCompression {
       if (scale == 1.0 && out.length >= bytes.length) {
         log.info(
           "image-compress bail mime={} bytes={} (re-encode would grow to {}) dims={}x{}",
-          mime, bytes.length, out.length, srcW, srcH,
+          mime, bytes.length, out.length, srcW, srcH
         )
         return (bytes, mime, srcW, srcH)
       }
@@ -107,7 +108,7 @@ object ImageCompression {
       val savings = if (bytes.length > 0) 100 - math.round(out.length.toDouble * 100 / bytes.length).toInt else 0
       log.info(
         "image-compress mime={}→{} bytes={}→{} (-{}%) dims={}x{}→{}x{}",
-        mime, outMime, bytes.length, out.length, savings, srcW, srcH, targetW, targetH,
+        mime, outMime, bytes.length, out.length, savings, srcW, srcH, targetW, targetH
       )
       (out, outMime, targetW, targetH)
     } catch {
@@ -171,7 +172,8 @@ object ImageCompression {
     // WebP upload (direct designer uploads via client-side encode,
     // plus any URL import where the CDN honoured Accept: image/webp).
     // Parse the RIFF header directly instead.
-    if (isWebP(bytes)) readWebPDims(bytes).getOrElse((0, 0)) else {
+    if (isWebP(bytes)) readWebPDims(bytes).getOrElse((0, 0))
+    else {
       try {
         val img = ImageIO.read(new ByteArrayInputStream(bytes))
         if (img != null) (img.getWidth, img.getHeight) else (0, 0)
@@ -181,20 +183,21 @@ object ImageCompression {
 
   private def isWebP(bytes: Array[Byte]): Boolean =
     bytes.length >= 12 &&
-      bytes(0) == 'R' && bytes(1) == 'I' && bytes(2) == 'F' && bytes(3) == 'F' &&
-      bytes(8) == 'W' && bytes(9) == 'E' && bytes(10) == 'B' && bytes(11) == 'P'
+    bytes(0) == 'R' && bytes(1) == 'I' && bytes(2) == 'F' && bytes(3) == 'F' &&
+    bytes(8) == 'W' && bytes(9) == 'E' && bytes(10) == 'B' && bytes(11) == 'P'
 
-  /** WebP dimension parser. Covers all three format variants:
-    *
-    *   VP8  (simple lossy)  — 14-bit width/height at offsets 26/28, after
-    *                          the 3-byte sync code 0x9D 0x01 0x2A at 23.
-    *   VP8L (lossless)      — packed 14-bit width/height starting at
-    *                          offset 21, after the 0x2F signature byte.
-    *   VP8X (extended)      — canvas width-1 / height-1 as 24-bit LE
-    *                          at offsets 24 and 27.
-    *
-    * Spec references: RFC 6386 (VP8), RFC 9649 (WebP container).
-    */
+  /**
+   * WebP dimension parser. Covers all three format variants:
+   *
+   *   VP8  (simple lossy)  — 14-bit width/height at offsets 26/28, after
+   *                          the 3-byte sync code 0x9D 0x01 0x2A at 23.
+   *   VP8L (lossless)      — packed 14-bit width/height starting at
+   *                          offset 21, after the 0x2F signature byte.
+   *   VP8X (extended)      — canvas width-1 / height-1 as 24-bit LE
+   *                          at offsets 24 and 27.
+   *
+   * Spec references: RFC 6386 (VP8), RFC 9649 (WebP container).
+   */
   private def readWebPDims(bytes: Array[Byte]): Option[(Int, Int)] = {
     if (bytes.length < 30) return None
     val fourcc = new String(bytes, 12, 4, "US-ASCII")

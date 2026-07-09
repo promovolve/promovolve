@@ -1,6 +1,6 @@
 package promovolve.publisher.delivery
 
-import java.time.{Duration, Instant}
+import java.time.{ Duration, Instant }
 
 /**
  * Context for pacing decisions - immutable snapshot of campaign state.
@@ -28,14 +28,15 @@ final case class PacingContext(
     todaySpend: BigDecimal,
     dayStart: Instant,
     now: Instant,
-    requestArrivalRate: Double = 0.0,  // Observed requests/sec (tracked synchronously by AdServer)
-    competingCampaigns: Int = 1,       // Number of campaigns sharing this traffic pool
-    avgCpm: Double = 5.0,              // Average CPM for this campaign's creatives ($/1000 imps)
-    dayDurationSeconds: Int = 86400,   // Simulated day length (default: 24h). Set lower for testing.
-    trafficShape: Option[TrafficShapeTracker] = None,  // Traffic pattern for shaped pacing
-    requestCount: Long = 0,            // Requests seen today (for initial grace period)
-    msSinceLastRequest: Long = 0       // Milliseconds since last request (for staleness detection)
+    requestArrivalRate: Double = 0.0, // Observed requests/sec (tracked synchronously by AdServer)
+    competingCampaigns: Int = 1, // Number of campaigns sharing this traffic pool
+    avgCpm: Double = 5.0, // Average CPM for this campaign's creatives ($/1000 imps)
+    dayDurationSeconds: Int = 86400, // Simulated day length (default: 24h). Set lower for testing.
+    trafficShape: Option[TrafficShapeTracker] = None, // Traffic pattern for shaped pacing
+    requestCount: Long = 0, // Requests seen today (for initial grace period)
+    msSinceLastRequest: Long = 0 // Milliseconds since last request (for staleness detection)
 ) {
+
   /**
    * Ratio of actual to expected spend.
    *
@@ -205,6 +206,7 @@ trait PacingStrategy {
 }
 
 object PacingStrategy {
+
   /**
    * Maximum throttle probability for normal pacing control.
    *

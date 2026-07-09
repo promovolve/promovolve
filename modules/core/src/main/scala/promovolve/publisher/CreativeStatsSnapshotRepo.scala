@@ -4,7 +4,7 @@ import slick.jdbc.PostgresProfile.api.*
 
 import java.time.Instant
 import scala.concurrent.duration.*
-import scala.concurrent.{Await, ExecutionContext, Future}
+import scala.concurrent.{ Await, ExecutionContext, Future }
 
 /** Snapshot of per-creative stats for a site at a point in time. */
 final case class CreativeStatsSnapshot(
@@ -21,10 +21,11 @@ trait CreativeStatsSnapshotRepo {
   def getLatest(siteId: String): Future[Seq[CreativeStatsSnapshot]]
   def getHistory(siteId: String, creativeId: String, from: Instant, to: Instant): Future[Seq[CreativeStatsSnapshot]]
 
-  /** Load recent per-creative stats from tracking_events for Thompson Sampling state restoration.
-    * Returns Map[creativeId, Map[minuteEpoch, (impressions, clicks, folds)]].
-    * Folds default to 0 for legacy backends that don't track dog-ear engagements.
-    */
+  /**
+   * Load recent per-creative stats from tracking_events for Thompson Sampling state restoration.
+   * Returns Map[creativeId, Map[minuteEpoch, (impressions, clicks, folds)]].
+   * Folds default to 0 for legacy backends that don't track dog-ear engagements.
+   */
   def loadRecentStats(siteId: String, windowMinutes: Int = 60): Future[Map[String, Map[Long, (Int, Int, Int)]]] =
     Future.successful(Map.empty)
 }
@@ -33,7 +34,8 @@ trait CreativeStatsSnapshotRepo {
 object NoOpCreativeStatsSnapshotRepo extends CreativeStatsSnapshotRepo {
   override def save(snapshots: Seq[CreativeStatsSnapshot]): Future[Unit] = Future.successful(())
   override def getLatest(siteId: String): Future[Seq[CreativeStatsSnapshot]] = Future.successful(Seq.empty)
-  override def getHistory(siteId: String, creativeId: String, from: Instant, to: Instant): Future[Seq[CreativeStatsSnapshot]] = Future.successful(Seq.empty)
+  override def getHistory(siteId: String, creativeId: String, from: Instant, to: Instant)
+      : Future[Seq[CreativeStatsSnapshot]] = Future.successful(Seq.empty)
 }
 
 /** In-memory implementation for testing. */
@@ -140,25 +142,26 @@ final class SlickCreativeStatsSnapshotRepo(db: Database)(using ec: ExecutionCont
       extends Table[CreativeStatsSnapshot](tag, "creative_stats_snapshot") {
     def pk = primaryKey("pk_stats_snapshot", (siteId, creativeId, snapshotAt))
 
-    def siteId      = column[String]("site_id")
+    def siteId = column[String]("site_id")
 
-    def creativeId  = column[String]("creative_id")
+    def creativeId = column[String]("creative_id")
 
-    def snapshotAt  = column[Instant]("snapshot_at")
+    def snapshotAt = column[Instant]("snapshot_at")
 
     def * = (siteId, creativeId, impressions, clicks, snapshotAt).mapTo[CreativeStatsSnapshot]
 
     def impressions = column[Int]("impressions")
 
-    def clicks      = column[Int]("clicks")
+    def clicks = column[Int]("clicks")
   }
 }
 
-/** TimescaleDB-backed implementation that loads per-minute stats from tracking_events.
-  *
-  * Delegates save/getLatest/getHistory to SlickCreativeStatsSnapshotRepo for dashboard,
-  * and adds loadRecentStats from the tracking_events hypertable for Thompson Sampling restoration.
-  */
+/**
+ * TimescaleDB-backed implementation that loads per-minute stats from tracking_events.
+ *
+ * Delegates save/getLatest/getHistory to SlickCreativeStatsSnapshotRepo for dashboard,
+ * and adds loadRecentStats from the tracking_events hypertable for Thompson Sampling restoration.
+ */
 final class TimescaleCreativeStatsRepo(db: Database)(using ec: ExecutionContext)
     extends CreativeStatsSnapshotRepo {
 
@@ -172,7 +175,8 @@ final class TimescaleCreativeStatsRepo(db: Database)(using ec: ExecutionContext)
   override def getLatest(siteId: String): Future[Seq[CreativeStatsSnapshot]] =
     delegate.getLatest(siteId)
 
-  override def getHistory(siteId: String, creativeId: String, from: Instant, to: Instant): Future[Seq[CreativeStatsSnapshot]] =
+  override def getHistory(siteId: String, creativeId: String, from: Instant, to: Instant)
+      : Future[Seq[CreativeStatsSnapshot]] =
     delegate.getHistory(siteId, creativeId, from, to)
 
   override def loadRecentStats(siteId: String, windowMinutes: Int): Future[Map[String, Map[Long, (Int, Int, Int)]]] = {

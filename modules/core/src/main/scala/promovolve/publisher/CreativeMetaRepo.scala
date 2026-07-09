@@ -4,38 +4,39 @@ import promovolve.publisher.assessment.CategoryVerification.VerificationResult
 import slick.jdbc.PostgresProfile.api.*
 
 import java.time.Instant
-import scala.concurrent.{Await, ExecutionContext, Future}
+import scala.concurrent.{ Await, ExecutionContext, Future }
 import scala.concurrent.duration.*
 
 /** Creative asset metadata saved at ingest (upload) time, with optional LLM assessment. */
 final case class CreativeMeta(
     advertiserId: String,
     creativeId: String,
-    s3Key: String,        // e.g. "creatives/adv123/cr456/ab12cd.../banner.png"
-    hash: String,         // SHA-256 (or similar) used to build immutable keys
+    s3Key: String, // e.g. "creatives/adv123/cr456/ab12cd.../banner.png"
+    hash: String, // SHA-256 (or similar) used to build immutable keys
     mime: String,
     width: Int,
     height: Int,
     landingDomain: String,
     // --- LLM Assessment fields (populated async after upload) ---
     assessedAt: Option[Instant] = None,
-    assessmentStatus: String = "pending",  // "pending", "assessed", "failed"
+    assessmentStatus: String = "pending", // "pending", "assessed", "failed"
     safetyScore: Option[Double] = None,
     qualityScore: Option[Double] = None,
     adultContent: Boolean = false,
     violence: Boolean = false,
     hateSpeech: Boolean = false,
-    detectedCategories: String = "",      // Comma-separated IAB category codes
+    detectedCategories: String = "", // Comma-separated IAB category codes
     suggestedCategory: Option[String] = None,
     extractedText: Option[String] = None,
     assessmentModel: Option[String] = None,
-    assessmentError: Option[String] = None,  // Error message if assessment failed
+    assessmentError: Option[String] = None, // Error message if assessment failed
     // --- Category Verification fields (populated after assessment with adProductCategory) ---
-    categoryVerificationStatus: Option[String] = None,  // "Verified", "Mismatch", "Unverifiable", etc.
-    categoryMatchScore: Option[Double] = None,          // 0.0-1.0 match score
-    categoryConfidence: Option[Double] = None,          // LLM's confidence in category detection
-    expectedCategories: String = ""                     // Comma-separated expected categories from mapping
+    categoryVerificationStatus: Option[String] = None, // "Verified", "Mismatch", "Unverifiable", etc.
+    categoryMatchScore: Option[Double] = None, // 0.0-1.0 match score
+    categoryConfidence: Option[Double] = None, // LLM's confidence in category detection
+    expectedCategories: String = "" // Comma-separated expected categories from mapping
 ) {
+
   /** True if LLM assessment completed successfully */
   def isAssessed: Boolean = assessmentStatus == "assessed"
 
@@ -73,7 +74,7 @@ final case class CreativeMeta(
 
 object CreativeMeta {
   val AutoApproveThreshold = 0.95
-  val AutoRejectThreshold  = 0.30
+  val AutoRejectThreshold = 0.30
 }
 
 /** LLM assessment result to be merged into CreativeMeta */
@@ -84,7 +85,7 @@ final case class AssessmentResult(
     violence: Boolean,
     hateSpeech: Boolean,
     detectedCategories: List[String],
-    categoryConfidence: Double,           // LLM's confidence in category detection (0.0-1.0)
+    categoryConfidence: Double, // LLM's confidence in category detection (0.0-1.0)
     suggestedCategory: Option[String],
     extractedText: Option[String],
     model: String
@@ -104,9 +105,10 @@ trait CreativeMetadataRepo {
       verification: VerificationResult
   ): Future[Unit]
 
-  /** Mark assessment as failed but allow creative to participate with neutral scores.
-    * This is the permissive approach - don't block revenue due to LLM failures.
-    */
+  /**
+   * Mark assessment as failed but allow creative to participate with neutral scores.
+   * This is the permissive approach - don't block revenue due to LLM failures.
+   */
   def markAssessmentFailed(creativeId: String, error: String): Future[Unit]
 }
 
@@ -178,11 +180,12 @@ final class SlickCreativeMetadataRepo(db: Database)(using ec: ExecutionContext)
     val now = Instant.now()
     val update = creatives
       .filter(_.creativeId === creativeId)
-      .map(c => (
-        c.assessedAt, c.assessmentStatus, c.safetyScore, c.qualityScore,
-        c.adultContent, c.violence, c.hateSpeech,
-        c.detectedCategories, c.suggestedCategory, c.extractedText, c.assessmentModel
-      ))
+      .map(c =>
+        (
+          c.assessedAt, c.assessmentStatus, c.safetyScore, c.qualityScore,
+          c.adultContent, c.violence, c.hateSpeech,
+          c.detectedCategories, c.suggestedCategory, c.extractedText, c.assessmentModel
+        ))
       .update((
         Some(now), "assessed", Some(result.safetyScore), Some(result.qualityScore),
         result.adultContent, result.violence, result.hateSpeech,
@@ -200,12 +203,13 @@ final class SlickCreativeMetadataRepo(db: Database)(using ec: ExecutionContext)
     val now = Instant.now()
     val update = creatives
       .filter(_.creativeId === creativeId)
-      .map(c => (
-        c.assessedAt, c.assessmentStatus, c.safetyScore, c.qualityScore,
-        c.adultContent, c.violence, c.hateSpeech,
-        c.detectedCategories, c.suggestedCategory, c.extractedText, c.assessmentModel,
-        c.categoryVerificationStatus, c.categoryMatchScore, c.categoryConfidence, c.expectedCategories
-      ))
+      .map(c =>
+        (
+          c.assessedAt, c.assessmentStatus, c.safetyScore, c.qualityScore,
+          c.adultContent, c.violence, c.hateSpeech,
+          c.detectedCategories, c.suggestedCategory, c.extractedText, c.assessmentModel,
+          c.categoryVerificationStatus, c.categoryMatchScore, c.categoryConfidence, c.expectedCategories
+        ))
       .update((
         Some(now), "assessed", Some(result.safetyScore), Some(result.qualityScore),
         result.adultContent, result.violence, result.hateSpeech,
@@ -221,44 +225,45 @@ final class SlickCreativeMetadataRepo(db: Database)(using ec: ExecutionContext)
     val now = Instant.now()
     val update = creatives
       .filter(_.creativeId === creativeId)
-      .map(c => (
-        c.assessedAt, c.assessmentStatus, c.assessmentError,
-        c.safetyScore, c.qualityScore, c.categoryConfidence
-      ))
+      .map(c =>
+        (
+          c.assessedAt, c.assessmentStatus, c.assessmentError,
+          c.safetyScore, c.qualityScore, c.categoryConfidence
+        ))
       .update((
         Some(now), "failed", Some(error),
-        Some(0.5), Some(0.5), Some(0.0)  // Neutral scores
+        Some(0.5), Some(0.5), Some(0.0) // Neutral scores
       ))
     db.run(update).map(_ => ())
   }
 
   private class CreativeMetaTable(tag: Tag) extends Table[CreativeMeta](tag, "creative_meta") {
-    def creativeId         = column[String]("creative_id", O.PrimaryKey)
-    def advertiserId       = column[String]("advertiser_id")
-    def s3Key              = column[String]("s3_key")
-    def hash               = column[String]("hash")
-    def mime               = column[String]("mime")
-    def width              = column[Int]("width")
-    def height             = column[Int]("height")
-    def landingDomain      = column[String]("landing_domain")
+    def creativeId = column[String]("creative_id", O.PrimaryKey)
+    def advertiserId = column[String]("advertiser_id")
+    def s3Key = column[String]("s3_key")
+    def hash = column[String]("hash")
+    def mime = column[String]("mime")
+    def width = column[Int]("width")
+    def height = column[Int]("height")
+    def landingDomain = column[String]("landing_domain")
     // Assessment fields
-    def assessedAt         = column[Option[Instant]]("assessed_at")
-    def assessmentStatus   = column[String]("assessment_status", O.Default("pending"))
-    def safetyScore        = column[Option[Double]]("safety_score")
-    def qualityScore       = column[Option[Double]]("quality_score")
-    def adultContent       = column[Boolean]("adult_content", O.Default(false))
-    def violence           = column[Boolean]("violence", O.Default(false))
-    def hateSpeech         = column[Boolean]("hate_speech", O.Default(false))
+    def assessedAt = column[Option[Instant]]("assessed_at")
+    def assessmentStatus = column[String]("assessment_status", O.Default("pending"))
+    def safetyScore = column[Option[Double]]("safety_score")
+    def qualityScore = column[Option[Double]]("quality_score")
+    def adultContent = column[Boolean]("adult_content", O.Default(false))
+    def violence = column[Boolean]("violence", O.Default(false))
+    def hateSpeech = column[Boolean]("hate_speech", O.Default(false))
     def detectedCategories = column[String]("detected_categories", O.Default(""))
-    def suggestedCategory  = column[Option[String]]("suggested_category")
-    def extractedText      = column[Option[String]]("extracted_text")
-    def assessmentModel    = column[Option[String]]("assessment_model")
-    def assessmentError    = column[Option[String]]("assessment_error")
+    def suggestedCategory = column[Option[String]]("suggested_category")
+    def extractedText = column[Option[String]]("extracted_text")
+    def assessmentModel = column[Option[String]]("assessment_model")
+    def assessmentError = column[Option[String]]("assessment_error")
     // Category verification fields
     def categoryVerificationStatus = column[Option[String]]("category_verification_status")
-    def categoryMatchScore         = column[Option[Double]]("category_match_score")
-    def categoryConfidence         = column[Option[Double]]("category_confidence")
-    def expectedCategories         = column[String]("expected_categories", O.Default(""))
+    def categoryMatchScore = column[Option[Double]]("category_match_score")
+    def categoryConfidence = column[Option[Double]]("category_confidence")
+    def expectedCategories = column[String]("expected_categories", O.Default(""))
 
     // Index on hash for dedup lookups
     def hashIdx = index("idx_creative_meta_hash", hash)
@@ -277,17 +282,19 @@ final class SlickCreativeMetadataRepo(db: Database)(using ec: ExecutionContext)
     )
 
     def * = (basicFields, contentFields, verificationFields).<>(
-      { case ((advId, crId, s3, h, m, w, ht, ld, at, as, ss, qs),
-             (ac, v, hs, dc, sc, et, am, ae),
-             (cvs, cms, cc, ec)) =>
-        CreativeMeta(advId, crId, s3, h, m, w, ht, ld, at, as, ss, qs, ac, v, hs, dc, sc, et, am, ae, cvs, cms, cc, ec)
+      {
+        case ((advId, crId, s3, h, m, w, ht, ld, at, as, ss, qs),
+              (ac, v, hs, dc, sc, et, am, ae),
+              (cvs, cms, cc, ec)) =>
+          CreativeMeta(advId, crId, s3, h, m, w, ht, ld, at, as, ss, qs, ac, v, hs, dc, sc, et, am, ae, cvs, cms, cc,
+            ec)
       },
       { (c: CreativeMeta) =>
         Some((
           (c.advertiserId, c.creativeId, c.s3Key, c.hash, c.mime, c.width, c.height, c.landingDomain,
-           c.assessedAt, c.assessmentStatus, c.safetyScore, c.qualityScore),
+            c.assessedAt, c.assessmentStatus, c.safetyScore, c.qualityScore),
           (c.adultContent, c.violence, c.hateSpeech, c.detectedCategories,
-           c.suggestedCategory, c.extractedText, c.assessmentModel, c.assessmentError),
+            c.suggestedCategory, c.extractedText, c.assessmentModel, c.assessmentError),
           (c.categoryVerificationStatus, c.categoryMatchScore, c.categoryConfidence, c.expectedCategories)
         ))
       }

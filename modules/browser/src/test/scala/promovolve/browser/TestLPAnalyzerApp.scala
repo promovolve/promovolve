@@ -6,12 +6,13 @@ import org.apache.pekko.actor.typed.scaladsl.Behaviors
 import scala.concurrent.Await
 import scala.concurrent.duration.*
 
-/** One-off manual check: hit an LP with the LPAnalyzer and dump what
-  * we got. Invoke via: sbt "crawler/Test / runMain promovolve.browser.TestLPAnalyzerApp [url]"
-  *
-  * Spins up a minimal ActorSystem with a 1-session BrowserSessionPool
-  * since LPAnalyzer now routes its Playwright work through the pool.
-  */
+/**
+ * One-off manual check: hit an LP with the LPAnalyzer and dump what
+ * we got. Invoke via: sbt "crawler/Test / runMain promovolve.browser.TestLPAnalyzerApp [url]"
+ *
+ * Spins up a minimal ActorSystem with a 1-session BrowserSessionPool
+ * since LPAnalyzer now routes its Playwright work through the pool.
+ */
 object TestLPAnalyzerApp {
   def main(args: Array[String]): Unit = {
     val url = args.headOption.getOrElse("https://www.asics.com/jp/ja-jp/")
@@ -19,7 +20,7 @@ object TestLPAnalyzerApp {
     val pool = BrowserSessionPool.init(system)
     val analyzer = new LPAnalyzer(
       bannerScriptUrl = "https://example.com/banner.js",
-      browserPool     = pool,
+      browserPool = pool
     )
     try {
       println(s"--- Analyzing $url ---")
@@ -34,7 +35,8 @@ object TestLPAnalyzerApp {
         val textPreview = s.text.take(120).replace("\n", " ")
         println(s"  [$i] $headingPreview")
         println(s"      text: $textPreview")
-        println(s"      imgs: ${s.images.size} (${s.images.take(3).map(i => s"${i.width}x${i.height}").mkString(", ")})")
+        println(
+          s"      imgs: ${s.images.size} (${s.images.take(3).map(i => s"${i.width}x${i.height}").mkString(", ")})")
       }
     } catch {
       case e: Throwable =>

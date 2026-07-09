@@ -1,24 +1,25 @@
 package promovolve.publisher.delivery
 
 import com.typesafe.config.ConfigFactory
-import org.apache.pekko.actor.testkit.typed.scaladsl.{ActorTestKit, TestProbe}
-import org.apache.pekko.cluster.typed.{Cluster, Join}
+import org.apache.pekko.actor.testkit.typed.scaladsl.{ ActorTestKit, TestProbe }
+import org.apache.pekko.cluster.typed.{ Cluster, Join }
 import org.scalatest.BeforeAndAfterAll
 import org.scalatest.matchers.should.Matchers
 import org.scalatest.wordspec.AnyWordSpec
 import promovolve.*
-import promovolve.publisher.{CandidateView, CDNPath, MimeType, ServeView}
+import promovolve.publisher.{ CDNPath, CandidateView, MimeType, ServeView }
 
 import java.net.URI
 import scala.concurrent.duration.*
 
-/** RemoveCampaignFromKey pin-awareness (eviction-on-narrow, Case 2).
-  *
-  * Topic-narrow eviction removes a campaign's candidates from a slot key EXCEPT
-  * reader-pinned creatives, so a pin on a still-served page survives a category
-  * drop. The default (empty keepCreativeIds) preserves the original behaviour:
-  * drop ALL of the campaign's candidates.
-  */
+/**
+ * RemoveCampaignFromKey pin-awareness (eviction-on-narrow, Case 2).
+ *
+ * Topic-narrow eviction removes a campaign's candidates from a slot key EXCEPT
+ * reader-pinned creatives, so a pin on a still-served page survives a category
+ * drop. The default (empty keepCreativeIds) preserves the original behaviour:
+ * drop ALL of the campaign's candidates.
+ */
 class ServeIndexDDataSpec extends AnyWordSpec with Matchers with BeforeAndAfterAll {
 
   private val testConfig = ConfigFactory.parseString(
@@ -41,29 +42,30 @@ class ServeIndexDDataSpec extends AnyWordSpec with Matchers with BeforeAndAfterA
   )
 
   val testKit: ActorTestKit = ActorTestKit(testConfig)
-  private val cluster       = Cluster(testKit.system)
+  private val cluster = Cluster(testKit.system)
   cluster.manager ! Join(cluster.selfMember.address)
 
   override def afterAll(): Unit = testKit.shutdownTestKit()
 
   private def candidate(cid: String, campaign: String): CandidateView =
     CandidateView(
-      creativeId     = CreativeId(cid),
-      campaignId     = CampaignId(campaign),
-      advertiserId   = AdvertiserId(s"adv-$campaign"),
-      assetUrl       = CDNPath(new URI(s"/assets/$cid.png")),
-      mime           = MimeType.imagePng,
-      width          = 300,
-      height         = 250,
-      category       = CategoryId("100"),
-      cpm            = CPM(5.0),
-      classifiedAtMs = 0L,
+      creativeId = CreativeId(cid),
+      campaignId = CampaignId(campaign),
+      advertiserId = AdvertiserId(s"adv-$campaign"),
+      assetUrl = CDNPath(new URI(s"/assets/$cid.png")),
+      mime = MimeType.imagePng,
+      width = 300,
+      height = 250,
+      category = CategoryId("100"),
+      cpm = CPM(5.0),
+      classifiedAtMs = 0L
     )
 
   private def viewWith(cs: CandidateView*): ServeView =
     ServeView(candidates = cs.toVector, version = 1L, expiresAtMs = Long.MaxValue)
 
-  private def getView(idx: org.apache.pekko.actor.typed.ActorRef[ServeIndexDData.Cmd], key: String): Option[ServeView] = {
+  private def getView(idx: org.apache.pekko.actor.typed.ActorRef[ServeIndexDData.Cmd], key: String)
+      : Option[ServeView] = {
     val probe: TestProbe[Option[ServeView]] = testKit.createTestProbe[Option[ServeView]]()
     idx ! ServeIndexDData.Get(key, probe.ref)
     probe.receiveMessage(2.seconds)
@@ -79,8 +81,8 @@ class ServeIndexDDataSpec extends AnyWordSpec with Matchers with BeforeAndAfterA
         viewWith(
           candidate("c1", "campA"),
           candidate("c2", "campA"),
-          candidate("c3", "campB"),
-        ),
+          candidate("c3", "campB")
+        )
       )
       eventually(getView(idx, key).map(_.candidates.size) shouldBe Some(3))
 
@@ -100,15 +102,15 @@ class ServeIndexDDataSpec extends AnyWordSpec with Matchers with BeforeAndAfterA
         viewWith(
           candidate("c1", "campA"), // pinned -> kept
           candidate("c2", "campA"), // not pinned -> dropped
-          candidate("c3", "campB"), // other campaign -> kept
-        ),
+          candidate("c3", "campB") // other campaign -> kept
+        )
       )
       eventually(getView(idx, key).map(_.candidates.size) shouldBe Some(3))
 
       idx ! ServeIndexDData.RemoveCampaignFromKey(
         key,
         CampaignId("campA"),
-        keepCreativeIds = Set(CreativeId("c1")),
+        keepCreativeIds = Set(CreativeId("c1"))
       )
 
       eventually {

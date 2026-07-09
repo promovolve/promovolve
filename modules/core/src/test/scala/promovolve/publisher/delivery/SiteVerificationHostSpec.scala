@@ -3,30 +3,35 @@ package promovolve.publisher.delivery
 import org.scalatest.matchers.should.Matchers
 import org.scalatest.wordspec.AnyWordSpec
 import promovolve.publisher.SiteEntity.{
-  canonicalHost, dnsRecordMatches, dnsVerificationName, isBlockedRedirectTarget,
-  verificationCandidates, verificationRecord,
+  canonicalHost,
+  dnsRecordMatches,
+  dnsVerificationName,
+  isBlockedRedirectTarget,
+  verificationCandidates,
+  verificationRecord
 }
 import promovolve.publisher.delivery.AdServer.hostMatches
 
-/** Pure-function coverage for the WordPress-friendly host-verification
-  * changes: HTTPS-first fetch candidates, the SSRF redirect guard, and
-  * serve-time `www.` canonicalization (the mechanism behind AdServer's
-  * `hostOk` match). The live HTTP fetch + redirect loop stays
-  * integration-only; these pin the decision logic it hangs off.
-  */
+/**
+ * Pure-function coverage for the WordPress-friendly host-verification
+ * changes: HTTPS-first fetch candidates, the SSRF redirect guard, and
+ * serve-time `www.` canonicalization (the mechanism behind AdServer's
+ * `hostOk` match). The live HTTP fetch + redirect loop stays
+ * integration-only; these pin the decision logic it hangs off.
+ */
 class SiteVerificationHostSpec extends AnyWordSpec with Matchers {
 
   "verificationCandidates" should {
     "try HTTPS before HTTP for a public host" in {
       verificationCandidates("example.com") shouldBe List(
         "https://example.com/.well-known/promovolve.txt",
-        "http://example.com/.well-known/promovolve.txt",
+        "http://example.com/.well-known/promovolve.txt"
       )
     }
     "preserve a non-standard port in every candidate" in {
       verificationCandidates("example.com:8443") shouldBe List(
         "https://example.com:8443/.well-known/promovolve.txt",
-        "http://example.com:8443/.well-known/promovolve.txt",
+        "http://example.com:8443/.well-known/promovolve.txt"
       )
     }
     "stay HTTP-only for loopback / LAN / .local dev hosts" in {

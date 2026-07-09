@@ -1,27 +1,28 @@
 package promovolve.auction
 
 import org.apache.pekko.actor.typed.scaladsl.Behaviors
-import org.apache.pekko.actor.typed.{ActorRef, Behavior}
-import org.apache.pekko.cluster.sharding.typed.scaladsl.{ClusterSharding, EntityRef, EntityTypeKey}
+import org.apache.pekko.actor.typed.{ ActorRef, Behavior }
+import org.apache.pekko.cluster.sharding.typed.scaladsl.{ ClusterSharding, EntityRef, EntityTypeKey }
 import org.apache.pekko.util.Timeout
 import promovolve.*
-import promovolve.advertiser.{AdvertiserEntity, CampaignEntity}
+import promovolve.advertiser.{ AdvertiserEntity, CampaignEntity }
 import promovolve.common.Aggregator
 import promovolve.publisher.CategoryDemandRepo
 
 import scala.concurrent.duration.*
 
-/** CategoryBidderEntity
-  *
-  * Virtual shards per taxonomy category. Acts as a router/aggregator over active campaigns that
-  * target this category. On BidRequest, it fans out to CampaignEntity actors and returns the
-  * highest eligible bids within a CPM threshold.
-  *
-  * == Virtual Sharding ==
-  * Entity ID format: "categoryId|shardIndex" (e.g., "IAB1|0", "IAB1|1", "IAB1|2")
-  * This distributes load for hot categories across N actors instead of one.
-  * All virtual shards for a category receive the same campaign list from CampaignDirectory.
-  */
+/**
+ * CategoryBidderEntity
+ *
+ * Virtual shards per taxonomy category. Acts as a router/aggregator over active campaigns that
+ * target this category. On BidRequest, it fans out to CampaignEntity actors and returns the
+ * highest eligible bids within a CPM threshold.
+ *
+ * == Virtual Sharding ==
+ * Entity ID format: "categoryId|shardIndex" (e.g., "IAB1|0", "IAB1|1", "IAB1|2")
+ * This distributes load for hot categories across N actors instead of one.
+ * All virtual shards for a category receive the same campaign list from CampaignDirectory.
+ */
 object CategoryBidderEntity {
 
   // ----------- Sharding key ------------
@@ -37,8 +38,7 @@ object CategoryBidderEntity {
   }
 
   /** Compute all entity IDs for a category (for broadcasting) */
-  def allEntityIdsFor(category: String): Seq[String] =
-    (0 until NumVirtualShards).map(i => s"$category|$i")
+  def allEntityIdsFor(category: String): Seq[String] = (0 until NumVirtualShards).map(i => s"$category|$i")
 
   /** Parse entity ID to extract category (strips shard index) */
   def parseCategoryId(entityId: String): CategoryId = {
@@ -53,11 +53,11 @@ object CategoryBidderEntity {
       sharding: ClusterSharding,
       categoryDemandRepo: CategoryDemandRepo,
       askTimeout: FiniteDuration = 800.millis,
-      cpmThresholdPct: Double    = 0.80, // Return campaigns within 80% of winner (widened: quality-adjusted pricing handles diverse bids)
-      maxCampaignsPerCategory: Int = 50  // Limit campaigns to bound downstream creative evaluation
+      cpmThresholdPct: Double = 0.80, // Return campaigns within 80% of winner (widened: quality-adjusted pricing handles diverse bids)
+      maxCampaignsPerCategory: Int = 50 // Limit campaigns to bound downstream creative evaluation
   ): Behavior[Command] =
     Behaviors.setup { ctx =>
-      given Timeout                           = Timeout(askTimeout)
+      given Timeout = Timeout(askTimeout)
       given scala.concurrent.ExecutionContext = ctx.executionContext
 
       // Parse category from compound entity ID
@@ -95,14 +95,14 @@ object CategoryBidderEntity {
       campaignId: CampaignId,
       advertiserId: AdvertiserId,
       creatives: Set[AdvertiserEntity.Creative],
-      cpm: CPM,                // RL-shaded bid (for auction ranking)
-      maxCpm: CPM = CPM.zero,  // advertiser's max CPM (for ServeIndex)
+      cpm: CPM, // RL-shaded bid (for auction ranking)
+      maxCpm: CPM = CPM.zero, // advertiser's max CPM (for ServeIndex)
       adProductCategory: Option[AdProductCategoryId] = None,
       landingDomain: String = "",
       // Campaign has ≥1 publisher-APPROVED creative on this site (from
       // CampaignBidResponse). Approved bids teach the floor; pending
       // bids only compete for the approval queue.
-      hasApprovedCreative: Boolean = false,
+      hasApprovedCreative: Boolean = false
   )
 
   final case class CategoryBidResponse(
@@ -130,7 +130,7 @@ object CategoryBidderEntity {
       // priced out, approved or not.
       approvedRejectedByFloor: Int = 0,
       maxApprovedRejectedCpm: Double = 0.0,
-      minApprovedRejectedCpm: Double = 0.0,
+      minApprovedRejectedCpm: Double = 0.0
   ) extends promovolve.CborSerializable {
     def eligible: Boolean = campaigns.nonEmpty
   }
@@ -146,27 +146,30 @@ object CategoryBidderEntity {
 
   /** Internal: durable demand seed loaded on startup (campaignId -> advertiserId, as strings). */
   private case class SeedLoaded(seed: Map[String, String]) extends Command
+
   /** Internal: durable demand seed failed to load — start empty, await the push. */
   private case class SeedFailed(reason: String) extends Command
 
   // (campaignId, advertiserId, creatives, cpm, maxCpm, adProductCategory, landingDomain, hasApprovedCreative)
-  private type Collected = Vector[(CampaignId, AdvertiserId, Set[AdvertiserEntity.Creative], CPM, CPM, Option[AdProductCategoryId], String, Boolean)]
+  private type Collected = Vector[(CampaignId, AdvertiserId, Set[AdvertiserEntity.Creative], CPM, CPM,
+      Option[AdProductCategoryId], String, Boolean)]
 
   extension (collected: Collected) {
 
-    /** Select campaigns within CPM threshold, limited to top N by CPM.
-      *
-      * - Find maximum CPM across collected campaigns.
-      * - Keep campaigns whose CPM is within (1 - cpmThresholdPct) of the winner.
-      * - Sort by CPM descending and take top `maxCampaigns`.
-      */
+    /**
+     * Select campaigns within CPM threshold, limited to top N by CPM.
+     *
+     * - Find maximum CPM across collected campaigns.
+     * - Keep campaigns whose CPM is within (1 - cpmThresholdPct) of the winner.
+     * - Sort by CPM descending and take top `maxCampaigns`.
+     */
     def selectCampaigns(
         cpmThresholdPct: Double,
         maxCampaigns: Int
     ): Vector[CampaignBid] =
       if (collected.isEmpty) Vector.empty
       else {
-        val topCpm    = collected.map(_._4.value).max
+        val topCpm = collected.map(_._4.value).max
         val threshold = topCpm * (1.0 - cpmThresholdPct)
 
         collected
@@ -192,11 +195,13 @@ private final class CategoryBidderEntity(
 
   import CategoryBidderEntity.*
 
-  /** Startup state: load this category's demand from the durable table, stashing
-    * bid requests until it lands, then transition to `serving`. A live
-    * `ActiveCampaigns` push arriving first wins (it's authoritative and fresher
-    * than the table). Either way the dark window is gone: we never sit empty
-    * waiting for the singleton. */
+  /**
+   * Startup state: load this category's demand from the durable table, stashing
+   * bid requests until it lands, then transition to `serving`. A live
+   * `ActiveCampaigns` push arriving first wins (it's authoritative and fresher
+   * than the table). Either way the dark window is gone: we never sit empty
+   * waiting for the singleton.
+   */
   def seeding(): Behavior[Command] =
     Behaviors.withStash(1000) { buffer =>
       ctx.pipeToSelf(categoryDemandRepo.listByCategory(categoryId.value)) {
@@ -271,17 +276,17 @@ private final class CategoryBidderEntity(
               sendRequests = { aggReply =>
                 campaignRefs.foreach { ref =>
                   ref ! CampaignEntity.CampaignBidRequest(
-                    siteId       = siteId,
-                    url          = url,
-                    slotId       = slotId,
+                    siteId = siteId,
+                    url = url,
+                    slotId = slotId,
                     pageCategory = categoryId,
-                    floorCpm     = floorCpm,
-                    replyTo      = aggReply
+                    floorCpm = floorCpm,
+                    replyTo = aggReply
                   )
                 }
               },
               expectedReplies = activeCampaigns.size,
-              replyTo         = replyTo,
+              replyTo = replyTo,
               aggregateReplies = { results =>
                 // ---- Scorecard: per-campaign outcome ----
                 val entries = results.map {
@@ -298,7 +303,8 @@ private final class CategoryBidderEntity(
                 val collected: Collected =
                   results.collect {
                     case r: CampaignEntity.CampaignBidResponse if r.eligible =>
-                      (r.campaignId, r.advertiserId, r.creatives, r.cpm, r.maxCpm, r.adProductCategory, r.landingDomain, r.hasApprovedCreative)
+                      (r.campaignId, r.advertiserId, r.creatives, r.cpm, r.maxCpm, r.adProductCategory, r.landingDomain,
+                        r.hasApprovedCreative)
                   }.toVector
 
                 val qualifying =
@@ -319,7 +325,7 @@ private final class CategoryBidderEntity(
                   case r: CampaignEntity.CampaignBidResponse
                       if r.rejectReason.contains(CampaignEntity.BidRejectReason.BelowFloor) => r
                 }
-                val floorRejects   = belowFloor.size
+                val floorRejects = belowFloor.size
                 val (maxRejectedCpm, minRejectedCpm) =
                   if (belowFloor.isEmpty) (0.0, 0.0)
                   else {
@@ -349,8 +355,8 @@ private final class CategoryBidderEntity(
                 CategoryBidResponse(
                   categoryId, qualifying, floorRejects, maxRejectedCpm, minRejectedCpm,
                   approvedRejectedByFloor = approvedBelowFloor.size,
-                  maxApprovedRejectedCpm  = maxApprovedRejCpm,
-                  minApprovedRejectedCpm  = minApprovedRejCpm,
+                  maxApprovedRejectedCpm = maxApprovedRejCpm,
+                  minApprovedRejectedCpm = minApprovedRejCpm
                 )
               },
               timeout = askTimeout

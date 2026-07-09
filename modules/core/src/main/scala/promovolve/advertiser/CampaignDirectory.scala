@@ -3,10 +3,10 @@ package promovolve.advertiser
 import org.apache.pekko.actor.typed.*
 import org.apache.pekko.actor.typed.pubsub.Topic
 import org.apache.pekko.actor.typed.scaladsl.Behaviors
-import org.apache.pekko.cluster.sharding.typed.scaladsl.{ClusterSharding, EntityRef}
+import org.apache.pekko.cluster.sharding.typed.scaladsl.{ ClusterSharding, EntityRef }
 import org.apache.pekko.cluster.typed.*
 import org.apache.pekko.persistence.typed.PersistenceId
-import org.apache.pekko.persistence.typed.state.scaladsl.{DurableStateBehavior, Effect}
+import org.apache.pekko.persistence.typed.state.scaladsl.{ DurableStateBehavior, Effect }
 import promovolve.*
 import promovolve.auction.CampaignDistributor
 import promovolve.common.Aggregator
@@ -21,7 +21,7 @@ object CampaignDirectory {
       sharding: ClusterSharding,
       campaignChangedTopic: ActorRef[Topic.Command[CampaignEntity.CampaignChanged]],
       reconcileInterval: FiniteDuration = 60.seconds,
-      bidderAskTimeout: FiniteDuration  = 5.seconds
+      bidderAskTimeout: FiniteDuration = 5.seconds
   ): ActorRef[Command] = ClusterSingleton(system).init(
     SingletonActor(
       Behaviors
@@ -42,7 +42,6 @@ object CampaignDirectory {
       bidderAskTimeout: FiniteDuration
   ): Behavior[Command] = Behaviors.setup { ctx =>
     Behaviors.withTimers { timers =>
-
       // Ephemeral reverse index: campaignId -> categories (rebuilt on recovery)
       // Avoids O(categories) scan when looking up categories for a campaign
       var campaignToCategories: Map[CampaignId, Set[CategoryId]] = Map.empty
@@ -55,23 +54,24 @@ object CampaignDirectory {
       // is set while fewer categories are acked than expected and cleared on
       // a clean reconcile, so the WARN can report how long it's been broken.
       var lastReconcile: Option[(Int, Int, Long)] = None // (acked, expected, atMillis)
-      var degradedSinceMillis: Option[Long]       = None
+      var degradedSinceMillis: Option[Long] = None
 
       /** Get entity ref for a CampaignDistributor worker */
       def publisherRef(categoryId: CategoryId): EntityRef[CampaignDistributor.Command] =
         sharding.entityRefFor(CampaignDistributor.TypeKey, CampaignDistributor.entityIdForCategory(categoryId))
 
-      /** Route publish requests to CampaignDistributor workers.
-        *
-        * Each category is routed to a specific worker based on hash(categoryId) % NumWorkers.
-        * This distributes the broadcast workload across the cluster instead of having the
-        * singleton do all the fan-out work.
-        *
-        * The CampaignDistributor workers handle:
-        * - Expanding to all virtual shards for each category
-        * - Rate-limiting concurrent broadcasts
-        * - Queuing requests during high load
-        */
+      /**
+       * Route publish requests to CampaignDistributor workers.
+       *
+       * Each category is routed to a specific worker based on hash(categoryId) % NumWorkers.
+       * This distributes the broadcast workload across the cluster instead of having the
+       * singleton do all the fan-out work.
+       *
+       * The CampaignDistributor workers handle:
+       * - Expanding to all virtual shards for each category
+       * - Rate-limiting concurrent broadcasts
+       * - Queuing requests during high load
+       */
       def publishToCategories[A <: Command](
           categoriesToPublish: Map[CategoryId, Map[CampaignId, AdvertiserId]],
           buildResult: Set[CategoryId] => A
@@ -97,10 +97,10 @@ object CampaignDirectory {
                   ref ! CampaignDistributor.Publish(categoryId, campaigns, replyAdapter)
                 }
               },
-              expectedReplies  = categoriesToPublish.size,
-              replyTo          = ctx.self,
+              expectedReplies = categoriesToPublish.size,
+              replyTo = ctx.self,
               aggregateReplies = replies => buildResult(replies.map(_.categoryId).toSet),
-              timeout          = bidderAskTimeout
+              timeout = bidderAskTimeout
             )
           )
         } else ctx.log.warn("publishToCategories called with empty map!")
@@ -146,14 +146,15 @@ object CampaignDirectory {
           // one persisted transition so a paused/deleted campaign
           // disappears from every auction surface.
           val afterCats = state.removeCampaignFromCategories(campaignId, affectedCategories)
-          val newState  = afterCats.copy(fillerCampaigns = afterCats.fillerCampaigns - campaignId)
+          val newState = afterCats.copy(fillerCampaigns = afterCats.fillerCampaigns - campaignId)
           Effect
             .persist(newState)
             .thenRun { _ =>
               updateReverseIndex(campaignId, Set.empty)
               if (affectedCategories.nonEmpty) {
                 val toPublish = affectedCategories.map(c => c -> newState.categories.getOrElse(c, Map.empty)).toMap
-                publishToCategories(toPublish, acked => CampaignRemovalAcknowledged(campaignId, acked, affectedCategories))
+                publishToCategories(toPublish,
+                  acked => CampaignRemovalAcknowledged(campaignId, acked, affectedCategories))
               }
             }
         } else Effect.none
@@ -161,7 +162,8 @@ object CampaignDirectory {
 
       def commandHandler(state: State, command: Command): Effect[State] = command match {
 
-        case ready @ CampaignReady(campaignId, advertiserId, categoryIds, _, _, _, status, replyTo, bidOnUnmatchedContext, siteAllowlist, _) =>
+        case ready @ CampaignReady(campaignId, advertiserId, categoryIds, _, _, _, status, replyTo,
+              bidOnUnmatchedContext, siteAllowlist, _) =>
           if (status == CampaignEntity.Status.Active) {
             // Use ephemeral reverse index for O(1) lookup of old categories
             val oldCategories = campaignToCategories.getOrElse(campaignId, Set.empty)
@@ -195,7 +197,10 @@ object CampaignDirectory {
                   }
                   if (affectedCategories.nonEmpty) {
                     val toPublish = affectedCategories.map(c => c -> newState.categories.getOrElse(c, Map.empty)).toMap
-                    publishToCategories(toPublish, acked => CategoryBiddersAcknowledged(campaignId, acked, replyTo, siteAllowlist, ready.targetCategories, ready.configEdit))
+                    publishToCategories(toPublish,
+                      acked =>
+                        CategoryBiddersAcknowledged(campaignId, acked, replyTo, siteAllowlist, ready.targetCategories,
+                          ready.configEdit))
                   } else {
                     replyTo ! CampaignRegistered(campaignId)
                   }
@@ -210,9 +215,11 @@ object CampaignDirectory {
             removeCampaign(state, campaignId)
           }
 
-        case CategoryBiddersAcknowledged(campaignId, affectedCategories, replyTo, siteAllowlist, targetCategories, configEdit) =>
+        case CategoryBiddersAcknowledged(campaignId, affectedCategories, replyTo, siteAllowlist, targetCategories,
+              configEdit) =>
           ctx.log.debug("All category bidders acknowledged for campaign {}", campaignId.value)
-          notifyCampaignChanged(campaignId, affectedCategories, isActive = true, siteAllowlist, targetCategories, configEdit)
+          notifyCampaignChanged(campaignId, affectedCategories, isActive = true, siteAllowlist, targetCategories,
+            configEdit)
           replyTo ! CampaignRegistered(campaignId)
           Effect.none
 
@@ -281,11 +288,11 @@ object CampaignDirectory {
         case GetHealth(replyTo) =>
           val (acked, expected, at) = lastReconcile.getOrElse((0, 0, 0L))
           replyTo ! DemandHealthResult(
-            categories            = state.categories.size,
-            lastAcked             = acked,
-            lastExpected          = expected,
+            categories = state.categories.size,
+            lastAcked = acked,
+            lastExpected = expected,
             lastReconcileAtMillis = at,
-            degradedSinceMillis   = degradedSinceMillis
+            degradedSinceMillis = degradedSinceMillis
           )
           Effect.none
 
@@ -311,8 +318,8 @@ object CampaignDirectory {
       ctx.log.info("CampaignDirectory starting with DurableStateBehavior")
 
       DurableStateBehavior[Command, State](
-        persistenceId  = PersistenceId.ofUniqueId("singleton-campaign-directory"),
-        emptyState     = State.empty,
+        persistenceId = PersistenceId.ofUniqueId("singleton-campaign-directory"),
+        emptyState = State.empty,
         commandHandler = commandHandler
       ).receiveSignal { case (state, org.apache.pekko.persistence.typed.state.RecoveryCompleted) =>
         // Rebuild ephemeral reverse index from recovered state
@@ -341,25 +348,29 @@ object CampaignDirectory {
   final case class GetAllCategories(replyTo: ActorRef[AllCategoriesResult]) extends Command
   final case class AllCategoriesResult(categories: Vector[CategoryId]) extends promovolve.CborSerializable
 
-  /** Read: demand-registration health (Layer-1 observability). A non-empty
-    * `degradedSinceMillis` means fewer categories are acked than expected —
-    * registrations are not landing and advertiser demand is not reaching the
-    * auctions. Backs a future admin/health endpoint; lets an operator tell a
-    * wedged singleton apart from a genuinely empty marketplace. */
+  /**
+   * Read: demand-registration health (Layer-1 observability). A non-empty
+   * `degradedSinceMillis` means fewer categories are acked than expected —
+   * registrations are not landing and advertiser demand is not reaching the
+   * auctions. Backs a future admin/health endpoint; lets an operator tell a
+   * wedged singleton apart from a genuinely empty marketplace.
+   */
   final case class GetHealth(replyTo: ActorRef[DemandHealthResult]) extends Command
   final case class DemandHealthResult(
-      categories: Int,                       // categories currently in the directory map
-      lastAcked: Int,                        // categories acked at the last reconcile
-      lastExpected: Int,                     // categories expected at the last reconcile
-      lastReconcileAtMillis: Long,           // when the last reconcile completed (0 = none yet)
-      degradedSinceMillis: Option[Long]      // set while acked < expected, else None
+      categories: Int, // categories currently in the directory map
+      lastAcked: Int, // categories acked at the last reconcile
+      lastExpected: Int, // categories expected at the last reconcile
+      lastReconcileAtMillis: Long, // when the last reconcile completed (0 = none yet)
+      degradedSinceMillis: Option[Long] // set while acked < expected, else None
   ) extends promovolve.CborSerializable
 
-  /** Read: return campaigns opted-in to the filler pool (i.e.,
-    * willing to bid on pages Gemini could not match against any
-    * advertiser's content categories). Replies with a map of
-    * `campaignId → advertiserId` so the auction path can look up the
-    * advertiser shard directly. */
+  /**
+   * Read: return campaigns opted-in to the filler pool (i.e.,
+   * willing to bid on pages Gemini could not match against any
+   * advertiser's content categories). Replies with a map of
+   * `campaignId → advertiserId` so the auction path can look up the
+   * advertiser shard directly.
+   */
   final case class GetFillerCampaigns(
       replyTo: ActorRef[FillerCampaignsResult]
   ) extends Command
@@ -419,9 +430,11 @@ object CampaignDirectory {
       fillerCampaigns: Map[CampaignId, AdvertiserId] = Map.empty
   ) extends CborSerializable {
 
-    /** Add or remove a campaign from the filler pool. Returns new
-      * state unchanged when the flag already matches the desired
-      * value for this campaign. */
+    /**
+     * Add or remove a campaign from the filler pool. Returns new
+     * state unchanged when the flag already matches the desired
+     * value for this campaign.
+     */
     def setFiller(
         campaignId: CampaignId,
         advertiserId: AdvertiserId,
@@ -447,11 +460,12 @@ object CampaignDirectory {
         }
       })
 
-    /** Update campaign's category membership, returning new state and all affected categories.
-      * Handles both addition to new categories and removal from old categories.
-      * @param oldCategories caller provides from ephemeral reverse index (avoids O(n) scan)
-      * @return (newState, affectedCategories) where affectedCategories = oldCategories ∪ newCategories
-      */
+    /**
+     * Update campaign's category membership, returning new state and all affected categories.
+     * Handles both addition to new categories and removal from old categories.
+     * @param oldCategories caller provides from ephemeral reverse index (avoids O(n) scan)
+     * @return (newState, affectedCategories) where affectedCategories = oldCategories ∪ newCategories
+     */
     def updateCampaignCategories(
         campaignId: CampaignId,
         advertiserId: AdvertiserId,
@@ -460,7 +474,7 @@ object CampaignDirectory {
     ): (State, Set[CategoryId]) = {
       val affected = oldCategories ++ newCategories
       val toRemove = oldCategories -- newCategories
-      val toAdd    = newCategories -- oldCategories
+      val toAdd = newCategories -- oldCategories
 
       // Remove from old categories
       val afterRemoval = toRemove.foldLeft(categories) { (cats, catId) =>

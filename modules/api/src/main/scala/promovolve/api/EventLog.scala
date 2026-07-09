@@ -5,12 +5,13 @@ trait EventLog {
   def logClick(e: TrackEvent): Unit
   def logCTAClick(e: TrackEvent): Unit
 
-  /** Record a fold event. The endpoint has already verified the FoldToken,
-    * so `e.campaignId`/`e.advertiserId` come from the signed payload.
-    * Folds are an engagement signal (Facebook-likes model), not billed —
-    * the implementation just writes the journal entry. Idempotency
-    * uses `e.requestId`.
-    */
+  /**
+   * Record a fold event. The endpoint has already verified the FoldToken,
+   * so `e.campaignId`/`e.advertiserId` come from the signed payload.
+   * Folds are an engagement signal (Facebook-likes model), not billed —
+   * the implementation just writes the journal entry. Idempotency
+   * uses `e.requestId`.
+   */
   def logFold(e: TrackEvent): Unit
 
   /** Record an unfold event. Telemetry only — no billing impact. */

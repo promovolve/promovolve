@@ -60,17 +60,17 @@ class LayoutTemplatesSpec extends AnyWordSpec with Matchers {
     "render a single sentence describing every slot" in {
       val t = LT.findById("promo").get
       val line = LT.slotsAsPromptLine(t)
-      line should include ("Layout intent:")
-      line should include ("hero (primary) in left")
-      line should include ("headline (primary) in right")
-      line should include ("body (secondary) in right")
+      line should include("Layout intent:")
+      line should include("hero (primary) in left")
+      line should include("headline (primary) in right")
+      line should include("body (secondary) in right")
     }
 
     "return empty for a slot-less template" in {
       val empty = LT.Template(
         id = "x", name = "x", description = "x",
         orientation = LT.Orientation.Any,
-        slots = Vector.empty,
+        slots = Vector.empty
       )
       LT.slotsAsPromptLine(empty) shouldBe ""
     }
@@ -79,7 +79,7 @@ class LayoutTemplatesSpec extends AnyWordSpec with Matchers {
       val t = LT.Template(
         id = "x", name = "x", description = "x",
         orientation = LT.Orientation.Any,
-        slots = Vector(LT.Slot(LT.SlotRole.Headline, LT.SlotRegion.Center, None)),
+        slots = Vector(LT.Slot(LT.SlotRole.Headline, LT.SlotRegion.Center, None))
       )
       LT.slotsAsPromptLine(t) shouldBe "Layout intent: headline in center."
     }
@@ -87,17 +87,17 @@ class LayoutTemplatesSpec extends AnyWordSpec with Matchers {
 
   "wire encoders" should {
     "produce kebab-case region strings matching the TS copy" in {
-      LT.regionToWire(LT.SlotRegion.TopLeft)     shouldBe "top-left"
+      LT.regionToWire(LT.SlotRegion.TopLeft) shouldBe "top-left"
       LT.regionToWire(LT.SlotRegion.BottomRight) shouldBe "bottom-right"
-      LT.regionToWire(LT.SlotRegion.Center)      shouldBe "center"
+      LT.regionToWire(LT.SlotRegion.Center) shouldBe "center"
     }
     "produce lowercase role strings" in {
       LT.roleToWire(LT.SlotRole.Subheadline) shouldBe "subheadline"
-      LT.roleToWire(LT.SlotRole.Cta)         shouldBe "cta"
+      LT.roleToWire(LT.SlotRole.Cta) shouldBe "cta"
     }
     "produce lowercase orientation strings" in {
       LT.orientationToWire(LT.Orientation.Landscape) shouldBe "landscape"
-      LT.orientationToWire(LT.Orientation.Any)       shouldBe "any"
+      LT.orientationToWire(LT.Orientation.Any) shouldBe "any"
     }
   }
 }

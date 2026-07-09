@@ -1,23 +1,24 @@
 package promovolve.creative
 
-/** Server-side mirror of the layout-template catalog the Go dashboard
-  * shows on the LP-to-Creative first step. The dashboard fetches the
-  * list, the user picks one, and the chosen template's slot spec
-  * gets injected into the Gemini auto-layout prompt so generated
-  * compositions respect the intended structure.
-  *
-  * Source-of-truth notes:
-  *   - The TypeScript designer keeps a richer `LayoutTemplate` with
-  *     concrete `items[]` for the post-hoc visual picker. That copy
-  *     lives in `platform/creative-designer/src/layout-templates.ts`.
-  *   - This Scala copy carries only what the dashboard + Gemini call
-  *     need: id, label, orientation hint, and the slot spec used in
-  *     the prompt.
-  *   - Both copies must stay in sync on `id`, `name`, `orientation`,
-  *     and `slots`. A drift would surface as a picker labeled one
-  *     thing in the dashboard generating layouts the designer's own
-  *     template picker can't reproduce.
-  */
+/**
+ * Server-side mirror of the layout-template catalog the Go dashboard
+ * shows on the LP-to-Creative first step. The dashboard fetches the
+ * list, the user picks one, and the chosen template's slot spec
+ * gets injected into the Gemini auto-layout prompt so generated
+ * compositions respect the intended structure.
+ *
+ * Source-of-truth notes:
+ *   - The TypeScript designer keeps a richer `LayoutTemplate` with
+ *     concrete `items[]` for the post-hoc visual picker. That copy
+ *     lives in `platform/creative-designer/src/layout-templates.ts`.
+ *   - This Scala copy carries only what the dashboard + Gemini call
+ *     need: id, label, orientation hint, and the slot spec used in
+ *     the prompt.
+ *   - Both copies must stay in sync on `id`, `name`, `orientation`,
+ *     and `slots`. A drift would surface as a picker labeled one
+ *     thing in the dashboard generating layouts the designer's own
+ *     template picker can't reproduce.
+ */
 object LayoutTemplates {
 
   enum Orientation:
@@ -37,11 +38,11 @@ object LayoutTemplates {
   case class Slot(role: SlotRole, region: SlotRegion, prominence: Option[Prominence] = None)
 
   case class Template(
-    id: String,
-    name: String,
-    description: String,
-    orientation: Orientation,
-    slots: Vector[Slot],
+      id: String,
+      name: String,
+      description: String,
+      orientation: Orientation,
+      slots: Vector[Slot]
   )
 
   // Mirror of the TypeScript designer catalog
@@ -60,10 +61,11 @@ object LayoutTemplates {
       description = "Hero image left, sale badge + headline + body right. Mobile: image top, badge floats over.",
       orientation = Orientation.Any,
       slots = Vector(
-        Slot(SlotRole.Hero,     SlotRegion.Left,  Some(Prominence.Primary)),
+        Slot(SlotRole.Hero, SlotRegion.Left, Some(Prominence.Primary)),
         Slot(SlotRole.Headline, SlotRegion.Right, Some(Prominence.Primary)),
-        Slot(SlotRole.Body,     SlotRegion.Right, Some(Prominence.Secondary)),
-      ),
+        Slot(SlotRole.Body, SlotRegion.Right,
+          Some(Prominence.Secondary))
+      )
     ),
     Template(
       id = "mobile-hero-top",
@@ -71,10 +73,11 @@ object LayoutTemplates {
       description = "Image fills the top half. Tag, headline, body stacked beneath. Editorial mobile layout.",
       orientation = Orientation.Portrait,
       slots = Vector(
-        Slot(SlotRole.Hero,     SlotRegion.Top,    Some(Prominence.Primary)),
+        Slot(SlotRole.Hero, SlotRegion.Top, Some(Prominence.Primary)),
         Slot(SlotRole.Headline, SlotRegion.Center, Some(Prominence.Primary)),
-        Slot(SlotRole.Body,     SlotRegion.Bottom, Some(Prominence.Secondary)),
-      ),
+        Slot(SlotRole.Body, SlotRegion.Bottom,
+          Some(Prominence.Secondary))
+      )
     ),
     Template(
       id = "mobile-fullbleed-overlay",
@@ -82,20 +85,21 @@ object LayoutTemplates {
       description = "Image fills the page. Headline + body sit on a dark gradient scrim at the bottom. Cinematic.",
       orientation = Orientation.Portrait,
       slots = Vector(
-        Slot(SlotRole.Hero,     SlotRegion.Center, Some(Prominence.Primary)),
+        Slot(SlotRole.Hero, SlotRegion.Center, Some(Prominence.Primary)),
         Slot(SlotRole.Headline, SlotRegion.Bottom, Some(Prominence.Primary)),
-        Slot(SlotRole.Body,     SlotRegion.Bottom, Some(Prominence.Secondary)),
-      ),
-    ),
+        Slot(SlotRole.Body, SlotRegion.Bottom, Some(Prominence.Secondary))
+      )
+    )
   )
 
   def findById(id: String): Option[Template] = all.find(_.id == id)
 
-  /** Render a template's slot spec as a single line of plain English
-    * suitable for inclusion in an LLM prompt. Mirrors the TypeScript
-    * `slotsAsPromptLine` exactly so the prompt fragment matches what
-    * the designer's documentation says about the chosen template.
-    */
+  /**
+   * Render a template's slot spec as a single line of plain English
+   * suitable for inclusion in an LLM prompt. Mirrors the TypeScript
+   * `slotsAsPromptLine` exactly so the prompt fragment matches what
+   * the designer's documentation says about the chosen template.
+   */
   def slotsAsPromptLine(template: Template): String = {
     if (template.slots.isEmpty) return ""
     val phrases = template.slots.map { s =>

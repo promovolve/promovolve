@@ -5,23 +5,24 @@ import org.apache.pekko.actor.typed.ActorRef
 import org.scalatest.BeforeAndAfterAll
 import org.scalatest.matchers.should.Matchers
 import org.scalatest.wordspec.AnyWordSpec
-import promovolve.{AdProductCategoryId, CategoryId}
-import promovolve.publisher.{AssessmentResult, CreativeMeta, CreativeMetadataRepo}
+import promovolve.{ AdProductCategoryId, CategoryId }
+import promovolve.publisher.{ AssessmentResult, CreativeMeta, CreativeMetadataRepo }
 
 import java.time.Instant
 import scala.collection.mutable
-import scala.concurrent.{Future, duration}
+import scala.concurrent.{ duration, Future }
 import scala.concurrent.duration.*
 
-/** Integration test for BatchCreativeAssessor with real Anthropic API.
-  *
-  * Requires:
-  * - ANTHROPIC_API_KEY environment variable
-  * - Test image in resources (download-1.jpg)
-  *
-  * Note: This test makes real API calls and may take several minutes
-  * due to batch processing latency.
-  */
+/**
+ * Integration test for BatchCreativeAssessor with real Anthropic API.
+ *
+ * Requires:
+ * - ANTHROPIC_API_KEY environment variable
+ * - Test image in resources (download-1.jpg)
+ *
+ * Note: This test makes real API calls and may take several minutes
+ * due to batch processing latency.
+ */
 class BatchCreativeAssessorIntegrationSpec extends AnyWordSpec with Matchers with BeforeAndAfterAll {
 
   val testKit: ActorTestKit = ActorTestKit()
@@ -66,29 +67,31 @@ class BatchCreativeAssessorIntegrationSpec extends AnyWordSpec with Matchers wit
     ): Future[Unit] = {
       updates += ((creativeId, result, verification))
       store.get(creativeId).foreach { existing =>
-        store.put(creativeId, existing.copy(
-          assessedAt = Some(Instant.now()),
-          assessmentStatus = "assessed",
-          safetyScore = Some(result.safetyScore),
-          qualityScore = Some(result.qualityScore),
-          detectedCategories = result.detectedCategories.mkString(","),
-          categoryConfidence = Some(result.categoryConfidence),
-          categoryVerificationStatus = Some(verification.statusString)
-        ))
+        store.put(creativeId,
+          existing.copy(
+            assessedAt = Some(Instant.now()),
+            assessmentStatus = "assessed",
+            safetyScore = Some(result.safetyScore),
+            qualityScore = Some(result.qualityScore),
+            detectedCategories = result.detectedCategories.mkString(","),
+            categoryConfidence = Some(result.categoryConfidence),
+            categoryVerificationStatus = Some(verification.statusString)
+          ))
       }
       Future.successful(())
     }
 
     def markAssessmentFailed(creativeId: String, error: String): Future[Unit] = {
       store.get(creativeId).foreach { existing =>
-        store.put(creativeId, existing.copy(
-          assessedAt = Some(Instant.now()),
-          assessmentStatus = "failed",
-          assessmentError = Some(error),
-          safetyScore = Some(0.5),
-          qualityScore = Some(0.5),
-          categoryConfidence = Some(0.0)
-        ))
+        store.put(creativeId,
+          existing.copy(
+            assessedAt = Some(Instant.now()),
+            assessmentStatus = "failed",
+            assessmentError = Some(error),
+            safetyScore = Some(0.5),
+            qualityScore = Some(0.5),
+            categoryConfidence = Some(0.0)
+          ))
       }
       Future.successful(())
     }
@@ -125,7 +128,7 @@ class BatchCreativeAssessorIntegrationSpec extends AnyWordSpec with Matchers wit
       // Use short intervals for testing
       val config = BatchAnthropicClient.Config(
         model = "claude-sonnet-4-20250514",
-        batchThreshold = 1,        // Submit immediately after 1 request
+        batchThreshold = 1, // Submit immediately after 1 request
         submitInterval = 5.seconds, // Or after 5 seconds
         pollInterval = 10.seconds,
         maxPollInterval = 30.seconds
@@ -270,8 +273,8 @@ class BatchCreativeAssessorIntegrationSpec extends AnyWordSpec with Matchers wit
       // If LLM was confident, we should have a definitive status
       if (verification.llmConfidence >= 0.7) {
         verification.status should (
-          be(CategoryVerification.VerificationStatus.Verified) or
-          be(CategoryVerification.VerificationStatus.Mismatch)
+          be(CategoryVerification.VerificationStatus.Verified).or(
+            be(CategoryVerification.VerificationStatus.Mismatch))
         )
       }
     }

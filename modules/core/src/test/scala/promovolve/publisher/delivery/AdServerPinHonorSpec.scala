@@ -2,34 +2,35 @@ package promovolve.publisher.delivery
 
 import org.scalatest.concurrent.ScalaFutures
 import org.scalatest.matchers.should.Matchers
-import org.scalatest.time.{Millis, Seconds, Span}
+import org.scalatest.time.{ Millis, Seconds, Span }
 import org.scalatest.wordspec.AnyWordSpec
-import promovolve.publisher.{CDNPath, CandidateView, MimeType}
-import promovolve.{AdvertiserId, CPM, CampaignId, CategoryId, CreativeId, SlotId}
+import promovolve.publisher.{ CDNPath, CandidateView, MimeType }
+import promovolve.{ AdvertiserId, CPM, CampaignId, CategoryId, CreativeId, SlotId }
 
 import scala.collection.mutable
-import scala.concurrent.{ExecutionContext, Future}
+import scala.concurrent.{ ExecutionContext, Future }
 
-/** Pure-function tests for the dog-ear pin-honoring path inside
-  * AdServer.batchReserveWithRetry. Three behaviors matter:
-  *
-  *   1. Pin honored: pinned creative bypasses the CPM reservation
-  *      (folds are free engagement signals) and wins its slot.
-  *   2. Pin fallthrough: when the pinned creativeId is no longer in
-  *      the pool, the slot runs a normal auction and the outcome
-  *      carries dogear.honored=false reason="creative_removed".
-  *   3. The pinned slot still consumes a campaign/creative in the
-  *      page-cap state so other slots don't double up on the same
-  *      advertiser.
-  */
+/**
+ * Pure-function tests for the dog-ear pin-honoring path inside
+ * AdServer.batchReserveWithRetry. Three behaviors matter:
+ *
+ *   1. Pin honored: pinned creative bypasses the CPM reservation
+ *      (folds are free engagement signals) and wins its slot.
+ *   2. Pin fallthrough: when the pinned creativeId is no longer in
+ *      the pool, the slot runs a normal auction and the outcome
+ *      carries dogear.honored=false reason="creative_removed".
+ *   3. The pinned slot still consumes a campaign/creative in the
+ *      page-cap state so other slots don't double up on the same
+ *      advertiser.
+ */
 class AdServerPinHonorSpec extends AnyWordSpec with Matchers with ScalaFutures {
 
   import promovolve.publisher.delivery.Protocol.*
 
   given ExecutionContext = ExecutionContext.global
   given PatienceConfig = PatienceConfig(
-    timeout  = Span(5, Seconds),
-    interval = Span(50, Millis),
+    timeout = Span(5, Seconds),
+    interval = Span(50, Millis)
   )
 
   // ─── Test helpers ─────────────────────────────────────────────
@@ -39,18 +40,18 @@ class AdServerPinHonorSpec extends AnyWordSpec with Matchers with ScalaFutures {
       campaign: String,
       w: Int,
       h: Int,
-      cpm: Double,
+      cpm: Double
   ): CandidateView = CandidateView(
-    creativeId     = CreativeId(cid),
-    campaignId     = CampaignId(campaign),
-    advertiserId   = AdvertiserId(s"adv-$campaign"),
-    assetUrl       = CDNPath(s"/assets/$cid.png"),
-    mime           = MimeType.imagePng,
-    width          = w,
-    height         = h,
-    category       = CategoryId("cat-test"),
-    cpm            = CPM(cpm),
-    classifiedAtMs = 0L,
+    creativeId = CreativeId(cid),
+    campaignId = CampaignId(campaign),
+    advertiserId = AdvertiserId(s"adv-$campaign"),
+    assetUrl = CDNPath(s"/assets/$cid.png"),
+    mime = MimeType.imagePng,
+    width = w,
+    height = h,
+    category = CategoryId("cat-test"),
+    cpm = CPM(cpm),
+    classifiedAtMs = 0L
   )
 
   private def slot(id: String, w: Int, h: Int): BatchSlotSpec =
@@ -61,9 +62,10 @@ class AdServerPinHonorSpec extends AnyWordSpec with Matchers with ScalaFutures {
 
   private def seedRng(): scala.util.Random = new scala.util.Random(42L)
 
-  /** Reservation mock that records every creative it's asked to reserve.
-    * Lets tests assert pinned creatives never enter the reservation path.
-    */
+  /**
+   * Reservation mock that records every creative it's asked to reserve.
+   * Lets tests assert pinned creatives never enter the reservation path.
+   */
   private class TrackingReserve(rule: CandidateView => Boolean = _ => true) {
     val attempts: mutable.Set[String] = mutable.Set.empty
     val fn: (CandidateView, CPM, String) => Future[Boolean] = (c, _, _) => {
@@ -80,14 +82,14 @@ class AdServerPinHonorSpec extends AnyWordSpec with Matchers with ScalaFutures {
       val pinned = candidate("c1", "campA", 300, 250, cpm = 5.0)
       val reserve = new TrackingReserve()
       val (outcomes, pending) = AdServer.batchReserveWithRetry(
-        slots       = Vector(slotPinned("s1", 300, 250, pin = "c1")),
-        pool        = Vector(pinned),
+        slots = Vector(slotPinned("s1", 300, 250, pin = "c1")),
+        pool = Vector(pinned),
         pageBlocked = Set.empty,
-        alpha       = 0.5,
-        stats       = Map.empty,
-        siteFloor   = CPM(0.5),
-        reserve     = reserve.fn,
-        rng         = seedRng(),
+        alpha = 0.5,
+        stats = Map.empty,
+        siteFloor = CPM(0.5),
+        reserve = reserve.fn,
+        rng = seedRng()
       ).futureValue
 
       outcomes should have size 1
@@ -110,15 +112,15 @@ class AdServerPinHonorSpec extends AnyWordSpec with Matchers with ScalaFutures {
       val other = candidate("c-other", "campA", 300, 250, cpm = 4.0)
       val reserve = new TrackingReserve()
       val (outcomes, pending) = AdServer.batchReserveWithRetry(
-        slots       = Vector(slotPinned("s1", 300, 250, pin = "c-removed")),
-        pool        = Vector(other),
+        slots = Vector(slotPinned("s1", 300, 250, pin = "c-removed")),
+        pool = Vector(other),
         pageBlocked = Set.empty,
-        alpha       = 0.5,
-        stats       = Map.empty,
-        siteFloor   = CPM(0.5),
-        reserve     = reserve.fn,
-        rng         = seedRng(),
-        isApproved  = cid => cid.value != "c-removed",
+        alpha = 0.5,
+        stats = Map.empty,
+        siteFloor = CPM(0.5),
+        reserve = reserve.fn,
+        rng = seedRng(),
+        isApproved = cid => cid.value != "c-removed"
       ).futureValue
 
       outcomes should have size 1
@@ -134,14 +136,14 @@ class AdServerPinHonorSpec extends AnyWordSpec with Matchers with ScalaFutures {
     "leave dogear=None on a slot that carried no pin" in {
       val c = candidate("c1", "campA", 300, 250, cpm = 5.0)
       val (outcomes, _) = AdServer.batchReserveWithRetry(
-        slots       = Vector(slot("s1", 300, 250)),
-        pool        = Vector(c),
+        slots = Vector(slot("s1", 300, 250)),
+        pool = Vector(c),
         pageBlocked = Set.empty,
-        alpha       = 0.5,
-        stats       = Map.empty,
-        siteFloor   = CPM(0.5),
-        reserve     = new TrackingReserve().fn,
-        rng         = seedRng(),
+        alpha = 0.5,
+        stats = Map.empty,
+        siteFloor = CPM(0.5),
+        reserve = new TrackingReserve().fn,
+        rng = seedRng()
       ).futureValue
       outcomes.head.dogear shouldBe None
     }
@@ -153,14 +155,14 @@ class AdServerPinHonorSpec extends AnyWordSpec with Matchers with ScalaFutures {
       val cheap = candidate("c1", "campA", 300, 250, cpm = 0.10)
       val reserve = new TrackingReserve()
       val (outcomes, _) = AdServer.batchReserveWithRetry(
-        slots       = Vector(slotPinned("s1", 300, 250, pin = "c1")),
-        pool        = Vector(cheap),
+        slots = Vector(slotPinned("s1", 300, 250, pin = "c1")),
+        pool = Vector(cheap),
         pageBlocked = Set.empty,
-        alpha       = 0.5,
-        stats       = Map.empty,
-        siteFloor   = CPM(5.0), // far above c1's CPM
-        reserve     = reserve.fn,
-        rng         = seedRng(),
+        alpha = 0.5,
+        stats = Map.empty,
+        siteFloor = CPM(5.0), // far above c1's CPM
+        reserve = reserve.fn,
+        rng = seedRng()
       ).futureValue
       outcomes.head.winner.map(_.creativeId.value) shouldBe Some("c1")
       outcomes.head.dogear shouldBe Some(DogearOutcome(honored = true))
@@ -179,15 +181,15 @@ class AdServerPinHonorSpec extends AnyWordSpec with Matchers with ScalaFutures {
       val cheap = candidate("c1", "campA", 300, 250, cpm = 0.10)
       val reserve = new TrackingReserve()
       val (outcomes, _) = AdServer.batchReserveWithRetry(
-        slots         = Vector(slotPinned("s1", 300, 250, pin = "c1")),
-        pool          = Vector.empty,      // post-floor: pin excluded
-        pageBlocked   = Set.empty,
-        alpha         = 0.5,
-        stats         = Map.empty,
-        siteFloor     = CPM(5.0),
-        reserve       = reserve.fn,
-        rng           = seedRng(),
-        pinLookupPool = Vector(cheap),     // pre-floor: pin present
+        slots = Vector(slotPinned("s1", 300, 250, pin = "c1")),
+        pool = Vector.empty, // post-floor: pin excluded
+        pageBlocked = Set.empty,
+        alpha = 0.5,
+        stats = Map.empty,
+        siteFloor = CPM(5.0),
+        reserve = reserve.fn,
+        rng = seedRng(),
+        pinLookupPool = Vector(cheap) // pre-floor: pin present
       ).futureValue
       outcomes.head.winner.map(_.creativeId.value) shouldBe Some("c1")
       outcomes.head.dogear shouldBe Some(DogearOutcome(honored = true))
@@ -199,14 +201,14 @@ class AdServerPinHonorSpec extends AnyWordSpec with Matchers with ScalaFutures {
       // creative; we honor it regardless of cross-page dedup state.
       val pinned = candidate("c1", "campA", 300, 250, cpm = 5.0)
       val (outcomes, _) = AdServer.batchReserveWithRetry(
-        slots       = Vector(slotPinned("s1", 300, 250, pin = "c1")),
-        pool        = Vector(pinned),
+        slots = Vector(slotPinned("s1", 300, 250, pin = "c1")),
+        pool = Vector(pinned),
         pageBlocked = Set("campA"), // campA already won on a prior page
-        alpha       = 0.5,
-        stats       = Map.empty,
-        siteFloor   = CPM(0.5),
-        reserve     = new TrackingReserve().fn,
-        rng         = seedRng(),
+        alpha = 0.5,
+        stats = Map.empty,
+        siteFloor = CPM(0.5),
+        reserve = new TrackingReserve().fn,
+        rng = seedRng()
       ).futureValue
       outcomes.head.winner.map(_.creativeId.value) shouldBe Some("c1")
       outcomes.head.dogear shouldBe Some(DogearOutcome(honored = true))
@@ -221,14 +223,14 @@ class AdServerPinHonorSpec extends AnyWordSpec with Matchers with ScalaFutures {
       val c2 = candidate("c2", "campA", 300, 250, cpm = 8.0)
       val c3 = candidate("c3", "campB", 300, 250, cpm = 4.0)
       val (outcomes, _) = AdServer.batchReserveWithRetry(
-        slots       = Vector(slotPinned("s1", 300, 250, pin = "c1"), slot("s2", 300, 250)),
-        pool        = Vector(c1, c2, c3),
+        slots = Vector(slotPinned("s1", 300, 250, pin = "c1"), slot("s2", 300, 250)),
+        pool = Vector(c1, c2, c3),
         pageBlocked = Set.empty,
-        alpha       = 0.5,
-        stats       = Map.empty,
-        siteFloor   = CPM(0.5),
-        reserve     = new TrackingReserve().fn,
-        rng         = seedRng(),
+        alpha = 0.5,
+        stats = Map.empty,
+        siteFloor = CPM(0.5),
+        reserve = new TrackingReserve().fn,
+        rng = seedRng()
       ).futureValue
       val byId = outcomes.map(o => o.slotId.value -> o.winner.map(_.creativeId.value)).toMap
       byId("s1") shouldBe Some("c1")
@@ -242,14 +244,14 @@ class AdServerPinHonorSpec extends AnyWordSpec with Matchers with ScalaFutures {
       val c1 = candidate("c1", "campA", 300, 250, cpm = 5.0)
       val c2 = candidate("c2", "campB", 300, 250, cpm = 4.0)
       val (outcomes, _) = AdServer.batchReserveWithRetry(
-        slots       = Vector(slotPinned("s1", 300, 250, pin = "c1"), slot("s2", 300, 250)),
-        pool        = Vector(c1, c2),
+        slots = Vector(slotPinned("s1", 300, 250, pin = "c1"), slot("s2", 300, 250)),
+        pool = Vector(c1, c2),
         pageBlocked = Set.empty,
-        alpha       = 0.5,
-        stats       = Map.empty,
-        siteFloor   = CPM(0.5),
-        reserve     = new TrackingReserve().fn,
-        rng         = seedRng(),
+        alpha = 0.5,
+        stats = Map.empty,
+        siteFloor = CPM(0.5),
+        reserve = new TrackingReserve().fn,
+        rng = seedRng()
       ).futureValue
       val byId = outcomes.map(o => o.slotId.value -> o.winner.map(_.creativeId.value)).toMap
       byId("s1") shouldBe Some("c1")
@@ -261,17 +263,17 @@ class AdServerPinHonorSpec extends AnyWordSpec with Matchers with ScalaFutures {
       val c2 = candidate("c2", "campB", 970, 250, cpm = 4.0)
       val reserve = new TrackingReserve()
       val (outcomes, _) = AdServer.batchReserveWithRetry(
-        slots       = Vector(
+        slots = Vector(
           slotPinned("s1", 300, 250, pin = "c1"),
-          slotPinned("s2", 970, 250, pin = "c2"),
+          slotPinned("s2", 970, 250, pin = "c2")
         ),
-        pool        = Vector(c1, c2),
+        pool = Vector(c1, c2),
         pageBlocked = Set.empty,
-        alpha       = 0.5,
-        stats       = Map.empty,
-        siteFloor   = CPM(0.5),
-        reserve     = reserve.fn,
-        rng         = seedRng(),
+        alpha = 0.5,
+        stats = Map.empty,
+        siteFloor = CPM(0.5),
+        reserve = reserve.fn,
+        rng = seedRng()
       ).futureValue
       val byId = outcomes.map(o => o.slotId.value -> o.dogear).toMap
       byId("s1") shouldBe Some(DogearOutcome(honored = true))

@@ -3,10 +3,11 @@ package promovolve.publisher
 import com.typesafe.config.Config
 import scala.jdk.CollectionConverters.*
 
-/** Validates images against IAB LEAN Ad specifications.
-  *
-  * @see https://www.iab.com/wp-content/uploads/2019/04/IABNewAdPortfolio_LW_FixedSizeSpec.pdf
-  */
+/**
+ * Validates images against IAB LEAN Ad specifications.
+ *
+ * @see https://www.iab.com/wp-content/uploads/2019/04/IABNewAdPortfolio_LW_FixedSizeSpec.pdf
+ */
 trait ImageValidator {
   def validate(width: Int, height: Int, fileSize: Int): Either[ImageValidationError, Unit]
   def validateDimensions(width: Int, height: Int): Either[ImageValidationError, Unit]
@@ -21,7 +22,9 @@ sealed trait ImageValidationError {
 
 object ImageValidationError {
   final case class InvalidDimensions(width: Int, height: Int, allowed: Set[(Int, Int)]) extends ImageValidationError {
-    def message: String = s"Invalid dimensions: ${width}x${height}. Allowed IAB sizes: ${allowed.toSeq.sorted.map { case (w, h) => s"${w}x${h}" }.mkString(", ")}"
+    def message: String = s"Invalid dimensions: ${width}x${height}. Allowed IAB sizes: ${allowed.toSeq.sorted.map {
+        case (w, h) => s"${w}x${h}"
+      }.mkString(", ")}"
   }
 
   final case class FileTooLarge(size: Int, maxSize: Int) extends ImageValidationError {
@@ -29,12 +32,13 @@ object ImageValidationError {
   }
 }
 
-/** IAB LEAN compliant image validator.
-  *
-  * Default configuration:
-  * - Max file size: 50KB (initial load)
-  * - Allowed sizes: IAB Standard Ad Unit sizes
-  */
+/**
+ * IAB LEAN compliant image validator.
+ *
+ * Default configuration:
+ * - Max file size: 50KB (initial load)
+ * - Allowed sizes: IAB Standard Ad Unit sizes
+ */
 class IABImageValidator(
     val maxFileSize: Int,
     val allowedSizes: Set[(Int, Int)]
@@ -56,34 +60,36 @@ class IABImageValidator(
 }
 
 object IABImageValidator {
-  /** IAB Standard Ad Unit sizes
-    * @see https://www.iab.com/guidelines/iab-new-ad-portfolio/
-    */
+
+  /**
+   * IAB Standard Ad Unit sizes
+   * @see https://www.iab.com/guidelines/iab-new-ad-portfolio/
+   */
   val StandardSizes: Set[(Int, Int)] = Set(
     // Desktop - Core
-    (300, 250),   // Medium Rectangle
-    (728, 90),    // Leaderboard
-    (160, 600),   // Wide Skyscraper
-    (300, 600),   // Half Page
-    (970, 250),   // Billboard
-    (970, 90),    // Large Leaderboard
+    (300, 250), // Medium Rectangle
+    (728, 90), // Leaderboard
+    (160, 600), // Wide Skyscraper
+    (300, 600), // Half Page
+    (970, 250), // Billboard
+    (970, 90), // Large Leaderboard
     // Desktop - Additional
-    (300, 1050),  // Portrait
-    (120, 600),   // Skyscraper
-    (468, 60),    // Full Banner
-    (234, 60),    // Half Banner
-    (336, 280),   // Large Rectangle
-    (250, 250),   // Square
-    (200, 200),   // Small Square
-    (180, 150),   // Rectangle
-    (125, 125),   // Button
-    (88, 31),     // Micro Bar
+    (300, 1050), // Portrait
+    (120, 600), // Skyscraper
+    (468, 60), // Full Banner
+    (234, 60), // Half Banner
+    (336, 280), // Large Rectangle
+    (250, 250), // Square
+    (200, 200), // Small Square
+    (180, 150), // Rectangle
+    (125, 125), // Button
+    (88, 31), // Micro Bar
     // Mobile
-    (320, 50),    // Mobile Leaderboard
-    (320, 100),   // Large Mobile Banner
-    (300, 50),    // Mobile Banner
-    (320, 480),   // Mobile Interstitial (portrait)
-    (480, 320)    // Mobile Interstitial (landscape)
+    (320, 50), // Mobile Leaderboard
+    (320, 100), // Large Mobile Banner
+    (300, 50), // Mobile Banner
+    (320, 480), // Mobile Interstitial (portrait)
+    (480, 320) // Mobile Interstitial (landscape)
   )
 
   /** Default max file size: 50KB (IAB LEAN initial load) */

@@ -9,38 +9,38 @@ import org.slf4j.LoggerFactory
 import spray.json.*
 import spray.json.DefaultJsonProtocol.*
 
-import scala.concurrent.{ExecutionContext, Future}
+import scala.concurrent.{ ExecutionContext, Future }
 
 /** Page content for the expandable magazine banner web component. */
 final case class BannerPage(
-    tag: String,       // FEATURE, EXPERIENCE, PLAN
+    tag: String, // FEATURE, EXPERIENCE, PLAN
     headline: String,
     sub: String,
     body: String,
-    accent: String,    // hex color
-    bg: String,        // CSS linear-gradient
-    imgEmoji: String,  // single emoji (fallback when no image)
+    accent: String, // hex color
+    bg: String, // CSS linear-gradient
+    imgEmoji: String, // single emoji (fallback when no image)
     caption: String,
-    img: Option[String] = None,           // CDN URL of extracted/uploaded image
-    layout: Option[JsValue] = None,       // editor-authored expanded layout (opaque JSON)
-    banners: Option[JsValue] = None,      // per-banner-size layouts (opaque JSON)
-    designAspect: Option[String] = None,  // e.g. "16/9"
-    videoBg: Option[JsValue] = None,      // full-bleed video background (opaque JSON)
-    textureBg: Option[JsValue] = None     // full-bleed image texture background (opaque JSON)
+    img: Option[String] = None, // CDN URL of extracted/uploaded image
+    layout: Option[JsValue] = None, // editor-authored expanded layout (opaque JSON)
+    banners: Option[JsValue] = None, // per-banner-size layouts (opaque JSON)
+    designAspect: Option[String] = None, // e.g. "16/9"
+    videoBg: Option[JsValue] = None, // full-bleed video background (opaque JSON)
+    textureBg: Option[JsValue] = None // full-bleed image texture background (opaque JSON)
 )
 
 object BannerPage {
   given RootJsonFormat[BannerPage] = new RootJsonFormat[BannerPage] {
     def write(p: BannerPage): JsValue = {
       val fields = Map(
-        "tag"      -> JsString(p.tag),
+        "tag" -> JsString(p.tag),
         "headline" -> JsString(p.headline),
-        "sub"      -> JsString(p.sub),
-        "body"     -> JsString(p.body),
-        "accent"   -> JsString(p.accent),
-        "bg"       -> JsString(p.bg),
+        "sub" -> JsString(p.sub),
+        "body" -> JsString(p.body),
+        "accent" -> JsString(p.accent),
+        "bg" -> JsString(p.bg),
         "imgEmoji" -> JsString(p.imgEmoji),
-        "caption"  -> JsString(p.caption)
+        "caption" -> JsString(p.caption)
       ) ++
         p.img.map("img" -> JsString(_)) ++
         p.layout.map("layout" -> _) ++
@@ -57,86 +57,96 @@ object BannerPage {
           .orElse(fallbacks.flatMap(k => o.get(k).map(_.convertTo[String])).headOption)
           .getOrElse("")
       BannerPage(
-        tag      = str("tag"),
+        tag = str("tag"),
         headline = str("headline"),
-        sub      = str("sub", "subtitle", "subheadline"),
-        body     = str("body", "text", "description"),
-        accent   = str("accent", "accentColor"),
-        bg       = str("bg", "background"),
+        sub = str("sub", "subtitle", "subheadline"),
+        body = str("body", "text", "description"),
+        accent = str("accent", "accentColor"),
+        bg = str("bg", "background"),
         imgEmoji = str("imgEmoji", "emoji"),
-        caption  = str("caption"),
-        img      = o.get("img").orElse(o.get("image")).orElse(o.get("imageUrl")).collect { case JsString(s) if s.nonEmpty => s },
-        layout   = o.get("layout"),
-        banners  = o.get("banners"),
+        caption = str("caption"),
+        img = o.get("img").orElse(o.get("image")).orElse(o.get("imageUrl")).collect {
+          case JsString(s) if s.nonEmpty => s
+        },
+        layout = o.get("layout"),
+        banners = o.get("banners"),
         designAspect = o.get("designAspect").collect { case JsString(s) => s },
-        videoBg  = o.get("videoBg"),
+        videoBg = o.get("videoBg"),
         textureBg = o.get("textureBg")
       )
     }
   }
 }
 
-/** One page's role within a persuasion arc: the tag it carries and the
-  * instruction synthesis must follow for that page. */
+/**
+ * One page's role within a persuasion arc: the tag it carries and the
+ * instruction synthesis must follow for that page.
+ */
 final case class ArcRole(tag: String, instruction: String)
 
-/** A persuasion arc the advertiser chooses for the booklet. Each of the 3
-  * pages gets a SPECIFIC job, so synthesis writes purposeful copy (e.g. hook,
-  * then proof, then call) instead of three arbitrary blurbs. This is the
-  * authoritative source for the synthesis prompt; the Compose picker mirrors
-  * the ids/labels. All arcs are oriented to drive the reader to the LP. */
+/**
+ * A persuasion arc the advertiser chooses for the booklet. Each of the 3
+ * pages gets a SPECIFIC job, so synthesis writes purposeful copy (e.g. hook,
+ * then proof, then call) instead of three arbitrary blurbs. This is the
+ * authoritative source for the synthesis prompt; the Compose picker mirrors
+ * the ids/labels. All arcs are oriented to drive the reader to the LP.
+ */
 final case class CreativeArc(id: String, label: String, roles: Vector[ArcRole])
 
 object CreativeArc {
   val all: Vector[CreativeArc] = Vector(
-    CreativeArc("hook-proof-call", "Hook → Proof → Call", Vector(
-      ArcRole("HOOK",
-        "Stop the scroll. One sharp, specific reason to care — a tension, a " +
-        "surprising fact, or a curiosity gap drawn from the strongest material. " +
-        "Make the reader want to see more. Do NOT summarise the product or pitch " +
-        "yet, and do NOT ask for any action."),
-      ArcRole("PROOF",
-        "Earn the interest the hook created. The concrete substance that backs it " +
-        "up — real products, named features, numbers, specifics from the source. " +
-        "This page builds desire with evidence. No new hook, no call to action."),
-      ArcRole("CALL",
-        "Get the click. Name the offer and what the reader will find on the " +
-        "landing page, with a nudge to go look now. This is the ONLY page that " +
-        "asks for the action. Keep the offer and terms grounded in the source."),
-    )),
-    CreativeArc("problem-solution-offer", "Problem → Solution → Offer", Vector(
-      ArcRole("PROBLEM",
-        "Name the pain the reader feels — concrete and specific, in the source's " +
-        "framing. Make them feel understood. No solution or pitch yet, no action."),
-      ArcRole("SOLUTION",
-        "Show how it is solved — the approach and the key features or benefits " +
-        "that resolve the problem, grounded in the source. No call to action."),
-      ArcRole("OFFER",
-        "Present the deal and invite the reader to the landing page — what they " +
-        "get, the terms, why now. The only page that asks for the action."),
-    )),
-    CreativeArc("feature-story-plan", "Feature → Story → Plan", Vector(
-      ArcRole("FEATURE",
-        "Lead with the product itself — what it is and its standout quality, from " +
-        "the source. Concrete, not hypey. No call to action."),
-      ArcRole("STORY",
-        "Convey the experience or context — how it is used, the moment or feeling, " +
-        "grounded in the source's details. No call to action."),
-      ArcRole("PLAN",
-        "Present pricing, plans, or the next step and invite the reader to the " +
-        "landing page. The only page that asks for the action."),
-    )),
-    CreativeArc("tease-reveal-invite", "Tease → Reveal → Invite", Vector(
-      ArcRole("TEASE",
-        "Open a curiosity gap — hint at something worth discovering without " +
-        "explaining it. Intrigue over information. No pitch, no action."),
-      ArcRole("REVEAL",
-        "Pay off the tease — reveal the product or offer and its most compelling " +
-        "specifics from the source. Build desire. No call to action."),
-      ArcRole("INVITE",
-        "Invite the reader to come see more on the landing page — warm and " +
-        "low-pressure, with a clear reason to click now."),
-    )),
+    CreativeArc("hook-proof-call", "Hook → Proof → Call",
+      Vector(
+        ArcRole("HOOK",
+          "Stop the scroll. One sharp, specific reason to care — a tension, a " +
+          "surprising fact, or a curiosity gap drawn from the strongest material. " +
+          "Make the reader want to see more. Do NOT summarise the product or pitch " +
+          "yet, and do NOT ask for any action."),
+        ArcRole("PROOF",
+          "Earn the interest the hook created. The concrete substance that backs it " +
+          "up — real products, named features, numbers, specifics from the source. " +
+          "This page builds desire with evidence. No new hook, no call to action."),
+        ArcRole("CALL",
+          "Get the click. Name the offer and what the reader will find on the " +
+          "landing page, with a nudge to go look now. This is the ONLY page that " +
+          "asks for the action. Keep the offer and terms grounded in the source.")
+      )),
+    CreativeArc("problem-solution-offer", "Problem → Solution → Offer",
+      Vector(
+        ArcRole("PROBLEM",
+          "Name the pain the reader feels — concrete and specific, in the source's " +
+          "framing. Make them feel understood. No solution or pitch yet, no action."),
+        ArcRole("SOLUTION",
+          "Show how it is solved — the approach and the key features or benefits " +
+          "that resolve the problem, grounded in the source. No call to action."),
+        ArcRole("OFFER",
+          "Present the deal and invite the reader to the landing page — what they " +
+          "get, the terms, why now. The only page that asks for the action.")
+      )),
+    CreativeArc("feature-story-plan", "Feature → Story → Plan",
+      Vector(
+        ArcRole("FEATURE",
+          "Lead with the product itself — what it is and its standout quality, from " +
+          "the source. Concrete, not hypey. No call to action."),
+        ArcRole("STORY",
+          "Convey the experience or context — how it is used, the moment or feeling, " +
+          "grounded in the source's details. No call to action."),
+        ArcRole("PLAN",
+          "Present pricing, plans, or the next step and invite the reader to the " +
+          "landing page. The only page that asks for the action.")
+      )),
+    CreativeArc("tease-reveal-invite", "Tease → Reveal → Invite",
+      Vector(
+        ArcRole("TEASE",
+          "Open a curiosity gap — hint at something worth discovering without " +
+          "explaining it. Intrigue over information. No pitch, no action."),
+        ArcRole("REVEAL",
+          "Pay off the tease — reveal the product or offer and its most compelling " +
+          "specifics from the source. Build desire. No call to action."),
+        ArcRole("INVITE",
+          "Invite the reader to come see more on the landing page — warm and " +
+          "low-pressure, with a clear reason to click now.")
+      ))
   )
   val default: CreativeArc = all.head
   def byId(id: String): CreativeArc = all.find(_.id == id).getOrElse(default)
@@ -165,16 +175,18 @@ final class LPExtractor(
   private val http = Http(system.toClassic)
   private given classicScheduler: org.apache.pekko.actor.Scheduler = system.toClassic.scheduler
 
-  /** Issue a Gemini request with the Vertex-aligned retry policy:
-    * retry on 408/429/500/502/503/504 and on network-layer failures,
-    * up to 5 attempts, capped exponential backoff with full jitter.
-    * Reads the response body as a String and returns it with the
-    * final status — callers decide how to parse the 2xx body and how
-    * to surface non-2xx terminal responses. */
+  /**
+   * Issue a Gemini request with the Vertex-aligned retry policy:
+   * retry on 408/429/500/502/503/504 and on network-layer failures,
+   * up to 5 attempts, capped exponential backoff with full jitter.
+   * Reads the response body as a String and returns it with the
+   * final status — callers decide how to parse the 2xx body and how
+   * to surface non-2xx terminal responses.
+   */
   private def callGeminiWithRetry(
       request: HttpRequest,
       tag: String,
-      mdl: String,
+      mdl: String
   ): Future[(StatusCode, String)] = {
     // Acquire a token before every attempt so each retry also counts
     // against the shared bucket — retries are real API calls and
@@ -204,7 +216,7 @@ final class LPExtractor(
           case Left(ex)      => s"exception ${ex.getClass.getSimpleName}: ${ex.getMessage}"
         }
         log.warn("[Gemini {}] {} — retrying in {} (attempt {}/5)", tag, reason, delay, attempt + 1)
-      },
+      }
     )
   }
 
@@ -281,13 +293,15 @@ final class LPExtractor(
   // strongest material, which usually leads.
   private val MaxCorpusChars = 16000
 
-  /** SYNTHESIS prompt — distill the WHOLE landing page into a fixed-length
-    * editorial booklet of ORIGINAL ad copy, never reproducing the source.
-    * Unlike [[rewritePrompt]] (one page per section, which leaks raw text on
-    * failure), this decouples the creative from the page's structure and asks
-    * the model to PRODUCE copy, so there is no source sentence to fall back to.
-    * Grounding is mandatory: invent the phrasing, never the facts, or the copy
-    * fails the downstream LP verification. */
+  /**
+   * SYNTHESIS prompt — distill the WHOLE landing page into a fixed-length
+   * editorial booklet of ORIGINAL ad copy, never reproducing the source.
+   * Unlike [[rewritePrompt]] (one page per section, which leaks raw text on
+   * failure), this decouples the creative from the page's structure and asks
+   * the model to PRODUCE copy, so there is no source sentence to fall back to.
+   * Grounding is mandatory: invent the phrasing, never the facts, or the copy
+   * fails the downstream LP verification.
+   */
   private def synthesizePrompt(arc: CreativeArc, brief: Option[String]): String = {
     val pageCount = arc.roles.size
     val structure = arc.roles.zipWithIndex
@@ -379,16 +393,18 @@ final class LPExtractor(
        |""".stripMargin
   }
 
-  /** Synthesize a fixed-length booklet from the WHOLE landing-page corpus
-    * (all extracted section text concatenated) instead of one page per
-    * section. Alternative to [[rewriteSections]] — produces original copy
-    * grounded in the source and structurally cannot leak the source text.
-    * Extraction already filters most boilerplate, so the concatenated section
-    * bodies are a clean corpus to distill from. */
+  /**
+   * Synthesize a fixed-length booklet from the WHOLE landing-page corpus
+   * (all extracted section text concatenated) instead of one page per
+   * section. Alternative to [[rewriteSections]] — produces original copy
+   * grounded in the source and structurally cannot leak the source text.
+   * Extraction already filters most boilerplate, so the concatenated section
+   * bodies are a clean corpus to distill from.
+   */
   def synthesizeSections(
       sections: Vector[(String, String)],
       arcId: String = CreativeArc.default.id,
-      brief: Option[String] = None,
+      brief: Option[String] = None
   ): Future[Vector[BannerPage]] = {
     val arc = CreativeArc.byId(arcId)
     val corpus = sections
@@ -402,16 +418,18 @@ final class LPExtractor(
     // model reads before generating).
     val reminder =
       "\n\nREMINDER: every number, price, percentage, date, and proper name " +
-        "you write MUST appear verbatim in the landing-page text above. If it " +
-        "does not, omit it and stay qualitative."
+      "you write MUST appear verbatim in the landing-page text above. If it " +
+      "does not, omit it and stay qualitative."
     callGemini(synthesizePrompt(arc, brief) + corpus + reminder)
   }
 
-  /** Ask Gemini which story arcs FIT this product, given its LP text, so the
-    * picker offers only arcs that make sense (a Problem→Solution arc is wrong
-    * for an indulgence product like sweets). Returns (best arc id, fitting arc
-    * ids best-first, one-line reason). Falls back to ALL arcs on any failure so
-    * the menu is never empty. */
+  /**
+   * Ask Gemini which story arcs FIT this product, given its LP text, so the
+   * picker offers only arcs that make sense (a Problem→Solution arc is wrong
+   * for an indulgence product like sweets). Returns (best arc id, fitting arc
+   * ids best-first, one-line reason). Falls back to ALL arcs on any failure so
+   * the menu is never empty.
+   */
   def recommendArcs(sections: Vector[(String, String)]): Future[(String, Vector[String], String)] = {
     val corpus = sections
       .map { case (heading, text) => if (heading.trim.nonEmpty) s"$heading\n$text" else text }
@@ -468,10 +486,10 @@ final class LPExtractor(
    */
   def generateLayout(
       page: BannerPage,
-      aspect: String,   // "16/9" for expanded, "300/250" etc. for banner sizes
-      mode: String,     // "expanded" or "banner"
+      aspect: String, // "16/9" for expanded, "300/250" etc. for banner sizes
+      mode: String, // "expanded" or "banner"
       brandKitColors: Vector[(String, String)] = Vector.empty,
-      templateSlotLine: Option[String] = None,
+      templateSlotLine: Option[String] = None
   ): Future[JsValue] = {
     val pageJson = page.toJson.compactPrint
     val brandLine =
@@ -801,14 +819,17 @@ final class LPExtractor(
     logGeminiRequest("callGemini", model, fullPrompt)
     callGeminiWithRetry(request, "callGemini", model).map { case (status, body) =>
       if (status.isFailure()) {
-        throw new RuntimeException(s"Gemini callGemini failed: HTTP ${status.intValue()} after retries: ${body.take(500)}")
+        throw new RuntimeException(
+          s"Gemini callGemini failed: HTTP ${status.intValue()} after retries: ${body.take(500)}")
       }
       parseGeminiResponse(body)
     }
   }
 
-  /** Like callGemini, but returns the parsed JSON payload (array or object)
-   * from Gemini's text response — caller decides how to type it. */
+  /**
+   * Like callGemini, but returns the parsed JSON payload (array or object)
+   * from Gemini's text response — caller decides how to type it.
+   */
   private def callGeminiRaw(
       fullPrompt: String,
       overrideModel: String,
@@ -817,7 +838,7 @@ final class LPExtractor(
       // generateLayout overrides to 0.95 so back-to-back regenerates
       // actually diverge — same page content + same prompt at temp
       // 0.5 produces near-identical layouts.
-      temperature: Double = 0.5,
+      temperature: Double = 0.5
   ): Future[JsValue] = {
     val requestBody = JsObject(
       "contents" -> JsArray(JsObject(
@@ -829,7 +850,8 @@ final class LPExtractor(
       )
     ).compactPrint
 
-    val apiUrl = s"https://generativelanguage.googleapis.com/v1beta/models/$overrideModel:generateContent?key=$geminiApiKey"
+    val apiUrl =
+      s"https://generativelanguage.googleapis.com/v1beta/models/$overrideModel:generateContent?key=$geminiApiKey"
     val request = HttpRequest(
       method = HttpMethods.POST,
       uri = apiUrl,
@@ -839,7 +861,8 @@ final class LPExtractor(
     logGeminiRequest("callGeminiRaw", overrideModel, fullPrompt)
     callGeminiWithRetry(request, "callGeminiRaw", overrideModel).map { case (status, body) =>
       if (status.isFailure()) {
-        throw new RuntimeException(s"Gemini callGeminiRaw failed: HTTP ${status.intValue()} after retries: ${body.take(500)}")
+        throw new RuntimeException(
+          s"Gemini callGeminiRaw failed: HTTP ${status.intValue()} after retries: ${body.take(500)}")
       }
       val json = body.parseJson.asJsObject
       val text = json.fields("candidates")

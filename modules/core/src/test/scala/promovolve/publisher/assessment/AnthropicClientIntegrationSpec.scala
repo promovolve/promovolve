@@ -8,13 +8,14 @@ import org.scalatest.wordspec.AnyWordSpec
 import scala.concurrent.Await
 import scala.concurrent.duration.*
 
-/** Integration test for AnthropicClient.
-  *
-  * Run with: sbt "testOnly *AnthropicClientIntegrationSpec"
-  *
-  * Requires ANTHROPIC_API_KEY environment variable.
-  * Skipped by default - remove @Ignore to run.
-  */
+/**
+ * Integration test for AnthropicClient.
+ *
+ * Run with: sbt "testOnly *AnthropicClientIntegrationSpec"
+ *
+ * Requires ANTHROPIC_API_KEY environment variable.
+ * Skipped by default - remove @Ignore to run.
+ */
 //@Ignore  // Remove this to run integration tests
 class AnthropicClientIntegrationSpec extends AnyWordSpec with Matchers with BeforeAndAfterAll {
 
@@ -39,7 +40,7 @@ class AnthropicClientIntegrationSpec extends AnyWordSpec with Matchers with Befo
       val context = AssessmentContext(
         advertiserId = "test-adv",
         creativeId = "test-creative",
-        
+
         width = 300,
         height = 250
       )

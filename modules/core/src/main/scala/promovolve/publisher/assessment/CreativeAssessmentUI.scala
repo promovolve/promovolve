@@ -15,16 +15,17 @@ import spray.json.DefaultJsonProtocol.*
 
 import scala.io.Source
 import java.util.Base64
-import scala.concurrent.{ExecutionContext, Future}
+import scala.concurrent.{ ExecutionContext, Future }
 import scala.concurrent.duration.*
-import scala.util.{Failure, Success}
+import scala.util.{ Failure, Success }
 
-/** Simple standalone UI for testing creative category verification.
-  *
-  * Run with: sbt "core/runMain promovolve.publisher.assessment.CreativeAssessmentUI"
-  *
-  * Then open http://localhost:9090 in your browser.
-  */
+/**
+ * Simple standalone UI for testing creative category verification.
+ *
+ * Run with: sbt "core/runMain promovolve.publisher.assessment.CreativeAssessmentUI"
+ *
+ * Then open http://localhost:9090 in your browser.
+ */
 object CreativeAssessmentUI {
 
   /** Simplified result for category matching */
@@ -204,7 +205,8 @@ object CreativeAssessmentUI {
             "properties" -> JsObject(
               "match_confidence" -> JsObject(
                 "type" -> JsString("number"),
-                "description" -> JsString("How well the image matches the declared category (0.0 = no match, 1.0 = perfect match). Use 0.5 if no category declared.")
+                "description" -> JsString(
+                  "How well the image matches the declared category (0.0 = no match, 1.0 = perfect match). Use 0.5 if no category declared.")
               ),
               "detected_categories" -> JsObject(
                 "type" -> JsString("array"),
@@ -213,7 +215,8 @@ object CreativeAssessmentUI {
               ),
               "explanation" -> JsObject(
                 "type" -> JsString("string"),
-                "description" -> JsString("Brief explanation of why the image does or doesn't match the declared category")
+                "description" ->
+                JsString("Brief explanation of why the image does or doesn't match the declared category")
               )
             ),
             "required" -> JsArray(
@@ -265,9 +268,9 @@ object CreativeAssessmentUI {
 
   def main(args: Array[String]): Unit = {
     val apiKey = sys.env.getOrElse("GEMINI_API_KEY", {
-      println("Warning: GEMINI_API_KEY not set. Assessment will fail.")
-      ""
-    })
+        println("Warning: GEMINI_API_KEY not set. Assessment will fail.")
+        ""
+      })
 
     given system: ActorSystem[Nothing] = ActorSystem(Behaviors.empty, "creative-assessment-ui")
     given ExecutionContext = system.executionContext

@@ -6,16 +6,19 @@ import promovolve.api.ApiModels.*
 import promovolve.api.ApiJsonFormats.given
 import spray.json.*
 
-/** Guards the brand-kit handoff contract: the LP-derived palette + font
-  * faces must survive JSON serialization so the creative editor (and the
-  * Designer it hands off to) can seed the brand kit from the LP. */
+/**
+ * Guards the brand-kit handoff contract: the LP-derived palette + font
+ * faces must survive JSON serialization so the creative editor (and the
+ * Designer it hands off to) can seed the brand kit from the LP.
+ */
 class AnalyzeLPResponseJsonSpec extends AnyFlatSpec with Matchers {
 
   "AnalyzeLPResponse" should "round-trip palette and fonts through JSON" in {
     val resp = AnalyzeLPResponse(
       url = "https://example.com/lp",
       sections = Vector(
-        AnalyzeLPSection("Headline", "Body copy", Vector(AnalyzeLPImage("https://img/1.png", 800, 600, "alt")))
+        AnalyzeLPSection("Headline", "Body copy",
+          Vector(AnalyzeLPImage("https://img/1.png", 800, 600, "alt")))
       ),
       dominantColor = Some("rgb(10, 20, 30)"),
       textColor = Some("rgb(240, 240, 240)"),

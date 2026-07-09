@@ -8,11 +8,11 @@ final case class ReplayGuardState(
     previousBucket: Long,
     bloomCurrent: BloomFilter,
     bloomPrevious: BloomFilter,
-    addsSincePublish: Int   = 0,
+    addsSincePublish: Int = 0,
     publishInFlight: Boolean = false,
-    lastPublishAtNs: Long   = 0L,
+    lastPublishAtNs: Long = 0L,
     forceInitialPublish: Boolean = true,
-    rotatedAtNs: Long       = System.nanoTime(),
+    rotatedAtNs: Long = System.nanoTime(),
     firstGrantDone: Boolean = false
 ) {
 
@@ -66,11 +66,11 @@ final case class ReplayGuardState(
     bloomCurrent.clear()
 
     copy(
-      currentBucket    = rotation.newBucket,
-      previousBucket   = rotation.previousBucket,
+      currentBucket = rotation.newBucket,
+      previousBucket = rotation.previousBucket,
       addsSincePublish = 0,
-      lastPublishAtNs  = 0L,
-      rotatedAtNs      = System.nanoTime()
+      lastPublishAtNs = 0L,
+      rotatedAtNs = System.nanoTime()
     )
   }
 
@@ -79,8 +79,8 @@ final case class ReplayGuardState(
     if (publishInFlight) return false
     if (forceInitialPublish) return true
 
-    val nowNs      = System.nanoTime()
-    val due        = (nowNs - lastPublishAtNs) >= config.publishEvery.toNanos
+    val nowNs = System.nanoTime()
+    val due = (nowNs - lastPublishAtNs) >= config.publishEvery.toNanos
     val enoughAdds = addsSincePublish >= config.publishMinAdds
 
     due && enoughAdds
@@ -104,14 +104,14 @@ object ReplayGuardState {
   /** Create initial state for a new replay guard. */
   def initial(config: GuardConfiguration, bucketStrategy: BucketRotationStrategy): ReplayGuardState = {
     val currentBucket = bucketStrategy.currentBucket
-    val bloomCurrent  = BloomFilter.create(config.expectedPerPart, config.fpr)
+    val bloomCurrent = BloomFilter.create(config.expectedPerPart, config.fpr)
     val bloomPrevious = BloomFilter.create(config.expectedPerPart, config.fpr)
 
     ReplayGuardState(
-      currentBucket  = currentBucket,
+      currentBucket = currentBucket,
       previousBucket = currentBucket - 1,
-      bloomCurrent   = bloomCurrent,
-      bloomPrevious  = bloomPrevious
+      bloomCurrent = bloomCurrent,
+      bloomPrevious = bloomPrevious
     )
   }
 
@@ -121,7 +121,7 @@ object ReplayGuardState {
       config: GuardConfiguration,
       bucketStrategy: BucketRotationStrategy
   ): Option[ReplayGuardState] = {
-    val bloomCurrent  = BloomFilter.create(config.expectedPerPart, config.fpr)
+    val bloomCurrent = BloomFilter.create(config.expectedPerPart, config.fpr)
     val bloomPrevious = BloomFilter.create(config.expectedPerPart, config.fpr)
 
     if (snapshot.mBits == bloomCurrent.mBits && snapshot.k == bloomCurrent.k) {
@@ -129,11 +129,11 @@ object ReplayGuardState {
       bloomPrevious.loadFromArray(snapshot.previous)
 
       Some(ReplayGuardState(
-        currentBucket  = snapshot.currentBucket,
+        currentBucket = snapshot.currentBucket,
         previousBucket = snapshot.prevBucket,
-        bloomCurrent   = bloomCurrent,
-        bloomPrevious  = bloomPrevious,
-        rotatedAtNs    = snapshot.rotatedAtNanos,
+        bloomCurrent = bloomCurrent,
+        bloomPrevious = bloomPrevious,
+        rotatedAtNs = snapshot.rotatedAtNanos,
         forceInitialPublish = true
       ))
     } else None

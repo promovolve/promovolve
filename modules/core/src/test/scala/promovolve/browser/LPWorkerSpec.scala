@@ -11,11 +11,13 @@ import scala.collection.concurrent.TrieMap
 import scala.concurrent.Promise
 import scala.concurrent.duration.*
 
-/** Covers [[LPWorker]]'s per-partition concurrency bounding (the crawler-tier
-  * counterpart to [[CrawlWorker]]). The real analysis drives Playwright + an
-  * R2 upload, so the worker is built with a stub `RunAnalysis` seam: it reports
-  * each started URL to a probe and hands back a Promise the test completes, so
-  * the grant/queue/drain logic is exercised hermetically. */
+/**
+ * Covers [[LPWorker]]'s per-partition concurrency bounding (the crawler-tier
+ * counterpart to [[CrawlWorker]]). The real analysis drives Playwright + an
+ * R2 upload, so the worker is built with a stub `RunAnalysis` seam: it reports
+ * each started URL to a probe and hands back a Promise the test completes, so
+ * the grant/queue/drain logic is exercised hermetically.
+ */
 class LPWorkerSpec extends AnyWordSpec with Matchers {
 
   import LPWorker.*
@@ -23,7 +25,7 @@ class LPWorkerSpec extends AnyWordSpec with Matchers {
   private def withKit(body: ActorTestKit => Unit): Unit = {
     val kit = ActorTestKit(
       s"LPWorkerSpec-${UUID.randomUUID().toString.take(8)}",
-      ConfigFactory.parseString("""pekko.actor.provider = "local" """),
+      ConfigFactory.parseString("""pekko.actor.provider = "local" """)
     )
     try body(kit)
     finally kit.shutdownTestKit()
@@ -32,8 +34,10 @@ class LPWorkerSpec extends AnyWordSpec with Matchers {
   private def doneFor(url: String): AnalyzeLPDone =
     AnalyzeLPDone(url, LPAnalysisResult(url, Vector.empty), Some(s"$url/shot.png"), None)
 
-  /** `RunAnalysis` stub: reports each started url to `report` and returns a
-    * Promise the test completes via `finish` to simulate the analysis ending. */
+  /**
+   * `RunAnalysis` stub: reports each started url to `report` and returns a
+   * Promise the test completes via `finish` to simulate the analysis ending.
+   */
   private final class StubRuns(report: ActorRef[String]) {
     private val promises = TrieMap.empty[String, Promise[AnalyzeLPDone]]
     val run: RunAnalysis = (req: AnalyzeLP) => {

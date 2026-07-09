@@ -1,91 +1,129 @@
 package promovolve.publisher.delivery
 
 import org.apache.pekko.actor.typed.pubsub.Topic
-import org.apache.pekko.actor.typed.scaladsl.{ActorContext, Behaviors}
-import org.apache.pekko.actor.typed.{ActorRef, ActorSystem, Behavior}
-import org.apache.pekko.cluster.ddata.{LWWMap, LWWMapKey, ReplicatedData, SelfUniqueAddress}
-import org.apache.pekko.cluster.ddata.typed.scaladsl.{DistributedData, Replicator}
-import org.apache.pekko.cluster.sharding.typed.scaladsl.{ClusterSharding, EntityTypeKey}
+import org.apache.pekko.actor.typed.scaladsl.{ ActorContext, Behaviors }
+import org.apache.pekko.actor.typed.{ ActorRef, ActorSystem, Behavior }
+import org.apache.pekko.cluster.ddata.{ LWWMap, LWWMapKey, ReplicatedData, SelfUniqueAddress }
+import org.apache.pekko.cluster.ddata.typed.scaladsl.{ DistributedData, Replicator }
+import org.apache.pekko.cluster.sharding.typed.scaladsl.{ ClusterSharding, EntityTypeKey }
 import org.apache.pekko.pattern.StatusReply
 import org.apache.pekko.util.Timeout
 import org.slf4j.LoggerFactory
-import promovolve.{CampaignPaused, *}
-import promovolve.advertiser.{AdvertiserEntity, CampaignEntity}
+import promovolve.{ CampaignPaused, * }
+import promovolve.advertiser.{ AdvertiserEntity, CampaignEntity }
 import promovolve.publisher.*
 import promovolve.publisher.Keys.key
 import promovolve.publisher.AssetPointer
 import promovolve.publisher.delivery.Protocol.*
 import promovolve.publisher.delivery.candidates.CandidateLogic
-import promovolve.publisher.delivery.pacing.{PacingLogic, TrafficObserver}
+import promovolve.publisher.delivery.pacing.{ PacingLogic, TrafficObserver }
 import promovolve.publisher.delivery.snapshot.SnapshotLogic
 import promovolve.taxonomy.TaxonomyRankerEntity
 
 import java.time.Instant
 
 import scala.concurrent.duration.*
-import scala.concurrent.{ExecutionContext, Future}
+import scala.concurrent.{ ExecutionContext, Future }
 import scala.util.*
 
-/** Ad server entity - one per publisher.
-  *
-  * Responsibilities:
-  * - Receives candidates from AuctioneerEntity
-  * - Manages ServeIndexDData (clear/append on auction results)
-  * - Handles approval workflow (approve/reject from publisher dashboard)
-  * - MAB selection on serve requests (future)
-  * - In-flight ad tracking (future)
-  */
+/**
+ * Ad server entity - one per publisher.
+ *
+ * Responsibilities:
+ * - Receives candidates from AuctioneerEntity
+ * - Manages ServeIndexDData (clear/append on auction results)
+ * - Handles approval workflow (approve/reject from publisher dashboard)
+ * - MAB selection on serve requests (future)
+ * - In-flight ad tracking (future)
+ */
 object AdServer {
 
   // Re-export public protocol types for external use
   export Protocol.{
-    Command, CandidatesCollected, MarkClassified, Approve, Reject, ApproveAll,
-    ListPending, Flag, Unflag, ListFlagged, RecordImpression, RecordClick, RecordFold,
-    GetCreativeStats, GetServeStats, CampaignPaused, EvictCampaignFromSite, EvictCampaignFromSlots, CreativePaused,
-    RevokeCreativeApproval, CreativeReactivated, RemoveAdvertiser, RefreshTTLForCampaign,
-    RefreshTTLForAdvertiser, ApproveAllResult,
-    PendingItem, PendingList, FlagResult, UnflagResult, FlaggedItem,
-    FlaggedList, CreativeStats, CreativeStatsMap, ServeStats,
-    Done, Passivate,
-    BatchSelect, BatchSlotSpec, BatchSelectResult, BatchSelected, BatchSlotOutcome,
-    BatchContentTooOld, BatchHostNotVerified
+    Approve,
+    ApproveAll,
+    ApproveAllResult,
+    BatchContentTooOld,
+    BatchHostNotVerified,
+    BatchSelect,
+    BatchSelectResult,
+    BatchSelected,
+    BatchSlotOutcome,
+    BatchSlotSpec,
+    CampaignPaused,
+    CandidatesCollected,
+    Command,
+    CreativePaused,
+    CreativeReactivated,
+    CreativeStats,
+    CreativeStatsMap,
+    Done,
+    EvictCampaignFromSite,
+    EvictCampaignFromSlots,
+    Flag,
+    FlagResult,
+    FlaggedItem,
+    FlaggedList,
+    GetCreativeStats,
+    GetServeStats,
+    ListFlagged,
+    ListPending,
+    MarkClassified,
+    Passivate,
+    PendingItem,
+    PendingList,
+    RecordClick,
+    RecordFold,
+    RecordImpression,
+    RefreshTTLForAdvertiser,
+    RefreshTTLForCampaign,
+    Reject,
+    RemoveAdvertiser,
+    RevokeCreativeApproval,
+    ServeStats,
+    Unflag,
+    UnflagResult
   }
-  /** Outcome of `recordRequestArrival`: tells the caller (case Select /
-    * case BatchSelect) what to do after the per-request lifecycle ran.
-    */
+
+  /**
+   * Outcome of `recordRequestArrival`: tells the caller (case Select /
+   * case BatchSelect) what to do after the per-request lifecycle ran.
+   */
   private[delivery] sealed trait ArrivalAction
   private[delivery] object ArrivalAction {
-    case object Proceed           extends ArrivalAction
-    case object SkipWarmup        extends ArrivalAction
+    case object Proceed extends ArrivalAction
+    case object SkipWarmup extends ArrivalAction
     case object SkipRolloverGrace extends ArrivalAction
   }
 
   /** DData type for domain blocklist */
   private type BlocklistMap = LWWMap[SiteId, PublisherEntity.CachedDomainBlocklist]
 
-  /** Strip the port from a verified host (e.g. "example.com:8080" → "example.com")
-    * and lowercase it. Domain blocklists are stored as bare lower-case hostnames,
-    * so the comparison must be performed in that shape.
-    */
+  /**
+   * Strip the port from a verified host (e.g. "example.com:8080" → "example.com")
+   * and lowercase it. Domain blocklists are stored as bare lower-case hostnames,
+   * so the comparison must be performed in that shape.
+   */
   private[delivery] def mySiteDomainOpt(verifiedHost: Option[String]): Option[String] =
     verifiedHost.map { vh =>
       val lower = vh.toLowerCase.trim
-      val i     = lower.indexOf(':')
+      val i = lower.indexOf(':')
       if (i >= 0) lower.substring(0, i) else lower
     }.filter(_.nonEmpty)
 
-  /** Serve-time host gate: does the ad-tag page URL's host match the site's
-    * verified host? Extracted from the BatchSelect handler so the matching
-    * rules are unit-testable. Two relaxations on top of an exact compare:
-    *   - a leading `www.` is canonicalized off both sides (WordPress www/apex
-    *     split), and
-    *   - two private/LAN hosts match when their ports agree or either is bare
-    *     (dev convenience; a public host still needs an exact host match).
-    * Returns false when no verified host is known yet (DData not published).
-    */
+  /**
+   * Serve-time host gate: does the ad-tag page URL's host match the site's
+   * verified host? Extracted from the BatchSelect handler so the matching
+   * rules are unit-testable. Two relaxations on top of an exact compare:
+   *   - a leading `www.` is canonicalized off both sides (WordPress www/apex
+   *     split), and
+   *   - two private/LAN hosts match when their ports agree or either is bare
+   *     (dev convenience; a public host still needs an exact host match).
+   * Returns false when no verified host is known yet (DData not published).
+   */
   private[delivery] def hostMatches(pageUrl: String, verifiedHost: Option[String]): Boolean =
     verifiedHost.exists { vh =>
-      val u        = pageUrl.toLowerCase
+      val u = pageUrl.toLowerCase
       val noScheme = if (u.startsWith("http://")) u.drop(7) else if (u.startsWith("https://")) u.drop(8) else u
       val requestHost = noScheme.takeWhile(c => c != '/' && c != '?')
       def port(h: String): String = { val i = h.indexOf(':'); if (i >= 0) h.substring(i + 1) else "" }
@@ -93,18 +131,19 @@ object AdServer {
       promovolve.publisher.SiteEntity.canonicalHost(requestHost) ==
         promovolve.publisher.SiteEntity.canonicalHost(vh) ||
         (promovolve.publisher.SiteEntity.isPrivateHost(requestHost) &&
-         promovolve.publisher.SiteEntity.isPrivateHost(vh) &&
-         (rp == vp || rp.isEmpty || vp.isEmpty))
+        promovolve.publisher.SiteEntity.isPrivateHost(vh) &&
+        (rp == vp || rp.isEmpty || vp.isEmpty))
     }
 
-  /** Partition candidates by the advertiser-side site-domain blocklist.
-    * Direction inversion vs. publisher-side: drop the advertiser, not the
-    * landing domain. No-op (everything passes through) when the site's
-    * verified host is unknown — there's nothing to compare against until
-    * DData publishes it.
-    *
-    * @return (blocked, allowed)
-    */
+  /**
+   * Partition candidates by the advertiser-side site-domain blocklist.
+   * Direction inversion vs. publisher-side: drop the advertiser, not the
+   * landing domain. No-op (everything passes through) when the site's
+   * verified host is unknown — there's nothing to compare against until
+   * DData publishes it.
+   *
+   * @return (blocked, allowed)
+   */
   private[delivery] def partitionByAdvertiserBlocklist(
       candidates: Vector[Candidate],
       blocklists: Map[AdvertiserId, Set[String]],
@@ -120,32 +159,39 @@ object AdServer {
   final case class TrafficRatioData(ratio: Double, isWarmedUp: Boolean) extends CborSerializable
   val TrafficRatioKey: LWWMapKey[SiteId, TrafficRatioData] = LWWMapKey("adserver-traffic-ratio")
 
-  /** Per-page winner cache: which campaigns / creatives have already
-    * won a slot on a given (site × pageUrl). `campaigns` is a soft
-    * penalty (different creatives from the same campaign may still
-    * compete at reduced score); `creatives` is a HARD exclusion —
-    * responsive creatives register multiple CandidateView entries
-    * under one creativeId (one per size), and serving the same
-    * creativeId twice on one page always renders the same visual ad.
-    * TTL cleanup (the `pageWinnersTtl` parameter on
-    * `AdServer.apply`) evicts entries so reloads and re-readers
-    * get a fresh auction. */
+  /**
+   * Per-page winner cache: which campaigns / creatives have already
+   * won a slot on a given (site × pageUrl). `campaigns` is a soft
+   * penalty (different creatives from the same campaign may still
+   * compete at reduced score); `creatives` is a HARD exclusion —
+   * responsive creatives register multiple CandidateView entries
+   * under one creativeId (one per size), and serving the same
+   * creativeId twice on one page always renders the same visual ad.
+   * TTL cleanup (the `pageWinnersTtl` parameter on
+   * `AdServer.apply`) evicts entries so reloads and re-readers
+   * get a fresh auction.
+   */
   final case class PageWinners(
       campaigns: Set[String],
       firstSeenMs: Long,
-      creatives: Set[String] = Set.empty,
+      creatives: Set[String] = Set.empty
   ) extends CborSerializable
   val PageWinnersKey: LWWMapKey[String, PageWinners] = LWWMapKey("adserver-page-winners")
-  /** Default per-page-winners TTL — 15s covers a slow page load + DOM
-    * mutations so an advertiser doesn't appear in two slots within
-    * one render. Configurable via `promovolve.adserver.page-winners-ttl`
-    * in application.conf; lower it (e.g. 1s) when smoke-testing in
-    * dev with one advertiser, where rapid reloads otherwise see
-    * empty slots. */
+
+  /**
+   * Default per-page-winners TTL — 15s covers a slow page load + DOM
+   * mutations so an advertiser doesn't appear in two slots within
+   * one render. Configurable via `promovolve.adserver.page-winners-ttl`
+   * in application.conf; lower it (e.g. 1s) when smoke-testing in
+   * dev with one advertiser, where rapid reloads otherwise see
+   * empty slots.
+   */
   val DefaultPageWinnersTtl: FiniteDuration = 15.seconds
 
-  /** Strip query + fragment and lowercase so `?utm=…` variants don't
-    * bypass the per-page cap. */
+  /**
+   * Strip query + fragment and lowercase so `?utm=…` variants don't
+   * bypass the per-page cap.
+   */
   def normalizePageUrl(raw: String): String = {
     val lower = raw.toLowerCase
     val noFrag = lower.indexOf('#') match {
@@ -162,39 +208,42 @@ object AdServer {
   def pageWinnersKeyFor(siteId: SiteId, url: URL): String =
     s"${siteId.value}|${normalizePageUrl(url.value)}"
 
-  /** Score multiplier applied to candidates whose campaigns have
-    * already won a slot on the current page. Not 0 — that'd be a
-    * hard exclusion. Not 1 — that'd remove the cap entirely. 0.3
-    * chosen so a repeat-campaign candidate competes but only wins
-    * when it's clearly stronger than non-repeat alternatives,
-    * gracefully degrading when the pool is narrow. */
+  /**
+   * Score multiplier applied to candidates whose campaigns have
+   * already won a slot on the current page. Not 0 — that'd be a
+   * hard exclusion. Not 1 — that'd remove the cap entirely. 0.3
+   * chosen so a repeat-campaign candidate competes but only wins
+   * when it's clearly stronger than non-repeat alternatives,
+   * gracefully degrading when the pool is narrow.
+   */
   val PageCapPenalty: Double = 0.3
 
-  /** Greedy assignment of candidates to slots for batch serve.
-    *
-    * Algorithm:
-    *   1. Score every candidate in the pool once via
-    *      ThompsonSampling.scoreCandidate (shared with the per-slot
-    *      path, so both auctions produce identical scores).
-    *   2. Sort slots by area descending — biggest slot gets first
-    *      pick of the pool. Matches publisher expectation that a
-    *      billboard is more valuable than a mobile banner.
-    *   3. For each slot in order, pick the highest-scoring candidate
-    *      that:
-    *        - exactly matches the slot's width × height,
-    *        - passes the site's floor CPM,
-    *        - isn't from a campaign already in pageWinners (prior
-    *          page auctions) or already assigned earlier in this
-    *          batch.
-    *   4. Once picked, record the campaign in the batch-local
-    *      winners set so subsequent slots skip it.
-    *   5. Compute the slot's clearing price as the quality-adjusted
-    *      second price against the runner-up among that slot's
-    *      eligible candidates (`ThompsonSampling.qualityAdjustedClearing`).
-    *
-    * Pure — takes every input as a parameter, returns the outcomes.
-    * Easy to unit-test.
-    */
+  /**
+   * Greedy assignment of candidates to slots for batch serve.
+   *
+   * Algorithm:
+   *   1. Score every candidate in the pool once via
+   *      ThompsonSampling.scoreCandidate (shared with the per-slot
+   *      path, so both auctions produce identical scores).
+   *   2. Sort slots by area descending — biggest slot gets first
+   *      pick of the pool. Matches publisher expectation that a
+   *      billboard is more valuable than a mobile banner.
+   *   3. For each slot in order, pick the highest-scoring candidate
+   *      that:
+   *        - exactly matches the slot's width × height,
+   *        - passes the site's floor CPM,
+   *        - isn't from a campaign already in pageWinners (prior
+   *          page auctions) or already assigned earlier in this
+   *          batch.
+   *   4. Once picked, record the campaign in the batch-local
+   *      winners set so subsequent slots skip it.
+   *   5. Compute the slot's clearing price as the quality-adjusted
+   *      second price against the runner-up among that slot's
+   *      eligible candidates (`ThompsonSampling.qualityAdjustedClearing`).
+   *
+   * Pure — takes every input as a parameter, returns the outcomes.
+   * Easy to unit-test.
+   */
   def batchAssign(
       view: ServeView,
       slots: Vector[Protocol.BatchSlotSpec],
@@ -206,7 +255,7 @@ object AdServer {
       categoryFloors: Map[CategoryId, CPM] = Map.empty,
       // Per-slot admin floor overrides (slotId → floor). Override wins over
       // category/site floors, mirroring the auctioneer's admission floor.
-      adminSlotFloors: Map[SlotId, CPM] = Map.empty,
+      adminSlotFloors: Map[SlotId, CPM] = Map.empty
   ): Vector[Protocol.BatchSlotOutcome] = {
     def catFloor(cat: CategoryId): CPM = categoryFloors.getOrElse(cat, siteFloor)
     // Score every candidate once — same scoring function the per-slot
@@ -241,7 +290,7 @@ object AdServer {
         adminSlotFloors.get(slot.slotId).getOrElse(catFloor(cat))
       val eligible = scored.collect {
         case (c, s)
-          if c.cpm.toDouble >= slotFloor(c.category).toDouble
+            if c.cpm.toDouble >= slotFloor(c.category).toDouble
             && !usedCreatives.contains(c.creativeId)
             && !usedCampaigns.contains(c.campaignId.value) =>
           (c, s)
@@ -258,34 +307,35 @@ object AdServer {
           .getOrElse(0.0)
         val clearing = ThompsonSampling.qualityAdjustedClearing(
           winnerSampledCtr = winnerScore.sampledCtr,
-          winnerBid        = winner.cpm,
-          bestLoserScore   = bestLoserScore,
-          alpha            = alpha,
-          siteFloor        = slotFloor(winner.category),
+          winnerBid = winner.cpm,
+          bestLoserScore = bestLoserScore,
+          alpha = alpha,
+          siteFloor = slotFloor(winner.category)
         )
         usedCampaigns += winner.campaignId.value
         usedCreatives += winner.creativeId
         Protocol.BatchSlotOutcome(
-          slotId        = slot.slotId,
-          winner        = Some(winner),
+          slotId = slot.slotId,
+          winner = Some(winner),
           clearingPrice = clearing,
-          requestId     = java.util.UUID.randomUUID().toString,
+          requestId = java.util.UUID.randomUUID().toString
         )
       }
     }
   }
 
-  /** Pick the best candidate for a slot together with its quality-
-    * adjusted clearing price. Pure helper shared by the batch
-    * assignment and the retry loop. Mirrors the size + floor +
-    * hard-dedup logic from [[batchAssign]] but scoped to a single
-    * slot so the retry path can reuse it unchanged.
-    *
-    * Clearing is the second-best score among the slot's eligible
-    * candidates inverted through the score formula given the winner's
-    * sampled CTR (see `ThompsonSampling.qualityAdjustedClearing`).
-    * Returns `siteFloor` clearing when only one candidate fits.
-    */
+  /**
+   * Pick the best candidate for a slot together with its quality-
+   * adjusted clearing price. Pure helper shared by the batch
+   * assignment and the retry loop. Mirrors the size + floor +
+   * hard-dedup logic from [[batchAssign]] but scoped to a single
+   * slot so the retry path can reuse it unchanged.
+   *
+   * Clearing is the second-best score among the slot's eligible
+   * candidates inverted through the score formula given the winner's
+   * sampled CTR (see `ThompsonSampling.qualityAdjustedClearing`).
+   * Returns `siteFloor` clearing when only one candidate fits.
+   */
   def pickBestForSlot(
       slot: Protocol.BatchSlotSpec,
       pool: Vector[CandidateView],
@@ -299,7 +349,7 @@ object AdServer {
       // site floors — same precedence the auctioneer used to admit the bid,
       // so a publisher-approved winner is never blocked at serve by a floor
       // the slot explicitly overrides. Also sets the clearing clamp.
-      adminSlotFloor: Option[CPM] = None,
+      adminSlotFloor: Option[CPM] = None
   ): Option[(CandidateView, CPM)] = {
     // Admin slot override first, then per-category floor, then site floor.
     // Empty map + no override → `siteFloor`, i.e. legacy single-floor behavior.
@@ -311,7 +361,7 @@ object AdServer {
     // filtering is just floor (per the candidate's category) + per-page dedup.
     val fitting = pool.filter { c =>
       c.cpm.toDouble >= catFloor(c.category).toDouble &&
-        !usedCampaigns.contains(c.campaignId.value)
+      !usedCampaigns.contains(c.campaignId.value)
     }
     if (fitting.isEmpty) None
     else {
@@ -329,60 +379,62 @@ object AdServer {
         .getOrElse(0.0)
       val clearing = ThompsonSampling.qualityAdjustedClearing(
         winnerSampledCtr = winnerScore.sampledCtr,
-        winnerBid        = winner.cpm,
-        bestLoserScore   = bestLoserScore,
-        alpha            = alpha,
-        siteFloor        = catFloor(winner.category),
+        winnerBid = winner.cpm,
+        bestLoserScore = bestLoserScore,
+        alpha = alpha,
+        siteFloor = catFloor(winner.category)
       )
       Some((winner, clearing))
     }
   }
 
-  /** Reserve budgets for the batch's initial winners with per-slot
-    * retry. Pure function of its parameters — `reserve` is injectable
-    * so unit tests can mock the reservation primitive (success /
-    * failure / per-campaign rules) without spinning up an actor
-    * system. The instance method inside AdServer wires in the real
-    * `batchReserveOne` (which asks CampaignEntity + AdvertiserEntity).
-    *
-    * Loop (per iteration):
-    *   1. Fire `reserve` for every slot still needing reservation.
-    *   2. Successes become confirmed outcomes; failures become retry
-    *      slots.
-    *   3. For each failed slot, pick the next-best candidate from the
-    *      pool minus (already-tried for this slot ∪ already-confirmed
-    *      as another slot's winner). Re-score against the current
-    *      `usedCampaigns` set so the soft cap reflects in-batch wins.
-    *   4. If no next candidate fits: slot becomes winner=None, drop
-    *      out.
-    *   5. Recurse on the new retry set.
-    *
-    * Bounded: each iteration removes at least one candidate from each
-    * failed slot's eligibility. Terminates in ≤ pool.size iterations.
-    *
-    * Returns (finalOutcomes, pendingSpendDeltas) — the deltas fold
-    * into `pendingSpendByCampaign` so concurrent batch requests don't
-    * over-reserve before impression events record the spend.
-    */
-  /** Dog-ear: produce a fallthrough `DogearOutcome` for a slot whose pin
-    * hint couldn't be honored.
-    *
-    * Returns:
-    *   - `None` for slots without a pin, OR for pins whose creative is
-    *     still currently approved on this site (transient miss — the
-    *     creative isn't in this batch's pool but it's still eligible,
-    *     so the client should keep its pin and re-honor next batch).
-    *   - `Some(creative_removed)` only for pins whose creative has
-    *     been revoked or removed from approval. The bootstrap acts on
-    *     this signal to clear the IDB pin.
-    *
-    * `isApproved` is supplied by the AdServer instance from its
-    * `persistedApprovedIds` set — the source of truth for what's
-    * eligible to serve right now on this site.
-    */
+  /**
+   * Reserve budgets for the batch's initial winners with per-slot
+   * retry. Pure function of its parameters — `reserve` is injectable
+   * so unit tests can mock the reservation primitive (success /
+   * failure / per-campaign rules) without spinning up an actor
+   * system. The instance method inside AdServer wires in the real
+   * `batchReserveOne` (which asks CampaignEntity + AdvertiserEntity).
+   *
+   * Loop (per iteration):
+   *   1. Fire `reserve` for every slot still needing reservation.
+   *   2. Successes become confirmed outcomes; failures become retry
+   *      slots.
+   *   3. For each failed slot, pick the next-best candidate from the
+   *      pool minus (already-tried for this slot ∪ already-confirmed
+   *      as another slot's winner). Re-score against the current
+   *      `usedCampaigns` set so the soft cap reflects in-batch wins.
+   *   4. If no next candidate fits: slot becomes winner=None, drop
+   *      out.
+   *   5. Recurse on the new retry set.
+   *
+   * Bounded: each iteration removes at least one candidate from each
+   * failed slot's eligibility. Terminates in ≤ pool.size iterations.
+   *
+   * Returns (finalOutcomes, pendingSpendDeltas) — the deltas fold
+   * into `pendingSpendByCampaign` so concurrent batch requests don't
+   * over-reserve before impression events record the spend.
+   */
+  /**
+   * Dog-ear: produce a fallthrough `DogearOutcome` for a slot whose pin
+   * hint couldn't be honored.
+   *
+   * Returns:
+   *   - `None` for slots without a pin, OR for pins whose creative is
+   *     still currently approved on this site (transient miss — the
+   *     creative isn't in this batch's pool but it's still eligible,
+   *     so the client should keep its pin and re-honor next batch).
+   *   - `Some(creative_removed)` only for pins whose creative has
+   *     been revoked or removed from approval. The bootstrap acts on
+   *     this signal to clear the IDB pin.
+   *
+   * `isApproved` is supplied by the AdServer instance from its
+   * `persistedApprovedIds` set — the source of truth for what's
+   * eligible to serve right now on this site.
+   */
   private[delivery] def dogearFallthrough(
       slot: Protocol.BatchSlotSpec,
-      isApproved: CreativeId => Boolean,
+      isApproved: CreativeId => Boolean
   ): Option[Protocol.DogearOutcome] =
     slot.pin match {
       case Some(cid) if !isApproved(cid) =>
@@ -421,7 +473,7 @@ object AdServer {
       // category/site floors, mirroring the auctioneer's admission floor —
       // an approved winner admitted under a slot override must not be
       // blocked here by the higher site floor.
-      adminSlotFloors: Map[SlotId, CPM] = Map.empty,
+      adminSlotFloors: Map[SlotId, CPM] = Map.empty
   )(using ExecutionContext): Future[(Vector[Protocol.BatchSlotOutcome], Map[CampaignId, Double])] = {
     val effectivePinPool = if (pinLookupPool.isEmpty) pool else pinLookupPool
     // Initial assignment: largest slot first, greedy. Track what each
@@ -440,7 +492,7 @@ object AdServer {
     val (pinnedSlots, unpinnedSlots) = slots.partition(_.pin.isDefined)
     val ordered =
       pinnedSlots.sortBy(s => -(s.width.toLong * s.height)) ++
-        rng.shuffle(unpinnedSlots)
+      rng.shuffle(unpinnedSlots)
     var tried: Map[SlotId, Set[CreativeId]] = Map.empty
     // `used` is the HARD exclusion set: off-page-pin campaigns (the
     // dog-ear is a "save for later" gesture — surfacing other creatives
@@ -459,10 +511,12 @@ object AdServer {
     def pickWithPagePref(
         slot: Protocol.BatchSlotSpec,
         available: Vector[CandidateView],
-        hardUsed: Set[String],
+        hardUsed: Set[String]
     ): Option[(CandidateView, CPM)] =
-      pickBestForSlot(slot, available, hardUsed ++ pageBlocked, alpha, stats, siteFloor, rng, categoryFloors, adminSlotFloors.get(slot.slotId))
-        .orElse(pickBestForSlot(slot, available, hardUsed, alpha, stats, siteFloor, rng, categoryFloors, adminSlotFloors.get(slot.slotId)))
+      pickBestForSlot(slot, available, hardUsed ++ pageBlocked, alpha, stats, siteFloor, rng, categoryFloors,
+        adminSlotFloors.get(slot.slotId))
+        .orElse(pickBestForSlot(slot, available, hardUsed, alpha, stats, siteFloor, rng, categoryFloors,
+          adminSlotFloors.get(slot.slotId)))
     // excludedCreatives: pinned by the user for slots not on this
     // page. Site-wide block — those creatives never appear anywhere
     // except their own pinned slot, so the user's saved selection
@@ -487,11 +541,11 @@ object AdServer {
           used = used + c.campaignId.value
           usedCreatives = usedCreatives + c.creativeId
           initialConfirmed += Protocol.BatchSlotOutcome(
-            slotId        = slot.slotId,
-            winner        = Some(c),
+            slotId = slot.slotId,
+            winner = Some(c),
             clearingPrice = CPM.zero, // Pin re-encounter is free — no CPM clearing
-            requestId     = java.util.UUID.randomUUID().toString,
-            dogear        = Some(Protocol.DogearOutcome(honored = true)),
+            requestId = java.util.UUID.randomUUID().toString,
+            dogear = Some(Protocol.DogearOutcome(honored = true))
           )
         case None =>
           val available = pool.filterNot(c => usedCreatives.contains(c.creativeId))
@@ -500,7 +554,7 @@ object AdServer {
               initialConfirmed += Protocol.BatchSlotOutcome(
                 slotId = slot.slotId,
                 winner = None,
-                dogear = dogearFallthrough(slot, isApproved),
+                dogear = dogearFallthrough(slot, isApproved)
               )
             case Some((c, clearing)) =>
               tried = tried.updated(slot.slotId, Set(c.creativeId))
@@ -516,7 +570,7 @@ object AdServer {
         confirmed: Vector[Protocol.BatchSlotOutcome],
         triedMap: Map[SlotId, Set[CreativeId]],
         usedCamps: Set[String],
-        pending: Map[CampaignId, Double],
+        pending: Map[CampaignId, Double]
     ): Future[(Vector[Protocol.BatchSlotOutcome], Map[CampaignId, Double])] = {
       if (toReserve.isEmpty) return Future.successful((confirmed, pending))
       val attempts: Vector[Future[(Protocol.BatchSlotSpec, CandidateView, CPM, String, Boolean)]] =
@@ -535,18 +589,18 @@ object AdServer {
         // single-pass interleaving could pick the same creative
         // twice if a failure is processed before a sibling success.
         var newConfirmed = confirmed
-        var newPending   = pending
-        var newTried     = triedMap
-        var newUsed      = usedCamps
-        val failures     = Vector.newBuilder[(Protocol.BatchSlotSpec, CandidateView)]
+        var newPending = pending
+        var newTried = triedMap
+        var newUsed = usedCamps
+        val failures = Vector.newBuilder[(Protocol.BatchSlotSpec, CandidateView)]
         for ((slot, cand, clearing, rid, success) <- results) {
           if (success) {
             newConfirmed = newConfirmed :+ Protocol.BatchSlotOutcome(
-              slotId        = slot.slotId,
-              winner        = Some(cand),
+              slotId = slot.slotId,
+              winner = Some(cand),
               clearingPrice = clearing,
-              requestId     = rid,
-              dogear        = dogearFallthrough(slot, isApproved),
+              requestId = rid,
+              dogear = dogearFallthrough(slot, isApproved)
             )
             // Pending spend delta tracks the actual reserved amount —
             // clearing price, not bid — so concurrent batches see
@@ -554,7 +608,7 @@ object AdServer {
             val delta = clearing.toDouble / 1000.0
             newPending = newPending.updated(
               cand.campaignId,
-              newPending.getOrElse(cand.campaignId, 0.0) + delta,
+              newPending.getOrElse(cand.campaignId, 0.0) + delta
             )
           } else {
             failures += ((slot, cand))
@@ -577,7 +631,7 @@ object AdServer {
               newConfirmed = newConfirmed :+ Protocol.BatchSlotOutcome(
                 slotId = slot.slotId,
                 winner = None,
-                dogear = dogearFallthrough(slot, isApproved),
+                dogear = dogearFallthrough(slot, isApproved)
               )
             case Some((nextC, nextClearing)) =>
               newTried = newTried.updated(slot.slotId, alreadyTried + nextC.creativeId)
@@ -605,20 +659,20 @@ object AdServer {
 
   // ---------- Behavior ----------
   def apply(
-             publisherId: SiteId,
-             store: PendingSelectionStore,
-             creativeRepo: CreativeRepo,
-             serveIndex: ActorRef[ServeIndexDData.Cmd],
-             sharding: ClusterSharding,
-             statsSnapshotRepo: CreativeStatsSnapshotRepo,
-             trafficShapeSnapshotRepo: TrafficShapeSnapshotRepo,
-             budgetEventTopic: ActorRef[Topic.Command[BudgetEvent]],
-             pacingStrategy: PacingStrategy   = AdaptivePacing(), // Simple rate-based pacing
-             approvedTtl: FiniteDuration      = 2.hours,
-             purgeInterval: FiniteDuration    = 5.minutes,
-             snapshotInterval: FiniteDuration = 1.hour,
-             pageWinnersTtl: FiniteDuration   = DefaultPageWinnersTtl,
-             rng: Random           = new Random()
+      publisherId: SiteId,
+      store: PendingSelectionStore,
+      creativeRepo: CreativeRepo,
+      serveIndex: ActorRef[ServeIndexDData.Cmd],
+      sharding: ClusterSharding,
+      statsSnapshotRepo: CreativeStatsSnapshotRepo,
+      trafficShapeSnapshotRepo: TrafficShapeSnapshotRepo,
+      budgetEventTopic: ActorRef[Topic.Command[BudgetEvent]],
+      pacingStrategy: PacingStrategy = AdaptivePacing(), // Simple rate-based pacing
+      approvedTtl: FiniteDuration = 2.hours,
+      purgeInterval: FiniteDuration = 5.minutes,
+      snapshotInterval: FiniteDuration = 1.hour,
+      pageWinnersTtl: FiniteDuration = DefaultPageWinnersTtl,
+      rng: Random = new Random()
   )(using system: ActorSystem[?]): Behavior[Command] =
     Behaviors.setup { ctx =>
       Behaviors.withTimers { timers =>
@@ -667,7 +721,8 @@ object AdServer {
               case PublisherEntity.DomainBlocklistCacheKey =>
                 val dataMap = changed.dataValue.asInstanceOf[BlocklistMap]
                 val siteIdFound = dataMap.get(publisherId).isDefined
-                ctx.self ! DDataSubscriptionDebug("Changed", changed.key.id, "DomainBlocklistCacheKey", siteIdFound, dataMap.entries.size)
+                ctx.self ! DDataSubscriptionDebug("Changed", changed.key.id, "DomainBlocklistCacheKey", siteIdFound,
+                  dataMap.entries.size)
                 BlocklistUpdated(dataMap.get(publisherId))
               case AdvertiserEntity.DomainBlocklistCacheKey =>
                 val dataMap = changed.dataValue.asInstanceOf[AdvertiserBlocklistMap]
@@ -696,7 +751,8 @@ object AdServer {
               case PublisherEntity.DomainBlocklistCacheKey =>
                 val dataMap = success.dataValue.asInstanceOf[BlocklistMap]
                 val siteIdFound = dataMap.get(publisherId).isDefined
-                ctx.self ! DDataSubscriptionDebug("GetSuccess", success.key.id, "DomainBlocklistCacheKey", siteIdFound, dataMap.entries.size)
+                ctx.self ! DDataSubscriptionDebug("GetSuccess", success.key.id, "DomainBlocklistCacheKey", siteIdFound,
+                  dataMap.entries.size)
                 BlocklistUpdated(dataMap.get(publisherId))
               case AdvertiserEntity.DomainBlocklistCacheKey =>
                 val dataMap = success.dataValue.asInstanceOf[AdvertiserBlocklistMap]
@@ -739,7 +795,7 @@ object AdServer {
 
         // Subscribe to budget events from CampaignEntity for pacing cache + pause/removal handling
         val budgetEventAdapter = ctx.messageAdapter[BudgetEvent] {
-          case su: SpendUpdate => SpendInfoUpdated(Some(su))
+          case su: SpendUpdate                          => SpendInfoUpdated(Some(su))
           case promovolve.CampaignPaused(campaignId, _) =>
             // EXPLICIT advertiser pause/delete (published only by
             // CampaignEntity.UpdateStatus) — the one sender allowed to
@@ -760,7 +816,7 @@ object AdServer {
         // Load traffic shape snapshot on startup (restore learned patterns from previous run)
         ctx.pipeToSelf(trafficShapeSnapshotRepo.get(publisherId.value)) {
           case Success(snapshot) => TrafficShapeSnapshotLoaded(snapshot)
-          case Failure(_) => TrafficShapeSnapshotLoaded(None)
+          case Failure(_)        => TrafficShapeSnapshotLoaded(None)
         }
 
         // Load recent creative stats from tracking_events on startup (restore Thompson Sampling state)
@@ -778,7 +834,7 @@ object AdServer {
           case Success(m) =>
             ApprovedCreativeIdsLoaded(
               m.keySet.map(CreativeId(_)),
-              m.map { case (c, a) => CreativeId(c) -> AdvertiserId(a) },
+              m.map { case (c, a) => CreativeId(c) -> AdvertiserId(a) }
             )
           case Failure(e) => ApprovedCreativeIdsLoadFailed(e.getMessage, attempt = 1)
         }
@@ -807,23 +863,23 @@ object AdServer {
 }
 
 private[delivery] class AdServer(
-                                  siteId: SiteId,
-                                  store: PendingSelectionStore,
-                                  creativeRepo: CreativeRepo,
-                                  serveIndex: ActorRef[ServeIndexDData.Cmd],
-                                  sharding: ClusterSharding,
-                                  statsSnapshotRepo: CreativeStatsSnapshotRepo,
-                                  trafficShapeSnapshotRepo: TrafficShapeSnapshotRepo,
-                                  initialPacingStrategy: PacingStrategy,
-                                  approvedTtl: FiniteDuration,
-                                  pageWinnersTtl: FiniteDuration,
-                                  ctx: ActorContext[AdServer.Command],
-                                  rng: Random,
-                                  replicator: ActorRef[Replicator.Command],
-                                  ddataUpdateAdapter: ActorRef[Replicator.UpdateResponse[?]],
-                                  selfUniqueAddress: SelfUniqueAddress,
-                                  budgetEventTopic: ActorRef[Topic.Command[BudgetEvent]],
-                                  budgetEventAdapter: ActorRef[BudgetEvent]
+    siteId: SiteId,
+    store: PendingSelectionStore,
+    creativeRepo: CreativeRepo,
+    serveIndex: ActorRef[ServeIndexDData.Cmd],
+    sharding: ClusterSharding,
+    statsSnapshotRepo: CreativeStatsSnapshotRepo,
+    trafficShapeSnapshotRepo: TrafficShapeSnapshotRepo,
+    initialPacingStrategy: PacingStrategy,
+    approvedTtl: FiniteDuration,
+    pageWinnersTtl: FiniteDuration,
+    ctx: ActorContext[AdServer.Command],
+    rng: Random,
+    replicator: ActorRef[Replicator.Command],
+    ddataUpdateAdapter: ActorRef[Replicator.UpdateResponse[?]],
+    selfUniqueAddress: SelfUniqueAddress,
+    budgetEventTopic: ActorRef[Topic.Command[BudgetEvent]],
+    budgetEventAdapter: ActorRef[BudgetEvent]
 )(using system: ActorSystem[?], ec: ExecutionContext) {
 
   // Cached as a Long so the hot filter loops don't re-call .toMillis on every entry.
@@ -858,7 +914,7 @@ private[delivery] class AdServer(
     if (now - lastReauctionRequestMs.getOrElse(url.value, 0L) >= selfHealThrottleMs) {
       lastReauctionRequestMs = lastReauctionRequestMs.updated(url.value, now)
       sharding.entityRefFor(promovolve.auction.AuctioneerEntity.TypeKey, siteId.value) !
-        promovolve.auction.AuctioneerEntity.Reevaluate(url)
+      promovolve.auction.AuctioneerEntity.Reevaluate(url)
       log.info("Serve-miss self-heal: requested re-auction pub={} url={}", siteId.value, url.value)
     }
   }
@@ -916,17 +972,21 @@ private[delivery] class AdServer(
   private def addCandidateToIndexes(state: State, key: String, candidate: CandidateView): State = {
     val (camps, creas, advs) = state.idsForKey.getOrElse(key, (Set.empty, Set.empty, Set.empty))
     state.copy(
-      keysByCampaign   = state.keysByCampaign.updatedWith(candidate.campaignId)(ks => Some(ks.getOrElse(Set.empty) + key)),
-      keysByCreative   = state.keysByCreative.updatedWith(candidate.creativeId)(ks => Some(ks.getOrElse(Set.empty) + key)),
-      keysByAdvertiser = state.keysByAdvertiser.updatedWith(candidate.advertiserId)(ks => Some(ks.getOrElse(Set.empty) + key)),
-      idsForKey        = state.idsForKey.updated(key, (camps + candidate.campaignId, creas + candidate.creativeId, advs + candidate.advertiserId))
+      keysByCampaign = state.keysByCampaign.updatedWith(candidate.campaignId)(ks =>
+        Some(ks.getOrElse(Set.empty) + key)),
+      keysByCreative = state.keysByCreative.updatedWith(candidate.creativeId)(ks =>
+        Some(ks.getOrElse(Set.empty) + key)),
+      keysByAdvertiser = state.keysByAdvertiser.updatedWith(candidate.advertiserId)(ks =>
+        Some(ks.getOrElse(Set.empty) + key)),
+      idsForKey = state.idsForKey.updated(key,
+        (camps + candidate.campaignId, creas + candidate.creativeId, advs + candidate.advertiserId))
     )
   }
 
   /** Remove a key from all 3 inverted index maps using reverse lookup (O(K) where K = IDs for this key). */
   private def removeKeyFromIndexes(state: State, key: String): State =
     state.idsForKey.get(key) match {
-      case None => state
+      case None                             => state
       case Some((campIds, creaIds, advIds)) =>
         val s1 = campIds.foldLeft(state.keysByCampaign) { (m, id) =>
           m.updatedWith(id)(_.map(_ - key).filter(_.nonEmpty))
@@ -938,22 +998,22 @@ private[delivery] class AdServer(
           m.updatedWith(id)(_.map(_ - key).filter(_.nonEmpty))
         }
         state.copy(
-          keysByCampaign   = s1,
-          keysByCreative   = s2,
+          keysByCampaign = s1,
+          keysByCreative = s2,
           keysByAdvertiser = s3,
-          idsForKey        = state.idsForKey - key
+          idsForKey = state.idsForKey - key
         )
     }
 
   private[delivery] def behavior(state: State = State()): Behavior[Command] = {
     // Compose partial functions for each concern area
     val handlers: PartialFunction[Command, Behavior[Command]] =
-      configUpdates(state) orElse
-      candidateProcessing(state) orElse
-      approvalWorkflow(state) orElse
-      selectionPipeline(state) orElse
-      statsRecording(state) orElse
-      maintenance(state)
+      configUpdates(state).orElse(
+        candidateProcessing(state)).orElse(
+        approvalWorkflow(state)).orElse(
+        selectionPipeline(state)).orElse(
+        statsRecording(state)).orElse(
+        maintenance(state))
 
     Behaviors.receiveMessage[Command](handlers).receiveSignal {
       case (_, org.apache.pekko.actor.typed.PostStop) =>
@@ -971,226 +1031,228 @@ private[delivery] class AdServer(
   private def configUpdates(state: State): PartialFunction[Command, Behavior[Command]] = {
     import state.*
     {
-    case SpendInfoUpdated(Some(su)) =>
-      // NOTE: We cache ALL SpendUpdates, not just for participating campaigns.
-      // SpendUpdates arrive before auctions run, so we can't filter at this point.
-      // The participatingCampaigns filtering is applied only when RESETTING campaigns
-      // on day rollover, which is where cross-site interference was occurring.
+      case SpendInfoUpdated(Some(su)) =>
+        // NOTE: We cache ALL SpendUpdates, not just for participating campaigns.
+        // SpendUpdates arrive before auctions run, so we can't filter at this point.
+        // The participatingCampaigns filtering is applied only when RESETTING campaigns
+        // on day rollover, which is where cross-site interference was occurring.
 
-      // Filter out stale SpendUpdates from before the current day
-      // This prevents race conditions where old updates arrive after day rollover
-      // ONLY for simulated days - for real calendar days (86400), CampaignEntity's dayStart
-      // (midnight) is always "before" server start time but is NOT stale
-      val staleToleranceMs = 5000L
-      val isStale = dayDurationSeconds != 86400 && lastDayStart.exists(currentDayStart =>
-        su.dayStart.toEpochMilli < currentDayStart.toEpochMilli - staleToleranceMs
-      )
-      if (isStale) {
-        log.info(
-          "Ignoring stale SpendUpdate: campaign={} updateDayStart={} currentDayStart={} (>{}ms behind)",
-          su.campaignId.value,
-          su.dayStart,
-          lastDayStart.getOrElse("none"),
-          staleToleranceMs
+        // Filter out stale SpendUpdates from before the current day
+        // This prevents race conditions where old updates arrive after day rollover
+        // ONLY for simulated days - for real calendar days (86400), CampaignEntity's dayStart
+        // (midnight) is always "before" server start time but is NOT stale
+        val staleToleranceMs = 5000L
+        val isStale = dayDurationSeconds != 86400 && lastDayStart.exists(currentDayStart =>
+          su.dayStart.toEpochMilli < currentDayStart.toEpochMilli - staleToleranceMs
         )
-        Behaviors.same
-      } else {
-        // Fresh SpendUpdate arrived - clear grace period (cache is now populated)
-        val clearedGrace = if (rolloverGraceUntilMs > 0) {
-          log.info("Grace period ended: fresh SpendUpdate received for campaign={}", su.campaignId.value)
-          0L
-        } else rolloverGraceUntilMs
-        val cached = CachedSpendInfo(su.advertiserId, su.dailyBudget, su.todaySpend, su.dayStart, su.timestamp)
-        // Initialize lastDayStart from SpendUpdate if not yet set
-        val updatedDayStart = lastDayStart.orElse(Some(su.dayStart))
-        if (lastDayStart.isEmpty) {
-          log.info("Initialized lastDayStart from SpendUpdate: campaign={} dayStart={}", su.campaignId.value, su.dayStart)
-        }
-        log.debug(
-          "SpendUpdate received: campaign={} spend={} budget={} dayStart={}",
-          su.campaignId.value,
-          su.todaySpend.value,
-          su.dailyBudget.value,
-          su.dayStart
-        )
-        val now = Instant.now()
+        if (isStale) {
+          log.info(
+            "Ignoring stale SpendUpdate: campaign={} updateDayStart={} currentDayStart={} (>{}ms behind)",
+            su.campaignId.value,
+            su.dayStart,
+            lastDayStart.getOrElse("none"),
+            staleToleranceMs
+          )
+          Behaviors.same
+        } else {
+          // Fresh SpendUpdate arrived - clear grace period (cache is now populated)
+          val clearedGrace = if (rolloverGraceUntilMs > 0) {
+            log.info("Grace period ended: fresh SpendUpdate received for campaign={}", su.campaignId.value)
+            0L
+          } else rolloverGraceUntilMs
+          val cached = CachedSpendInfo(su.advertiserId, su.dailyBudget, su.todaySpend, su.dayStart, su.timestamp)
+          // Initialize lastDayStart from SpendUpdate if not yet set
+          val updatedDayStart = lastDayStart.orElse(Some(su.dayStart))
+          if (lastDayStart.isEmpty) {
+            log.info("Initialized lastDayStart from SpendUpdate: campaign={} dayStart={}", su.campaignId.value,
+              su.dayStart)
+          }
+          log.debug(
+            "SpendUpdate received: campaign={} spend={} budget={} dayStart={}",
+            su.campaignId.value,
+            su.todaySpend.value,
+            su.dailyBudget.value,
+            su.dayStart
+          )
+          val now = Instant.now()
           behavior(state.copy(
             lastDayStart = updatedDayStart,
             spendInfoCache = spendInfoCache.updated(su.campaignId, cached),
             spendInfoLastUpdated = spendInfoLastUpdated.updated(su.campaignId, now),
             rolloverGraceUntilMs = clearedGrace
           ))
-      }
-
-    case SpendInfoUpdated(None) =>
-      // Ignore non-SpendUpdate budget events
-      Behaviors.same
-
-    case BlocklistUpdated(newBlocklist) =>
-      // Find newly blocked domains (in new but not in old)
-      val oldDomains = state.cachedDomainBlocklist.map(_.domains).getOrElse(Set.empty)
-      val newDomains = newBlocklist.map(_.domains).getOrElse(Set.empty)
-      val newlyBlocked = newDomains -- oldDomains
-
-      // Log whether we actually received blocklist data for our site
-      if (newBlocklist.isEmpty) {
-        log.warn(
-          "BlocklistUpdated received with EMPTY data: site={} - this site may not be registered in PublisherEntity's siteIds. " +
-          "Check that syncToDData() includes this siteId.",
-          siteId.value
-        )
-      }
-      log.info(
-        "BlocklistUpdated received: site={} blocklistPresent={} oldDomains={} newDomains={} newlyBlocked={}",
-        siteId.value, newBlocklist.isDefined: java.lang.Boolean,
-        oldDomains.mkString(","), newDomains.mkString(","), newlyBlocked.mkString(",")
-      )
-
-      // Proactively remove creatives with newly blocked landing domains from ServeIndex
-      if (newlyBlocked.nonEmpty) {
-        log.info(
-          "Domain blocklist updated for site {}: {} new domains blocked, removing from ServeIndex",
-          siteId.value,
-          newlyBlocked.size
-        )
-        serveIndex ! ServeIndexDData.RemoveByDomains(siteId.value, newlyBlocked)
-
-        // Also remove from pending queue
-        newlyBlocked.foreach { domain =>
-          store.removeByLandingDomain(siteId.value, domain).foreach { count =>
-            if (count > 0) log.info("Removed {} pending selections with blocked domain {}", count, domain)
-          }
         }
-      }
 
-      behavior(state.copy(cachedDomainBlocklist = newBlocklist))
+      case SpendInfoUpdated(None) =>
+        // Ignore non-SpendUpdate budget events
+        Behaviors.same
 
-    case AdvertiserBlocklistsUpdated(snapshot) =>
-      // Detect advertisers newly blocking THIS site's domain so we can proactively
-      // scrub ServeIndex + pending queue. Removed bindings will be cleaned up
-      // organically on the next auction's filter step.
-      AdServer.mySiteDomainOpt(state.verifiedHost).foreach { domain =>
-        val oldBlockers = state.cachedAdvertiserBlocklists.collect {
-          case (advId, domains) if domains.contains(domain) => advId
-        }.toSet
-        val newBlockers = snapshot.collect {
-          case (advId, domains) if domains.contains(domain) => advId
-        }.toSet
-        val newlyBlocking = newBlockers -- oldBlockers
-        if (newlyBlocking.nonEmpty) {
-          log.info(
-            "Advertiser blocklist update: {} advertisers newly block site domain {} (site={}); scrubbing ServeIndex",
-            newlyBlocking.size, domain, siteId.value
+      case BlocklistUpdated(newBlocklist) =>
+        // Find newly blocked domains (in new but not in old)
+        val oldDomains = state.cachedDomainBlocklist.map(_.domains).getOrElse(Set.empty)
+        val newDomains = newBlocklist.map(_.domains).getOrElse(Set.empty)
+        val newlyBlocked = newDomains -- oldDomains
+
+        // Log whether we actually received blocklist data for our site
+        if (newBlocklist.isEmpty) {
+          log.warn(
+            "BlocklistUpdated received with EMPTY data: site={} - this site may not be registered in PublisherEntity's siteIds. " +
+            "Check that syncToDData() includes this siteId.",
+            siteId.value
           )
-          newlyBlocking.foreach { advId =>
-            serveIndex ! ServeIndexDData.RemoveAdvertiserBySite(siteId.value, advId)
-            store.removeByAdvertiserId(siteId.value, advId.value).foreach { count =>
-              if (count > 0) log.info(
-                "Removed {} pending selections for advertiser {} (now blocks site domain)",
-                count, advId.value
-              )
+        }
+        log.info(
+          "BlocklistUpdated received: site={} blocklistPresent={} oldDomains={} newDomains={} newlyBlocked={}",
+          siteId.value, newBlocklist.isDefined: java.lang.Boolean,
+          oldDomains.mkString(","), newDomains.mkString(","), newlyBlocked.mkString(",")
+        )
+
+        // Proactively remove creatives with newly blocked landing domains from ServeIndex
+        if (newlyBlocked.nonEmpty) {
+          log.info(
+            "Domain blocklist updated for site {}: {} new domains blocked, removing from ServeIndex",
+            siteId.value,
+            newlyBlocked.size
+          )
+          serveIndex ! ServeIndexDData.RemoveByDomains(siteId.value, newlyBlocked)
+
+          // Also remove from pending queue
+          newlyBlocked.foreach { domain =>
+            store.removeByLandingDomain(siteId.value, domain).foreach { count =>
+              if (count > 0) log.info("Removed {} pending selections with blocked domain {}", count, domain)
             }
-            store.deleteApprovedByAdvertiserId(siteId.value, advId.value)
           }
         }
-      }
-      log.info(
-        "Advertiser blocklist snapshot: site={} advertisers_with_blocklists={}",
-        siteId.value, snapshot.size
-      )
-      behavior(state.copy(cachedAdvertiserBlocklists = snapshot))
 
-    case DDataSubscriptionDebug(eventType, keyId, keyMatched, siteIdFound, dataSize) =>
-      // Debug logging for DData subscription events - helps trace blocklist update flow
-      log.debug(
-        "DData subscription event: site={} eventType={} keyId={} keyMatched={} siteIdFound={} dataSize={}",
-        siteId.value, eventType, keyId, keyMatched, siteIdFound: java.lang.Boolean, dataSize: java.lang.Integer
-      )
-      // Log at info level if this looks like a potential issue (blocklist key but our site not found)
-      if (keyMatched == "DomainBlocklistCacheKey" && !siteIdFound && dataSize > 0) {
-        log.warn(
-          "DData blocklist: site {} NOT FOUND in DomainBlocklistCacheKey map (map has {} entries). " +
-          "Blocklist updates for this site will be ignored until siteId is added to the map.",
-          siteId.value, dataSize: java.lang.Integer
-        )
-      }
-      Behaviors.same
+        behavior(state.copy(cachedDomainBlocklist = newBlocklist))
 
-    case NoOp =>
-      // Ignore - used for type-erased DData messages that don't match our key
-      Behaviors.same
-
-    case AdProductBlocklistUpdated(newBlocklist) =>
-      // Find newly blocked categories (in new but not in old)
-      val oldCategories = state.cachedAdProductBlocklist.map(_.categories).getOrElse(Set.empty)
-      val newCategories = newBlocklist.map(_.categories).getOrElse(Set.empty)
-      val newlyBlocked = newCategories -- oldCategories
-
-      // Proactively remove creatives with newly blocked ad product categories from ServeIndex
-      if (newlyBlocked.nonEmpty) {
+      case AdvertiserBlocklistsUpdated(snapshot) =>
+        // Detect advertisers newly blocking THIS site's domain so we can proactively
+        // scrub ServeIndex + pending queue. Removed bindings will be cleaned up
+        // organically on the next auction's filter step.
+        AdServer.mySiteDomainOpt(state.verifiedHost).foreach { domain =>
+          val oldBlockers = state.cachedAdvertiserBlocklists.collect {
+            case (advId, domains) if domains.contains(domain) => advId
+          }.toSet
+          val newBlockers = snapshot.collect {
+            case (advId, domains) if domains.contains(domain) => advId
+          }.toSet
+          val newlyBlocking = newBlockers -- oldBlockers
+          if (newlyBlocking.nonEmpty) {
+            log.info(
+              "Advertiser blocklist update: {} advertisers newly block site domain {} (site={}); scrubbing ServeIndex",
+              newlyBlocking.size, domain, siteId.value
+            )
+            newlyBlocking.foreach { advId =>
+              serveIndex ! ServeIndexDData.RemoveAdvertiserBySite(siteId.value, advId)
+              store.removeByAdvertiserId(siteId.value, advId.value).foreach { count =>
+                if (count > 0) log.info(
+                  "Removed {} pending selections for advertiser {} (now blocks site domain)",
+                  count, advId.value
+                )
+              }
+              store.deleteApprovedByAdvertiserId(siteId.value, advId.value)
+            }
+          }
+        }
         log.info(
-          "Ad product blocklist updated for site {}: {} new categories blocked, removing from ServeIndex",
-          siteId.value,
-          newlyBlocked.size
+          "Advertiser blocklist snapshot: site={} advertisers_with_blocklists={}",
+          siteId.value, snapshot.size
         )
-        serveIndex ! ServeIndexDData.RemoveByAdProductCategories(siteId.value, newlyBlocked)
+        behavior(state.copy(cachedAdvertiserBlocklists = snapshot))
 
-        // Also remove from pending queue
-        newlyBlocked.foreach { category =>
-          store.removeByAdProductCategory(siteId.value, category.value).foreach { count =>
-            if (count > 0) log.info("Removed {} pending selections with blocked ad product category {}", count, category.value)
+      case DDataSubscriptionDebug(eventType, keyId, keyMatched, siteIdFound, dataSize) =>
+        // Debug logging for DData subscription events - helps trace blocklist update flow
+        log.debug(
+          "DData subscription event: site={} eventType={} keyId={} keyMatched={} siteIdFound={} dataSize={}",
+          siteId.value, eventType, keyId, keyMatched, siteIdFound: java.lang.Boolean, dataSize: java.lang.Integer
+        )
+        // Log at info level if this looks like a potential issue (blocklist key but our site not found)
+        if (keyMatched == "DomainBlocklistCacheKey" && !siteIdFound && dataSize > 0) {
+          log.warn(
+            "DData blocklist: site {} NOT FOUND in DomainBlocklistCacheKey map (map has {} entries). " +
+            "Blocklist updates for this site will be ignored until siteId is added to the map.",
+            siteId.value, dataSize: java.lang.Integer
+          )
+        }
+        Behaviors.same
+
+      case NoOp =>
+        // Ignore - used for type-erased DData messages that don't match our key
+        Behaviors.same
+
+      case AdProductBlocklistUpdated(newBlocklist) =>
+        // Find newly blocked categories (in new but not in old)
+        val oldCategories = state.cachedAdProductBlocklist.map(_.categories).getOrElse(Set.empty)
+        val newCategories = newBlocklist.map(_.categories).getOrElse(Set.empty)
+        val newlyBlocked = newCategories -- oldCategories
+
+        // Proactively remove creatives with newly blocked ad product categories from ServeIndex
+        if (newlyBlocked.nonEmpty) {
+          log.info(
+            "Ad product blocklist updated for site {}: {} new categories blocked, removing from ServeIndex",
+            siteId.value,
+            newlyBlocked.size
+          )
+          serveIndex ! ServeIndexDData.RemoveByAdProductCategories(siteId.value, newlyBlocked)
+
+          // Also remove from pending queue
+          newlyBlocked.foreach { category =>
+            store.removeByAdProductCategory(siteId.value, category.value).foreach { count =>
+              if (count > 0)
+                log.info("Removed {} pending selections with blocked ad product category {}", count, category.value)
+            }
+          }
+        } else {
+          newBlocklist.foreach { blocklist =>
+            log.info(
+              "Ad product blocklist updated for site {}: {} categories blocked",
+              siteId.value,
+              blocklist.categories.size
+            )
           }
         }
-      } else {
-        newBlocklist.foreach { blocklist =>
-          log.info(
-            "Ad product blocklist updated for site {}: {} categories blocked",
-            siteId.value,
-            blocklist.categories.size
-          )
+
+        behavior(state.copy(cachedAdProductBlocklist = newBlocklist))
+
+      case VerifiedHostUpdated(hostOpt) =>
+        log.info("AdServer {} verified host updated: {}", siteId.value, hostOpt.getOrElse("none"))
+        behavior(state.copy(verifiedHost = hostOpt))
+
+      case PageWinnersSnapshot(data) =>
+        // Mirror only entries scoped to this site so cross-site entries
+        // don't bloat local state.
+        val prefix = s"${siteId.value}|"
+        val nowMs = System.currentTimeMillis()
+        val fresh = data.entries.collect {
+          case (k, v) if k.startsWith(prefix) && (nowMs - v.firstSeenMs) < pageWinnersTtlMs => k -> v
         }
-      }
+        behavior(state.copy(pageWinners = fresh))
 
-      behavior(state.copy(cachedAdProductBlocklist = newBlocklist))
+      case SweepPageWinners =>
+        val nowMs = System.currentTimeMillis()
+        val retained = state.pageWinners.filter {
+          case (_, v) => (nowMs - v.firstSeenMs) < pageWinnersTtlMs
+        }
+        if (retained.size != state.pageWinners.size) {
+          log.debug("PageWinners swept: {} → {} entries", state.pageWinners.size, retained.size)
+        }
+        behavior(state.copy(pageWinners = retained))
 
-    case VerifiedHostUpdated(hostOpt) =>
-      log.info("AdServer {} verified host updated: {}", siteId.value, hostOpt.getOrElse("none"))
-      behavior(state.copy(verifiedHost = hostOpt))
-
-    case PageWinnersSnapshot(data) =>
-      // Mirror only entries scoped to this site so cross-site entries
-      // don't bloat local state.
-      val prefix = s"${siteId.value}|"
-      val nowMs = System.currentTimeMillis()
-      val fresh = data.entries.collect {
-        case (k, v) if k.startsWith(prefix) && (nowMs - v.firstSeenMs) < pageWinnersTtlMs => k -> v
-      }
-      behavior(state.copy(pageWinners = fresh))
-
-    case SweepPageWinners =>
-      val nowMs = System.currentTimeMillis()
-      val retained = state.pageWinners.filter {
-        case (_, v) => (nowMs - v.firstSeenMs) < pageWinnersTtlMs
-      }
-      if (retained.size != state.pageWinners.size) {
-        log.debug("PageWinners swept: {} → {} entries", state.pageWinners.size, retained.size)
-      }
-      behavior(state.copy(pageWinners = retained))
-
-    case PacingConfigUpdated(configOpt) =>
-      log.info("AdServer {} received PacingConfigUpdated: configOpt.isDefined={}", siteId.value, configOpt.isDefined)
-      configOpt match {
-        case Some(config) =>
-          log.info(
-            "Pacing config updated for site {}: dayDurationSeconds={}, warmupMode={}",
-            siteId.value,
-            config.dayDurationSeconds,
-            config.warmupMode
-          )
-          val newStrategy = pacingStrategyFromConfig(config)
-          val dayDurationChanged = config.dayDurationSeconds != dayDurationSeconds
-          // Reset traffic shape tracker if dayDurationSeconds changed (learned shape is invalid)
-          val newTrafficShapeTracker = if (dayDurationChanged) {
+      case PacingConfigUpdated(configOpt) =>
+        log.info("AdServer {} received PacingConfigUpdated: configOpt.isDefined={}", siteId.value, configOpt.isDefined)
+        configOpt match {
+          case Some(config) =>
+            log.info(
+              "Pacing config updated for site {}: dayDurationSeconds={}, warmupMode={}",
+              siteId.value,
+              config.dayDurationSeconds,
+              config.warmupMode
+            )
+            val newStrategy = pacingStrategyFromConfig(config)
+            val dayDurationChanged = config.dayDurationSeconds != dayDurationSeconds
+            // Reset traffic shape tracker if dayDurationSeconds changed (learned shape is invalid)
+            val newTrafficShapeTracker = if (dayDurationChanged) {
               log.info("Resetting traffic shape tracker due to dayDurationSeconds change")
               val tracker = TrafficShapeTracker(bucketCount = 24, alpha = trafficShapeTracker.alpha)
               tracker.setDayType(java.time.LocalDate.now(java.time.ZoneOffset.UTC).getDayOfWeek)
@@ -1198,131 +1260,132 @@ private[delivery] class AdServer(
             } else {
               trafficShapeTracker // Keep existing (learned) tracker
             }
-          // Reset lastDayStart when dayDurationSeconds changes
-          // For simulated days: also reset campaigns to align with AdServer
-          // For real days (86400): don't reset campaigns - they handle their own calendar day
-          val newLastDayStart = if (dayDurationChanged) {
-            log.info(
-              "Day duration changed to {}, resetting lastDayStart to now",
-              config.dayDurationSeconds
-            )
-            pacingStrategy.reset()
+            // Reset lastDayStart when dayDurationSeconds changes
+            // For simulated days: also reset campaigns to align with AdServer
+            // For real days (86400): don't reset campaigns - they handle their own calendar day
+            val newLastDayStart = if (dayDurationChanged) {
+              log.info(
+                "Day duration changed to {}, resetting lastDayStart to now",
+                config.dayDurationSeconds
+              )
+              pacingStrategy.reset()
 
-            // Only reset campaigns that have participated in THIS site's auctions
-            // participatingCampaigns is populated from CandidatesCollected, ensuring
-            // we only reset campaigns that actually bid on this site
-            if (config.dayDurationSeconds != 86400 && participatingCampaigns.nonEmpty) {
-              log.info("Resetting {} participating campaigns for simulated day on site {}",
-                participatingCampaigns.size, siteId.value)
-              // Reset only campaigns that have participated in this site's auctions
-              participatingCampaigns.foreach { campaignId =>
-                spendInfoCache.get(campaignId).foreach { cached =>
-                  val campaignEntityId = s"${cached.advertiserId.value}|${campaignId.value}"
-                  val campaignRef = sharding.entityRefFor(CampaignEntity.TypeKey, campaignEntityId)
-                  campaignRef ! CampaignEntity.ResetDayStart(system.ignoreRef, dayDurationSeconds)
+              // Only reset campaigns that have participated in THIS site's auctions
+              // participatingCampaigns is populated from CandidatesCollected, ensuring
+              // we only reset campaigns that actually bid on this site
+              if (config.dayDurationSeconds != 86400 && participatingCampaigns.nonEmpty) {
+                log.info("Resetting {} participating campaigns for simulated day on site {}",
+                  participatingCampaigns.size, siteId.value)
+                // Reset only campaigns that have participated in this site's auctions
+                participatingCampaigns.foreach { campaignId =>
+                  spendInfoCache.get(campaignId).foreach { cached =>
+                    val campaignEntityId = s"${cached.advertiserId.value}|${campaignId.value}"
+                    val campaignRef = sharding.entityRefFor(CampaignEntity.TypeKey, campaignEntityId)
+                    campaignRef ! CampaignEntity.ResetDayStart(system.ignoreRef, dayDurationSeconds)
+                  }
+                }
+                // Reset advertisers for participating campaigns (silent to avoid re-auctions during init)
+                val participatingAdvertiserIds = participatingCampaigns.flatMap { campaignId =>
+                  spendInfoCache.get(campaignId).map(_.advertiserId)
+                }
+                participatingAdvertiserIds.foreach { advertiserId =>
+                  val advertiserRef = sharding.entityRefFor(AdvertiserEntity.TypeKey, advertiserId.value)
+                  advertiserRef ! AdvertiserEntity.ResetDayStart(system.ignoreRef, silent = true)
                 }
               }
-              // Reset advertisers for participating campaigns (silent to avoid re-auctions during init)
-              val participatingAdvertiserIds = participatingCampaigns.flatMap { campaignId =>
-                spendInfoCache.get(campaignId).map(_.advertiserId)
-              }
-              participatingAdvertiserIds.foreach { advertiserId =>
-                val advertiserRef = sharding.entityRefFor(AdvertiserEntity.TypeKey, advertiserId.value)
-                advertiserRef ! AdvertiserEntity.ResetDayStart(system.ignoreRef, silent = true)
+              Some(Instant.now())
+            } else {
+              lastDayStart
+            }
+            // Reset lastCampaignSet and simulatedDayOfWeek when day duration changes (new pacing cycle)
+            val newLastCampaignSet = if (dayDurationChanged) Set.empty[CampaignId] else lastCampaignSet
+            val newSimulatedDayOfWeek = if (dayDurationChanged) {
+              java.time.LocalDate.now(java.time.ZoneOffset.UTC).getDayOfWeek
+            } else simulatedDayOfWeek
+            siteBidWeight = config.bidWeight
+            if (config.floorCpm > 0) {
+              val newFloor = CPM(config.floorCpm)
+              if (newFloor != siteFloorCpm) {
+                log.info("AdServer {} floor CPM updated: ${} -> ${}", siteId.value, siteFloorCpm.toDouble,
+                  newFloor.toDouble)
+                siteFloorCpm = newFloor
+                // NOTE: deliberately no longer fires ServeIndexDData.RemoveBelowFloor.
+                // The floor is enforced at serve time (see `afterFloor` filter in
+                // the batch-serve path). Purging ServeIndex on every floor update
+                // was a write-time optimization that became a liability once the
+                // sweep optimizer started cycling the floor every ~20s — it would
+                // shred the index on each high-floor candidate, breaking pin-honor
+                // and creating dead auction windows during the recovery period
+                // before the next reauction repopulated the index. Memory cost of
+                // keeping below-floor entries is bounded by content TTL (48h) and
+                // the explicit eligibility-change removals (campaign paused,
+                // creative deleted, domain blocked, etc.) which still fire.
               }
             }
-            Some(Instant.now())
-          } else {
-            lastDayStart
-          }
-          // Reset lastCampaignSet and simulatedDayOfWeek when day duration changes (new pacing cycle)
-          val newLastCampaignSet = if (dayDurationChanged) Set.empty[CampaignId] else lastCampaignSet
-          val newSimulatedDayOfWeek = if (dayDurationChanged) {
-            java.time.LocalDate.now(java.time.ZoneOffset.UTC).getDayOfWeek
-          } else simulatedDayOfWeek
-          siteBidWeight = config.bidWeight
-          if (config.floorCpm > 0) {
-            val newFloor = CPM(config.floorCpm)
-            if (newFloor != siteFloorCpm) {
-              log.info("AdServer {} floor CPM updated: ${} -> ${}", siteId.value, siteFloorCpm.toDouble, newFloor.toDouble)
-              siteFloorCpm = newFloor
-              // NOTE: deliberately no longer fires ServeIndexDData.RemoveBelowFloor.
-              // The floor is enforced at serve time (see `afterFloor` filter in
-              // the batch-serve path). Purging ServeIndex on every floor update
-              // was a write-time optimization that became a liability once the
-              // sweep optimizer started cycling the floor every ~20s — it would
-              // shred the index on each high-floor candidate, breaking pin-honor
-              // and creating dead auction windows during the recovery period
-              // before the next reauction repopulated the index. Memory cost of
-              // keeping below-floor entries is bounded by content TTL (48h) and
-              // the explicit eligibility-change removals (campaign paused,
-              // creative deleted, domain blocked, etc.) which still fire.
-            }
-          }
-          behavior(state.copy(
-            lastDayStart = newLastDayStart,
-            pacingStrategy = newStrategy,
-            dayDurationSeconds = config.dayDurationSeconds,
-            trafficShapeTracker = newTrafficShapeTracker,
-            warmupMode = config.warmupMode,
-            lastCampaignSet = newLastCampaignSet,
-            simulatedDayOfWeek = newSimulatedDayOfWeek
-          ))
-        case None =>
-          Behaviors.same
-      }
+            behavior(state.copy(
+              lastDayStart = newLastDayStart,
+              pacingStrategy = newStrategy,
+              dayDurationSeconds = config.dayDurationSeconds,
+              trafficShapeTracker = newTrafficShapeTracker,
+              warmupMode = config.warmupMode,
+              lastCampaignSet = newLastCampaignSet,
+              simulatedDayOfWeek = newSimulatedDayOfWeek
+            ))
+          case None =>
+            Behaviors.same
+        }
 
-    case GetServeStats(replyTo) =>
-      val vols = trafficShapeTracker.volumes
-      val maxIdx = vols.zipWithIndex.maxBy(_._1)._2
-      val minIdx = vols.zipWithIndex.minBy(_._1)._2
-      val maxVol = vols(maxIdx)
-      val minVol = vols(minIdx)
-      val ratio = if (minVol > 0) maxVol / minVol else 0.0
-      val currentBucket = trafficShapeTracker.currentBucketOpt.getOrElse(-1)
+      case GetServeStats(replyTo) =>
+        val vols = trafficShapeTracker.volumes
+        val maxIdx = vols.zipWithIndex.maxBy(_._1)._2
+        val minIdx = vols.zipWithIndex.minBy(_._1)._2
+        val maxVol = vols(maxIdx)
+        val minVol = vols(minIdx)
+        val ratio = if (minVol > 0) maxVol / minVol else 0.0
+        val currentBucket = trafficShapeTracker.currentBucketOpt.getOrElse(-1)
 
-      // Warmup status: show progress or "ready"
-      val warmupStatus = if (trafficShapeTracker.isWarmedUp) "[ready]"
+        // Warmup status: show progress or "ready"
+        val warmupStatus = if (trafficShapeTracker.isWarmedUp) "[ready]"
         else s"[warmup ${trafficShapeTracker.updateCount}/${trafficShapeTracker.bucketCount - 1}]"
 
-      // Compact ASCII histogram (24 chars, one per bucket)
-      val bars = "▁▂▃▄▅▆▇█"
-      val histogram = if (maxVol > 0) {
-        vols.zipWithIndex.map { case (vol, idx) =>
-          val barIdx = ((vol / maxVol) * (bars.length - 1)).toInt.max(0).min(bars.length - 1)
-          if (idx == currentBucket) s"[${bars(barIdx)}]" else bars(barIdx).toString
-        }.mkString
-      } else "?" * vols.length
+        // Compact ASCII histogram (24 chars, one per bucket)
+        val bars = "▁▂▃▄▅▆▇█"
+        val histogram = if (maxVol > 0) {
+          vols.zipWithIndex.map { case (vol, idx) =>
+            val barIdx = ((vol / maxVol) * (bars.length - 1)).toInt.max(0).min(bars.length - 1)
+            if (idx == currentBucket) s"[${bars(barIdx)}]" else bars(barIdx).toString
+          }.mkString
+        } else "?" * vols.length
 
-      // Hourly impressions summary
-      val hourlyImps = serveStats.hourlyImpressions
-      val maxImps = hourlyImps.max
-      val hourlyHistogram = if (maxImps > 0) {
-        hourlyImps.zipWithIndex.map { case (imps, idx) =>
-          val barIdx = ((imps.toDouble / maxImps) * (bars.length - 1)).toInt.max(0).min(bars.length - 1)
-          if (idx == currentBucket) s"[${bars(barIdx)}]" else bars(barIdx).toString
-        }.mkString
-      } else "▁" * hourlyImps.length
-      val totalImps = hourlyImps.sum
+        // Hourly impressions summary
+        val hourlyImps = serveStats.hourlyImpressions
+        val maxImps = hourlyImps.max
+        val hourlyHistogram = if (maxImps > 0) {
+          hourlyImps.zipWithIndex.map { case (imps, idx) =>
+            val barIdx = ((imps.toDouble / maxImps) * (bars.length - 1)).toInt.max(0).min(bars.length - 1)
+            if (idx == currentBucket) s"[${bars(barIdx)}]" else bars(barIdx).toString
+          }.mkString
+        } else "▁" * hourlyImps.length
+        val totalImps = hourlyImps.sum
 
-      // Format with aligned histograms for easy visual comparison
-      // Each line needs indentation since \n resets to column 0
-      // Extra blank line between histograms for readability
-      val shapeSummary = Some(
-        f"Hour $currentBucket%d $warmupStatus | Peak: h$maxIdx%d Valley: h$minIdx%d Ratio: ${ratio}%.1fx\n" +
-        f"      Shape: $histogram\n\n" +
-        f"      Imps:  $hourlyHistogram  ($totalImps%d total)"
-      )
-      // Include learned shape volumes for export
-      val weekdayVols = Some(trafficShapeTracker.weekdayVolumes)
-      val weekendVols = Some(trafficShapeTracker.weekendVolumes)
-      replyTo ! serveStats.copy(
-        dayStart = lastDayStart,
-        trafficShapeSummary = shapeSummary,
-        weekdayShapeVolumes = weekdayVols,
-        weekendShapeVolumes = weekendVols
-      )
-      Behaviors.same
+        // Format with aligned histograms for easy visual comparison
+        // Each line needs indentation since \n resets to column 0
+        // Extra blank line between histograms for readability
+        val shapeSummary = Some(
+          f"Hour $currentBucket%d $warmupStatus | Peak: h$maxIdx%d Valley: h$minIdx%d Ratio: ${ratio}%.1fx\n" +
+          f"      Shape: $histogram\n\n" +
+          f"      Imps:  $hourlyHistogram  ($totalImps%d total)"
+        )
+        // Include learned shape volumes for export
+        val weekdayVols = Some(trafficShapeTracker.weekdayVolumes)
+        val weekendVols = Some(trafficShapeTracker.weekendVolumes)
+        replyTo ! serveStats.copy(
+          dayStart = lastDayStart,
+          trafficShapeSummary = shapeSummary,
+          weekdayShapeVolumes = weekdayVols,
+          weekendShapeVolumes = weekendVols
+        )
+        Behaviors.same
     }
   }
 
@@ -1334,375 +1397,390 @@ private[delivery] class AdServer(
   private def candidateProcessing(state: State): PartialFunction[Command, Behavior[Command]] = {
     import state.*
     {
-    case Protocol.CampaignPaused(campaignId, revokeApprovals) =>
-      log.info("Campaign {} paused - removing from all slots for site {}", campaignId.value, siteId.value)
-      serveIndex ! ServeIndexDData.RemoveCampaignBySite(siteId.value, campaignId)
-      // Also remove from pending queue
-      store.removeByCampaignId(siteId.value, campaignId.value).foreach { count =>
-        if (count > 0) {
-          log.info("Removed {} pending selections for paused campaign {}", count, campaignId.value)
+      case Protocol.CampaignPaused(campaignId, revokeApprovals) =>
+        log.info("Campaign {} paused - removing from all slots for site {}", campaignId.value, siteId.value)
+        serveIndex ! ServeIndexDData.RemoveCampaignBySite(siteId.value, campaignId)
+        // Also remove from pending queue
+        store.removeByCampaignId(siteId.value, campaignId.value).foreach { count =>
+          if (count > 0) {
+            log.info("Removed {} pending selections for paused campaign {}", count, campaignId.value)
+          }
         }
-      }
-      // EXPLICIT pause/delete (revokeApprovals=true — set ONLY for the
-      // promovolve.CampaignPaused topic event from CampaignEntity.UpdateStatus)
-      // REVOKES the campaign's approvals (user decision 2026-07-07): pausing
-      // is leaving the site — on resume every creative starts over from
-      // PENDING, re-entering the approval queue by winning an auction.
-      // Every OTHER sender of this message keeps approvals — in particular
-      // AuctioneerEntity fires it scope-blind on ANY CampaignChanged(
-      // isActive=false), including category re-registration churn during
-      // deploys, and revoking there re-creates the 2026-07-03 "approval
-      // queue is gone" cascade (0e1304c4). Announce the revoke to each
-      // AdvertiserEntity BEFORE deleting the rows (the fetch is the announce
-      // source), so Creative.approvedSites clears and the resumed bids read
-      // as pending, not floor-teaching.
-      if (revokeApprovals) {
-        store.getApprovedCreativeAdvertisersByCampaign(siteId.value, campaignId.value).foreach { rows =>
-          rows.foreach { case (creativeId, advertiserId) =>
-            sharding.entityRefFor(AdvertiserEntity.TypeKey, advertiserId) !
+        // EXPLICIT pause/delete (revokeApprovals=true — set ONLY for the
+        // promovolve.CampaignPaused topic event from CampaignEntity.UpdateStatus)
+        // REVOKES the campaign's approvals (user decision 2026-07-07): pausing
+        // is leaving the site — on resume every creative starts over from
+        // PENDING, re-entering the approval queue by winning an auction.
+        // Every OTHER sender of this message keeps approvals — in particular
+        // AuctioneerEntity fires it scope-blind on ANY CampaignChanged(
+        // isActive=false), including category re-registration churn during
+        // deploys, and revoking there re-creates the 2026-07-03 "approval
+        // queue is gone" cascade (0e1304c4). Announce the revoke to each
+        // AdvertiserEntity BEFORE deleting the rows (the fetch is the announce
+        // source), so Creative.approvedSites clears and the resumed bids read
+        // as pending, not floor-teaching.
+        if (revokeApprovals) {
+          store.getApprovedCreativeAdvertisersByCampaign(siteId.value, campaignId.value).foreach { rows =>
+            rows.foreach { case (creativeId, advertiserId) =>
+              sharding.entityRefFor(AdvertiserEntity.TypeKey, advertiserId) !
               AdvertiserEntity.RevokeCreativeApproval(CreativeId(creativeId), siteId, system.ignoreRef)
+            }
+            store.deleteApprovedByCampaignId(siteId.value, campaignId.value)
+            if (rows.nonEmpty)
+              log.info("Revoked {} approvals for paused campaign {} on site {}", rows.size: java.lang.Integer,
+                campaignId.value, siteId.value)
           }
-          store.deleteApprovedByCampaignId(siteId.value, campaignId.value)
-          if (rows.nonEmpty)
-            log.info("Revoked {} approvals for paused campaign {} on site {}", rows.size: java.lang.Integer, campaignId.value, siteId.value)
         }
-      }
-      val pausedCampaignKeys = keysByCampaign.getOrElse(campaignId, Set.empty)
-      val pausedCreativeIds: Set[CreativeId] =
-        if (revokeApprovals)
-          pausedCampaignKeys.flatMap { key =>
-            idsForKey.get(key).map(_._2).getOrElse(Set.empty)
+        val pausedCampaignKeys = keysByCampaign.getOrElse(campaignId, Set.empty)
+        val pausedCreativeIds: Set[CreativeId] =
+          if (revokeApprovals)
+            pausedCampaignKeys.flatMap { key =>
+              idsForKey.get(key).map(_._2).getOrElse(Set.empty)
+            }
+          else Set.empty
+        behavior(state.copy(
+          participatingCampaigns = participatingCampaigns - campaignId,
+          keysByCampaign = keysByCampaign - campaignId,
+          keysByCreative = keysByCreative -- pausedCreativeIds,
+          persistedApprovedIds = persistedApprovedIds -- pausedCreativeIds,
+          pinnedCreativeIds = pinnedCreativeIds -- pausedCreativeIds
+        ))
+
+      case Protocol.EvictCampaignFromSite(campaignId) =>
+        // Site-narrow eviction: the advertiser dropped this site from a non-empty
+        // siteAllowlist, so the campaign is no longer eligible to bid here. Wipe
+        // it from the whole site exactly like a pause — INCLUDING any reader pins
+        // on its creatives (a pin on a site the advertiser left dies, per the
+        // product decision). Idempotent: every step no-ops when the campaign is
+        // absent. Body mirrors CampaignPaused.
+        log.info("Campaign {} narrowed off site {} - evicting from all slots", campaignId.value, siteId.value)
+        serveIndex ! ServeIndexDData.RemoveCampaignBySite(siteId.value, campaignId)
+        store.removeByCampaignId(siteId.value, campaignId.value).foreach { count =>
+          if (count > 0) {
+            log.info("Removed {} pending selections for narrowed-off campaign {}", count, campaignId.value)
           }
-        else Set.empty
-      behavior(state.copy(
-        participatingCampaigns = participatingCampaigns - campaignId,
-        keysByCampaign = keysByCampaign - campaignId,
-        keysByCreative = keysByCreative -- pausedCreativeIds,
-        persistedApprovedIds = persistedApprovedIds -- pausedCreativeIds,
-        pinnedCreativeIds = pinnedCreativeIds -- pausedCreativeIds,
-      ))
-
-    case Protocol.EvictCampaignFromSite(campaignId) =>
-      // Site-narrow eviction: the advertiser dropped this site from a non-empty
-      // siteAllowlist, so the campaign is no longer eligible to bid here. Wipe
-      // it from the whole site exactly like a pause — INCLUDING any reader pins
-      // on its creatives (a pin on a site the advertiser left dies, per the
-      // product decision). Idempotent: every step no-ops when the campaign is
-      // absent. Body mirrors CampaignPaused.
-      log.info("Campaign {} narrowed off site {} - evicting from all slots", campaignId.value, siteId.value)
-      serveIndex ! ServeIndexDData.RemoveCampaignBySite(siteId.value, campaignId)
-      store.removeByCampaignId(siteId.value, campaignId.value).foreach { count =>
-        if (count > 0) {
-          log.info("Removed {} pending selections for narrowed-off campaign {}", count, campaignId.value)
         }
-      }
-      store.deleteApprovedByCampaignId(siteId.value, campaignId.value)
-      val evictedCampaignKeys = keysByCampaign.getOrElse(campaignId, Set.empty)
-      val evictedCreativeIds: Set[CreativeId] = evictedCampaignKeys.flatMap { key =>
-        idsForKey.get(key).map(_._2).getOrElse(Set.empty)
-      }
-      behavior(state.copy(
-        participatingCampaigns = participatingCampaigns - campaignId,
-        keysByCampaign = keysByCampaign - campaignId,
-        persistedApprovedIds = persistedApprovedIds -- evictedCreativeIds,
-        pinnedCreativeIds = pinnedCreativeIds -- evictedCreativeIds,
-      ))
-
-    case Protocol.EvictCampaignFromSlots(campaignId, slotKeys) =>
-      // Topic-narrow eviction: the advertiser dropped a category, so this
-      // campaign is no longer targeting the categorized pages backing these
-      // specific slot keys (computed by the per-site AuctioneerEntity from its
-      // awardedCampaigns/lastPage caches). Remove the campaign from exactly
-      // these keys — but PIN-AWARE: a reader-pinned creative survives a topic
-      // drop on a still-served page (product decision). The authoritative fix
-      // is the ServeView update; keysByCampaign is pruned as a hint. Idempotent:
-      // RemoveCampaignFromKey no-ops when the campaign isn't in a key.
-      if (slotKeys.nonEmpty) {
-        log.info(
-          "Campaign {} narrowed off topic - evicting from {} slot key(s) (pins preserved): {}",
-          campaignId.value, slotKeys.size, slotKeys.mkString(",")
-        )
-        slotKeys.foreach { slotKey =>
-          serveIndex ! ServeIndexDData.RemoveCampaignFromKey(
-            slotKey, campaignId, keepCreativeIds = pinnedCreativeIds
-          )
+        store.deleteApprovedByCampaignId(siteId.value, campaignId.value)
+        val evictedCampaignKeys = keysByCampaign.getOrElse(campaignId, Set.empty)
+        val evictedCreativeIds: Set[CreativeId] = evictedCampaignKeys.flatMap { key =>
+          idsForKey.get(key).map(_._2).getOrElse(Set.empty)
         }
-      }
-      val prunedKeysByCampaign =
-        keysByCampaign.get(campaignId) match {
-          case Some(keys) =>
-            val remaining = keys -- slotKeys
-            if (remaining.isEmpty) keysByCampaign - campaignId
-            else keysByCampaign.updated(campaignId, remaining)
-          case None => keysByCampaign
-        }
-      behavior(state.copy(keysByCampaign = prunedKeysByCampaign))
+        behavior(state.copy(
+          participatingCampaigns = participatingCampaigns - campaignId,
+          keysByCampaign = keysByCampaign - campaignId,
+          persistedApprovedIds = persistedApprovedIds -- evictedCreativeIds,
+          pinnedCreativeIds = pinnedCreativeIds -- evictedCreativeIds
+        ))
 
-    case CreativePaused(creativeId) =>
-      log.info("Creative {} paused - removing from all slots for site {}", creativeId.value, siteId.value)
-      serveIndex ! ServeIndexDData.RemoveCreativeBySite(siteId.value, creativeId)
-      // Also remove from pending queue
-      store.removeCreativeFromAll(siteId.value, creativeId.value).foreach { removedSlots =>
-        if (removedSlots.nonEmpty) {
-          log.info("Removed paused creative {} from {} pending selections", creativeId.value, removedSlots.size)
-        }
-      }
-      // Persisted approval deliberately KEPT — a creative pause is
-      // reversible (see CreativeReactivated below); approval is content
-      // vetting and survives it. Same rationale as CampaignPaused.
-      // Publisher-initiated un-approval goes through RevokeCreativeApproval.
-      behavior(state.copy(
-        keysByCreative = keysByCreative - creativeId,
-      ))
-
-    case Protocol.RevokeCreativeApproval(creativeId) =>
-      // Explicit publisher revoke: THE un-approval act. Remove from serving
-      // AND delete the persisted approval so the creative returns to the
-      // pending queue on its next auction win (soft undo — Reject is the
-      // permanent block). Also forget the pin record: the dog-ear client
-      // cleans its IDB pin on the revoke SSE event, so keeping the
-      // server-side pin would protect a creative the viewer can no longer
-      // see pinned.
-      log.info(
-        "Creative {} approval REVOKED by publisher - removing from serving + deleting approval for site {}",
-        creativeId.value, siteId.value
-      )
-      serveIndex ! ServeIndexDData.RemoveCreativeBySite(siteId.value, creativeId)
-      store.removeCreativeFromAll(siteId.value, creativeId.value).foreach { removedSlots =>
-        if (removedSlots.nonEmpty) {
-          log.info("Removed revoked creative {} from {} pending selections", creativeId.value, removedSlots.size)
-        }
-      }
-      store.deleteApproved(siteId.value, creativeId.value)
-      behavior(state.copy(
-        keysByCreative = keysByCreative - creativeId,
-        persistedApprovedIds = state.persistedApprovedIds - creativeId,
-        pinnedCreativeIds = state.pinnedCreativeIds - creativeId
-      ))
-
-    case CreativeReactivated(creativeId, campaignId) =>
-      // Creative reactivated - this is handled by AuctioneerEntity triggering campaign re-auction
-      // AdServer just logs the event (no direct action needed here)
-      log.info(
-        "Creative {} reactivated for campaign {} - re-auction will restore it",
-        creativeId.value,
-        campaignId.value
-      )
-      Behaviors.same
-
-    case RemoveAdvertiser(advertiserId) =>
-      log.info("Advertiser {} removed - removing from all slots for site {}", advertiserId.value, siteId.value)
-      serveIndex ! ServeIndexDData.RemoveAdvertiserBySite(siteId.value, advertiserId)
-      // Also remove from pending queue
-      store.removeByAdvertiserId(siteId.value, advertiserId.value).foreach { count =>
-        if (count > 0) {
-          log.info("Removed {} pending selections for advertiser {}", count, advertiserId.value)
-        }
-      }
-      // Persisted approvals deliberately KEPT. Every producer of this
-      // command today is a REVERSIBLE hold: billing wallet suspension
-      // (Settler on empty wallet — resumes minutes later after a top-up)
-      // and operator Suspended/Closed. Deleting here meant every wallet
-      // dip silently revoked the advertiser's publisher approvals — masked
-      // until the next pod restart by the still-populated in-memory sets.
-      // A future PERMANENT advertiser-deletion flow should scrub approvals
-      // via its own explicit path, not this one.
-      behavior(state.copy(keysByAdvertiser = keysByAdvertiser - advertiserId))
-
-    case RefreshTTLForCampaign(campaignId) =>
-      // Use inverted index for targeted TTL refresh
-      val keys = keysByCampaign.getOrElse(campaignId, Set.empty)
-      val newTtlMs = (dayDurationSeconds * 1.1 * 1000).toLong
-      log.info(
-        "Campaign {} budget exhausted - refreshing TTL for {} keys on site {} (ttlMs={})",
-        campaignId.value,
-        keys.size,
-        siteId.value,
-        newTtlMs
-      )
-      keys.foreach { k =>
-        serveIndex ! ServeIndexDData.RefreshTTLForKey(k, newTtlMs)
-      }
-      Behaviors.same
-
-    case RefreshTTLForAdvertiser(advertiserId) =>
-      // Use inverted index for targeted TTL refresh
-      val keys = keysByAdvertiser.getOrElse(advertiserId, Set.empty)
-      val newTtlMs = (dayDurationSeconds * 1.1 * 1000).toLong
-      log.info(
-        "Advertiser {} budget exhausted - refreshing TTL for {} keys on site {} (ttlMs={})",
-        advertiserId.value,
-        keys.size,
-        siteId.value,
-        newTtlMs
-      )
-      keys.foreach { k =>
-        serveIndex ! ServeIndexDData.RefreshTTLForKey(k, newTtlMs)
-      }
-      Behaviors.same
-
-    case MarkClassified(url, classifiedAt) =>
-      // A page was classified (matched OR filler), regardless of bidders.
-      // Record classifiedAt so reclassifyInMs/needText treat it as known.
-      recordClassified(url.value, classifiedAt.toEpochMilli)
-      Behaviors.same
-
-    case CandidatesCollected(url, slotId, candidates, classifiedAt, ttl, pageCategories, floorCpm, categoryFloors, slotAdminFloor, authoritativeAbsent) =>
-      // Update site floor CPM + per-category floors from latest auction
-      siteFloorCpm = floorCpm
-      siteCategoryFloors = categoryFloors
-      // Sync this slot's admin floor override (None clears — a removed
-      // override must stop shielding the slot at serve time).
-      adminSlotFloors = slotAdminFloor match {
-        case Some(f) => adminSlotFloors.updated(slotId, f)
-        case None    => adminSlotFloors - slotId
-      }
-      // Record this url as CLASSIFIED — even when pageCategories is empty (a
-      // filler page that matched no demand category). This is what flips
-      // needText (on-demand cold detection) to false: "classified" means we
-      // have the page's text, regardless of whether it matched a category.
-      // Without recording the empty case, a no-match page would re-classify on
-      // every serve (the ad tag would POST /classify-page on every pageview).
-      // Bounded so on-demand traffic can't grow it unboundedly; arbitrary
-      // eviction only costs a rare re-classify of a long-cold url.
-      pageCategoriesCache = pageCategoriesCache + (url.value -> pageCategories)
-      if (pageCategoriesCache.size > AdServer.MaxPageCategoriesCache)
-        pageCategoriesCache = pageCategoriesCache.drop(pageCategoriesCache.size - AdServer.MaxPageCategoriesCache)
-      // Record classifiedAt for the freshness token (also set directly via
-      // MarkClassified, but this covers the restart-reauction repopulation).
-      recordClassified(url.value, classifiedAt.toEpochMilli)
-      if (candidates.isEmpty) {
-        // Zero-candidate delivery = floor-sync only: an admin override or
-        // sweep floor rose above all demand and the auction came back
-        // empty. The floors updated above take effect at the serve gate
-        // immediately, but the ServeIndex is deliberately left untouched —
-        // below-floor entries stay pin-only servable (dog-ear design) and
-        // age out via their own TTL.
-        //
-        // EXCEPT for authoritative absences: the advertiser just changed the
-        // campaign's config and it no longer bids AT ALL (e.g. sole bidder
-        // in the category lowered maxCpm below the floor → the whole auction
-        // came back empty). Without this, the stale old-CPM entry keeps
-        // serving until the ServeView TTL. Same pin-aware removal as
-        // EvictCampaignFromSlots.
-        log.info(
-          "Floor-sync (empty auction): site={} slot={} floor={} slotAdminFloor={}",
-          siteId.value, slotId.value, floorCpm.toDouble, slotAdminFloor.map(_.toDouble)
-        )
-        if (authoritativeAbsent.nonEmpty) {
-          val slotKey = key(siteId, slotId)
+      case Protocol.EvictCampaignFromSlots(campaignId, slotKeys) =>
+        // Topic-narrow eviction: the advertiser dropped a category, so this
+        // campaign is no longer targeting the categorized pages backing these
+        // specific slot keys (computed by the per-site AuctioneerEntity from its
+        // awardedCampaigns/lastPage caches). Remove the campaign from exactly
+        // these keys — but PIN-AWARE: a reader-pinned creative survives a topic
+        // drop on a still-served page (product decision). The authoritative fix
+        // is the ServeView update; keysByCampaign is pruned as a hint. Idempotent:
+        // RemoveCampaignFromKey no-ops when the campaign isn't in a key.
+        if (slotKeys.nonEmpty) {
           log.info(
-            "Evicting {} authoritative-absent campaign(s) from empty-auction slot (pins preserved): slot={} campaigns={}",
-            authoritativeAbsent.size, slotKey, authoritativeAbsent.map(_.value).mkString(",")
+            "Campaign {} narrowed off topic - evicting from {} slot key(s) (pins preserved): {}",
+            campaignId.value, slotKeys.size, slotKeys.mkString(",")
           )
-          authoritativeAbsent.foreach { campaignId =>
+          slotKeys.foreach { slotKey =>
             serveIndex ! ServeIndexDData.RemoveCampaignFromKey(
               slotKey, campaignId, keepCreativeIds = pinnedCreativeIds
             )
           }
-          val prunedKeysByCampaign = authoritativeAbsent.foldLeft(keysByCampaign) { (acc, campaignId) =>
-            acc.get(campaignId) match {
-              case Some(keys) =>
-                val remaining = keys - slotKey
-                if (remaining.isEmpty) acc - campaignId else acc.updated(campaignId, remaining)
-              case None => acc
-            }
-          }
-          behavior(state.copy(keysByCampaign = prunedKeysByCampaign))
-        } else {
-          behavior(state)
         }
-      } else {
-      // Track campaigns that have participated in auctions for this site
-      // This allows filtering SpendUpdate events to only relevant campaigns
-      val newCampaignIds = candidates.map(_.campaignId).toSet
-      val updatedParticipating = participatingCampaigns ++ newCampaignIds
-      if (newCampaignIds.nonEmpty && newCampaignIds.exists(!participatingCampaigns.contains(_))) {
-        log.info(
-          "Tracking {} new participating campaigns for site {}: {}",
-          newCampaignIds.size,
-          siteId.value,
-          newCampaignIds.mkString(", ")
-        )
-      }
-      // Query ServeIndex to determine which creatives are ACTUALLY approved (not just CuckooFilter)
-      // This is safer than trusting the preApproved flag from the CuckooFilter
-      val slotKey = key(siteId, slotId)
-      import org.apache.pekko.actor.typed.scaladsl.AskPattern.*
-      given Timeout = Timeout(300.millis)
-      val viewFuture = serveIndex.ask[Option[ServeView]](ServeIndexDData.Get(slotKey, _))
-      ctx.pipeToSelf(viewFuture) { result =>
-        val existingView = result.toOption.flatten
-        val existingCreativeIds = existingView
-          .map(_.candidates.map(_.creativeId).toSet)
-          .getOrElse(Set.empty)
-        ServeIndexLoadedForCandidates(url, slotId, candidates, classifiedAt, ttl, slotKey, existingCreativeIds, existingView, authoritativeAbsent)
-      }
-      behavior(state.copy(participatingCampaigns = updatedParticipating))
-      }
-
-    case ServeIndexLoadedForCandidates(url, slotId, candidates, classifiedAt, ttl, slotKey, existingCreativeIds, existingView, authoritativeAbsent) =>
-      // Strip authoritative-absent campaigns' creatives from the existing view
-      // BEFORE orphan preservation sees it (pin-aware, mirroring
-      // EvictCampaignFromSlots): the advertiser explicitly changed these
-      // campaigns, so if a creative doesn't reappear in `candidates` it must
-      // NOT be preserved at its old CPM. Creatives that DO reappear are Put
-      // fresh from the new result, so stripping here only affects true
-      // absences. existingCreativeIds (approval status) is deliberately NOT
-      // stripped — approval isn't revoked by a config change.
-      val effectiveView =
-        if (authoritativeAbsent.isEmpty) existingView
-        else existingView.map { v =>
-          val (dropped, kept) = v.candidates.partition { c =>
-            authoritativeAbsent.contains(c.campaignId) && !state.pinnedCreativeIds.contains(c.creativeId)
+        val prunedKeysByCampaign =
+          keysByCampaign.get(campaignId) match {
+            case Some(keys) =>
+              val remaining = keys -- slotKeys
+              if (remaining.isEmpty) keysByCampaign - campaignId
+              else keysByCampaign.updated(campaignId, remaining)
+            case None => keysByCampaign
           }
-          if (dropped.nonEmpty) {
+        behavior(state.copy(keysByCampaign = prunedKeysByCampaign))
+
+      case CreativePaused(creativeId) =>
+        log.info("Creative {} paused - removing from all slots for site {}", creativeId.value, siteId.value)
+        serveIndex ! ServeIndexDData.RemoveCreativeBySite(siteId.value, creativeId)
+        // Also remove from pending queue
+        store.removeCreativeFromAll(siteId.value, creativeId.value).foreach { removedSlots =>
+          if (removedSlots.nonEmpty) {
+            log.info("Removed paused creative {} from {} pending selections", creativeId.value, removedSlots.size)
+          }
+        }
+        // Persisted approval deliberately KEPT — a creative pause is
+        // reversible (see CreativeReactivated below); approval is content
+        // vetting and survives it. Same rationale as CampaignPaused.
+        // Publisher-initiated un-approval goes through RevokeCreativeApproval.
+        behavior(state.copy(
+          keysByCreative = keysByCreative - creativeId
+        ))
+
+      case Protocol.RevokeCreativeApproval(creativeId) =>
+        // Explicit publisher revoke: THE un-approval act. Remove from serving
+        // AND delete the persisted approval so the creative returns to the
+        // pending queue on its next auction win (soft undo — Reject is the
+        // permanent block). Also forget the pin record: the dog-ear client
+        // cleans its IDB pin on the revoke SSE event, so keeping the
+        // server-side pin would protect a creative the viewer can no longer
+        // see pinned.
+        log.info(
+          "Creative {} approval REVOKED by publisher - removing from serving + deleting approval for site {}",
+          creativeId.value, siteId.value
+        )
+        serveIndex ! ServeIndexDData.RemoveCreativeBySite(siteId.value, creativeId)
+        store.removeCreativeFromAll(siteId.value, creativeId.value).foreach { removedSlots =>
+          if (removedSlots.nonEmpty) {
+            log.info("Removed revoked creative {} from {} pending selections", creativeId.value, removedSlots.size)
+          }
+        }
+        store.deleteApproved(siteId.value, creativeId.value)
+        behavior(state.copy(
+          keysByCreative = keysByCreative - creativeId,
+          persistedApprovedIds = state.persistedApprovedIds - creativeId,
+          pinnedCreativeIds = state.pinnedCreativeIds - creativeId
+        ))
+
+      case CreativeReactivated(creativeId, campaignId) =>
+        // Creative reactivated - this is handled by AuctioneerEntity triggering campaign re-auction
+        // AdServer just logs the event (no direct action needed here)
+        log.info(
+          "Creative {} reactivated for campaign {} - re-auction will restore it",
+          creativeId.value,
+          campaignId.value
+        )
+        Behaviors.same
+
+      case RemoveAdvertiser(advertiserId) =>
+        log.info("Advertiser {} removed - removing from all slots for site {}", advertiserId.value, siteId.value)
+        serveIndex ! ServeIndexDData.RemoveAdvertiserBySite(siteId.value, advertiserId)
+        // Also remove from pending queue
+        store.removeByAdvertiserId(siteId.value, advertiserId.value).foreach { count =>
+          if (count > 0) {
+            log.info("Removed {} pending selections for advertiser {}", count, advertiserId.value)
+          }
+        }
+        // Persisted approvals deliberately KEPT. Every producer of this
+        // command today is a REVERSIBLE hold: billing wallet suspension
+        // (Settler on empty wallet — resumes minutes later after a top-up)
+        // and operator Suspended/Closed. Deleting here meant every wallet
+        // dip silently revoked the advertiser's publisher approvals — masked
+        // until the next pod restart by the still-populated in-memory sets.
+        // A future PERMANENT advertiser-deletion flow should scrub approvals
+        // via its own explicit path, not this one.
+        behavior(state.copy(keysByAdvertiser = keysByAdvertiser - advertiserId))
+
+      case RefreshTTLForCampaign(campaignId) =>
+        // Use inverted index for targeted TTL refresh
+        val keys = keysByCampaign.getOrElse(campaignId, Set.empty)
+        val newTtlMs = (dayDurationSeconds * 1.1 * 1000).toLong
+        log.info(
+          "Campaign {} budget exhausted - refreshing TTL for {} keys on site {} (ttlMs={})",
+          campaignId.value,
+          keys.size,
+          siteId.value,
+          newTtlMs
+        )
+        keys.foreach { k =>
+          serveIndex ! ServeIndexDData.RefreshTTLForKey(k, newTtlMs)
+        }
+        Behaviors.same
+
+      case RefreshTTLForAdvertiser(advertiserId) =>
+        // Use inverted index for targeted TTL refresh
+        val keys = keysByAdvertiser.getOrElse(advertiserId, Set.empty)
+        val newTtlMs = (dayDurationSeconds * 1.1 * 1000).toLong
+        log.info(
+          "Advertiser {} budget exhausted - refreshing TTL for {} keys on site {} (ttlMs={})",
+          advertiserId.value,
+          keys.size,
+          siteId.value,
+          newTtlMs
+        )
+        keys.foreach { k =>
+          serveIndex ! ServeIndexDData.RefreshTTLForKey(k, newTtlMs)
+        }
+        Behaviors.same
+
+      case MarkClassified(url, classifiedAt) =>
+        // A page was classified (matched OR filler), regardless of bidders.
+        // Record classifiedAt so reclassifyInMs/needText treat it as known.
+        recordClassified(url.value, classifiedAt.toEpochMilli)
+        Behaviors.same
+
+      case CandidatesCollected(url, slotId, candidates, classifiedAt, ttl, pageCategories, floorCpm, categoryFloors,
+            slotAdminFloor, authoritativeAbsent) =>
+        // Update site floor CPM + per-category floors from latest auction
+        siteFloorCpm = floorCpm
+        siteCategoryFloors = categoryFloors
+        // Sync this slot's admin floor override (None clears — a removed
+        // override must stop shielding the slot at serve time).
+        adminSlotFloors = slotAdminFloor match {
+          case Some(f) => adminSlotFloors.updated(slotId, f)
+          case None    => adminSlotFloors - slotId
+        }
+        // Record this url as CLASSIFIED — even when pageCategories is empty (a
+        // filler page that matched no demand category). This is what flips
+        // needText (on-demand cold detection) to false: "classified" means we
+        // have the page's text, regardless of whether it matched a category.
+        // Without recording the empty case, a no-match page would re-classify on
+        // every serve (the ad tag would POST /classify-page on every pageview).
+        // Bounded so on-demand traffic can't grow it unboundedly; arbitrary
+        // eviction only costs a rare re-classify of a long-cold url.
+        pageCategoriesCache = pageCategoriesCache + (url.value -> pageCategories)
+        if (pageCategoriesCache.size > AdServer.MaxPageCategoriesCache)
+          pageCategoriesCache = pageCategoriesCache.drop(pageCategoriesCache.size - AdServer.MaxPageCategoriesCache)
+        // Record classifiedAt for the freshness token (also set directly via
+        // MarkClassified, but this covers the restart-reauction repopulation).
+        recordClassified(url.value, classifiedAt.toEpochMilli)
+        if (candidates.isEmpty) {
+          // Zero-candidate delivery = floor-sync only: an admin override or
+          // sweep floor rose above all demand and the auction came back
+          // empty. The floors updated above take effect at the serve gate
+          // immediately, but the ServeIndex is deliberately left untouched —
+          // below-floor entries stay pin-only servable (dog-ear design) and
+          // age out via their own TTL.
+          //
+          // EXCEPT for authoritative absences: the advertiser just changed the
+          // campaign's config and it no longer bids AT ALL (e.g. sole bidder
+          // in the category lowered maxCpm below the floor → the whole auction
+          // came back empty). Without this, the stale old-CPM entry keeps
+          // serving until the ServeView TTL. Same pin-aware removal as
+          // EvictCampaignFromSlots.
+          log.info(
+            "Floor-sync (empty auction): site={} slot={} floor={} slotAdminFloor={}",
+            siteId.value, slotId.value, floorCpm.toDouble, slotAdminFloor.map(_.toDouble)
+          )
+          if (authoritativeAbsent.nonEmpty) {
+            val slotKey = key(siteId, slotId)
             log.info(
-              "Dropping {} stale entr(ies) of authoritative-absent campaigns before orphan preservation: pub={} slot={} dropped={}",
-              dropped.size, siteId.value, slotId.value,
-              dropped.map(c => s"${c.creativeId.value}@${c.cpm.toDouble}").mkString(",")
+              "Evicting {} authoritative-absent campaign(s) from empty-auction slot (pins preserved): slot={} campaigns={}",
+              authoritativeAbsent.size, slotKey, authoritativeAbsent.map(_.value).mkString(",")
+            )
+            authoritativeAbsent.foreach { campaignId =>
+              serveIndex ! ServeIndexDData.RemoveCampaignFromKey(
+                slotKey, campaignId, keepCreativeIds = pinnedCreativeIds
+              )
+            }
+            val prunedKeysByCampaign = authoritativeAbsent.foldLeft(keysByCampaign) { (acc, campaignId) =>
+              acc.get(campaignId) match {
+                case Some(keys) =>
+                  val remaining = keys - slotKey
+                  if (remaining.isEmpty) acc - campaignId else acc.updated(campaignId, remaining)
+                case None => acc
+              }
+            }
+            behavior(state.copy(keysByCampaign = prunedKeysByCampaign))
+          } else {
+            behavior(state)
+          }
+        } else {
+          // Track campaigns that have participated in auctions for this site
+          // This allows filtering SpendUpdate events to only relevant campaigns
+          val newCampaignIds = candidates.map(_.campaignId).toSet
+          val updatedParticipating = participatingCampaigns ++ newCampaignIds
+          if (newCampaignIds.nonEmpty && newCampaignIds.exists(!participatingCampaigns.contains(_))) {
+            log.info(
+              "Tracking {} new participating campaigns for site {}: {}",
+              newCampaignIds.size,
+              siteId.value,
+              newCampaignIds.mkString(", ")
             )
           }
-          v.copy(candidates = kept)
+          // Query ServeIndex to determine which creatives are ACTUALLY approved (not just CuckooFilter)
+          // This is safer than trusting the preApproved flag from the CuckooFilter
+          val slotKey = key(siteId, slotId)
+          import org.apache.pekko.actor.typed.scaladsl.AskPattern.*
+          given Timeout = Timeout(300.millis)
+          val viewFuture = serveIndex.ask[Option[ServeView]](ServeIndexDData.Get(slotKey, _))
+          ctx.pipeToSelf(viewFuture) { result =>
+            val existingView = result.toOption.flatten
+            val existingCreativeIds = existingView
+              .map(_.candidates.map(_.creativeId).toSet)
+              .getOrElse(Set.empty)
+            ServeIndexLoadedForCandidates(url, slotId, candidates, classifiedAt, ttl, slotKey, existingCreativeIds,
+              existingView, authoritativeAbsent)
+          }
+          behavior(state.copy(participatingCampaigns = updatedParticipating))
         }
-      // Approval has ONE source of truth: persistedApprovedIds (synchronously
-      // updated on approve/revoke/pause, DB-backed across restarts) — the
-      // same list the serve gate reads. ServeIndex/keysByCreative membership
-      // is deliberately NOT consulted: the replicated, disk-persisted
-      // ServeIndex outlives explicit un-approvals (pause/revoke) and even
-      // restarts, and inferring "approved because it's still serving
-      // somewhere" resurrected approvals the publisher had just deleted
-      // (auto-re-approve loop, observed live 2026-07-07). Site-wide scope is
-      // preserved: persistedApprovedIds is per-site, so a creative approved
-      // at one slot is still recognized at every other slot.
-      val siteWideApproved = state.persistedApprovedIds
 
-      // Per-page recent-winner separation (pageWinners) is intentionally
-      // NOT applied here. ServeIndex is the per-slot pool of *all* approved
-      // candidates; page-level separation ("don't repeat the same advertiser
-      // across a page / recent reloads") is a per-request decision made at
-      // serve time in batchReserveWithRetry (as a soft preference). Filtering
-      // it at population time starved the index: with a sole advertiser it
-      // left secondary slots written empty (NOT FOUND), and the gap outlived
-      // the 15s pageWinners TTL because serves don't repopulate the index.
-      // See the intermittent-fill-pagewinners memory.
-      log.info(
-        "ServeIndex loaded for candidates: pub={} url={} slot={} candidates={} slotApproved={} siteWideApproved={}",
-        siteId.value,
-        url.value,
-        slotId.value,
-        candidates.size,
-        existingCreativeIds.size,
-        siteWideApproved.size
-      )
-      processCandidatesWithApprovalStatus(
-        url, slotId, candidates, classifiedAt, ttl, slotKey, siteWideApproved, effectiveView,
-        cachedDomainBlocklist, cachedAdProductBlocklist,
-        cachedAdvertiserBlocklists, AdServer.mySiteDomainOpt(verifiedHost)
-      )
-      Behaviors.same
+      case ServeIndexLoadedForCandidates(url, slotId, candidates, classifiedAt, ttl, slotKey, existingCreativeIds,
+            existingView, authoritativeAbsent) =>
+        // Strip authoritative-absent campaigns' creatives from the existing view
+        // BEFORE orphan preservation sees it (pin-aware, mirroring
+        // EvictCampaignFromSlots): the advertiser explicitly changed these
+        // campaigns, so if a creative doesn't reappear in `candidates` it must
+        // NOT be preserved at its old CPM. Creatives that DO reappear are Put
+        // fresh from the new result, so stripping here only affects true
+        // absences. existingCreativeIds (approval status) is deliberately NOT
+        // stripped — approval isn't revoked by a config change.
+        val effectiveView =
+          if (authoritativeAbsent.isEmpty) existingView
+          else existingView.map { v =>
+            val (dropped, kept) = v.candidates.partition { c =>
+              authoritativeAbsent.contains(c.campaignId) && !state.pinnedCreativeIds.contains(c.creativeId)
+            }
+            if (dropped.nonEmpty) {
+              log.info(
+                "Dropping {} stale entr(ies) of authoritative-absent campaigns before orphan preservation: pub={} slot={} dropped={}",
+                dropped.size, siteId.value, slotId.value,
+                dropped.map(c => s"${c.creativeId.value}@${c.cpm.toDouble}").mkString(",")
+              )
+            }
+            v.copy(candidates = kept)
+          }
+        // Approval has ONE source of truth: persistedApprovedIds (synchronously
+        // updated on approve/revoke/pause, DB-backed across restarts) — the
+        // same list the serve gate reads. ServeIndex/keysByCreative membership
+        // is deliberately NOT consulted: the replicated, disk-persisted
+        // ServeIndex outlives explicit un-approvals (pause/revoke) and even
+        // restarts, and inferring "approved because it's still serving
+        // somewhere" resurrected approvals the publisher had just deleted
+        // (auto-re-approve loop, observed live 2026-07-07). Site-wide scope is
+        // preserved: persistedApprovedIds is per-site, so a creative approved
+        // at one slot is still recognized at every other slot.
+        val siteWideApproved = state.persistedApprovedIds
 
-    case CandidateScoresFetched(
+        // Per-page recent-winner separation (pageWinners) is intentionally
+        // NOT applied here. ServeIndex is the per-slot pool of *all* approved
+        // candidates; page-level separation ("don't repeat the same advertiser
+        // across a page / recent reloads") is a per-request decision made at
+        // serve time in batchReserveWithRetry (as a soft preference). Filtering
+        // it at population time starved the index: with a sole advertiser it
+        // left secondary slots written empty (NOT FOUND), and the gap outlived
+        // the 15s pageWinners TTL because serves don't repopulate the index.
+        // See the intermittent-fill-pagewinners memory.
+        log.info(
+          "ServeIndex loaded for candidates: pub={} url={} slot={} candidates={} slotApproved={} siteWideApproved={}",
+          siteId.value,
+          url.value,
+          slotId.value,
+          candidates.size,
+          existingCreativeIds.size,
+          siteWideApproved.size
+        )
+        processCandidatesWithApprovalStatus(
+          url, slotId, candidates, classifiedAt, ttl, slotKey, siteWideApproved, effectiveView,
+          cachedDomainBlocklist, cachedAdProductBlocklist,
+          cachedAdvertiserBlocklists, AdServer.mySiteDomainOpt(verifiedHost)
+        )
+        Behaviors.same
+
+      case CandidateScoresFetched(
+            url,
+            slotId,
+            approved,
+            pending,
+            classifiedAt,
+            ttl,
+            slotKey,
+            categoryScores,
+            existingView
+          ) =>
+        buildServeViewFromCandidates(
           url,
           slotId,
           approved,
@@ -1712,52 +1790,41 @@ private[delivery] class AdServer(
           slotKey,
           categoryScores,
           existingView
-        ) =>
-      buildServeViewFromCandidates(
-        url,
-        slotId,
-        approved,
-        pending,
-        classifiedAt,
-        ttl,
-        slotKey,
-        categoryScores,
-        existingView
-      )
-      Behaviors.same
-
-    case CandidateViewsBuilt(url, slotId, candidateViews, pending, ttl, slotKey, existingView) =>
-      val newState = handleCandidateViewsBuilt(
-        state, url, slotId, candidateViews, pending, ttl, slotKey, existingView
-      )
-      behavior(newState)
-
-    case UpsertPendingCompleted(count, url, slotId, topCreativeId, creativeIds) =>
-      log.debug(
-        "Queued {} creatives for approval: pub={} url={} slot={} top={}",
-        count,
-        siteId.value,
-        url.value,
-        slotId.value,
-        topCreativeId
-      )
-      // Only publish SSE event if the pending creative set actually changed
-      // (not just CPM updates from re-auction with same candidates)
-      val pendingKey = s"${url.value}|${slotId.value}"
-      val oldIds = lastPendingCreativeIds.getOrElse(pendingKey, Set.empty)
-      lastPendingCreativeIds = lastPendingCreativeIds.updated(pendingKey, creativeIds)
-      if (creativeIds != oldIds) {
-        val event = promovolve.PendingCreativesQueued(
-          siteId = siteId,
-          url = url,
-          slotId = slotId,
-          count = count,
-          topCreativeId = CreativeId(topCreativeId),
-          timestamp = Instant.now()
         )
-        budgetEventTopic ! Topic.Publish(event)
-      }
-      Behaviors.same
+        Behaviors.same
+
+      case CandidateViewsBuilt(url, slotId, candidateViews, pending, ttl, slotKey, existingView) =>
+        val newState = handleCandidateViewsBuilt(
+          state, url, slotId, candidateViews, pending, ttl, slotKey, existingView
+        )
+        behavior(newState)
+
+      case UpsertPendingCompleted(count, url, slotId, topCreativeId, creativeIds) =>
+        log.debug(
+          "Queued {} creatives for approval: pub={} url={} slot={} top={}",
+          count,
+          siteId.value,
+          url.value,
+          slotId.value,
+          topCreativeId
+        )
+        // Only publish SSE event if the pending creative set actually changed
+        // (not just CPM updates from re-auction with same candidates)
+        val pendingKey = s"${url.value}|${slotId.value}"
+        val oldIds = lastPendingCreativeIds.getOrElse(pendingKey, Set.empty)
+        lastPendingCreativeIds = lastPendingCreativeIds.updated(pendingKey, creativeIds)
+        if (creativeIds != oldIds) {
+          val event = promovolve.PendingCreativesQueued(
+            siteId = siteId,
+            url = url,
+            slotId = slotId,
+            count = count,
+            topCreativeId = CreativeId(topCreativeId),
+            timestamp = Instant.now()
+          )
+          budgetEventTopic ! Topic.Publish(event)
+        }
+        Behaviors.same
     }
   }
 
@@ -1878,9 +1945,10 @@ private[delivery] class AdServer(
     case BatchApprovalStatusPersisted(url, slot, approved, failed, replyTo) =>
       // All approval statuses persisted - now safe to finalize batch approval
       ctx.pipeToSelf(store.removePending(siteId.value, url, slot)) {
-        case Success(_) => RemovePendingBatchCompleted(url, slot, approved, failed, replyTo)
+        case Success(_)  => RemovePendingBatchCompleted(url, slot, approved, failed, replyTo)
         case Failure(ex) =>
-          log.warn("Failed to remove pending batch for pub={} url={} slot={}: {}", siteId.value, url, slot, ex.getMessage)
+          log.warn("Failed to remove pending batch for pub={} url={} slot={}: {}", siteId.value, url, slot,
+            ex.getMessage)
           RemovePendingBatchCompleted(url, slot, approved, failed, replyTo)
       }
       Behaviors.same
@@ -1942,9 +2010,9 @@ private[delivery] class AdServer(
           )
           advertiserRef ! promovolve.advertiser.AdvertiserEntity.UpdateCreativeApproval(
             creativeId = CreativeId(flagged.creativeId),
-            siteId     = siteId,
-            status     = ApprovalStatus.Rejected,
-            replyTo    = system.ignoreRef
+            siteId = siteId,
+            status = ApprovalStatus.Rejected,
+            replyTo = system.ignoreRef
           )
 
           // Remove flagged creative from ServeIndex across all slots
@@ -1978,9 +2046,9 @@ private[delivery] class AdServer(
           )
           advertiserRef ! promovolve.advertiser.AdvertiserEntity.UpdateCreativeApproval(
             creativeId = CreativeId(unflagged.creativeId),
-            siteId     = siteId,
-            status     = ApprovalStatus.Approved, // Removes from rejectedSites
-            replyTo    = system.ignoreRef
+            siteId = siteId,
+            status = ApprovalStatus.Approved, // Removes from rejectedSites
+            replyTo = system.ignoreRef
           )
 
           // Trigger re-auction so the unflagged creative can compete for the slot
@@ -2087,442 +2155,451 @@ private[delivery] class AdServer(
     import state.*
     {
 
-    // ─── Batch select (joint auction across all slots on a page) ───
-    //
-    // Single entry point for ad serving since the per-slot Select path
-    // was retired. Lifecycle bookkeeping (request count, day rollover,
-    // ResetDayStart fan-out, traffic shape, warmup gating) lives in
-    // recordRequestArrival above.
+      // ─── Batch select (joint auction across all slots on a page) ───
+      //
+      // Single entry point for ad serving since the per-slot Select path
+      // was retired. Lifecycle bookkeeping (request count, day rollover,
+      // ResetDayStart fan-out, traffic shape, warmup gating) lives in
+      // recordRequestArrival above.
 
-    case BatchSelect(url, slots, _, replyTo, excludedCreatives, excludedCampaigns) =>
-      val hostOk = AdServer.hostMatches(url.value, verifiedHost)
-      if (!hostOk) {
-        log.warn("Batch serve rejected: host-mismatch site={} url={}", siteId.value, url.value)
-        replyTo ! BatchHostNotVerified
-        // Mirror per-slot path: count host-mismatch attempts but skip
-        // the rate observer / lifecycle bookkeeping.
-        behavior(state.copy(requestCount = requestCount + 1, lastRequestTimeMs = System.currentTimeMillis()))
-      } else {
-        val (newState, action) = recordRequestArrival(state)
-        action match {
-          case ArrivalAction.SkipRolloverGrace =>
-            // All-null outcomes — clients render unfilled slots, retry next page load.
-            replyTo ! BatchSelected(
-              slots.map(s => BatchSlotOutcome(
-                slotId = s.slotId, winner = None,
-                dogear = AdServer.dogearFallthrough(s, persistedApprovedIds.contains),
-              )),
-              Set.empty,
-            )
-            behavior(newState)
-          case ArrivalAction.SkipWarmup =>
-            replyTo ! BatchSelected(
-              slots.map(s => BatchSlotOutcome(
-                slotId = s.slotId, winner = None,
-                dogear = AdServer.dogearFallthrough(s, persistedApprovedIds.contains),
-              )),
-              Set.empty,
-            )
-            behavior(newState)
-          case ArrivalAction.Proceed =>
-            if (slots.isEmpty) {
-              replyTo ! BatchSelected(Vector.empty)
+      case BatchSelect(url, slots, _, replyTo, excludedCreatives, excludedCampaigns) =>
+        val hostOk = AdServer.hostMatches(url.value, verifiedHost)
+        if (!hostOk) {
+          log.warn("Batch serve rejected: host-mismatch site={} url={}", siteId.value, url.value)
+          replyTo ! BatchHostNotVerified
+          // Mirror per-slot path: count host-mismatch attempts but skip
+          // the rate observer / lifecycle bookkeeping.
+          behavior(state.copy(requestCount = requestCount + 1, lastRequestTimeMs = System.currentTimeMillis()))
+        } else {
+          val (newState, action) = recordRequestArrival(state)
+          action match {
+            case ArrivalAction.SkipRolloverGrace =>
+              // All-null outcomes — clients render unfilled slots, retry next page load.
+              replyTo ! BatchSelected(
+                slots.map(s =>
+                  BatchSlotOutcome(
+                    slotId = s.slotId, winner = None,
+                    dogear = AdServer.dogearFallthrough(s, persistedApprovedIds.contains)
+                  )),
+                Set.empty
+              )
               behavior(newState)
-            } else {
-              import org.apache.pekko.actor.typed.scaladsl.AskPattern.*
-              given Timeout = Timeout(300.millis)
-              // Fetch each slot's ServeView in parallel so the batch
-              // handler can score against whichever pool is populated.
-              // Unions the pools below by taking the first non-empty view
-              // (simplification — all slots on the same page URL pull from
-              // the same site auction, so representative pools overlap).
-              val viewFutures: Vector[Future[Option[ServeView]]] =
-                slots.map { slot =>
-                  val slotKey = key(siteId, slot.slotId)
-                  serveIndex
-                    .ask[Option[ServeView]](ServeIndexDData.Get(slotKey, _))
-                    .recover { case _ => None }
-                }
-              ctx.pipeToSelf(Future.sequence(viewFutures)) {
-                case scala.util.Success(views) =>
-                  // Union every slot's pool, deduped by creativeId.
-                  // The previous `views.flatten.headOption` worked when
-                  // every creative was registered at one fixed pixel
-                  // size — picking any one slot's view gave a representative
-                  // pool. With fluid creatives whose CandidateView carries
-                  // the creative's NATIVE render size (regardless of which
-                  // slot it bid for), only the slot whose pixel size matches
-                  // that native size could fill. Unioning + dedup hands
-                  // every creative to every slot's `pickBestForSlot`,
-                  // which then applies fluid vs. exact-size rules.
-                  val merged: Option[ServeView] = views.flatten match {
-                    case Vector() => None
-                    case nonEmpty =>
-                      val deduped = nonEmpty.iterator
-                        .flatMap(_.candidates)
-                        .toVector
-                        .distinctBy(_.creativeId)
-                      val pageCats = nonEmpty.iterator.flatMap(_.pageCategories).toSet
-                      val maxExpiry = nonEmpty.map(_.expiresAtMs).max
-                      Some(ServeView(deduped, nonEmpty.head.version, maxExpiry, pageCats))
+            case ArrivalAction.SkipWarmup =>
+              replyTo ! BatchSelected(
+                slots.map(s =>
+                  BatchSlotOutcome(
+                    slotId = s.slotId, winner = None,
+                    dogear = AdServer.dogearFallthrough(s, persistedApprovedIds.contains)
+                  )),
+                Set.empty
+              )
+              behavior(newState)
+            case ArrivalAction.Proceed =>
+              if (slots.isEmpty) {
+                replyTo ! BatchSelected(Vector.empty)
+                behavior(newState)
+              } else {
+                import org.apache.pekko.actor.typed.scaladsl.AskPattern.*
+                given Timeout = Timeout(300.millis)
+                // Fetch each slot's ServeView in parallel so the batch
+                // handler can score against whichever pool is populated.
+                // Unions the pools below by taking the first non-empty view
+                // (simplification — all slots on the same page URL pull from
+                // the same site auction, so representative pools overlap).
+                val viewFutures: Vector[Future[Option[ServeView]]] =
+                  slots.map { slot =>
+                    val slotKey = key(siteId, slot.slotId)
+                    serveIndex
+                      .ask[Option[ServeView]](ServeIndexDData.Get(slotKey, _))
+                      .recover { case _ => None }
                   }
-                  BatchSelectViewLoaded(
-                    view = merged,
-                    url, slots, 0L, replyTo, excludedCreatives, excludedCampaigns,
-                  )
-                case scala.util.Failure(_) =>
-                  BatchSelectViewLoaded(None, url, slots, 0L, replyTo, excludedCreatives, excludedCampaigns)
+                ctx.pipeToSelf(Future.sequence(viewFutures)) {
+                  case scala.util.Success(views) =>
+                    // Union every slot's pool, deduped by creativeId.
+                    // The previous `views.flatten.headOption` worked when
+                    // every creative was registered at one fixed pixel
+                    // size — picking any one slot's view gave a representative
+                    // pool. With fluid creatives whose CandidateView carries
+                    // the creative's NATIVE render size (regardless of which
+                    // slot it bid for), only the slot whose pixel size matches
+                    // that native size could fill. Unioning + dedup hands
+                    // every creative to every slot's `pickBestForSlot`,
+                    // which then applies fluid vs. exact-size rules.
+                    val merged: Option[ServeView] = views.flatten match {
+                      case Vector() => None
+                      case nonEmpty =>
+                        val deduped = nonEmpty.iterator
+                          .flatMap(_.candidates)
+                          .toVector
+                          .distinctBy(_.creativeId)
+                        val pageCats = nonEmpty.iterator.flatMap(_.pageCategories).toSet
+                        val maxExpiry = nonEmpty.map(_.expiresAtMs).max
+                        Some(ServeView(deduped, nonEmpty.head.version, maxExpiry, pageCats))
+                    }
+                    BatchSelectViewLoaded(
+                      view = merged,
+                      url, slots, 0L, replyTo, excludedCreatives, excludedCampaigns
+                    )
+                  case scala.util.Failure(_) =>
+                    BatchSelectViewLoaded(None, url, slots, 0L, replyTo, excludedCreatives, excludedCampaigns)
+                }
+                behavior(newState)
               }
-              behavior(newState)
+          }
+        }
+
+      case BatchSelectViewLoaded(viewOpt, url, slots, contentRecencyWindowMs, replyTo, excludedCreatives,
+            excludedCampaigns) =>
+        // Whenever a slot carries a pin but the ServeView path can't
+        // produce a winner, surface dogearFallthrough so the bootstrap
+        // can decide whether to clear the IDB pin (only emits
+        // creative_removed when the creativeId is no longer in the
+        // approved set — transient empty pools leave the pin alone).
+        def emptyOutcomes(cats: Set[String], reclassifyInMs: Long): BatchSelected = BatchSelected(
+          slots.map(s =>
+            BatchSlotOutcome(
+              slotId = s.slotId,
+              winner = None,
+              dogear = AdServer.dogearFallthrough(s, persistedApprovedIds.contains)
+            )),
+          cats,
+          reclassifyInMs = reclassifyInMs,
+          needText = reclassifyInMs <= 0 // legacy derived view for the old bootstrap
+        )
+        viewOpt match {
+          case None =>
+            // Index has nothing for this slot — ask the auctioneer to (re)populate
+            // so the next serve fills, instead of waiting for the periodic backstop.
+            selfHealReauction(url)
+            // Freshness token from the recorded classifiedAt: <=0 means never
+            // classified OR stale → the ad tag (re)classifies; >0 means known +
+            // fresh (ServeView merely lost) → self-heal alone repopulates it.
+            // Keying off classifiedAt (recorded the moment a page is classified,
+            // independent of bidders) is what stops a classified-but-no-bidder
+            // page from re-classifying on every serve.
+            val reclassify = reclassifyInMsFor(url.value, contentRecencyWindowMs)
+            replyTo ! emptyOutcomes(Set.empty, reclassifyInMs = reclassify)
+            behavior(state.copy(serveStats = serveStats.recordNoCandidates))
+          case Some(view) if view.candidates.isEmpty =>
+            selfHealReauction(url)
+            val reclassify = reclassifyInMsFor(url.value, contentRecencyWindowMs)
+            replyTo ! emptyOutcomes(view.pageCategories, reclassifyInMs = reclassify)
+            behavior(state.copy(serveStats = serveStats.recordNoCandidates))
+          case Some(view) =>
+            val nowMs = System.currentTimeMillis()
+            // Content recency filter — mirror processSelectViewLoaded.
+            // Skip when recencyWindowMs is 0 (publisher opted out / not
+            // configured) to avoid accidentally dropping every candidate.
+            val recencyFiltered =
+              if (contentRecencyWindowMs > 0)
+                view.candidates.filter(c => nowMs - c.classifiedAtMs <= contentRecencyWindowMs)
+              else view.candidates
+            if (contentRecencyWindowMs > 0 && recencyFiltered.isEmpty && view.candidates.nonEmpty) {
+              val ages = view.candidates.map(c => nowMs - c.classifiedAtMs)
+              log.info(
+                "BATCH ContentTooOld: {} candidates all older than recencyWindow={}ms (ages={}ms)",
+                view.candidates.size: java.lang.Integer,
+                contentRecencyWindowMs: java.lang.Long,
+                ages.mkString(","): String
+              )
+              replyTo ! BatchContentTooOld
+              behavior(state.copy(serveStats = serveStats.recordContentTooOld))
+            } else {
+              val currentMsSinceLast = if (lastRequestTimeMs > 0) nowMs - lastRequestTimeMs else 0L
+              val filteredView = view.copy(candidates = recencyFiltered)
+              val selCtx = SelectionContext(
+                creativeStats = creativeStats,
+                pacingStrategy = pacingStrategy,
+                requestArrivalRate = smoothedReqRate,
+                pendingSpendByCampaign = pendingSpendByCampaign,
+                dayDurationSeconds = dayDurationSeconds,
+                spendInfoCache = spendInfoCache,
+                trafficShapeTracker = trafficShapeTracker,
+                lastDayStart = lastDayStart,
+                requestCount = requestCount,
+                msSinceLastRequest = currentMsSinceLast,
+                lastCampaignSet = lastCampaignSet
+              )
+              checkBatchPacingGate(filteredView, url, slots, replyTo, selCtx, state.pageWinners, excludedCreatives,
+                excludedCampaigns)
+              Behaviors.same
             }
         }
-      }
 
-    case BatchSelectViewLoaded(viewOpt, url, slots, contentRecencyWindowMs, replyTo, excludedCreatives, excludedCampaigns) =>
-      // Whenever a slot carries a pin but the ServeView path can't
-      // produce a winner, surface dogearFallthrough so the bootstrap
-      // can decide whether to clear the IDB pin (only emits
-      // creative_removed when the creativeId is no longer in the
-      // approved set — transient empty pools leave the pin alone).
-      def emptyOutcomes(cats: Set[String], reclassifyInMs: Long): BatchSelected = BatchSelected(
-        slots.map(s => BatchSlotOutcome(
-          slotId = s.slotId,
-          winner = None,
-          dogear = AdServer.dogearFallthrough(s, persistedApprovedIds.contains),
-        )),
-        cats,
-        reclassifyInMs = reclassifyInMs,
-        needText = reclassifyInMs <= 0,   // legacy derived view for the old bootstrap
-      )
-      viewOpt match {
-        case None =>
-          // Index has nothing for this slot — ask the auctioneer to (re)populate
-          // so the next serve fills, instead of waiting for the periodic backstop.
-          selfHealReauction(url)
-          // Freshness token from the recorded classifiedAt: <=0 means never
-          // classified OR stale → the ad tag (re)classifies; >0 means known +
-          // fresh (ServeView merely lost) → self-heal alone repopulates it.
-          // Keying off classifiedAt (recorded the moment a page is classified,
-          // independent of bidders) is what stops a classified-but-no-bidder
-          // page from re-classifying on every serve.
-          val reclassify = reclassifyInMsFor(url.value, contentRecencyWindowMs)
-          replyTo ! emptyOutcomes(Set.empty, reclassifyInMs = reclassify)
-          behavior(state.copy(serveStats = serveStats.recordNoCandidates))
-        case Some(view) if view.candidates.isEmpty =>
-          selfHealReauction(url)
-          val reclassify = reclassifyInMsFor(url.value, contentRecencyWindowMs)
-          replyTo ! emptyOutcomes(view.pageCategories, reclassifyInMs = reclassify)
-          behavior(state.copy(serveStats = serveStats.recordNoCandidates))
-        case Some(view) =>
-          val nowMs = System.currentTimeMillis()
-          // Content recency filter — mirror processSelectViewLoaded.
-          // Skip when recencyWindowMs is 0 (publisher opted out / not
-          // configured) to avoid accidentally dropping every candidate.
-          val recencyFiltered =
-            if (contentRecencyWindowMs > 0)
-              view.candidates.filter(c => nowMs - c.classifiedAtMs <= contentRecencyWindowMs)
-            else view.candidates
-          if (contentRecencyWindowMs > 0 && recencyFiltered.isEmpty && view.candidates.nonEmpty) {
-            val ages = view.candidates.map(c => nowMs - c.classifiedAtMs)
-            log.info(
-              "BATCH ContentTooOld: {} candidates all older than recencyWindow={}ms (ages={}ms)",
-              view.candidates.size: java.lang.Integer,
-              contentRecencyWindowMs: java.lang.Long,
-              ages.mkString(","): String,
-            )
-            replyTo ! BatchContentTooOld
-            behavior(state.copy(serveStats = serveStats.recordContentTooOld))
-          } else {
-            val currentMsSinceLast = if (lastRequestTimeMs > 0) nowMs - lastRequestTimeMs else 0L
-            val filteredView = view.copy(candidates = recencyFiltered)
-            val selCtx = SelectionContext(
-              creativeStats          = creativeStats,
-              pacingStrategy         = pacingStrategy,
-              requestArrivalRate     = smoothedReqRate,
-              pendingSpendByCampaign = pendingSpendByCampaign,
-              dayDurationSeconds     = dayDurationSeconds,
-              spendInfoCache         = spendInfoCache,
-              trafficShapeTracker    = trafficShapeTracker,
-              lastDayStart           = lastDayStart,
-              requestCount           = requestCount,
-              msSinceLastRequest     = currentMsSinceLast,
-              lastCampaignSet        = lastCampaignSet,
-            )
-            checkBatchPacingGate(filteredView, url, slots, replyTo, selCtx, state.pageWinners, excludedCreatives, excludedCampaigns)
-            Behaviors.same
-          }
-      }
-
-    case BatchSpendInfoFetched(fetchedInfo, view, url, slots, replyTo, selCtx, excludedCreatives, excludedCampaigns) =>
-      val now = Instant.now()
-      val updatedCache = spendInfoCache ++ fetchedInfo
-      val currentCampaignSet = view.candidates.map(_.campaignId).toSet
-      if (fetchedInfo.isEmpty) {
-        // Fetch returned nothing — fail open, serve without pacing
-        // gating. Mirrors SpendInfoFetched's dummy path in the per-
-        // slot flow.
-        log.warn("BATCH PACING: fetch returned no spend info, serving without gate ({} slots)",
-          slots.size: java.lang.Integer)
-        val pageKey = AdServer.pageWinnersKeyFor(siteId, url)
-        val pageBlocked: Set[String] = state.pageWinners.get(pageKey)
-          .map(_.campaigns).getOrElse(Set.empty)
-        ctx.self ! BatchPacingGateResult(
-          shouldServe        = true,
-          view               = view,
-          url                = url,
-          slots              = slots,
-          eligibleCandidates = view.candidates,
-          pageBlocked        = pageBlocked,
-          replyTo            = replyTo,
-          currentCampaignSet = currentCampaignSet,
-          excludedCreatives  = excludedCreatives,
-          excludedCampaigns  = excludedCampaigns,
-        )
-        behavior(state.copy(
-          spendInfoCache    = updatedCache,
-          lastRequestTimeMs = now.toEpochMilli,
-        ))
-      } else {
-        // Mix-change reset if needed.
-        if (lastCampaignSet.nonEmpty && currentCampaignSet != lastCampaignSet) {
-          log.info("BATCH PACING: campaign mix changed, resetting PI")
-          pacingStrategy.reset()
-        }
-        val validInfos = fetchedInfo.toSeq
-        val cpmByCampaign = PacingLogic.computeCpmByCampaign(view.candidates)
-        val (totalDailyBudget, totalTodaySpend, avgCpm) = PacingLogic.computeAggregateBudget(
-          validInfos, cpmByCampaign, pendingSpendByCampaign,
-        )
-        val cachedDayStart = validInfos.map(_._2.dayStart).minBy(_.toEpochMilli)
-        // Real calendar days pace against the CAMPAIGN's day anchor (UTC
-        // midnight), never the entity's in-memory anchor: lastDayStart
-        // resets to ~boot on every restart, which made expectedSpend start
-        // from ~$0 while todaySpend carried the whole day's real spend —
-        // spendRatio exploded (12-18x observed live 2026-07-06) and the PI
-        // throttled 100% of serves for minutes after every restart, and any
-        // spend burst (traffic simulator) re-inflated it indefinitely.
-        // lastDayStart still wins for simulated days, whose rollovers are
-        // entity-driven.
-        val effectiveDayStart =
-          if (selCtx.dayDurationSeconds == 86400) cachedDayStart
-          else lastDayStart.filter(_.isAfter(cachedDayStart)).getOrElse(cachedDayStart)
-        val pacingCtx = PacingContext(
-          dailyBudget        = totalDailyBudget,
-          todaySpend         = totalTodaySpend,
-          dayStart           = effectiveDayStart,
-          now                = now,
-          requestArrivalRate = selCtx.requestArrivalRate,
-          competingCampaigns = 1,
-          avgCpm             = avgCpm,
-          dayDurationSeconds = selCtx.dayDurationSeconds,
-          trafficShape       = Some(selCtx.trafficShapeTracker),
-          requestCount       = selCtx.requestCount,
-          msSinceLastRequest = selCtx.msSinceLastRequest,
-        )
-        val throttle = pacingStrategy.throttleProbability(pacingCtx)
-        val requestPasses = rng.nextDouble() >= throttle
-        val firstInfo = {
-          val h = validInfos.head._2
-          CampaignEntity.SpendInfo(h.dailyBudget, h.todaySpend, h.dayStart)
-        }
-        val eligibleCampIds = validInfos.map(_._1).toSet
-        val eligibleCandidates = if (requestPasses)
-          view.candidates.filter(c => eligibleCampIds.contains(c.campaignId))
-        else Vector.empty
-        val pageKey = AdServer.pageWinnersKeyFor(siteId, url)
-        val pageBlocked: Set[String] = state.pageWinners.get(pageKey)
-          .map(_.campaigns).getOrElse(Set.empty)
-        log.info("BATCH PACING: throttle={}% passes={} candidates={} spendRatio={}",
-          f"${throttle * 100}%.0f", requestPasses, eligibleCandidates.size: java.lang.Integer,
-          f"${pacingCtx.spendRatio}%.2f")
-        val _ = firstInfo  // reserved for future logging parity
-        ctx.self ! BatchPacingGateResult(
-          shouldServe        = requestPasses,
-          view               = view,
-          url                = url,
-          slots              = slots,
-          eligibleCandidates = eligibleCandidates,
-          pageBlocked        = pageBlocked,
-          replyTo            = replyTo,
-          currentCampaignSet = currentCampaignSet,
-          excludedCreatives  = excludedCreatives,
-          excludedCampaigns  = excludedCampaigns,
-        )
-        behavior(state.copy(
-          lastDayStart       = Some(effectiveDayStart),
-          spendInfoCache     = updatedCache,
-          lastRequestTimeMs  = now.toEpochMilli,
-          lastCampaignSet    = currentCampaignSet,
-        ))
-      }
-
-    case BatchPacingGateResult(shouldServe, view, url, slots, eligibleCandidates, pageBlocked, replyTo, newCampaignSet, excludedCreatives, excludedCampaigns) =>
-      if (!shouldServe) {
-        // Pacing-throttled batches still honor pin hints — the reader
-        // explicitly bookmarked this creative and folds are free, so
-        // throttling shouldn't void the user's gesture. Walk the slots:
-        // if a slot has a pin AND the pinned creativeId is in the
-        // candidate pool, emit it as honored at clearingPrice=zero (no
-        // CPM spend, mirrors the in-auction pin-honor path). Other
-        // slots return winner=None as normal.
-        val pinHonoredOutcomes = slots.map { slot =>
-          val pinned: Option[CandidateView] =
-            slot.pin.flatMap(cid => view.candidates.find(_.creativeId == cid))
-          pinned match {
-            case Some(c) =>
-              BatchSlotOutcome(
-                slotId        = slot.slotId,
-                winner        = Some(c),
-                clearingPrice = CPM.zero,
-                requestId     = java.util.UUID.randomUUID().toString,
-                dogear        = Some(DogearOutcome(honored = true)),
-              )
-            case None =>
-              // Pin couldn't be honored (creative no longer in pool).
-              // Surface the same `creative_removed` signal the normal
-              // auction path emits so the client can clean up its IDB
-              // pin even when pacing throttled the batch.
-              BatchSlotOutcome(
-                slotId = slot.slotId,
-                winner = None,
-                dogear = AdServer.dogearFallthrough(slot, persistedApprovedIds.contains),
-              )
-          }
-        }
-        replyTo ! BatchSelected(pinHonoredOutcomes, view.pageCategories)
-        behavior(state.copy(
-          serveStats      = serveStats.recordPacingSkipped,
-          lastCampaignSet = newCampaignSet,
-        ))
-      } else {
-        val afterFloor = eligibleCandidates.filter(c => c.cpm >= categoryFloorFor(c.category))
-        // Only short-circuit to "all empty" when nothing clears the floor
-        // AND no slot carries a pin. If a pin is present we must still fall
-        // through to batchReserveWithRetry: dog-ear pins bypass the floor
-        // (they serve at CPM.zero against the pre-floor `pinLookupPool`), so
-        // an empty `afterFloor` during a high-floor sweep cycle must not blank
-        // a pinned slot. The reserve loop handles an empty auction pool fine —
-        // non-pinned slots resolve to winner=None, pinned slots honor from the
-        // pre-floor pool.
-        if (afterFloor.isEmpty && !slots.exists(_.pin.isDefined)) {
-          replyTo ! BatchSelected(
-            slots.map(s => BatchSlotOutcome(
-              slotId = s.slotId, winner = None,
-              dogear = AdServer.dogearFallthrough(s, persistedApprovedIds.contains),
-            )),
-            view.pageCategories,
+      case BatchSpendInfoFetched(fetchedInfo, view, url, slots, replyTo, selCtx, excludedCreatives,
+            excludedCampaigns) =>
+        val now = Instant.now()
+        val updatedCache = spendInfoCache ++ fetchedInfo
+        val currentCampaignSet = view.candidates.map(_.campaignId).toSet
+        if (fetchedInfo.isEmpty) {
+          // Fetch returned nothing — fail open, serve without pacing
+          // gating. Mirrors SpendInfoFetched's dummy path in the per-
+          // slot flow.
+          log.warn("BATCH PACING: fetch returned no spend info, serving without gate ({} slots)",
+            slots.size: java.lang.Integer)
+          val pageKey = AdServer.pageWinnersKeyFor(siteId, url)
+          val pageBlocked: Set[String] = state.pageWinners.get(pageKey)
+            .map(_.campaigns).getOrElse(Set.empty)
+          ctx.self ! BatchPacingGateResult(
+            shouldServe = true,
+            view = view,
+            url = url,
+            slots = slots,
+            eligibleCandidates = view.candidates,
+            pageBlocked = pageBlocked,
+            replyTo = replyTo,
+            currentCampaignSet = currentCampaignSet,
+            excludedCreatives = excludedCreatives,
+            excludedCampaigns = excludedCampaigns
           )
           behavior(state.copy(
-            serveStats      = serveStats.recordNoCandidates,
-            lastCampaignSet = newCampaignSet,
+            spendInfoCache = updatedCache,
+            lastRequestTimeMs = now.toEpochMilli
           ))
         } else {
-          // Run initial assignment + retry loop as a Future chain.
-          // pinLookupPool = eligibleCandidates (pre-floor) so reader
-          // bookmarks survive sweep cycles testing high-floor candidates.
-          // The auction pool stays floor-filtered; only the pin-honor
-          // lookup gets the wider view.
-          val outcomesF = batchReserveWithRetry(
-            slots             = slots,
-            pool              = afterFloor,
-            pageBlocked       = pageBlocked,
-            alpha             = siteBidWeight,
-            stats             = creativeStats,
-            excludedCreatives = excludedCreatives,
-            excludedCampaigns = excludedCampaigns,
-            isApproved        = persistedApprovedIds.contains,
-            pinLookupPool     = eligibleCandidates,
+          // Mix-change reset if needed.
+          if (lastCampaignSet.nonEmpty && currentCampaignSet != lastCampaignSet) {
+            log.info("BATCH PACING: campaign mix changed, resetting PI")
+            pacingStrategy.reset()
+          }
+          val validInfos = fetchedInfo.toSeq
+          val cpmByCampaign = PacingLogic.computeCpmByCampaign(view.candidates)
+          val (totalDailyBudget, totalTodaySpend, avgCpm) = PacingLogic.computeAggregateBudget(
+            validInfos, cpmByCampaign, pendingSpendByCampaign
           )
-          ctx.pipeToSelf(outcomesF) {
-            case Success((outcomes, pending)) =>
-              BatchReservationsResolved(outcomes, pending, url, view.pageCategories, replyTo)
-            case Failure(ex) =>
-              log.warn("BATCH RESERVE: future failed: {}", ex.getMessage)
-              BatchReservationsResolved(
-                slots.map(s => BatchSlotOutcome(s.slotId, None)),
-                Map.empty,
-                url,
-                view.pageCategories,
-                replyTo,
-              )
+          val cachedDayStart = validInfos.map(_._2.dayStart).minBy(_.toEpochMilli)
+          // Real calendar days pace against the CAMPAIGN's day anchor (UTC
+          // midnight), never the entity's in-memory anchor: lastDayStart
+          // resets to ~boot on every restart, which made expectedSpend start
+          // from ~$0 while todaySpend carried the whole day's real spend —
+          // spendRatio exploded (12-18x observed live 2026-07-06) and the PI
+          // throttled 100% of serves for minutes after every restart, and any
+          // spend burst (traffic simulator) re-inflated it indefinitely.
+          // lastDayStart still wins for simulated days, whose rollovers are
+          // entity-driven.
+          val effectiveDayStart =
+            if (selCtx.dayDurationSeconds == 86400) cachedDayStart
+            else lastDayStart.filter(_.isAfter(cachedDayStart)).getOrElse(cachedDayStart)
+          val pacingCtx = PacingContext(
+            dailyBudget = totalDailyBudget,
+            todaySpend = totalTodaySpend,
+            dayStart = effectiveDayStart,
+            now = now,
+            requestArrivalRate = selCtx.requestArrivalRate,
+            competingCampaigns = 1,
+            avgCpm = avgCpm,
+            dayDurationSeconds = selCtx.dayDurationSeconds,
+            trafficShape = Some(selCtx.trafficShapeTracker),
+            requestCount = selCtx.requestCount,
+            msSinceLastRequest = selCtx.msSinceLastRequest
+          )
+          val throttle = pacingStrategy.throttleProbability(pacingCtx)
+          val requestPasses = rng.nextDouble() >= throttle
+          val firstInfo = {
+            val h = validInfos.head._2
+            CampaignEntity.SpendInfo(h.dailyBudget, h.todaySpend, h.dayStart)
           }
-          behavior(state.copy(lastCampaignSet = newCampaignSet))
+          val eligibleCampIds = validInfos.map(_._1).toSet
+          val eligibleCandidates = if (requestPasses)
+            view.candidates.filter(c => eligibleCampIds.contains(c.campaignId))
+          else Vector.empty
+          val pageKey = AdServer.pageWinnersKeyFor(siteId, url)
+          val pageBlocked: Set[String] = state.pageWinners.get(pageKey)
+            .map(_.campaigns).getOrElse(Set.empty)
+          log.info("BATCH PACING: throttle={}% passes={} candidates={} spendRatio={}",
+            f"${throttle * 100}%.0f", requestPasses, eligibleCandidates.size: java.lang.Integer,
+            f"${pacingCtx.spendRatio}%.2f")
+          val _ = firstInfo // reserved for future logging parity
+          ctx.self ! BatchPacingGateResult(
+            shouldServe = requestPasses,
+            view = view,
+            url = url,
+            slots = slots,
+            eligibleCandidates = eligibleCandidates,
+            pageBlocked = pageBlocked,
+            replyTo = replyTo,
+            currentCampaignSet = currentCampaignSet,
+            excludedCreatives = excludedCreatives,
+            excludedCampaigns = excludedCampaigns
+          )
+          behavior(state.copy(
+            lastDayStart = Some(effectiveDayStart),
+            spendInfoCache = updatedCache,
+            lastRequestTimeMs = now.toEpochMilli,
+            lastCampaignSet = currentCampaignSet
+          ))
         }
-      }
 
-    case BatchReservationsResolved(outcomes, pendingDeltas, url, pageCats, replyTo) =>
-      // Record pending-spend deltas so concurrent batches don't over-
-      // reserve before impression events commit. Key off campaignId;
-      // timestamp now so the stale-cleaner sweeps it if never committed.
-      val now = Instant.now()
-      val updatedPending = pendingDeltas.foldLeft(pendingSpendByCampaign) { case (acc, (campId, delta)) =>
-        val (current, _) = acc.getOrElse(campId, (0.0, now))
-        acc.updated(campId, (current + delta, now))
-      }
-      // Record page-winners for each confirmed winner so subsequent
-      // serves on the same URL see them in pageBlocked.
-      val pageKey = AdServer.pageWinnersKeyFor(siteId, url)
-      val nowMs = now.toEpochMilli
-      val winningCampaigns: Set[String] = outcomes.flatMap(_.winner).map(_.campaignId.value).toSet
-      val winningCreatives: Set[String] = outcomes.flatMap(_.winner).map(_.creativeId.value).toSet
-      val updatedPageWinners = if (winningCampaigns.isEmpty) state.pageWinners else {
-        val prev = state.pageWinners.get(pageKey)
-        val existingCamps     = prev.map(_.campaigns).getOrElse(Set.empty)
-        val existingCreatives = prev.map(_.creatives).getOrElse(Set.empty)
-        state.pageWinners.updated(
-          pageKey,
-          AdServer.PageWinners(
-            campaigns   = existingCamps ++ winningCampaigns,
-            firstSeenMs = prev.map(_.firstSeenMs).getOrElse(nowMs),
-            creatives   = existingCreatives ++ winningCreatives,
-          ),
-        )
-      }
-      val servedCount = outcomes.count(_.winner.isDefined)
-      val emptyCount = outcomes.size - servedCount
-      log.info("BATCH SERVED: {} slots filled, {} unfilled",
-        servedCount: java.lang.Integer, emptyCount: java.lang.Integer)
-      replyTo ! BatchSelected(outcomes, pageCats)
-      // Increment serveStats per-winner via recordSelectedInBucket so
-      // `totalSpend` and `hourlyImpressions` update alongside `selected`.
-      // Earlier code took a shortcut (`serveStats.copy(selected += N)`)
-      // that bumped only the count and silently left totalSpend at 0 —
-      // breaks the dashboard Revenue tile and stalls traffic-shape
-      // learning since hourly buckets never populate.
-      val updatedServeStats: ServeStats = if (servedCount == 0) {
-        serveStats.recordNoCandidates
-      } else {
-        val hour = java.time.LocalTime.now(java.time.ZoneOffset.UTC).getHour
-        outcomes.foldLeft(serveStats) { (stats, o) =>
-          o.winner match {
-            case Some(_) =>
-              // Use the per-slot clearing price (what the winner actually
-              // pays). Falls back to winner.cpm when clearingPrice is
-              // zero — that case shouldn't occur in normal serve paths
-              // but keeps the counter consistent if it ever does.
-              val cpm: Double =
-                if (o.clearingPrice.toDouble > 0) o.clearingPrice.toDouble
-                else o.winner.map(_.cpm.toDouble).getOrElse(0.0)
-              stats.recordSelectedInBucket(hour, cpm / 1000.0)
-            case None => stats
+      case BatchPacingGateResult(shouldServe, view, url, slots, eligibleCandidates, pageBlocked, replyTo,
+            newCampaignSet, excludedCreatives, excludedCampaigns) =>
+        if (!shouldServe) {
+          // Pacing-throttled batches still honor pin hints — the reader
+          // explicitly bookmarked this creative and folds are free, so
+          // throttling shouldn't void the user's gesture. Walk the slots:
+          // if a slot has a pin AND the pinned creativeId is in the
+          // candidate pool, emit it as honored at clearingPrice=zero (no
+          // CPM spend, mirrors the in-auction pin-honor path). Other
+          // slots return winner=None as normal.
+          val pinHonoredOutcomes = slots.map { slot =>
+            val pinned: Option[CandidateView] =
+              slot.pin.flatMap(cid => view.candidates.find(_.creativeId == cid))
+            pinned match {
+              case Some(c) =>
+                BatchSlotOutcome(
+                  slotId = slot.slotId,
+                  winner = Some(c),
+                  clearingPrice = CPM.zero,
+                  requestId = java.util.UUID.randomUUID().toString,
+                  dogear = Some(DogearOutcome(honored = true))
+                )
+              case None =>
+                // Pin couldn't be honored (creative no longer in pool).
+                // Surface the same `creative_removed` signal the normal
+                // auction path emits so the client can clean up its IDB
+                // pin even when pacing throttled the batch.
+                BatchSlotOutcome(
+                  slotId = slot.slotId,
+                  winner = None,
+                  dogear = AdServer.dogearFallthrough(slot, persistedApprovedIds.contains)
+                )
+            }
+          }
+          replyTo ! BatchSelected(pinHonoredOutcomes, view.pageCategories)
+          behavior(state.copy(
+            serveStats = serveStats.recordPacingSkipped,
+            lastCampaignSet = newCampaignSet
+          ))
+        } else {
+          val afterFloor = eligibleCandidates.filter(c => c.cpm >= categoryFloorFor(c.category))
+          // Only short-circuit to "all empty" when nothing clears the floor
+          // AND no slot carries a pin. If a pin is present we must still fall
+          // through to batchReserveWithRetry: dog-ear pins bypass the floor
+          // (they serve at CPM.zero against the pre-floor `pinLookupPool`), so
+          // an empty `afterFloor` during a high-floor sweep cycle must not blank
+          // a pinned slot. The reserve loop handles an empty auction pool fine —
+          // non-pinned slots resolve to winner=None, pinned slots honor from the
+          // pre-floor pool.
+          if (afterFloor.isEmpty && !slots.exists(_.pin.isDefined)) {
+            replyTo ! BatchSelected(
+              slots.map(s =>
+                BatchSlotOutcome(
+                  slotId = s.slotId, winner = None,
+                  dogear = AdServer.dogearFallthrough(s, persistedApprovedIds.contains)
+                )),
+              view.pageCategories
+            )
+            behavior(state.copy(
+              serveStats = serveStats.recordNoCandidates,
+              lastCampaignSet = newCampaignSet
+            ))
+          } else {
+            // Run initial assignment + retry loop as a Future chain.
+            // pinLookupPool = eligibleCandidates (pre-floor) so reader
+            // bookmarks survive sweep cycles testing high-floor candidates.
+            // The auction pool stays floor-filtered; only the pin-honor
+            // lookup gets the wider view.
+            val outcomesF = batchReserveWithRetry(
+              slots = slots,
+              pool = afterFloor,
+              pageBlocked = pageBlocked,
+              alpha = siteBidWeight,
+              stats = creativeStats,
+              excludedCreatives = excludedCreatives,
+              excludedCampaigns = excludedCampaigns,
+              isApproved = persistedApprovedIds.contains,
+              pinLookupPool = eligibleCandidates
+            )
+            ctx.pipeToSelf(outcomesF) {
+              case Success((outcomes, pending)) =>
+                BatchReservationsResolved(outcomes, pending, url, view.pageCategories, replyTo)
+              case Failure(ex) =>
+                log.warn("BATCH RESERVE: future failed: {}", ex.getMessage)
+                BatchReservationsResolved(
+                  slots.map(s => BatchSlotOutcome(s.slotId, None)),
+                  Map.empty,
+                  url,
+                  view.pageCategories,
+                  replyTo
+                )
+            }
+            behavior(state.copy(lastCampaignSet = newCampaignSet))
           }
         }
-      }
-      // Track creativeIds whose pin this batch honored. Best-effort signal for
-      // the topic-narrow orphan-eligibility predicate: a pinned creative must
-      // survive eviction when the advertiser drops a DIFFERENT topic. Pins are
-      // pruned when the creative leaves approval (CampaignPaused / CreativePaused
-      // / EvictCampaignFromSite).
-      val honoredPins: Set[CreativeId] =
-        outcomes.flatMap(o => o.dogear.filter(_.honored).flatMap(_ => o.winner.map(_.creativeId))).toSet
-      val updatedPinned =
-        if (honoredPins.isEmpty) state.pinnedCreativeIds else state.pinnedCreativeIds ++ honoredPins
-      behavior(state.copy(
-        pendingSpendByCampaign = updatedPending,
-        pageWinners            = updatedPageWinners,
-        serveStats             = updatedServeStats,
-        pinnedCreativeIds      = updatedPinned,
-      ))
+
+      case BatchReservationsResolved(outcomes, pendingDeltas, url, pageCats, replyTo) =>
+        // Record pending-spend deltas so concurrent batches don't over-
+        // reserve before impression events commit. Key off campaignId;
+        // timestamp now so the stale-cleaner sweeps it if never committed.
+        val now = Instant.now()
+        val updatedPending = pendingDeltas.foldLeft(pendingSpendByCampaign) { case (acc, (campId, delta)) =>
+          val (current, _) = acc.getOrElse(campId, (0.0, now))
+          acc.updated(campId, (current + delta, now))
+        }
+        // Record page-winners for each confirmed winner so subsequent
+        // serves on the same URL see them in pageBlocked.
+        val pageKey = AdServer.pageWinnersKeyFor(siteId, url)
+        val nowMs = now.toEpochMilli
+        val winningCampaigns: Set[String] = outcomes.flatMap(_.winner).map(_.campaignId.value).toSet
+        val winningCreatives: Set[String] = outcomes.flatMap(_.winner).map(_.creativeId.value).toSet
+        val updatedPageWinners = if (winningCampaigns.isEmpty) state.pageWinners
+        else {
+          val prev = state.pageWinners.get(pageKey)
+          val existingCamps = prev.map(_.campaigns).getOrElse(Set.empty)
+          val existingCreatives = prev.map(_.creatives).getOrElse(Set.empty)
+          state.pageWinners.updated(
+            pageKey,
+            AdServer.PageWinners(
+              campaigns = existingCamps ++ winningCampaigns,
+              firstSeenMs = prev.map(_.firstSeenMs).getOrElse(nowMs),
+              creatives = existingCreatives ++ winningCreatives
+            )
+          )
+        }
+        val servedCount = outcomes.count(_.winner.isDefined)
+        val emptyCount = outcomes.size - servedCount
+        log.info("BATCH SERVED: {} slots filled, {} unfilled",
+          servedCount: java.lang.Integer, emptyCount: java.lang.Integer)
+        replyTo ! BatchSelected(outcomes, pageCats)
+        // Increment serveStats per-winner via recordSelectedInBucket so
+        // `totalSpend` and `hourlyImpressions` update alongside `selected`.
+        // Earlier code took a shortcut (`serveStats.copy(selected += N)`)
+        // that bumped only the count and silently left totalSpend at 0 —
+        // breaks the dashboard Revenue tile and stalls traffic-shape
+        // learning since hourly buckets never populate.
+        val updatedServeStats: ServeStats = if (servedCount == 0) {
+          serveStats.recordNoCandidates
+        } else {
+          val hour = java.time.LocalTime.now(java.time.ZoneOffset.UTC).getHour
+          outcomes.foldLeft(serveStats) { (stats, o) =>
+            o.winner match {
+              case Some(_) =>
+                // Use the per-slot clearing price (what the winner actually
+                // pays). Falls back to winner.cpm when clearingPrice is
+                // zero — that case shouldn't occur in normal serve paths
+                // but keeps the counter consistent if it ever does.
+                val cpm: Double =
+                  if (o.clearingPrice.toDouble > 0) o.clearingPrice.toDouble
+                  else o.winner.map(_.cpm.toDouble).getOrElse(0.0)
+                stats.recordSelectedInBucket(hour, cpm / 1000.0)
+              case None => stats
+            }
+          }
+        }
+        // Track creativeIds whose pin this batch honored. Best-effort signal for
+        // the topic-narrow orphan-eligibility predicate: a pinned creative must
+        // survive eviction when the advertiser drops a DIFFERENT topic. Pins are
+        // pruned when the creative leaves approval (CampaignPaused / CreativePaused
+        // / EvictCampaignFromSite).
+        val honoredPins: Set[CreativeId] =
+          outcomes.flatMap(o => o.dogear.filter(_.honored).flatMap(_ => o.winner.map(_.creativeId))).toSet
+        val updatedPinned =
+          if (honoredPins.isEmpty) state.pinnedCreativeIds else state.pinnedCreativeIds ++ honoredPins
+        behavior(state.copy(
+          pendingSpendByCampaign = updatedPending,
+          pageWinners = updatedPageWinners,
+          serveStats = updatedServeStats,
+          pinnedCreativeIds = updatedPinned
+        ))
     }
   }
 
@@ -2534,40 +2611,41 @@ private[delivery] class AdServer(
   private def statsRecording(state: State): PartialFunction[Command, Behavior[Command]] = {
     import state.*
     {
-    case RecordImpression(creativeId) =>
-      val now = Instant.now()
-      behavior(state.copy(
-        creativeStats = creativeStats.updatedWith(creativeId)(_.orElse(Some(CreativeStats())).map(_.recordImpression(now)))
-      ))
+      case RecordImpression(creativeId) =>
+        val now = Instant.now()
+        behavior(state.copy(
+          creativeStats = creativeStats.updatedWith(creativeId)(
+            _.orElse(Some(CreativeStats())).map(_.recordImpression(now)))
+        ))
 
-    case RecordClick(creativeId) =>
-      val now = Instant.now()
-      behavior(state.copy(
-        creativeStats = creativeStats.updatedWith(creativeId)(_.orElse(Some(CreativeStats())).map(_.recordClick(now)))
-      ))
+      case RecordClick(creativeId) =>
+        val now = Instant.now()
+        behavior(state.copy(
+          creativeStats = creativeStats.updatedWith(creativeId)(_.orElse(Some(CreativeStats())).map(_.recordClick(now)))
+        ))
 
-    case RecordFold(creativeId) =>
-      val now = Instant.now()
-      behavior(state.copy(
-        creativeStats = creativeStats.updatedWith(creativeId)(_.orElse(Some(CreativeStats())).map(_.recordFold(now)))
-      ))
+      case RecordFold(creativeId) =>
+        val now = Instant.now()
+        behavior(state.copy(
+          creativeStats = creativeStats.updatedWith(creativeId)(_.orElse(Some(CreativeStats())).map(_.recordFold(now)))
+        ))
 
-    case GetCreativeStats(replyTo) =>
-      val statsMap = creativeStats.map { case (cid, stats) => cid.value -> stats }
-      replyTo ! CreativeStatsMap(siteId.value, statsMap)
-      Behaviors.same
+      case GetCreativeStats(replyTo) =>
+        val statsMap = creativeStats.map { case (cid, stats) => cid.value -> stats }
+        replyTo ! CreativeStatsMap(siteId.value, statsMap)
+        Behaviors.same
 
-    case SnapshotStats =>
-      processSnapshotStats(creativeStats, trafficShapeTracker)
-      Behaviors.same
+      case SnapshotStats =>
+        processSnapshotStats(creativeStats, trafficShapeTracker)
+        Behaviors.same
 
-    case SnapshotSaveResult(count, errorOpt) =>
-      errorOpt.fold(
-        log.info("Stats snapshot saved: site={} creatives={}", siteId.value, count)
-      )(ex =>
-        log.error("Failed to save stats snapshot: site={} error={}", siteId.value, ex.getMessage)
-      )
-      Behaviors.same
+      case SnapshotSaveResult(count, errorOpt) =>
+        errorOpt.fold(
+          log.info("Stats snapshot saved: site={} creatives={}", siteId.value, count)
+        )(ex =>
+          log.error("Failed to save stats snapshot: site={} error={}", siteId.value, ex.getMessage)
+        )
+        Behaviors.same
     }
   }
 
@@ -2579,156 +2657,158 @@ private[delivery] class AdServer(
   private def maintenance(state: State): PartialFunction[Command, Behavior[Command]] = {
     import state.*
     {
-    case PublishTrafficRatio =>
-      val elapsed = lastDayStart.map(ds => java.time.Duration.between(ds, Instant.now()).getSeconds.toDouble).getOrElse(0.0)
-      val ratio = if (trafficShapeTracker.isWarmedUp) trafficShapeTracker.relativeVolumeAtTime(elapsed) else 1.0
-      val data = AdServer.TrafficRatioData(ratio, trafficShapeTracker.isWarmedUp)
-      replicator ! Replicator.Update(
-        AdServer.TrafficRatioKey,
-        LWWMap.empty[SiteId, AdServer.TrafficRatioData],
-        Replicator.WriteLocal,
-        ddataUpdateAdapter
-      )(_.put(selfUniqueAddress, siteId, data))
-      Behaviors.same
-
-    case RemoveCampaign(campaignId) =>
-      log.info("Removing campaign {} from ServeView for site {}", campaignId.value, siteId.value)
-      serveIndex ! ServeIndexDData.RemoveCampaignBySite(siteId.value, campaignId)
-      Behaviors.same
-
-    case Passivate =>
-      log.info("Passivating AdServer for site {} (admin request)", siteId.value)
-      Behaviors.stopped
-
-    case CleanupStalePending =>
-      val now = Instant.now()
-      val staleThreshold = java.time.Duration.ofSeconds(3)
-      val cleaned = pendingSpendByCampaign.filter { case (_, (_, ts)) =>
-        java.time.Duration.between(ts, now).compareTo(staleThreshold) < 0
-      }
-      if (cleaned.size < pendingSpendByCampaign.size) {
-        val removed = pendingSpendByCampaign.size - cleaned.size
-        log.debug("Cleaned up {} stale pending spend entries for publisher {}", removed, siteId.value)
-        behavior(state.copy(pendingSpendByCampaign = cleaned))
-      } else {
+      case PublishTrafficRatio =>
+        val elapsed =
+          lastDayStart.map(ds => java.time.Duration.between(ds, Instant.now()).getSeconds.toDouble).getOrElse(0.0)
+        val ratio = if (trafficShapeTracker.isWarmedUp) trafficShapeTracker.relativeVolumeAtTime(elapsed) else 1.0
+        val data = AdServer.TrafficRatioData(ratio, trafficShapeTracker.isWarmedUp)
+        replicator ! Replicator.Update(
+          AdServer.TrafficRatioKey,
+          LWWMap.empty[SiteId, AdServer.TrafficRatioData],
+          Replicator.WriteLocal,
+          ddataUpdateAdapter
+        )(_.put(selfUniqueAddress, siteId, data))
         Behaviors.same
-      }
 
-    case PurgeExpired =>
-      processPurgeExpired()
-      // Also clean up stale spend cache entries (campaigns that haven't sent updates in 1 hour)
-      val staleMaxAge = 1.hour
-      val beforeCount = spendInfoCache.size
-      val cleanedState = state.cleanupStaleSpendCache(staleMaxAge)
-      val removedCount = beforeCount - cleanedState.spendInfoCache.size
-      if (removedCount > 0) {
-        log.info("Cleaned up {} stale spend cache entries for publisher {}", removedCount, siteId.value)
-      }
-      // Clean up creativeStats entries whose buckets have all expired
-      val now = Instant.now()
-      val cutoffMinute = now.getEpochSecond / 60 - 60 // windowMinutes default = 60
-      val prunedStats = cleanedState.creativeStats.filter { case (_, stats) =>
-        stats.buckets.exists { case (minute, _) => minute > cutoffMinute }
-      }
-      val statsRemoved = cleanedState.creativeStats.size - prunedStats.size
-      if (statsRemoved > 0) {
-        log.debug("Cleaned up {} empty creativeStats entries for publisher {}", statsRemoved, siteId.value)
-      }
-      behavior(cleanedState.copy(creativeStats = prunedStats))
-
-    case PurgeExpiredResult(count) =>
-      if (count > 0) {
-        log.info("Purged {} expired pending selections for publisher {}", count, siteId.value)
-      }
-      Behaviors.same
-
-    case CreativeStatsLoaded(rawStats) =>
-      if (rawStats.isEmpty) {
-        log.debug("No recent creative stats found for site {}", siteId.value)
+      case RemoveCampaign(campaignId) =>
+        log.info("Removing campaign {} from ServeView for site {}", campaignId.value, siteId.value)
+        serveIndex ! ServeIndexDData.RemoveCampaignBySite(siteId.value, campaignId)
         Behaviors.same
-      } else {
-        val restored = rawStats.map { case (cid, buckets) =>
-          CreativeId(cid) -> CreativeStats(buckets = buckets)
+
+      case Passivate =>
+        log.info("Passivating AdServer for site {} (admin request)", siteId.value)
+        Behaviors.stopped
+
+      case CleanupStalePending =>
+        val now = Instant.now()
+        val staleThreshold = java.time.Duration.ofSeconds(3)
+        val cleaned = pendingSpendByCampaign.filter { case (_, (_, ts)) =>
+          java.time.Duration.between(ts, now).compareTo(staleThreshold) < 0
         }
-        log.info("Restored creative stats for site {}: {} creatives from tracking_events", siteId.value, restored.size)
-        behavior(state.copy(creativeStats = restored ++ creativeStats))
-      }
+        if (cleaned.size < pendingSpendByCampaign.size) {
+          val removed = pendingSpendByCampaign.size - cleaned.size
+          log.debug("Cleaned up {} stale pending spend entries for publisher {}", removed, siteId.value)
+          behavior(state.copy(pendingSpendByCampaign = cleaned))
+        } else {
+          Behaviors.same
+        }
 
-    case TrafficShapeSnapshotLoaded(snapshotOpt) =>
-      val today = java.time.LocalDate.now(java.time.ZoneOffset.UTC).getDayOfWeek
-      snapshotOpt.fold {
-        log.debug("No traffic shape snapshot found for site {}, starting with uniform distribution", siteId.value)
-        trafficShapeTracker.setDayType(today)
-        Behaviors.same[Command]
-      } { snapshot =>
-        log.info(
-          "Traffic shape snapshot restored for site {}: {} buckets, updated at {}",
-          siteId.value,
-          snapshot.bucketCount,
-          snapshot.updatedAt
+      case PurgeExpired =>
+        processPurgeExpired()
+        // Also clean up stale spend cache entries (campaigns that haven't sent updates in 1 hour)
+        val staleMaxAge = 1.hour
+        val beforeCount = spendInfoCache.size
+        val cleanedState = state.cleanupStaleSpendCache(staleMaxAge)
+        val removedCount = beforeCount - cleanedState.spendInfoCache.size
+        if (removedCount > 0) {
+          log.info("Cleaned up {} stale spend cache entries for publisher {}", removedCount, siteId.value)
+        }
+        // Clean up creativeStats entries whose buckets have all expired
+        val now = Instant.now()
+        val cutoffMinute = now.getEpochSecond / 60 - 60 // windowMinutes default = 60
+        val prunedStats = cleanedState.creativeStats.filter { case (_, stats) =>
+          stats.buckets.exists { case (minute, _) => minute > cutoffMinute }
+        }
+        val statsRemoved = cleanedState.creativeStats.size - prunedStats.size
+        if (statsRemoved > 0) {
+          log.debug("Cleaned up {} empty creativeStats entries for publisher {}", statsRemoved, siteId.value)
+        }
+        behavior(cleanedState.copy(creativeStats = prunedStats))
+
+      case PurgeExpiredResult(count) =>
+        if (count > 0) {
+          log.info("Purged {} expired pending selections for publisher {}", count, siteId.value)
+        }
+        Behaviors.same
+
+      case CreativeStatsLoaded(rawStats) =>
+        if (rawStats.isEmpty) {
+          log.debug("No recent creative stats found for site {}", siteId.value)
+          Behaviors.same
+        } else {
+          val restored = rawStats.map { case (cid, buckets) =>
+            CreativeId(cid) -> CreativeStats(buckets = buckets)
+          }
+          log.info("Restored creative stats for site {}: {} creatives from tracking_events", siteId.value,
+            restored.size)
+          behavior(state.copy(creativeStats = restored ++ creativeStats))
+        }
+
+      case TrafficShapeSnapshotLoaded(snapshotOpt) =>
+        val today = java.time.LocalDate.now(java.time.ZoneOffset.UTC).getDayOfWeek
+        snapshotOpt.fold {
+          log.debug("No traffic shape snapshot found for site {}, starting with uniform distribution", siteId.value)
+          trafficShapeTracker.setDayType(today)
+          Behaviors.same[Command]
+        } { snapshot =>
+          log.info(
+            "Traffic shape snapshot restored for site {}: {} buckets, updated at {}",
+            siteId.value,
+            snapshot.bucketCount,
+            snapshot.updatedAt
+          )
+          val restoredTracker = TrafficShapeTracker.fromSnapshot(snapshot)
+          restoredTracker.setDayType(today)
+          behavior(state.copy(trafficShapeTracker = restoredTracker))
+        }
+
+      case TrafficShapeSnapshotSaveResult(errorOpt) =>
+        errorOpt.fold(
+          log.debug("Traffic shape snapshot saved for site {}", siteId.value)
+        )(ex =>
+          log.warn("Failed to save traffic shape snapshot for site {}: {}", siteId.value, ex.getMessage)
         )
-        val restoredTracker = TrafficShapeTracker.fromSnapshot(snapshot)
-        restoredTracker.setDayType(today)
-        behavior(state.copy(trafficShapeTracker = restoredTracker))
-      }
+        Behaviors.same
 
-    case TrafficShapeSnapshotSaveResult(errorOpt) =>
-      errorOpt.fold(
-        log.debug("Traffic shape snapshot saved for site {}", siteId.value)
-      )(ex =>
-        log.warn("Failed to save traffic shape snapshot for site {}: {}", siteId.value, ex.getMessage)
-      )
-      Behaviors.same
-
-    case ApprovedCreativeIdsLoaded(ids, advertiserByCreative) =>
-      log.info("Loaded {} persisted approved creative IDs for site {}", ids.size, siteId.value)
-      // Backfill: re-announce each persisted approval to its AdvertiserEntity
-      // so `Creative.approvedSites` converges — the bid path reads it to tell
-      // approved (floor-teaching) demand from pending demand. Idempotent: the
-      // entity skips the journal write when the approval is already recorded.
-      advertiserByCreative.foreach { case (creativeId, advertiserId) =>
-        sharding.entityRefFor(AdvertiserEntity.TypeKey, advertiserId.value) !
+      case ApprovedCreativeIdsLoaded(ids, advertiserByCreative) =>
+        log.info("Loaded {} persisted approved creative IDs for site {}", ids.size, siteId.value)
+        // Backfill: re-announce each persisted approval to its AdvertiserEntity
+        // so `Creative.approvedSites` converges — the bid path reads it to tell
+        // approved (floor-teaching) demand from pending demand. Idempotent: the
+        // entity skips the journal write when the approval is already recorded.
+        advertiserByCreative.foreach { case (creativeId, advertiserId) =>
+          sharding.entityRefFor(AdvertiserEntity.TypeKey, advertiserId.value) !
           AdvertiserEntity.UpdateCreativeApproval(
             creativeId = creativeId,
-            siteId     = siteId,
-            status     = ApprovalStatus.Approved,
-            replyTo    = system.ignoreRef,
+            siteId = siteId,
+            status = ApprovalStatus.Approved,
+            replyTo = system.ignoreRef
           )
-      }
-      behavior(state.copy(persistedApprovedIds = ids))
+        }
+        behavior(state.copy(persistedApprovedIds = ids))
 
-    case ApprovedCreativeIdsLoadFailed(reason, attempt) =>
-      // Keep whatever approved set we already have (never clobber with
-      // empty) and retry: the load is a read-only SELECT, and without it
-      // every auction result gets filtered as unapproved.
-      log.error(
-        "Approved-creatives load FAILED for site {} (attempt {}): {} — retrying",
-        siteId.value, attempt: java.lang.Integer, reason
-      )
-      if (attempt < 6) {
-        ctx.scheduleOnce(
-          (5 * attempt).seconds,
-          ctx.self,
-          ApprovedCreativeIdsRetryLoad(attempt + 1),
-        )
-      } else {
+      case ApprovedCreativeIdsLoadFailed(reason, attempt) =>
+        // Keep whatever approved set we already have (never clobber with
+        // empty) and retry: the load is a read-only SELECT, and without it
+        // every auction result gets filtered as unapproved.
         log.error(
-          "Approved-creatives load for site {} gave up after {} attempts — approvals may be missing until the next approval event or restart",
-          siteId.value, attempt: java.lang.Integer
+          "Approved-creatives load FAILED for site {} (attempt {}): {} — retrying",
+          siteId.value, attempt: java.lang.Integer, reason
         )
-      }
-      Behaviors.same
-
-    case ApprovedCreativeIdsRetryLoad(attempt) =>
-      ctx.pipeToSelf(store.getApprovedCreativeAdvertisers(siteId.value)) {
-        case Success(m) =>
-          ApprovedCreativeIdsLoaded(
-            m.keySet.map(CreativeId(_)),
-            m.map { case (c, a) => CreativeId(c) -> AdvertiserId(a) },
+        if (attempt < 6) {
+          ctx.scheduleOnce(
+            (5 * attempt).seconds,
+            ctx.self,
+            ApprovedCreativeIdsRetryLoad(attempt + 1)
           )
-        case Failure(e) => ApprovedCreativeIdsLoadFailed(e.getMessage, attempt)
-      }
-      Behaviors.same
+        } else {
+          log.error(
+            "Approved-creatives load for site {} gave up after {} attempts — approvals may be missing until the next approval event or restart",
+            siteId.value, attempt: java.lang.Integer
+          )
+        }
+        Behaviors.same
+
+      case ApprovedCreativeIdsRetryLoad(attempt) =>
+        ctx.pipeToSelf(store.getApprovedCreativeAdvertisers(siteId.value)) {
+          case Success(m) =>
+            ApprovedCreativeIdsLoaded(
+              m.keySet.map(CreativeId(_)),
+              m.map { case (c, a) => CreativeId(c) -> AdvertiserId(a) }
+            )
+          case Failure(e) => ApprovedCreativeIdsLoadFailed(e.getMessage, attempt)
+        }
+        Behaviors.same
     }
   }
 
@@ -2738,13 +2818,14 @@ private[delivery] class AdServer(
   // Flow: CandidatesCollected → filter → fetch scores → update ServeIndex
   // ═══════════════════════════════════════════════════════════════════════════
 
-  /** Process candidates using ServeIndex membership for approval status.
-    * A creative is approved if it exists in ServeIndex for any slot on this site.
-    *
-    * IMPORTANT: Preserves "orphaned" approved creatives - creatives that are in ServeIndex
-    * but not in the new auction results. This prevents re-auctions from accidentally
-    * removing approved creatives from other campaigns (e.g., when their budget is exhausted).
-    */
+  /**
+   * Process candidates using ServeIndex membership for approval status.
+   * A creative is approved if it exists in ServeIndex for any slot on this site.
+   *
+   * IMPORTANT: Preserves "orphaned" approved creatives - creatives that are in ServeIndex
+   * but not in the new auction results. This prevents re-auctions from accidentally
+   * removing approved creatives from other campaigns (e.g., when their budget is exhausted).
+   */
   private def processCandidatesWithApprovalStatus(
       url: URL,
       slotId: SlotId,
@@ -2753,7 +2834,7 @@ private[delivery] class AdServer(
       ttl: FiniteDuration,
       slotKey: String,
       existingCreativeIds: Set[CreativeId],
-      existingView: Option[ServeView],  // Full view to preserve orphaned approved creatives
+      existingView: Option[ServeView], // Full view to preserve orphaned approved creatives
       cachedDomainBlocklist: Option[PublisherEntity.CachedDomainBlocklist],
       cachedAdProductBlocklist: Option[SiteEntity.CachedAdProductBlocklist],
       cachedAdvertiserBlocklists: Map[AdvertiserId, Set[String]],
@@ -2781,7 +2862,8 @@ private[delivery] class AdServer(
         if (blocked.nonEmpty) {
           log.info(
             "🚫 Filtered {} candidates by domain blocklist: pub={} blocked_domains={}",
-            blocked.size, siteId.value, blocked.map(_.landingDomain).distinct.mkString(",")
+            blocked.size, siteId.value,
+            blocked.map(_.landingDomain).distinct.mkString(",")
           )
         }
         log.info("After domain filter: {} allowed, {} blocked", allowed.size, blocked.size)
@@ -2862,17 +2944,19 @@ private[delivery] class AdServer(
       val uniqueCategories = approved.map(_.category).distinct
       ctx.pipeToSelf(fetchCategoryScores(uniqueCategories)) {
         case Success(categoryScores) =>
-          CandidateScoresFetched(url, slotId, approved, pending, classifiedAt, ttl, slotKey, categoryScores, existingView)
+          CandidateScoresFetched(url, slotId, approved, pending, classifiedAt, ttl, slotKey, categoryScores,
+            existingView)
         case Failure(_) =>
           CandidateScoresFetched(url, slotId, approved, pending, classifiedAt, ttl, slotKey, Map.empty, existingView)
       }
     }
   }
 
-  /** Build ServeView from candidates and update ServeIndex + inverted indexes.
-    * Kicks off async creative lookups via CandidateLogic.buildCandidateViews
-    * and pipes the result back as CandidateViewsBuilt.
-    */
+  /**
+   * Build ServeView from candidates and update ServeIndex + inverted indexes.
+   * Kicks off async creative lookups via CandidateLogic.buildCandidateViews
+   * and pipes the result back as CandidateViewsBuilt.
+   */
   private def buildServeViewFromCandidates(
       url: URL,
       slotId: SlotId,
@@ -2882,7 +2966,7 @@ private[delivery] class AdServer(
       ttl: FiniteDuration,
       slotKey: String,
       categoryScores: Map[CategoryId, Double],
-      existingView: Option[ServeView]  // Preserve orphaned approved creatives
+      existingView: Option[ServeView] // Preserve orphaned approved creatives
   ): Unit = {
     val useDefaultScores = categoryScores.isEmpty
     if (useDefaultScores) {
@@ -2925,10 +3009,11 @@ private[delivery] class AdServer(
     }
   }
 
-  /** Handle completion of async candidate view building.
-    * Merges with orphaned views and updates ServeIndex + inverted indexes.
-    * Returns updated state.
-    */
+  /**
+   * Handle completion of async candidate view building.
+   * Merges with orphaned views and updates ServeIndex + inverted indexes.
+   * Returns updated state.
+   */
   private def handleCandidateViewsBuilt(
       state: State,
       url: URL,
@@ -3032,19 +3117,20 @@ private[delivery] class AdServer(
     }
     log.info("📋 Queuing {} pending candidates for approval: url={} slot={}", pending.size, url.value, slotId.value)
     pending.foreach { c =>
-      log.info("   📋 Pending: creative={} campaign={} preApproved={}", c.creativeId.value, c.campaignId.value, c.preApproved)
+      log.info("   📋 Pending: creative={} campaign={} preApproved={}", c.creativeId.value, c.campaignId.value,
+        c.preApproved)
     }
     pending.headOption.foreach { top =>
       val now = Instant.now
       val selection = Selection(
         publisherId = siteId,
-        url         = url,
-        slotId      = slotId,
-        ordered     = pending,
-        idx         = 0,
-        state       = SelState.Pending,
-        createdAt   = now,
-        expiresAt   = now.plusSeconds(ttl.toSeconds)
+        url = url,
+        slotId = slotId,
+        ordered = pending,
+        idx = 0,
+        state = SelState.Pending,
+        createdAt = now,
+        expiresAt = now.plusSeconds(ttl.toSeconds)
       )
 
       val cids = pending.map(_.creativeId.value).toSet
@@ -3110,9 +3196,10 @@ private[delivery] class AdServer(
         }
     }
 
-  /** Complete single approval: Append to ServeIndex and update inverted indexes.
-    * Returns updated state with index entries.
-    */
+  /**
+   * Complete single approval: Append to ServeIndex and update inverted indexes.
+   * Returns updated state with index entries.
+   */
   private def completeApprovalWithScore(
       state: State,
       candidate: Candidate,
@@ -3126,20 +3213,20 @@ private[delivery] class AdServer(
   ): State = {
     val categoryScore = scoreMap.getOrElse(candidate.category, 0.5)
     val candidateView = CandidateView(
-      creativeId        = candidate.creativeId,
-      campaignId        = candidate.campaignId,
-      advertiserId      = candidate.advertiserId,
-      assetUrl          = CDNPath(assetPrt.cdnUri),
-      mime              = MimeType(creative.mime),
-      width             = creative.width,
-      height            = creative.height,
-      category          = candidate.category,
-      cpm               = candidate.cpm,
-      classifiedAtMs    = selection.createdAt.toEpochMilli,
-      categoryScore     = categoryScore,
+      creativeId = candidate.creativeId,
+      campaignId = candidate.campaignId,
+      advertiserId = candidate.advertiserId,
+      assetUrl = CDNPath(assetPrt.cdnUri),
+      mime = MimeType(creative.mime),
+      width = creative.width,
+      height = creative.height,
+      category = candidate.category,
+      cpm = candidate.cpm,
+      classifiedAtMs = selection.createdAt.toEpochMilli,
+      categoryScore = categoryScore,
       adProductCategory = candidate.adProductCategory,
-      landingDomain     = candidate.landingDomain,
-      landingUrl        = creative.landingUrl,
+      landingDomain = candidate.landingDomain,
+      landingUrl = creative.landingUrl
     )
 
     // Add to serve cache
@@ -3151,7 +3238,8 @@ private[delivery] class AdServer(
     )
 
     // Persist approved creative to DB (survives restart)
-    store.insertApproved(siteId.value, candidate.creativeId.value, candidate.campaignId.value, candidate.advertiserId.value)
+    store.insertApproved(siteId.value, candidate.creativeId.value, candidate.campaignId.value,
+      candidate.advertiserId.value)
     // Terminal outcome — queue-age tracking is no longer meaningful
     store.deleteFirstSeen(siteId.value, Set(candidate.creativeId.value))
 
@@ -3188,24 +3276,25 @@ private[delivery] class AdServer(
       advertiserRef.ask[promovolve.advertiser.AdvertiserEntity.CreativeApprovalUpdated](ref =>
         promovolve.advertiser.AdvertiserEntity.UpdateCreativeApproval(
           creativeId = CreativeId(creativeId),
-          siteId     = siteId,
-          status     = ApprovalStatus.Approved,
-          replyTo    = ref
+          siteId = siteId,
+          status = ApprovalStatus.Approved,
+          replyTo = ref
         )
       )
     // Pipe result back to actor - completion handled by ApprovalStatusPersisted message
     ctx.pipeToSelf(approvalFuture) {
-      case Success(_) => ApprovalStatusPersisted(url, slot, creativeId, assetPrt, candidateView, replyTo)
+      case Success(_)  => ApprovalStatusPersisted(url, slot, creativeId, assetPrt, candidateView, replyTo)
       case Failure(ex) =>
         log.warn("Approval status persist failed for pub={} url={} slot={}: {}", siteId.value, url, slot, ex.getMessage)
         ApprovalStatusPersisted(url, slot, creativeId, assetPrt, candidateView, replyTo) // Still complete on failure
     }
   }
 
-  /** Approve all pending creatives for a slot (for testing).
-    *
-    * Waits for all approval status updates to complete before returning.
-    */
+  /**
+   * Approve all pending creatives for a slot (for testing).
+   *
+   * Waits for all approval status updates to complete before returning.
+   */
   private def processApproveAll(
       url: String,
       slot: String,
@@ -3213,8 +3302,9 @@ private[delivery] class AdServer(
   ): Unit =
     ctx.pipeToSelf(store.getPending(siteId.value, url, slot)) {
       case Success(selectionOpt) => GetPendingForApproveAllResult(url, slot, selectionOpt, replyTo)
-      case Failure(ex) =>
-        log.warn("Failed to get pending for approveAll: pub={} url={} slot={}: {}", siteId.value, url, slot, ex.getMessage)
+      case Failure(ex)           =>
+        log.warn("Failed to get pending for approveAll: pub={} url={} slot={}: {}", siteId.value, url, slot,
+          ex.getMessage)
         GetPendingForApproveAllResult(url, slot, None, replyTo)
     }
 
@@ -3243,9 +3333,10 @@ private[delivery] class AdServer(
         }
     }
 
-  /** Handle completion of async creative lookups for batch approval.
-    * Processes results synchronously within the actor, returns updated state.
-    */
+  /**
+   * Handle completion of async creative lookups for batch approval.
+   * Processes results synchronously within the actor, returns updated state.
+   */
   private def handleCreativesLookedUpForApproveAll(
       state: State,
       url: String,
@@ -3259,26 +3350,27 @@ private[delivery] class AdServer(
     val slotKey = Keys.keyUnsafe(siteId.value, slot)
 
     // Process all candidates and collect Bloom filter update futures + index updates
-    val (updatedState, results) = lookedUp.foldLeft((state, Vector.empty[(Boolean, Option[Future[promovolve.advertiser.AdvertiserEntity.CreativeApprovalUpdated]])])) {
+    val (updatedState, results) = lookedUp.foldLeft((state,
+      Vector.empty[(Boolean, Option[Future[promovolve.advertiser.AdvertiserEntity.CreativeApprovalUpdated]])])) {
       case ((accState, accResults), (candidate, creativeOpt)) =>
         val cid = candidate.creativeId.value
         creativeOpt match {
           case Some(meta) =>
             val candidateView = CandidateView(
-              creativeId        = candidate.creativeId,
-              campaignId        = candidate.campaignId,
-              advertiserId      = candidate.advertiserId,
-              assetUrl          = CDNPath(meta.s3Key),  // Use s3Key directly
-              mime              = MimeType(meta.mime),
-              width             = meta.width,
-              height            = meta.height,
-              category          = candidate.category,
-              cpm               = candidate.cpm,
-              classifiedAtMs    = selection.createdAt.toEpochMilli,
-              categoryScore     = 0.5, // Default score for batch approval
+              creativeId = candidate.creativeId,
+              campaignId = candidate.campaignId,
+              advertiserId = candidate.advertiserId,
+              assetUrl = CDNPath(meta.s3Key), // Use s3Key directly
+              mime = MimeType(meta.mime),
+              width = meta.width,
+              height = meta.height,
+              category = candidate.category,
+              cpm = candidate.cpm,
+              classifiedAtMs = selection.createdAt.toEpochMilli,
+              categoryScore = 0.5, // Default score for batch approval
               adProductCategory = candidate.adProductCategory,
-              landingDomain     = candidate.landingDomain,
-              landingUrl        = meta.landingUrl,
+              landingDomain = candidate.landingDomain,
+              landingUrl = meta.landingUrl
             )
 
             serveIndex ! ServeIndexDData.Append(
@@ -3301,9 +3393,9 @@ private[delivery] class AdServer(
               .ask[promovolve.advertiser.AdvertiserEntity.CreativeApprovalUpdated](ref =>
                 promovolve.advertiser.AdvertiserEntity.UpdateCreativeApproval(
                   creativeId = CreativeId(cid),
-                  siteId     = siteId,
-                  status     = ApprovalStatus.Approved,
-                  replyTo    = ref
+                  siteId = siteId,
+                  status = ApprovalStatus.Approved,
+                  replyTo = ref
                 )
               )
 
@@ -3315,7 +3407,8 @@ private[delivery] class AdServer(
               slot
             )
             val withIndex = addCandidateToIndexes(accState, slotKey, candidateView)
-            val withPersisted = withIndex.copy(persistedApprovedIds = withIndex.persistedApprovedIds + candidate.creativeId)
+            val withPersisted =
+              withIndex.copy(persistedApprovedIds = withIndex.persistedApprovedIds + candidate.creativeId)
             (withPersisted, accResults :+ (true, Some(approvalFuture)))
 
           case None =>
@@ -3324,8 +3417,8 @@ private[delivery] class AdServer(
         }
     }
 
-    val approved           = results.count(_._1)
-    val failed             = results.count(!_._1)
+    val approved = results.count(_._1)
+    val failed = results.count(!_._1)
     val approvalFutures = results.flatMap(_._2)
 
     // Pipe completion back to actor for safe handling.
@@ -3336,7 +3429,7 @@ private[delivery] class AdServer(
       Future.failed(new java.util.concurrent.TimeoutException("Batch approval timed out"))
     )
     ctx.pipeToSelf(Future.firstCompletedOf(Seq(batchFuture, safeFuture))) {
-      case Success(_) => BatchApprovalStatusPersisted(url, slot, approved, failed, replyTo)
+      case Success(_)  => BatchApprovalStatusPersisted(url, slot, approved, failed, replyTo)
       case Failure(ex) =>
         log.warn("Batch approval persist failed for pub={} url={} slot={}: {}", siteId.value, url, slot, ex.getMessage)
         BatchApprovalStatusPersisted(url, slot, approved, failed, replyTo)
@@ -3385,9 +3478,9 @@ private[delivery] class AdServer(
           )
           advertiserRef ! promovolve.advertiser.AdvertiserEntity.UpdateCreativeApproval(
             creativeId = CreativeId(cid),
-            siteId     = siteId,
-            status     = ApprovalStatus.Rejected,
-            replyTo    = system.ignoreRef
+            siteId = siteId,
+            status = ApprovalStatus.Rejected,
+            replyTo = system.ignoreRef
           )
 
           // Immediately remove rejected creative from this slot in ServeIndex
@@ -3407,8 +3500,9 @@ private[delivery] class AdServer(
           // Promote next candidate or trigger re-auction
           ctx.pipeToSelf(store.rejectAndPromote(siteId.value, url, slot)) {
             case Success(promoted) => RejectAndPromoteCompleted(url, slot, promoted, replyTo)
-            case Failure(ex) =>
-              log.warn("Failed to reject and promote: pub={} url={} slot={}: {}", siteId.value, url, slot, ex.getMessage)
+            case Failure(ex)       =>
+              log.warn("Failed to reject and promote: pub={} url={} slot={}: {}", siteId.value, url, slot,
+                ex.getMessage)
               RejectAndPromoteCompleted(url, slot, None, replyTo)
           }
         }
@@ -3488,7 +3582,7 @@ private[delivery] class AdServer(
     }
     ctx.pipeToSelf(resultFuture) {
       case Success(items) => ListPendingResult(items, replyTo)
-      case Failure(ex) =>
+      case Failure(ex)    =>
         log.warn("Failed to get pending queue for site {}: {}", siteId.value, ex.getMessage)
         ListPendingResult(Vector.empty, replyTo)
     }
@@ -3508,7 +3602,7 @@ private[delivery] class AdServer(
   ): Unit =
     ctx.pipeToSelf(store.flagCreative(siteId.value, url, slot, creativeId, reason)) {
       case Success(flagged) => FlagCreativeResult(flagged, replyTo)
-      case Failure(ex) =>
+      case Failure(ex)      =>
         log.warn("Failed to flag creative {}: {}", creativeId, ex.getMessage)
         FlagCreativeResult(None, replyTo)
     }
@@ -3519,7 +3613,7 @@ private[delivery] class AdServer(
   ): Unit =
     ctx.pipeToSelf(store.unflagCreative(siteId.value, creativeId)) {
       case Success(unflagged) => UnflagCreativeResult(unflagged, replyTo)
-      case Failure(ex) =>
+      case Failure(ex)        =>
         log.warn("Failed to unflag creative {}: {}", creativeId, ex.getMessage)
         UnflagCreativeResult(None, replyTo)
     }
@@ -3537,14 +3631,14 @@ private[delivery] class AdServer(
             category = f.category,
             reason = f.reason,
             flaggedAt = f.flaggedAt.toString,
-            s3Key = creative.map(_.s3Key),
+            s3Key = creative.map(_.s3Key)
           )
         }
       }
     }
     ctx.pipeToSelf(resultFuture) {
       case Success(items) => ListFlaggedResult(items, replyTo)
-      case Failure(ex) =>
+      case Failure(ex)    =>
         log.warn("Failed to get flagged creatives: {}", ex.getMessage)
         ListFlaggedResult(Vector.empty, replyTo)
     }
@@ -3563,18 +3657,18 @@ private[delivery] class AdServer(
 
   private def recordRequestArrival(state: State): (State, ArrivalAction) = {
     import state.*
-    val nowMs           = System.currentTimeMillis()
-    val newRate         = trafficObserver.recordRequest(nowMs)
+    val nowMs = System.currentTimeMillis()
+    val newRate = trafficObserver.recordRequest(nowMs)
     val newRequestCount = requestCount + 1
 
     // Post-rollover grace: skip serving until SpendInfo cache is populated.
     if (rolloverGraceUntilMs > 0 && nowMs < rolloverGraceUntilMs) {
       log.debug("Grace period active: skipping serve until cache is populated")
       val newState = state.copy(
-        serveStats        = serveStats.recordPacingSkipped,
-        smoothedReqRate   = newRate,
-        requestCount      = newRequestCount,
-        lastRequestTimeMs = nowMs,
+        serveStats = serveStats.recordPacingSkipped,
+        smoothedReqRate = newRate,
+        requestCount = newRequestCount,
+        lastRequestTimeMs = nowMs
       )
       return (newState, ArrivalAction.SkipRolloverGrace)
     }
@@ -3589,7 +3683,7 @@ private[delivery] class AdServer(
       case Some(dayStart) =>
         val shouldRollover = if (dayDurationSeconds == 86400) {
           val lastDay = dayStart.atZone(java.time.ZoneOffset.UTC).toLocalDate
-          val today   = java.time.LocalDate.now(java.time.ZoneOffset.UTC)
+          val today = java.time.LocalDate.now(java.time.ZoneOffset.UTC)
           today.isAfter(lastDay)
         } else {
           val elapsedSeconds = (nowMs - dayStart.toEpochMilli) / 1000.0
@@ -3608,9 +3702,9 @@ private[delivery] class AdServer(
             val totalBudget = validInfos.map(_._2.dailyBudget.value).sum
             val totalSpend = validInfos.map(_._2.todaySpend.value).sum +
               validInfos.flatMap(vi => pendingSpendByCampaign.get(vi._1).map(_._1)).sum
-            val budgetExhausted    = totalSpend >= totalBudget
-            val elapsedSeconds     = (nowMs - dayStart.toEpochMilli) / 1000.0
-            val remainingFraction  = math.max(0.0, 1.0 - elapsedSeconds / dayDurationSeconds)
+            val budgetExhausted = totalSpend >= totalBudget
+            val elapsedSeconds = (nowMs - dayStart.toEpochMilli) / 1000.0
+            val remainingFraction = math.max(0.0, 1.0 - elapsedSeconds / dayDurationSeconds)
 
             if (budgetExhausted && remainingFraction > 0.01) {
               log.info("Cross-day learning: budget exhausted with {:.1f}% of day remaining",
@@ -3690,17 +3784,17 @@ private[delivery] class AdServer(
     // Warmup mode short-circuit — record traffic but don't serve.
     if (warmupMode) {
       log.debug("Warmup mode active: recording traffic but not serving ads")
-      val newDayStart        = if (needsReset) Some(Instant.ofEpochMilli(nowMs)) else updatedDayStart
+      val newDayStart = if (needsReset) Some(Instant.ofEpochMilli(nowMs)) else updatedDayStart
       val updatedCampaignSet = if (needsReset) Set.empty[CampaignId] else lastCampaignSet
       val newState = state.copy(
-        serveStats           = serveStats.recordWarmup,
-        lastDayStart         = newDayStart,
-        smoothedReqRate      = newRate,
+        serveStats = serveStats.recordWarmup,
+        lastDayStart = newDayStart,
+        smoothedReqRate = newRate,
         rolloverGraceUntilMs = clearedGracePeriod,
-        requestCount         = newRequestCount,
-        lastRequestTimeMs    = nowMs,
-        lastCampaignSet      = updatedCampaignSet,
-        simulatedDayOfWeek   = updatedDayOfWeek,
+        requestCount = newRequestCount,
+        lastRequestTimeMs = nowMs,
+        lastCampaignSet = updatedCampaignSet,
+        simulatedDayOfWeek = updatedDayOfWeek
       )
       return (newState, ArrivalAction.SkipWarmup)
     }
@@ -3712,8 +3806,8 @@ private[delivery] class AdServer(
       val resetCacheEntries = spendInfoCache.map { case (campaignId, cached) =>
         campaignId -> cached.copy(
           todaySpend = Spend.zero,
-          dayStart   = newDayStart,
-          timestamp  = newDayStart,
+          dayStart = newDayStart,
+          timestamp = newDayStart
         )
       }
       (Map.empty[CampaignId, (Double, Instant)], ServeStats(siteId.value), resetCacheEntries)
@@ -3724,20 +3818,19 @@ private[delivery] class AdServer(
     val updatedCampaignSet = if (needsReset) Set.empty[CampaignId] else lastCampaignSet
 
     val newState = state.copy(
-      serveStats             = resetServeStats,
-      lastDayStart           = updatedDayStart,
-      smoothedReqRate        = newRate,
+      serveStats = resetServeStats,
+      lastDayStart = updatedDayStart,
+      smoothedReqRate = newRate,
       pendingSpendByCampaign = clearedPending,
-      spendInfoCache         = resetCache,
-      rolloverGraceUntilMs   = 0L,
-      requestCount           = newRequestCount,
-      lastRequestTimeMs      = nowMs,
-      lastCampaignSet        = updatedCampaignSet,
-      simulatedDayOfWeek     = updatedDayOfWeek,
+      spendInfoCache = resetCache,
+      rolloverGraceUntilMs = 0L,
+      requestCount = newRequestCount,
+      lastRequestTimeMs = nowMs,
+      lastCampaignSet = updatedCampaignSet,
+      simulatedDayOfWeek = updatedDayOfWeek
     )
     (newState, ArrivalAction.Proceed)
   }
-
 
   // ═══════════════════════════════════════════════════════════════════════════
   // UTILITIES
@@ -3756,30 +3849,32 @@ private[delivery] class AdServer(
   // reservations + retries atomically from the caller's view.
   // ═══════════════════════════════════════════════════════════════════════════
 
-  /** One reservation: gate on the advertiser budget FIRST, then TryReserve
-    * on the campaign. Returns Future[true] only when both pass; false on
-    * advertiser-over-budget, campaign insufficient budget, or actor timeout.
-    *
-    * The advertiser check MUST precede the campaign reserve. Running them in
-    * parallel (the old design) left a phantom reservation on the campaign
-    * whenever the advertiser was over budget: no ad served, but `TryReserve`
-    * had already buffered the spend, and there is no release path — so every
-    * serve attempt after an advertiser hit its cap kept inflating pacing
-    * `spendToday` far past delivered spend, benching the advertiser early.
-    * Gating first means we only ever reserve when we will actually serve, so
-    * reserved spend tracks served spend. (The advertiser cap stays soft at
-    * the exact boundary — a few concurrent serves can slip over by a bounded
-    * amount — but those are real served impressions, not phantom.) */
+  /**
+   * One reservation: gate on the advertiser budget FIRST, then TryReserve
+   * on the campaign. Returns Future[true] only when both pass; false on
+   * advertiser-over-budget, campaign insufficient budget, or actor timeout.
+   *
+   * The advertiser check MUST precede the campaign reserve. Running them in
+   * parallel (the old design) left a phantom reservation on the campaign
+   * whenever the advertiser was over budget: no ad served, but `TryReserve`
+   * had already buffered the spend, and there is no release path — so every
+   * serve attempt after an advertiser hit its cap kept inflating pacing
+   * `spendToday` far past delivered spend, benching the advertiser early.
+   * Gating first means we only ever reserve when we will actually serve, so
+   * reserved spend tracks served spend. (The advertiser cap stays soft at
+   * the exact boundary — a few concurrent serves can slip over by a bounded
+   * amount — but those are real served impressions, not phantom.)
+   */
   private def batchReserveOne(candidate: CandidateView, clearingPrice: CPM, requestId: String): Future[Boolean] = {
     given Timeout = Timeout(100.millis)
-    val baseCpm     = clearingPrice.toDouble / 1000.0
+    val baseCpm = clearingPrice.toDouble / 1000.0
     val spendAmount = Spend(baseCpm)
     val campaignRef = sharding.entityRefFor(
       CampaignEntity.TypeKey,
-      s"${candidate.advertiserId.value}|${candidate.campaignId.value}",
+      s"${candidate.advertiserId.value}|${candidate.campaignId.value}"
     )
     val advertiserRef = sharding.entityRefFor(
-      AdvertiserEntity.TypeKey, candidate.advertiserId.value,
+      AdvertiserEntity.TypeKey, candidate.advertiserId.value
     )
     advertiserRef
       .ask[AdvertiserEntity.AdvertiserBudgetStatus](ref => AdvertiserEntity.GetBudgetStatus(ref))
@@ -3796,15 +3891,19 @@ private[delivery] class AdServer(
       .recover { case _ => false }
   }
 
-  /** Pick the best-scoring candidate for a slot from an available pool.
-    *
-    * Respects: slot dimensions (hard), site floor CPM (hard), and the
-    * per-page campaign cap as a soft 0.3× score penalty. Used by both
-    * the initial batch assignment and the retry loop below. */
-  /** Instance-bound delegate: calls the pure companion-object function
-    * with the reservation primitive and site-level state captured from
-    * the outer actor. The companion function is the one exercised by
-    * unit tests (see AdServerBatchRetrySpec). */
+  /**
+   * Pick the best-scoring candidate for a slot from an available pool.
+   *
+   * Respects: slot dimensions (hard), site floor CPM (hard), and the
+   * per-page campaign cap as a soft 0.3× score penalty. Used by both
+   * the initial batch assignment and the retry loop below.
+   */
+  /**
+   * Instance-bound delegate: calls the pure companion-object function
+   * with the reservation primitive and site-level state captured from
+   * the outer actor. The companion function is the one exercised by
+   * unit tests (see AdServerBatchRetrySpec).
+   */
   private def batchReserveWithRetry(
       slots: Vector[Protocol.BatchSlotSpec],
       pool: Vector[CandidateView],
@@ -3814,33 +3913,34 @@ private[delivery] class AdServer(
       excludedCreatives: Set[CreativeId],
       excludedCampaigns: Set[CampaignId],
       isApproved: CreativeId => Boolean,
-      pinLookupPool: Vector[CandidateView],
+      pinLookupPool: Vector[CandidateView]
   ): Future[(Vector[Protocol.BatchSlotOutcome], Map[CampaignId, Double])] =
     AdServer.batchReserveWithRetry(
-      slots             = slots,
-      pool              = pool,
-      pageBlocked       = pageBlocked,
-      alpha             = alpha,
-      stats             = stats,
-      siteFloor         = siteFloorCpm,
-      reserve           = batchReserveOne,
-      rng               = rng,
+      slots = slots,
+      pool = pool,
+      pageBlocked = pageBlocked,
+      alpha = alpha,
+      stats = stats,
+      siteFloor = siteFloorCpm,
+      reserve = batchReserveOne,
+      rng = rng,
       excludedCreatives = excludedCreatives,
       excludedCampaigns = excludedCampaigns,
-      isApproved        = isApproved,
-      pinLookupPool     = pinLookupPool,
-      categoryFloors    = siteCategoryFloors,
-      adminSlotFloors   = adminSlotFloors,
+      isApproved = isApproved,
+      pinLookupPool = pinLookupPool,
+      categoryFloors = siteCategoryFloors,
+      adminSlotFloors = adminSlotFloors
     )(using ctx.executionContext)
 
-  /** Aggregate volume throttle for batch requests. Mirrors the per-
-    * slot `checkPacingGate`: consults `spendInfoCache`, fetches from
-    * `CampaignEntity` on cache miss, builds a `PacingContext`, calls
-    * `pacingStrategy.throttleProbability`, and emits either
-    * `BatchSpendInfoFetched` (cache miss) or `BatchPacingGateResult`
-    * directly. One Bernoulli gate per batch request — if throttled,
-    * every slot returns winner=None.
-    */
+  /**
+   * Aggregate volume throttle for batch requests. Mirrors the per-
+   * slot `checkPacingGate`: consults `spendInfoCache`, fetches from
+   * `CampaignEntity` on cache miss, builds a `PacingContext`, calls
+   * `pacingStrategy.throttleProbability`, and emits either
+   * `BatchSpendInfoFetched` (cache miss) or `BatchPacingGateResult`
+   * directly. One Bernoulli gate per batch request — if throttled,
+   * every slot returns winner=None.
+   */
   private def checkBatchPacingGate(
       view: ServeView,
       url: URL,
@@ -3849,7 +3949,7 @@ private[delivery] class AdServer(
       selCtx: SelectionContext,
       pageWinners: Map[String, AdServer.PageWinners],
       excludedCreatives: Set[CreativeId],
-      excludedCampaigns: Set[CampaignId],
+      excludedCampaigns: Set[CampaignId]
   ): Unit = {
     import selCtx.*
     val now = Instant.now()
@@ -3881,30 +3981,33 @@ private[delivery] class AdServer(
           val cand = view.candidates.find(c => c.advertiserId == advId && c.campaignId == campId).get
           campaignRef.ask[CampaignEntity.SpendInfo](CampaignEntity.GetSpendInfo(_))
             .map { info =>
-              (campId, Some(CachedSpendInfo(
-                advertiserId = cand.advertiserId,
-                dailyBudget  = info.dailyBudget,
-                todaySpend   = info.todaySpend,
-                dayStart     = info.dayStart,
-                timestamp    = now,
-              )))
+              (campId,
+                Some(CachedSpendInfo(
+                  advertiserId = cand.advertiserId,
+                  dailyBudget = info.dailyBudget,
+                  todaySpend = info.todaySpend,
+                  dayStart = info.dayStart,
+                  timestamp = now
+                )))
             }
             .recover { case _ => (campId, None) }
         }
       ctx.pipeToSelf(Future.sequence(futures)) {
         case Success(results) =>
           val fetchedInfo = results.collect { case (c, Some(i)) => c -> i }.toMap
-          Protocol.BatchSpendInfoFetched(fetchedInfo, view, url, slots, replyTo, selCtx, excludedCreatives, excludedCampaigns)
+          Protocol.BatchSpendInfoFetched(fetchedInfo, view, url, slots, replyTo, selCtx, excludedCreatives,
+            excludedCampaigns)
         case Failure(ex) =>
           log.warn("BATCH PACING: spend-info fetch failed: {}", ex.getMessage)
-          Protocol.BatchSpendInfoFetched(Map.empty, view, url, slots, replyTo, selCtx, excludedCreatives, excludedCampaigns)
+          Protocol.BatchSpendInfoFetched(Map.empty, view, url, slots, replyTo, selCtx, excludedCreatives,
+            excludedCampaigns)
       }
     } else {
       // Cache hit — compute aggregate + throttle inline, emit pacing
       // gate result immediately (no async actor round-trip).
       val cpmByCampaign = PacingLogic.computeCpmByCampaign(view.candidates)
       val (totalDailyBudget, totalTodaySpend, avgCpm) = PacingLogic.computeAggregateBudget(
-        validInfos, cpmByCampaign, pendingSpendByCampaign,
+        validInfos, cpmByCampaign, pendingSpendByCampaign
       )
       val cachedDayStart = validInfos.map(_._2.dayStart).minBy(_.toEpochMilli)
       // Same anchor rule as the batch path: real days pace against the
@@ -3913,17 +4016,17 @@ private[delivery] class AdServer(
         if (dayDurationSeconds == 86400) cachedDayStart
         else lastDayStart.filter(_.isAfter(cachedDayStart)).getOrElse(cachedDayStart)
       val pacingCtx = PacingContext(
-        dailyBudget        = totalDailyBudget,
-        todaySpend         = totalTodaySpend,
-        dayStart           = effectiveDayStart,
-        now                = now,
+        dailyBudget = totalDailyBudget,
+        todaySpend = totalTodaySpend,
+        dayStart = effectiveDayStart,
+        now = now,
         requestArrivalRate = requestArrivalRate,
         competingCampaigns = 1,
-        avgCpm             = avgCpm,
+        avgCpm = avgCpm,
         dayDurationSeconds = dayDurationSeconds,
-        trafficShape       = Some(trafficShapeTracker),
-        requestCount       = requestCount,
-        msSinceLastRequest = msSinceLastRequest,
+        trafficShape = Some(trafficShapeTracker),
+        requestCount = requestCount,
+        msSinceLastRequest = msSinceLastRequest
       )
       val throttle = pacingStrategy.throttleProbability(pacingCtx)
       val requestPasses = rng.nextDouble() >= throttle
@@ -3938,16 +4041,16 @@ private[delivery] class AdServer(
         f"${throttle * 100}%.0f", requestPasses,
         eligibleCandidates.size: java.lang.Integer, f"${pacingCtx.spendRatio}%.2f")
       ctx.self ! Protocol.BatchPacingGateResult(
-        shouldServe        = requestPasses,
-        view               = view,
-        url                = url,
-        slots              = slots,
+        shouldServe = requestPasses,
+        view = view,
+        url = url,
+        slots = slots,
         eligibleCandidates = eligibleCandidates,
-        pageBlocked        = pageBlocked,
-        replyTo            = replyTo,
+        pageBlocked = pageBlocked,
+        replyTo = replyTo,
         currentCampaignSet = currentCampaignSet,
-        excludedCreatives  = excludedCreatives,
-        excludedCampaigns  = excludedCampaigns,
+        excludedCreatives = excludedCreatives,
+        excludedCampaigns = excludedCampaigns
       )
     }
   }
@@ -3961,7 +4064,9 @@ private[delivery] class AdServer(
   private def processPurgeExpired(): Unit =
     ctx.pipeToSelf(store.purgeExpired(Instant.now())) {
       _.fold(
-        ex => { log.warn("Failed to purge expired entries for pub={}: {}", siteId.value, ex.getMessage); PurgeExpiredResult(0) },
+        ex => {
+          log.warn("Failed to purge expired entries for pub={}: {}", siteId.value, ex.getMessage); PurgeExpiredResult(0)
+        },
         PurgeExpiredResult(_)
       )
     }
@@ -3992,63 +4097,67 @@ private[delivery] class AdServer(
 
   /** Bundled state for behavior() to avoid parameter explosion */
   case class State(
-                    cachedDomainBlocklist: Option[PublisherEntity.CachedDomainBlocklist] = None,
-                    cachedAdProductBlocklist: Option[SiteEntity.CachedAdProductBlocklist] = None,
-                    /** Per-advertiser site-domain blocklist snapshot from DData.
-                      * Filter: drop a candidate if its advertiserId maps to a set
-                      * containing this site's verified domain. */
-                    cachedAdvertiserBlocklists: Map[AdvertiserId, Set[String]] = Map.empty,
-                    creativeStats: Map[CreativeId, CreativeStats] = Map.empty,
-                    serveStats: ServeStats = ServeStats(siteId.value),
-                    lastDayStart: Option[Instant] = Some(Instant.now()),
-                    pacingStrategy: PacingStrategy = initialPacingStrategy,
-                    smoothedReqRate: Double = 0.0,
-                    pendingSpendByCampaign: Map[CampaignId, (Double, Instant)] = Map.empty,
-                    dayDurationSeconds: Int = 86400,
-                    spendInfoCache: Map[CampaignId, CachedSpendInfo] = Map.empty,
-                    spendInfoLastUpdated: Map[CampaignId, Instant] = Map.empty,
-                    trafficShapeTracker: TrafficShapeTracker = TrafficShapeTracker(),
-                    rolloverGraceUntilMs: Long = 0L,
-                    warmupMode: Boolean = false,
-                    requestCount: Long = 0L,
-                    lastRequestTimeMs: Long = 0L,
-                    lastCampaignSet: Set[CampaignId] = Set.empty,
-                    simulatedDayOfWeek: java.time.DayOfWeek = java.time.LocalDate.now(java.time.ZoneOffset.UTC).getDayOfWeek,
-                    participatingCampaigns: Set[CampaignId] = Set.empty,
-                    // Inverted indexes for targeted ServeIndex removal (O(1) per key)
-                    keysByCampaign:   Map[CampaignId, Set[String]]   = Map.empty,
-                    keysByCreative:   Map[CreativeId, Set[String]]    = Map.empty,
-                    keysByAdvertiser: Map[AdvertiserId, Set[String]]  = Map.empty,
-                    // Reverse index: key → IDs it contains (enables O(K) removal instead of O(N) scan)
-                    idsForKey: Map[String, (Set[CampaignId], Set[CreativeId], Set[AdvertiserId])] = Map.empty,
-                    // Persisted approved creative IDs (survives restart)
-                    persistedApprovedIds: Set[CreativeId] = Set.empty,
-                    // Best-effort set of creativeIds readers currently have pinned
-                    // (dog-ear). TRANSIENT — not snapshotted; rebuilt as serves
-                    // arrive. Populated when a serve honors a pin (BatchSelected
-                    // outcome with dogear.honored), pruned when a creative leaves
-                    // approval (CampaignPaused / CreativePaused / EvictCampaignFromSite).
-                    // Used by the topic-narrow orphan-eligibility predicate to exempt
-                    // pinned creatives from eviction so a reader's pin on a still-
-                    // served page survives the advertiser dropping a DIFFERENT topic.
-                    pinnedCreativeIds: Set[CreativeId] = Set.empty,
-                    // Verified host for serve-time enforcement (populated via DData)
-                    verifiedHost: Option[String] = None,
-                    // Per-page winner cache: key = "{siteId}|{normalizedUrl}".
-                    // Enforces "at most one slot per campaign per page". TTL'd
-                    // by SweepPageWinners tick; replicated via PageWinnersKey.
-                    pageWinners: Map[String, PageWinners] = Map.empty
+      cachedDomainBlocklist: Option[PublisherEntity.CachedDomainBlocklist] = None,
+      cachedAdProductBlocklist: Option[SiteEntity.CachedAdProductBlocklist] = None,
+      /**
+       * Per-advertiser site-domain blocklist snapshot from DData.
+       * Filter: drop a candidate if its advertiserId maps to a set
+       * containing this site's verified domain.
+       */
+      cachedAdvertiserBlocklists: Map[AdvertiserId, Set[String]] = Map.empty,
+      creativeStats: Map[CreativeId, CreativeStats] = Map.empty,
+      serveStats: ServeStats = ServeStats(siteId.value),
+      lastDayStart: Option[Instant] = Some(Instant.now()),
+      pacingStrategy: PacingStrategy = initialPacingStrategy,
+      smoothedReqRate: Double = 0.0,
+      pendingSpendByCampaign: Map[CampaignId, (Double, Instant)] = Map.empty,
+      dayDurationSeconds: Int = 86400,
+      spendInfoCache: Map[CampaignId, CachedSpendInfo] = Map.empty,
+      spendInfoLastUpdated: Map[CampaignId, Instant] = Map.empty,
+      trafficShapeTracker: TrafficShapeTracker = TrafficShapeTracker(),
+      rolloverGraceUntilMs: Long = 0L,
+      warmupMode: Boolean = false,
+      requestCount: Long = 0L,
+      lastRequestTimeMs: Long = 0L,
+      lastCampaignSet: Set[CampaignId] = Set.empty,
+      simulatedDayOfWeek: java.time.DayOfWeek = java.time.LocalDate.now(java.time.ZoneOffset.UTC).getDayOfWeek,
+      participatingCampaigns: Set[CampaignId] = Set.empty,
+      // Inverted indexes for targeted ServeIndex removal (O(1) per key)
+      keysByCampaign: Map[CampaignId, Set[String]] = Map.empty,
+      keysByCreative: Map[CreativeId, Set[String]] = Map.empty,
+      keysByAdvertiser: Map[AdvertiserId, Set[String]] = Map.empty,
+      // Reverse index: key → IDs it contains (enables O(K) removal instead of O(N) scan)
+      idsForKey: Map[String, (Set[CampaignId], Set[CreativeId], Set[AdvertiserId])] = Map.empty,
+      // Persisted approved creative IDs (survives restart)
+      persistedApprovedIds: Set[CreativeId] = Set.empty,
+      // Best-effort set of creativeIds readers currently have pinned
+      // (dog-ear). TRANSIENT — not snapshotted; rebuilt as serves
+      // arrive. Populated when a serve honors a pin (BatchSelected
+      // outcome with dogear.honored), pruned when a creative leaves
+      // approval (CampaignPaused / CreativePaused / EvictCampaignFromSite).
+      // Used by the topic-narrow orphan-eligibility predicate to exempt
+      // pinned creatives from eviction so a reader's pin on a still-
+      // served page survives the advertiser dropping a DIFFERENT topic.
+      pinnedCreativeIds: Set[CreativeId] = Set.empty,
+      // Verified host for serve-time enforcement (populated via DData)
+      verifiedHost: Option[String] = None,
+      // Per-page winner cache: key = "{siteId}|{normalizedUrl}".
+      // Enforces "at most one slot per campaign per page". TTL'd
+      // by SweepPageWinners tick; replicated via PageWinnersKey.
+      pageWinners: Map[String, PageWinners] = Map.empty
   ) {
+
     /** Remove stale spend cache entries that haven't been updated in the given duration */
-    def cleanupStaleSpendCache(maxAge: scala.concurrent.duration.FiniteDuration, now: Instant = Instant.now()): State = {
+    def cleanupStaleSpendCache(maxAge: scala.concurrent.duration.FiniteDuration, now: Instant = Instant.now())
+        : State = {
       val cutoff = now.minusMillis(maxAge.toMillis)
       val staleIds = spendInfoLastUpdated.collect {
         case (campaignId, lastUpdated) if lastUpdated.isBefore(cutoff) => campaignId
       }.toSet
 
       Option.when(staleIds.nonEmpty)(copy(
-        spendInfoCache         = spendInfoCache -- staleIds,
-        spendInfoLastUpdated   = spendInfoLastUpdated -- staleIds,
+        spendInfoCache = spendInfoCache -- staleIds,
+        spendInfoLastUpdated = spendInfoLastUpdated -- staleIds,
         pendingSpendByCampaign = pendingSpendByCampaign -- staleIds,
         participatingCampaigns = participatingCampaigns -- staleIds
       )).getOrElse(this)

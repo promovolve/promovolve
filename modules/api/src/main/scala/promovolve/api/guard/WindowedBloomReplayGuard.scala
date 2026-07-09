@@ -2,10 +2,10 @@ package promovolve.api.guard
 
 import com.fasterxml.jackson.databind.annotation.JsonDeserialize
 import org.apache.pekko.actor.typed.scaladsl.Behaviors
-import org.apache.pekko.actor.typed.{ActorRef, Behavior}
-import org.apache.pekko.cluster.ddata.typed.scaladsl.{DistributedData, Replicator}
-import org.apache.pekko.cluster.ddata.{LWWRegister, LWWRegisterKey, SelfUniqueAddress}
-import org.apache.pekko.cluster.sharding.typed.scaladsl.{EntityContext, EntityTypeKey}
+import org.apache.pekko.actor.typed.{ ActorRef, Behavior }
+import org.apache.pekko.cluster.ddata.typed.scaladsl.{ DistributedData, Replicator }
+import org.apache.pekko.cluster.ddata.{ LWWRegister, LWWRegisterKey, SelfUniqueAddress }
+import org.apache.pekko.cluster.sharding.typed.scaladsl.{ EntityContext, EntityTypeKey }
 import promovolve.CborSerializable
 
 import java.util.zip.CRC32
@@ -94,7 +94,7 @@ object WindowedBloomReplayGuard {
                   // Check for bucket rotation
                   val rotatedState = bucketStrategy.checkRotation(state.currentBucket) match {
                     case Some(rotation) => state.applyRotation(rotation, config)
-                    case None => state
+                    case None           => state
                   }
 
                   // Process validation
@@ -104,24 +104,26 @@ object WindowedBloomReplayGuard {
 
                 case Publish =>
                   if (state.shouldPublish(config)) {
-                    val curV  = state.bloomCurrent.snapshotWords
+                    val curV = state.bloomCurrent.snapshotWords
                     val prevV = state.bloomPrevious.snapshotWords
-                    val crc   = computeCrc32(curV, prevV, state.bloomCurrent.mBits, state.bloomCurrent.k, state.currentBucket, state.previousBucket)
-                    val snap  = SnapshotEnvelope(
-                      version        = 1,
-                      mBits          = state.bloomCurrent.mBits,
-                      k              = state.bloomCurrent.k,
+                    val crc = computeCrc32(curV, prevV, state.bloomCurrent.mBits, state.bloomCurrent.k,
+                      state.currentBucket, state.previousBucket)
+                    val snap = SnapshotEnvelope(
+                      version = 1,
+                      mBits = state.bloomCurrent.mBits,
+                      k = state.bloomCurrent.k,
                       rotatedAtNanos = state.rotatedAtNs,
-                      currentBucket  = state.currentBucket,
-                      prevBucket     = state.previousBucket,
-                      current        = curV,
-                      previous       = prevV,
-                      crc32          = crc
+                      currentBucket = state.currentBucket,
+                      prevBucket = state.previousBucket,
+                      current = curV,
+                      previous = prevV,
+                      crc32 = crc
                     )
                     repl.askUpdate(
-                      ask => Replicator.Update(key, LWWRegister(node, snap), Replicator.WriteLocal, ask)(
-                        reg => reg.withValue(node, snap)
-                      ),
+                      ask =>
+                        Replicator.Update(key, LWWRegister(node, snap), Replicator.WriteLocal, ask)(reg =>
+                          reg.withValue(node, snap)
+                        ),
                       InternalUpdateResponse.apply
                     )
                     active(state.startPublish)
@@ -155,15 +157,15 @@ object WindowedBloomReplayGuard {
   }
 
   private def putInt(crc: CRC32, v: Int): Unit = {
-    crc.update((v >>> 24) & 0xff); crc.update((v >>> 16) & 0xff)
-    crc.update((v >>> 8) & 0xff); crc.update(v & 0xff)
+    crc.update((v >>> 24) & 0xFF); crc.update((v >>> 16) & 0xFF)
+    crc.update((v >>> 8) & 0xFF); crc.update(v & 0xFF)
   }
 
   private def putLong(crc: CRC32, v: Long): Unit = {
-    crc.update(((v >>> 56) & 0xff).toInt); crc.update(((v >>> 48) & 0xff).toInt)
-    crc.update(((v >>> 40) & 0xff).toInt); crc.update(((v >>> 32) & 0xff).toInt)
-    crc.update(((v >>> 24) & 0xff).toInt); crc.update(((v >>> 16) & 0xff).toInt)
-    crc.update(((v >>> 8) & 0xff).toInt); crc.update((v & 0xff).toInt)
+    crc.update(((v >>> 56) & 0xFF).toInt); crc.update(((v >>> 48) & 0xFF).toInt)
+    crc.update(((v >>> 40) & 0xFF).toInt); crc.update(((v >>> 32) & 0xFF).toInt)
+    crc.update(((v >>> 24) & 0xFF).toInt); crc.update(((v >>> 16) & 0xFF).toInt)
+    crc.update(((v >>> 8) & 0xFF).toInt); crc.update((v & 0xFF).toInt)
   }
 
   sealed trait Command

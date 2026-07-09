@@ -1,17 +1,18 @@
 package promovolve.browser
 
-import com.microsoft.playwright.{Browser, BrowserType, Page, Playwright}
+import com.microsoft.playwright.{ Browser, BrowserType, Page, Playwright }
 
 import java.nio.charset.StandardCharsets
-import java.nio.file.{Files, Path}
+import java.nio.file.{ Files, Path }
 import scala.jdk.CollectionConverters.*
 
-/** Smoke test for the per-slot position-signal extraction in
-  * `extractSlots` (crawler.js). Loads a fixture HTML with slots in
-  * varied positions/regions and dumps what we capture.
-  *
-  * Run: sbt "crawler/Test / runMain promovolve.browser.TestExtractSlotsApp"
-  */
+/**
+ * Smoke test for the per-slot position-signal extraction in
+ * `extractSlots` (crawler.js). Loads a fixture HTML with slots in
+ * varied positions/regions and dumps what we capture.
+ *
+ * Run: sbt "crawler/Test / runMain promovolve.browser.TestExtractSlotsApp"
+ */
 object TestExtractSlotsApp {
 
   private val fixtureHtml: String =
@@ -41,7 +42,7 @@ object TestExtractSlotsApp {
       |      <article>
       |        <h2>Article headline</h2>
       |        <p>Lorem ipsum dolor sit amet, consectetur adipiscing elit. """.stripMargin +
-      ("Sed do eiusmod tempor incididunt ut labore. " * 8) + """</p>
+    ("Sed do eiusmod tempor incididunt ut labore. " * 8) + """</p>
       |        <div class="ad" data-promovolve-slot="in-article" data-w="300" data-h="250"
       |             style="width:300px;height:250px"></div>
       |        <p>""".stripMargin + ("More body text to lift density. " * 20) + """</p>
@@ -67,7 +68,7 @@ object TestExtractSlotsApp {
   def main(args: Array[String]): Unit = {
     val crawlerJs = new String(
       getClass.getResourceAsStream("/crawler.js").readAllBytes(),
-      StandardCharsets.UTF_8,
+      StandardCharsets.UTF_8
     )
 
     val tmpHtml: Path = Files.createTempFile("extract-slots-fixture", ".html")
@@ -103,7 +104,8 @@ object TestExtractSlotsApp {
         val vis = m.get("initialViewability").map(_.toString.toDouble).getOrElse(Double.NaN)
         val region = m.getOrElse("region", "?")
         val density = m.get("textDensity").map(_.toString.toDouble).getOrElse(Double.NaN)
-        println(f"  $slotId%-22s ${w}x${h}%-9s y=$yTop%-5s/$docH%-5s fold=$above%-5s vis=${vis}%.2f region=$region%-10s density=${density}%.2f")
+        println(
+          f"  $slotId%-22s ${w}x${h}%-9s y=$yTop%-5s/$docH%-5s fold=$above%-5s vis=${vis}%.2f region=$region%-10s density=${density}%.2f")
       }
 
       browser.close()

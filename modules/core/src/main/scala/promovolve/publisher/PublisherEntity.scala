@@ -1,33 +1,34 @@
 package promovolve.publisher
 
-import org.apache.pekko.actor.typed.scaladsl.{ActorContext, Behaviors}
-import org.apache.pekko.actor.typed.{ActorRef, ActorSystem, Behavior}
-import org.apache.pekko.cluster.ddata.typed.scaladsl.{DistributedData, Replicator}
-import org.apache.pekko.cluster.ddata.{LWWMap, LWWMapKey, SelfUniqueAddress}
-import org.apache.pekko.cluster.sharding.typed.scaladsl.{ClusterSharding, EntityTypeKey}
+import org.apache.pekko.actor.typed.scaladsl.{ ActorContext, Behaviors }
+import org.apache.pekko.actor.typed.{ ActorRef, ActorSystem, Behavior }
+import org.apache.pekko.cluster.ddata.typed.scaladsl.{ DistributedData, Replicator }
+import org.apache.pekko.cluster.ddata.{ LWWMap, LWWMapKey, SelfUniqueAddress }
+import org.apache.pekko.cluster.sharding.typed.scaladsl.{ ClusterSharding, EntityTypeKey }
 import org.apache.pekko.persistence.typed.PersistenceId
 import org.apache.pekko.persistence.typed.state.RecoveryCompleted
-import org.apache.pekko.persistence.typed.state.scaladsl.{DurableStateBehavior, Effect}
-import promovolve.{CborSerializable, PublisherId, SiteId}
+import org.apache.pekko.persistence.typed.state.scaladsl.{ DurableStateBehavior, Effect }
+import promovolve.{ CborSerializable, PublisherId, SiteId }
 
-/** Sharded entity representing a publisher account.
-  *
-  * A publisher:
-  *   - Owns one or more sites (tracks membership only, sites own their config)
-  *   - Has domain blacklist (block ads linking to specific landing page domains)
-  *   - Coordinates site lifecycle (register, delete)
-  *
-  * Uses DurableStateBehavior (not EventSourced) because:
-  *   - Simple state with no need for event replay history
-  *   - No downstream event consumers
-  *   - Direct state persistence is simpler and more efficient
-  *
-  * Hierarchy: Publisher → Site(s) → AdSlot(s)
-  *
-  * Note: Site configuration is owned by SiteEntity, not PublisherEntity.
-  * This allows sites to be autonomous after initialization and recover
-  * independently after node restarts.
-  */
+/**
+ * Sharded entity representing a publisher account.
+ *
+ * A publisher:
+ *   - Owns one or more sites (tracks membership only, sites own their config)
+ *   - Has domain blacklist (block ads linking to specific landing page domains)
+ *   - Coordinates site lifecycle (register, delete)
+ *
+ * Uses DurableStateBehavior (not EventSourced) because:
+ *   - Simple state with no need for event replay history
+ *   - No downstream event consumers
+ *   - Direct state persistence is simpler and more efficient
+ *
+ * Hierarchy: Publisher → Site(s) → AdSlot(s)
+ *
+ * Note: Site configuration is owned by SiteEntity, not PublisherEntity.
+ * This allows sites to be autonomous after initialization and recover
+ * independently after node restarts.
+ */
 object PublisherEntity {
 
   /** Type alias for DData update responses */
@@ -39,10 +40,11 @@ object PublisherEntity {
   val TypeKey: EntityTypeKey[Command | DDataUpdateResponse] =
     EntityTypeKey[Command | DDataUpdateResponse]("publisher-entity")
 
-  /** DData key for domain blacklists - replicated across cluster for fast reads by AdServer.
-    * Note: Uses SiteId as key because AdServer is sharded by site and looks up by its own ID.
-    * Always includes publisherId as a "virtual site" for the default case where siteId == publisherId.
-    */
+  /**
+   * DData key for domain blacklists - replicated across cluster for fast reads by AdServer.
+   * Note: Uses SiteId as key because AdServer is sharded by site and looks up by its own ID.
+   * Always includes publisherId as a "virtual site" for the default case where siteId == publisherId.
+   */
   val DomainBlocklistCacheKey: LWWMapKey[SiteId, CachedDomainBlocklist] =
     LWWMapKey[SiteId, CachedDomainBlocklist]("publisher-domain-blacklist")
 
@@ -56,8 +58,8 @@ object PublisherEntity {
     Behaviors.setup { ctx =>
       Behaviors.withTimers { timers =>
         given node: SelfUniqueAddress = DistributedData(system).selfUniqueAddress
-        val replicator                = DistributedData(system).replicator
-        val retryTimerKey             = "ddata-retry"
+        val replicator = DistributedData(system).replicator
+        val retryTimerKey = "ddata-retry"
 
         def syncToDData(state: State): Unit = {
           val cached = CachedDomainBlocklist(state.domainBlocklist)
@@ -100,9 +102,10 @@ object PublisherEntity {
         }
 
         DurableStateBehavior[Command | DDataUpdateResponse, State](
-          persistenceId  = PersistenceId.ofUniqueId(s"publisher-${publisherId.value}"),
-          emptyState     = State.empty(publisherId),
-          commandHandler = (state, command) => handleCommand(state, command, sharding, syncToDData, shutdownSite, cancelRetryTimer, scheduleRetry, ctx)
+          persistenceId = PersistenceId.ofUniqueId(s"publisher-${publisherId.value}"),
+          emptyState = State.empty(publisherId),
+          commandHandler = (state, command) =>
+            handleCommand(state, command, sharding, syncToDData, shutdownSite, cancelRetryTimer, scheduleRetry, ctx)
         ).receiveSignal { case (state, RecoveryCompleted) =>
           // Keep DData in sync after recovery
           syncToDData(state)
@@ -136,7 +139,7 @@ object PublisherEntity {
               SiteEntity.Register(state.publisherId, ref)
             )
           ) {
-            case scala.util.Success(_) => SiteInitialized(siteId, replyTo)
+            case scala.util.Success(_)  => SiteInitialized(siteId, replyTo)
             case scala.util.Failure(ex) => FailedToInitializeSite(siteId, ex.getMessage, replyTo)
           }
           Effect.none
@@ -175,7 +178,7 @@ object PublisherEntity {
 
       case BlockDomains(domains, replyTo) =>
         val normalizedDomains = domains.map(_.toLowerCase)
-        val newDomains        = normalizedDomains -- state.domainBlocklist
+        val newDomains = normalizedDomains -- state.domainBlocklist
         if (newDomains.nonEmpty) {
           val newState = state.blockDomains(newDomains)
           Effect
@@ -186,7 +189,7 @@ object PublisherEntity {
 
       case UnblockDomains(domains, replyTo) =>
         val normalizedDomains = domains.map(_.toLowerCase)
-        val toRemove          = normalizedDomains.intersect(state.domainBlocklist)
+        val toRemove = normalizedDomains.intersect(state.domainBlocklist)
         if (toRemove.nonEmpty) {
           val newState = state.unblockDomains(toRemove)
           Effect
@@ -300,7 +303,8 @@ object PublisherEntity {
   ) extends Command
 
   final case class SiteRegistered(publisherId: PublisherId, siteId: SiteId) extends RegisterSiteResult
-  final case class SiteRegistrationFailed(publisherId: PublisherId, siteId: SiteId, reason: String) extends RegisterSiteResult
+  final case class SiteRegistrationFailed(publisherId: PublisherId, siteId: SiteId, reason: String)
+      extends RegisterSiteResult
 
   /** Delete a site from this publisher */
   final case class DeleteSite(
@@ -359,9 +363,11 @@ object PublisherEntity {
   final case class ContentRecencyWindow(windowMs: Long) extends promovolve.CborSerializable
 
   /** Set content recency window (24 hours to 7 days) */
-  final case class SetContentRecencyWindow(windowMs: Long, replyTo: ActorRef[ContentRecencyWindowUpdated]) extends Command
+  final case class SetContentRecencyWindow(windowMs: Long, replyTo: ActorRef[ContentRecencyWindowUpdated])
+      extends Command
 
-  final case class ContentRecencyWindowUpdated(publisherId: PublisherId, windowMs: Long) extends promovolve.CborSerializable
+  final case class ContentRecencyWindowUpdated(publisherId: PublisherId, windowMs: Long)
+      extends promovolve.CborSerializable
 
   /** Get HMAC secret for signing tracking URLs */
   final case class GetHmacSecret(replyTo: ActorRef[HmacSecret]) extends Command
@@ -386,7 +392,7 @@ object PublisherEntity {
       status: Status,
       siteIds: Set[SiteId],
       domainBlocklist: Set[String],
-      contentRecencyWindowMs: Long = 48 * 60 * 60 * 1000,  // Default 48 hours
+      contentRecencyWindowMs: Long = 48 * 60 * 60 * 1000, // Default 48 hours
       hmacSecret: Option[Array[Byte]] = None
   ) extends CborSerializable {
     def addSite(siteId: SiteId): State =
@@ -441,11 +447,11 @@ object PublisherEntity {
   object State {
     def empty(publisherId: PublisherId): State =
       State(
-        publisherId            = publisherId,
-        status                 = Status.Active,
-        siteIds                = Set.empty,
-        domainBlocklist        = Set.empty,
-        contentRecencyWindowMs = 48L * 60 * 60 * 1000  // Default 48 hours
+        publisherId = publisherId,
+        status = Status.Active,
+        siteIds = Set.empty,
+        domainBlocklist = Set.empty,
+        contentRecencyWindowMs = 48L * 60 * 60 * 1000 // Default 48 hours
       )
   }
 

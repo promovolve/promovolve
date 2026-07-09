@@ -113,17 +113,17 @@ class CuckooFilterSpec extends AnyFlatSpec with Matchers {
     val rejectedSites = CuckooFilter.lowError(2000)
 
     def approve(siteId: String): Unit = {
-      rejectedSites.delete(siteId)  // Un-reject if previously rejected
+      rejectedSites.delete(siteId) // Un-reject if previously rejected
       approvedSites.insert(siteId)
     }
 
     def reject(siteId: String): Unit = {
-      approvedSites.delete(siteId)  // Un-approve if previously approved
+      approvedSites.delete(siteId) // Un-approve if previously approved
       rejectedSites.insert(siteId)
     }
 
     def unreject(siteId: String): Unit = {
-      rejectedSites.delete(siteId)  // Reversible!
+      rejectedSites.delete(siteId) // Reversible!
     }
 
     def canDeliver(siteId: String): Boolean = {

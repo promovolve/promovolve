@@ -1,17 +1,17 @@
 package promovolve.publisher.assessment
 
-import org.apache.pekko.actor.typed.{ActorRef, ActorSystem}
+import org.apache.pekko.actor.typed.{ ActorRef, ActorSystem }
 import org.apache.pekko.actor.typed.scaladsl.adapter.*
 import org.apache.pekko.http.scaladsl.Http
 import org.apache.pekko.http.scaladsl.model.*
 import org.apache.pekko.http.scaladsl.unmarshalling.Unmarshal
 import org.slf4j.LoggerFactory
 import promovolve.GeminiRateLimiter
-import promovolve.taxonomy.{AdProductTaxonomy, TieredCategory}
+import promovolve.taxonomy.{ AdProductTaxonomy, TieredCategory }
 import spray.json.*
 
 import java.util.Base64
-import scala.concurrent.{ExecutionContext, Future}
+import scala.concurrent.{ ExecutionContext, Future }
 import scala.concurrent.duration.*
 
 /** Result of category verification and safety assessment */
@@ -27,14 +27,16 @@ final case class CategoryVerificationResult(
     // Content categories this ad should target (IAB Content Taxonomy 3.0 IDs)
     suggestedContentCategories: List[String] = Nil
 ) {
+
   /** True if any safety flag is set */
   def isSafetyBlocked: Boolean = adultContent || violence || hateSpeech
 }
 
-/** Gemini API client for category verification.
-  *
-  * Verifies if an image matches a declared IAB category.
-  */
+/**
+ * Gemini API client for category verification.
+ *
+ * Verifies if an image matches a declared IAB category.
+ */
 final class CategoryVerificationClient(
     apiKey: String,
     model: String = "gemini-2.5-flash",
@@ -57,10 +59,11 @@ final class CategoryVerificationClient(
   ): Future[CategoryVerificationResult] =
     verifyWithRetry(imageBytes, mimeType, declaredCategory, attempt = 0)
 
-  /** Text-based category verification — passes raw LP text instead of a
-    * rendered banner image. Preferred path: LP text is denser signal than
-    * a screenshot and avoids base64-encoding a full PNG into the request.
-    */
+  /**
+   * Text-based category verification — passes raw LP text instead of a
+   * rendered banner image. Preferred path: LP text is denser signal than
+   * a screenshot and avoids base64-encoding a full PNG into the request.
+   */
   def verifyText(
       adText: String,
       declaredCategory: Option[String]
@@ -81,7 +84,7 @@ final class CategoryVerificationClient(
 
     val gate: Future[Unit] = rateLimiter match {
       case Some(limiter) => GeminiRateLimiter.acquire(limiter)
-      case None => Future.successful(())
+      case None          => Future.successful(())
     }
 
     gate.flatMap { _ => http.singleRequest(request) }.flatMap { response =>
@@ -123,7 +126,7 @@ final class CategoryVerificationClient(
     // Acquire rate limit token before calling Gemini
     val gate: Future[Unit] = rateLimiter match {
       case Some(limiter) => GeminiRateLimiter.acquire(limiter)
-      case None => Future.successful(())
+      case None          => Future.successful(())
     }
 
     gate.flatMap { _ => http.singleRequest(request) }.flatMap { response =>
@@ -175,7 +178,7 @@ final class CategoryVerificationClient(
           case '}' => openBraces -= 1
           case '[' => openBrackets += 1
           case ']' => openBrackets -= 1
-          case _ =>
+          case _   =>
         }
       }
     }
@@ -412,7 +415,7 @@ JSON: {"match_confidence": 0.5, "reason": "description of ad", "suggested_conten
       // Check for blocked content or other issues
       val candidates = json.fields.get("candidates") match {
         case Some(JsArray(elements)) if elements.nonEmpty => elements
-        case _ =>
+        case _                                            =>
           log.error("No candidates in Gemini response: {}", body.take(500))
           throw new RuntimeException("No candidates in response")
       }
@@ -431,7 +434,7 @@ JSON: {"match_confidence": 0.5, "reason": "description of ad", "suggested_conten
 
       val content = candidate.fields.get("content") match {
         case Some(c) => c.asJsObject
-        case None =>
+        case None    =>
           log.error("No content in candidate: {}", candidate.prettyPrint.take(500))
           throw new RuntimeException("No content in candidate")
       }

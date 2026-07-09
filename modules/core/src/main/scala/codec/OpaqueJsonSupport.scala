@@ -10,7 +10,7 @@ object OpaqueJsonSupport extends LowPriorityOpaqueJsonSupport {
     def write(t: T) = JsString(codec.encode(t))
     def read(json: JsValue): T = json match {
       case JsString(s) => codec.decode(s)
-      case other => deserializationError(s"Expected JSON string, got $other")
+      case other       => deserializationError(s"Expected JSON string, got $other")
     }
   }
 
@@ -18,7 +18,7 @@ object OpaqueJsonSupport extends LowPriorityOpaqueJsonSupport {
     def write(t: T) = JsNumber(codec.encode(t))
     def read(json: JsValue): T = json match {
       case JsNumber(n) => codec.decode(n.toLongExact)
-      case other => deserializationError(s"Expected JSON number, got $other")
+      case other       => deserializationError(s"Expected JSON number, got $other")
     }
   }
 
@@ -26,7 +26,7 @@ object OpaqueJsonSupport extends LowPriorityOpaqueJsonSupport {
     def write(t: T) = JsNumber(codec.encode(t))
     def read(json: JsValue): T = json match {
       case JsNumber(n) => codec.decode(n)
-      case other => deserializationError(s"Expected JSON number, got $other")
+      case other       => deserializationError(s"Expected JSON number, got $other")
     }
   }
 }
@@ -40,7 +40,7 @@ trait LowPriorityOpaqueJsonSupport {
     def read(json: JsValue): T = json match {
       case JsString(s) =>
         decoder.decode(s) match {
-          case Right(t) => t
+          case Right(t)  => t
           case Left(err) => deserializationError(err)
         }
       case other =>
@@ -53,7 +53,7 @@ trait LowPriorityOpaqueJsonSupport {
     def read(json: JsValue): T = json match {
       case JsNumber(n) =>
         decoder.decode(n.toLongExact) match {
-          case Right(t) => t
+          case Right(t)  => t
           case Left(err) => deserializationError(err)
         }
       case other =>

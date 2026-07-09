@@ -3,11 +3,13 @@ package promovolve.api
 import org.scalatest.matchers.should.Matchers
 import org.scalatest.wordspec.AnyWordSpec
 
-/** Pins the helper that extracts user-authored text from the
-  * Designer's pagesJson for feeding to Gemini's `verifyText`. This is
-  * the bridge between the Designer's audience-signal chip and the
-  * server's category classifier — if it returns "", the Designer's
-  * suggested-words guidance never reaches the model. */
+/**
+ * Pins the helper that extracts user-authored text from the
+ * Designer's pagesJson for feeding to Gemini's `verifyText`. This is
+ * the bridge between the Designer's audience-signal chip and the
+ * server's category classifier — if it returns "", the Designer's
+ * suggested-words guidance never reaches the model.
+ */
 class CreativeProcessorTextSpec extends AnyWordSpec with Matchers {
 
   "CreativeProcessor.textFromPagesJson" should {
@@ -36,9 +38,9 @@ class CreativeProcessorTextSpec extends AnyWordSpec with Matchers {
     }
 
     "return empty string for unparseable JSON" in {
-      CreativeProcessor.textFromPagesJson("not json at all")   shouldBe ""
-      CreativeProcessor.textFromPagesJson("")                  shouldBe ""
-      CreativeProcessor.textFromPagesJson("{not array}")       shouldBe ""
+      CreativeProcessor.textFromPagesJson("not json at all") shouldBe ""
+      CreativeProcessor.textFromPagesJson("") shouldBe ""
+      CreativeProcessor.textFromPagesJson("{not array}") shouldBe ""
       // Object instead of array — schema mismatch.
       CreativeProcessor.textFromPagesJson("""{"foo":"bar"}""") shouldBe ""
     }
@@ -54,13 +56,13 @@ class CreativeProcessorTextSpec extends AnyWordSpec with Matchers {
       // We feed this to a prompt that already has its own structure;
       // keeping it one-line keeps the prompt clean.
       val json = """[{"headline":"A"},{"headline":"B"}]"""
-      val out  = CreativeProcessor.textFromPagesJson(json)
+      val out = CreativeProcessor.textFromPagesJson(json)
       out shouldBe "A B"
     }
 
     "trim whitespace around individual fields" in {
       val json = """[{"headline":"  Pilates  ","sub":"\nWellness\n"}]"""
-      val out  = CreativeProcessor.textFromPagesJson(json)
+      val out = CreativeProcessor.textFromPagesJson(json)
       out shouldBe "Pilates Wellness"
     }
   }

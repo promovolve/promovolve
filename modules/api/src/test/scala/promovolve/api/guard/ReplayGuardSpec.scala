@@ -24,24 +24,24 @@ class ReplayGuardSpec extends AnyWordSpec with Matchers {
       val urlValidityWindow = 3.minutes
 
       // URL validity span = ±maxSkew = 2× urlValidityWindow
-      val urlValiditySpan = urlValidityWindow.toMillis * 2  // 6 minutes
+      val urlValiditySpan = urlValidityWindow.toMillis * 2 // 6 minutes
 
       // Bloom bucket = urlValidityWindow + 1 min
-      val bloomBucketMs = urlValidityWindow.toMillis + 60_000L  // 4 minutes
+      val bloomBucketMs = urlValidityWindow.toMillis + 60_000L // 4 minutes
 
       // Bloom coverage = 2× bucket (current + previous)
-      val bloomCoverage = bloomBucketMs * 2  // 8 minutes
+      val bloomCoverage = bloomBucketMs * 2 // 8 minutes
 
       // Coverage should exceed validity span
       bloomCoverage should be > urlValiditySpan
-      (bloomCoverage - urlValiditySpan) shouldBe 2.minutes.toMillis  // 2 min margin
+      (bloomCoverage - urlValiditySpan) shouldBe 2.minutes.toMillis // 2 min margin
     }
 
     "scale correctly for different validity windows" in {
       val testCases = Seq(
-        (2.minutes, 3.minutes, 6.minutes),  // 2 min validity → 3 min bucket → 6 min coverage
-        (3.minutes, 4.minutes, 8.minutes),  // 3 min validity → 4 min bucket → 8 min coverage
-        (5.minutes, 6.minutes, 12.minutes), // 5 min validity → 6 min bucket → 12 min coverage
+        (2.minutes, 3.minutes, 6.minutes), // 2 min validity → 3 min bucket → 6 min coverage
+        (3.minutes, 4.minutes, 8.minutes), // 3 min validity → 4 min bucket → 8 min coverage
+        (5.minutes, 6.minutes, 12.minutes) // 5 min validity → 6 min bucket → 12 min coverage
       )
 
       testCases.foreach { case (validityWindow, expectedBucket, expectedCoverage) =>
@@ -147,7 +147,7 @@ class ReplayGuardSpec extends AnyWordSpec with Matchers {
   "BucketRotationStrategy" should {
 
     "calculate correct bucket IDs" in {
-      val strategy = new BucketRotationStrategy(60_000L)  // 1 minute buckets
+      val strategy = new BucketRotationStrategy(60_000L) // 1 minute buckets
 
       // Time 0 should be bucket 0
       strategy.bucketOf(0L) shouldBe 0L
@@ -215,7 +215,7 @@ class ReplayGuardSpec extends AnyWordSpec with Matchers {
 
     "produce different hashes for different inputs" in {
       val key1 = "pub=abc&url=http://example.com&slot=1&cid=xyz&v=1&b=100&evt=imp"
-      val key2 = "pub=abc&url=http://example.com&slot=1&cid=xyz&v=1&b=101&evt=imp"  // Different bucket
+      val key2 = "pub=abc&url=http://example.com&slot=1&cid=xyz&v=1&b=101&evt=imp" // Different bucket
 
       val hash1 = ReplayGuard.hash(key1)
       val hash2 = ReplayGuard.hash(key2)
@@ -260,11 +260,11 @@ class ReplayGuardSpec extends AnyWordSpec with Matchers {
 
     "reject invalid configurations" in {
       val invalidConfigs = Seq(
-        GuardConfiguration(expectedPerPart = 0),      // Zero expected
-        GuardConfiguration(expectedPerPart = -1),     // Negative expected
-        GuardConfiguration(fpr = 0.0),                // Zero FPR
-        GuardConfiguration(fpr = 1.0),                // FPR = 1
-        GuardConfiguration(bucketMs = 0L),            // Zero bucket
+        GuardConfiguration(expectedPerPart = 0), // Zero expected
+        GuardConfiguration(expectedPerPart = -1), // Negative expected
+        GuardConfiguration(fpr = 0.0), // Zero FPR
+        GuardConfiguration(fpr = 1.0), // FPR = 1
+        GuardConfiguration(bucketMs = 0L) // Zero bucket
       )
 
       invalidConfigs.foreach { config =>

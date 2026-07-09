@@ -3,13 +3,14 @@ package promovolve.taxonomy
 import scala.io.Source
 import scala.util.Using
 
-/** IAB Ad Product Taxonomy 2.0.
-  *
-  * Loads ad product categories from the official IAB taxonomy file.
-  * Used by advertisers to declare what product/service they're selling.
-  *
-  * @see https://github.com/InteractiveAdvertisingBureau/Taxonomies/tree/main/Ad%20Product%20Taxonomies
-  */
+/**
+ * IAB Ad Product Taxonomy 2.0.
+ *
+ * Loads ad product categories from the official IAB taxonomy file.
+ * Used by advertisers to declare what product/service they're selling.
+ *
+ * @see https://github.com/InteractiveAdvertisingBureau/Taxonomies/tree/main/Ad%20Product%20Taxonomies
+ */
 case class AdProductCategory(
     id: String,
     parentId: Option[String],
@@ -37,10 +38,11 @@ object AdProductTaxonomy {
     }.toList.sortBy(_.id.toIntOption.getOrElse(Int.MaxValue))
   }
 
-  /** Load ad product categories from the IAB Ad Product Taxonomy 2.0 TSV.
-    *
-    * File format: Unique ID, Parent ID, Name, Tier 1, Tier 2, Tier 3
-    */
+  /**
+   * Load ad product categories from the IAB Ad Product Taxonomy 2.0 TSV.
+   *
+   * File format: Unique ID, Parent ID, Name, Tier 1, Tier 2, Tier 3
+   */
   private def loadTaxonomy(): Map[String, AdProductCategory] = {
     val resourcePath = "/iab/ad_product_taxonomy_2.0.tsv"
     val stream = Option(getClass.getResourceAsStream(resourcePath))

@@ -5,22 +5,23 @@ import org.scalatest.wordspec.AnyWordSpec
 
 import scala.concurrent.duration.*
 
-/** Pure tests for FoldToken — the HMAC-signed credential that authenticates
-  * a fold gesture against a specific auction win. These cover the
-  * mint/verify roundtrip and every documented Left(reason) branch.
-  */
+/**
+ * Pure tests for FoldToken — the HMAC-signed credential that authenticates
+ * a fold gesture against a specific auction win. These cover the
+ * mint/verify roundtrip and every documented Left(reason) branch.
+ */
 class FoldTokenSpec extends AnyWordSpec with Matchers {
 
-  private val secret      = "test-secret-bytes-min-32-bytes-long".getBytes("UTF-8")
+  private val secret = "test-secret-bytes-min-32-bytes-long".getBytes("UTF-8")
   private val otherSecret = "another-secret-also-32-bytes-long-x".getBytes("UTF-8")
 
-  private val pub  = "publisher-1"
-  private val url  = "https://example.com/article"
+  private val pub = "publisher-1"
+  private val url = "https://example.com/article"
   private val slot = "leader-top"
-  private val cid  = "ad_7f3a9b"
-  private val ver  = 1234567890L
+  private val cid = "ad_7f3a9b"
+  private val ver = 1234567890L
   private val camp = "camp-42"
-  private val adv  = "adv-7"
+  private val adv = "adv-7"
 
   "FoldToken.mint then verify" should {
 
@@ -43,7 +44,7 @@ class FoldTokenSpec extends AnyWordSpec with Matchers {
     "produce different tokens on each mint (nonce uniqueness)" in {
       val a = FoldToken.mint(pub, url, slot, cid, ver, camp, adv, secret)
       val b = FoldToken.mint(pub, url, slot, cid, ver, camp, adv, secret)
-      a should not equal b
+      (a should not).equal(b)
     }
   }
 
@@ -68,7 +69,7 @@ class FoldTokenSpec extends AnyWordSpec with Matchers {
       val mintedAt = 1_700_000_000_000L
       // 31 minutes after mint — outside the 30-min skew window.
       val verifyAt = mintedAt + 31.minutes.toMillis
-      val token    = FoldToken.mint(pub, url, slot, cid, ver, camp, adv, secret, mintedAt)
+      val token = FoldToken.mint(pub, url, slot, cid, ver, camp, adv, secret, mintedAt)
       FoldToken.verify(token, slot, cid, secret, verifyAt) shouldBe Left("stale")
     }
 
@@ -76,7 +77,7 @@ class FoldTokenSpec extends AnyWordSpec with Matchers {
       val mintedAt = 1_700_000_000_000L
       // 29 minutes — still within the window.
       val verifyAt = mintedAt + 29.minutes.toMillis
-      val token    = FoldToken.mint(pub, url, slot, cid, ver, camp, adv, secret, mintedAt)
+      val token = FoldToken.mint(pub, url, slot, cid, ver, camp, adv, secret, mintedAt)
       FoldToken.verify(token, slot, cid, secret, verifyAt).isRight shouldBe true
     }
 
@@ -108,10 +109,10 @@ class FoldTokenSpec extends AnyWordSpec with Matchers {
       // Forge a token by mutating the payload but keeping the original HMAC.
       // The HMAC was computed over the original camp/adv, so the new payload
       // should fail signature verification.
-      val good          = FoldToken.mint(pub, url, slot, cid, ver, camp, adv, secret)
+      val good = FoldToken.mint(pub, url, slot, cid, ver, camp, adv, secret)
       val Array(_, mac) = good.split('.'): @unchecked
-      val now           = FoldToken.nowBucket()
-      val forged        = java.util.Base64.getUrlEncoder.withoutPadding
+      val now = FoldToken.nowBucket()
+      val forged = java.util.Base64.getUrlEncoder.withoutPadding
         .encodeToString(s"$pub|$url|$slot|$cid|$ver|$now|attacker-camp|attacker-adv|nonce".getBytes("UTF-8"))
       FoldToken.verify(s"$forged.$mac", slot, cid, secret) shouldBe Left("bad_signature")
     }
@@ -121,7 +122,7 @@ class FoldTokenSpec extends AnyWordSpec with Matchers {
 
     "accept buckets within +/- 30 buckets of now" in {
       val nowMs = 1_700_000_000_000L
-      val nowB  = FoldToken.nowBucket(nowMs)
+      val nowB = FoldToken.nowBucket(nowMs)
       FoldToken.fresh(nowB, nowMs) shouldBe true
       FoldToken.fresh(nowB - 29, nowMs) shouldBe true
       FoldToken.fresh(nowB + 29, nowMs) shouldBe true
@@ -129,7 +130,7 @@ class FoldTokenSpec extends AnyWordSpec with Matchers {
 
     "reject buckets outside the window" in {
       val nowMs = 1_700_000_000_000L
-      val nowB  = FoldToken.nowBucket(nowMs)
+      val nowB = FoldToken.nowBucket(nowMs)
       FoldToken.fresh(nowB - 31, nowMs) shouldBe false
       FoldToken.fresh(nowB + 31, nowMs) shouldBe false
     }

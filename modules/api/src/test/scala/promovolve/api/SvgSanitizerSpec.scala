@@ -12,58 +12,58 @@ class SvgSanitizerSpec extends AnyWordSpec with Matchers {
 
     "strip <script> blocks" in {
       val out = sanitizeStr("""<svg><script>alert(1)</script><circle r="5"/></svg>""")
-      out should not include "script"
-      out should not include "alert"
-      out should include ("<circle")
+      (out should not).include("script")
+      (out should not).include("alert")
+      out should include("<circle")
     }
 
     "strip self-closing <script> tags" in {
       val out = sanitizeStr("""<svg><script src="x"/><rect/></svg>""")
-      out should not include "script"
-      out should include ("<rect")
+      (out should not).include("script")
+      out should include("<rect")
     }
 
     "strip onload, onclick, onerror handlers" in {
       val out = sanitizeStr("""<svg onload="alert(1)"><circle onclick="bad()" onerror='x' r="5"/></svg>""")
-      out should not include "onload"
-      out should not include "onclick"
-      out should not include "onerror"
-      out should not include "alert"
-      out should include ("<circle")
+      (out should not).include("onload")
+      (out should not).include("onclick")
+      (out should not).include("onerror")
+      (out should not).include("alert")
+      out should include("<circle")
     }
 
     "strip javascript: hrefs" in {
       val out = sanitizeStr("""<svg><a href="javascript:alert(1)"><text>x</text></a></svg>""")
-      out should not include "javascript:"
+      (out should not).include("javascript:")
     }
 
     "strip xlink:href javascript:" in {
       val out = sanitizeStr("""<svg><use xlink:href="javascript:alert(1)"/></svg>""")
-      out should not include "javascript:"
+      (out should not).include("javascript:")
     }
 
     "strip <foreignObject> blocks (HTML/JS injection vector)" in {
       val out = sanitizeStr(
         """<svg><foreignObject><body><script>x</script></body></foreignObject><rect/></svg>"""
       )
-      out should not include "foreignObject"
-      out should not include "script"
-      out should include ("<rect")
+      (out should not).include("foreignObject")
+      (out should not).include("script")
+      out should include("<rect")
     }
 
     "strip <iframe>, <object>, <embed>" in {
       val out = sanitizeStr("""<svg><iframe src="x"></iframe><object data="y"></object><embed src="z"/></svg>""")
-      out should not include "iframe"
-      out should not include "object"
-      out should not include "embed"
+      (out should not).include("iframe")
+      (out should not).include("object")
+      (out should not).include("embed")
     }
 
     "leave benign SVG untouched in spirit (shapes preserved)" in {
       val src = """<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M5 5 L10 10"/></svg>"""
       val out = sanitizeStr(src)
-      out should include ("<path")
-      out should include ("viewBox")
-      out should include ("xmlns")
+      out should include("<path")
+      out should include("viewBox")
+      out should include("xmlns")
     }
   }
 

@@ -7,13 +7,14 @@ import scala.concurrent.Future
 /** Abstraction over multimodal LLM APIs for creative assessment. */
 trait LLMClient {
 
-  /** Assess a creative image and return structured results.
-    *
-    * @param imageBytes Raw image bytes
-    * @param mimeType   MIME type (e.g. "image/png", "image/jpeg")
-    * @param context    Additional context about the creative
-    * @return Future containing assessment results
-    */
+  /**
+   * Assess a creative image and return structured results.
+   *
+   * @param imageBytes Raw image bytes
+   * @param mimeType   MIME type (e.g. "image/png", "image/jpeg")
+   * @param context    Additional context about the creative
+   * @return Future containing assessment results
+   */
   def assessCreative(
       imageBytes: Array[Byte],
       mimeType: String,

@@ -4,10 +4,12 @@ import org.scalatest.matchers.should.Matchers
 import org.scalatest.wordspec.AnyWordSpec
 import promovolve.publisher.assets.GoogleFontCatalog
 
-/** Guards the publish-time font self-hosting inputs: catalog slug/weight
-  * derivation (which decides what gets fetched + where it's stored) and
-  * the extraction of (font family, weight) from the creative's pages JSON
-  * (which decides what to provision). */
+/**
+ * Guards the publish-time font self-hosting inputs: catalog slug/weight
+ * derivation (which decides what gets fetched + where it's stored) and
+ * the extraction of (font family, weight) from the creative's pages JSON
+ * (which decides what to provision).
+ */
 class FontProvisionSpec extends AnyWordSpec with Matchers {
 
   "GoogleFontCatalog.slugFor" should {
@@ -26,7 +28,7 @@ class FontProvisionSpec extends AnyWordSpec with Matchers {
     "match a variable-font family to its base (Montserrat Variable)" in {
       GoogleFontCatalog.slugFor("Montserrat Variable, ui-sans-serif, sans-serif") shouldBe Some("montserrat")
       GoogleFontCatalog.resolve("Montserrat Variable, sans-serif", Some(100)) shouldBe
-        Some(("montserrat-100", 100, "Montserrat"))
+      Some(("montserrat-100", 100, "Montserrat"))
     }
     "not strip a real multi-word family's tail" in {
       GoogleFontCatalog.slugFor("Open Sans") shouldBe Some("open-sans")
@@ -41,19 +43,19 @@ class FontProvisionSpec extends AnyWordSpec with Matchers {
   "GoogleFontCatalog.resolve" should {
     "use the weight parsed from a named instance over CSS weight" in {
       GoogleFontCatalog.resolve("Montserrat Thin, sans-serif", Some(700)) shouldBe
-        Some(("montserrat-100", 100, "Montserrat"))
+      Some(("montserrat-100", 100, "Montserrat"))
       GoogleFontCatalog.resolve("Montserrat Extra Bold") shouldBe
-        Some(("montserrat-800", 800, "Montserrat"))
+      Some(("montserrat-800", 800, "Montserrat"))
     }
     "fall back to the explicit CSS weight, then 400" in {
       GoogleFontCatalog.resolve("Poppins, sans-serif", Some(600)) shouldBe
-        Some(("poppins-600", 600, "Poppins"))
+      Some(("poppins-600", 600, "Poppins"))
       GoogleFontCatalog.resolve("Inter, sans-serif") shouldBe
-        Some(("inter-400", 400, "Inter"))
+      Some(("inter-400", 400, "Inter"))
     }
     "preserve canonical casing for the css2 family param" in {
       GoogleFontCatalog.resolve("\"DM Sans Medium\", sans-serif") shouldBe
-        Some(("dm-sans-500", 500, "DM Sans"))
+      Some(("dm-sans-500", 500, "DM Sans"))
     }
     "ignore invalid CSS weights (round to 400)" in {
       GoogleFontCatalog.resolve("Lato, sans-serif", Some(123)) shouldBe Some(("lato-400", 400, "Lato"))
@@ -78,12 +80,12 @@ class FontProvisionSpec extends AnyWordSpec with Matchers {
           |  }}
           |]""".stripMargin
       CreativeProcessor.fontsFromPagesJson(json) shouldBe
-        Set(
-          ("Montserrat, sans-serif", Some(100)),
-          ("sans-serif", None),
-          ("Poppins, sans-serif", Some(600)),
-          ("Noto Sans JP, sans-serif", Some(700)),
-        )
+      Set(
+        ("Montserrat, sans-serif", Some(100)),
+        ("sans-serif", None),
+        ("Poppins, sans-serif", Some(600)),
+        ("Noto Sans JP, sans-serif", Some(700))
+      )
     }
     "map bold/normal keywords and ignore junk weights" in {
       val json =
@@ -92,7 +94,7 @@ class FontProvisionSpec extends AnyWordSpec with Matchers {
           | {"type":"text","fontFamily":"Lato, sans-serif","fontWeight":"lighter"}
           |]}]""".stripMargin
       CreativeProcessor.fontsFromPagesJson(json) shouldBe
-        Set(("Inter, sans-serif", Some(700)), ("Lato, sans-serif", None))
+      Set(("Inter, sans-serif", Some(700)), ("Lato, sans-serif", None))
     }
     "return empty on malformed JSON" in {
       CreativeProcessor.fontsFromPagesJson("not json") shouldBe empty
@@ -103,11 +105,11 @@ class FontProvisionSpec extends AnyWordSpec with Matchers {
   "GoogleFontCatalog (no allow-list)" should {
     "derive a slug for ANY non-generic family — incl. ones never curated" in {
       GoogleFontCatalog.resolve("Noto Sans JP, sans-serif", Some(700)) shouldBe
-        Some(("noto-sans-jp-700", 700, "Noto Sans JP"))
+      Some(("noto-sans-jp-700", 700, "Noto Sans JP"))
       GoogleFontCatalog.resolve("Zen Old Mincho, serif") shouldBe
-        Some(("zen-old-mincho-400", 400, "Zen Old Mincho"))
+      Some(("zen-old-mincho-400", 400, "Zen Old Mincho"))
       GoogleFontCatalog.resolve("M PLUS 1, sans-serif", Some(500)) shouldBe
-        Some(("m-plus-1-500", 500, "M PLUS 1"))
+      Some(("m-plus-1-500", 500, "M PLUS 1"))
     }
     "skip generic / system families (no css2 attempt)" in {
       GoogleFontCatalog.resolve("sans-serif") shouldBe None
@@ -120,10 +122,10 @@ class FontProvisionSpec extends AnyWordSpec with Matchers {
 
   "GoogleFontCatalog.hasCjk" should {
     "detect JP/KR/CN text, not latin (drives latin vs text= subset)" in {
-      GoogleFontCatalog.hasCjk("日本語") shouldBe true     // kanji
-      GoogleFontCatalog.hasCjk("こんにちは") shouldBe true  // hiragana
-      GoogleFontCatalog.hasCjk("カタカナ") shouldBe true    // katakana
-      GoogleFontCatalog.hasCjk("한국어") shouldBe true      // hangul
+      GoogleFontCatalog.hasCjk("日本語") shouldBe true // kanji
+      GoogleFontCatalog.hasCjk("こんにちは") shouldBe true // hiragana
+      GoogleFontCatalog.hasCjk("カタカナ") shouldBe true // katakana
+      GoogleFontCatalog.hasCjk("한국어") shouldBe true // hangul
       GoogleFontCatalog.hasCjk("Hello, ABC 123!") shouldBe false
       GoogleFontCatalog.hasCjk("") shouldBe false
     }
@@ -138,7 +140,7 @@ class FontProvisionSpec extends AnyWordSpec with Matchers {
       GoogleFontCatalog.subsetKey("日本語ABC") shouldBe "a42feb55"
       GoogleFontCatalog.subsetKey("ABC日本語") shouldBe "a42feb55" // sorted-unique → same
       GoogleFontCatalog.subsetKey("こんにちは世界") shouldBe "c78ba161"
-      GoogleFontCatalog.subsetKey("") shouldBe "811c9dc5"          // FNV offset basis
+      GoogleFontCatalog.subsetKey("") shouldBe "811c9dc5" // FNV offset basis
       GoogleFontCatalog.subsetKey("A") shouldBe "c40bf6cc"
     }
   }
@@ -153,7 +155,7 @@ class FontProvisionSpec extends AnyWordSpec with Matchers {
       val text = CreativeProcessor.subsetTextFromPagesJson(json)
       Seq("特集", "日本語", "本文", "H2", "説明").foreach(text should include(_))
       // non-content fields (img) are excluded
-      text should not include "x"
+      (text should not).include("x")
     }
     "return empty on malformed JSON" in {
       CreativeProcessor.subsetTextFromPagesJson("nope") shouldBe ""
@@ -169,7 +171,7 @@ class FontProvisionSpec extends AnyWordSpec with Matchers {
           |  "banners":{"300x250":[{"type":"text","text":"別枠"}]}}]""".stripMargin
       val text = CreativeProcessor.subsetTextFromPagesJson(json)
       Seq("日本語", "上書き", "別枠").foreach(text should include(_))
-      text should not include "x"
+      (text should not).include("x")
     }
   }
 
@@ -186,7 +188,7 @@ class FontProvisionSpec extends AnyWordSpec with Matchers {
           |  src: url(https://fonts.gstatic.com/l/font?kit=-F6jfjtqLzI2JPCgQBnw7HFyzSD-Asreg&skey=72472b0eb8793570&v=v56) format('woff2');
           |}""".stripMargin
       GoogleFontProvisioner.firstFontUrl(css) shouldBe
-        Some("https://fonts.gstatic.com/l/font?kit=-F6jfjtqLzI2JPCgQBnw7HFyzSD-Asreg&skey=72472b0eb8793570&v=v56")
+      Some("https://fonts.gstatic.com/l/font?kit=-F6jfjtqLzI2JPCgQBnw7HFyzSD-Asreg&skey=72472b0eb8793570&v=v56")
     }
     "still prefer the /* latin */ block for a full (non-subset) response" in {
       val css =
@@ -195,7 +197,7 @@ class FontProvisionSpec extends AnyWordSpec with Matchers {
           |/* latin */
           |@font-face { src: url(https://fonts.gstatic.com/s/x/latin.woff2) format('woff2'); }""".stripMargin
       GoogleFontProvisioner.firstFontUrl(css) shouldBe
-        Some("https://fonts.gstatic.com/s/x/latin.woff2")
+      Some("https://fonts.gstatic.com/s/x/latin.woff2")
     }
     "return None when no gstatic url is present" in {
       GoogleFontProvisioner.firstFontUrl("/* empty */") shouldBe None

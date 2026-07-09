@@ -12,8 +12,8 @@ class AdaptivePacingSpec extends AnyFlatSpec with Matchers {
       spend: Double,
       budget: Double = 100.0,
       requestRate: Double = 0.0,
-      requestCount: Long = 100L,       // Default: past initial grace period (needs >= 50)
-      msSinceLastRequest: Long = 100L  // Default: not stale (stale threshold is 30000ms)
+      requestCount: Long = 100L, // Default: past initial grace period (needs >= 50)
+      msSinceLastRequest: Long = 100L // Default: not stale (stale threshold is 30000ms)
   ): PacingContext = {
     val dayStart = Instant.parse("2024-01-01T00:00:00Z")
     val now = dayStart.plusSeconds(hour * 3600L)
@@ -65,8 +65,8 @@ class AdaptivePacingSpec extends AnyFlatSpec with Matchers {
     // PI adjustment (error = 0.6) reduces it significantly
     val prob = strategy.throttleProbability(ctx(hour = 6, spend = 10, requestRate = 1000))
     // Base throttle ~99%, but PI should reduce it significantly
-    prob should be < 0.8  // Throttle reduced to allow catch-up
-    prob should be > 0.5  // But still some throttle due to high traffic
+    prob should be < 0.8 // Throttle reduced to allow catch-up
+    prob should be > 0.5 // But still some throttle due to high traffic
   }
 
   it should "apply burst protection during grace period (high traffic)" in {
@@ -77,17 +77,17 @@ class AdaptivePacingSpec extends AnyFlatSpec with Matchers {
     // the controller warms up. At 1000 req/s against a ~0.23 imps/s target,
     // baseThrottle ≈ 99.98%.
     val dayStart = Instant.parse("2024-01-01T00:00:00Z")
-    val fiveSecondsIn = dayStart.plusSeconds(5)  // 5 seconds into day (within 10s grace)
+    val fiveSecondsIn = dayStart.plusSeconds(5) // 5 seconds into day (within 10s grace)
     val graceCtx = PacingContext(
       dailyBudget = BigDecimal(100),
       todaySpend = BigDecimal(0),
       dayStart = dayStart,
       now = fiveSecondsIn,
-      requestArrivalRate = 1000  // High traffic burst
+      requestArrivalRate = 1000 // High traffic burst
     )
 
     val prob = strategy.throttleProbability(graceCtx)
-    prob should be > 0.9  // Rate cap still throttles a flood during grace
+    prob should be > 0.9 // Rate cap still throttles a flood during grace
   }
 
   it should "SERVE during grace period when traffic is sparse (no cold-start cliff)" in {
@@ -99,18 +99,18 @@ class AdaptivePacingSpec extends AnyFlatSpec with Matchers {
     // Previously grace returned MaxThrottleProb (0.99) here regardless of rate,
     // which meant a low-traffic publisher showed no ads until it warmed up.
     val dayStart = Instant.parse("2024-01-01T00:00:00Z")
-    val fiveSecondsIn = dayStart.plusSeconds(5)  // within the 10s grace window
+    val fiveSecondsIn = dayStart.plusSeconds(5) // within the 10s grace window
     val sparseGraceCtx = PacingContext(
       dailyBudget = BigDecimal(100),
       todaySpend = BigDecimal(0),
       dayStart = dayStart,
       now = fiveSecondsIn,
-      requestArrivalRate = 0.05,  // sparse: ~1 request every 20s, below pace target
-      requestCount = 1L           // cold start, not yet past the request gate
+      requestArrivalRate = 0.05, // sparse: ~1 request every 20s, below pace target
+      requestCount = 1L // cold start, not yet past the request gate
     )
 
     val prob = strategy.throttleProbability(sparseGraceCtx)
-    prob shouldBe 0.0  // serves freely during grace when there is no burst risk
+    prob shouldBe 0.0 // serves freely during grace when there is no burst risk
   }
 
   it should "throttle proportionally to overspend" in {
@@ -122,7 +122,7 @@ class AdaptivePacingSpec extends AnyFlatSpec with Matchers {
     prob shouldBe 0.4 +- 0.05
 
     // More overspend → more throttle
-    val higherProb = strategy.throttleProbability(ctx(hour = 12, spend = 80))  // ratio = 1.6
+    val higherProb = strategy.throttleProbability(ctx(hour = 12, spend = 80)) // ratio = 1.6
     higherProb should be > prob
   }
 

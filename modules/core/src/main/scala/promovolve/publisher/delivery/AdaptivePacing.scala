@@ -12,22 +12,24 @@ object AdaptivePacing {
   val DefaultAvgCpm: Double = 5.00
 
   /** Default startup grace period as fraction of day (1%) - reduced throttling during ramp-up */
-  val DefaultGracePeriodFraction: Double = 0.01  // 1% of day
+  val DefaultGracePeriodFraction: Double = 0.01 // 1% of day
 
-  /** Minimum grace period in seconds - ensures enough time for rate/spend stabilization.
-    * This prevents the PI controller from making aggressive corrections based on noisy early data.
-    * 10s allows: ~5s for rate EMA to stabilize + ~5s for initial spend observation.
-    */
+  /**
+   * Minimum grace period in seconds - ensures enough time for rate/spend stabilization.
+   * This prevents the PI controller from making aggressive corrections based on noisy early data.
+   * 10s allows: ~5s for rate EMA to stabilize + ~5s for initial spend observation.
+   */
   val MinGraceSeconds: Double = 10.0
 
-  /** Minimum requests before initial grace period can end.
-    * Combined with MinGraceSeconds: grace ends when BOTH conditions are met.
-    * This ensures we have meaningful rate data before PI control engages.
-    *
-    * When traffic shape data is available, this is dynamically adjusted
-    * based on the expected request rate for the current hour, so low-traffic
-    * sites don't wait unnecessarily long.
-    */
+  /**
+   * Minimum requests before initial grace period can end.
+   * Combined with MinGraceSeconds: grace ends when BOTH conditions are met.
+   * This ensures we have meaningful rate data before PI control engages.
+   *
+   * When traffic shape data is available, this is dynamically adjusted
+   * based on the expected request rate for the current hour, so low-traffic
+   * sites don't wait unnecessarily long.
+   */
   val MinGraceRequests: Long = 10
 
   /** Maximum grace requests (caps the dynamic calculation for high-traffic sites) */
@@ -36,22 +38,23 @@ object AdaptivePacing {
   /** Number of EMA windows needed for rate stabilization (1/alpha ≈ 3 windows) */
   val EmaStabilizationWindows: Int = 3
 
-  /** Base threshold for considering rate data stale (milliseconds) - for real 86400s days.
-    * If no requests have been seen for this long, re-enter grace mode
-    * to let the rate EMA re-stabilize before PI corrections resume.
-    * 30 seconds handles typical traffic gaps without being too aggressive.
-    *
-    * For simulated days, this threshold is scaled proportionally:
-    *   scaledThreshold = BaseStaleRateThresholdMs * dayDurationSeconds / 86400
-    */
+  /**
+   * Base threshold for considering rate data stale (milliseconds) - for real 86400s days.
+   * If no requests have been seen for this long, re-enter grace mode
+   * to let the rate EMA re-stabilize before PI corrections resume.
+   * 30 seconds handles typical traffic gaps without being too aggressive.
+   *
+   * For simulated days, this threshold is scaled proportionally:
+   *   scaledThreshold = BaseStaleRateThresholdMs * dayDurationSeconds / 86400
+   */
   val BaseStaleRateThresholdMs: Long = 30_000
 
   /** Minimum staleness threshold (milliseconds) to avoid triggering on normal traffic jitter */
   val MinStaleRateThresholdMs: Long = 1_000
 
   /** Default PI gains for rate-aware pacing (direct throttle adjustment) */
-  val DefaultKp: Double = 0.5   // Proportional gain (under-pacing)
-  val DefaultKi: Double = 0.3   // Integral gain (under-pacing)
+  val DefaultKp: Double = 0.5 // Proportional gain (under-pacing)
+  val DefaultKi: Double = 0.3 // Integral gain (under-pacing)
 
   /** Base asymmetric gain multiplier for over-pacing (more aggressive recovery) */
   val BaseOverpaceGainMultiplier: Double = 2.0
@@ -92,33 +95,38 @@ object AdaptivePacing {
   /** Self-tuning: smoothing alpha recovery factor when stable */
   val StableSmoothingRecoveryFactor: Double = 1.05
 
-  /** Self-tuning: minimum interval between tuning runs (milliseconds).
-    * Prevents too-frequent tuning at high traffic while still allowing
-    * responsive tuning at low traffic (where request count is the bottleneck).
-    */
+  /**
+   * Self-tuning: minimum interval between tuning runs (milliseconds).
+   * Prevents too-frequent tuning at high traffic while still allowing
+   * responsive tuning at low traffic (where request count is the bottleneck).
+   */
   val MinSelfTuneIntervalMs: Long = 500
 
-  /** Cross-day learning: minimum remaining day fraction to trigger early exhaustion boost.
-    * If budget exhausts with more than this fraction remaining, boost overpace multiplier.
-    * 0.05 = 5% of day remaining (e.g., 30 minutes in a real day, 30s in a 600s simulated day)
-    */
+  /**
+   * Cross-day learning: minimum remaining day fraction to trigger early exhaustion boost.
+   * If budget exhausts with more than this fraction remaining, boost overpace multiplier.
+   * 0.05 = 5% of day remaining (e.g., 30 minutes in a real day, 30s in a 600s simulated day)
+   */
   val EarlyExhaustionThreshold: Double = 0.05
 
-  /** Leaky integrator decay factor - prevents indefinite windup.
-    * Applied each update: integralError *= decayFactor
-    * 0.995 = ~0.5% decay per update, half-life of ~138 updates
-    */
+  /**
+   * Leaky integrator decay factor - prevents indefinite windup.
+   * Applied each update: integralError *= decayFactor
+   * 0.995 = ~0.5% decay per update, half-life of ~138 updates
+   */
   val IntegralDecayFactor: Double = 0.995
 
-  /** EMA smoothing factor for spendRatio - dampens oscillation from bursty SpendInfo updates.
-    * 0.3 = new value has 30% weight, smoothed history has 70% weight
-    * Balances responsiveness vs stability
-    */
+  /**
+   * EMA smoothing factor for spendRatio - dampens oscillation from bursty SpendInfo updates.
+   * 0.3 = new value has 30% weight, smoothed history has 70% weight
+   * Balances responsiveness vs stability
+   */
   val SpendRatioSmoothingAlpha: Double = 0.3
 
-  /** Default feedforward window: disabled by default since volatility-adjusted PI gains
-    * are typically sufficient. Enable (0.1-0.2) for smooth shapes where PI is conservative.
-    */
+  /**
+   * Default feedforward window: disabled by default since volatility-adjusted PI gains
+   * are typically sufficient. Enable (0.1-0.2) for smooth shapes where PI is conservative.
+   */
   val DefaultFeedforwardWindow: Double = 0.0
 
   /** Create rate-aware pacing (recommended) - handles high traffic with PI control */
@@ -201,9 +209,9 @@ object AdaptivePacing {
    * @return Feedforward window fraction (0.0-0.2)
    */
   def feedforwardForVolatility(volatility: Double): Double = {
-    val maxFeedforward = 0.2  // 20% for smooth shapes
-    val minFeedforward = 0.0  // 0% for volatile shapes
-    val volatilityThreshold = 1.0  // Above this, no feedforward
+    val maxFeedforward = 0.2 // 20% for smooth shapes
+    val minFeedforward = 0.0 // 0% for volatile shapes
+    val volatilityThreshold = 1.0 // Above this, no feedforward
 
     // Linear interpolation: high volatility → low feedforward
     val t = math.max(0.0, math.min(1.0, volatility / volatilityThreshold))
@@ -223,7 +231,7 @@ object AdaptivePacing {
     val minKi = 0.2
     val maxKi = 0.6
 
-    val maxVolatility = 1.5  // Cap for scaling
+    val maxVolatility = 1.5 // Cap for scaling
 
     // Linear interpolation based on volatility
     val t = math.max(0.0, math.min(1.0, volatility / maxVolatility))
@@ -327,8 +335,8 @@ class RateAwarePacing(
     scala.collection.mutable.Queue.empty
   private var currentOverpaceMultiplier: Double = AdaptivePacing.BaseOverpaceGainMultiplier
   private var currentSmoothingAlpha: Double = AdaptivePacing.SpendRatioSmoothingAlpha
-  private var selfTuneCounter: Int = 0  // Only tune every N updates to avoid thrashing
-  private var lastSelfTuneTime: Long = 0  // Epoch millis of last self-tune
+  private var selfTuneCounter: Int = 0 // Only tune every N updates to avoid thrashing
+  private var lastSelfTuneTime: Long = 0 // Epoch millis of last self-tune
   // Cross-day learning: hint recorded by prepareForRollover, applied in reset
   private var rolloverBoostHint: Double = 1.0
 
@@ -340,7 +348,7 @@ class RateAwarePacing(
    * Called periodically (every 10 updates) to avoid thrashing.
    */
   private def selfTune(): Unit = {
-    if (spendRatioHistory.size < AdaptivePacing.SelfTuneWindowSize / 2) return  // Need enough data
+    if (spendRatioHistory.size < AdaptivePacing.SelfTuneWindowSize / 2) return // Need enough data
 
     val history = spendRatioHistory.toSeq
     val avgRatio = history.sum / history.size
@@ -381,8 +389,8 @@ class RateAwarePacing(
   }
 
   override def throttleProbability(ctx: PacingContext): Double = {
-    if (ctx.dailyBudget <= 0) return 1.0  // No budget: hard stop
-    if (ctx.remainingHours <= 0) return 1.0  // Day over: hard stop
+    if (ctx.dailyBudget <= 0) return 1.0 // No budget: hard stop
+    if (ctx.remainingHours <= 0) return 1.0 // Day over: hard stop
     if (ctx.remainingBudget <= 0) return 1.0 // Budget exhausted: hard stop
 
     val effectiveCpm = if (ctx.avgCpm > 0) ctx.avgCpm else avgCpmEstimate
@@ -394,7 +402,7 @@ class RateAwarePacing(
       case Some(prev) =>
         currentSmoothingAlpha * rawSpendRatio + (1 - currentSmoothingAlpha) * prev
       case None =>
-        rawSpendRatio  // First call: use raw value
+        rawSpendRatio // First call: use raw value
     }
     smoothedSpendRatio = Some(spendRatio)
 
@@ -533,8 +541,8 @@ class RateAwarePacing(
     val dt = lastTimestamp match {
       case Some(last) =>
         val seconds = java.time.Duration.between(last, now).toMillis / 1000.0
-        math.max(0.001, math.min(seconds, 1.0))  // Clamp to reasonable range
-      case None => 0.1  // Default for first call
+        math.max(0.001, math.min(seconds, 1.0)) // Clamp to reasonable range
+      case None => 0.1 // Default for first call
     }
 
     // Update integral with leaky integrator (decay prevents indefinite windup)

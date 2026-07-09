@@ -2,28 +2,30 @@ package promovolve.publisher.delivery.candidates
 
 import org.slf4j.LoggerFactory
 import promovolve.publisher.*
-import promovolve.{CPM, Candidate, CategoryId}
+import promovolve.{ CPM, Candidate, CategoryId }
 
 import java.time.Instant
-import scala.concurrent.{ExecutionContext, Future}
+import scala.concurrent.{ ExecutionContext, Future }
 
 // Type alias for creative lookup (async)
 type CreativeLookup = String => Future[Option[Creative]]
 
-/** Pure helper functions for candidate processing pipeline.
-  *
-  * Contains stateless logic extracted from AdServer for testability
-  * and reuse.
-  */
+/**
+ * Pure helper functions for candidate processing pipeline.
+ *
+ * Contains stateless logic extracted from AdServer for testability
+ * and reuse.
+ */
 object CandidateLogic {
 
   private val log = LoggerFactory.getLogger(getClass)
 
-  /** Filter candidates by domain blocklist.
-    *
-    * Separates candidates into allowed and blocked based on the
-    * publisher's domain blocklist configuration.
-    */
+  /**
+   * Filter candidates by domain blocklist.
+   *
+   * Separates candidates into allowed and blocked based on the
+   * publisher's domain blocklist configuration.
+   */
   def filterByDomainBlocklist(
       candidates: Vector[Candidate],
       blocklist: Option[PublisherEntity.CachedDomainBlocklist]
@@ -45,10 +47,11 @@ object CandidateLogic {
   def uniqueCategories(candidates: Vector[Candidate]): Vector[CategoryId] =
     candidates.map(_.category).distinct
 
-  /** Build CandidateViews from candidates with creative lookup (async).
-    *
-    * Filters out candidates where creative is not found or cannot participate.
-    */
+  /**
+   * Build CandidateViews from candidates with creative lookup (async).
+   *
+   * Filters out candidates where creative is not found or cannot participate.
+   */
   def buildCandidateViews(
       candidates: Vector[Candidate],
       creativeLookup: CreativeLookup,
@@ -64,15 +67,16 @@ object CandidateLogic {
       }
     }.map(_.flatten)
 
-  /** Multiplier applied to the category score when Gemini's
-    * suggestedContentCategories on the creative include the
-    * publisher-page category being auctioned. 1.15 is deliberately
-    * modest — Gemini is helpful but not always right, and the boost
-    * primarily biases cold-start selection (where categoryScore is
-    * the Beta prior in Thompson Sampling). Once a creative has
-    * impression stats, the sampled Beta posterior dominates and the
-    * boost fades naturally.
-    */
+  /**
+   * Multiplier applied to the category score when Gemini's
+   * suggestedContentCategories on the creative include the
+   * publisher-page category being auctioned. 1.15 is deliberately
+   * modest — Gemini is helpful but not always right, and the boost
+   * primarily biases cold-start selection (where categoryScore is
+   * the Beta prior in Thompson Sampling). Once a creative has
+   * impression stats, the sampled Beta posterior dominates and the
+   * boost fades naturally.
+   */
   private val GeminiCategoryBoost = 1.15
 
   /** Build CandidateView from candidate with creative and scores. */
@@ -100,25 +104,25 @@ object CandidateLogic {
         candidate.category.value,
         f"$rawScore%.3f",
         f"$score%.3f",
-        creative.suggestedContentCategories.mkString(","),
+        creative.suggestedContentCategories.mkString(",")
       )
     }
     val serveCpm = if (candidate.maxCpm > CPM.zero) candidate.maxCpm else candidate.cpm
     CandidateView(
-      creativeId        = candidate.creativeId,
-      campaignId        = candidate.campaignId,
-      advertiserId      = candidate.advertiserId,
-      assetUrl          = CDNPath(creative.s3Key),
-      mime              = MimeType(creative.mime),
-      width             = creative.width,
-      height            = creative.height,
-      category          = candidate.category,
-      cpm               = serveCpm,
-      classifiedAtMs    = classifiedAt.toEpochMilli,
-      categoryScore     = score,
+      creativeId = candidate.creativeId,
+      campaignId = candidate.campaignId,
+      advertiserId = candidate.advertiserId,
+      assetUrl = CDNPath(creative.s3Key),
+      mime = MimeType(creative.mime),
+      width = creative.width,
+      height = creative.height,
+      category = candidate.category,
+      cpm = serveCpm,
+      classifiedAtMs = classifiedAt.toEpochMilli,
+      categoryScore = score,
       adProductCategory = candidate.adProductCategory,
-      landingDomain     = candidate.landingDomain,
-      landingUrl        = creative.landingUrl,
+      landingDomain = candidate.landingDomain,
+      landingUrl = creative.landingUrl
     )
   }
 
@@ -129,8 +133,8 @@ object CandidateLogic {
       nowMs: Long = System.currentTimeMillis()
   ): ServeView =
     ServeView(
-      candidates  = candidateViews,
-      version     = nowMs,
+      candidates = candidateViews,
+      version = nowMs,
       expiresAtMs = nowMs + ttlMs
     )
 

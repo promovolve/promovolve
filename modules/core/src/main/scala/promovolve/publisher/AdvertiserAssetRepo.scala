@@ -5,7 +5,7 @@ import slick.jdbc.PostgresProfile.api.*
 import java.time.Instant
 import java.util.UUID
 import scala.concurrent.duration.*
-import scala.concurrent.{Await, ExecutionContext, Future}
+import scala.concurrent.{ Await, ExecutionContext, Future }
 
 /**
  * Per-advertiser ownership record pointing at a deduped image in image_asset.
@@ -13,9 +13,9 @@ import scala.concurrent.{Await, ExecutionContext, Future}
  * many advertisers (dedupe + shared storage).
  */
 final case class AdvertiserAsset(
-    id: String,             // UUID
+    id: String, // UUID
     advertiserId: String,
-    imageHash: String,      // FK → image_asset.hash
+    imageHash: String, // FK → image_asset.hash
     filename: String,
     createdAt: Instant
 )
@@ -86,11 +86,11 @@ final class SlickAdvertiserAssetRepo(db: slick.jdbc.JdbcBackend#Database)(using 
     )
 
   private class AdvertiserAssetTable(tag: Tag) extends Table[AdvertiserAsset](tag, "advertiser_asset") {
-    def id            = column[String]("id", O.PrimaryKey)
-    def advertiserId  = column[String]("advertiser_id")
-    def imageHash     = column[String]("image_hash")
-    def filename      = column[String]("filename")
-    def createdAt     = column[Instant]("created_at")
+    def id = column[String]("id", O.PrimaryKey)
+    def advertiserId = column[String]("advertiser_id")
+    def imageHash = column[String]("image_hash")
+    def filename = column[String]("filename")
+    def createdAt = column[Instant]("created_at")
 
     def * = (id, advertiserId, imageHash, filename, createdAt).mapTo[AdvertiserAsset]
   }

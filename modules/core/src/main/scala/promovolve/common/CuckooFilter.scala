@@ -1,34 +1,35 @@
 package promovolve.common
 
-import java.nio.{ByteBuffer, ByteOrder}
+import java.nio.{ ByteBuffer, ByteOrder }
 import scala.util.Random
 
-/** A Cuckoo Filter implementation with support for insert, lookup, and delete.
-  *
-  * False positive rates by fingerprint size:
-  *   - 8 bits:  ~3%               (1 in 33)
-  *   - 12 bits: ~0.2%             (1 in 500)
-  *   - 16 bits: ~0.01%            (1 in 10,000)
-  *   - 20 bits: ~0.001%           (1 in 100,000)
-  *   - 24 bits: ~0.00006%         (1 in 1.6 million)
-  *   - 32 bits: ~0.0000000018%    (1 in 500 million)
-  *
-  * @param numBuckets Number of buckets (should be power of 2)
-  * @param bucketSize Number of fingerprints per bucket (typically 4)
-  * @param fingerprintBits Size of fingerprint in bits (8, 12, 16, 20, 24, or 32)
-  */
+/**
+ * A Cuckoo Filter implementation with support for insert, lookup, and delete.
+ *
+ * False positive rates by fingerprint size:
+ *   - 8 bits:  ~3%               (1 in 33)
+ *   - 12 bits: ~0.2%             (1 in 500)
+ *   - 16 bits: ~0.01%            (1 in 10,000)
+ *   - 20 bits: ~0.001%           (1 in 100,000)
+ *   - 24 bits: ~0.00006%         (1 in 1.6 million)
+ *   - 32 bits: ~0.0000000018%    (1 in 500 million)
+ *
+ * @param numBuckets Number of buckets (should be power of 2)
+ * @param bucketSize Number of fingerprints per bucket (typically 4)
+ * @param fingerprintBits Size of fingerprint in bits (8, 12, 16, 20, 24, or 32)
+ */
 final class CuckooFilter private (
     val numBuckets: Int,
     val bucketSize: Int,
     val fingerprintBits: Int,
-    private val buckets: Array[Array[Int]]  // fingerprint = 0 means empty
+    private val buckets: Array[Array[Int]] // fingerprint = 0 means empty
 ) {
   require((numBuckets & (numBuckets - 1)) == 0, "numBuckets must be power of 2")
   require(fingerprintBits >= 8 && fingerprintBits <= 32, "fingerprintBits must be 8-32")
 
   private val maxFingerprint = if (fingerprintBits == 32) Int.MaxValue else (1 << fingerprintBits) - 1
   private val bucketMask = numBuckets - 1
-  private val maxKicks = 500  // Max relocations before giving up
+  private val maxKicks = 500 // Max relocations before giving up
 
   private var count: Int = buckets.map(_.count(_ != 0)).sum
 
@@ -62,9 +63,10 @@ final class CuckooFilter private (
     kickInsert(i1, fp)
   }
 
-  /** Check if item might be in the filter.
-    * Returns true if probably present, false if definitely not present.
-    */
+  /**
+   * Check if item might be in the filter.
+   * Returns true if probably present, false if definitely not present.
+   */
   def mightContain(item: String): Boolean = {
     val fp = fingerprint(item)
     val (i1, i2) = bucketIndices(item, fp)
@@ -91,7 +93,7 @@ final class CuckooFilter private (
   def toBytes: Array[Byte] = {
     val bytesPerFp = (fingerprintBits + 7) / 8
     val dataSize = numBuckets * bucketSize * bytesPerFp
-    val headerSize = 16  // numBuckets (4) + bucketSize (4) + fingerprintBits (4) + count (4)
+    val headerSize = 16 // numBuckets (4) + bucketSize (4) + fingerprintBits (4) + count (4)
 
     val buffer = ByteBuffer.allocate(headerSize + dataSize).order(ByteOrder.BIG_ENDIAN)
     buffer.putInt(numBuckets)
@@ -125,7 +127,7 @@ final class CuckooFilter private (
       if (hash == 0) 1 else hash
     } else {
       val masked = hash & maxFingerprint
-      if (masked == 0) 1 else masked  // 0 means empty, so use 1 instead
+      if (masked == 0) 1 else masked // 0 means empty, so use 1 instead
     }
     fp
   }
@@ -222,9 +224,9 @@ final class CuckooFilter private (
     var i = 0
     while (i + 4 <= data.length) {
       var k = (data(i) & 0xFF) |
-              ((data(i + 1) & 0xFF) << 8) |
-              ((data(i + 2) & 0xFF) << 16) |
-              ((data(i + 3) & 0xFF) << 24)
+        ((data(i + 1) & 0xFF) << 8) |
+        ((data(i + 2) & 0xFF) << 16) |
+        ((data(i + 3) & 0xFF) << 24)
       k = mixK1(k)
       h = mixH1(h, k)
       i += 4
@@ -246,25 +248,25 @@ final class CuckooFilter private (
 
   private def mixK1(k: Int): Int = {
     var k1 = k
-    k1 *= 0xcc9e2d51
+    k1 *= 0xCC9E2D51
     k1 = Integer.rotateLeft(k1, 15)
-    k1 *= 0x1b873593
+    k1 *= 0x1B873593
     k1
   }
 
   private def mixH1(h: Int, k: Int): Int = {
     var h1 = h ^ k
     h1 = Integer.rotateLeft(h1, 13)
-    h1 = h1 * 5 + 0xe6546b64
+    h1 = h1 * 5 + 0xE6546B64
     h1
   }
 
   private def fmix(h: Int): Int = {
     var h1 = h
     h1 ^= h1 >>> 16
-    h1 *= 0x85ebca6b
+    h1 *= 0x85EBCA6B
     h1 ^= h1 >>> 13
-    h1 *= 0xc2b2ae35
+    h1 *= 0xC2B2AE35
     h1 ^= h1 >>> 16
     h1
   }
@@ -272,21 +274,22 @@ final class CuckooFilter private (
 
 object CuckooFilter {
 
-  /** Create an empty Cuckoo Filter with specified capacity and error rate.
-    *
-    * @param expectedItems Expected number of items to store
-    * @param errorRate Target false positive rate (e.g., 0.0001 for 0.01%)
-    */
+  /**
+   * Create an empty Cuckoo Filter with specified capacity and error rate.
+   *
+   * @param expectedItems Expected number of items to store
+   * @param errorRate Target false positive rate (e.g., 0.0001 for 0.01%)
+   */
   def apply(expectedItems: Int, errorRate: Double = 0.0001): CuckooFilter = {
     // Choose fingerprint size based on error rate
     // FP rate ≈ 2 * bucketSize / 2^fingerprintBits
     val fingerprintBits = errorRate match {
-      case e if e <= 0.00000001 => 32  // ~1 in 500 million
-      case e if e <= 0.000001   => 24  // ~1 in 1.6 million
-      case e if e <= 0.00001    => 20  // ~1 in 100,000
-      case e if e <= 0.0001     => 16  // ~1 in 10,000
-      case e if e <= 0.001      => 12  // ~1 in 500
-      case _                    => 8   // ~1 in 33
+      case e if e <= 0.00000001 => 32 // ~1 in 500 million
+      case e if e <= 0.000001   => 24 // ~1 in 1.6 million
+      case e if e <= 0.00001    => 20 // ~1 in 100,000
+      case e if e <= 0.0001     => 16 // ~1 in 10,000
+      case e if e <= 0.001      => 12 // ~1 in 500
+      case _                    => 8 // ~1 in 33
     }
 
     val bucketSize = 4
@@ -299,9 +302,10 @@ object CuckooFilter {
     new CuckooFilter(numBuckets, bucketSize, fingerprintBits, buckets)
   }
 
-  /** Create an empty Cuckoo Filter with low error rate.
-    * Uses 16-bit fingerprints for ~1 in 10,000 error rate.
-    */
+  /**
+   * Create an empty Cuckoo Filter with low error rate.
+   * Uses 16-bit fingerprints for ~1 in 10,000 error rate.
+   */
   def lowError(expectedItems: Int): CuckooFilter = {
     apply(expectedItems, errorRate = 0.0001)
   }

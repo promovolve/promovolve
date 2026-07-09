@@ -1,25 +1,35 @@
 package promovolve.publisher.delivery
 
 import com.typesafe.config.ConfigFactory
-import org.apache.pekko.actor.testkit.typed.scaladsl.{ActorTestKit, TestProbe}
+import org.apache.pekko.actor.testkit.typed.scaladsl.{ ActorTestKit, TestProbe }
 import org.apache.pekko.actor.typed.ActorRef
 import org.apache.pekko.actor.typed.pubsub.Topic
 import org.apache.pekko.actor.typed.scaladsl.Behaviors
-import org.apache.pekko.cluster.sharding.typed.scaladsl.{ClusterSharding, Entity}
-import org.apache.pekko.cluster.typed.{Cluster, Join}
+import org.apache.pekko.cluster.sharding.typed.scaladsl.{ ClusterSharding, Entity }
+import org.apache.pekko.cluster.typed.{ Cluster, Join }
 import org.scalatest.BeforeAndAfterAll
 import org.scalatest.matchers.should.Matchers
 import org.scalatest.wordspec.AnyWordSpec
 import promovolve.*
-import promovolve.advertiser.{AdvertiserEntity, CampaignEntity}
+import promovolve.advertiser.{ AdvertiserEntity, CampaignEntity }
 import promovolve.publisher.{
-  Creative, CreativeRepo, CreativeStatus, FirstSeen, FlaggedCreative,
-  NoOpCreativeStatsSnapshotRepo, NoOpTrafficShapeSnapshotRepo,
-  PendingSelectionStore,
+  Creative,
+  CreativeRepo,
+  CreativeStatus,
+  FirstSeen,
+  FlaggedCreative,
+  NoOpCreativeStatsSnapshotRepo,
+  NoOpTrafficShapeSnapshotRepo,
+  PendingSelectionStore
 }
 import promovolve.publisher.delivery.Protocol.{
-  BatchSelect, BatchSelectResult, BatchSlotSpec, CandidatesCollected,
-  PacingConfigUpdated, SpendInfoUpdated, VerifiedHostUpdated,
+  BatchSelect,
+  BatchSelectResult,
+  BatchSlotSpec,
+  CandidatesCollected,
+  PacingConfigUpdated,
+  SpendInfoUpdated,
+  VerifiedHostUpdated
 }
 
 import java.time.Instant
@@ -27,15 +37,16 @@ import scala.concurrent.Future
 import scala.concurrent.duration.*
 import scala.util.Random
 
-/** Smoke test for AdServer's per-request lifecycle (recordRequestArrival)
-  * routed through case BatchSelect. Targets the highest-risk regression:
-  * simulated-day rollover failing to fan out ResetDayStart to participating
-  * campaigns / advertisers (would hang RunScenario simulations).
-  *
-  * Setup pattern: probe-forwarding sharding entities so every command
-  * routed through `sharding.entityRefFor(...) ! ...` lands in a TestProbe
-  * for assertion.
-  */
+/**
+ * Smoke test for AdServer's per-request lifecycle (recordRequestArrival)
+ * routed through case BatchSelect. Targets the highest-risk regression:
+ * simulated-day rollover failing to fan out ResetDayStart to participating
+ * campaigns / advertisers (would hang RunScenario simulations).
+ *
+ * Setup pattern: probe-forwarding sharding entities so every command
+ * routed through `sharding.entityRefFor(...) ! ...` lands in a TestProbe
+ * for assertion.
+ */
 class AdServerLifecycleSpec extends AnyWordSpec with Matchers with BeforeAndAfterAll {
 
   private val testConfig = ConfigFactory.parseString(
@@ -123,7 +134,8 @@ class AdServerLifecycleSpec extends AnyWordSpec with Matchers with BeforeAndAfte
     def upsertPending(sel: Selection): Future[Unit] = Future.successful(())
     def getPending(p: String, u: String, s: String): Future[Option[Selection]] = Future.successful(None)
     def removePending(p: String, u: String, s: String): Future[Boolean] = Future.successful(true)
-    def removeCreativeFromPending(p: String, u: String, s: String, c: String): Future[Option[Selection]] = Future.successful(None)
+    def removeCreativeFromPending(p: String, u: String, s: String, c: String): Future[Option[Selection]] =
+      Future.successful(None)
     def rejectAndPromote(p: String, u: String, s: String): Future[Option[Selection]] = Future.successful(None)
     def pendingQueue(p: String): Future[Vector[(String, String, Candidate)]] = Future.successful(Vector.empty)
     def purgeExpired(now: Instant): Future[Int] = Future.successful(0)
@@ -135,27 +147,29 @@ class AdServerLifecycleSpec extends AnyWordSpec with Matchers with BeforeAndAfte
     def recordQueued(p: String, cs: Set[String], now: Instant): Future[Unit] = Future.successful(())
     def getFirstSeen(p: String): Future[Map[String, FirstSeen]] = Future.successful(Map.empty)
     def deleteFirstSeen(p: String, cs: Set[String]): Future[Unit] = Future.successful(())
-    def flagCreative(p: String, u: String, s: String, c: String, r: String): Future[Option[FlaggedCreative]] = Future.successful(None)
+    def flagCreative(p: String, u: String, s: String, c: String, r: String): Future[Option[FlaggedCreative]] =
+      Future.successful(None)
     def unflagCreative(p: String, c: String): Future[Option[FlaggedCreative]] = Future.successful(None)
     def getFlagged(p: String): Future[Vector[FlaggedCreative]] = Future.successful(Vector.empty)
     def insertApproved(p: String, c: String, ca: String, a: String): Future[Unit] = Future.successful(())
     def getApprovedCreativeIds(p: String): Future[Set[String]] = Future.successful(Set.empty)
     def getApprovedCreativeAdvertisers(p: String): Future[Map[String, String]] = Future.successful(Map.empty)
-    def getApprovedCreativeAdvertisersByCampaign(p: String, c: String): Future[Map[String, String]] = Future.successful(Map.empty)
+    def getApprovedCreativeAdvertisersByCampaign(p: String, c: String): Future[Map[String, String]] =
+      Future.successful(Map.empty)
     def deleteApproved(p: String, c: String): Future[Boolean] = Future.successful(true)
     def deleteApprovedByCampaignId(p: String, c: String): Future[Int] = Future.successful(0)
     def deleteApprovedByAdvertiserId(p: String, a: String): Future[Int] = Future.successful(0)
   }
 
   private class IgnoringCreativeRepo extends CreativeRepo {
-    def put(creative: Creative): Future[Unit]                       = Future.successful(())
-    def get(creativeId: String): Future[Option[Creative]]           = Future.successful(None)
-    def getByImageHash(hash: String): Future[Vector[Creative]]      = Future.successful(Vector.empty)
+    def put(creative: Creative): Future[Unit] = Future.successful(())
+    def get(creativeId: String): Future[Option[Creative]] = Future.successful(None)
+    def getByImageHash(hash: String): Future[Vector[Creative]] = Future.successful(Vector.empty)
     def getByCampaign(campaignId: String): Future[Vector[Creative]] = Future.successful(Vector.empty)
     def updateVerification(
         creativeId: String, confidence: Double, reason: String,
         adultContent: Boolean, violence: Boolean, hateSpeech: Boolean,
-        safetyScore: Option[Double], suggestedContentCategories: List[String],
+        safetyScore: Option[Double], suggestedContentCategories: List[String]
     ): Future[Unit] = Future.successful(())
     def updateStatus(creativeId: String, status: CreativeStatus): Future[Unit] = Future.successful(())
     def delete(creativeId: String): Future[Unit] = Future.successful(())
@@ -164,41 +178,41 @@ class AdServerLifecycleSpec extends AnyWordSpec with Matchers with BeforeAndAfte
 
   private def makeCandidate(creativeId: String, campaignId: String, advertiserId: String): Candidate =
     Candidate(
-      creativeId   = CreativeId(creativeId),
-      campaignId   = CampaignId(campaignId),
+      creativeId = CreativeId(creativeId),
+      campaignId = CampaignId(campaignId),
       advertiserId = AdvertiserId(advertiserId),
-      cpm          = CPM(1.0),
-      category     = CategoryId("test"),
+      cpm = CPM(1.0),
+      category = CategoryId("test")
     )
 
   "BatchSelect lifecycle" should {
 
     "fan out ResetDayStart to participating campaigns + advertisers on simulated-day rollover" in {
       val serveIndexProbe = testKit.createTestProbe[ServeIndexDData.Cmd]()
-      val selectProbe     = testKit.createTestProbe[BatchSelectResult]()
-      val pubSiteId       = SiteId("test-pub-rollover")
-      val campaignId      = CampaignId("camp-1")
-      val advertiserId    = AdvertiserId("adv-1")
+      val selectProbe = testKit.createTestProbe[BatchSelectResult]()
+      val pubSiteId = SiteId("test-pub-rollover")
+      val campaignId = CampaignId("camp-1")
+      val advertiserId = AdvertiserId("adv-1")
 
       val adServer = testKit.spawn(
         AdServer(
-          publisherId              = pubSiteId,
-          store                    = new IgnoringPendingStore,
-          creativeRepo             = new IgnoringCreativeRepo,
-          serveIndex               = serveIndexProbe.ref,
-          sharding                 = sharding,
-          statsSnapshotRepo        = NoOpCreativeStatsSnapshotRepo,
+          publisherId = pubSiteId,
+          store = new IgnoringPendingStore,
+          creativeRepo = new IgnoringCreativeRepo,
+          serveIndex = serveIndexProbe.ref,
+          sharding = sharding,
+          statsSnapshotRepo = NoOpCreativeStatsSnapshotRepo,
           trafficShapeSnapshotRepo = NoOpTrafficShapeSnapshotRepo,
-          budgetEventTopic         = mockBudgetTopic,
-          pacingStrategy           = FixedThrottlePacing(0.0),
-          rng                      = new Random(42),
+          budgetEventTopic = mockBudgetTopic,
+          pacingStrategy = FixedThrottlePacing(0.0),
+          rng = new Random(42)
         )
       )
 
       // Configure simulated day length: 2 seconds — short enough to elapse
       // mid-test without the slow real-clock dependency dominating.
       val config = promovolve.publisher.SiteEntity.PacingConfig(
-        dayDurationSeconds = 2,
+        dayDurationSeconds = 2
       )
       adServer ! PacingConfigUpdated(Some(config))
 
@@ -211,21 +225,21 @@ class AdServerLifecycleSpec extends AnyWordSpec with Matchers with BeforeAndAfte
       // "first request" rather than "we crossed a day boundary".
       val initialDayStart = Instant.now()
       adServer ! SpendInfoUpdated(Some(SpendUpdate(
-        campaignId   = campaignId,
+        campaignId = campaignId,
         advertiserId = advertiserId,
-        dailyBudget  = Budget(BigDecimal(100.0)),
-        todaySpend   = Spend(BigDecimal(0.0)),
-        dayStart     = initialDayStart,
-        timestamp    = initialDayStart,
+        dailyBudget = Budget(BigDecimal(100.0)),
+        todaySpend = Spend(BigDecimal(0.0)),
+        dayStart = initialDayStart,
+        timestamp = initialDayStart
       )))
 
       // Register the campaign so the rollover fan-out targets it.
       adServer ! CandidatesCollected(
-        url          = URL("http://test.example.com/page"),
-        slotId       = SlotId("slot-1"),
-        candidates   = Vector(makeCandidate("creative-1", campaignId.value, advertiserId.value)),
+        url = URL("http://test.example.com/page"),
+        slotId = SlotId("slot-1"),
+        candidates = Vector(makeCandidate("creative-1", campaignId.value, advertiserId.value)),
         classifiedAt = Instant.now(),
-        ttl          = 1.hour,
+        ttl = 1.hour
       )
 
       // Drain anything the entity probes received during setup.
@@ -235,10 +249,10 @@ class AdServerLifecycleSpec extends AnyWordSpec with Matchers with BeforeAndAfte
       // First BatchSelect: lifecycle runs, no rollover yet (we're inside
       // the simulated day window).
       adServer ! BatchSelect(
-        url                    = URL("http://test.example.com/page"),
-        slots                  = Vector(BatchSlotSpec(SlotId("slot-1"), 300, 250)),
+        url = URL("http://test.example.com/page"),
+        slots = Vector(BatchSlotSpec(SlotId("slot-1"), 300, 250)),
         contentRecencyWindowMs = 0L,
-        replyTo                = selectProbe.ref,
+        replyTo = selectProbe.ref
       )
       // Lifecycle is synchronous before the view fetch; absence of
       // ResetDayStart confirms no rollover detection.
@@ -252,10 +266,10 @@ class AdServerLifecycleSpec extends AnyWordSpec with Matchers with BeforeAndAfte
       // Second BatchSelect: lifecycle detects rollover, fans out
       // ResetDayStart to the participating campaign + advertiser.
       adServer ! BatchSelect(
-        url                    = URL("http://test.example.com/page"),
-        slots                  = Vector(BatchSlotSpec(SlotId("slot-1"), 300, 250)),
+        url = URL("http://test.example.com/page"),
+        slots = Vector(BatchSlotSpec(SlotId("slot-1"), 300, 250)),
         contentRecencyWindowMs = 0L,
-        replyTo                = selectProbe.ref,
+        replyTo = selectProbe.ref
       )
 
       val campaignReset = campaignProbe.expectMessageType[CampaignEntity.ResetDayStart](2.seconds)
@@ -270,21 +284,21 @@ class AdServerLifecycleSpec extends AnyWordSpec with Matchers with BeforeAndAfte
 
     "evict a narrowed-off campaign from the whole site (mirrors CampaignPaused)" in {
       val serveIndexProbe = testKit.createTestProbe[ServeIndexDData.Cmd]()
-      val pubSiteId       = SiteId("test-pub-evict")
-      val campaignId      = CampaignId("camp-evict")
+      val pubSiteId = SiteId("test-pub-evict")
+      val campaignId = CampaignId("camp-evict")
 
       val adServer = testKit.spawn(
         AdServer(
-          publisherId              = pubSiteId,
-          store                    = new IgnoringPendingStore,
-          creativeRepo             = new IgnoringCreativeRepo,
-          serveIndex               = serveIndexProbe.ref,
-          sharding                 = sharding,
-          statsSnapshotRepo        = NoOpCreativeStatsSnapshotRepo,
+          publisherId = pubSiteId,
+          store = new IgnoringPendingStore,
+          creativeRepo = new IgnoringCreativeRepo,
+          serveIndex = serveIndexProbe.ref,
+          sharding = sharding,
+          statsSnapshotRepo = NoOpCreativeStatsSnapshotRepo,
           trafficShapeSnapshotRepo = NoOpTrafficShapeSnapshotRepo,
-          budgetEventTopic         = mockBudgetTopic,
-          pacingStrategy           = FixedThrottlePacing(0.0),
-          rng                      = new Random(42),
+          budgetEventTopic = mockBudgetTopic,
+          pacingStrategy = FixedThrottlePacing(0.0),
+          rng = new Random(42)
         )
       )
 
@@ -300,21 +314,21 @@ class AdServerLifecycleSpec extends AnyWordSpec with Matchers with BeforeAndAfte
 
     "treat EvictCampaignFromSite as idempotent for an unknown campaign" in {
       val serveIndexProbe = testKit.createTestProbe[ServeIndexDData.Cmd]()
-      val pubSiteId       = SiteId("test-pub-evict-idem")
-      val unknown         = CampaignId("never-registered")
+      val pubSiteId = SiteId("test-pub-evict-idem")
+      val unknown = CampaignId("never-registered")
 
       val adServer = testKit.spawn(
         AdServer(
-          publisherId              = pubSiteId,
-          store                    = new IgnoringPendingStore,
-          creativeRepo             = new IgnoringCreativeRepo,
-          serveIndex               = serveIndexProbe.ref,
-          sharding                 = sharding,
-          statsSnapshotRepo        = NoOpCreativeStatsSnapshotRepo,
+          publisherId = pubSiteId,
+          store = new IgnoringPendingStore,
+          creativeRepo = new IgnoringCreativeRepo,
+          serveIndex = serveIndexProbe.ref,
+          sharding = sharding,
+          statsSnapshotRepo = NoOpCreativeStatsSnapshotRepo,
           trafficShapeSnapshotRepo = NoOpTrafficShapeSnapshotRepo,
-          budgetEventTopic         = mockBudgetTopic,
-          pacingStrategy           = FixedThrottlePacing(0.0),
-          rng                      = new Random(42),
+          budgetEventTopic = mockBudgetTopic,
+          pacingStrategy = FixedThrottlePacing(0.0),
+          rng = new Random(42)
         )
       )
 
@@ -327,23 +341,23 @@ class AdServerLifecycleSpec extends AnyWordSpec with Matchers with BeforeAndAfte
 
     "evict a topic-narrowed campaign from each given slot key, pin-aware" in {
       val serveIndexProbe = testKit.createTestProbe[ServeIndexDData.Cmd]()
-      val pubSiteId       = SiteId("test-pub-slots")
-      val campaignId      = CampaignId("camp-topic")
-      val keyA            = s"${pubSiteId.value}|SLOT-A"
-      val keyB            = s"${pubSiteId.value}|SLOT-B"
+      val pubSiteId = SiteId("test-pub-slots")
+      val campaignId = CampaignId("camp-topic")
+      val keyA = s"${pubSiteId.value}|SLOT-A"
+      val keyB = s"${pubSiteId.value}|SLOT-B"
 
       val adServer = testKit.spawn(
         AdServer(
-          publisherId              = pubSiteId,
-          store                    = new IgnoringPendingStore,
-          creativeRepo             = new IgnoringCreativeRepo,
-          serveIndex               = serveIndexProbe.ref,
-          sharding                 = sharding,
-          statsSnapshotRepo        = NoOpCreativeStatsSnapshotRepo,
+          publisherId = pubSiteId,
+          store = new IgnoringPendingStore,
+          creativeRepo = new IgnoringCreativeRepo,
+          serveIndex = serveIndexProbe.ref,
+          sharding = sharding,
+          statsSnapshotRepo = NoOpCreativeStatsSnapshotRepo,
           trafficShapeSnapshotRepo = NoOpTrafficShapeSnapshotRepo,
-          budgetEventTopic         = mockBudgetTopic,
-          pacingStrategy           = FixedThrottlePacing(0.0),
-          rng                      = new Random(42),
+          budgetEventTopic = mockBudgetTopic,
+          pacingStrategy = FixedThrottlePacing(0.0),
+          rng = new Random(42)
         )
       )
 
@@ -362,20 +376,20 @@ class AdServerLifecycleSpec extends AnyWordSpec with Matchers with BeforeAndAfte
 
     "treat EvictCampaignFromSlots with an empty key set as a no-op" in {
       val serveIndexProbe = testKit.createTestProbe[ServeIndexDData.Cmd]()
-      val pubSiteId       = SiteId("test-pub-slots-empty")
+      val pubSiteId = SiteId("test-pub-slots-empty")
 
       val adServer = testKit.spawn(
         AdServer(
-          publisherId              = pubSiteId,
-          store                    = new IgnoringPendingStore,
-          creativeRepo             = new IgnoringCreativeRepo,
-          serveIndex               = serveIndexProbe.ref,
-          sharding                 = sharding,
-          statsSnapshotRepo        = NoOpCreativeStatsSnapshotRepo,
+          publisherId = pubSiteId,
+          store = new IgnoringPendingStore,
+          creativeRepo = new IgnoringCreativeRepo,
+          serveIndex = serveIndexProbe.ref,
+          sharding = sharding,
+          statsSnapshotRepo = NoOpCreativeStatsSnapshotRepo,
           trafficShapeSnapshotRepo = NoOpTrafficShapeSnapshotRepo,
-          budgetEventTopic         = mockBudgetTopic,
-          pacingStrategy           = FixedThrottlePacing(0.0),
-          rng                      = new Random(42),
+          budgetEventTopic = mockBudgetTopic,
+          pacingStrategy = FixedThrottlePacing(0.0),
+          rng = new Random(42)
         )
       )
 

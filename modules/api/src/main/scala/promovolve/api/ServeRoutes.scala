@@ -507,8 +507,11 @@ final class ServeRoutes(
     val b = nowBucket()
     secretsRepo.secretFor(pub).map {
       case Some(sec) =>
-        // Include requestId in HMAC to prevent tampering
-        val data = Signer.canonical(pub, url, slot, cid, ver, b, evt) + requestId.map(r => s"|$r").getOrElse("")
+        // Bind campaign/advertiser/cpm/requestId into the HMAC so none of
+        // them can be rewritten on the beacon after serve. cpm is signed as
+        // its exact URL string (`p.toString`, matching `&cpm=$p` below).
+        val data = Signer.canonical(pub, url, slot, cid, ver, b, evt) +
+          Signer.bind(campaignId, advertiserId, cpm.map(_.toString), requestId)
         val tok = Signer.hmac256(data, sec)
         val encU = java.net.URLEncoder.encode(url, "UTF-8")
 

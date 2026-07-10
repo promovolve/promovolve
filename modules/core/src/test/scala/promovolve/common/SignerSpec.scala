@@ -36,15 +36,30 @@ class SignerSpec extends AnyWordSpec with Matchers {
     )
 
   "Signer.bind" should {
-    "render present fields as |value in order and skip absent ones" in {
-      Signer.bind(Some("a"), Some("b"), Some("c")) shouldBe "|a|b|c"
-      Signer.bind(Some("a"), None, Some("c")) shouldBe "|a|c"
-      Signer.bind(None, None, None) shouldBe ""
+    "render present fields as |=value and absent ones as a bare separator" in {
+      Signer.bind(Some("a"), Some("b"), Some("c")) shouldBe "|=a|=b|=c"
+      Signer.bind(Some("a"), None, Some("c")) shouldBe "|=a||=c"
+      Signer.bind(None, None, None) shouldBe "|||"
     }
 
     "be order-sensitive so a field swap changes the string" in {
       Signer.bind(Some("camp"), Some("adv")) should not be
         Signer.bind(Some("adv"), Some("camp"))
+    }
+
+    "be injective: a value containing the delimiter cannot emulate two fields" in {
+      // Without URL-encoding, camp="c|a" (adv absent) rendered identically to
+      // camp="c", adv="a" — letting a client shift bytes across field
+      // boundaries on the beacon. The encoding forbids literal `|` in values.
+      Signer.bind(Some("c|a"), None) should not be Signer.bind(Some("c"), Some("a"))
+    }
+
+    "be injective: shifting a value into a neighbouring absent slot changes the string" in {
+      Signer.bind(Some("x"), None) should not be Signer.bind(None, Some("x"))
+    }
+
+    "distinguish an absent field from an empty one" in {
+      Signer.bind(Some("")) should not be Signer.bind(None)
     }
   }
 

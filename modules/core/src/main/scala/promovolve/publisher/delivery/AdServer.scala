@@ -136,6 +136,34 @@ object AdServer {
     }
 
   /**
+   * Served winners that must record a per-creative impression: every filled
+   * slot EXCEPT honored dog-ear pins (which stay learning-silent, matching the
+   * billing/CTR treatment in LearningEventLog). Pure — extracted from the
+   * BatchReservationsResolved handler so the "impress winners, skip honored
+   * pins" contract is unit-testable.
+   */
+  private[delivery] def impressedCreatives(outcomes: Vector[Protocol.BatchSlotOutcome]): Vector[CreativeId] =
+    outcomes.flatMap(o => o.winner.filterNot(_ => o.dogear.exists(_.honored)).map(_.creativeId))
+
+  /**
+   * Pure freshness-token math for a page's classification (see
+   * `reclassifyInMsFor`). Returns ms until the page should be re-classified:
+   * `> 0` fresh (the ad tag does nothing), `<= 0` needs (re)classification —
+   * cold (`None` → 0) or stale (aged past the window). The window is the
+   * publisher's content-recency window when set (`> 0`), else the 48h default.
+   * Extracted so the recency-window handling is unit-testable — it was once
+   * hardcoded to 0 downstream, silently forcing the default and ignoring the
+   * publisher's setting.
+   */
+  private[delivery] def reclassifyInMs(classifiedAtMs: Option[Long], recencyWindowMs: Long, now: Long): Long = {
+    val window = if (recencyWindowMs > 0) recencyWindowMs else DefaultReclassifyWindowMs
+    classifiedAtMs match {
+      case Some(ts) => (ts + window) - now
+      case None     => 0L
+    }
+  }
+
+  /**
    * Partition candidates by the advertiser-side site-domain blocklist.
    * Direction inversion vs. publisher-side: drop the advertiser, not the
    * landing domain. No-op (everything passes through) when the site's
@@ -935,13 +963,8 @@ private[delivery] class AdServer(
   // <= 0 means "(re)classify now" — covers both never-classified (no record →
   // 0) and stale (aged past the window). > 0 means fresh. The reclassify window
   // is the content-recency window when set, else a 48h default.
-  private def reclassifyInMsFor(urlValue: String, recencyWindowMs: Long): Long = {
-    val window = if (recencyWindowMs > 0) recencyWindowMs else AdServer.DefaultReclassifyWindowMs
-    classifiedAtMsByUrl.get(urlValue) match {
-      case Some(ts) => (ts + window) - System.currentTimeMillis()
-      case None     => 0L
-    }
-  }
+  private def reclassifyInMsFor(urlValue: String, recencyWindowMs: Long): Long =
+    AdServer.reclassifyInMs(classifiedAtMsByUrl.get(urlValue), recencyWindowMs, System.currentTimeMillis())
   // Track pending creative IDs per (url|slot) to suppress duplicate SSE events on re-auction
   private var lastPendingCreativeIds: Map[String, Set[String]] = Map.empty
   // Site floor CPM for clearing price floor (synced via DData PacingConfig)
@@ -2627,8 +2650,7 @@ private[delivery] class AdServer(
         // handler; the batch path is now the only serve path, so it must
         // record here. Pin re-encounters (dogeared) stay learning-silent,
         // matching the billing/CTR treatment in LearningEventLog.
-        val impressedCreatives: Vector[CreativeId] =
-          outcomes.flatMap(o => o.winner.filterNot(_ => o.dogear.exists(_.honored)).map(_.creativeId))
+        val impressedCreatives: Vector[CreativeId] = AdServer.impressedCreatives(outcomes)
         val updatedCreativeStats =
           impressedCreatives.foldLeft(creativeStats) { (acc, cid) =>
             acc.updatedWith(cid)(_.orElse(Some(CreativeStats())).map(_.recordImpression(now)))

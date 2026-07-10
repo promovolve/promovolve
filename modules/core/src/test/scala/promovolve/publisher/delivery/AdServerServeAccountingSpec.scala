@@ -2,8 +2,8 @@ package promovolve.publisher.delivery
 
 import org.scalatest.matchers.should.Matchers
 import org.scalatest.wordspec.AnyWordSpec
-import promovolve.{ AdvertiserId, CampaignId, CategoryId, CPM, CreativeId, SlotId }
-import promovolve.publisher.{ CandidateView, CDNPath, MimeType }
+import promovolve.{ AdvertiserId, CPM, CampaignId, CategoryId, CreativeId, SlotId }
+import promovolve.publisher.{ CDNPath, CandidateView, MimeType }
 import promovolve.publisher.delivery.Protocol.{ BatchSlotOutcome, DogearOutcome }
 
 /**

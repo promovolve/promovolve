@@ -44,7 +44,7 @@ class SignerSpec extends AnyWordSpec with Matchers {
 
     "be order-sensitive so a field swap changes the string" in {
       Signer.bind(Some("camp"), Some("adv")) should not be
-        Signer.bind(Some("adv"), Some("camp"))
+      Signer.bind(Some("adv"), Some("camp"))
     }
 
     "be injective: a value containing the delimiter cannot emulate two fields" in {

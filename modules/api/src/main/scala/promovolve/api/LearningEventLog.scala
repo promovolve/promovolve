@@ -118,10 +118,10 @@ final class LearningEventLog(
       }
     }
 
-    // 2. Per-creative impression tracking is now done server-side in AdServer when
-    // Selected is returned (BudgetReserved → Reserved handler), eliminating the need
-    // for a separate HTTP call that could fail. This ensures creativeStats.impressions
-    // always matches serveStats.selected.
+    // 2. Per-creative impression tracking is done server-side in AdServer at
+    // serve time (BatchReservationsResolved records recordImpression for each
+    // served winner), eliminating a separate HTTP call that could fail and
+    // keeping creativeStats.impressions aligned with serveStats.selected.
 
     // 3. Use requestId from TryReserve (budget already deducted)
     // RecordSpend will see this as duplicate and skip deduction

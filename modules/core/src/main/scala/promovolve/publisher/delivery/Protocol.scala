@@ -891,6 +891,20 @@ object Protocol {
       attempt: Int
   ) extends Command
 
+  /**
+   * Internal: the approved creatives to strip from in-memory approval state
+   * for a campaign whose approvals were revoked (pause / site-narrow
+   * eviction). Carries the campaign's OWN creatives, resolved from the
+   * approvals store — the in-memory slot-key index conflates every campaign
+   * sharing a slot key, so stripping by index would revoke co-tenant
+   * campaigns' approvals too (their DB rows survive → memory/DB divergence,
+   * spurious re-queue as pending, voided reader pins).
+   */
+  private[delivery] final case class CampaignApprovalsRevoked(
+      campaignId: CampaignId,
+      creativeIds: Set[CreativeId]
+  ) extends Command
+
   /** Internal: traffic shape snapshot save completed */
   private[delivery] final case class TrafficShapeSnapshotSaveResult(
       error: Option[Throwable]

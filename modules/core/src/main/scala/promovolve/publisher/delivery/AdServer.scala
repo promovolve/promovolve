@@ -1431,24 +1431,19 @@ private[delivery] class AdServer(
               AdvertiserEntity.RevokeCreativeApproval(CreativeId(creativeId), siteId, system.ignoreRef)
             }
             store.deleteApprovedByCampaignId(siteId.value, campaignId.value)
+            // Strip ONLY this campaign's creatives from in-memory approval
+            // state, resolved from the store rows. The slot-key index
+            // (idsForKey) conflates every campaign sharing a slot key, so
+            // stripping by index would revoke co-tenant campaigns' approvals.
+            ctx.self ! Protocol.CampaignApprovalsRevoked(campaignId, rows.keySet.map(CreativeId(_)))
             if (rows.nonEmpty)
               log.info("Revoked {} approvals for paused campaign {} on site {}", rows.size: java.lang.Integer,
                 campaignId.value, siteId.value)
           }
         }
-        val pausedCampaignKeys = keysByCampaign.getOrElse(campaignId, Set.empty)
-        val pausedCreativeIds: Set[CreativeId] =
-          if (revokeApprovals)
-            pausedCampaignKeys.flatMap { key =>
-              idsForKey.get(key).map(_._2).getOrElse(Set.empty)
-            }
-          else Set.empty
         behavior(state.copy(
           participatingCampaigns = participatingCampaigns - campaignId,
-          keysByCampaign = keysByCampaign - campaignId,
-          keysByCreative = keysByCreative -- pausedCreativeIds,
-          persistedApprovedIds = persistedApprovedIds -- pausedCreativeIds,
-          pinnedCreativeIds = pinnedCreativeIds -- pausedCreativeIds
+          keysByCampaign = keysByCampaign - campaignId
         ))
 
       case Protocol.EvictCampaignFromSite(campaignId) =>
@@ -1465,17 +1460,29 @@ private[delivery] class AdServer(
             log.info("Removed {} pending selections for narrowed-off campaign {}", count, campaignId.value)
           }
         }
-        store.deleteApprovedByCampaignId(siteId.value, campaignId.value)
-        val evictedCampaignKeys = keysByCampaign.getOrElse(campaignId, Set.empty)
-        val evictedCreativeIds: Set[CreativeId] = evictedCampaignKeys.flatMap { key =>
-          idsForKey.get(key).map(_._2).getOrElse(Set.empty)
+        // Strip ONLY this campaign's creatives from in-memory approval state,
+        // resolved from the store rows before deletion — not the slot-key
+        // index, which conflates co-tenant campaigns sharing a slot key.
+        store.getApprovedCreativeAdvertisersByCampaign(siteId.value, campaignId.value).foreach { rows =>
+          store.deleteApprovedByCampaignId(siteId.value, campaignId.value)
+          ctx.self ! Protocol.CampaignApprovalsRevoked(campaignId, rows.keySet.map(CreativeId(_)))
         }
         behavior(state.copy(
           participatingCampaigns = participatingCampaigns - campaignId,
-          keysByCampaign = keysByCampaign - campaignId,
-          persistedApprovedIds = persistedApprovedIds -- evictedCreativeIds,
-          pinnedCreativeIds = pinnedCreativeIds -- evictedCreativeIds
+          keysByCampaign = keysByCampaign - campaignId
         ))
+
+      case Protocol.CampaignApprovalsRevoked(campaignId, creativeIds) =>
+        if (creativeIds.isEmpty) Behaviors.same
+        else {
+          log.info("Stripping {} approved creatives for revoked campaign {} on site {}",
+            creativeIds.size: java.lang.Integer, campaignId.value, siteId.value)
+          behavior(state.copy(
+            keysByCreative = keysByCreative -- creativeIds,
+            persistedApprovedIds = persistedApprovedIds -- creativeIds,
+            pinnedCreativeIds = pinnedCreativeIds -- creativeIds
+          ))
+        }
 
       case Protocol.EvictCampaignFromSlots(campaignId, slotKeys) =>
         // Topic-narrow eviction: the advertiser dropped a category, so this
@@ -2167,7 +2174,7 @@ private[delivery] class AdServer(
       // ResetDayStart fan-out, traffic shape, warmup gating) lives in
       // recordRequestArrival above.
 
-      case BatchSelect(url, slots, _, replyTo, excludedCreatives, excludedCampaigns) =>
+      case BatchSelect(url, slots, contentRecencyWindowMs, replyTo, excludedCreatives, excludedCampaigns) =>
         val hostOk = AdServer.hostMatches(url.value, verifiedHost)
         if (!hostOk) {
           log.warn("Batch serve rejected: host-mismatch site={} url={}", siteId.value, url.value)
@@ -2243,10 +2250,11 @@ private[delivery] class AdServer(
                     }
                     BatchSelectViewLoaded(
                       view = merged,
-                      url, slots, 0L, replyTo, excludedCreatives, excludedCampaigns
+                      url, slots, contentRecencyWindowMs, replyTo, excludedCreatives, excludedCampaigns
                     )
                   case scala.util.Failure(_) =>
-                    BatchSelectViewLoaded(None, url, slots, 0L, replyTo, excludedCreatives, excludedCampaigns)
+                    BatchSelectViewLoaded(None, url, slots, contentRecencyWindowMs, replyTo, excludedCreatives,
+                      excludedCampaigns)
                 }
                 behavior(newState)
               }
@@ -2599,11 +2607,25 @@ private[delivery] class AdServer(
           outcomes.flatMap(o => o.dogear.filter(_.honored).flatMap(_ => o.winner.map(_.creativeId))).toSet
         val updatedPinned =
           if (honoredPins.isEmpty) state.pinnedCreativeIds else state.pinnedCreativeIds ++ honoredPins
+        // Record a per-creative impression for every served winner so
+        // Thompson Sampling scores against real Beta posteriors instead
+        // of scoring every creative through the cold branch forever.
+        // The retired per-slot Select path used to do this via a Reserved
+        // handler; the batch path is now the only serve path, so it must
+        // record here. Pin re-encounters (dogeared) stay learning-silent,
+        // matching the billing/CTR treatment in LearningEventLog.
+        val impressedCreatives: Vector[CreativeId] =
+          outcomes.flatMap(o => o.winner.filterNot(_ => o.dogear.exists(_.honored)).map(_.creativeId))
+        val updatedCreativeStats =
+          impressedCreatives.foldLeft(creativeStats) { (acc, cid) =>
+            acc.updatedWith(cid)(_.orElse(Some(CreativeStats())).map(_.recordImpression(now)))
+          }
         behavior(state.copy(
           pendingSpendByCampaign = updatedPending,
           pageWinners = updatedPageWinners,
           serveStats = updatedServeStats,
-          pinnedCreativeIds = updatedPinned
+          pinnedCreativeIds = updatedPinned,
+          creativeStats = updatedCreativeStats
         ))
     }
   }

@@ -302,11 +302,14 @@ object AdServer {
         val sortedEligible = eligible.sortBy { case (_, s) => -s.score }
         val (winner, winnerScore) = sortedEligible.head
         // Same-category second price, clamped to the winner's category floor.
+        // Pricing reads the posterior-MEAN side of CandidateScore (meanScore
+        // / engagement), never the Thompson draws — sample for allocation,
+        // price on means, so the same auction state clears at the same price.
         val bestLoserScore = sortedEligible.tail
-          .collectFirst { case (c, s) if c.category == winner.category => s.score }
+          .collectFirst { case (c, s) if c.category == winner.category => s.meanScore }
           .getOrElse(0.0)
         val clearing = ThompsonSampling.qualityAdjustedClearing(
-          winnerSampledCtr = winnerScore.sampledCtr,
+          winnerEngagement = winnerScore.engagement,
           winnerBid = winner.cpm,
           bestLoserScore = bestLoserScore,
           alpha = alpha,
@@ -331,9 +334,10 @@ object AdServer {
    * hard-dedup logic from [[batchAssign]] but scoped to a single
    * slot so the retry path can reuse it unchanged.
    *
-   * Clearing is the second-best score among the slot's eligible
-   * candidates inverted through the score formula given the winner's
-   * sampled CTR (see `ThompsonSampling.qualityAdjustedClearing`).
+   * Clearing is the runner-up's posterior-mean score inverted through
+   * the score formula given the winner's posterior-mean engagement
+   * (see `ThompsonSampling.qualityAdjustedClearing`) — selection
+   * samples, pricing is deterministic given the stats.
    * Returns `siteFloor` clearing when only one candidate fits.
    */
   def pickBestForSlot(
@@ -373,12 +377,13 @@ object AdServer {
       val (winner, winnerScore) = sorted.head
       // Same-category second price: price the winner against the best loser
       // IN ITS OWN category (cross-category runners-up never set the price),
-      // clamped to the winner's category floor.
+      // clamped to the winner's category floor. Pricing reads the posterior-
+      // MEAN side of CandidateScore, never the Thompson draws.
       val bestLoserScore = sorted.tail
-        .collectFirst { case (c, s) if c.category == winner.category => s.score }
+        .collectFirst { case (c, s) if c.category == winner.category => s.meanScore }
         .getOrElse(0.0)
       val clearing = ThompsonSampling.qualityAdjustedClearing(
-        winnerSampledCtr = winnerScore.sampledCtr,
+        winnerEngagement = winnerScore.engagement,
         winnerBid = winner.cpm,
         bestLoserScore = bestLoserScore,
         alpha = alpha,

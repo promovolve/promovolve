@@ -51,7 +51,8 @@ class ThompsonSamplingSpec extends AnyWordSpec with Matchers {
 
     "use the cold-start category prior when impressions == 0" in {
       // CTR derives from categoryScore + jitter; fold-rate samples from
-      // Beta(1,1) so cold creatives have a real fold component (not 0).
+      // the Beta(1,3) cold prior so cold creatives have a real fold
+      // component (not 0) without dominating warm ones.
       val cold = stats(impressions = 0, clicks = 0, folds = 0)
       val rng = new scala.util.Random(42L)
       val s = ThompsonSampling.scoreCandidate(candidate(cpm = 1.0), cold, rng, alpha = 0.5)
@@ -77,28 +78,23 @@ class ThompsonSamplingSpec extends AnyWordSpec with Matchers {
       avg(draws(midDecay)) should be > avg(draws(warm))
     }
 
-    // TODO: references ThompsonSampling.newcomerBonus / NewcomerDecayImpressions
-    // / NewcomerBoost which no longer exist on the object (removed in an
-    // earlier unrelated refactor). Skipped here so the spec compiles;
-    // restore once the newcomer-boost API is settled or this assertion
-    // is rewritten against the current API.
-    "stop boosting once impressions reach the decay window" ignore {
+    "stop boosting once impressions reach the decay window" in {
       // Past NewcomerDecayImpressions the bonus must read zero so the
       // creative is competing purely on its Beta posteriors.
-      // ThompsonSampling.newcomerBonus(0) shouldBe ThompsonSampling.NewcomerBoost
-      // ThompsonSampling.newcomerBonus(ThompsonSampling.NewcomerDecayImpressions) shouldBe 0.0
-      // ThompsonSampling.newcomerBonus(ThompsonSampling.NewcomerDecayImpressions * 10) shouldBe 0.0
+      ThompsonSampling.newcomerBonus(0) shouldBe ThompsonSampling.NewcomerBoost
+      ThompsonSampling.newcomerBonus(ThompsonSampling.NewcomerDecayImpressions) shouldBe 0.0
+      ThompsonSampling.newcomerBonus(ThompsonSampling.NewcomerDecayImpressions * 10) shouldBe 0.0
     }
 
     "let cold creatives compete with warm fold-rich ones" in {
       // Regression: previously cold creatives' foldComponent was hard-
       // coded to 0, so a warm creative with even moderate fold rate
       // dominated cold candidates and newly introduced creatives could
-      // never win. With Beta(1,1) cold-start fold sampling, cold
-      // creatives draw from Uniform[0,1] and routinely produce a
-      // foldComponent up to FoldWeight, making them genuinely
-      // competitive. Distributional check: cold creatives' average
-      // engagement should sit above the warm fold-rich ceiling.
+      // never win. With the Beta(1,3) cold-start fold prior plus the
+      // newcomer bonus, cold creatives routinely produce a competitive
+      // fold component without hijacking the slot outright.
+      // Distributional check: cold creatives' average engagement should
+      // sit above the warm fold-rich ceiling.
       val cold = stats(impressions = 0, clicks = 0, folds = 0)
       val warmFoldRich = stats(impressions = 100, clicks = 5, folds = 30)
       val rng = new scala.util.Random(0L)
@@ -140,6 +136,39 @@ class ThompsonSamplingSpec extends AnyWordSpec with Matchers {
         ThompsonSampling.scoreCandidate(candidate(cpm = 1.0), noFolds, rng, alpha = 0.5).score
       )
       avg(a) should be > avg(b)
+    }
+
+    "clamp the cold-start sampled CTR at a small positive value" in {
+      // A low categoryScore minus the ±0.15 jitter used to go negative,
+      // letting a creative win purely on its fold draw while its CTR
+      // sample was < 0. The clamp keeps every cold CTR sample ≥ 0.001.
+      val cold = stats(impressions = 0, clicks = 0, folds = 0)
+      val rng = new scala.util.Random(0L)
+      val samples = (1 to 1000).map(_ =>
+        ThompsonSampling.scoreCandidate(candidate(cpm = 1.0, categoryScore = 0.0), cold, rng, alpha = 0.5).sampledCtr
+      )
+      all(samples) should be >= 0.001
+    }
+
+    "tighten the cold fold prior to Beta(1,3) so cold creatives don't dominate outright" in {
+      // With the old Beta(1,1) prior the cold fold component averaged
+      // FoldWeight × 0.5 = 1.0 and a new creative won near-
+      // deterministically. Beta(1,3) pulls the cold mean engagement to
+      // catScore + FoldWeight×0.25 + NewcomerBoost. Distributional
+      // check: at cpm=1/α=0.5 the average cold score must sit near that
+      // mean (≈1.5 at catScore=0.5), well below the ≈2.0 the uniform
+      // prior produced.
+      val cold = stats(impressions = 0, clicks = 0, folds = 0)
+      val rng = new scala.util.Random(0L)
+      val avgScore = avg((1 to 2000).map(_ =>
+        ThompsonSampling.scoreCandidate(candidate(cpm = 1.0, categoryScore = 0.5), cold, rng, alpha = 0.5).score
+      ))
+      val expectedMean = 0.5 +
+        ThompsonSampling.FoldWeight * ThompsonSampling.ColdFoldPriorAlpha /
+        (ThompsonSampling.ColdFoldPriorAlpha + ThompsonSampling.ColdFoldPriorBeta) +
+        ThompsonSampling.NewcomerBoost
+      avgScore shouldBe expectedMean +- 0.05
+      avgScore should be < 1.7 // the uniform-prior mean was 2.0
     }
 
     "stamp the fold posterior shape into debugInfo for warm creatives" in {

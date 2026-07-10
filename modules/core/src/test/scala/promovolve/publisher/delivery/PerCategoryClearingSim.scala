@@ -27,7 +27,7 @@ class PerCategoryClearingSim extends AnyWordSpec with Matchers {
   /**
    * One bidder in the pooled slot auction. `ctr` stands in for the
    * engagement term; in prod pricing uses the posterior-MEAN engagement
-   * (`CandidateScore.engagement` / `meanScore`) — irrelevant to the
+   * (`CandidateScore.meanEngagement` / `meanScore`) — irrelevant to the
    * PRICING question, which is deterministic given scores.
    */
   private final case class Bid(category: String, cpm: Double, ctr: Double)

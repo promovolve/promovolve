@@ -29,7 +29,7 @@ object ThompsonSampling {
    * then greedy-picks across slots.
    *
    * `score` and `sampledCtr` come from the Thompson draws — allocation
-   * explores. `engagement` and `meanScore` are the same combiner
+   * explores. `meanEngagement` and `meanScore` are the same combiner
    * evaluated at the posterior MEANS — deterministic given the
    * creative's stats — and exist solely for pricing: sample for
    * allocation, price on means (see [[qualityAdjustedClearing]]).
@@ -37,7 +37,7 @@ object ThompsonSampling {
   final case class CandidateScore(
       score: Double,
       sampledCtr: Double,
-      engagement: Double,
+      meanEngagement: Double,
       meanScore: Double,
       debugInfo: String
   )
@@ -64,8 +64,8 @@ object ThompsonSampling {
    * }}}
    *
    * Both inputs must come from the posterior-MEAN side of
-   * [[CandidateScore]] (`engagement` for the winner, `meanScore` for
-   * the runner-up), never from the Thompson draws: sample for
+   * [[CandidateScore]] (`meanEngagement` for the winner, `meanScore`
+   * for the runner-up), never from the Thompson draws: sample for
    * allocation, price on means. This keeps the price reproducible
    * from observable state (same auction state → same price) and
    * symmetric — the winner's fold posterior and newcomer bonus
@@ -212,7 +212,7 @@ object ThompsonSampling {
     CandidateScore(
       score = score,
       sampledCtr = sampledCtr,
-      engagement = meanEngagement,
+      meanEngagement = meanEngagement,
       meanScore = meanEngagement * cpmFactor,
       debugInfo = s"$ctrInfo|$foldInfo$bonusInfo"
     )

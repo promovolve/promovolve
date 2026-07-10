@@ -147,7 +147,7 @@ class QualityAdjustedClearingSpec extends AnyWordSpec with Matchers {
       // setting score included fold + bonus while the winner's denominator
       // was its sampled CTR alone, so the winner systematically overpaid.
       // Expected clearing derives from the engagement-based inversion:
-      //   clearing = (loser.meanScore / winner.engagement)^(1/α)
+      //   clearing = (loser.meanScore / winner.meanEngagement)^(1/α)
       val winner = cand("w", cpm = 5.0)
       val loser = cand("l", cpm = 4.0)
       // Past the newcomer decay window so bonus = 0 and means are pure posteriors.
@@ -157,17 +157,17 @@ class QualityAdjustedClearingSpec extends AnyWordSpec with Matchers {
       // Closed-form posterior means:
       //   engagement = (clicks+1)/(imps+2) + FoldWeight × (folds+1)/(imps+2)
       val fw = ThompsonSampling.FoldWeight
-      ws.engagement shouldBe (101.0 / 1002.0) * (1.0 + fw) +- 1e-12
+      ws.meanEngagement shouldBe (101.0 / 1002.0) * (1.0 + fw) +- 1e-12
       ls.meanScore shouldBe (61.0 / 1002.0) * (1.0 + fw) * math.pow(4.0, Alpha) +- 1e-12
 
       val clearing = ThompsonSampling.qualityAdjustedClearing(
-        winnerEngagement = ws.engagement,
+        winnerEngagement = ws.meanEngagement,
         winnerBid = winner.cpm,
         bestLoserScore = ls.meanScore,
         alpha = Alpha,
         siteFloor = Floor
       )
-      val expected = math.pow(ls.meanScore / ws.engagement, 1.0 / Alpha)
+      val expected = math.pow(ls.meanScore / ws.meanEngagement, 1.0 / Alpha)
       // Strictly inside (floor, bid) so neither clamp hides the formula.
       expected should be > Floor.toDouble
       expected should be < winner.cpm.toDouble
@@ -176,7 +176,7 @@ class QualityAdjustedClearingSpec extends AnyWordSpec with Matchers {
 
     "produce the same clearing price for the same auction state regardless of RNG draws" in {
       // Selection samples (scores differ per request); pricing must not —
-      // engagement / meanScore are posterior means, so two requests over
+      // meanEngagement / meanScore are posterior means, so two requests over
       // identical stats clear at the identical price. Covers cold AND warm.
       val winner = cand("w", cpm = 5.0, categoryScore = 0.5) // cold
       val loser = cand("l", cpm = 4.0)
@@ -186,13 +186,13 @@ class QualityAdjustedClearingSpec extends AnyWordSpec with Matchers {
         val ws = ThompsonSampling.scoreCandidate(winner, CreativeStats(), rng, Alpha)
         val ls = ThompsonSampling.scoreCandidate(loser, loserStats, rng, Alpha)
         val c = ThompsonSampling.qualityAdjustedClearing(
-          winnerEngagement = ws.engagement,
+          winnerEngagement = ws.meanEngagement,
           winnerBid = winner.cpm,
           bestLoserScore = ls.meanScore,
           alpha = Alpha,
           siteFloor = Floor
         )
-        (ws.engagement, ls.meanScore, c.toDouble)
+        (ws.meanEngagement, ls.meanScore, c.toDouble)
       }
       val (e1, m1, c1) = clearingWith(1L)
       val (e2, m2, c2) = clearingWith(999L)

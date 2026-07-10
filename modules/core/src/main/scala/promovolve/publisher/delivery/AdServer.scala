@@ -309,7 +309,7 @@ object AdServer {
           .collectFirst { case (c, s) if c.category == winner.category => s.meanScore }
           .getOrElse(0.0)
         val clearing = ThompsonSampling.qualityAdjustedClearing(
-          winnerEngagement = winnerScore.engagement,
+          winnerEngagement = winnerScore.meanEngagement,
           winnerBid = winner.cpm,
           bestLoserScore = bestLoserScore,
           alpha = alpha,
@@ -383,7 +383,7 @@ object AdServer {
         .collectFirst { case (c, s) if c.category == winner.category => s.meanScore }
         .getOrElse(0.0)
       val clearing = ThompsonSampling.qualityAdjustedClearing(
-        winnerEngagement = winnerScore.engagement,
+        winnerEngagement = winnerScore.meanEngagement,
         winnerBid = winner.cpm,
         bestLoserScore = bestLoserScore,
         alpha = alpha,
@@ -1425,20 +1425,27 @@ private[delivery] class AdServer(
         // source), so Creative.approvedSites clears and the resumed bids read
         // as pending, not floor-teaching.
         if (revokeApprovals) {
-          store.getApprovedCreativeAdvertisersByCampaign(siteId.value, campaignId.value).foreach { rows =>
-            rows.foreach { case (creativeId, advertiserId) =>
-              sharding.entityRefFor(AdvertiserEntity.TypeKey, advertiserId) !
-              AdvertiserEntity.RevokeCreativeApproval(CreativeId(creativeId), siteId, system.ignoreRef)
-            }
-            store.deleteApprovedByCampaignId(siteId.value, campaignId.value)
-            // Strip ONLY this campaign's creatives from in-memory approval
-            // state, resolved from the store rows. The slot-key index
-            // (idsForKey) conflates every campaign sharing a slot key, so
-            // stripping by index would revoke co-tenant campaigns' approvals.
-            ctx.self ! Protocol.CampaignApprovalsRevoked(campaignId, rows.keySet.map(CreativeId(_)))
-            if (rows.nonEmpty)
-              log.info("Revoked {} approvals for paused campaign {} on site {}", rows.size: java.lang.Integer,
-                campaignId.value, siteId.value)
+          store.getApprovedCreativeAdvertisersByCampaign(siteId.value, campaignId.value).onComplete {
+            case Success(rows) =>
+              rows.foreach { case (creativeId, advertiserId) =>
+                sharding.entityRefFor(AdvertiserEntity.TypeKey, advertiserId) !
+                AdvertiserEntity.RevokeCreativeApproval(CreativeId(creativeId), siteId, system.ignoreRef)
+              }
+              store.deleteApprovedByCampaignId(siteId.value, campaignId.value)
+              // Strip ONLY this campaign's creatives from in-memory approval
+              // state, resolved from the store rows. The slot-key index
+              // (idsForKey) conflates every campaign sharing a slot key, so
+              // stripping by index would revoke co-tenant campaigns' approvals.
+              ctx.self ! Protocol.CampaignApprovalsRevoked(campaignId, rows.keySet.map(CreativeId(_)))
+              if (rows.nonEmpty)
+                log.info("Revoked {} approvals for paused campaign {} on site {}", rows.size: java.lang.Integer,
+                  campaignId.value, siteId.value)
+            case Failure(ex) =>
+              // Nothing was revoked: no AdvertiserEntity announce, no DB delete,
+              // no in-memory strip — memory and DB stay consistent (both keep
+              // the approvals), but the pause did NOT revoke. Surface it.
+              log.error("Failed to load approvals for paused campaign {} on site {} — revocation skipped: {}",
+                campaignId.value, siteId.value, ex.getMessage)
           }
         }
         behavior(state.copy(
@@ -1463,9 +1470,15 @@ private[delivery] class AdServer(
         // Strip ONLY this campaign's creatives from in-memory approval state,
         // resolved from the store rows before deletion — not the slot-key
         // index, which conflates co-tenant campaigns sharing a slot key.
-        store.getApprovedCreativeAdvertisersByCampaign(siteId.value, campaignId.value).foreach { rows =>
-          store.deleteApprovedByCampaignId(siteId.value, campaignId.value)
-          ctx.self ! Protocol.CampaignApprovalsRevoked(campaignId, rows.keySet.map(CreativeId(_)))
+        store.getApprovedCreativeAdvertisersByCampaign(siteId.value, campaignId.value).onComplete {
+          case Success(rows) =>
+            store.deleteApprovedByCampaignId(siteId.value, campaignId.value)
+            ctx.self ! Protocol.CampaignApprovalsRevoked(campaignId, rows.keySet.map(CreativeId(_)))
+          case Failure(ex) =>
+            // Neither the DB delete nor the in-memory strip ran — consistent
+            // (both keep the approvals) but the eviction did NOT revoke them.
+            log.error("Failed to load approvals for evicted campaign {} on site {} — revocation skipped: {}",
+              campaignId.value, siteId.value, ex.getMessage)
         }
         behavior(state.copy(
           participatingCampaigns = participatingCampaigns - campaignId,

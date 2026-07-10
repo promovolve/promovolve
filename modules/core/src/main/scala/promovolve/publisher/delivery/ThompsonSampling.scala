@@ -10,8 +10,8 @@ import promovolve.publisher.CandidateView
  * - Prior: Beta(1, 1) = Uniform(0, 1)
  * - Posterior: Beta(clicks + 1, non-clicks + 1)
  *
- * Selection score combines sampled CTR with CPM:
- *   score = sampledCTR * CPM^α
+ * Selection score combines sampled engagement with CPM:
+ *   score = (sampledCTR + FoldWeight × sampledFoldRate + newcomerBonus) * CPM^α
  *
  * Where α (bidWeight) is publisher-configurable:
  *   - α=0.3 (Discovery): quality dominates, small advertisers compete
@@ -27,10 +27,18 @@ object ThompsonSampling {
    * Per-candidate score plus the inputs that produced it. The batch
    * path computes this once per candidate against the joint pool
    * then greedy-picks across slots.
+   *
+   * `score` and `sampledCtr` come from the Thompson draws — allocation
+   * explores. `meanEngagement` and `meanScore` are the same combiner
+   * evaluated at the posterior MEANS — deterministic given the
+   * creative's stats — and exist solely for pricing: sample for
+   * allocation, price on means (see [[qualityAdjustedClearing]]).
    */
   final case class CandidateScore(
       score: Double,
       sampledCtr: Double,
+      meanEngagement: Double,
+      meanScore: Double,
       debugInfo: String
   )
 
@@ -46,32 +54,41 @@ object ThompsonSampling {
   /**
    * Quality-adjusted clearing price for an Exploitation winner.
    *
-   * Inverts the score formula `score = sampledCTR × CPM^α` against
+   * Inverts the full score formula `score = engagement × CPM^α`
+   * (engagement = ctr + FoldWeight × foldRate + newcomerBonus) against
    * the runner-up's score: the winner pays the minimum CPM at which
-   * their score still beats the runner-up given their sampled CTR.
+   * their score still beats the runner-up given their own engagement.
    *
    * {{{
-   *   clearingCpm = (bestLoserScore / winnerSampledCtr) ^ (1/α)
+   *   clearingCpm = (bestLoserScore / winnerEngagement) ^ (1/α)
    * }}}
+   *
+   * Both inputs must come from the posterior-MEAN side of
+   * [[CandidateScore]] (`meanEngagement` for the winner, `meanScore`
+   * for the runner-up), never from the Thompson draws: sample for
+   * allocation, price on means. This keeps the price reproducible
+   * from observable state (same auction state → same price) and
+   * symmetric — the winner's fold posterior and newcomer bonus
+   * discount its price exactly as the runner-up's raise it.
    *
    * Clamped to `[siteFloor, winnerBid]`. Returns `siteFloor` when
    * there is no runner-up (`bestLoserScore = 0`, e.g. only one
-   * eligible candidate fits the slot), when the winner's sampled
-   * CTR is zero (degenerate cold start), or when α is non-positive.
+   * eligible candidate fits the slot), when the winner's engagement
+   * is zero (degenerate), or when α is non-positive.
    *
    * Pure — depends only on its arguments. Used by both the per-slot
    * exploitation path and the batch-serve assignment so prices stay
    * comparable under the same pool.
    */
   def qualityAdjustedClearing(
-      winnerSampledCtr: Double,
+      winnerEngagement: Double,
       winnerBid: CPM,
       bestLoserScore: Double,
       alpha: Double,
       siteFloor: CPM
   ): CPM = {
-    if (winnerSampledCtr > 0 && bestLoserScore > 0 && alpha > 0) {
-      val q = math.pow(bestLoserScore / winnerSampledCtr, 1.0 / alpha)
+    if (winnerEngagement > 0 && bestLoserScore > 0 && alpha > 0) {
+      val q = math.pow(bestLoserScore / winnerEngagement, 1.0 / alpha)
       CPM.max(CPM.min(CPM(q), winnerBid), siteFloor)
     } else {
       siteFloor
@@ -107,6 +124,18 @@ object ThompsonSampling {
   val NewcomerDecayImpressions: Int = 50
 
   /**
+   * Cold-start fold-rate prior: Beta(1, 3), mean 0.25. A uniform
+   * Beta(1,1) prior (mean 0.5) gave cold creatives an expected fold
+   * component of FoldWeight × 0.5 = 1.0 — an order of magnitude above
+   * typical warm fold components (0.02–0.1) — so a newly introduced
+   * creative won its slot near-deterministically. Beta(1,3) keeps
+   * genuine Thompson exploration on the fold dimension while
+   * `newcomerBonus` stays the primary exploration knob.
+   */
+  val ColdFoldPriorAlpha: Double = 1.0
+  val ColdFoldPriorBeta: Double = 3.0
+
+  /**
    * Linearly-decaying newcomer bonus. Zero once the creative has
    * accumulated NewcomerDecayImpressions impressions.
    */
@@ -124,6 +153,10 @@ object ThompsonSampling {
    * combined linearly (`ctr + FoldWeight * foldRate`) before being
    * multiplied by `cpm^alpha` to produce the auction score.
    *
+   * Alongside the sampled score, the same combiner is evaluated at
+   * the posterior MEANS into `engagement` / `meanScore` — the
+   * deterministic pricing inputs for [[qualityAdjustedClearing]].
+   *
    * Used by the batch-serve greedy assignment.
    */
   def scoreCandidate(
@@ -132,41 +165,57 @@ object ThompsonSampling {
       rng: scala.util.Random,
       alpha: Double
   ): CandidateScore = {
-    val (sampledCtr, ctrInfo, foldComponent, foldInfo) = if (stats.impressions == 0) {
-      // Cold start. CTR uses the categoryScore prior (page-classification
-      // signal we DO have). Fold-rate has no comparable prior, so we
-      // sample from Beta(1,1) — uniform [0,1] — for proper Thompson
-      // exploration on the fold dimension. Without this, cold creatives
-      // can never beat warm fold-rich ones (their foldComponent stays
-      // at 0 while a warm creative accrues up to FoldWeight×foldRate),
-      // so newly introduced creatives never win the auction.
-      val ctr = candidate.categoryScore + (rng.nextDouble() * 0.3 - 0.15)
-      val foldRate = sampleBeta(1.0, 1.0, rng)
-      (
-        ctr,
-        s"cold(catScore=${candidate.categoryScore})",
-        FoldWeight * foldRate,
-        s"fold=cold-Beta(1,1)×$FoldWeight"
-      )
-    } else {
-      val cA = stats.clicks.toDouble + 1.0
-      val cB = (stats.impressions - stats.clicks).toDouble + 1.0
-      val ctr = sampleBeta(cA, cB, rng)
-      val fA = stats.folds.toDouble + 1.0
-      val fB = (stats.impressions - stats.folds).toDouble + 1.0
-      val foldRate = sampleBeta(fA, fB, rng)
-      (
-        ctr,
-        s"Beta(${cA.toInt},${cB.toInt})",
-        FoldWeight * foldRate,
-        s"FoldBeta(${fA.toInt},${fB.toInt})×$FoldWeight"
-      )
-    }
+    val (sampledCtr, meanCtr, ctrInfo, foldComponent, meanFoldComponent, foldInfo) =
+      if (stats.impressions == 0) {
+        // Cold start. CTR uses the categoryScore prior (page-classification
+        // signal we DO have), clamped positive — a low categoryScore minus
+        // jitter must not produce a negative CTR sample. Fold-rate has no
+        // comparable prior, so we sample from the Beta(1,3) cold prior for
+        // proper Thompson exploration on the fold dimension. Without this,
+        // cold creatives can never beat warm fold-rich ones (their
+        // foldComponent stays at 0 while a warm creative accrues up to
+        // FoldWeight×foldRate), so newly introduced creatives never win
+        // the auction.
+        val ctr = math.max(0.001, candidate.categoryScore + (rng.nextDouble() * 0.3 - 0.15))
+        val foldRate = sampleBeta(ColdFoldPriorAlpha, ColdFoldPriorBeta, rng)
+        val meanFoldRate = ColdFoldPriorAlpha / (ColdFoldPriorAlpha + ColdFoldPriorBeta)
+        (
+          ctr,
+          math.max(0.001, candidate.categoryScore),
+          s"cold(catScore=${candidate.categoryScore})",
+          FoldWeight * foldRate,
+          FoldWeight * meanFoldRate,
+          s"fold=cold-Beta(${ColdFoldPriorAlpha.toInt},${ColdFoldPriorBeta.toInt})×$FoldWeight"
+        )
+      } else {
+        val cA = stats.clicks.toDouble + 1.0
+        val cB = (stats.impressions - stats.clicks).toDouble + 1.0
+        val ctr = sampleBeta(cA, cB, rng)
+        val fA = stats.folds.toDouble + 1.0
+        val fB = (stats.impressions - stats.folds).toDouble + 1.0
+        val foldRate = sampleBeta(fA, fB, rng)
+        (
+          ctr,
+          cA / (cA + cB),
+          s"Beta(${cA.toInt},${cB.toInt})",
+          FoldWeight * foldRate,
+          FoldWeight * (fA / (fA + fB)),
+          s"FoldBeta(${fA.toInt},${fB.toInt})×$FoldWeight"
+        )
+      }
     val bonus = newcomerBonus(stats.impressions)
-    val engagement = sampledCtr + foldComponent + bonus
-    val score = engagement * cpmScore(candidate.cpm.toDouble, alpha)
+    val sampledEngagement = sampledCtr + foldComponent + bonus
+    val meanEngagement = meanCtr + meanFoldComponent + bonus
+    val cpmFactor = cpmScore(candidate.cpm.toDouble, alpha)
+    val score = sampledEngagement * cpmFactor
     val bonusInfo = if (bonus > 0) f"|newBonus=$bonus%.2f" else ""
-    CandidateScore(score, sampledCtr, s"$ctrInfo|$foldInfo$bonusInfo")
+    CandidateScore(
+      score = score,
+      sampledCtr = sampledCtr,
+      meanEngagement = meanEngagement,
+      meanScore = meanEngagement * cpmFactor,
+      debugInfo = s"$ctrInfo|$foldInfo$bonusInfo"
+    )
   }
 
   /**

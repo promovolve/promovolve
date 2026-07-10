@@ -136,6 +136,34 @@ object AdServer {
     }
 
   /**
+   * Served winners that must record a per-creative impression: every filled
+   * slot EXCEPT honored dog-ear pins (which stay learning-silent, matching the
+   * billing/CTR treatment in LearningEventLog). Pure — extracted from the
+   * BatchReservationsResolved handler so the "impress winners, skip honored
+   * pins" contract is unit-testable.
+   */
+  private[delivery] def impressedCreatives(outcomes: Vector[Protocol.BatchSlotOutcome]): Vector[CreativeId] =
+    outcomes.flatMap(o => o.winner.filterNot(_ => o.dogear.exists(_.honored)).map(_.creativeId))
+
+  /**
+   * Pure freshness-token math for a page's classification (see
+   * `reclassifyInMsFor`). Returns ms until the page should be re-classified:
+   * `> 0` fresh (the ad tag does nothing), `<= 0` needs (re)classification —
+   * cold (`None` → 0) or stale (aged past the window). The window is the
+   * publisher's content-recency window when set (`> 0`), else the 48h default.
+   * Extracted so the recency-window handling is unit-testable — it was once
+   * hardcoded to 0 downstream, silently forcing the default and ignoring the
+   * publisher's setting.
+   */
+  private[delivery] def reclassifyInMs(classifiedAtMs: Option[Long], recencyWindowMs: Long, now: Long): Long = {
+    val window = if (recencyWindowMs > 0) recencyWindowMs else DefaultReclassifyWindowMs
+    classifiedAtMs match {
+      case Some(ts) => (ts + window) - now
+      case None     => 0L
+    }
+  }
+
+  /**
    * Partition candidates by the advertiser-side site-domain blocklist.
    * Direction inversion vs. publisher-side: drop the advertiser, not the
    * landing domain. No-op (everything passes through) when the site's
@@ -302,11 +330,14 @@ object AdServer {
         val sortedEligible = eligible.sortBy { case (_, s) => -s.score }
         val (winner, winnerScore) = sortedEligible.head
         // Same-category second price, clamped to the winner's category floor.
+        // Pricing reads the posterior-MEAN side of CandidateScore (meanScore
+        // / engagement), never the Thompson draws — sample for allocation,
+        // price on means, so the same auction state clears at the same price.
         val bestLoserScore = sortedEligible.tail
-          .collectFirst { case (c, s) if c.category == winner.category => s.score }
+          .collectFirst { case (c, s) if c.category == winner.category => s.meanScore }
           .getOrElse(0.0)
         val clearing = ThompsonSampling.qualityAdjustedClearing(
-          winnerSampledCtr = winnerScore.sampledCtr,
+          winnerEngagement = winnerScore.meanEngagement,
           winnerBid = winner.cpm,
           bestLoserScore = bestLoserScore,
           alpha = alpha,
@@ -331,9 +362,10 @@ object AdServer {
    * hard-dedup logic from [[batchAssign]] but scoped to a single
    * slot so the retry path can reuse it unchanged.
    *
-   * Clearing is the second-best score among the slot's eligible
-   * candidates inverted through the score formula given the winner's
-   * sampled CTR (see `ThompsonSampling.qualityAdjustedClearing`).
+   * Clearing is the runner-up's posterior-mean score inverted through
+   * the score formula given the winner's posterior-mean engagement
+   * (see `ThompsonSampling.qualityAdjustedClearing`) — selection
+   * samples, pricing is deterministic given the stats.
    * Returns `siteFloor` clearing when only one candidate fits.
    */
   def pickBestForSlot(
@@ -373,12 +405,13 @@ object AdServer {
       val (winner, winnerScore) = sorted.head
       // Same-category second price: price the winner against the best loser
       // IN ITS OWN category (cross-category runners-up never set the price),
-      // clamped to the winner's category floor.
+      // clamped to the winner's category floor. Pricing reads the posterior-
+      // MEAN side of CandidateScore, never the Thompson draws.
       val bestLoserScore = sorted.tail
-        .collectFirst { case (c, s) if c.category == winner.category => s.score }
+        .collectFirst { case (c, s) if c.category == winner.category => s.meanScore }
         .getOrElse(0.0)
       val clearing = ThompsonSampling.qualityAdjustedClearing(
-        winnerSampledCtr = winnerScore.sampledCtr,
+        winnerEngagement = winnerScore.meanEngagement,
         winnerBid = winner.cpm,
         bestLoserScore = bestLoserScore,
         alpha = alpha,
@@ -930,13 +963,8 @@ private[delivery] class AdServer(
   // <= 0 means "(re)classify now" — covers both never-classified (no record →
   // 0) and stale (aged past the window). > 0 means fresh. The reclassify window
   // is the content-recency window when set, else a 48h default.
-  private def reclassifyInMsFor(urlValue: String, recencyWindowMs: Long): Long = {
-    val window = if (recencyWindowMs > 0) recencyWindowMs else AdServer.DefaultReclassifyWindowMs
-    classifiedAtMsByUrl.get(urlValue) match {
-      case Some(ts) => (ts + window) - System.currentTimeMillis()
-      case None     => 0L
-    }
-  }
+  private def reclassifyInMsFor(urlValue: String, recencyWindowMs: Long): Long =
+    AdServer.reclassifyInMs(classifiedAtMsByUrl.get(urlValue), recencyWindowMs, System.currentTimeMillis())
   // Track pending creative IDs per (url|slot) to suppress duplicate SSE events on re-auction
   private var lastPendingCreativeIds: Map[String, Set[String]] = Map.empty
   // Site floor CPM for clearing price floor (synced via DData PacingConfig)
@@ -1420,30 +1448,32 @@ private[delivery] class AdServer(
         // source), so Creative.approvedSites clears and the resumed bids read
         // as pending, not floor-teaching.
         if (revokeApprovals) {
-          store.getApprovedCreativeAdvertisersByCampaign(siteId.value, campaignId.value).foreach { rows =>
-            rows.foreach { case (creativeId, advertiserId) =>
-              sharding.entityRefFor(AdvertiserEntity.TypeKey, advertiserId) !
-              AdvertiserEntity.RevokeCreativeApproval(CreativeId(creativeId), siteId, system.ignoreRef)
-            }
-            store.deleteApprovedByCampaignId(siteId.value, campaignId.value)
-            if (rows.nonEmpty)
-              log.info("Revoked {} approvals for paused campaign {} on site {}", rows.size: java.lang.Integer,
-                campaignId.value, siteId.value)
+          store.getApprovedCreativeAdvertisersByCampaign(siteId.value, campaignId.value).onComplete {
+            case Success(rows) =>
+              rows.foreach { case (creativeId, advertiserId) =>
+                sharding.entityRefFor(AdvertiserEntity.TypeKey, advertiserId) !
+                AdvertiserEntity.RevokeCreativeApproval(CreativeId(creativeId), siteId, system.ignoreRef)
+              }
+              store.deleteApprovedByCampaignId(siteId.value, campaignId.value)
+              // Strip ONLY this campaign's creatives from in-memory approval
+              // state, resolved from the store rows. The slot-key index
+              // (idsForKey) conflates every campaign sharing a slot key, so
+              // stripping by index would revoke co-tenant campaigns' approvals.
+              ctx.self ! Protocol.CampaignApprovalsRevoked(campaignId, rows.keySet.map(CreativeId(_)))
+              if (rows.nonEmpty)
+                log.info("Revoked {} approvals for paused campaign {} on site {}", rows.size: java.lang.Integer,
+                  campaignId.value, siteId.value)
+            case Failure(ex) =>
+              // Nothing was revoked: no AdvertiserEntity announce, no DB delete,
+              // no in-memory strip — memory and DB stay consistent (both keep
+              // the approvals), but the pause did NOT revoke. Surface it.
+              log.error("Failed to load approvals for paused campaign {} on site {} — revocation skipped: {}",
+                campaignId.value, siteId.value, ex.getMessage)
           }
         }
-        val pausedCampaignKeys = keysByCampaign.getOrElse(campaignId, Set.empty)
-        val pausedCreativeIds: Set[CreativeId] =
-          if (revokeApprovals)
-            pausedCampaignKeys.flatMap { key =>
-              idsForKey.get(key).map(_._2).getOrElse(Set.empty)
-            }
-          else Set.empty
         behavior(state.copy(
           participatingCampaigns = participatingCampaigns - campaignId,
-          keysByCampaign = keysByCampaign - campaignId,
-          keysByCreative = keysByCreative -- pausedCreativeIds,
-          persistedApprovedIds = persistedApprovedIds -- pausedCreativeIds,
-          pinnedCreativeIds = pinnedCreativeIds -- pausedCreativeIds
+          keysByCampaign = keysByCampaign - campaignId
         ))
 
       case Protocol.EvictCampaignFromSite(campaignId) =>
@@ -1460,17 +1490,35 @@ private[delivery] class AdServer(
             log.info("Removed {} pending selections for narrowed-off campaign {}", count, campaignId.value)
           }
         }
-        store.deleteApprovedByCampaignId(siteId.value, campaignId.value)
-        val evictedCampaignKeys = keysByCampaign.getOrElse(campaignId, Set.empty)
-        val evictedCreativeIds: Set[CreativeId] = evictedCampaignKeys.flatMap { key =>
-          idsForKey.get(key).map(_._2).getOrElse(Set.empty)
+        // Strip ONLY this campaign's creatives from in-memory approval state,
+        // resolved from the store rows before deletion — not the slot-key
+        // index, which conflates co-tenant campaigns sharing a slot key.
+        store.getApprovedCreativeAdvertisersByCampaign(siteId.value, campaignId.value).onComplete {
+          case Success(rows) =>
+            store.deleteApprovedByCampaignId(siteId.value, campaignId.value)
+            ctx.self ! Protocol.CampaignApprovalsRevoked(campaignId, rows.keySet.map(CreativeId(_)))
+          case Failure(ex) =>
+            // Neither the DB delete nor the in-memory strip ran — consistent
+            // (both keep the approvals) but the eviction did NOT revoke them.
+            log.error("Failed to load approvals for evicted campaign {} on site {} — revocation skipped: {}",
+              campaignId.value, siteId.value, ex.getMessage)
         }
         behavior(state.copy(
           participatingCampaigns = participatingCampaigns - campaignId,
-          keysByCampaign = keysByCampaign - campaignId,
-          persistedApprovedIds = persistedApprovedIds -- evictedCreativeIds,
-          pinnedCreativeIds = pinnedCreativeIds -- evictedCreativeIds
+          keysByCampaign = keysByCampaign - campaignId
         ))
+
+      case Protocol.CampaignApprovalsRevoked(campaignId, creativeIds) =>
+        if (creativeIds.isEmpty) Behaviors.same
+        else {
+          log.info("Stripping {} approved creatives for revoked campaign {} on site {}",
+            creativeIds.size: java.lang.Integer, campaignId.value, siteId.value)
+          behavior(state.copy(
+            keysByCreative = keysByCreative -- creativeIds,
+            persistedApprovedIds = persistedApprovedIds -- creativeIds,
+            pinnedCreativeIds = pinnedCreativeIds -- creativeIds
+          ))
+        }
 
       case Protocol.EvictCampaignFromSlots(campaignId, slotKeys) =>
         // Topic-narrow eviction: the advertiser dropped a category, so this
@@ -2162,7 +2210,7 @@ private[delivery] class AdServer(
       // ResetDayStart fan-out, traffic shape, warmup gating) lives in
       // recordRequestArrival above.
 
-      case BatchSelect(url, slots, _, replyTo, excludedCreatives, excludedCampaigns) =>
+      case BatchSelect(url, slots, contentRecencyWindowMs, replyTo, excludedCreatives, excludedCampaigns) =>
         val hostOk = AdServer.hostMatches(url.value, verifiedHost)
         if (!hostOk) {
           log.warn("Batch serve rejected: host-mismatch site={} url={}", siteId.value, url.value)
@@ -2238,10 +2286,11 @@ private[delivery] class AdServer(
                     }
                     BatchSelectViewLoaded(
                       view = merged,
-                      url, slots, 0L, replyTo, excludedCreatives, excludedCampaigns
+                      url, slots, contentRecencyWindowMs, replyTo, excludedCreatives, excludedCampaigns
                     )
                   case scala.util.Failure(_) =>
-                    BatchSelectViewLoaded(None, url, slots, 0L, replyTo, excludedCreatives, excludedCampaigns)
+                    BatchSelectViewLoaded(None, url, slots, contentRecencyWindowMs, replyTo, excludedCreatives,
+                      excludedCampaigns)
                 }
                 behavior(newState)
               }
@@ -2594,11 +2643,24 @@ private[delivery] class AdServer(
           outcomes.flatMap(o => o.dogear.filter(_.honored).flatMap(_ => o.winner.map(_.creativeId))).toSet
         val updatedPinned =
           if (honoredPins.isEmpty) state.pinnedCreativeIds else state.pinnedCreativeIds ++ honoredPins
+        // Record a per-creative impression for every served winner so
+        // Thompson Sampling scores against real Beta posteriors instead
+        // of scoring every creative through the cold branch forever.
+        // The retired per-slot Select path used to do this via a Reserved
+        // handler; the batch path is now the only serve path, so it must
+        // record here. Pin re-encounters (dogeared) stay learning-silent,
+        // matching the billing/CTR treatment in LearningEventLog.
+        val impressedCreatives: Vector[CreativeId] = AdServer.impressedCreatives(outcomes)
+        val updatedCreativeStats =
+          impressedCreatives.foldLeft(creativeStats) { (acc, cid) =>
+            acc.updatedWith(cid)(_.orElse(Some(CreativeStats())).map(_.recordImpression(now)))
+          }
         behavior(state.copy(
           pendingSpendByCampaign = updatedPending,
           pageWinners = updatedPageWinners,
           serveStats = updatedServeStats,
-          pinnedCreativeIds = updatedPinned
+          pinnedCreativeIds = updatedPinned,
+          creativeStats = updatedCreativeStats
         ))
     }
   }

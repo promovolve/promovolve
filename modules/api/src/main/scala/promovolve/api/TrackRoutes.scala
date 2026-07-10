@@ -50,10 +50,13 @@ final class TrackRoutes(
             get {
               parameters(
                 "pub", "url", "slot", "cid", "v".as[Long], "b".as[Long], "tok",
-                "camp".?, "adv".?, "cpm".as[Double].?, "cat".?, "rid".?, "apc".?, "pcats".?,
+                "camp".?, "adv".?, "cpm".?, "cat".?, "rid".?, "apc".?, "pcats".?,
                 "dogeared".as[Boolean].?
               ) { (pub, url, slot, cid, v, b, tok, camp, adv, cpm, cat, rid, apc, pcats, dogeared) =>
-                onSuccess(validateImp(pub, url, slot, cid, v, b, tok, rid)) {
+                // cpm kept as its raw string for signature verification; the
+                // signature binds camp/adv/cpm so a beacon can't redirect
+                // spend to another campaign or inflate the amount.
+                onSuccess(validateImp(pub, url, slot, cid, v, b, tok, camp, adv, cpm, rid)) {
                   case false => complete(StatusCodes.Forbidden)
                   case true  =>
                     // Include rid in replay key to allow multiple impressions of same creative
@@ -75,7 +78,7 @@ final class TrackRoutes(
                             ua = ua,
                             campaignId = camp,
                             advertiserId = adv,
-                            cpm = cpm,
+                            cpm = cpm.flatMap(_.toDoubleOption),
                             category = cat,
                             requestId = rid,
                             adProductCategory = apc,
@@ -94,7 +97,7 @@ final class TrackRoutes(
               parameters("pub", "url", "slot", "cid", "v".as[Long], "b".as[Long], "tok", "cat".?, "camp".?, "adv".?,
                 "rid".?, "apc".?, "pcats".?, "dogeared".as[Boolean].?) {
                 (pub, url, slot, cid, v, b, tok, cat, camp, adv, rid, apc, pcats, dogeared) =>
-                  onSuccess(validateClick(pub, url, slot, cid, v, b, tok, rid)) {
+                  onSuccess(validateClick(pub, url, slot, cid, v, b, tok, camp, adv, rid)) {
                     case false => complete(StatusCodes.Forbidden)
                     case true  =>
                       val canonical = Signer.canonical(pub, url, slot, cid, v, b, "click") +
@@ -200,7 +203,7 @@ final class TrackRoutes(
               parameters("pub", "url", "slot", "cid", "v".as[Long], "b".as[Long], "tok", "cat".?, "camp".?, "adv".?,
                 "rid".?, "apc".?, "pcats".?, "dogeared".as[Boolean].?) {
                 (pub, url, slot, cid, v, b, tok, cat, camp, adv, rid, apc, pcats, dogeared) =>
-                  onSuccess(validateCTA(pub, url, slot, cid, v, b, tok, rid)) {
+                  onSuccess(validateCTA(pub, url, slot, cid, v, b, tok, camp, adv, rid)) {
                     case false => complete(StatusCodes.Forbidden)
                     case true  =>
                       val canonical = Signer.canonical(pub, url, slot, cid, v, b, "cta") +
@@ -244,7 +247,12 @@ final class TrackRoutes(
 
   private given ExecutionContext = system.executionContext
 
-  /** Validate impression with requestId included in HMAC (prevents rid tampering) */
+  /**
+   * Validate impression. The HMAC binds camp/adv/cpm/rid (fixed order,
+   * matching `ServeRoutes.signedUrl`) so a client can't rewrite the beacon's
+   * campaign/advertiser (spend redirection) or cpm (amount inflation). cpm is
+   * verified as its raw URL string to stay byte-identical to the mint.
+   */
   private def validateImp(
       pub: String,
       url: String,
@@ -253,17 +261,20 @@ final class TrackRoutes(
       ver: Long,
       b: Long,
       tok: String,
+      camp: Option[String],
+      adv: Option[String],
+      cpm: Option[String],
       rid: Option[String]
   ): Future[Boolean] =
     secrets.secretFor(pub).map {
       case Some(sec) =>
-        val data = Signer.canonical(pub, url, slot, cid, ver, b, "imp") + rid.map(r => s"|$r").getOrElse("")
+        val data = Signer.canonical(pub, url, slot, cid, ver, b, "imp") + Signer.bind(camp, adv, cpm, rid)
         val expect = Signer.hmac256(data, sec)
         Signer.safeEq(expect, tok) && freshBucket(b)
       case None => false
     }
 
-  /** Validate click with requestId included in HMAC (prevents rid tampering) */
+  /** Validate click. HMAC binds camp/adv/rid (click carries no cpm). */
   private def validateClick(
       pub: String,
       url: String,
@@ -272,17 +283,19 @@ final class TrackRoutes(
       ver: Long,
       b: Long,
       tok: String,
+      camp: Option[String],
+      adv: Option[String],
       rid: Option[String]
   ): Future[Boolean] =
     secrets.secretFor(pub).map {
       case Some(sec) =>
-        val data = Signer.canonical(pub, url, slot, cid, ver, b, "click") + rid.map(r => s"|$r").getOrElse("")
+        val data = Signer.canonical(pub, url, slot, cid, ver, b, "click") + Signer.bind(camp, adv, None, rid)
         val expect = Signer.hmac256(data, sec)
         Signer.safeEq(expect, tok) && freshBucket(b)
       case None => false
     }
 
-  /** Validate CTA click with requestId included in HMAC */
+  /** Validate CTA click. HMAC binds camp/adv/rid (cta carries no cpm). */
   private def validateCTA(
       pub: String,
       url: String,
@@ -291,11 +304,13 @@ final class TrackRoutes(
       ver: Long,
       b: Long,
       tok: String,
+      camp: Option[String],
+      adv: Option[String],
       rid: Option[String]
   ): Future[Boolean] =
     secrets.secretFor(pub).map {
       case Some(sec) =>
-        val data = Signer.canonical(pub, url, slot, cid, ver, b, "cta") + rid.map(r => s"|$r").getOrElse("")
+        val data = Signer.canonical(pub, url, slot, cid, ver, b, "cta") + Signer.bind(camp, adv, None, rid)
         val expect = Signer.hmac256(data, sec)
         Signer.safeEq(expect, tok) && freshBucket(b)
       case None => false

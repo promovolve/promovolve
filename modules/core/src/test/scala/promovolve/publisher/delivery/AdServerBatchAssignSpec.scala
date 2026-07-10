@@ -106,16 +106,19 @@ class AdServerBatchAssignSpec extends AnyWordSpec with Matchers {
       // dimensions don't gate selection — so the billboard (largest) slot
       // gets first pick and takes the highest-scoring candidate (rect,
       // cpm 3.0), leaving the smaller rect slot the leftover (billboard,
-      // cpm 2.0). Validates the area-descending pick order.
+      // cpm 2.0). Validates the area-descending pick order. Identical
+      // warm stats give both candidates a tight posterior, so score
+      // ordering follows CPM instead of the cold-start sampling lottery.
       val billboard = candidate("bb", "c1", 970, 250, cpm = 2.0)
       val rect = candidate("mr", "c2", 300, 250, cpm = 3.0)
+      val warm = CreativeStats(buckets = Map(0L -> (10000, 500, 500)))
       val outcomes = AdServer.batchAssign(
         view = view(billboard, rect),
         slots = Vector(slot("rect", 300, 250), slot("billboard", 970, 250)),
         siteFloor = CPM(0.5),
         pageWinners = Set.empty,
         alpha = 0.5,
-        stats = Map.empty,
+        stats = Map(CreativeId("bb") -> warm, CreativeId("mr") -> warm),
         rng = rng()
       )
       val byId = outcomes.map(o => o.slotId.value -> o.winner.map(_.creativeId.value)).toMap

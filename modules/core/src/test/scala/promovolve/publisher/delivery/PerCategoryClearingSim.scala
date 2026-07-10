@@ -25,9 +25,10 @@ import promovolve.CPM
 class PerCategoryClearingSim extends AnyWordSpec with Matchers {
 
   /**
-   * One bidder in the pooled slot auction. `ctr` is the (here fixed)
-   * sampled CTR; in prod it comes from the Beta posterior — irrelevant to
-   * the PRICING question, which is deterministic given scores.
+   * One bidder in the pooled slot auction. `ctr` stands in for the
+   * engagement term; in prod pricing uses the posterior-MEAN engagement
+   * (`CandidateScore.meanEngagement` / `meanScore`) — irrelevant to the
+   * PRICING question, which is deterministic given scores.
    */
   private final case class Bid(category: String, cpm: Double, ctr: Double)
 
@@ -43,7 +44,7 @@ class PerCategoryClearingSim extends AnyWordSpec with Matchers {
     val winner = sorted.head
     val bestLoser = if (sorted.size > 1) scoreOf(sorted(1), alpha) else 0.0
     val clearing = ThompsonSampling.qualityAdjustedClearing(
-      winnerSampledCtr = winner.ctr,
+      winnerEngagement = winner.ctr,
       winnerBid = CPM(winner.cpm),
       bestLoserScore = bestLoser,
       alpha = alpha,
@@ -64,7 +65,7 @@ class PerCategoryClearingSim extends AnyWordSpec with Matchers {
       .collectFirst { case b if b.category == winner.category => scoreOf(b, alpha) }
       .getOrElse(0.0)
     val clearing = ThompsonSampling.qualityAdjustedClearing(
-      winnerSampledCtr = winner.ctr,
+      winnerEngagement = winner.ctr,
       winnerBid = CPM(winner.cpm),
       bestLoserScore = bestLoser,
       alpha = alpha,

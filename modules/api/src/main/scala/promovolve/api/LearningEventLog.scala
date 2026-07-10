@@ -19,7 +19,6 @@ import scala.util.{ Failure, Success }
  * == Learning Flow ==
  * {{{
  * logImpression(event) → TaxonomyRankerEntity ! RecordImpression(revenue)  // category-level
- *                      → AdServer ! RecordImpression(creativeId)           // per-creative
  *                      → CampaignEntity ! RecordSpend(amount)              // budget tracking
  *                      → TrackingEventJournal.writeImpression()            // dashboard projection
  *
@@ -27,6 +26,10 @@ import scala.util.{ Failure, Success }
  *                      → AdServer ! RecordClick(creativeId)                // per-creative
  *                      → TrackingEventJournal.writeClick()                 // dashboard projection
  * }}}
+ *
+ * Per-creative impressions are NOT dispatched from here: AdServer records
+ * them itself at serve time (BatchReservationsResolved), so the beacon only
+ * carries category/spend/journal signal.
  *
  * == Two-Level Thompson Sampling ==
  * - TaxonomyRankerEntity: Category-level CTR learning (Beta posterior per category per site)
@@ -118,10 +121,12 @@ final class LearningEventLog(
       }
     }
 
-    // 2. Per-creative impression tracking is now done server-side in AdServer when
-    // Selected is returned (BudgetReserved → Reserved handler), eliminating the need
-    // for a separate HTTP call that could fail. This ensures creativeStats.impressions
-    // always matches serveStats.selected.
+    // 2. Per-creative impression tracking is done server-side in AdServer at
+    // serve time (BatchReservationsResolved records recordImpression for each
+    // served winner except honored pins), eliminating a separate HTTP call
+    // that could fail. Note creativeStats.impressions therefore counts serves,
+    // not rendered beacons, and (unlike serveStats.selected) excludes
+    // dogeared pin-honors.
 
     // 3. Use requestId from TryReserve (budget already deducted)
     // RecordSpend will see this as duplicate and skip deduction

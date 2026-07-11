@@ -29,9 +29,24 @@ object LPFontQuarantine {
   // key scheme and the banner's format("woff2") hint are woff2-only).
   private def isWoff2(bytes: Array[Byte]): Boolean =
     bytes.length > 4 && bytes(0) == 'w'.toByte && bytes(1) == 'O'.toByte &&
-      bytes(2) == 'F'.toByte && bytes(3) == '2'.toByte
+    bytes(2) == 'F'.toByte && bytes(3) == '2'.toByte
 
   def apply(
+      result: LPAnalysisResult,
+      captured: LPCaptured,
+      imageStorage: ImageStorage
+  )(using ExecutionContext): Future[LPAnalysisResult] =
+    // Belt: fonts are an OFFER, never a dependency — any failure here
+    // (sync throw or failed future) must not fail the analysis itself.
+    scala.util.Try(quarantine(result, captured, imageStorage)).fold(
+      e => { log.warn("LP font quarantine failed for {}: {}", result.url, e.toString); Future.successful(result) },
+      f =>
+        f.recover { case e =>
+          log.warn("LP font quarantine failed for {}: {}", result.url, e.toString); result
+        }
+    )
+
+  private def quarantine(
       result: LPAnalysisResult,
       captured: LPCaptured,
       imageStorage: ImageStorage
@@ -54,8 +69,23 @@ object LPFontQuarantine {
         }
       } yield (face.family, weight, font.bytes)
     }.distinctBy { case (fam, w, _) => (GoogleFontCatalog.familyKey(fam), w) }
-    if (offers.isEmpty) Future.successful(result)
-    else
+    if (offers.isEmpty) {
+      // Nothing matched — say WHY at a glance: which families/weights the
+      // brand kit wants, which faces the CSS declared, and which URLs
+      // actually delivered bytes. One line per analysis, only when there
+      // was font material at all; this is how face↔bytes mismatches
+      // (redirects, subset URLs, ttf-only sites) get diagnosed from logs.
+      if (captured.fontFaces.nonEmpty || captured.fonts.nonEmpty)
+        log.info(
+          "LP font quarantine: no offers for {} — used={} faces=[{}] capturedUrls=[{}]",
+          result.url,
+          usedWeights.map { case (k, ws) => s"$k@${ws.mkString("/")}" }.mkString(","),
+          captured.fontFaces.take(12).map(f =>
+            s"${f.family}@${f.weightMin}-${f.weightMax}:${f.src.takeRight(48)}").mkString(" "),
+          captured.fonts.keys.take(8).map(_.takeRight(48)).mkString(" ")
+        )
+      Future.successful(result)
+    } else
       Future.traverse(offers) { case (family, weight, bytes) =>
         val hash = java.security.MessageDigest.getInstance("SHA-256")
           .digest(bytes).map("%02x".format(_)).mkString

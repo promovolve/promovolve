@@ -1512,7 +1512,10 @@ object ApiModels {
       // forwards this after the wizard checkbox, and CreativeProcessor
       // copies each quarantined file (fonts/orig/<hash>) to the live
       // catalog key before rendering. Absent for everything else.
-      lpFonts: Vector[OriginalFontOffer] = Vector.empty
+      // MUST stay Option: spray's jsonFormatN ignores case-class
+      // defaults, so a plain Vector would make the member REQUIRED and
+      // 400 every legacy/no-opt-in save (that regression shipped once).
+      lpFonts: Option[Vector[OriginalFontOffer]] = None
   )
 
   case class CreateCreativeResponse(

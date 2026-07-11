@@ -506,7 +506,13 @@ class EndpointRoutes(
                 val f =
                   if (lpWorkerEnabled) runViaWorker(req.url, strat, java.util.UUID.randomUUID().toString)
                   else analyzer.analyze(req.url, strat)
-                    .flatMap { case (result, captured) => persistCapturedImages(result, captured.images) }
+                    .flatMap { case (result, captured) =>
+                      persistCapturedImages(result, captured.images).flatMap { r =>
+                        // Quarantine the LP's own fonts on the in-process path too
+                        // (the LPWorker runner does its own; see LPFontQuarantine).
+                        imageStorage.fold(Future.successful(r))(st => LPFontQuarantine(r, captured, st))
+                      }
+                    }
                     .map(toAnalyzeLPResponse)
                 onComplete(f) {
                   case scala.util.Success(response) => complete(response)
@@ -566,7 +572,13 @@ class EndpointRoutes(
                             else analyzer.analyze(req.url, strat,
                               onScreenshot = bytes =>
                                 analyzeScreenshots.update(jobId, (bytes, System.currentTimeMillis())))
-                              .flatMap { case (result, captured) => persistCapturedImages(result, captured.images) }
+                              .flatMap { case (result, captured) =>
+                                persistCapturedImages(result, captured.images).flatMap { r =>
+                                  // Quarantine the LP's own fonts on the in-process path too
+                                  // (the LPWorker runner does its own; see LPFontQuarantine).
+                                  imageStorage.fold(Future.successful(r))(st => LPFontQuarantine(r, captured, st))
+                                }
+                              }
                               .map(toAnalyzeLPResponse)
                           f.onComplete { _ => analyzeInFlight.remove(key) }
                           f.foreach { resp =>
@@ -3119,7 +3131,8 @@ class EndpointRoutes(
                 originalPagesJson = pagesJson,
                 originalHash = hash,
                 skipVerify = true,
-                lpFonts = req.lpFonts.map(f => CreativeProcessor.LPFontGrant(f.family, f.weight, f.hash))
+                lpFonts = req.lpFonts.getOrElse(Vector.empty).map(f =>
+                  CreativeProcessor.LPFontGrant(f.family, f.weight, f.hash))
               )
             }
           }
@@ -3168,7 +3181,8 @@ class EndpointRoutes(
                     )),
                   originalPagesJson = pagesJson,
                   originalHash = hash,
-                  lpFonts = req.lpFonts.map(f => CreativeProcessor.LPFontGrant(f.family, f.weight, f.hash))
+                  lpFonts = req.lpFonts.getOrElse(Vector.empty).map(f =>
+                    CreativeProcessor.LPFontGrant(f.family, f.weight, f.hash))
                 )
               }
             }

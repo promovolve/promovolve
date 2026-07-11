@@ -125,7 +125,6 @@ fi
 echo "==> waiting for rollout (cold start ~7-8 min: image pulls -> DB init -> cluster form)"
 kc rollout status statefulset/promovolve-db       --timeout=240s
 kc rollout status statefulset/promovolve-api      --timeout=420s
-kc rollout status deployment/promovolve-crawler   --timeout=240s
 kc rollout status deployment/promovolve-platform  --timeout=180s
 
 # --- verify -----------------------------------------------------------------

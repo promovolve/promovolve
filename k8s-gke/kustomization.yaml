@@ -1,0 +1,109 @@
+# GKE overlay — the public PromoVolve deployment (permanently "staging-grade"
+# by design: zonal cluster, one spot node, in-cluster Postgres — there is no
+# production tier above this, we don't operate PromoVolve as a business).
+#
+# Inherits the full stack from ../k8s (same images/digests, same config — the
+# public hostnames promovolve.programmer.llc / ads.programmer.llc are already
+# what the base kustomization sets for RP_ID / ALLOWED_ORIGIN /
+# TRACKING_BASE_URL) and swaps the EXPOSURE:
+#
+#   Docker Desktop:  Service type LoadBalancer -> localhost, TLS via the
+#                    dev-box Cloudflare tunnel.
+#   GKE:             Services become ClusterIP behind ONE global HTTPS LB
+#                    (GKE Ingress) with Google-managed certificates.
+#                    DNS: A records (Cloudflare, DNS-ONLY / grey cloud —
+#                    managed-cert provisioning needs to reach Google
+#                    directly) -> the static IP created by setup.sh.
+#
+# SSE NOTE (the reason for the BackendConfigs): the GCLB default backend
+# timeout is 30s, which would cut every dashboard SSE stream at exactly the
+# first core heartbeat (SseRoutes keepAlive = 30s). backend-config.yaml sets
+# timeoutSec=3600 on both services; EventSource auto-reconnects on the hourly
+# cut, which the UI already tolerates.
+#
+# Render/apply (load restrictor needed because the BASE single-sources
+# db-initdb from ../docker/init-db.sql):
+#   kubectl kustomize --load-restrictor LoadRestrictionsNone k8s-gke \
+#     | kubectl --context <gke-context> apply -f -
+# or just run k8s-gke/setup.sh (idempotent, provisions GCP too).
+apiVersion: kustomize.config.k8s.io/v1beta1
+kind: Kustomization
+
+namespace: promovolve
+
+resources:
+  - ../k8s                  # the whole base stack (db, api, platform, rbac, config)
+  - backend-config.yaml     # GCLB health checks + SSE-safe timeouts
+  - frontend-config.yaml    # HTTP -> HTTPS redirect
+  - managed-cert.yaml       # Google-managed TLS for both hosts
+  - ingress.yaml            # one global HTTPS LB: host -> service routing
+  - storageclass.yaml       # hyperdisk-balanced (c4a/ARM nodes can't attach pd-*)
+
+patches:
+  # LoadBalancer -> ClusterIP + NEG (container-native LB) + BackendConfig
+  # attachment. The GCLB routes straight to pod NEGs; in-cluster traffic
+  # (BFF -> api via CORE_API_URL) still goes through the ClusterIP, so the
+  # base's sessionAffinity: ClientIP keeps pinning the single BFF pod to one
+  # api pod (read-your-writes + SSE attachment) exactly as on Docker Desktop.
+  - path: api-service-patch.yaml
+  - path: platform-service-patch.yaml
+
+  # GKE auto-taints ARM nodes (kubernetes.io/arch=arm64:NoSchedule) even in
+  # a pure-ARM cluster (observed on 1.35, 2026-07-11) — without these
+  # tolerations every pod sits Pending forever. Targets ALL StatefulSets
+  # (api, db, singleton) and the platform Deployment.
+  - target:
+      kind: StatefulSet
+    patch: |-
+      - op: add
+        path: /spec/template/spec/tolerations
+        value:
+          - key: kubernetes.io/arch
+            operator: Equal
+            value: arm64
+            effect: NoSchedule
+  - target:
+      kind: Deployment
+    patch: |-
+      - op: add
+        path: /spec/template/spec/tolerations
+        value:
+          - key: kubernetes.io/arch
+            operator: Equal
+            value: arm64
+            effect: NoSchedule
+
+  # Every PVC onto hyperdisk-balanced — the node machine family (c4a/ARM,
+  # see setup.sh) cannot attach the pd-balanced volumes the cluster-default
+  # standard-rwo StorageClass provisions; without this the PVCs bind but the
+  # disks fail to attach and pods wedge in ContainerCreating.
+  - target:
+      kind: StatefulSet
+      name: promovolve-db
+    patch: |-
+      - op: add
+        path: /spec/volumeClaimTemplates/0/spec/storageClassName
+        value: hyperdisk-balanced
+  # ddata claims also grow 2Gi -> 4Gi: hyperdisk-balanced's hard minimum is
+  # 4 GB (provisioning 400s below it — hit live 2026-07-11). The db claim
+  # (5Gi) already clears it.
+  - target:
+      kind: StatefulSet
+      name: promovolve-api
+    patch: |-
+      - op: add
+        path: /spec/volumeClaimTemplates/0/spec/storageClassName
+        value: hyperdisk-balanced
+      - op: replace
+        path: /spec/volumeClaimTemplates/0/spec/resources/requests/storage
+        value: 4Gi
+  - target:
+      kind: StatefulSet
+      name: promovolve-singleton
+    patch: |-
+      - op: add
+        path: /spec/volumeClaimTemplates/0/spec/storageClassName
+        value: hyperdisk-balanced
+      - op: replace
+        path: /spec/volumeClaimTemplates/0/spec/resources/requests/storage
+        value: 4Gi

@@ -1,0 +1,42 @@
+# ONE global external HTTPS LB fronting both hosts (GKE Ingress, "gce"
+# class). Cheapest correct shape: both hostnames share the LB's first-5
+# forwarding-rule tier (~$18-22/mo total) instead of two Network LBs, and
+# TLS terminates here with the Google-managed cert.
+#
+# Host routing (the hostnames the base config already advertises):
+#   promovolve.programmer.llc -> platform :9090  (dashboard/BFF)
+#   ads.programmer.llc        -> api      :8080  (serve + tracking beacons)
+#
+# The static IP is created by setup.sh:
+#   gcloud compute addresses create promovolve-ingress --global
+apiVersion: networking.k8s.io/v1
+kind: Ingress
+metadata:
+  name: promovolve
+  annotations:
+    kubernetes.io/ingress.class: gce
+    kubernetes.io/ingress.global-static-ip-name: promovolve-ingress
+    networking.gke.io/managed-certificates: promovolve
+    networking.gke.io/v1beta1.FrontendConfig: promovolve
+spec:
+  rules:
+    - host: promovolve.programmer.llc
+      http:
+        paths:
+          - path: /
+            pathType: Prefix
+            backend:
+              service:
+                name: promovolve-platform
+                port:
+                  number: 9090
+    - host: ads.programmer.llc
+      http:
+        paths:
+          - path: /
+            pathType: Prefix
+            backend:
+              service:
+                name: promovolve-api
+                port:
+                  number: 8080

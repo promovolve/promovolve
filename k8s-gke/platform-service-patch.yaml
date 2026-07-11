@@ -1,0 +1,13 @@
+# GKE: ClusterIP behind the Ingress (was LoadBalancer on Docker Desktop).
+# Health check hits the BFF's GET /health; the BackendConfig timeout keeps
+# the browser-facing SSE stream (dashboard live events, proxied by SSEProxy)
+# alive past the GCLB 30s default.
+apiVersion: v1
+kind: Service
+metadata:
+  name: promovolve-platform
+  annotations:
+    cloud.google.com/neg: '{"ingress": true}'
+    cloud.google.com/backend-config: '{"default": "promovolve-platform"}'
+spec:
+  type: ClusterIP

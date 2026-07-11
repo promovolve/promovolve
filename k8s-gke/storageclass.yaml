@@ -1,0 +1,15 @@
+# C4A (Axion/ARM) machines attach HYPERDISK ONLY — the cluster's default
+# `standard-rwo` StorageClass provisions pd-balanced, which can never attach
+# to a c4a node (PVCs would sit Pending/attach-fail forever). Every PVC in
+# this overlay is patched to this class (see kustomization.yaml).
+# WaitForFirstConsumer so the volume lands in the node's zone.
+apiVersion: storage.k8s.io/v1
+kind: StorageClass
+metadata:
+  name: hyperdisk-balanced
+provisioner: pd.csi.storage.gke.io
+parameters:
+  type: hyperdisk-balanced
+volumeBindingMode: WaitForFirstConsumer
+allowVolumeExpansion: true
+reclaimPolicy: Delete

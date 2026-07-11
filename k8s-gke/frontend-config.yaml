@@ -1,0 +1,13 @@
+# HTTP -> HTTPS redirect at the GCLB frontend. Referenced from the Ingress
+# via the networking.gke.io/v1beta1.FrontendConfig annotation. Without this
+# the LB happily serves plain HTTP on 80 — which breaks passkeys (Secure
+# cookies + WebAuthn need a secure context) and mixed-content-blocks the
+# tracking beacons POSTed from HTTPS publisher pages.
+apiVersion: networking.gke.io/v1beta1
+kind: FrontendConfig
+metadata:
+  name: promovolve
+spec:
+  redirectToHttps:
+    enabled: true
+    responseCodeName: MOVED_PERMANENTLY_DEFAULT

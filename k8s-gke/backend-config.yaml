@@ -1,0 +1,45 @@
+# GCLB backend tuning — attached to the Services via the
+# cloud.google.com/backend-config annotation (see *-service-patch.yaml).
+#
+# timeoutSec 3600: the GCLB default (30s) kills long-lived responses — which
+# for us means EVERY SSE stream dies at exactly the first 30s heartbeat
+# (core's SseRoutes keepAlive). 1h keeps streams alive; EventSource
+# reconnects transparently on the hourly cut.
+#
+# Custom healthCheck: without one, GKE derives the check from the pod
+# readinessProbe ONLY when it's an httpGet on the serving port — the api's
+# probe lives on a DIFFERENT port (8558) and the platform's is a bare
+# tcpSocket, so both need explicit checks or the GCLB falls back to
+# expecting 200 from "/" on the serving port (api "/" is not a route -> all
+# backends unhealthy -> 502 for everything).
+apiVersion: cloud.google.com/v1
+kind: BackendConfig
+metadata:
+  name: promovolve-api
+spec:
+  timeoutSec: 3600
+  healthCheck:
+    type: HTTP
+    # Pekko management /ready = this pod is an Up cluster member (same
+    # semantics as the pod readinessProbe): traffic only to formed members.
+    port: 8558
+    requestPath: /ready
+    checkIntervalSec: 15
+    timeoutSec: 5
+    healthyThreshold: 1
+    unhealthyThreshold: 3
+---
+apiVersion: cloud.google.com/v1
+kind: BackendConfig
+metadata:
+  name: promovolve-platform
+spec:
+  timeoutSec: 3600
+  healthCheck:
+    type: HTTP
+    port: 9090
+    requestPath: /health
+    checkIntervalSec: 15
+    timeoutSec: 5
+    healthyThreshold: 1
+    unhealthyThreshold: 3

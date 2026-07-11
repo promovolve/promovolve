@@ -1,0 +1,14 @@
+# GKE: ClusterIP behind the Ingress (was LoadBalancer on Docker Desktop).
+# The NEG annotation enables container-native LB (GCLB -> pod IPs directly);
+# the backend-config annotation attaches the health check (/ready on the
+# Pekko management port — only cluster MEMBERS get traffic, mirroring the
+# pod readinessProbe) and the SSE-safe timeout.
+apiVersion: v1
+kind: Service
+metadata:
+  name: promovolve-api
+  annotations:
+    cloud.google.com/neg: '{"ingress": true}'
+    cloud.google.com/backend-config: '{"default": "promovolve-api"}'
+spec:
+  type: ClusterIP

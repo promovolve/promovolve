@@ -160,12 +160,12 @@ secretGenerator:
 images:
   - name: promovolve/api
     newName: docker.io/hanishi/promovolve-api
-    # Approval check trusts persistedApprovedIds ONLY (fcf8b92f) — the
-    # disk-persisted ServeIndex outlives un-approvals and restarts, so
-    # "still in ServeIndex" must never imply "approved". Completes the
-    # pause→PENDING lifecycle (approved-demand-only floors, flag-gated
-    # revoke-on-pause, keysByCreative pruning) already pinned before.
-    digest: sha256:c68a6978a1e686638c9dc28e93e72355164b213385455d1adfbf7e274eefbdc2
+    # LP analyzer now renders the hero screenshot with the page's real
+    # web fonts: the request router stops aborting `font` requests (still
+    # blocks `media`) and awaits document.fonts.ready (2s cap) before the
+    # preview screenshot — so LP-analysis previews reflect original
+    # typography instead of fallback glyphs.
+    digest: sha256:c6841a8a4d26e4eb03f13cad8489386ef9bdb318f4da3f9803e4b15947d266c8
   - name: promovolve/platform
     newName: docker.io/hanishi/promovolve-platform
     # Org membership: one org per email domain owns the core entities;
@@ -211,4 +211,8 @@ images:
     #   at viewport fallback for elements rendered display:none).
     # + preview dialogs opt into the banner slot-size tour (banner bundle
     #   780fae0bb6: slot-tour + hidden-connect self-heal).
-    digest: sha256:cc8104f37b39a2e32aa2f2e5db3785c881856daadb459a522ecd6ac4765c898d
+    # + designer: text dropped on a sized canvas (local, fieldless) is now
+    #   editable in place; field-bound text in a size gains a "Synced
+    #   across all sizes" checkbox (untick = bake local override, retick =
+    #   relink to the shared page field).
+    digest: sha256:7d0151c0719a083d80d98438b1219f2a5cd20fcd9f3d9f687e793fe3adc6765d

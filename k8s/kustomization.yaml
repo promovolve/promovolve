@@ -167,7 +167,12 @@ images:
     # CreativeProcessor copy them to the live catalog key BEFORE the
     # banner render. Rides on the earlier hero-screenshot font fix.
     # + LP-flow loggers back to INFO (analyze/publish visible in kubectl).
-    digest: sha256:8a5be00af812e7a0a1236bf8b003ac445b85f4990cf26bfc73be63319cd43451
+    # + lpFonts is Option (spray jsonFormatN ignores defaults — the plain
+    #   Vector made it a REQUIRED member and 400'd every publish/draft
+    #   silently via corePost's status-blind proxying).
+    # + font quarantine shared with the in-process analyze path
+    #   (lp-workers.enabled=false default meant offers never surfaced).
+    digest: sha256:e372acfa84fb8d4e05d14f5fded769dfa748ef04153ad70304ec661c8eea319f
   - name: promovolve/platform
     newName: docker.io/hanishi/promovolve-platform
     # Org membership: one org per email domain owns the core entities;

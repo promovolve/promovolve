@@ -1,4 +1,3 @@
-# syntax=docker/dockerfile:1
 #
 # promovolve.api.Main — the Scala/Pekko ad server.
 #

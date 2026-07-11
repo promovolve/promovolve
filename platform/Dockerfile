@@ -1,4 +1,3 @@
-# syntax=docker/dockerfile:1
 #
 # Go platform / dashboard BFF (platform/cmd/server). Embeds the static
 # bundle + templates via go:embed (embed.go). The dashboard's Tailwind

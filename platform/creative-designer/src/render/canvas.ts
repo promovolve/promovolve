@@ -5,7 +5,7 @@
 // (drag/resize/rotate/marquee/motion) lives in render/overlay.ts.
 
 import type { DesignerState, LayoutItem, Page } from "../types";
-import { currentLayout, fitReaderFieldBoxes, currentPage, updateItem } from "../state";
+import { currentLayout, fitReaderFieldBoxes, currentPage, setReaderFieldFontSize, updateItem } from "../state";
 import { isSized, isMultiPage, type Mode } from "../modes";
 import type { Store } from "../store";
 import { tokens } from "../ui/tokens";
@@ -377,9 +377,23 @@ export function syncAutoFitFontSizes(
     const rounded = Math.round(fitted * 10) / 10;
     const current = item.fontSize ?? 5;
     if (Math.abs(current - rounded) < 0.1) continue; // no-op within tolerance
-    next = updateItem(next, idx, (it): LayoutItem =>
-      it.type === "text" ? { ...it, fontSize: rounded } : it,
-    );
+    // Field-bound reader text: write the fitted size to the SAME field on
+    // EVERY page, not just this one. The page-1-master subscriber
+    // (syncTypographyFromPage1) instantly reverts a lone page-2/3 write
+    // back to the master's value — which is exactly the "text enlarges
+    // when clicked on page 2/3" bug: the DOM shows the fitted size while
+    // the store keeps snapping back to page 1's bigger one. Converging
+    // all pages (setReaderFieldFontSize) makes the subscriber a no-op,
+    // and matches delivery, where harmonizeAutofit pins the field group
+    // to the smallest fitted size across pages anyway.
+    const field = (item as { field?: string }).field;
+    if (field && isMultiPage(store.state.mode)) {
+      next = setReaderFieldFontSize(next, field, rounded);
+    } else {
+      next = updateItem(next, idx, (it): LayoutItem =>
+        it.type === "text" ? { ...it, fontSize: rounded } : it,
+      );
+    }
     changed = true;
   }
   if (changed) store.replace(next);

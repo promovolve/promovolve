@@ -17,6 +17,19 @@
     <logger name="org.apache.pekko" level="ERROR"/>
     <logger name="org.apache.pekko.cluster" level="ERROR"/>
 
+    <!-- LP-analysis / creative-publish flow back at INFO: unlike the
+         per-auction firehose above, these fire once per analyze click or
+         publish — low-volume, high diagnostic value (Playwright nav,
+         capture counts, font quarantine/activation, Gemini synthesis +
+         category verification). -->
+    <logger name="promovolve.browser.LPAnalyzer" level="INFO"/>
+    <logger name="promovolve.api.LPAnalysisRunner" level="INFO"/>
+    <logger name="promovolve.api.LPAnalysisStore" level="INFO"/>
+    <logger name="promovolve.api.CreativeProcessor" level="INFO"/>
+    <logger name="promovolve.api.GoogleFontProvisioner" level="INFO"/>
+    <logger name="promovolve.publisher.assessment" level="INFO"/>
+    <logger name="promovolve.creative" level="INFO"/>
+
     <!-- Per-class DEBUG logging: set via -DLOG_CLASS=fully.qualified.ClassName -->
     <logger name="${LOG_CLASS:-_no_debug_target_}" level="DEBUG"/>
 

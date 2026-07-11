@@ -172,7 +172,9 @@ images:
     #   silently via corePost's status-blind proxying).
     # + font quarantine shared with the in-process analyze path
     #   (lp-workers.enabled=false default meant offers never surfaced).
-    digest: sha256:e372acfa84fb8d4e05d14f5fded769dfa748ef04153ad70304ec661c8eea319f
+    # + quarantine no-offers diagnostic (families/faces/captured URLs) +
+    #   failure belt (font offers can never fail an analysis).
+    digest: sha256:5ee2d31624e95e8e70ed4728726bb20cacc816a10498bf3d9f291c956ca75ea7
   - name: promovolve/platform
     newName: docker.io/hanishi/promovolve-platform
     # Org membership: one org per email domain owns the core entities;
@@ -229,4 +231,7 @@ images:
     # + autofit font-sync writes field-bound reader sizes to ALL pages
     #   (page-1-master subscriber was reverting page-2/3 writes — the
     #   remaining enlarge-on-click).
-    digest: sha256:9c3bb197204c19ee23d8af87dc5e3a55eae2119deba610b2211615c0a0ed79a1
+    # + brand-kit edits persist: loadBrandKit prefers localStorage over the
+    #   wizard-injected seed (modal saves were shadowed); wizard re-seed
+    #   preserves the modal-saved logoUrl.
+    digest: sha256:a37810b31f57f7114a7e9a869520df34bd0f4ad5b4ff984eb193f5ec9478d887

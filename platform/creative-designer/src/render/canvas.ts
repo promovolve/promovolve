@@ -348,14 +348,21 @@ function measureTextHeights(
 // not commit() (a derived value, not its own undo step), 0.1 tolerance
 // to avoid re-render thrash. Only data-autofit items are touched —
 // textFit:"clip" and height-less items render at the authored size.
-function syncAutoFitFontSizes(
-  banner: HTMLElement, store: Store, filter: number[] | null,
+export function syncAutoFitFontSizes(
+  banner: HTMLElement, store: Store, filter: number[] | null, retry = true,
 ): void {
   const shadow = banner.shadowRoot;
   if (!shadow) return;
   const items = currentLayout(store.state);
   let next = store.state;
   let changed = false;
+  // Autofit-tagged elements whose inline font-size hasn't been stamped
+  // yet: we read the DOM BEFORE the banner's own autofit rAF ran (the
+  // desktop expanded overlay schedules its pass in a separate frame).
+  // Reading now would silently keep the stale authored size in the
+  // store — the source of the "text jumps huge on click" mismatch — so
+  // retry those indices once on the next frame instead.
+  const unstamped: number[] = [];
   const indices = filter ?? items.map((_, i) => i);
   for (const idx of indices) {
     const item = items[idx];
@@ -363,7 +370,10 @@ function syncAutoFitFontSizes(
     const el = shadow.querySelector<HTMLElement>(`[data-layout-idx="${idx}"]`);
     if (!el || el.dataset.autofit !== "1") continue; // only autofitted items
     const fitted = parseFloat(el.style.fontSize); // "<n>cqmax" → n
-    if (!Number.isFinite(fitted) || fitted <= 0) continue;
+    if (!Number.isFinite(fitted) || fitted <= 0) {
+      if (retry) unstamped.push(idx);
+      continue;
+    }
     const rounded = Math.round(fitted * 10) / 10;
     const current = item.fontSize ?? 5;
     if (Math.abs(current - rounded) < 0.1) continue; // no-op within tolerance
@@ -373,6 +383,8 @@ function syncAutoFitFontSizes(
     changed = true;
   }
   if (changed) store.replace(next);
+  if (unstamped.length > 0)
+    requestAnimationFrame(() => syncAutoFitFontSizes(banner, store, unstamped, /*retry=*/ false));
 }
 
 // Zoom that fits a format into the canvas viewport, capped at 1× so small

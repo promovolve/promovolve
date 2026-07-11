@@ -49,7 +49,7 @@ import { itemBoundsPct, type BoundsPct } from "../geometry";
 import { copy, duplicate, hasClipboard, paste } from "../interaction/clipboard";
 import { openContextMenu, type MenuEntry } from "../ui/context-menu";
 import { tokens } from "../ui/tokens";
-import { packTextItemHeight } from "./canvas";
+import { packTextItemHeight, syncAutoFitFontSizes } from "./canvas";
 
 const SELECTION_COLOR = tokens.amber;
 
@@ -529,6 +529,18 @@ function startInlineTextEdit(
   );
   const shadow = banner?.shadowRoot;
   if (!shadow) return;
+  // Reconcile the store with the DOM's auto-fitted size BEFORE editing.
+  // autoFitText may have shrunk this element after the regular
+  // post-render sync read the DOM (the expanded overlay's autofit runs
+  // in its own rAF), leaving item.fontSize at the larger authored value
+  // — editing at that would visibly ENLARGE the text the moment the
+  // editor opens, and the blur re-pack would then grow the box to
+  // match, making the jump permanent. Syncing here is a replace() of a
+  // value the screen already shows, so nothing visibly changes; the
+  // editor then opens at exactly the on-screen size.
+  syncAutoFitFontSizes(banner as HTMLElement, store, [idx], /*retry=*/ false);
+  const freshItem = currentLayout(store.state)[idx];
+  if (freshItem && freshItem.type === "text") item = freshItem;
   const el = shadow.querySelector<HTMLElement>(`[data-layout-idx="${idx}"]`);
   if (!el || el.isContentEditable) return;
 

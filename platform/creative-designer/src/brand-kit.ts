@@ -80,24 +80,43 @@ export function kitColor(kit: BrandKit | null, name: string): string | null {
 }
 
 /** Load the brand kit. Source precedence:
-  *   1. Server-injected typed kit (future server-side persistence)
-  *   2. brandKitJson from the LP-to-Creative handoff
-  *   3. localStorage (kit edited locally in the browser)
+  *   1. localStorage (kit edited locally in the browser — the ONLY place
+  *      the modal's Save writes, so it must win or edits are shadowed)
+  *   2. Server-injected typed kit (future server-side persistence)
+  *   3. brandKitJson from the LP-to-Creative handoff (a SEED, not an
+  *      authority: the wizard mirrors its kit into the same localStorage
+  *      key at handoff, so this only matters on a cold browser)
   *   4. EMPTY_KIT
-  * Never throws — invalid payloads at any source fall through to the
-  * next, and missing localStorage (private browsing) just returns the
-  * empty kit. */
+  * localStorage used to be LAST, which silently discarded every modal
+  * edit (colors/fonts/name/logo) whenever the creative came through the
+  * wizard — i.e. always. Never throws — invalid payloads at any source
+  * fall through to the next. */
 export function loadBrandKit(campaignId?: string): BrandKit {
   const ctx = (typeof window !== "undefined")
     ? window.__DESIGNER__ as { brandKit?: BrandKit; brandKitJson?: string } | undefined
     : undefined;
 
-  // 1. Typed server-injected kit takes precedence.
+  // 1. localStorage — the author's own edits win.
+  if (typeof localStorage !== "undefined") {
+    try {
+      const raw = localStorage.getItem(storageKey(campaignId));
+      if (raw) {
+        const parsed = JSON.parse(raw) as BrandKit;
+        if (parsed && Array.isArray(parsed.colors) && Array.isArray(parsed.fonts)) {
+          return parsed;
+        }
+      }
+    } catch {
+      // Fall through.
+    }
+  }
+
+  // 2. Typed server-injected kit.
   if (ctx?.brandKit && Array.isArray((ctx.brandKit as BrandKit).colors)) {
     return ctx.brandKit as BrandKit;
   }
 
-  // 2. JSON string from the handoff form. Parse defensively.
+  // 3. JSON string from the handoff form. Parse defensively.
   if (ctx?.brandKitJson) {
     try {
       const parsed = JSON.parse(ctx.brandKitJson) as BrandKit;
@@ -109,19 +128,7 @@ export function loadBrandKit(campaignId?: string): BrandKit {
     }
   }
 
-  // 3. localStorage.
-  if (typeof localStorage === "undefined") return EMPTY_KIT;
-  try {
-    const raw = localStorage.getItem(storageKey(campaignId));
-    if (!raw) return EMPTY_KIT;
-    const parsed = JSON.parse(raw) as BrandKit;
-    if (!parsed || !Array.isArray(parsed.colors) || !Array.isArray(parsed.fonts)) {
-      return EMPTY_KIT;
-    }
-    return parsed;
-  } catch {
-    return EMPTY_KIT;
-  }
+  return EMPTY_KIT;
 }
 
 /** Persist the kit to localStorage. No-op when localStorage isn't

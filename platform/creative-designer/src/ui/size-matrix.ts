@@ -273,7 +273,7 @@ export function mountSizeMatrix(host: HTMLElement, store: Store): SizeMatrixHand
     // the thumbnail's aspect plus the px dims identify the size, the
     // active mode's NAME shows next to Regenerate in the canvas header,
     // and the tooltip carries the full label for hover.)
-    btn.title = `${mode.label} — ${mode.w}×${mode.h}`;
+    btn.title = `${mode.label} — ${mode.dims ?? `${mode.w}×${mode.h}`}`;
     const labelRow = document.createElement("div");
     labelRow.style.cssText = [
       "display: inline-flex",
@@ -288,7 +288,7 @@ export function mountSizeMatrix(host: HTMLElement, store: Store): SizeMatrixHand
       `color: ${tokens.ink200}`,
       "white-space: nowrap",
     ].join(";");
-    dims.textContent = `${mode.w}×${mode.h}`;
+    dims.textContent = mode.dims ?? `${mode.w}×${mode.h}`;
     const dot = document.createElement("span");
     dot.style.cssText = [
       "width: 5px",

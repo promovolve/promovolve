@@ -44,6 +44,11 @@ export interface Mode {
   // Present for sized modes, absent for the wide master. Matches the
   // banner component's `page.banners[sizeKey]` indexing.
   sizeKey?: string;
+  // What the size-matrix chip shows under the thumbnail instead of the
+  // raw "w×h". The expanded reader isn't a fixed ad slot — it scales
+  // to the viewer's screen — so its design-canvas pixels (540×960)
+  // would read as a bookable size when they're not. Absent = "w×h".
+  dims?: string;
 }
 
 /** The tabless 16:9 wide layout — NOT in MODES (no tab, no fanout
@@ -60,7 +65,8 @@ export const WIDE_MASTER: Mode = { key: "expanded", label: "Wide (16:9)", aspect
 // page.layout holds its resolved fonts before the bucket presets
 // inherit them — see presets.ts expandedFont).
 export const MODES: readonly Mode[] = [
-  { key: "mobile",   label: "Expanded (9:16)", aspect: "9/16",    w: 540,  h: 960, sizeKey: "mobile-expanded" },
+  { key: "mobile",   label: "Expanded (9:16)", aspect: "9/16",    w: 540,  h: 960, sizeKey: "mobile-expanded",
+    dims: "full screen" },
   // Aspect buckets; the pixel size is the canonical design canvas.
   { key: "300x250",  label: "Rectangle (6:5)", aspect: "300/250", w: 300,  h: 250, sizeKey: "300x250" },
   { key: "970x250",  label: "Billboard (4:1)", aspect: "970/250", w: 970,  h: 250, sizeKey: "970x250" },

@@ -607,8 +607,16 @@ object ApiModels {
       palette: Vector[String] = Vector.empty,
       // Font faces used by the LP (heading family first, then body).
       // Seeds the brand-kit font list.
-      fonts: Vector[String] = Vector.empty
+      fonts: Vector[String] = Vector.empty,
+      // The LP's OWN font files, quarantined in R2 at analysis time
+      // (fonts/orig/<hash>.woff2 — no serving URL derives from that key).
+      // Offered to the advertiser in the wizard; only an explicit license
+      // opt-in at publish copies them to the live catalog key.
+      originalFonts: Vector[OriginalFontOffer] = Vector.empty
   )
+
+  /** One quarantined LP font face on offer: family + weight + parked hash. */
+  case class OriginalFontOffer(family: String, weight: Int, hash: String)
 
   // Async LP analysis: start returns a jobId; the client polls status until
   // done. Avoids a long synchronous request blocking the Designer transition.
@@ -1498,7 +1506,13 @@ object ApiModels {
       // (banner render + Gemini verification) is skipped — RunScenario
       // and other synthetic-load drivers don't have GCP keys and don't
       // need real banners. Production clients leave this unset.
-      skipVerify: Option[Boolean] = None
+      skipVerify: Option[Boolean] = None,
+      // LP-original font faces the advertiser OPTED IN to re-hosting
+      // ("I hold the license"). Presence = consent: the platform only
+      // forwards this after the wizard checkbox, and CreativeProcessor
+      // copies each quarantined file (fonts/orig/<hash>) to the live
+      // catalog key before rendering. Absent for everything else.
+      lpFonts: Vector[OriginalFontOffer] = Vector.empty
   )
 
   case class CreateCreativeResponse(

@@ -406,7 +406,8 @@ class EndpointRoutes(
       dominantColor = result.dominantColor,
       textColor = result.textColor,
       palette = result.palette,
-      fonts = result.fonts
+      fonts = result.fonts,
+      originalFonts = result.originalFonts.map(f => OriginalFontOffer(f.family, f.weight, f.hash))
     )
 
   private val lpStoreLog = org.slf4j.LoggerFactory.getLogger("promovolve.api.LPAnalysisStore")
@@ -505,7 +506,7 @@ class EndpointRoutes(
                 val f =
                   if (lpWorkerEnabled) runViaWorker(req.url, strat, java.util.UUID.randomUUID().toString)
                   else analyzer.analyze(req.url, strat)
-                    .flatMap { case (result, captured) => persistCapturedImages(result, captured) }
+                    .flatMap { case (result, captured) => persistCapturedImages(result, captured.images) }
                     .map(toAnalyzeLPResponse)
                 onComplete(f) {
                   case scala.util.Success(response) => complete(response)
@@ -565,7 +566,7 @@ class EndpointRoutes(
                             else analyzer.analyze(req.url, strat,
                               onScreenshot = bytes =>
                                 analyzeScreenshots.update(jobId, (bytes, System.currentTimeMillis())))
-                              .flatMap { case (result, captured) => persistCapturedImages(result, captured) }
+                              .flatMap { case (result, captured) => persistCapturedImages(result, captured.images) }
                               .map(toAnalyzeLPResponse)
                           f.onComplete { _ => analyzeInFlight.remove(key) }
                           f.foreach { resp =>
@@ -3117,7 +3118,8 @@ class EndpointRoutes(
                   )),
                 originalPagesJson = pagesJson,
                 originalHash = hash,
-                skipVerify = true
+                skipVerify = true,
+                lpFonts = req.lpFonts.map(f => CreativeProcessor.LPFontGrant(f.family, f.weight, f.hash))
               )
             }
           }
@@ -3165,7 +3167,8 @@ class EndpointRoutes(
                       p.layout, p.banners, p.designAspect, p.videoBg, p.textureBg
                     )),
                   originalPagesJson = pagesJson,
-                  originalHash = hash
+                  originalHash = hash,
+                  lpFonts = req.lpFonts.map(f => CreativeProcessor.LPFontGrant(f.family, f.weight, f.hash))
                 )
               }
             }

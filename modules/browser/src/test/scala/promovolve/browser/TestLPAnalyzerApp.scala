@@ -27,7 +27,8 @@ object TestLPAnalyzerApp {
       val (result, captured) = Await.result(analyzer.analyze(url, "auto"), 60.seconds)
       println(s"URL:            ${result.url}")
       println(s"Sections:       ${result.sections.size}")
-      println(s"Captured bytes: ${captured.size} images")
+      println(s"Captured bytes: ${captured.images.size} images, ${captured.fonts.size} fonts " +
+        s"(${captured.fontFaces.size} @font-face rules)")
       println(s"Dominant bg:    ${result.dominantColor.getOrElse("(none)")}")
       println(s"Text colour:    ${result.textColor.getOrElse("(none)")}")
       result.sections.zipWithIndex.foreach { case (s, i) =>

@@ -127,7 +127,8 @@ trait ApiJsonFormats extends DefaultJsonProtocol {
   given RootJsonFormat[AnalyzeLPRequest] = jsonFormat3(AnalyzeLPRequest.apply)
   given RootJsonFormat[AnalyzeLPImage] = jsonFormat4(AnalyzeLPImage.apply)
   given RootJsonFormat[AnalyzeLPSection] = jsonFormat3(AnalyzeLPSection.apply)
-  given RootJsonFormat[AnalyzeLPResponse] = jsonFormat6(AnalyzeLPResponse.apply)
+  given RootJsonFormat[OriginalFontOffer] = jsonFormat3(OriginalFontOffer.apply)
+  given RootJsonFormat[AnalyzeLPResponse] = jsonFormat7(AnalyzeLPResponse.apply)
   given RootJsonFormat[AnalyzeLPJob] = jsonFormat1(AnalyzeLPJob.apply)
   given RootJsonFormat[AnalyzeLPStatusResponse] = jsonFormat4(AnalyzeLPStatusResponse.apply)
 
@@ -247,7 +248,7 @@ trait ApiJsonFormats extends DefaultJsonProtocol {
   given RootJsonFormat[RegisterCampaignsResponse] = jsonFormat3(RegisterCampaignsResponse.apply)
 
   // Magazine Creative (expandable banner)
-  given RootJsonFormat[CreateCreativeRequest] = jsonFormat8(CreateCreativeRequest.apply)
+  given RootJsonFormat[CreateCreativeRequest] = jsonFormat9(CreateCreativeRequest.apply)
   given RootJsonFormat[CreateCreativeResponse] = jsonFormat3(CreateCreativeResponse.apply)
 
   // IAB Ad Product Taxonomy

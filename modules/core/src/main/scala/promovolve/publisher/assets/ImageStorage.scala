@@ -62,6 +62,22 @@ trait ImageStorage {
    */
   def fontExists(slug: String, variant: String = "latin"): Future[Boolean] =
     Future.successful(false)
+
+  /**
+   * Park an LP-original font file under the QUARANTINE key
+   * `fonts/orig/<hash>.woff2`. Nothing derives a serving URL from this
+   * key — the bytes only go live when the advertiser opts in at publish
+   * ("I hold the license") and [[fetchOriginalFont]] + [[storeFont]] copy
+   * them to the catalog key. Content-addressed → idempotent.
+   */
+  def storeOriginalFont(hash: String, bytes: Array[Byte]): Future[Unit] =
+    Future.failed(new UnsupportedOperationException(
+      "font storage only supported on R2 storage"
+    ))
+
+  /** Fetch quarantined LP-original font bytes by hash; None when absent. */
+  def fetchOriginalFont(hash: String): Future[Option[Array[Byte]]] =
+    Future.successful(None)
 }
 
 /** Cloudflare R2 storage using Pekko Connectors S3 (S3-compatible, zero egress fees). */
@@ -148,6 +164,23 @@ final class R2ImageStorage(
       .runWith(Sink.headOption)
       .map(_.isDefined)
       .recover { case _ => false }
+
+  private def originalFontKey(hash: String): String = s"fonts/orig/$hash.woff2"
+
+  override def storeOriginalFont(hash: String, bytes: Array[Byte]): Future[Unit] = {
+    val contentType = org.apache.pekko.http.scaladsl.model.ContentType.parse("font/woff2").toOption
+      .getOrElse(org.apache.pekko.http.scaladsl.model.ContentTypes.`application/octet-stream`)
+    val source = Source.single(ByteString(bytes))
+    val sink = S3.multipartUpload(bucket, originalFontKey(hash), contentType).withAttributes(s3Attributes)
+    source.runWith(sink).map(_ => ())
+  }
+
+  override def fetchOriginalFont(hash: String): Future[Option[Array[Byte]]] =
+    S3.getObject(bucket, originalFontKey(hash))
+      .withAttributes(s3Attributes)
+      .runWith(Sink.fold(ByteString.empty)(_ ++ _))
+      .map(bs => Some(bs.toArray))
+      .recover { case _ => None }
 
   private def mimeToExt(mimeType: String): String = mimeType match {
     case "image/png"  => "png"

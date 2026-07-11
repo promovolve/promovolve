@@ -175,6 +175,7 @@ object ApiSchemas {
   given Schema[AnalyzeLPRequest] = Schema.derived
   given Schema[AnalyzeLPImage] = Schema.derived
   given Schema[AnalyzeLPSection] = Schema.derived
+  given Schema[OriginalFontOffer] = Schema.derived
   given Schema[AnalyzeLPResponse] = Schema.derived
   given Schema[RewriteSectionInput] = Schema.derived
   given Schema[RewriteSectionsRequest] = Schema.derived

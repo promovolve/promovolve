@@ -57,8 +57,16 @@ object CreativeProcessor {
       originalHash: String,
       width: Int = 300,
       height: Int = 250,
-      skipVerify: Boolean = false
+      skipVerify: Boolean = false,
+      // LP-original font faces the advertiser opted in to re-hosting
+      // (presence = license consent, enforced upstream). Each is copied
+      // from quarantine (fonts/orig/<hash>) to the live catalog key
+      // BEFORE the banner render so the screenshot shows the real face.
+      lpFonts: Vector[LPFontGrant] = Vector.empty
   ) extends Command
+
+  /** An opted-in LP-original font: family + weight + quarantine hash. */
+  case class LPFontGrant(family: String, weight: Int, hash: String)
 
   /** A page in the rich creative (mirrors ExtractedBannerPage fields). */
   case class PageData(
@@ -78,7 +86,7 @@ object CreativeProcessor {
       name: String, landingUrl: String,
       updatedPages: Vector[PageData], updatedPagesJson: String,
       originalHash: String, width: Int, height: Int,
-      skipVerify: Boolean
+      skipVerify: Boolean, lpFonts: Vector[LPFontGrant]
   ) extends Command
 
   /**
@@ -216,7 +224,7 @@ object CreativeProcessor {
     Behaviors.receiveMessage {
       // Step 1: Download external images
       case Process(creativeId, advertiserId, campaignId, name, landingUrl, pages, originalPagesJson, originalHash,
-            width, height, skipVerify) =>
+            width, height, skipVerify, lpFonts) =>
         ctx.log.info("CreativeProcessor: starting for creative {} ({}x{}) skipVerify={}", creativeId, width, height,
           skipVerify)
 
@@ -257,7 +265,7 @@ object CreativeProcessor {
                 p.layout, p.banners, p.designAspect, p.videoBg, p.textureBg)
             ).toJson.compactPrint
             ImagesDownloaded(creativeId, advertiserId, campaignId, name, landingUrl, updatedPages, json, originalHash,
-              width, height, skipVerify)
+              width, height, skipVerify, lpFonts)
           case Failure(e) =>
             StepFailed(creativeId, "image-download", e.getMessage)
         }
@@ -265,7 +273,7 @@ object CreativeProcessor {
 
       // Step 2: Render banner screenshot
       case ImagesDownloaded(creativeId, advertiserId, campaignId, name, landingUrl, _, updatedPagesJson, originalHash,
-            width, height, skipVerify) =>
+            width, height, skipVerify, lpFonts) =>
         ctx.log.info("CreativeProcessor: images done for {}, rendering banner...", creativeId)
 
         lpAnalyzer match {
@@ -276,7 +284,38 @@ object CreativeProcessor {
             // and reserve ctx.log for code inside this match's actor-
             // thread arm (i.e., before/after the Future is set up).
             val asyncLog = org.slf4j.LoggerFactory.getLogger("promovolve.api.CreativeProcessor.async")
-            val renderF = analyzer.renderBanner(updatedPagesJson, width, height).flatMap { pngBytes =>
+            // Activate opted-in LP-original fonts BEFORE the render:
+            // copy each quarantined file to the catalog key the banner
+            // derives (fonts/<slug>-<weight>-latin.woff2), so the
+            // screenshot — and every later visitor — gets the real face.
+            // Best-effort per face; the render proceeds regardless (a
+            // miss just falls back to Google provisioning / system CSS).
+            val activateF: Future[Unit] =
+              if (lpFonts.isEmpty) Future.unit
+              else Future.traverse(lpFonts) { grant =>
+                promovolve.publisher.assets.GoogleFontCatalog.resolve(grant.family, Some(grant.weight)) match {
+                  case None               => Future.unit // generic/system family — nothing to host
+                  case Some((slug, _, _)) =>
+                    imageStorage.fetchOriginalFont(grant.hash).flatMap {
+                      case None =>
+                        asyncLog.info("LP font activation: quarantined bytes missing for {} ({})",
+                          grant.family, grant.hash)
+                        Future.unit
+                      case Some(bytes) =>
+                        imageStorage.storeFont(slug, bytes, "latin").map { _ =>
+                          asyncLog.info("LP font activated: {} w{} -> fonts/{}-latin.woff2 ({} bytes, creative {})",
+                            grant.family, grant.weight: java.lang.Integer, slug,
+                            bytes.length: java.lang.Integer, creativeId)
+                        }
+                    }.recover { case e =>
+                      asyncLog.warn("LP font activation failed for {} w{}: {}",
+                        grant.family, grant.weight: java.lang.Integer, e.getMessage)
+                    }
+                }
+              }.map(_ => ())
+            val renderF = activateF.flatMap(_ =>
+              analyzer.renderBanner(updatedPagesJson, width, height)
+            ).flatMap { pngBytes =>
               // Re-encode PNG → WebP. Playwright only outputs PNG/JPEG
               // but WebP saves ~25–35% at visually-identical quality.
               // Encode is fail-soft (returns None) so a broken cwebp

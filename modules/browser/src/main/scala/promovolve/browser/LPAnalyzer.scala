@@ -55,11 +55,29 @@ final case class LPAnalysisResult(
     palette: Vector[String] = Vector.empty,
     // Font faces used by the LP (heading family first, then body).
     // Seeds the brand-kit font list. Empty when extraction failed.
-    fonts: Vector[String] = Vector.empty
+    fonts: Vector[String] = Vector.empty,
+    // The LP's OWN font files, captured off the wire and parked in R2 under
+    // fonts/orig/<hash>.woff2 (quarantine — no derived URL points there).
+    // One entry per (family, weight) a file can serve. NOT live until the
+    // advertiser opts in ("I hold the license") at publish, when the bytes
+    // are copied to the catalog key fonts/<slug>-<weight>-<variant>.woff2.
+    originalFonts: Vector[LPOriginalFont] = Vector.empty
 )
 
 object LPAnalysisResult {
-  given RootJsonFormat[LPAnalysisResult] = jsonFormat6(LPAnalysisResult.apply)
+  given RootJsonFormat[LPAnalysisResult] = jsonFormat7(LPAnalysisResult.apply)
+}
+
+/**
+ * A quarantined LP-original font file: `family` + `weight` identify the face
+ * a layout would reference (the catalog derives the serving key from them);
+ * `hash` addresses the parked bytes at `fonts/orig/<hash>.woff2`. A variable
+ * font yields several entries sharing one hash.
+ */
+final case class LPOriginalFont(family: String, weight: Int, hash: String)
+
+object LPOriginalFont {
+  given RootJsonFormat[LPOriginalFont] = jsonFormat3(LPOriginalFont.apply)
 }
 
 /**
@@ -72,6 +90,29 @@ object LPAnalysisResult {
  * re-fetched server-side. `mime` is the response content-type.
  */
 final case class LPCapturedImage(bytes: Array[Byte], mime: String)
+
+/**
+ * Raw bytes of an LP web-font file, captured off the wire like
+ * [[LPCapturedImage]] — same out-of-band contract (never on the
+ * JSON-serialized result; consumed on the pod that captured them).
+ */
+final case class LPCapturedFont(bytes: Array[Byte], mime: String)
+
+/**
+ * Everything an analysis captured out-of-band, keyed by response URL:
+ * image bytes, font bytes, and the parsed `@font-face` declarations
+ * (family/weight → src URL) that let the consumer match font bytes back
+ * to the families the page actually uses.
+ */
+final case class LPCaptured(
+    images: Map[String, LPCapturedImage],
+    fonts: Map[String, LPCapturedFont],
+    fontFaces: Vector[FontFaceParser.ParsedFace]
+)
+
+object LPCaptured {
+  val empty: LPCaptured = LPCaptured(Map.empty, Map.empty, Vector.empty)
+}
 
 object LPAnalyzer {
 
@@ -97,6 +138,23 @@ object LPAnalyzer {
    * under this; anything past the cap falls back to og:image / re-fetch.
    */
   val MaxCapturedImages: Int = 200
+
+  /**
+   * Caps for captured font files. Latin woff2 runs 10–300 KB; anything past
+   * 4 MB is a CJK megafont or mislabelled asset we won't re-host anyway.
+   * The count cap bounds pathological pages that declare dozens of faces.
+   */
+  val MaxCapturedFontBytes: Int = 4 * 1024 * 1024
+  val MinCapturedFontBytes: Int = 1024
+  val MaxCapturedFonts: Int = 24
+
+  /**
+   * Caps for captured stylesheet text (parsed for `@font-face` only).
+   * Framework CSS bundles run into the MBs; @font-face blocks live in the
+   * first slice of hand-authored/font CSS, so 512 KB per sheet is generous.
+   */
+  val MaxCapturedCssBytes: Int = 512 * 1024
+  val MaxCapturedSheets: Int = 40
 
   // Match a real, current Chrome. Bot managers flag stale majors.
   val UserAgent: String =
@@ -178,7 +236,7 @@ final class LPAnalyzer(
       // LP. Lets the caller surface a preview while the rest runs. Never
       // affects the analysis result; failures here are swallowed.
       onScreenshot: Array[Byte] => Unit = _ => ()
-  ): Future[(LPAnalysisResult, Map[String, LPCapturedImage])] = {
+  ): Future[(LPAnalysisResult, LPCaptured)] = {
     log.info("LPAnalyzer: starting analysis of {} (strategy={})", url, strategy)
     BrowserSessionPool.submit(browserPool)(browser => analyzeDirect(browser, url, strategy, onScreenshot))
       .recover {
@@ -191,8 +249,28 @@ final class LPAnalyzer(
             log.info("LPAnalyzer: archive.org fallback empty for {}, returning empty result", url)
             LPAnalysisResult(url, Vector.empty, None, None)
           }
-          (res, Map.empty[String, LPCapturedImage])
+          (res, LPCaptured.empty)
       }
+  }
+
+  // A response carrying a web-font file. Resource type is the strong
+  // signal; content-type covers fonts loaded via fetch/XHR, and the
+  // extension check catches octet-stream misconfigurations.
+  private def isFontResponse(resp: Response): Boolean = {
+    val resourceType = scala.util.Try(resp.request().resourceType()).toOption.getOrElse("")
+    lazy val contentType = Option(resp.headers().get("content-type")).getOrElse("").toLowerCase
+    lazy val path = resp.url().takeWhile(c => c != '?' && c != '#').toLowerCase
+    resourceType == "font" ||
+    contentType.startsWith("font/") || contentType.startsWith("application/font") ||
+    contentType.startsWith("application/x-font") ||
+    path.endsWith(".woff2") || path.endsWith(".woff") || path.endsWith(".ttf") || path.endsWith(".otf")
+  }
+
+  // A response carrying stylesheet text (parsed for @font-face).
+  private def isCssResponse(resp: Response): Boolean = {
+    val resourceType = scala.util.Try(resp.request().resourceType()).toOption.getOrElse("")
+    lazy val contentType = Option(resp.headers().get("content-type")).getOrElse("").toLowerCase
+    resourceType == "stylesheet" || contentType.startsWith("text/css")
   }
 
   /**
@@ -206,7 +284,7 @@ final class LPAnalyzer(
       url: String,
       strategy: String,
       onScreenshot: Array[Byte] => Unit
-  ): (LPAnalysisResult, Map[String, LPCapturedImage]) = {
+  ): (LPAnalysisResult, LPCaptured) = {
     val (locale, timezone, acceptLanguage) = LPAnalyzer.inferLocaleTZ(url)
     // Real Chrome 131 always sends these client hints. Their
     // absence (or mismatch with the UA) is a strong bot signal for
@@ -256,10 +334,34 @@ final class LPAnalyzer(
         // analyzeDirect (Playwright events fire on the pinned pool
         // thread), so the mutable map needs no synchronisation.
         val capturedImages = scala.collection.mutable.Map.empty[String, LPCapturedImage]
+        // Font bytes + stylesheet text captured the same way. Fonts feed the
+        // opt-in re-hosting flow; CSS is parsed (server-side) for @font-face
+        // so cross-origin sheets — where in-page cssRules throws — still
+        // yield the family→file mapping.
+        val capturedFonts = scala.collection.mutable.Map.empty[String, LPCapturedFont]
+        val capturedCss = scala.collection.mutable.Map.empty[String, String]
         page.onResponse { resp =>
           val s = resp.status()
           if (s == 403 || s == 502 || s == 503 || s == 504) {
             failedAssetUrls += resp.url()
+          } else if (s >= 200 && s < 300 && capturedFonts.size < LPAnalyzer.MaxCapturedFonts
+            && !capturedFonts.contains(resp.url())
+            && isFontResponse(resp)) {
+            scala.util.Try(resp.body()).foreach { b =>
+              if (b != null && b.length >= LPAnalyzer.MinCapturedFontBytes &&
+                b.length <= LPAnalyzer.MaxCapturedFontBytes) {
+                val mime = Option(resp.headers().get("content-type"))
+                  .map(_.takeWhile(_ != ';').trim).filter(_.nonEmpty).getOrElse("font/*")
+                capturedFonts.update(resp.url(), LPCapturedFont(b, mime))
+              }
+            }
+          } else if (s >= 200 && s < 300 && capturedCss.size < LPAnalyzer.MaxCapturedSheets
+            && !capturedCss.contains(resp.url())
+            && isCssResponse(resp)) {
+            scala.util.Try(resp.text()).foreach { t =>
+              if (t != null && t.nonEmpty)
+                capturedCss.update(resp.url(), t.take(LPAnalyzer.MaxCapturedCssBytes))
+            }
           } else if (s >= 200 && s < 300 && capturedImages.size < LPAnalyzer.MaxCapturedImages
             && !capturedImages.contains(resp.url())) {
             val contentType = Option(resp.headers().get("content-type")).getOrElse("")
@@ -511,9 +613,25 @@ final class LPAnalyzer(
             out
           }
 
-        log.info("LPAnalyzer: captured bytes for {} image responses on {}",
-          capturedImages.size, url)
-        (LPAnalysisResult(url, rewrittenSections, dominantColor, textColor, palette, fonts), capturedImages.toMap)
+        // @font-face declarations: network-captured sheets (cross-origin
+        // included — server-side parse doesn't hit the cssRules security
+        // wall) plus the page's inline <style> blocks, resolved against
+        // their own base URL.
+        val inlineCss = scala.util.Try {
+          val raw = page.evaluate(
+            "() => Array.from(document.querySelectorAll('style')).map(s => s.textContent || '').join('\\n')")
+          Option(raw).map(_.toString).getOrElse("")
+        }.toOption.getOrElse("")
+        val fontFaces =
+          (capturedCss.toVector.flatMap { case (cssUrl, css) => FontFaceParser.parse(css, cssUrl) } ++
+          FontFaceParser.parse(inlineCss.take(LPAnalyzer.MaxCapturedCssBytes), url)).distinct
+
+        log.info("LPAnalyzer: captured bytes for {} image / {} font responses, {} @font-face rules on {}",
+          capturedImages.size, capturedFonts.size, fontFaces.size, url)
+        (
+          LPAnalysisResult(url, rewrittenSections, dominantColor, textColor, palette, fonts),
+          LPCaptured(capturedImages.toMap, capturedFonts.toMap, fontFaces)
+        )
       } finally {
         page.close()
       }

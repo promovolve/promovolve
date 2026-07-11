@@ -221,4 +221,7 @@ images:
     #   core activation), autofit font-sync retry + edit-entry reconcile
     #   (no more text-enlarges-on-click), Layers "Scrim" label, Expanded
     #   chip says "full screen" instead of 540×960.
-    digest: sha256:3e2bd91fca5ac0eef003a15ced59c14dba4a4ca596f36fea043c7726854affe7
+    # + autofit font-sync writes field-bound reader sizes to ALL pages
+    #   (page-1-master subscriber was reverting page-2/3 writes — the
+    #   remaining enlarge-on-click).
+    digest: sha256:9c3bb197204c19ee23d8af87dc5e3a55eae2119deba610b2211615c0a0ed79a1

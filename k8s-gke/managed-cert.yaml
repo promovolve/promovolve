@@ -1,20 +1,33 @@
-# Google-managed TLS certificate for both public hosts.
+# Google-managed TLS — ONE CERT PER HOST, deliberately not combined: a
+# multi-domain ManagedCertificate only goes live when EVERY domain
+# validates, so one lagging DNS record holds the other host's TLS hostage
+# (bit us on first provisioning 2026-07-11). Split certs go Active
+# independently; the Ingress annotation lists both.
 #
-# PROVISIONING REQUIREMENTS (or the cert sits in Provisioning forever):
+# PROVISIONING REQUIREMENTS (or a cert sits in Provisioning forever):
 #   1. The Ingress must be up with its static IP (setup.sh creates
 #      `promovolve-ingress` and the Ingress pins it by name).
-#   2. BOTH hostnames must resolve to that IP on the public internet —
+#   2. The hostname must resolve to that IP on the public internet —
 #      at Cloudflare this means DNS-ONLY (grey cloud) A records. An
 #      orange-cloud proxy hides the origin IP and provisioning/renewal
 #      fails. TLS termination is the GCLB's job in this topology, not
 #      Cloudflare's.
-# First issuance takes ~15-60 min AFTER DNS is in place. Check with:
-#   kubectl -n promovolve get managedcertificate promovolve -o wide
+# First issuance ~15-60 min AFTER DNS is in place. FailedNotVisible with
+# verified-correct DNS = the validator probed before propagation and is
+# backing off — delete/re-apply the cert to reset it to try-now. Check:
+#   kubectl -n promovolve get managedcertificate
 apiVersion: networking.gke.io/v1
 kind: ManagedCertificate
 metadata:
-  name: promovolve
+  name: promovolve-dashboard
 spec:
   domains:
     - promovolve.programmer.llc   # dashboard (platform BFF) — matches RP_ID/ALLOWED_ORIGIN
+---
+apiVersion: networking.gke.io/v1
+kind: ManagedCertificate
+metadata:
+  name: promovolve-ads
+spec:
+  domains:
     - ads.programmer.llc          # ad serving + tracking (core api) — matches TRACKING_BASE_URL

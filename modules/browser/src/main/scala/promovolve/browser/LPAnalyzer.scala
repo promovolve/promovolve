@@ -233,11 +233,13 @@ final class LPAnalyzer(
       val page = context.newPage()
 
       try {
-        // Block fonts and media but NOT images (we need them)
+        // Block media but NOT images or fonts. Fonts are allowed through so
+        // the hero screenshot renders in the page's real typography (we await
+        // document.fonts.ready before shooting); images we need for capture.
         page.route("**",
           route => {
             val resourceType = route.request().resourceType()
-            if (resourceType == "font" || resourceType == "media") route.abort()
+            if (resourceType == "media") route.abort()
             else route.resume()
           })
 
@@ -390,6 +392,13 @@ final class LPAnalyzer(
         // rest of the analysis continues. Best-effort — never let a
         // screenshot failure derail the analysis.
         try {
+          // Let web fonts finish loading so the screenshot paints the page's
+          // real typography rather than fallback glyphs. Best-effort — cap the
+          // wait so a never-resolving font load can't stall the preview.
+          try
+            page.evaluate(
+              "() => Promise.race([document.fonts.ready, new Promise(r => setTimeout(r, 2000))])")
+          catch { case _: Exception => () }
           val shot = page.screenshot(new Page.ScreenshotOptions()
             .setType(com.microsoft.playwright.options.ScreenshotType.PNG))
           if (shot != null && shot.nonEmpty) onScreenshot(shot)

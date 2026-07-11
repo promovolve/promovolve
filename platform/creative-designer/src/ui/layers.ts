@@ -427,7 +427,7 @@ function itemName(item: LayoutItem): string {
     const parts = src.split("/");
     return parts[parts.length - 1] || "Image";
   }
-  if (item.type === "rect") return "Rect";
+  if (item.type === "rect") return "Scrim";
   if (item.type === "circle") return "Circle";
   return "Item";
 }

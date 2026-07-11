@@ -16,7 +16,7 @@
 import { refitItemCropToBox } from "../auto-crop";
 import { packReaderFieldBoxes, packTextItemHeight } from "../render/canvas";
 import { isMultiPage } from "../modes";
-import { currentItem, currentLayout, currentPage, pinImageAsMain, propagateTypography, setItemContent, setReaderFieldFontSize, TYPO_SYNC_KEYS, unpinMainImage, updateItem } from "../state";
+import { currentItem, currentLayout, currentPage, pinImageAsMain, propagateTypography, relinkItem, setItemContent, setReaderFieldFontSize, TYPO_SYNC_KEYS, unpinMainImage, updateItem } from "../state";
 import type { Store } from "../store";
 import type { DesignerState, ImageItem, LayoutItem, RectItem } from "../types";
 import { scrimGradient, SCRIM_EDGES, type ScrimEdge, type ScrimSpec } from "../scrim";
@@ -192,7 +192,35 @@ function build(panel: HTMLElement, idx: number, item: LayoutItem, store: Store):
   const isExpanded = isMultiPage(store.state.mode);
   if (item.type === "text") {
     const textGroup = group("Text");
-    if (isExpanded) {
+    const boundField = (item as { field?: string }).field;
+    const bakedText = (item as { text?: string }).text;
+    const overridden = !!boundField && bakedText != null && bakedText !== "";
+    // Field-bound text in a SIZE: synced from the expanded view by default
+    // (one source of truth), but overridable — unticking bakes the current
+    // resolved value locally so this size edits its own copy; re-ticking
+    // drops the bake and falls back to the shared field. Mirrors the
+    // image "Main image · syncs across all sizes" pin row.
+    if (!isExpanded && boundField) {
+      const syncRow = document.createElement("label");
+      syncRow.style.cssText = `display:flex;align-items:center;gap:8px;margin-bottom:10px;font-size:11px;color:${tokens.ink200};cursor:pointer;`;
+      const cb = document.createElement("input");
+      cb.type = "checkbox";
+      cb.checked = !overridden;
+      cb.style.cssText = "margin:0;cursor:inherit;";
+      cb.addEventListener("change", () => {
+        if (cb.checked) {
+          store.commit(relinkItem(store.state, idx, "text"));
+        } else {
+          mutateContent(store, idx, effectiveContent(store, item, "text"), "text", true);
+        }
+      });
+      syncRow.append(cb, document.createTextNode(`Synced across all sizes (${boundField})`));
+      appendToGroup(textGroup, syncRow);
+    }
+    if (isExpanded || !boundField || overridden) {
+      // Expanded view, LOCAL text (no field — e.g. dropped straight onto a
+      // size; it exists nowhere else, so it must be editable here), or a
+      // field item whose sync was unticked above: editable.
       setters.text = textField(textGroup, "content", effectiveContent(store, item, "text"), (v, c) => mutateContent(store, idx, v, "text", c));
     } else {
       contentHint(textGroup, effectiveContent(store, item, "text"));

@@ -227,10 +227,16 @@ export function mountOverlay(canvasWrap: HTMLElement, store: Store): OverlayHand
     const idx = Number(hitbox.dataset.cdIdx);
     const item = currentLayout(store.state)[idx];
     if (!item || item.type !== "text") return;
-    // Content is edited only in the expanded view (it's the single source
-    // every size renders). In a size, double-click does nothing — you
-    // adjust layout there, not the text.
-    if (!isMultiPage(store.state.mode)) return;
+    // Field-bound content stays synced from the expanded view (the single
+    // source every size renders), so double-clicking it in a size does
+    // nothing — untick "synced" in Properties to override first. LOCAL
+    // text (no field — e.g. dropped straight onto a size) and already-
+    // overridden items exist only here, so they edit in place anywhere.
+    if (!isMultiPage(store.state.mode)) {
+      const bound = item as { field?: string; text?: string };
+      const synced = !!bound.field && (bound.text == null || bound.text === "");
+      if (synced) return;
+    }
     e.preventDefault();
     e.stopPropagation();
     startInlineTextEdit(canvasWrap, root, idx, item, store, e.clientX, e.clientY);

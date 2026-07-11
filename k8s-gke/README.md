@@ -79,3 +79,17 @@ script always passes `--context` explicitly, so it can't land in
   down but keep the IP, it bills ~$7/mo as an unattached reserved IP.
 - Delete everything: `gcloud projects delete promovolve` (the whole bill
   lives in this one project).
+
+## CI deploys (.github/workflows/deploy.yml)
+
+Push to `main` → the changed image(s) build natively on arm64 runners →
+Docker Hub (`main-<sha>` tags; `:dev` stays laptop-owned) → `kubectl set
+image` by digest on the GKE workloads. CI never renders the kustomize
+overlay (secrets stay off GitHub), so **a manual `setup.sh --deploy-only`
+rolls GKE back to the digests pinned in k8s/kustomization.yaml** — refresh
+the pins after CI deploys if you intend to deploy manually.
+
+Auth: GCP via Workload Identity Federation (pool `github`, provider
+`github-oidc`, SA `github-deployer@promovolve.iam.gserviceaccount.com`,
+restricted to this repo — no keys). Docker Hub via DOCKERHUB_USERNAME /
+DOCKERHUB_TOKEN repo secrets.

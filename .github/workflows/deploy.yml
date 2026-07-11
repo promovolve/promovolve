@@ -1,0 +1,165 @@
+# Build + deploy to the GKE cluster (the public PromoVolve deployment —
+# see k8s-gke/README.md).
+#
+# Flow: push to main -> build the CHANGED image(s) natively on an arm64
+# runner (the cluster runs ARM c4a nodes; x86 images die with exec format
+# error) -> push to Docker Hub with an immutable main-<sha> tag -> point
+# the GKE workloads at the new image BY DIGEST with `kubectl set image`.
+#
+# Deliberately NOT a manifest apply: CI never renders k8s-gke/ (the
+# kustomize secretGenerator needs k8s/*.env, which stay on the laptop and
+# out of GitHub). Infra/config changes deploy via `k8s-gke/setup.sh
+# --deploy-only` from a machine that has them; CI only moves images.
+# Consequence: the digests pinned in k8s/kustomization.yaml are the DEV
+# (Docker Desktop) cluster's source of truth and a manual setup.sh deploy
+# rolls GKE back to them — after CI deploys, refresh the pins before any
+# manual deploy.
+#
+# The `:dev` tag stays laptop-owned (this workflow never writes it).
+#
+# Auth: GCP via Workload Identity Federation (no key material in GitHub;
+# the pool's attribute condition restricts to this repo). Docker Hub via
+# DOCKERHUB_USERNAME / DOCKERHUB_TOKEN repo secrets (push scope).
+name: Deploy
+
+on:
+  push:
+    branches: [main]
+  workflow_dispatch:
+    inputs:
+      rebuild:
+        description: "Force rebuild (api, platform, or both)"
+        type: choice
+        options: [both, api, platform]
+        default: both
+
+# Serialize deploys; never cancel a rollout mid-flight.
+concurrency:
+  group: deploy
+  cancel-in-progress: false
+
+permissions:
+  contents: read
+  id-token: write   # WIF: mint the GitHub OIDC token for GCP auth
+
+env:
+  API_IMAGE: docker.io/hanishi/promovolve-api
+  PLATFORM_IMAGE: docker.io/hanishi/promovolve-platform
+
+jobs:
+  changes:
+    name: What changed
+    runs-on: ubuntu-latest
+    outputs:
+      api: ${{ steps.filter.outputs.api == 'true' || (github.event_name == 'workflow_dispatch' && inputs.rebuild != 'platform') }}
+      platform: ${{ steps.filter.outputs.platform == 'true' || (github.event_name == 'workflow_dispatch' && inputs.rebuild != 'api') }}
+    steps:
+      - uses: actions/checkout@v4
+      - uses: dorny/paths-filter@v3
+        id: filter
+        with:
+          filters: |
+            api:
+              - 'modules/**'
+              - 'build.sbt'
+              - 'project/**'
+              - 'Dockerfile.api'
+            platform:
+              - 'platform/**'
+
+  build-api:
+    name: Build api (arm64)
+    needs: changes
+    if: needs.changes.outputs.api == 'true'
+    runs-on: ubuntu-24.04-arm   # native arm64 — matches the c4a nodes
+    outputs:
+      digest: ${{ steps.build.outputs.digest }}
+    steps:
+      - uses: actions/checkout@v4
+      - uses: docker/setup-buildx-action@v3
+      - uses: docker/login-action@v3
+        with:
+          username: ${{ secrets.DOCKERHUB_USERNAME }}
+          password: ${{ secrets.DOCKERHUB_TOKEN }}
+      - name: Build + push
+        id: build
+        uses: docker/build-push-action@v6
+        with:
+          context: .
+          file: Dockerfile.api
+          platforms: linux/arm64
+          push: true
+          tags: ${{ env.API_IMAGE }}:main-${{ github.sha }}
+          # The sbt-update layer is huge; gha cache keeps rebuilds sane.
+          cache-from: type=gha,scope=api
+          cache-to: type=gha,mode=max,scope=api
+
+  build-platform:
+    name: Build platform (arm64)
+    needs: changes
+    if: needs.changes.outputs.platform == 'true'
+    runs-on: ubuntu-24.04-arm
+    outputs:
+      digest: ${{ steps.build.outputs.digest }}
+    steps:
+      - uses: actions/checkout@v4
+      - uses: docker/setup-buildx-action@v3
+      - uses: docker/login-action@v3
+        with:
+          username: ${{ secrets.DOCKERHUB_USERNAME }}
+          password: ${{ secrets.DOCKERHUB_TOKEN }}
+      - name: Build + push
+        id: build
+        uses: docker/build-push-action@v6
+        with:
+          context: platform
+          file: platform/Dockerfile
+          platforms: linux/arm64
+          push: true
+          tags: ${{ env.PLATFORM_IMAGE }}:main-${{ github.sha }}
+          cache-from: type=gha,scope=platform
+          cache-to: type=gha,mode=max,scope=platform
+
+  deploy:
+    name: Deploy to GKE
+    needs: [changes, build-api, build-platform]
+    # Run if anything was built; tolerate the other build being skipped.
+    if: >-
+      !cancelled() && !failure() &&
+      (needs.build-api.result == 'success' || needs.build-platform.result == 'success')
+    runs-on: ubuntu-latest
+    steps:
+      - uses: google-github-actions/auth@v2
+        with:
+          workload_identity_provider: projects/138573052500/locations/global/workloadIdentityPools/github/providers/github-oidc
+          service_account: github-deployer@promovolve.iam.gserviceaccount.com
+      - uses: google-github-actions/get-gke-credentials@v2
+        with:
+          cluster_name: promovolve
+          location: asia-northeast1-b
+          project_id: promovolve
+
+      - name: Roll api (by digest)
+        if: needs.build-api.result == 'success'
+        run: |
+          kubectl -n promovolve set image statefulset/promovolve-api \
+            api=${API_IMAGE}@${{ needs.build-api.outputs.digest }}
+          # Keep the parked singleton tier's spec current so un-parking it
+          # never resurrects a stale build.
+          kubectl -n promovolve set image statefulset/promovolve-singleton \
+            singleton=${API_IMAGE}@${{ needs.build-api.outputs.digest }}
+
+      - name: Roll platform (by digest)
+        if: needs.build-platform.result == 'success'
+        run: |
+          kubectl -n promovolve set image deployment/promovolve-platform \
+            platform=${PLATFORM_IMAGE}@${{ needs.build-platform.outputs.digest }}
+
+      - name: Wait for rollout
+        run: |
+          if [ "${{ needs.build-api.result }}" = "success" ]; then
+            kubectl -n promovolve rollout status statefulset/promovolve-api --timeout=600s
+          fi
+          if [ "${{ needs.build-platform.result }}" = "success" ]; then
+            kubectl -n promovolve rollout status deployment/promovolve-platform --timeout=300s
+          fi

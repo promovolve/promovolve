@@ -60,6 +60,11 @@ export interface DesignerContext {
   // One of the catalog ids served by /v1/layout-templates, or empty
   // when "no template (Gemini decides)" was chosen.
   templateId?: string;
+  // Serialized [{family,weight,hash}] of LP-original fonts the
+  // advertiser opted in to re-hosting (license checkbox in the wizard).
+  // Passed through VERBATIM on save — presence is the consent record;
+  // the designer neither reads nor edits it. Empty otherwise.
+  lpFontsJson?: string;
 }
 
 // Top-level editor state. History (undo/redo) wraps this.

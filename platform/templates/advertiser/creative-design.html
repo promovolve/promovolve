@@ -23,7 +23,12 @@
     // threads both into the Gemini prompt so generated layouts
     // respect them.
     brandKitJson: {{.BrandKitJSON}},
-    templateId: {{.TemplateID}}
+    templateId: {{.TemplateID}},
+    // LP-original fonts the advertiser OPTED IN to re-hosting (license
+    // confirmed in the wizard). Serialized [{family,weight,hash}] or
+    // empty; the designer passes it through verbatim on save so the
+    // core copies the quarantined files live at publish.
+    lpFontsJson: {{.LPFontsJSON}}
   };
 </script>
 <script src="{{asset "creative-designer.js"}}" defer></script>

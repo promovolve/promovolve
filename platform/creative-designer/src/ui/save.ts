@@ -204,6 +204,9 @@ function submitSave(store: Store, ctx: DesignerContext, draft: boolean): void {
   // to Gemini category verification instead of the rendered banner
   // image. Without this the verifier falls back to the image path.
   if (ctx.lpTextSnapshot) add("lpTextSnapshot", ctx.lpTextSnapshot);
+  // LP-original font grants (license opt-in from the wizard) — pass
+  // through verbatim; core activates the quarantined files at publish.
+  if (ctx.lpFontsJson) add("lpFontsJson", ctx.lpFontsJson);
 
   document.body.appendChild(form);
   form.submit();

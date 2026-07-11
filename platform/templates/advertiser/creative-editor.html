@@ -12,6 +12,9 @@
          composition intent into the Gemini prompt. -->
     <input type="hidden" name="brandKitJson" :value="selectedBrandKitJson()">
     <input type="hidden" name="templateId"   :value="selectedTemplateId">
+    <!-- Present ONLY when the license opt-in above is ticked — downstream
+         treats the field's presence as the advertiser's consent record. -->
+    <input type="hidden" name="lpFontsJson"  :value="useOriginalFonts && originalFonts.length ? JSON.stringify(originalFonts) : ''">
   </form>
 
   <!-- Full-page blocking overlay shown while generating. Covers the
@@ -153,6 +156,27 @@
          are now edited in the designer, and the layout template is picked
          inline below the per-page image+text slots (see "Layout template"
          further down). -->
+
+    <!-- LP-original fonts opt-in. The analyzer captured the site's own
+         font files; re-hosting a licensed font on our CDN needs the
+         advertiser's explicit confirmation, so this is unticked by
+         default and the offer is dropped entirely when left unticked. -->
+    <div x-show="originalFonts.length > 0" x-cloak
+         class="mb-5 p-3 rounded-md border border-gray-200 bg-gray-50">
+      <label class="flex items-start gap-2 cursor-pointer">
+        <input type="checkbox" x-model="useOriginalFonts" class="mt-0.5 accent-orange-600">
+        <span class="text-sm text-gray-700">
+          Use my site’s own fonts
+          (<span class="font-medium" x-text="[...new Set(originalFonts.map(f => f.family))].join(', ')"></span>)
+          in this ad.
+          <span class="block text-[11px] text-gray-400 mt-0.5">
+            I confirm I hold a license permitting these font files to be embedded
+            in ads served from Promovolve’s CDN. Left unticked, the ad uses the
+            closest free (Google Fonts) or system face instead.
+          </span>
+        </span>
+      </label>
+    </div>
 
     <!-- Fallback notice: scrape returned nothing. Tell the user they
          can still proceed by uploading images and typing text. -->
@@ -342,6 +366,12 @@ function creativeEditor() {
     brandKitName: '',
     brandKitFonts: [],
     useBrandKit: true,        // toggle: send the kit, or skip
+    // The LP's OWN font files, captured during analysis and quarantined in
+    // R2 (not served from anywhere). Re-hosting them for ads is gated on
+    // the explicit license opt-in below — only then does lpFontsJson ride
+    // the designer handoff and go live at publish.
+    originalFonts: [],        // [{family, weight, hash}]
+    useOriginalFonts: false,  // the advertiser's license confirmation
     // Materials from LP
     allImages: [],    // [{src, width, height, alt}]
     // Extracted LP section text — kept ONLY as the corpus fed to synthesis;
@@ -726,6 +756,10 @@ function creativeEditor() {
         // Seed the brand kit (palette + fonts) from the LP — becomes
         // the default that carries into the Designer view.
         this.buildBrandKitFromLP(data);
+        // Quarantined LP-original font offers (family/weight/hash). Shown
+        // as an opt-in below; never sent unless the license box is ticked.
+        this.originalFonts = Array.isArray(data.originalFonts) ? data.originalFonts : [];
+        this.useOriginalFonts = false;
 
         const sections = (data.sections || []);
 

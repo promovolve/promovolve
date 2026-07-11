@@ -3568,6 +3568,27 @@ func (h *Handler) CreativeDesign(w http.ResponseWriter, r *http.Request) {
 	// call so the Gemini prompt incorporates them.
 	brandKitJSON := r.FormValue("brandKitJson")
 	templateID := r.FormValue("templateId")
+	// LP-original fonts the advertiser opted in to re-hosting (the wizard
+	// only fills this field when the license checkbox is ticked). Validate
+	// it's a JSON array before threading it through to the designer.
+	lpFontsJSON := r.FormValue("lpFontsJson")
+	if lpFontsJSON != "" {
+		var lpFonts []struct {
+			Family string `json:"family"`
+			Weight int    `json:"weight"`
+			Hash   string `json:"hash"`
+		}
+		if json.Unmarshal([]byte(lpFontsJSON), &lpFonts) != nil || len(lpFonts) == 0 {
+			lpFontsJSON = ""
+		} else {
+			families := make([]string, 0, len(lpFonts))
+			for _, f := range lpFonts {
+				families = append(families, f.Family)
+			}
+			slog.Info("CreativeDesign: LP-original font re-hosting opted in",
+				"advertiser", claims.AdvertiserID, "campID", campID, "families", strings.Join(families, ","))
+		}
+	}
 	slog.Info("CreativeDesign POST",
 		"campID", campID, "pagesJSON.len", len(pagesJSON),
 		"creativeName", creativeName, "bannerSize", bannerSize,
@@ -3608,7 +3629,8 @@ func (h *Handler) CreativeDesign(w http.ResponseWriter, r *http.Request) {
 		BannerScriptURL string
 		BrandKitJSON    string
 		TemplateID      string
-	}{campID, landingURL, creativeName, bannerSize, pagesJSON, lpTextSnapshot, creativeID, h.bannerScriptURL, brandKitJSON, templateID}
+		LPFontsJSON     string
+	}{campID, landingURL, creativeName, bannerSize, pagesJSON, lpTextSnapshot, creativeID, h.bannerScriptURL, brandKitJSON, templateID, lpFontsJSON}
 
 	w.Header().Set("Content-Type", "text/html; charset=utf-8")
 	w.Header().Set("Cache-Control", "no-cache, no-store, must-revalidate")
@@ -3674,6 +3696,26 @@ func (h *Handler) SaveCreative(w http.ResponseWriter, r *http.Request) {
 	}
 	if creativeID != "" {
 		body["creativeId"] = creativeID
+	}
+	// LP-original font grants (presence = the advertiser ticked the license
+	// checkbox in the wizard; the designer threads the field through
+	// verbatim). Forwarded as structured JSON so core copies each
+	// quarantined file to the live catalog key before rendering.
+	if lpFontsJSON := r.FormValue("lpFontsJson"); lpFontsJSON != "" {
+		var lpFonts []struct {
+			Family string `json:"family"`
+			Weight int    `json:"weight"`
+			Hash   string `json:"hash"`
+		}
+		if json.Unmarshal([]byte(lpFontsJSON), &lpFonts) == nil && len(lpFonts) > 0 {
+			body["lpFonts"] = lpFonts
+			families := make([]string, 0, len(lpFonts))
+			for _, f := range lpFonts {
+				families = append(families, f.Family)
+			}
+			slog.Info("SaveCreative: activating LP-original fonts (license confirmed)",
+				"advertiser", claims.AdvertiserID, "campID", campID, "families", strings.Join(families, ","))
+		}
 	}
 	reqBody, _ := json.Marshal(body)
 

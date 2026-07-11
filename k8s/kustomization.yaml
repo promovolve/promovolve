@@ -160,12 +160,14 @@ secretGenerator:
 images:
   - name: promovolve/api
     newName: docker.io/hanishi/promovolve-api
-    # LP analyzer now renders the hero screenshot with the page's real
-    # web fonts: the request router stops aborting `font` requests (still
-    # blocks `media`) and awaits document.fonts.ready (2s cap) before the
-    # preview screenshot — so LP-analysis previews reflect original
-    # typography instead of fallback glyphs.
-    digest: sha256:c6841a8a4d26e4eb03f13cad8489386ef9bdb318f4da3f9803e4b15947d266c8
+    # LP-original font re-hosting (opt-in): analysis captures the LP's
+    # own woff2 files + @font-face rules (FontFaceParser), quarantines
+    # them at fonts/orig/<hash>.woff2, and surfaces originalFonts offers;
+    # at publish, CreateCreativeRequest.lpFonts (license consent) makes
+    # CreativeProcessor copy them to the live catalog key BEFORE the
+    # banner render. Rides on the earlier hero-screenshot font fix.
+    # + LP-flow loggers back to INFO (analyze/publish visible in kubectl).
+    digest: sha256:8a5be00af812e7a0a1236bf8b003ac445b85f4990cf26bfc73be63319cd43451
   - name: promovolve/platform
     newName: docker.io/hanishi/promovolve-platform
     # Org membership: one org per email domain owns the core entities;
@@ -215,4 +217,8 @@ images:
     #   editable in place; field-bound text in a size gains a "Synced
     #   across all sizes" checkbox (untick = bake local override, retick =
     #   relink to the shared page field).
-    digest: sha256:7d0151c0719a083d80d98438b1219f2a5cd20fcd9f3d9f687e793fe3adc6765d
+    # + LP-original font opt-in (wizard license checkbox → lpFontsJson →
+    #   core activation), autofit font-sync retry + edit-entry reconcile
+    #   (no more text-enlarges-on-click), Layers "Scrim" label, Expanded
+    #   chip says "full screen" instead of 540×960.
+    digest: sha256:3e2bd91fca5ac0eef003a15ced59c14dba4a4ca596f36fea043c7726854affe7

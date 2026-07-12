@@ -54,6 +54,7 @@ DEPLOY_ONLY=0
 while [ $# -gt 0 ]; do
   case "$1" in
     --deploy-only) DEPLOY_ONLY=1; shift ;;
+    --pin-images)  PIN_IMAGES=1; shift ;;
     -h|--help) sed -n '2,40p' "$0"; exit 0 ;;
     *) echo "unknown arg: $1 (try --help)" >&2; exit 2 ;;
   esac
@@ -134,8 +135,30 @@ else
   echo "    regcred created for docker user: $DUSER"
 fi
 
+# Preserve CI-deployed images across manifest applies. The kustomize render
+# carries the digest pins from k8s/kustomization.yaml, which go stale the
+# moment CI deploys (CI rolls images by digest, never the pins) — a naive
+# apply therefore ROLLS THE APP BACK (happened live 2026-07-12: an
+# infra-only deploy reverted four shipped fixes). Default: capture the live
+# images before the apply and restore them after, so manual deploys are
+# infra/config-only. Pass --pin-images to deliberately deploy the pinned
+# digests (the pre-CI manual flow).
+LIVE_API=""; LIVE_SINGLETON=""; LIVE_PLATFORM=""
+if [ "${PIN_IMAGES:-0}" -ne 1 ]; then
+  LIVE_API=$(kc get statefulset promovolve-api -o jsonpath='{.spec.template.spec.containers[0].image}' 2>/dev/null || true)
+  LIVE_SINGLETON=$(kc get statefulset promovolve-singleton -o jsonpath='{.spec.template.spec.containers[0].image}' 2>/dev/null || true)
+  LIVE_PLATFORM=$(kc get deployment promovolve-platform -o jsonpath='{.spec.template.spec.containers[0].image}' 2>/dev/null || true)
+fi
+
 echo "==> applying manifests (kustomize overlay k8s-gke)"
 kubectl kustomize --load-restrictor LoadRestrictionsNone "$KDIR" | kcg apply -f -
+
+if [ "${PIN_IMAGES:-0}" -ne 1 ]; then
+  echo "==> restoring live (CI-deployed) images over the manifest pins"
+  [ -n "$LIVE_API" ]       && kc set image statefulset/promovolve-api       api="$LIVE_API"             >/dev/null
+  [ -n "$LIVE_SINGLETON" ] && kc set image statefulset/promovolve-singleton singleton="$LIVE_SINGLETON" >/dev/null
+  [ -n "$LIVE_PLATFORM" ]  && kc set image deployment/promovolve-platform   platform="$LIVE_PLATFORM"   >/dev/null
+fi
 
 # --- 5. wait + verify -----------------------------------------------------------
 echo "==> waiting for rollout (cold start: image pulls -> DB init -> cluster form)"

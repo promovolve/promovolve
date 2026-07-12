@@ -14,6 +14,7 @@ import type { Store } from "../store";
 import type { DesignerState, TextureBg, VideoBg } from "../types";
 import { openAssetModal } from "./asset-modal";
 import { tokens } from "./tokens";
+import { visualRect } from "./visual-rect";
 
 export interface PageBgPanelHandle {
   update(state: DesignerState): void;
@@ -542,7 +543,11 @@ function texturePreview(textureBg: TextureBg, store: Store): HTMLElement {
     preview.appendChild(marker);
 
     const setFromEvent = (e: PointerEvent, commitNow: boolean): void => {
-      const r = preview.getBoundingClientRect();
+      // visualRect, not getBoundingClientRect: the sidebar is zoomed
+      // (UI_SCALE) and WebKit's rects don't include the zoom while its
+      // pointer coordinates do — the marker drifted from the cursor in
+      // Safari, growing with distance from the viewport origin.
+      const r = visualRect(preview);
       const x = Math.round(Math.max(0, Math.min(100, ((e.clientX - r.left) / r.width) * 100)));
       const y = Math.round(Math.max(0, Math.min(100, ((e.clientY - r.top) / r.height) * 100)));
       mutateTex(store, (bg) => ({ ...bg, focusX: x, focusY: y }), commitNow);

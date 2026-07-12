@@ -22,6 +22,7 @@ import { currentLayout, currentPage, isSelected, reorderItem, selectItem, setVid
 import type { Store } from "../store";
 import type { DesignerState, LayoutItem } from "../types";
 import { tokens } from "./tokens";
+import { visualRect } from "./visual-rect";
 
 export interface LayersHandle {
   update(state: DesignerState): void;
@@ -321,7 +322,9 @@ function wireRowDrag(row: HTMLElement, idx: number, store: Store): void {
     if (dragSourceIdx === null || dragSourceIdx === idx) return;
     e.preventDefault();
     if (e.dataTransfer) e.dataTransfer.dropEffect = "move";
-    const rect = row.getBoundingClientRect();
+    // visualRect: the sidebar is zoomed (UI_SCALE); WebKit rects don't
+    // include the zoom while pointer coords do — see visual-rect.ts.
+    const rect = visualRect(row);
     const topHalf = (e.clientY - rect.top) < rect.height / 2;
     setIndicator(row, topHalf);
     if (dragHoverRow && dragHoverRow !== row) clearIndicator(dragHoverRow);
@@ -342,7 +345,7 @@ function wireRowDrag(row: HTMLElement, idx: number, store: Store): void {
   row.addEventListener("drop", (e) => {
     e.preventDefault();
     if (dragSourceIdx === null || dragSourceIdx === idx) return;
-    const rect = row.getBoundingClientRect();
+    const rect = visualRect(row);
     const topHalf = (e.clientY - rect.top) < rect.height / 2;
     const to = computeDropTarget(dragSourceIdx, idx, topHalf);
     clearIndicator(row);

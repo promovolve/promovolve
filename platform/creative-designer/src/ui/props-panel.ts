@@ -61,8 +61,16 @@ function fontOptions(current: string | undefined): string[] {
 }
 
 interface RenderedState {
-  key: string; // "<idx>|<type>"
+  key: string; // "<idx>|<type>[|ov]"
   setters: Record<string, (item: LayoutItem) => void>;
+}
+
+// "|ov" when a field-bound text item carries a baked per-size override.
+// Mirrors the `overridden` derivation in build()'s text branch.
+function overrideMarker(item: LayoutItem): string {
+  if (item.type !== "text") return "";
+  const it = item as { field?: string; text?: string };
+  return it.field && it.text != null && it.text !== "" ? "|ov" : "";
 }
 
 export function mountPropsPanel(container: HTMLElement, store: Store): PropsPanelHandle {
@@ -102,7 +110,12 @@ export function mountPropsPanel(container: HTMLElement, store: Store): PropsPane
       // Key must match the one build() returns. Any mismatch here
       // triggers a full rebuild, which destroys input focus mid-edit
       // and lets global Delete/Backspace hit the canvas.
-      const key = `${idx}|${item.type}`;
+      // The override marker (field-bound text with a baked local copy) is
+      // part of the key: ticking/unticking the sync checkbox swaps panel
+      // STRUCTURE (read-only hint ↔ editable content field), which setters
+      // can't patch — it needs the rebuild. Baked-text keystrokes don't
+      // move the marker (text stays non-empty), so focus survives editing.
+      const key = `${idx}|${item.type}${overrideMarker(item)}`;
       if (!rendered || rendered.key !== key) {
         rendered = build(panel, idx, item, store);
       } else {
@@ -201,8 +214,11 @@ function build(panel: HTMLElement, idx: number, item: LayoutItem, store: Store):
     // drops the bake and falls back to the shared field. Mirrors the
     // image "Main image · syncs across all sizes" pin row.
     if (!isExpanded && boundField) {
+      // The toggle changes panel STRUCTURE (hint ↔ editable field, plus the
+      // resync hint below), so the row renders its state statically — the
+      // override marker in the rebuild key guarantees a rebuild on toggle.
       const syncRow = document.createElement("label");
-      syncRow.style.cssText = `display:flex;align-items:center;gap:8px;margin-bottom:10px;font-size:11px;color:${tokens.ink200};cursor:pointer;`;
+      syncRow.style.cssText = `display:flex;align-items:center;gap:8px;margin-bottom:${overridden ? "4px" : "10px"};font-size:11px;color:${overridden ? tokens.amber : tokens.ink200};cursor:pointer;`;
       const cb = document.createElement("input");
       cb.type = "checkbox";
       cb.checked = !overridden;
@@ -214,8 +230,21 @@ function build(panel: HTMLElement, idx: number, item: LayoutItem, store: Store):
           mutateContent(store, idx, effectiveContent(store, item, "text"), "text", true);
         }
       });
-      syncRow.append(cb, document.createTextNode(`Synced across all sizes (${boundField})`));
+      syncRow.append(cb, document.createTextNode(
+        overridden
+          ? `Overridden for this size (${boundField})`
+          : `Synced across all sizes (${boundField})`,
+      ));
       appendToGroup(textGroup, syncRow);
+      if (overridden) {
+        // What re-ticking restores: the shared value the other sizes show.
+        const shared = String((currentPage(store.state) as Record<string, unknown> | null)?.[boundField] ?? "");
+        const resync = document.createElement("div");
+        resync.style.cssText = `margin:0 0 10px 24px;font-size:11px;color:${tokens.ink300};font-style:italic;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;`;
+        resync.textContent = `All sizes: ${shared || "(empty)"}`;
+        resync.title = shared;
+        appendToGroup(textGroup, resync);
+      }
     }
     if (isExpanded || !boundField || overridden) {
       // Expanded view, LOCAL text (no field — e.g. dropped straight onto a
@@ -305,6 +334,7 @@ function build(panel: HTMLElement, idx: number, item: LayoutItem, store: Store):
       const pinDisabled = hasMain && !isMainImage;
       const pinRow = document.createElement("label");
       pinRow.style.cssText = `display:flex;align-items:center;gap:8px;margin-bottom:10px;font-size:11px;color:${tokens.ink200};${pinDisabled ? "opacity:0.45;cursor:not-allowed;" : "cursor:pointer;"}`;
+      if (pinDisabled) pinRow.title = "Another image is the shared main — unpin it first to make this one sync.";
       const cb = document.createElement("input");
       cb.type = "checkbox";
       cb.checked = isMainImage;
@@ -421,7 +451,7 @@ function build(panel: HTMLElement, idx: number, item: LayoutItem, store: Store):
 
   wireAccordion(sections);
 
-  return { key: `${idx}|${item.type}`, setters };
+  return { key: `${idx}|${item.type}${overrideMarker(item)}`, setters };
 }
 
 // ─── Scrim group ─────────────────────────────────────────────────────

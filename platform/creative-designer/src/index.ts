@@ -192,6 +192,11 @@ function boot(ctx: DesignerContext): void {
   // every device; the 16:9 tab is now the wide-collapsed/legacy layout
   // (see modes.ts).
   const store = new Store(initialState(colourReconciled, "mobile"));
+  // Dev-server-only hook so the vite fixture can be driven by Playwright
+  // (state injection + assertions). import.meta.hot exists only under
+  // `vite serve` — the committed static bundle is a --mode development
+  // BUILD, where env.DEV would leak this into production.
+  if (import.meta.hot) (window as unknown as { __STORE__?: Store }).__STORE__ = store;
   // Brand logo (Phase 2a): if the campaign's brand kit carries a logo and
   // this creative doesn't already have one, drop it onto the banner config
   // so it renders on every page + size. Default top-left, small; saved

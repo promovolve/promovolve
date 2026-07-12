@@ -58,12 +58,34 @@ function normalizePage(p: Page, fillDefaultLayout: boolean, kit: BrandKit | null
   // the z-stack). Applied to the expanded master AND every per-size bucket so
   // a creative opened from the backend (or synthesized here) never shows an
   // image on top of its text, regardless of how it was stored.
-  if (Array.isArray(page.layout)) page.layout = imagesToBack(page.layout);
+  if (Array.isArray(page.layout)) page.layout = rebindMainImage(imagesToBack(page.layout), page);
   const banners = page.banners as Record<string, LayoutItem[]>;
   for (const key of Object.keys(banners)) {
-    if (Array.isArray(banners[key])) banners[key] = imagesToBack(banners[key]);
+    if (Array.isArray(banners[key])) banners[key] = rebindMainImage(imagesToBack(banners[key]), page);
   }
   return page;
+}
+
+// A stored creative can carry the main image BAKED into a view (a literal
+// src, no field) while page.img holds the same source — server-side
+// generation predates the pin model. That renders identically but breaks
+// the pin row: "main" is derived from field:"img", so the checkbox shows
+// an unmodifiable unchecked box until "Replace image…" happens to rebind
+// it (ensureMainImage). Rebind at load instead: the first image whose src
+// equals page.img becomes the field-bound main. The crop is kept — same
+// source, so the crop window still applies. Non-matching srcs are genuine
+// locals and stay untouched.
+function rebindMainImage(items: LayoutItem[], page: Page): LayoutItem[] {
+  const img = (page as { img?: string }).img;
+  if (!img) return items;
+  if (items.some((it) => it.type === "image" && (it as { field?: string }).field === "img")) return items;
+  const i = items.findIndex((it) => it.type === "image" && (it as { src?: string }).src === img);
+  if (i < 0) return items;
+  return items.map((it, j) => {
+    if (j !== i) return it;
+    const { src: _s, ...rest } = it as LayoutItem & { src?: string };
+    return { ...rest, field: "img" } as LayoutItem;
+  });
 }
 
 // Stable reorder: image items first (back of the z-stack), everything else

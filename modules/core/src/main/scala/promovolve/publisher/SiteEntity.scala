@@ -613,6 +613,12 @@ object SiteEntity {
               case GetPageClassifications(replyTo) =>
                 Effect.none.thenReply(replyTo)(_ => PageClassificationsResult(state.pageClassifications))
 
+              case GetPageClassification(url, replyTo) =>
+                Effect.none.thenReply(replyTo)(_ =>
+                  PageClassificationResult(url,
+                    state.pageClassifications.get(url))
+                )
+
               case UpdatePacingConfig(config, replyTo) =>
                 ctx.log.info("SiteEntity {} updating pacing config: dayDurationSeconds={}",
                   siteId.value, config.dayDurationSeconds)
@@ -1821,6 +1827,27 @@ object SiteEntity {
   ) extends Command
   final case class PageClassificationsResult(byUrl: Map[String, ClassificationEntry])
       extends promovolve.CborSerializable
+
+  /**
+   * Targeted single-URL classification lookup — AuctioneerEntity's
+   * Reevaluate-miss recovery. The PageCategoriesClassified announce is a
+   * fire-and-forget tell and drops when the auctioneer shard is rehoming
+   * (hit live 2026-07-12: a page classified mid-rollout stayed invisible to
+   * auctions, while the AdServer freshness token stopped the ad tag from
+   * re-classifying for the whole recency window). Instead of ignoring a
+   * re-auction request for a page it doesn't know, the auctioneer asks for
+   * the persisted copy. Keyed by the raw URL string, same as storage. The
+   * reply wraps the Option in a case class (cross-node serialization rule:
+   * never a bare Option/tuple).
+   */
+  final case class GetPageClassification(
+      url: String,
+      replyTo: ActorRef[PageClassificationResult]
+  ) extends Command
+  final case class PageClassificationResult(
+      url: String,
+      entry: Option[ClassificationEntry]
+  ) extends promovolve.CborSerializable
 
   /** Update bid weight (scoring exponent) for this site */
   final case class UpdateBidWeight(weight: Double, replyTo: ActorRef[BidWeightUpdated]) extends Command

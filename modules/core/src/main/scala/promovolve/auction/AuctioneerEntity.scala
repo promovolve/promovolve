@@ -306,6 +306,17 @@ object AuctioneerEntity {
   /** Retry auction for a URL that got 0 candidates (startup race condition) */
   private final case class RetryEmptyAuction(url: URL, attempt: Int) extends Internal
 
+  /**
+   * Reply carrier for the Reevaluate-miss recovery ask (see the Reevaluate
+   * handler): SiteEntity's persisted classification for a URL this
+   * auctioneer's `lastPage` doesn't know — or None when the page genuinely
+   * was never classified. Self-only message, never crosses the wire.
+   */
+  private final case class ClassificationFetched(
+      url: URL,
+      entry: Option[SiteEntity.ClassificationEntry]
+  ) extends Internal
+
   /** Remove old content classifications (recency-only model) */
   private case object CleanupStaleContent extends Internal
 
@@ -444,7 +455,26 @@ private final class AuctioneerEntity private (
           startRanking(url, scores, slots)
           Behaviors.same
         case None =>
-          ctx.log.debug("Reevaluate ignored for url={} (no cached classification)", url)
+          // Unknown page: either genuinely never classified (the ad tag will
+          // classify it on a visit) OR the PageCategoriesClassified announce
+          // was LOST — it's a best-effort tell and drops while this shard is
+          // rehoming mid-rollout (hit live 2026-07-12: page classified during
+          // a CI deploy stayed invisible to auctions, and the AdServer
+          // freshness token then blocked the ad tag from re-classifying for
+          // the whole recency window). Recover from SiteEntity's persisted
+          // copy instead of silently ignoring the request.
+          if (!classificationFetchInFlight.contains(url)) {
+            classificationFetchInFlight += url
+            val siteRef = sharding.entityRefFor(SiteEntity.TypeKey, siteId.value)
+            ctx.pipeToSelf(
+              siteRef.ask[SiteEntity.PageClassificationResult](
+                SiteEntity.GetPageClassification(url.value, _)
+              )
+            ) {
+              case scala.util.Success(res) => ClassificationFetched(url, res.entry)
+              case scala.util.Failure(_)   => ClassificationFetched(url, None)
+            }
+          }
           Behaviors.same
       }
   }
@@ -1113,6 +1143,9 @@ private final class AuctioneerEntity private (
   }
   // Cache the last classification & slots per URL so we can re-auction without a re-scrape
   private var lastPage: Map[URL, (Map[String, Double], List[AdSlotSpec], Instant)] = Map.empty
+  // Reevaluate-miss recovery asks in flight — single-flight per URL so a
+  // burst of serve-misses on one unknown page can't stampede SiteEntity.
+  private var classificationFetchInFlight: Set[URL] = Set.empty
   // Cache last known ranker weights per category (weight, when observed)
   // Used for timeout fallback during auction ranking
   private var lastQuote: Map[String, (Double, Instant)] = Map.empty
@@ -1448,6 +1481,29 @@ private final class AuctioneerEntity private (
             ctx.log.debug("🔄 Retrying empty auction for url={} (attempt {}/{})",
               url, attempt, AuctioneerEntity.MaxEmptyAuctionRetries)
             ctx.self ! Reevaluate(url)
+            Behaviors.same
+          case AuctioneerEntity.ClassificationFetched(url, entryOpt) =>
+            classificationFetchInFlight -= url
+            entryOpt match {
+              case Some(entry) =>
+                // Same merge as RestoreClassifications: bypasses the eviction
+                // cap (CleanupStaleContent prunes by recency) and repopulates
+                // the AdServer freshness token.
+                val slots = entry.slots.iterator.map(_.toAdSlotSpec).toList
+                val ts = Instant.ofEpochMilli(entry.classifiedAt)
+                lastPage = lastPage.updated(url, (entry.categories, slots, ts))
+                adServer ! AdServer.MarkClassified(url, ts)
+                ctx.log.info(
+                  "Recovered persisted classification for {} from SiteEntity (lost announce) — re-auctioning",
+                  url
+                )
+                // Re-dispatch: now hits the Some branch (categorized →
+                // startRanking, empty scores → filler auction).
+                ctx.self ! Reevaluate(url)
+              case None =>
+                ctx.log.debug(
+                  "No persisted classification for {} — awaiting ad-tag classification", url)
+            }
             Behaviors.same
           case msg =>
             pipeline.orElse(public).applyOrElse(msg, _ => Behaviors.same)

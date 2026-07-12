@@ -349,8 +349,22 @@ function build(panel: HTMLElement, idx: number, item: LayoutItem, store: Store):
       cb.addEventListener("change", () => {
         store.commit(cb.checked ? pinImageAsMain(store.state, idx) : unpinMainImage(store.state, idx));
       });
-      pinRow.append(cb, document.createTextNode("Main image · syncs across all sizes"));
+      pinRow.append(cb, document.createTextNode(
+        isMainImage || pinDisabled
+          ? "Main image · syncs across all sizes"
+          : "Local copy · not synced",
+      ));
       appendToGroup(content, pinRow);
+      // Unchecked-but-tickable = a detached copy (its own src, no other
+      // main in this view). Mirror the text row's self-explanation so the
+      // unchecked state doesn't read as broken — see the sync-row hint.
+      if (!isMainImage && !pinDisabled) {
+        const hint = document.createElement("div");
+        hint.style.cssText = `margin:-4px 0 10px 24px;font-size:11px;color:${tokens.ink300};font-style:italic;`;
+        hint.textContent = "Tick to make this the shared main image";
+        hint.title = "This view shows its own copy of the image. Ticking makes it the main image every size syncs to.";
+        appendToGroup(content, hint);
+      }
     }
     // "Replace image…" sets/replaces the shared main from the asset library;
     // in a size you adjust placement + crop.

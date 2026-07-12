@@ -12,7 +12,7 @@ import org.apache.pekko.stream.scaladsl.Source
 import org.apache.pekko.stream.typed.scaladsl.ActorSource
 import org.apache.pekko.util.Timeout
 import promovolve.PublisherId
-import promovolve.publisher.SiteEntity
+import promovolve.publisher.{ PublisherEntity, SiteEntity }
 import spray.json.*
 
 import scala.concurrent.Future
@@ -50,14 +50,45 @@ class SseRoutes(
       }(using system.executionContext)
       .recover { case _ => false }(using system.executionContext)
 
-  val routes: Route = pathPrefix("v1" / "publishers" / Segment / "sites" / Segment / "events") {
-    (publisherId, siteId) =>
-      get {
-        onComplete(ownsSite(publisherId, siteId)) {
-          case Success(true) => complete(createEventSource(siteId))
-          case _             => complete(StatusCodes.NotFound -> """{"error":"site_not_found"}""")
+  /**
+   * All of a publisher's siteIds, for the publisher-level stream. Empty on
+   * unknown publisher or ask failure (the route 404s on empty).
+   */
+  private def publisherSiteIds(publisherId: String): Future[Set[String]] =
+    sharding
+      .entityRefFor(PublisherEntity.TypeKey, publisherId)
+      .ask[PublisherEntity.PublisherInfo](PublisherEntity.GetPublisher(_))
+      .map(_.siteIds.map(_.value))(using system.executionContext)
+      .recover { case _ => Set.empty[String] }(using system.executionContext)
+
+  val routes: Route = pathPrefix("v1" / "publishers" / Segment) { publisherId =>
+    concat(
+      // Publisher-level stream: events for ALL the publisher's sites on one
+      // connection. The approval inbox aggregates every site, but the old
+      // per-site stream only carried "the first site with pending" — events
+      // for any other site published to a key with zero subscribers, so the
+      // inbox never updated live (found on the two-site GKE deployment
+      // 2026-07-12; latent since the multi-site inbox shipped).
+      path("events") {
+        get {
+          onComplete(publisherSiteIds(publisherId)) {
+            case Success(siteIds) if siteIds.nonEmpty =>
+              complete(createEventSource(siteIds))
+            case _ =>
+              complete(StatusCodes.NotFound -> """{"error":"publisher_not_found"}""")
+          }
+        }
+      },
+      // Per-site stream (kept for compatibility; same IDOR guard as before).
+      pathPrefix("sites" / Segment / "events") { siteId =>
+        get {
+          onComplete(ownsSite(publisherId, siteId)) {
+            case Success(true) => complete(createEventSource(Set(siteId)))
+            case _             => complete(StatusCodes.NotFound -> """{"error":"site_not_found"}""")
+          }
         }
       }
+    )
   }
 
   /**
@@ -67,7 +98,7 @@ class SseRoutes(
    * 3. Converts events to ServerSentEvents
    * 4. Unsubscribes on stream completion
    */
-  private def createEventSource(siteId: String): Source[ServerSentEvent, NotUsed] = {
+  private def createEventSource(siteIds: Set[String]): Source[ServerSentEvent, NotUsed] = {
     // Create an actor source that receives PendingEvent messages
     val (actorRef, source) = ActorSource
       .actorRef[PendingEventHub.PendingEvent](
@@ -78,8 +109,9 @@ class SseRoutes(
       )
       .preMaterialize()
 
-    // Subscribe to the event hub
-    pendingEventHub ! PendingEventHub.Subscribe(siteId, actorRef)
+    // Subscribe to the event hub for every requested site (one watch, one
+    // unsubscribe covering the whole set — see PendingEventHub.Subscribe).
+    pendingEventHub ! PendingEventHub.Subscribe(siteIds, actorRef)
 
     // Convert PendingEvents to ServerSentEvents
     source
@@ -157,7 +189,7 @@ class SseRoutes(
       .watchTermination() { (_, done) =>
         // Unsubscribe when the stream terminates
         done.foreach { _ =>
-          pendingEventHub ! PendingEventHub.Unsubscribe(siteId, actorRef)
+          pendingEventHub ! PendingEventHub.Unsubscribe(siteIds, actorRef)
         }(using system.executionContext)
         NotUsed
       }

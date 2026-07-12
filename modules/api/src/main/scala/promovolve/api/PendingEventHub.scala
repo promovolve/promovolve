@@ -16,15 +16,22 @@ object PendingEventHub {
 
   sealed trait Command
 
-  /** Subscribe to pending events for a site */
+  /**
+   * Subscribe to pending events for a set of sites — one subscriber actor,
+   * one DeathWatch, one Unsubscribe covering the whole set. A set (not a
+   * single siteId) because the approval inbox aggregates ALL of a
+   * publisher's sites; a single-site subscription left every other site's
+   * events with zero subscribers (live-update bug found 2026-07-12).
+   * Local-only message (SseRoutes on the same node), never crosses Artery.
+   */
   final case class Subscribe(
-      siteId: String,
+      siteIds: Set[String],
       subscriber: ActorRef[PendingEvent]
   ) extends Command
 
-  /** Unsubscribe from pending events */
+  /** Unsubscribe from pending events (same set that was subscribed) */
   final case class Unsubscribe(
-      siteId: String,
+      siteIds: Set[String],
       subscriber: ActorRef[PendingEvent]
   ) extends Command
 
@@ -169,15 +176,17 @@ object PendingEventHub {
 
   private def behavior(state: State): Behavior[Command] = Behaviors.receive { (ctx, msg) =>
     msg match {
-      case Subscribe(siteId, subscriber) =>
-        ctx.log.info("SSE subscriber connected for site {}", siteId)
-        // Watch the subscriber to auto-remove on termination
-        ctx.watchWith(subscriber, Unsubscribe(siteId, subscriber))
-        behavior(state.addSubscriber(siteId, subscriber))
+      case Subscribe(siteIds, subscriber) =>
+        ctx.log.info("SSE subscriber connected for sites {}", siteIds.mkString(","))
+        // Watch the subscriber to auto-remove on termination. ONE watchWith
+        // per subscriber (pekko forbids re-watching with a different
+        // message), carrying the full set.
+        ctx.watchWith(subscriber, Unsubscribe(siteIds, subscriber))
+        behavior(siteIds.foldLeft(state)(_.addSubscriber(_, subscriber)))
 
-      case Unsubscribe(siteId, subscriber) =>
-        ctx.log.info("SSE subscriber disconnected from site {}", siteId)
-        behavior(state.removeSubscriber(siteId, subscriber))
+      case Unsubscribe(siteIds, subscriber) =>
+        ctx.log.info("SSE subscriber disconnected from sites {}", siteIds.mkString(","))
+        behavior(siteIds.foldLeft(state)(_.removeSubscriber(_, subscriber)))
 
       case PublishPendingUpdate(siteId, url, slotId, count, topCreativeId) =>
         val event = PendingUpdated(siteId, url, slotId, count, topCreativeId, Instant.now())

@@ -27,15 +27,16 @@
   <p id="inbox-nomatch" class="text-sm text-gray-400 mt-2 hidden">No creatives match your filter.</p>
 </div>
 
-<!-- SSE: real-time updates via htmx SSE extension -->
-<div class="flex-1 min-h-0 flex flex-col" {{if .SiteID}}hx-ext="sse" sse-connect="/sse/publishers/{{.SiteID}}/events"{{end}}>
+<!-- SSE: real-time updates via htmx SSE extension. Publisher-level stream:
+     the inbox aggregates ALL sites, so the subscription must too — the old
+     per-site connect ("first site with pending") silently missed every
+     other site's events (must-reload bug, 2026-07-12). -->
+<div class="flex-1 min-h-0 flex flex-col" hx-ext="sse" sse-connect="/sse/publishers/events">
   <div id="tab-content" class="flex-1 min-h-0 flex flex-col"
-       {{if .SiteID}}
        hx-get="/publisher/approval"
        hx-trigger="sse:pending-updated throttle:2s, sse:approved throttle:2s, sse:rejected throttle:2s, sse:revoked throttle:2s, sse:bulk-approved throttle:2s"
        hx-target="#tab-content"
-       hx-swap="innerHTML"
-       {{end}}>
+       hx-swap="innerHTML">
     {{template "approval-tab" .}}
   </div>
 </div>

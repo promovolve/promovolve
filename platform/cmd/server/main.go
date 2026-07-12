@@ -347,7 +347,12 @@ func main() {
 	mux.HandleFunc("POST /advertiser/creatives/reprocess", adv(h.ReprocessCreative))
 	mux.HandleFunc("POST /advertiser/creatives/delete", adv(h.DeleteCreative))
 
-	// SSE proxy — Go BFF re-emits core API events to browser
+	// SSE proxy — Go BFF re-emits core API events to browser.
+	// The publisher-level stream carries every site's events on one
+	// connection (what the multi-site approval inbox needs); the per-site
+	// route is kept for compatibility. The literal "events" segment is more
+	// specific than {siteId}, so both patterns coexist.
+	mux.HandleFunc("GET /sse/publishers/events", pub(h.SSEProxyPublisher))
 	mux.HandleFunc("GET /sse/publishers/{siteId}/events", pub(h.SSEProxy))
 
 	// JSON endpoints for Alpine.js autocomplete/polling

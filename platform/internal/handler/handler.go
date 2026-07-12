@@ -1234,7 +1234,10 @@ func (h *Handler) PublisherApproval(w http.ResponseWriter, r *http.Request) {
 		allFlagged = append(allFlagged, flagged...)
 	}
 
-	// Keep SiteID for backwards compat (SSE connects to first site with pending)
+	// SiteID no longer drives the SSE connect — the template subscribes to
+	// the publisher-level /sse/publishers/events stream (a single-site
+	// subscription missed every other site's events). Kept populated for
+	// remaining single-site uses in the template.
 	siteID := ""
 	if len(sites) > 0 {
 		siteID = sites[0].ID

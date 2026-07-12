@@ -285,6 +285,18 @@ export const TYPO_SYNC_KEYS = [
   "lineHeight", "textAlign", "shadow", "writingMode", "direction",
 ] as const;
 
+// A field-bound text item carrying a baked local copy — the sync checkbox
+// was unticked for this size. Detached items keep their own TEXT and
+// COLOR: colour edits on them don't fan out, and colour fan-outs from
+// synced sizes skip them (face/weight/size-ratio still sync — the
+// checkbox governs text + colour only). Re-ticking ADOPTS the local
+// version: see adoptTextOverride.
+export function hasLocalTextOverride(it: LayoutItem): boolean {
+  if (it.type !== "text") return false;
+  const t = it as { field?: string; text?: string };
+  return !!t.field && t.text != null && t.text !== "";
+}
+
 export function propagateTypography(
   state: DesignerState,
   field: string,
@@ -314,8 +326,14 @@ export function propagateTypography(
     const next = items.map((it) => {
       if (it.type !== "text" || (it as { field?: string }).field !== field) return it;
       if (it === skip) return it; // source item — already at its new size
+      // Detached override (sync unticked): its colour is local — apply
+      // everything else (face/weight/scale still one identity per role).
+      const itemTypo = hasLocalTextOverride(it) && "color" in effTypo
+        ? Object.fromEntries(Object.entries(effTypo).filter(([k]) => k !== "color"))
+        : effTypo;
+      const itemKeys = Object.keys(itemTypo);
       const cur = it as unknown as Record<string, unknown>;
-      const styleSame = keys.length === 0 || keys.every((k) => cur[k] === effTypo[k]);
+      const styleSame = itemKeys.length === 0 || itemKeys.every((k) => cur[k] === itemTypo[k]);
       let scaled: number | undefined;
       if (hasScale) {
         const base = (cur.fontSize as number | undefined) ?? 5;
@@ -326,7 +344,7 @@ export function propagateTypography(
       any = true;
       return {
         ...it,
-        ...effTypo,
+        ...itemTypo,
         ...(scaled !== undefined ? { fontSize: scaled } : {}),
       } as LayoutItem;
     });
@@ -360,6 +378,12 @@ export function propagateTypography(
 // collapsed buckets) group — but with the 16:9 tab retired the portrait
 // reader is the only multi-page edit surface, and the partition just read
 // as "my colour edit didn't take" on the banner sizes.
+//
+// EXCEPTION — detached overrides (2026-07-13, user decision): a size whose
+// sync checkbox is unticked (hasLocalTextOverride) owns its text AND
+// colour. Its colour edits don't fan out, incoming colour fan-outs skip
+// it, and the load-time anchor below leaves it alone. Re-ticking ADOPTS
+// the local text + colour as the shared version (adoptTextOverride).
 //
 // GENERATION and LOAD keep the master anchor: freshly fanned-out buckets
 // inherit page.layout's colour (masterColor, used by applyLayout), and
@@ -413,6 +437,9 @@ export function inheritBannerColors(pages: Page[]): Page[] {
       let any = false;
       const next = items.map((it) => {
         if (it.type !== "text") return it;
+        // Detached override (sync unticked) — its colour is a deliberate
+        // per-size choice; the load-time anchor must not wipe it.
+        if (hasLocalTextOverride(it)) return it;
         const f = (it as { field?: string }).field;
         const mc = f ? masterByField.get(f) : undefined;
         if (mc && mc !== (it as { color?: string }).color) { any = true; return { ...it, color: mc } as LayoutItem; }
@@ -574,6 +601,30 @@ export function relinkItem(state: DesignerState, idx: number, kind: "text" | "sr
     const { [kind]: _baked, ...rest } = it as LayoutItem & { text?: string; src?: string };
     return rest as LayoutItem;
   });
+}
+
+// Re-tick after local edits = ADOPT, not discard: push this size's baked
+// text into the shared page[field] (every synced view resolves it) and
+// broadcast this size's colour to the role everywhere, then drop the bake
+// so the item re-links. Other sizes that are THEMSELVES overridden keep
+// their own colour (propagateTypography skips detached items).
+export function adoptTextOverride(state: DesignerState, idx: number): DesignerState {
+  const it = currentLayout(state)[idx] as
+    | (LayoutItem & { field?: string; text?: string; color?: string })
+    | undefined;
+  if (!it || it.type !== "text" || !it.field) return state;
+  const field = it.field;
+  let next = state;
+  if (it.text != null && it.text !== "") {
+    const page = currentPage(next);
+    if (page) {
+      const nextPage = { ...page, [field]: it.text } as Page;
+      next = { ...next, pages: next.pages.map((p, i) => (i === next.pageIdx ? nextPage : p)) };
+    }
+  }
+  next = relinkItem(next, idx, "text");
+  if (it.color) next = propagateTypography(next, field, { color: it.color });
+  return next;
 }
 
 // Set the single MAIN image (page.img) — the source of truth shared by

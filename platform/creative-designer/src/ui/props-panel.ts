@@ -16,7 +16,7 @@
 import { refitItemCropToBox } from "../auto-crop";
 import { packReaderFieldBoxes, packTextItemHeight } from "../render/canvas";
 import { isMultiPage } from "../modes";
-import { currentItem, currentLayout, currentPage, pinImageAsMain, propagateTypography, relinkItem, setItemContent, setReaderFieldFontSize, TYPO_SYNC_KEYS, unpinMainImage, updateItem } from "../state";
+import { adoptTextOverride, currentItem, currentLayout, currentPage, hasLocalTextOverride, pinImageAsMain, propagateTypography, setItemContent, setReaderFieldFontSize, TYPO_SYNC_KEYS, unpinMainImage, updateItem } from "../state";
 import type { Store } from "../store";
 import type { DesignerState, ImageItem, LayoutItem, RectItem } from "../types";
 import { scrimGradient, SCRIM_EDGES, type ScrimEdge, type ScrimSpec } from "../scrim";
@@ -68,9 +68,7 @@ interface RenderedState {
 // "|ov" when a field-bound text item carries a baked per-size override.
 // Mirrors the `overridden` derivation in build()'s text branch.
 function overrideMarker(item: LayoutItem): string {
-  if (item.type !== "text") return "";
-  const it = item as { field?: string; text?: string };
-  return it.field && it.text != null && it.text !== "" ? "|ov" : "";
+  return hasLocalTextOverride(item) ? "|ov" : "";
 }
 
 export function mountPropsPanel(container: HTMLElement, store: Store): PropsPanelHandle {
@@ -225,7 +223,9 @@ function build(panel: HTMLElement, idx: number, item: LayoutItem, store: Store):
       cb.style.cssText = "margin:0;cursor:inherit;";
       cb.addEventListener("change", () => {
         if (cb.checked) {
-          store.commit(relinkItem(store.state, idx, "text"));
+          // Re-tick = ADOPT: this size's text + colour become the shared
+          // version everywhere, then the item re-links.
+          store.commit(adoptTextOverride(store.state, idx));
         } else {
           mutateContent(store, idx, effectiveContent(store, item, "text"), "text", true);
         }
@@ -237,12 +237,10 @@ function build(panel: HTMLElement, idx: number, item: LayoutItem, store: Store):
       ));
       appendToGroup(textGroup, syncRow);
       if (overridden) {
-        // What re-ticking restores: the shared value the other sizes show.
-        const shared = String((currentPage(store.state) as Record<string, unknown> | null)?.[boundField] ?? "");
         const resync = document.createElement("div");
         resync.style.cssText = `margin:0 0 10px 24px;font-size:11px;color:${tokens.ink300};font-style:italic;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;`;
-        resync.textContent = `All sizes: ${shared || "(empty)"}`;
-        resync.title = shared;
+        resync.textContent = "Re-tick to apply this text & color to all sizes";
+        resync.title = "Text and color edits stay in this size while unticked. Ticking the box makes them the shared version every size shows.";
         appendToGroup(textGroup, resync);
       }
     }
@@ -872,13 +870,14 @@ function mutate(store: Store, idx: number, fn: (it: LayoutItem) => LayoutItem, c
     const b = before as unknown as Record<string, unknown>;
     const a = after as unknown as Record<string, unknown>;
     const typo: Record<string, unknown> = {};
-    // Colour syncs like every other typography prop. It used to be
-    // partitioned (portrait reader independent from the 16:9 master +
-    // buckets), but with the 16:9 tab retired the reader is the only
-    // multi-page edit surface — a partition just reads as "my colour edit
-    // didn't take" on the banner sizes. One typographic identity per role,
-    // from whichever surface the edit happens on.
+    // Colour syncs like every other typography prop — one typographic
+    // identity per role, from whichever surface the edit happens on —
+    // EXCEPT on a detached override (sync checkbox unticked): there the
+    // colour is a per-size choice and stays local, both outbound (here)
+    // and inbound (propagateTypography skips detached items). Re-ticking
+    // adopts the local text + colour everywhere (adoptTextOverride).
     for (const k of TYPO_SYNC_KEYS) if (a[k] !== b[k]) typo[k] = a[k];
+    if (hasLocalTextOverride(after)) delete typo.color;
     if (Object.keys(typo).length > 0) next = propagateTypography(next, field, typo);
   }
   if (commit) store.commit(next);

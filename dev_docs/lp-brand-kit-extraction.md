@@ -6,7 +6,9 @@
 > `creative-editor.html` (_toHex/_snapFont/buildBrandKitFromLP),
 > `template-apply.ts` (ROLE_TO_KIT_FONT_INDEX). Tests:
 > `template-apply-fonts.test.ts`. The "system fonts only" limitation at the end
-> of this doc was later lifted — see [self-hosted-fonts.md](self-hosted-fonts.md).
+> of this doc was later lifted — the current font pipeline (per-creative CJK
+> subsetting, weight-scoped R2 keys) is documented in the book:
+> `book/src/format/brand-kit.md`.
 
 **Goal:** When an advertiser analyzes a landing page (LP), extract a *brand kit*
 from the page — a full color palette plus the page's font faces — and seed it as
@@ -118,7 +120,7 @@ so they never fall back.
 the self-hosted web fonts feature — `_snapFont` now *keeps* an allow-listed real
 family as a stack (`"Montserrat, sans-serif"`), the family's woff2 is provisioned
 to R2 at publish, and the banner's expanded view loads the exact face from our
-CDN. See [self-hosted-fonts.md](self-hosted-fonts.md) for the full design.
+CDN. The current pipeline is documented in `book/src/format/brand-kit.md`.
 
 ## Notes / risks
 - Adding fields with defaults keeps all positional `LPAnalysisResult(...)` call

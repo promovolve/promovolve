@@ -4,8 +4,7 @@
 > to `platform/creative-designer/` (TypeScript designer) and `modules/`
 > (Scala server) as of 2026-06-30.
 >
-> **Related:** [`lp-to-creative.md`](lp-to-creative.md),
-> [`dev_docs/lp-brand-kit-extraction.md`](../../dev_docs/lp-brand-kit-extraction.md),
+> **Related:** [`dev_docs/lp-brand-kit-extraction.md`](../../dev_docs/lp-brand-kit-extraction.md),
 > [`DESIGNER_DEV.md`](../../dev_docs/DESIGNER_DEV.md).
 
 ## One-line mental model

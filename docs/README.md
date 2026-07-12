@@ -27,7 +27,7 @@ Deep dives into why the system works the way it does, in `design/`:
 | Pricing & pacing | [BUDGET_PACING](design/BUDGET_PACING.md), [floor-cpm-optimization](design/floor-cpm-optimization.md) |
 | Classification | [CONTENT_CLASSIFICATION](design/CONTENT_CLASSIFICATION.md), [ON_DEMAND_CLASSIFICATION](design/ON_DEMAND_CLASSIFICATION.md) |
 | Publisher identity | [SITE_VERIFICATION](design/SITE_VERIFICATION.md) |
-| Creatives | [lp-to-creative](design/lp-to-creative.md), [TEXT_COLOR_PIPELINE](design/TEXT_COLOR_PIPELINE.md) |
+| Creatives | [TEXT_COLOR_PIPELINE](design/TEXT_COLOR_PIPELINE.md) |
 | Internals | [CAMPAIGN_DIRECTORY_REDESIGN](design/CAMPAIGN_DIRECTORY_REDESIGN.md) |
 | Research & direction | [RESEARCH_PAPER_ANALYSIS](design/RESEARCH_PAPER_ANALYSIS.md), [AGENTIC_AI_ROADMAP](design/AGENTIC_AI_ROADMAP.md) |
 

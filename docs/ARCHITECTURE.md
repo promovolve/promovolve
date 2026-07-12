@@ -1180,7 +1180,6 @@ promovolve.campaign {
 - [Auction Architecture](../modules/core/src/main/scala/promovolve/auction/AUCTION.md)
 - [Publisher & Ad Serving](../modules/core/src/main/scala/promovolve/publisher/PUBLISHER.md)
 - [Taxonomy Ranking (Thompson Sampling)](../modules/core/src/main/scala/promovolve/taxonomy/TAXONOMY_RANKING.md)
-- [Spend Tracking & Bloom Filters](../modules/core/src/main/scala/promovolve/advertiser/about_record_spend.md)
 - [Auction Test Walkthrough](../dev_docs/auction-test-walkthrough.md)
 - [TrafficShapeTracker](../modules/core/src/main/scala/promovolve/publisher/delivery/TrafficShapeTracker.scala) — Detailed EMA-based traffic pattern learning
 - [PacingStrategy](../modules/core/src/main/scala/promovolve/publisher/delivery/PacingStrategy.scala) — Budget pacing algorithms

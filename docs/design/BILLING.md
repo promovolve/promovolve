@@ -2,8 +2,8 @@
 
 **Status: DESIGNED 2026-07-04. ALL PHASES (1-5) BUILT as of 2026-07-05:
 ledger core, core metering + suspend/resume, settlement job, dashboards,
-intraday projected-balance enforcement. Live e2e against a deployed
-cluster still owed (needs new api + platform images).**
+intraday projected-balance enforcement. Live end-to-end on the public GKE
+cluster (2026-07).**
 
 How the platform operator collects money from advertisers, pays publishers, and
 captures the platform margin. Promovolve is self-hostable, so the design is

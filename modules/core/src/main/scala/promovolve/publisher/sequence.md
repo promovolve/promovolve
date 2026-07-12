@@ -16,10 +16,11 @@
                                       │    per site     │
                                       │                 │
                                       │ • config        │
-                                      │ • cronSchedule  │
+                                      │ • classifications│
                                       │ • taxonomyIds   │
                                       └────────┬────────┘
-                                               │ Crawl results → AuctioneerEntity
+                                               │ ClassifyUrl (ad tag) → Gemini →
+                                               │ PageCategoriesClassified → AuctioneerEntity
                                                ▼
 
 ┌───────────────────────────────────────────────────────────────────────────────────────────────────┐
@@ -68,54 +69,60 @@
       │<────────────────────│                          │                          │
 
 ┌─────────────────────────────────────────────────────────────────────────────────────────────────┐
-│ FLOW 2: CRAWL → CLASSIFICATION → AUCTION │
+│ FLOW 2: ON-DEMAND CLASSIFICATION → AUCTION │
 └─────────────────────────────────────────────────────────────────────────────────────────────────┘
 
-     Quartz            SiteEntity              IABTaxonomy           AuctioneerEntity       AdServer
-       │                   │                       │                       │                   │
-       │ StartCrawling     │                       │                       │                   │
-       │──────────────────>│                       │                       │                   │
-       │                   │                       │                       │                   │
-       │                   │ spawn Crawler         │                       │                   │
-       │                   │──────►                │                       │                   │
-       │                   │                       │                       │                   │
-       │                   │ PageContent(url,text) │                       │                   │
-       │                   │◄──────                │                       │                   │
-       │                   │                       │                       │                   │
-       │                   │ analyzeTaxonomy(text) │                       │                   │
-       │                   │──────────────────────>│                       │                   │
-       │                   │                       │                       │                   │
-       │                   │ List[Selection]       │                       │                   │
-       │                   │<──────────────────────│                       │                   │
-       │                   │                       │                       │                   │
-       │                   │ PageCategoriesClassified(url, categoryScores, slots)              │
-       │                   │──────────────────────────────────────────────>│                   │
-       │                   │                       │                       │                   │
-       │                   │                       │ (run auction, get candidates)             │
-       │                   │                       │                       │                   │
-       │                   │                       │ CandidatesCollected(url, slot, candidates)
-       │                   │                       │                       │──────────────────>│
-       │                   │                       │                       │                   │
-       │                   │                       │                       │  (filter by blocklist)
-       │                   │                       │                       │  (split: approved/pending)
-       │                   │                       │                       │                   │
-       │                   │                       │                       │  ServeIndexDData.Put
-       │                   │                       │                       │  (approved only)  │
-       │                   │                       │                       │                   │
-       │                   │                       │                       │  CreativeStore.upsertPending
-       │                   │                       │                       │  (pending only)   │
+    Ad tag           ServeRoutes            SiteEntity          Gemini/IABTaxonomy   AuctioneerEntity      AdServer
+       │                   │                     │                       │                  │                  │
+       │ POST /v1/classify-page                  │                       │                  │                  │
+       │ {pub,url,text,slots}                    │                       │                  │                  │
+       │──────────────────>│                     │                       │                  │                  │
+       │                   │                     │                       │                  │                  │
+       │                   │ ClassifyUrl(url,text,section,slots)         │                  │                  │
+       │                   │────────────────────>│                       │                  │                  │
+       │                   │                     │                       │                  │                  │
+       │                   │ ClassifyAck         │ (single-flight per URL:                  │                  │
+       │                   │<────────────────────│  in_flight/not_ready → no Gemini call)   │                  │
+       │ 202 Accepted      │                     │                       │                  │                  │
+       │<──────────────────│                     │                       │                  │                  │
+       │                   │                     │ analyzeTaxonomy(text) │                  │                  │
+       │                   │                     │──────────────────────>│                  │                  │
+       │                   │                     │                       │                  │                  │
+       │                   │                     │ category selections   │                  │                  │
+       │                   │                     │<──────────────────────│                  │                  │
+       │                   │                     │                       │                  │                  │
+       │                   │                     │ (persist classification)                 │                  │
+       │                   │                     │                       │                  │                  │
+       │                   │                     │ PageCategoriesClassified(url, categoryScores, slots)        │
+       │                   │                     │─────────────────────────────────────────>│                  │
+       │                   │                     │  (or FillerAuctionRequested when no      │                  │
+       │                   │                     │   demand category matches)               │                  │
+       │                   │                     │                       │                  │                  │
+       │                   │                     │                       │ (run auction, get candidates)       │
+       │                   │                     │                       │                  │                  │
+       │                   │                     │                       │ CandidatesCollected(url, slot, candidates)
+       │                   │                     │                       │                  │─────────────────>│
+       │                   │                     │                       │                  │                  │
+       │                   │                     │                       │                  │ (filter by blocklist)
+       │                   │                     │                       │                  │ (split: approved/pending)
+       │                   │                     │                       │                  │                  │
+       │                   │                     │                       │                  │ ServeIndexDData.Put
+       │                   │                     │                       │                  │ (approved only)  │
+       │                   │                     │                       │                  │                  │
+       │                   │                     │                       │                  │ CreativeStore.upsertPending
+       │                   │                     │                       │                  │ (pending only)   │
 
 ┌─────────────────────────────────────────────────────────────────────────────────────────────────┐
-│ FLOW 3: AD SERVE (SELECT)                                          │
+│ FLOW 3: AD SERVE (BATCH SELECT)                                     │
 └─────────────────────────────────────────────────────────────────────────────────────────────────┘
 
      Client            ServeRoutes              AdServer           ServeIndexDData      CampaignEntity
        │                    │                      │                      │                   │
-       │ GET /v1/serve      │                      │                      │                   │
-       │ ?pub=X&url=Y&slot=Z│                      │                      │                   │
+       │ POST /v1/serve/batch                      │                      │                   │
+       │ {pub, url, imp:[slots], pins?}            │                      │                   │
        │───────────────────>│                      │                      │                   │
        │                    │                      │                      │                   │
-       │                    │ Select(url,slot)     │                      │                   │
+       │                    │ BatchSelect(url,slots)                      │                   │
        │                    │─────────────────────>│                      │                   │
        │                    │                      │                      │                   │
        │                    │                      │ Get(key)             │                   │
@@ -131,7 +138,7 @@
        │                    │              │               │              │                   │
        │                    │              │ THOMPSON:     │              │                   │
        │                    │              │ Beta sampling │              │                   │
-       │                    │              │ × log1p(cpm)  │              │                   │
+       │                    │              │ × CPM^α       │              │                   │
        │                    │              └───────┬───────┘              │                   │
        │                    │                      │                      │                   │
        │                    │                      │ TryReserve(requestId, $0.005)            │
@@ -204,12 +211,12 @@
 │ DATA FLOW SUMMARY │
 └─────────────────────────────────────────────────────────────────────────────────────────────────┘
 
-                                Crawl
+                        On-demand classification
                                   │
                                   ▼
      ┌─────────────────────────────────────────────────────────────────────────────────────┐
      │                                                                                     │
-     │   [Crawler] ──PageContent──► [SiteEntity] ──classify──► [IABTaxonomy]               │
+     │   [Ad tag] ──POST /v1/classify-page──► [SiteEntity] ──classify──► [Gemini/IABTaxonomy]│
      │                                    │                                                │
      │                                    │ PageCategoriesClassified                       │
      │                                    ▼                                                │
@@ -229,7 +236,7 @@
                                   ▼
      ┌─────────────────────────────────────────────────────────────────────────────────────┐
      │                                                                                     │
-     │   [Client] ──GET /serve──► [ServeRoutes] ──Select──► [AdServer]                     │
+     │   [Client] ──POST /v1/serve/batch──► [ServeRoutes] ──BatchSelect──► [AdServer]      │
      │                                                          │                          │
      │                                                          │ Get(key)                 │
      │                                                          ▼                          │

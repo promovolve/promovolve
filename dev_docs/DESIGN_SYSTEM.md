@@ -60,9 +60,9 @@ Usage: `<button class="btn btn-primary">Save</button>`,
 
 ## Known debt
 
-- `cdn.tailwindcss.com` is the Play CDN (browser-side JIT, console warning).
-  Fine for dev; before any real production posture, replace with the
-  standalone Tailwind CLI generating a static stylesheet at image build time.
+- ~~Play CDN~~ — resolved 2026-07-08: `cdn.tailwindcss.com` is gone,
+  replaced by the compiled `platform/static/tailwind.css` (see the header
+  above for the build loop).
 - `platform/static/style.css` (an older hand-rolled system, never linked)
   was deleted 2026-07-03.
 - A visual component gallery is published to claude.ai/design

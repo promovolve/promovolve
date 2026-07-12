@@ -122,7 +122,8 @@ below 4.5:1 — `contrastWarningRow()` (`props-panel.ts:773-804`, wired at `:224
 It never changes the color.
 
 > **Per-format color model (2026-06-30).** Color follows a *master-group* rule
-> (`propagateColor`, `state.ts`): the expanded **PC** reader plus **every
+> (`propagateColor`, `state.ts`): the 16:9 wide master (`page.layout`, a
+> tabless delivery artifact) plus **every
 > collapsed banner bucket** (300×250, 728×90, …) form one master group that
 > always shares the headline color. Banner buckets never hold an independent
 > color — they inherit the expanded master both **on edit** (`propagateColor`)

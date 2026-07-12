@@ -142,9 +142,10 @@ them by design.
 
 ---
 
-## 4. Regenerate / Reset — per-banner layout regeneration
+## 4. Regenerate — per-banner regeneration
 
-*Why "Regenerate this size" is a no-op on IAB sizes today. See
+*Why "Regenerate this size" is a visual no-op on the aspect-bucket tabs
+but rewrites the copy on the portrait reader. See
 [auto-layout.ts::regenerateCurrentMode](src/auto-layout.ts).*
 
 ```mermaid
@@ -154,37 +155,42 @@ sequenceDiagram
     participant Header as canvas-header.ts
     participant Regen as regenerateCurrentMode
     participant Presets as presets.ts
-    participant Gemini as api/generate-layout.ts
+    participant Gemini as api/rewrite-copy.ts
     participant Store
 
-    User->>Header: click "Regenerate this size"<br/>or "Reset to auto-layout"
+    User->>Header: click "Regenerate this size"
     Header->>Regen: regenerateCurrentMode(store)
     Regen->>Regen: read current page + mode
-    Regen->>Presets: presetLayoutFor(mode.key, page)
-    alt mode has a preset (every IAB size)
+    alt collapsed aspect bucket (not multi-page)
+        Regen->>Presets: presetLayoutFor(mode.key, page, kit)
         Presets-->>Regen: items[] (deterministic)
         Regen->>Store: applyLayout(store, pageIdx, mode, items)<br/>tagged _generated:true
         Store-->>Header: state update — panels re-render
         Note over Regen,Store: Preset is deterministic, so identical<br/>to what was already there → no visible change
-    else mode is "expanded" / "mobile" (no preset)
-        Regen->>Gemini: generateLayout(page, mode)
-        Gemini-->>Regen: items[] (async, fresh each call)
-        Regen->>Store: applyLayout(...)
-        Store-->>Header: state update — new layout appears
+    else portrait reader ("mobile" — the only multi-page mode)
+        Regen->>Gemini: rewriteCopy(page, lpTextSnapshot)
+        Gemini-->>Regen: fresh tag/headline/sub/body (async)
+        Regen->>Store: applyPage — rewritten copy replaces the page<br/>(copy is creative-level, all sizes pick it up)
+        Regen->>Regen: layoutForMode(merged, mode)<br/>template/preset container, never AI layout
+        Regen->>Store: applyLayout(...) — field: refs slot the new copy
+        Store-->>Header: state update — new copy, same composition
     end
 ```
 
-**Key files:** `src/auto-layout.ts`, `src/presets.ts`, `src/api/generate-layout.ts`.
+**Key files:** `src/auto-layout.ts`, `src/presets.ts`, `src/api/rewrite-copy.ts`.
 
-**Proposed split (not yet wired):** "Regenerate" → always Gemini,
-"Reset to auto-layout" → always preset. Makes both meaningful on every size.
+**Why layout is never AI-generated here:** Gemini free-styling layouts
+produced landscape 50/50 compositions on portrait canvases even with
+hard hints. The layout container stays deterministic (template or
+preset); Gemini's only job is rewriting the copy.
 
 ---
 
 ## 5. Auto-layout fanout — populating empty cells at boot
 
-*Why Expanded PC starts with content on a fresh creative even though the
-server sent empty pages. Reading this diagram alongside
+*Why every tab starts with content on a fresh creative even though the
+server sent empty pages — and why the tabless 16:9 wide master fires
+first. Reading this diagram alongside
 [auto-layout.ts](src/auto-layout.ts) shows how the `generated` and
 `inFlight` Sets prevent duplicate work.*
 
@@ -194,42 +200,52 @@ sequenceDiagram
     participant Boot as installAutoLayoutGenerator
     participant Fanout as fanOutAllCells
     participant Cell as fireFor(pageIdx, mode)
+    participant Templates as template-apply.ts
     participant Presets as presets.ts
     participant Gemini as generateLayout
     participant Store
 
     Boot->>Boot: initialise inFlight + generated Sets
     Boot->>Fanout: fanOutAllCells()
-    loop every (pageIdx, mode) in state.pages × MODES
-        Fanout->>Cell: fireFor(pageIdx, mode)
-        alt cell already in `generated` set OR already in-flight
-            Cell->>Cell: skip
-        else cell already populated (authored or previously generated)
-            Cell->>Cell: add to `generated`, skip
-        else preset available for mode
-            Cell->>Presets: presetLayoutFor(mode.key, page)
-            Presets-->>Cell: items[]
-            Cell->>Store: applyLayout — sync
-        else no preset (expanded / mobile)
-            Cell->>Cell: inFlight.add(key), notify listeners
-            Cell-)Gemini: generateLayout(page, mode)
-            Gemini--)Cell: items[] (async)
-            Cell->>Store: applyLayout (on resolve)
-            Cell->>Cell: inFlight.delete(key), notify listeners
+    loop every pageIdx in state.pages
+        Fanout->>Cell: fireFor(pageIdx, WIDE_MASTER) — tabless, FIRST<br/>page.layout gets resolved fonts before buckets inherit them
+        loop every mode in MODES (portrait reader first)
+            Fanout->>Cell: fireFor(pageIdx, mode)
         end
     end
-    Fanout->>Store: store.seed() — synchronous-preset populated state becomes baseline
+    Note over Cell: per cell, three sources in order
+    alt cell already in `generated` set OR already in-flight
+        Cell->>Cell: skip
+    else cell already populated (authored or previously generated)
+        Cell->>Cell: add to `generated`, skip
+    else expanded surface (reader / wide master) AND templateId picked
+        Cell->>Templates: applyTemplate(template, kit, page, variant)
+        Templates-->>Cell: items[] (mobileItems for the reader)
+        Cell->>Store: applyLayout — sync, no network
+    else preset available (every mode key has one today)
+        Cell->>Presets: presetLayoutFor(mode.key, page, kit)
+        Presets-->>Cell: items[]
+        Cell->>Store: applyLayout — sync
+    else no template AND no preset (currently unreachable)
+        Cell->>Cell: inFlight.add(key), notify listeners
+        Cell-)Gemini: generateLayout(page, mode)
+        Gemini--)Cell: items[] (async)
+        Cell->>Store: applyLayout (on resolve)
+        Cell->>Cell: inFlight.delete(key), notify listeners
+    end
+    Fanout->>Store: store.seed() — synchronously populated state becomes baseline
     Boot->>Store: store.subscribe(fanOutAllCells) — catch later page adds
-    Note over Store: Undo can't rewind past seed.<br/>Async Gemini responses land later<br/>via replace, fold into the first real edit.
+    Note over Store: Undo can't rewind past seed.<br/>Any async Gemini responses land later<br/>via replace, fold into the first real edit.
 ```
 
-**Key files:** `src/auto-layout.ts`, `src/presets.ts`.
+**Key files:** `src/auto-layout.ts`, `src/presets.ts`, `src/template-apply.ts`.
 
-**Behaviour:** sized IAB cells get their preset synchronously at boot
-(no network). The two Expanded variants ship the Gemini call as "best effort" —
-they arrive later and replace the blank. If the user makes an edit before
-the async result lands, the async result still overwrites their blank
-because the cell's layout was still empty at the time of the fanout.
+**Behaviour:** every cell fills synchronously at boot (template or
+preset — no network), including the tabless wide master, which exists
+as a delivery artifact for wide collapsed slots and legacy readers
+even though it can't be hand-edited. The Gemini branch is kept for a
+future template that excludes itself from a mode; today every mode key
+has a preset, so it never fires during fanout.
 
 ---
 

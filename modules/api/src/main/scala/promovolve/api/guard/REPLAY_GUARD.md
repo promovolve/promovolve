@@ -338,7 +338,7 @@ Memory is **fixed and bounded** regardless of traffic volume.
 | Parameter         | Default         | Description                                     |
 |-------------------|-----------------|-------------------------------------------------|
 | `expectedPerPart` | 100,000         | Expected unique nonces per partition per bucket |
-| `bucketMs`        | 180,000 (3 min) | Time window per bloom bucket                    |
+| `bucketMs`        | 240,000 (4 min) | Time window per bloom bucket — derived by `TrackingReplayGuard` as `urlValidityWindow + 1 min` (3 min + 1 min with defaults) |
 | `maxSkew`         | 3 minutes       | Maximum timestamp skew tolerance                |
 | `publishEvery`    | 10 seconds      | DData publish interval                          |
 | `publishMinAdds`  | 100             | Minimum adds before publish                     |
@@ -375,7 +375,7 @@ promovolve {
    a. Compute partition: nonce → partition 0-63
    b. Forward to WindowedBloomReplayGuard entity
 
-5. WindowedBloomReplayGuard (promovolve.api.limiter):
+5. WindowedBloomReplayGuard (promovolve.api.guard):
    a. Check bucket rotation (rotate if needed)
    b. Check bloom filters (current + previous)
       └─ Found → reply false (409 Conflict)

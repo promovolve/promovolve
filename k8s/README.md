@@ -1,78 +1,68 @@
-# Running Promovolve on Kubernetes (multi-node)
+# Running Promovolve on Kubernetes (local dev base)
 
-Deploys the full stack into a **multi-node** Kubernetes cluster — either Docker
-Desktop's built-in multi-node Kubernetes (kind-based) or a standalone kind
-cluster (`k8s/kind-cluster.yaml`). The app/entity tier runs **3 pods with hard
-pod anti-affinity** (one entity pod per node), so you need **≥3 schedulable
-nodes**; a single node won't schedule all three (see
+Deploys the full stack into a local Kubernetes cluster — Docker Desktop's
+built-in Kubernetes or a standalone kind cluster (`k8s/kind-cluster.yaml`).
+This directory is the **kustomize base**; the public GKE deployment lives in
+`k8s-gke/` as an overlay over it (see its README). The app tier runs **2
+all-roles api pods with soft (preferred) anti-affinity** — they spread across
+nodes when possible but co-locate on a single node without changes (see
 [Single-node fallback](#single-node-fallback)).
 
 | Component        | Kind         | Why                                                        |
 |------------------|--------------|------------------------------------------------------------|
 | `promovolve-db`  | StatefulSet  | TimescaleDB (hypertables + retention/compression) on a PVC |
-| `promovolve-api` | StatefulSet  | `promovolve.api.Main` — Pekko cluster (singleton+entity+api roles) + LMDB DData on a PVC. Designer/LP Playwright runs in-process; bulk crawling is offloaded to the crawler tier. |
-| `promovolve-crawler` | Deployment | `promovolve.api.Main` with `roles=[crawler]` — the dedicated Playwright/Chromium crawl tier (joins the same cluster) |
+| `promovolve-api` | StatefulSet  | `promovolve.api.Main` — Pekko cluster; every pod carries ALL roles (singleton+entity+api+crawler) + LMDB DData on a PVC. All Playwright work (designer/LP creative generation) runs in-process. |
 | `promovolve-platform` | Deployment | Go dashboard / BFF (stateless)                          |
 
 ## Topology decisions (change here if your needs differ)
 
-- **App/entity tier = 3 pods (`api-statefulset.yaml: replicas: 3`) — an ODD
-  entity-role count for HA.** It forms a cluster via **Pekko Management +
-  Cluster Bootstrap** over **Kubernetes API discovery** (`pekko-management*` +
+- **App tier = 2 all-roles pods (`api-statefulset.yaml: replicas: 2`) — the
+  CONSOLIDATED topology (2026-07-02).** Every pod carries ALL roles
+  (`singleton`+`entity`+`api`+`crawler` — see `application-app.conf`). The
+  dedicated crawler tier was **deleted** and the dedicated singleton tier
+  (`singleton-statefulset.yaml`) is **parked at `replicas: 0`**; the comments
+  in those files document the rationale and the real-infra restore path.
+  The pods form ONE cluster via **Pekko Management + Cluster Bootstrap** over
+  **Kubernetes API discovery** (`pekko-management*` +
   `pekko-discovery-kubernetes-api`, `PEKKO_CLUSTER_BOOTSTRAP=on`, the
-  `application-k8s.conf` overlay that empties `seed-nodes`, pod-IP via the
-  downward API, and the `api-rbac.yaml` ServiceAccount for pod discovery) — and
-  the crawler nodes join the same cluster.
+  `application-app.conf` overlay that empties `seed-nodes`, pod-IP via the
+  downward API, and the `api-rbac.yaml` ServiceAccount for pod discovery).
   **Split-brain handling.** A Split Brain Resolver is configured
   (`pekko.cluster.split-brain-resolver`, `keep-majority` scoped to
-  **`role = "entity"`** — `application.conf`). With **3 entity pods** a real
-  entity majority (**2 of 3**) always exists, so a partition resolves cleanly:
-  the side with ≥2 entity nodes survives, the minority self-downs and rejoins,
-  and isolated crawler pods (0 entity members) always lose. The full cluster is
-  **5 members (3 entity + 2 crawler)** and bootstrap uses
-  **`PEKKO_BOOTSTRAP_REQUIRED_CONTACT_POINTS=3`** (`api-config`) = the majority
-  of 5: since 2×3 > 5 two disjoint groups can't both reach it (exactly one
-  cluster forms) and since 2 < 3 the crawlers can't form a standalone one.
-  **The entity count must stay ODD.** Running **2** entity pods is the trap a
-  1-vs-1 tie `keep-majority` can't break → it downs **both** sides →
-  Coordinated-Shutdown-`exit(0)` → CrashLoopBackOff spiral (observed on this
-  cluster under load: the 30s Gemini-rate-limiter ask backlog → GC pauses). To
-  grow the serving tier, go 3 → 5 → 7 (odd) and bump
-  `PEKKO_BOOTSTRAP_REQUIRED_CONTACT_POINTS` to the new majority `⌊total/2⌋+1`.
-  Note: **adding crawler pods does not change the entity-tie math** — SBR counts
-  entity members only, so HA scale-out of the serving tier means more *entity*
-  pods, not more crawlers.
+  **`role = "entity"`** — `application.conf`). With 2 entity nodes an even
+  count is tolerable: a clean 1-vs-1 split is broken by the lowest-address
+  rule, so one side always survives, the other self-downs and rejoins. On
+  REAL multi-node infra prefer an odd entity count — the restore path is
+  these 2 pods + the singleton pod scaled to 1 (roles `[singleton,entity]`)
+  = 3 entity members.
+  Bootstrap uses **`PEKKO_BOOTSTRAP_REQUIRED_CONTACT_POINTS=2`**
+  (`api-config`): a NEW cluster only forms when both pods see each other (a
+  lone pod can never form a split cluster); rejoin of an existing cluster is
+  unaffected.
+  *Historical note:* the self-down cascades that once motivated a 3-entity +
+  dedicated-crawler layout were root-caused (2026-07-02) to bare-tuple ask
+  replies deserializing to `null` and killing Artery inbound streams — not
+  the topology (see the comments in `api-statefulset.yaml`).
   For **local single-node dev** (`run-dev.sh`), `PEKKO_CLUSTER_BOOTSTRAP` is
-  unset, so the node uses the static loopback `seed-nodes` — no k8s needed; the
-  single all-roles node makes the SBR a no-op.
+  unset, so the node uses the static loopback `seed-nodes` — no k8s needed;
+  the single all-roles node makes the SBR a no-op.
 - **Dashboard read-your-writes / live SSE — `sessionAffinity: ClientIP`** on
   `api-service.yaml`. The single platform BFF makes the dashboard's reads,
   writes, and the SSE event stream; round-robining those across app pods caused
   "had to refresh to see a new site" and blank live publisher pages. Affinity
-  pins the BFF (one source IP) to one of the 3 app pods, so its reads see its
-  own writes. Browser ad-serve/tracking traffic still spreads across all 3.
+  pins the BFF (one source IP) to one of the 2 app pods, so its reads see its
+  own writes. Browser ad-serve/tracking traffic still spreads across both.
 - **Shards pinned to entity nodes.** `application.conf` sets
   `pekko.cluster.sharding.role = "entity"` so shard regions **and the shard
-  coordinator** only run on entity-role nodes. Without this, on an app-pod
-  restart the coordinator can drift onto the (non-entity) crawler node and wedge
-  shard allocation. (No-op for all-in-one dev nodes, which have the entity role.)
-- **Dedicated crawler tier.** `crawler-deployment.yaml` runs the same image with
-  `PEKKO_CLUSTER_ROLES=crawler` and joins the same cluster (shared
-  `app=promovolve-api` discovery label, distinct `tier=crawler` label). It
-  registers its Playwright/Chromium pool under a Receptionist `ServiceKey`;
-  `SiteEntity` (on the app tier, which runs `CRAWLER_TIER=on` so it does **not**
-  self-register) routes crawl `Render`s to a group router → the crawler pods. So
-  the heavy, continuous crawl load runs on dedicated pods. The app tier keeps a
-  local pool for the occasional designer/LP Playwright work. The API
-  LoadBalancer selects `tier=app`, so it never routes HTTP to crawler pods
-  (which serve only management + remoting). **Defaults to `replicas: 2`** —
-  with the 3-pod entity tier that's a 5-member cluster (see the split-brain note
-  above). Crawlers carry no `entity` role, so their count doesn't affect SBR
-  partition decisions and they have no anti-affinity (they may pack onto any
-  node). Scale for more crawl throughput with
-  `kubectl -n promovolve scale deployment/promovolve-crawler --replicas=N`.
-  Without a crawler tier (or with `CRAWLER_TIER` unset, e.g. local dev), nodes
-  self-register and crawl locally — unchanged behavior.
+  coordinator** only run on entity-role nodes. A no-op while every pod carries
+  the entity role, but it protects the restore path where a non-entity pod
+  joins the cluster (the coordinator drifting onto one wedges shard
+  allocation — observed with the old dedicated crawler tier).
+- **Crawler is a ROLE, not a tier.** The dedicated crawler Deployment was
+  deleted in the 2026-07-02 consolidation. Every api pod now carries the
+  `crawler` role, which pins the LP-worker/Playwright pool used for creative
+  generation. The role is load-bearing: if no cluster member carries it,
+  landing-page creative generation breaks silently.
 - **TimescaleDB, not vanilla Postgres.** `docker/init-db.sql` calls
   `create_hypertable` / `add_retention_policy` / `add_compression_policy`,
   which only exist with the `timescaledb` extension. Plain Postgres aborts at
@@ -84,43 +74,49 @@ nodes**; a single node won't schedule all three (see
 
 ## Prerequisites
 
-- A **multi-node Kubernetes cluster with ≥3 schedulable nodes** (one per entity
-  pod — see [Multi-node cluster](#multi-node-cluster) for how to get one).
+- A Kubernetes cluster — Docker Desktop's built-in Kubernetes works, single-
+  or multi-node (see [Multi-node cluster](#multi-node-cluster)).
 - `kubectl` pointing at that cluster's context (e.g. `kubectl config use-context
   kind-promovolve` for standalone kind, or `docker-desktop` for Docker Desktop).
 - A **Docker Hub account** (images are pushed there — see below).
-- Enough RAM for the pod limits: 3×api + 2×crawler at 2560Mi each, + db +
-  platform ≈ **13–14 GiB**. Give the Docker Desktop / kind VM headroom or pods
-  get OOM-killed (which, mid-bootstrap, stalls cluster formation since quorum
-  needs 3 of the 5 members healthy).
+- Enough RAM for the pod limits: 2×api at 2560Mi + db 2Gi + platform 256Mi
+  ≈ **7.5 GiB** of limits. Give the Docker Desktop / kind VM headroom
+  (~8+ GiB) or pods get OOM-killed, which mid-bootstrap stalls cluster
+  formation (a new cluster needs both api pods as contact points).
 
 ### Multi-node cluster
 
-Two ways to get the ≥3 schedulable nodes:
+The 2 api pods schedule fine on one node (anti-affinity is soft), but spread
+across nodes when available — a node failure then costs one pod, not both.
+Two ways to get multiple nodes:
 
 - **Standalone kind** (reproducible, recommended for repeatable runs):
   ```sh
   kind create cluster --name promovolve --config k8s/kind-cluster.yaml
   kubectl config use-context kind-promovolve
   ```
-  This makes 1 control-plane (tainted, doesn't count) + 3 workers. Standalone
-  kind has no cloud LoadBalancer, so reach the services via `port-forward` (see
-  the note in `k8s/kind-cluster.yaml`), not `localhost:<port>`.
+  Standalone kind has no cloud LoadBalancer, so reach the services via
+  `port-forward` (see the note in `k8s/kind-cluster.yaml`), not
+  `localhost:<port>`.
 - **Docker Desktop multi-node:** Settings → Kubernetes → enable the multi-node
-  option and set the node count to **≥3**. Docker Desktop binds the
+  option and set the node count to **≥2**. Docker Desktop binds the
   LoadBalancer services to `localhost`, so `http://localhost:9090 / :8080`
   work as in "Open it" below.
 
 <a id="single-node-fallback"></a>
 ### Single-node fallback
 
-On a single node the default (`api` `replicas: 3` + **required** anti-affinity)
-leaves two api pods `Pending` and the cluster never reaches quorum. To run on
-one node, either set `api-statefulset.yaml` `replicas: 1`, **or** change its
-`podAntiAffinity` from `requiredDuringSchedulingIgnoredDuringExecution` to
-`preferredDuringSchedulingIgnoredDuringExecution` (soft) so all 3 co-locate.
-Note that with one node you lose the HA the 3-pod topology buys — for local
-single-node dev, `scripts/run-dev.sh` (no k8s) is the simpler path.
+Anti-affinity is `preferredDuringSchedulingIgnoredDuringExecution` (soft), so
+both api pods co-locate on a single node with no changes. To run a true
+1-pod cluster instead, set `api-statefulset.yaml` `replicas: 1`, point
+`config.file` at `/conf/application-single.conf`, and set
+`PEKKO_BOOTSTRAP_REQUIRED_CONTACT_POINTS=1` (see the comments in
+`api-statefulset.yaml`). For local single-node dev without k8s at all,
+`scripts/run-dev.sh` is the simpler path.
+
+**The public GKE deployment lives in `k8s-gke/`** — a kustomize overlay over
+this base (GKE Ingress + managed certs, ARM spot node, CI-deployed). See its
+README.
 
 > **Images must be pushed to a registry; the cluster does NOT use your local
 > daemon's images.** Docker Desktop's *multi-node* option is kind-based: the
@@ -190,7 +186,7 @@ This typically reclaims ~10 GB+. Check headroom with
 `docker exec <node> df -h /` (e.g. `desktop-control-plane`). If the DB has
 already crashed on a full disk, run the prune, then it recovers on the kubelet's
 restart backoff (no need to delete the stateful DB pod). You do **not** need to
-clear PVCs / `reset.sh` for this — the data volumes (5Gi DB + 3×2Gi DData) are
+clear PVCs / `reset.sh` for this — the data volumes (5Gi DB + 2×2Gi DData) are
 not the bloat; the node containerd caches are. The durable fix is to give Docker
 Desktop a larger disk (Settings → Resources).
 
@@ -264,12 +260,12 @@ kubectl -n promovolve logs -f statefulset/promovolve-api
 **Reset runtime state — use `k8s/reset.sh`.** Runtime state lives in two PVCs
 that must be wiped *together, in the right order*: the Postgres PVC
 (`data-promovolve-db-0` — campaigns, creatives, sites, logins, durable_state,
-journals) and the DData PVC (`ddata-promovolve-api-0` — ServeIndex,
+journals) and the per-pod DData PVCs (`ddata-promovolve-api-*` — ServeIndex,
 classifications, approvals, floor, **and the remember-entities list**). The
 gotcha: if you wipe Postgres but leave DData (or leave the api running so it
 re-fills remember-entities), cluster sharding re-activates the old entities and
 they re-persist as empty "ghost" campaigns. The script does it safely — scale
-writers to 0 → delete PVC(s) → bring up db, then api, then crawler:
+writers to 0 → delete PVC(s) → bring up db, then api, then restart platform:
 
 ```sh
 k8s/reset.sh                # FULL reset (Postgres + DData); interactive confirm

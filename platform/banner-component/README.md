@@ -6,7 +6,7 @@ Source for `<expandable-magazine-banner>` — the Shadow DOM web component that 
 
 Historically the component lived as a single hand-maintained `expandable-magazine-banner.js` file duplicated across four locations (platform/static embed, crawler JAR classpath, publisher-site-ja copy, compiled target/classes). Each edit had to be propagated manually, and the classpath copy required a Scala rebuild to go live — a footgun that burned an hour the last time we changed it.
 
-This module is the single source of truth. `npm run release` builds a minified IIFE bundle, uploads it to Cloudflare R2 under a content-hashed filename, and rewrites `BANNER_SCRIPT_URL` in `scripts/.env`. Every consumer — publisher ad-tag, dashboard editor, crawler Playwright — fetches from the same URL.
+This module is the single source of truth. `npm run release` builds a minified IIFE bundle, uploads it to Cloudflare R2 under a content-hashed filename, and rewrites `BANNER_SCRIPT_URL` in `scripts/.env`. Every consumer — publisher ad-tag, dashboard editor, LP-analyzer Playwright — fetches from the same URL.
 
 ## Consumers
 
@@ -16,7 +16,7 @@ One artifact, three consumers, one URL:
 |---|---|
 | Publisher ad-tag (`promovolve-ad.js`) | From `/v1/serve` response field `bannerScriptUrl` (set per-request by the API from `banner-script-url` config) |
 | Go dashboard editor (`creative-design.html`) | Template variable `{{.BannerScriptURL}}`, sourced from the `BANNER_SCRIPT_URL` env var on the Go process |
-| Crawler Playwright (`LPAnalyzer.renderBanner`) | `banner-script-url` config value, passed to `page.addScriptTag({ setUrl })` |
+| LP-analyzer Playwright (`LPAnalyzer.renderBanner`, `modules/browser`) | `banner-script-url` config value, passed to `page.addScriptTag({ setUrl })` |
 
 All three point at the same hashed URL on Cloudflare R2. There's no JAR classpath copy anymore; no fanout; no Go `//go:embed` copy. `npm run release` is the only way new bytes reach any consumer.
 
@@ -54,7 +54,7 @@ npm run lint
 
 `publish:r2` reuses the same credentials the JVM's `R2ImageStorage` reads (`R2_ACCOUNT_ID`, `R2_ACCESS_KEY_ID`, `R2_SECRET_ACCESS_KEY`, `R2_BUCKET`), so if the backend can write to R2, so can this. No separate CI pipeline needed — publishes go directly from the dev machine.
 
-Each publish computes a SHA-256 of the bundle bytes, uploads as `js/expandable-magazine-banner.<10-char-hash>.js` with `Cache-Control: public, max-age=31536000, immutable`, and rewrites `BANNER_SCRIPT_URL` in `scripts/.env` to the new URL. Restart the API and the Go dashboard (`scripts/run-dev.sh` + `scripts/run-dashboard.sh`) and every consumer — publisher ad-tag, dashboard editor, crawler Playwright — starts fetching the new bundle on the next request. Because the URL changes with content, there's no stale-cache window: browsers either have the exact bytes (cache hit) or they don't yet have them (cache miss, new fetch).
+Each publish computes a SHA-256 of the bundle bytes, uploads as `js/expandable-magazine-banner.<10-char-hash>.js` with `Cache-Control: public, max-age=31536000, immutable`, and rewrites `BANNER_SCRIPT_URL` in `scripts/.env` to the new URL. Restart the API and the Go dashboard (`scripts/run-dev.sh` + `scripts/run-dashboard.sh`) and every consumer — publisher ad-tag, dashboard editor, LP-analyzer Playwright — starts fetching the new bundle on the next request. Because the URL changes with content, there's no stale-cache window: browsers either have the exact bytes (cache hit) or they don't yet have them (cache miss, new fetch).
 
 ## No framework
 
@@ -62,7 +62,7 @@ Deliberately vanilla TypeScript — no React, no Vue, no Lit. The component runs
 
 ## How the component reaches consumers
 
-Three consumers load the bundle today: the **publisher page** (via the ad-tag), the **Go dashboard** (via a templated URL), and the **crawler's Playwright browser** (for generating PNG previews at creative-approval time). The API is currently the single origin for all three — served from its classpath.
+Three consumers load the bundle today: the **publisher page** (via the ad-tag), the **Go dashboard** (via a templated URL), and the **LP analyzer's Playwright browser** (`modules/browser` — for generating PNG previews at creative-approval time). Cloudflare R2 is the single origin for all three — the same content-hashed URL everywhere.
 
 ### 1. Publisher page load
 
@@ -108,9 +108,9 @@ sequenceDiagram
     B->>P: navigate away to {landingUrl}
 ```
 
-### 2. Crawler preview generation
+### 2. LP-analyzer preview generation
 
-Separate lifecycle: triggered **once per creative approval**, not per page view. The crawler renders the banner in a real headless Chromium, screenshots it, and uploads the PNG to R2 as a fallback image (used when rich rendering is disabled or unavailable).
+Separate lifecycle: triggered **once per creative approval**, not per page view. The LP analyzer (`LPAnalyzer` in `modules/browser` — the module once named `crawler`, renamed when publisher-site crawling was removed and LP analysis became its only Playwright use) renders the banner in a real headless Chromium, screenshots it, and uploads the PNG to R2 as a fallback image (used when rich rendering is disabled or unavailable).
 
 ```mermaid
 sequenceDiagram
@@ -118,7 +118,7 @@ sequenceDiagram
     participant D as Dashboard<br/>(Go)
     participant A as API<br/>(Scala)
     participant RCP as CreativeProcessor<br/>(Pekko actor, api module)
-    participant LP as LPAnalyzer<br/>(crawler module, same JVM)
+    participant LP as LPAnalyzer<br/>(browser module, same JVM)
     participant PW as Playwright<br/>(headless Chromium, subprocess)
     participant R2 as Cloudflare R2
 
@@ -146,14 +146,16 @@ sequenceDiagram
     RCP->>A: update creative.s3Key in DB
 ```
 
-The crawler is an in-process consumer; there's no HTTP hop between `CreativeProcessor` and `LPAnalyzer`. The only network traffic that matters here is the upload to R2. Playwright itself is a subprocess — its browser reads the JS from a local temp file, not over HTTP.
+The LP analyzer is an in-process consumer; there's no HTTP hop between `CreativeProcessor` and `LPAnalyzer`. Playwright itself is a subprocess, but its Chromium fetches the banner JS **over HTTP** from `bannerScriptUrl` via `addScriptTag(setUrl)` — the same content-hashed R2 URL every other consumer uses, exactly as the diagram above shows. (The temp files `LPAnalyzer` does write are its own init scripts — `stealth.js` and `lp-analyzer.js` — which Playwright's `addInitScript` needs as `Path`s; the banner bundle is never read from disk.)
 
-### Rough edges
+### Resolved rough edges (kept for history)
 
-- **Step 3 of the publisher flow is on the API critical path.** Every first-time page view spends one round-trip on a ~14 KB static asset delivered from the Scala origin. A CDN POP would serve it from a geo-edge.
-- **`?v=Date.now()` cache-bust** defeats the `max-age=86400` header every time. Content-hashed filenames (`expandable-magazine-banner.[hash].js`) let us replace that with `max-age=31536000, immutable`.
-- **Component source lives on the `crawler` module's classpath**, which is semantic drift — the crawler is named for LP scraping, not ad delivery. The resource ended up there only because `crawler` is the lowest common ancestor in the SBT dependency graph (`api → core → crawler`), so it's the only module visible to both readers. A CDN URL removes the classpath dependency entirely and the naming question disappears.
-- **Crawler writes the JS to a temp file** on every `LPAnalyzer` construction. Switching `addScriptTag` from `setPath` to `setUrl=${BANNER_SCRIPT_URL}` eliminates that — Playwright fetches the same URL publishers and the dashboard use, which happens to be the CDN in prod.
+Earlier revisions of this README listed four rough edges; all are resolved:
+
+- ~~Banner served from the Scala origin on the critical path~~ — the bundle is edge-cached on Cloudflare R2.
+- ~~`?v=Date.now()` cache-bust~~ — content-hashed filenames with `max-age=31536000, immutable` (Phase 3c).
+- ~~Component source on the `crawler` module's classpath~~ — the classpath copy was deleted (Phase 3d), and the module itself has since been renamed `modules/browser`.
+- ~~JS written to a temp file per `LPAnalyzer` construction~~ — `addScriptTag` uses `setUrl=${bannerScriptUrl}`; Playwright fetches the same URL publishers and the dashboard use.
 
 ## Future work
 
@@ -163,4 +165,4 @@ The crawler is an in-process consumer; there's no HTTP hop between `CreativeProc
 - ~~**Phase 3b**: R2 upload via `npm run publish:r2` — Node script uses `@aws-sdk/client-s3` with the same credentials the JVM uses.~~ **Done.**
 - ~~**Phase 3c — content-hashed filenames**: publish script computes a SHA-256 hash and uploads as `js/expandable-magazine-banner.<hash>.js` with `Cache-Control: public, max-age=31536000, immutable`. Updates `scripts/.env` in place.~~ **Done.**
 - ~~**Phase 3d — delete classpath path**: removed `modules/crawler/src/main/resources/expandable-magazine-banner.js`, `EndpointRoutes.componentJsRoute`, and `scripts/fanout.mjs`. Banner deploys fully decouple from Scala deploys.~~ **Done.**
-- **Failure mode** if CDN is briefly unreachable during a crawler screenshot: the approval retries. Crawler is not on the serving hot path, so the tradeoff is acceptable.
+- **Failure mode** if CDN is briefly unreachable during an LP-analyzer screenshot: the approval retries. The LP analyzer is not on the serving hot path, so the tradeoff is acceptable.

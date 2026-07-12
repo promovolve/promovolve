@@ -100,7 +100,7 @@ flowchart TB
 
     subgraph AutoGen["generation"]
         AutoLayout["auto-layout.ts<br/>fanout + regenerate"]
-        Presets["presets.ts<br/>IAB templates"]
+        Presets["presets.ts<br/>per-mode layout presets"]
         GenAPI["api/generate-layout.ts<br/>Gemini fetch"]
     end
 
@@ -140,23 +140,37 @@ flowchart TB
 
 ### Page × mode
 
-A creative is a list of `Page`s. Each page has one **master layout**
-(the 16:9 `page.layout`) plus optional **sized-banner overrides**
-keyed by IAB size (`page.banners[sizeKey]`). Same page, eleven
-possible layouts:
+A creative is a list of `Page`s. Each page has the **portrait reader
+layout** (`page.banners["mobile-expanded"]` — the 9:16 expanded
+surface that ships on every device, full-bleed on mobile, floating
+sheet on PC), a set of **collapsed aspect-bucket layouts** keyed by
+canonical pixel name (`page.banners[sizeKey]`), and a **tabless 16:9
+wide layout** (`page.layout`) that auto-layout keeps generating
+invisibly. Six editable modes (`MODES` in `modes.ts`) plus the
+generated wide artifact (`WIDE_MASTER`):
 
 ```
 Page {
   headline, sub, body, img, ctaUrl, isCTA, …     ← content fields
-  layout: LayoutItem[]                            ← Expanded PC (16:9)
+  layout: LayoutItem[]                            ← 16:9 wide — GENERATED, no tab (WIDE_MASTER)
   banners: {
-    "mobile-expanded": LayoutItem[],              ← Expanded Mobile (9:16)
-    "300x250":         LayoutItem[],              ← IAB sizes
+    "mobile-expanded": LayoutItem[],              ← Expanded reader (9:16) — ships everywhere
+    "300x250":         LayoutItem[],              ← collapsed aspect buckets
+    "970x250":         LayoutItem[],
     "728x90":          LayoutItem[],
-    …
+    "320x100":         LayoutItem[],
+    "300x600":         LayoutItem[],
   }
 }
 ```
+
+`page.layout` stopped being an authoring surface when delivery moved
+to rendering the portrait reader on every device (see banner-component
+`pickExpandedLayout`), but it persists as a **delivery artifact** —
+wide collapsed slots render it, creatives published before the
+portrait fanout fall back to it in the reader, and `masterColor`
+anchors collapsed-bucket colours on it. Never delete it; see the
+header comment in `modes.ts` for the full rationale.
 
 ### LayoutItem
 
@@ -268,30 +282,38 @@ be paired with `store.replace`, never `store.commit`.
 ### 4.5 Three layout sources: presets, templates, Gemini
 
 At boot, every empty `(page, mode)` cell is filled by
-`installAutoLayoutGenerator`. There are three sources, picked in this
-order:
+`installAutoLayoutGenerator` — the tabless `WIDE_MASTER` fires FIRST
+per page (so `page.layout` holds its resolved fonts before the bucket
+presets inherit them), then the `MODES` cells in order, portrait
+reader first. Three sources, picked in this order per cell:
 
-1. **Hand-crafted presets** (`presets.ts`) — IAB sized slots
-   (300×250, 728×90, …). Deterministic, read the page's content fields
-   (`headline`, `sub`, `img`), always produce a readable result.
-2. **Curated layout templates** (`layout-templates.ts`,
+1. **Curated layout templates** (`layout-templates.ts`,
    `template-apply.ts`) — when the LP-to-Creative flow's first step
-   has a `templateId` picked, expanded PC / Mobile use the template's
-   `items[]` verbatim instead of calling Gemini. The brand kit is
-   layered on top (§4.11).
-3. **Gemini auto-layout** (`api/generate-layout.ts`) — fallback for
-   expanded PC / Mobile when no template is picked. The server resolves
-   `brandKitJson` and `templateId` into the prompt before calling the
-   model.
+   has a `templateId` picked, the two expanded surfaces (the portrait
+   reader tab and the invisible 16:9 wide master) use the template's
+   `items[]` (portrait uses `mobileItems`) verbatim. The brand kit is
+   layered on top (§4.11). Deterministic, no Gemini call.
+2. **Hand-crafted presets** (`presets.ts`) — everything else, and the
+   expanded surfaces when no template was picked. Every mode key has a
+   preset. Deterministic, reads the page's content fields (`headline`,
+   `sub`, `img`), always produces a readable result.
+3. **Gemini auto-layout** (`api/generate-layout.ts`) — fallback for a
+   mode with neither template nor preset. Currently unreachable (every
+   mode has a preset); kept for future templates that exclude
+   themselves from a particular mode.
 
-**Why three:** LLMs don't nail compositions at tiny or odd aspects.
-728×90 is a wafer; the model will happily hand you a 14pt headline in a
-three-column grid — so IAB sizes never go to Gemini. Expanded variants
-(16:9, 9:16) have room for genuine design choices, but authors often
-want a known starting point (templates) rather than rolling the dice
-on the LLM. Templates also feed Gemini *prompts* via
-`slotsAsPromptLine`: the `slots[]` view (role + region, aspect-agnostic)
-is what the LLM sees, so a single template generalises across sizes.
+**Why deterministic layout, LLM copy:** LLMs don't nail compositions at
+tiny or odd aspects — 728×90 is a wafer, and portrait canvases coaxed
+free-styling models into landscape 50/50 splits even with hard hints.
+So layout containers stay template/preset-driven, and Gemini's job on
+"Regenerate" for the portrait reader is **copy rewriting**
+(`api/rewrite-copy.ts` anchored on `lpTextSnapshot`), after which the
+deterministic layout is re-applied — templates carry `field:`
+references so the new copy lands in the right slots. On bucket tabs,
+Regenerate re-applies the preset. Templates also feed Gemini *prompts*
+via `slotsAsPromptLine`: the `slots[]` view (role + region,
+aspect-agnostic) is what the LLM sees, so a single template generalises
+across sizes.
 
 **Why two views per template (`items[]` and `slots[]`):** the picker
 needs concrete coordinates to render a preview and apply on click; the
@@ -299,25 +321,33 @@ LLM prompt needs aspect-agnostic composition intent. Keeping them
 separate lets each evolve without dragging the other along — the
 items[] is one realised example of the slots[] for a typical aspect.
 
-**Consequence:** "Regenerate this size" is currently a visual no-op
-on IAB because the preset is idempotent. The fix is to split the
-two canvas-header buttons so "Regenerate" always calls Gemini and
-"Reset" always calls the preset (queued but not wired).
+**Consequence:** "Regenerate this size" on a bucket tab re-applies the
+deterministic preset — a visual no-op when nothing changed, by design
+(predictable layout beats dice-rolling at wafer aspects). On the
+portrait reader it's meaningful: fresh copy, same composition. Copy is
+a creative-level decision, so the rewritten fields flow into every
+other size automatically.
 
 ### 4.6 Per-mode layouts, not one responsive layout
 
-`page.layout` (expanded) and `page.banners[sizeKey]` (sized) are
-independent arrays. Editing the 300×250 doesn't touch the 16:9.
+The portrait reader (`page.banners["mobile-expanded"]`), each aspect
+bucket (`page.banners[sizeKey]`), and the generated wide master
+(`page.layout`) are independent arrays. Editing the 300×250 doesn't
+touch the reader.
 
 **Why:** responsive layout for ad units is a losing battle. A
-composition that works at 1600×900 (headline left, photo right)
-doesn't translate to 320×50 (headline alone, tiny). Letting each
-size have its own hand-tuned layout is simpler than a constraints
-engine that'd still need manual overrides for edge cases.
+composition that works at 540×960 (vertical magazine stack) doesn't
+translate to 728×90 (headline alone, tiny). Letting each shape have
+its own hand-tuned layout is simpler than a constraints engine that'd
+still need manual overrides for edge cases. Buckets, not the full IAB
+size list: delivery picks the authored layout whose aspect is NEAREST
+the slot's and renders it fluidly, so four collapsed shapes plus a
+strip cover the whole IAB zoo (see `modes.ts` header).
 
-**Cost:** more storage (11× layouts per page), more fanout work on
-first save, and the "authored vs auto-layout vs empty" fanout
-status pill to track it all (`state/fanout.ts`).
+**Cost:** more storage (seven layout arrays per page — six editable
+modes plus the generated wide master), more fanout work on first
+save, and the "authored vs auto-layout vs empty" fanout status pill
+to track it all (`state/fanout.ts`).
 
 ### 4.7 Hidden items keep their array slot
 
@@ -540,9 +570,13 @@ a whole.
 
 ## 7. Known load-bearing gotchas
 
-- `MODES` in `src/modes.ts` is ordered — reading position matters for
-  size-matrix grouping (Master layouts first, IAB second). Changes
-  to order ripple into the size-matrix divider placement.
+- `MODES` in `src/modes.ts` is ordered, portrait-first — the reader
+  tab (the surface that actually ships expanded) opens first, and the
+  size-matrix renders the reader cell, a divider, then the aspect
+  buckets. Order matters twice: tab order AND fanout order — the
+  tabless `WIDE_MASTER` fires before any `MODES` cell so `page.layout`
+  holds resolved fonts before bucket presets inherit them
+  (`presets.ts` `expandedFont`).
 - `Store.seed()` promotes the current state to history baseline and
   clears undo. It's called once, after the synchronous preset
   fanout. Calling it at the wrong time will erase the user's history.

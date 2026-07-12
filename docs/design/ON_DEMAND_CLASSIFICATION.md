@@ -1,7 +1,10 @@
 # On-Demand Page Classification (Crawl-Free Classification)
 
-> **Status:** Design / not yet implemented. This document captures the decisions
-> from the design discussion so implementation can follow in phases.
+> **Status:** BUILT (Phase 1 live since 2026-06-23). This document captures the
+> decisions from the design discussion; implementation followed in phases.
+> 2026-07-12 addition: Reevaluate-miss per-URL recovery — the auctioneer asks
+> `SiteEntity.GetPageClassification` when its in-memory page cache lost the
+> announce (commit 35e5467), closing the lost-announce gap.
 >
 > **Related:** [`CONTENT_CLASSIFICATION.md`](CONTENT_CLASSIFICATION.md) (the
 > classifier itself), [`PERIODIC_AUCTION_DESIGN.md`](PERIODIC_AUCTION_DESIGN.md)
@@ -9,6 +12,10 @@
 > (`modules/browser/`).
 
 ## Problem
+
+> **Historical.** The crawl described below no longer exists — the dedicated
+> crawler tier was removed 2026-07-02, and on-demand classification (this
+> design) is what runs today. Kept as the motivation for the design.
 
 Today, page text for classification is obtained by **crawling**: a Playwright
 crawl walks a site from its `seedUrl` via recursive link-following (BFS,

@@ -23,7 +23,7 @@ decline to serve. No identifier is read, stored, or required to do so.
 │                                                                  │
 │  2. JS executes, calls promovolve directly:                      │
 │                                                                  │
-│     fetch('https://ads.promovolve.com/v1/serve?...')             │
+│     POST https://ads.promovolve.com/v1/serve/batch               │
 │           │                                                      │
 │           │  Sec-GPC: 1  (browser adds automatically)            │
 │           ▼                                                      │
@@ -90,32 +90,47 @@ GPC is legally recognized as a valid opt-out signal in several jurisdictions:
 
 ## Implementation
 
-The GPC check is implemented in `ServeRoutes.scala`:
+The GPC check guards the serve path, `POST /v1/serve/batch` — one request per
+page load, all slots. It is implemented in `ServeRoutes.scala`:
 
 ```scala
 val routes: Route =
-  pathPrefix("v1" / "serve") {
-    get {
-      optionalHeaderValueByName("Sec-GPC") {
-        case Some("1") =>
-          // User has opted out via Global Privacy Control
-          complete(StatusCodes.NoContent)
-        case _ =>
-          // Normal ad serving flow
-          parameters("pub", "url", "slot") { ... }
+  concat(
+    pathPrefix("v1" / "serve") {
+      // POST /v1/serve/batch — one request per page load, all slots.
+      path("batch") {
+        post {
+          optionalHeaderValueByName("Sec-GPC") {
+            case Some("1") => complete(StatusCodes.NoContent)
+            case _         =>
+              entity(as[BatchServeReq]) { req =>
+                // Normal ad serving flow (joint auction via AdServer.BatchSelect)
+                ...
+              }
+          }
+        }
       }
-    }
-  }
+    },
+    ...
+  )
 ```
+
+The batch endpoint is the **only** serve route: the legacy single-slot
+`GET /v1/serve` was removed when serving consolidated on the batch path (even
+admin tooling posts a one-slot batch request).
 
 ## Testing
 
 ```bash
 # With GPC header (should return 204)
-curl -H "Sec-GPC: 1" "http://localhost:8080/v1/serve?pub=test&url=http://example.com&slot=top"
+curl -X POST -H "Sec-GPC: 1" -H "Content-Type: application/json" \
+  -d '{"pub":"test","url":"http://example.com","imp":[{"id":"top","w":728,"h":90}]}' \
+  "http://localhost:8080/v1/serve/batch"
 
 # Without GPC header (normal ad serving)
-curl "http://localhost:8080/v1/serve?pub=test&url=http://example.com&slot=top"
+curl -X POST -H "Content-Type: application/json" \
+  -d '{"pub":"test","url":"http://example.com","imp":[{"id":"top","w":728,"h":90}]}' \
+  "http://localhost:8080/v1/serve/batch"
 ```
 
 Also testable in Firefox (enable GPC in Settings → Privacy & Security) or Brave

@@ -26,7 +26,7 @@ creative approval workflows, distributed caching, and serve-time selection.
 │                                                                              │
 │   ┌──────────────────┐     ┌──────────────────┐     ┌──────────────────┐   │
 │   │ PublisherEntity  │────►│   SiteEntity     │────►│  AuctioneerEntity │   │
-│   │  (Account)       │     │   (Crawler)      │     │  (Auction)        │   │
+│   │  (Account)       │     │ (Classification) │     │  (Auction)        │   │
 │   └──────────────────┘     └──────────────────┘     └────────┬─────────┘   │
 │           │                                                   │              │
 │           │ DData                                             │              │
@@ -53,7 +53,7 @@ creative approval workflows, distributed caching, and serve-time selection.
 | Component           | Responsibility                                                |
 |---------------------|---------------------------------------------------------------|
 | **PublisherEntity** | Publisher account management, domain blocklist, site registry |
-| **SiteEntity**      | Site configuration, scheduled crawling, page classification   |
+| **SiteEntity**      | Site configuration, on-demand page classification (single-flighted Gemini) |
 | **AdServer**        | Creative approval workflow, serve-time MAB selection          |
 | **ServeIndexDData** | Distributed cache for approved ads (hot path)                 |
 | **CreativeStore**   | Ephemeral queue for pending creative approvals                |
@@ -67,7 +67,7 @@ Publisher Account (PublisherEntity)
     │
     ├── Site 1 (SiteEntity)
     │       │
-    │       ├── Crawler (scheduled)
+    │       ├── On-demand classification (ad tag → POST /v1/classify-page → ClassifyUrl)
     │       │       └── PageCategoriesClassified → AuctioneerEntity
     │       │
     │       └── AdServer (sharded by siteId)
@@ -127,7 +127,9 @@ replicator ! Replicator.Update(
 **Sharding Key:** `siteId`
 **Persistence:** DurableStateBehavior (PostgreSQL)
 
-Manages individual site configuration and scheduled crawling.
+Manages individual site configuration and **on-demand page classification**. Site crawling was removed
+(2026-07-02): there is no crawler and no scheduled classification — pages are classified when a real visitor
+hits them.
 
 ```scala
 State:
@@ -135,14 +137,17 @@ State:
 ├── publisherId: Option[PublisherId]
 └── config: Option[SiteConfig]
     ├── domain: String
-    ├── seedUrl: String
-    ├── cronSchedule: String          // Quartz cron expression
-    ├── maxDepth: Int
-    ├── concurrency: Int
-    ├── hostRegex: String
-    ├── targetElements: List[String]
+    ├── seedUrl: String               // INERT crawl-era vestige
+    ├── cronSchedule: String          // INERT crawl-era vestige (no Quartz scheduler runs)
+    ├── maxDepth: Int                 // INERT crawl-era vestige
+    ├── concurrency: Int              // INERT crawl-era vestige
+    ├── hostRegex: String             // INERT crawl-era vestige
+    ├── targetElements: List[String]  // INERT crawl-era vestige
     └── taxonomyIds: Set[String]      // IAB taxonomy category IDs
 ```
+
+The crawl-related `SiteConfig` fields are retained only for persisted-state compatibility; nothing schedules
+or spawns a crawler anymore.
 
 **Lifecycle:**
 
@@ -150,38 +155,39 @@ State:
 Register(publisherId) → Initialize(config) → [Running] → Shutdown
          │                     │
          │                     └── Sets up:
-         │                         • Quartz scheduler for crawls
          │                         • IAB taxonomy assistant
          │                         • Category registration
          │
          └── Persists publisherId only (minimal state)
 ```
 
-**Crawl Flow:**
+**On-Demand Classification Flow:**
 
 ```
-Quartz Timer
+Ad tag (browser) — cold serve miss on a page
     │
     ▼
-StartCrawling(crawlerConfig)
+POST /v1/classify-page  { pub, url, text, section, slots }   → 202 Accepted
+    │                     (fast ack; never blocks on Gemini)
+    ▼
+SiteEntity ! ClassifyUrl(url, text, section, slots, replyTo)
+    │
+    ├── Single-flight per URL: concurrent requests for the same page
+    │   coalesce (ClassifyAck accepted=false, reason=in_flight);
+    │   site not initialized → reason=not_ready
     │
     ▼
-Crawler actor spawned
+Gemini taxonomy analysis (full IAB taxonomy 3.0, off the actor thread)
     │
-    ├── Watches: CrawlerTerminated
+    ├── Classification persisted (survives restart; replayed to the
+    │   auctioneer via RestoreClassifications)
     │
-    └── Receives: PageContent(url, text)
-            │
-            ▼
-        IABTaxonomy.analyzeTaxonomy(url, text)
-            │
-            ▼
-        ContentAnalyzed(url, text, selections)
-            │
-            ▼
-        AuctioneerEntity ! PageCategoriesClassified(
-            url, categoryScores, slots
-        )
+    ├── Categories matched:
+    │       AuctioneerEntity ! PageCategoriesClassified(url, categoryScores, slots, ts)
+    │
+    └── Honestly no category match:
+            AuctioneerEntity ! FillerAuctionRequested(url, slots, ts)
+            (only bidOnUnmatchedContext campaigns are invited)
 ```
 
 ---
@@ -209,7 +215,7 @@ Dependencies:
 | `CandidatesCollected`            | Auction results from AuctioneerEntity         |
 | `Approve(url, slot, creativeId)` | Publisher approves a creative                 |
 | `Reject(url, slot, creativeId)`  | Publisher rejects; promote next or re-auction |
-| `Select(url, slotId)`            | Serve-time selection request                  |
+| `BatchSelect(url, slots, ...)`   | Serve-time selection: one request per page load, all slots (the single-slot `Select` command was removed when serve consolidated on `/v1/serve/batch`) |
 | `ListPending`                    | List all pending creatives for dashboard      |
 
 **Domain Blocklist Integration:**
@@ -417,16 +423,18 @@ MaxKeysRemovePerRun = 500        // Max removals per bucket per run
 
 ### Algorithm Overview
 
-AdServer uses Thompson Sampling for serve-time creative selection:
+AdServer uses Thompson Sampling over **real engagement posteriors** for serve-time creative selection
+(`ThompsonSampling.scoreCandidate`):
 
 ```scala
 // For each candidate:
-1. Normalize CPM to pseudo-CTR in [0.1, 0.9] range
-2. Compute Beta parameters:
-   - alpha = 1.0 + normalizedCpm × 10.0   // [2, 10]
-   - beta  = 1.0 + (1 - normalizedCpm) × 10.0
-3. Sample from Beta(alpha, beta) using Gamma trick
-4. Select candidate with highest sample
+1. Sample CTR       from Beta(clicks + 1, impressions - clicks + 1)
+2. Sample fold-rate from Beta(folds + 1,  impressions - folds + 1)
+   // cold (0 imps): CTR ← categoryScore prior ± 0.15 jitter; fold ← Beta(1,3)
+3. engagement = sampledCTR + 2.0 × foldRate + newcomerBonus(imps)
+4. score      = engagement × CPM^α        // α = publisher bidWeight
+5. Winner = argmax(score); clearing price from posterior MEANS
+   ("sample for allocation, price on means" — see docs/design/DELIVERY_ALGORITHMS.md §5)
 
 // Gamma trick for Beta sampling:
 Beta(α, β) = Gamma(α, 1) / (Gamma(α, 1) + Gamma(β, 1))
@@ -434,21 +442,12 @@ Beta(α, β) = Gamma(α, 1) / (Gamma(α, 1) + Gamma(β, 1))
 
 ### Properties
 
-| Property             | Effect                                                                   |
-|----------------------|--------------------------------------------------------------------------|
-| **Higher CPM**       | Higher pseudo-CTR → higher alpha → higher samples (more likely selected) |
-| **Variance**         | Even lower-CPM candidates occasionally win (exploration)                 |
-| **Single candidate** | Returned directly (no sampling needed)                                   |
-
-### CPM to Pseudo-CTR Mapping
-
-```
-CPM Range        Normalized     Alpha    Beta
-─────────────────────────────────────────────
-Min CPM          0.1            2.0      10.0
-Mid CPM          0.5            6.0      6.0
-Max CPM          0.9            10.0     2.0
-```
+| Property             | Effect                                                                    |
+|----------------------|---------------------------------------------------------------------------|
+| **Higher CPM**       | Larger `CPM^α` factor → more likely selected (α trades quality vs revenue) |
+| **Variance**         | Uncertain (under-sampled) creatives occasionally win (exploration)        |
+| **Newcomer bonus**   | +0.5 engagement at 0 imps, decaying to 0 over 50 imps                     |
+| **Pricing**          | Quality-adjusted second price vs the same-category runner-up, clamped `[floor, bid]`; floor when no runner-up |
 
 ### Content Recency Filtering
 
@@ -562,12 +561,12 @@ AdServer ! Approve(url, slot, creativeId)
 ### Serve Request Flow
 
 ```
-GET /serve?site=X&url=Y&slot=Z
+POST /v1/serve/batch  { pub, url, imp: [slots], pins? }
        │
        ▼
-AdServer ! Select(url, slot, recencyWindow, replyTo)
+AdServer ! BatchSelect(url, slots, recencyWindow, replyTo, excludedCreatives, excludedCampaigns)
        │
-       ├── ServeIndexDData ! Get(key, adapter)
+       ├── ServeIndexDData ! Get (all slot keys for the page)
        │
        │   ┌── async ──┐
        │   │           │
@@ -577,14 +576,19 @@ AdServer ! Select(url, slot, recencyWindow, replyTo)
        └───┼───────────┘
            │
            ▼
-SelectViewLoaded(viewOpt, recencyWindow, replyTo)
+BatchSelectViewLoaded(views, recencyWindow, replyTo)
        │
-       ├── Filter by content recency
+       ├── Filter by content recency (miss/stale → MarkClassified check;
+       │   cold page → ad tag posts /v1/classify-page)
        │
-       ├── Thompson Sampling selection
+       ├── Thompson Sampling scoring + greedy per-slot assignment
+       │   (batchAssign: page-level creative/campaign dedup, floors,
+       │    quality-adjusted second-price clearing)
        │
-       └── replyTo ! Selected(winner)
+       └── replyTo ! BatchSelected(outcomes)
 ```
+
+There is no single-slot `GET /serve` endpoint anymore — admin tooling posts a one-slot batch request instead.
 
 ---
 
@@ -623,12 +627,12 @@ MaxKeysRemovePerRun = 500         // Max removals per sweep per bucket
 SiteConfig(
   publisherId = publisherId,
   domain = "example.com",
-  seedUrl = "https://example.com/",
-  cronSchedule = "0 0 2 * * ?",   // 2am daily
-  maxDepth = 3,
-  concurrency = 4,
-  hostRegex = ".*\\.example\\.com",
-  targetElements = List("article", "main"),
+  seedUrl = "https://example.com/",   // inert crawl-era vestige
+  cronSchedule = "0 0 2 * * ?",       // inert crawl-era vestige (nothing schedules crawls)
+  maxDepth = 3,                       // inert crawl-era vestige
+  concurrency = 4,                    // inert crawl-era vestige
+  hostRegex = ".*\\.example\\.com",   // inert crawl-era vestige
+  targetElements = List("article", "main"),  // inert crawl-era vestige
   taxonomyIds = Set("IAB1", "IAB2")  // Target categories
 )
 ```
@@ -642,7 +646,7 @@ The publisher package provides:
 | Capability             | Implementation                              |
 |------------------------|---------------------------------------------|
 | **Account management** | PublisherEntity with domain blocklist DData |
-| **Site crawling**      | SiteEntity with Quartz scheduler            |
+| **Page classification**| On-demand: ad tag → `/v1/classify-page` → SiteEntity single-flight → Gemini |
 | **Approval workflow**  | AdServer + CreativeStore queue              |
 | **Distributed cache**  | ServeIndexDData (bucketed LWWMap)           |
 | **Safe takedown**      | WriteMajority removes with retry            |

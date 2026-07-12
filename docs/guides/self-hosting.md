@@ -134,8 +134,10 @@ Topology notes:
   over a full re-apply.
 
 Route your ads-API and dashboard domains to the `promovolve-api` and
-`promovolve-platform` services (ingress or a Cloudflare tunnel both work —
-the reference deployment uses a tunnel).
+`promovolve-platform` services. The reference deployment uses a GKE Ingress
+with Google-managed certificates (`k8s-gke/` — a kustomize overlay over
+`k8s/`); a Cloudflare tunnel remains a fine option for exposing a local
+cluster.
 
 ## First run — the /setup wizard
 

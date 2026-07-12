@@ -518,8 +518,8 @@ Beta posterior, sampled separately and combined linearly before the CPM
 weighting.
 
 ```
-For each warm creative c with:
-  n_c = impressions (window of last 1000)
+For each warm creative c with (60-minute sliding window, minute-bucketed):
+  n_c = impressions
   k_c = clicks
   f_c = folds
 
@@ -558,145 +558,88 @@ Selection:
 > `θ × log(1 + CPM)` form. The CPM exponent α is the single publisher-facing
 > knob that trades quality (low α) against revenue (high α).
 
-### Selection Decision Tree
+### Selection: Score Once, Greedy Argmax
 
-`select()` short-circuits through a series of phases in priority order. Only
-if none of the earlier phases fire does it reach the Thompson exploitation
-loop. Each phase tags the result with a `SelectionReason` that downstream
-pricing uses.
+There is no phased selection machine. The old `select()` decision tree
+(Solo / ColdStart / Warmup / ε-greedy Exploration / ImpressionShare /
+Exploitation `SelectionReason`s) **no longer exists**. Selection is uniform:
 
-```
-┌─────────────────────────────────────────────────────────────────────────────┐
-│                      SELECTION DECISION TREE                                │
-├─────────────────────────────────────────────────────────────────────────────┤
-│                                                                             │
-│  0. SOLO: only 1 (valid) candidate?       → reason = Solo                   │
-│                                                                             │
-│  1. ALL candidates cold (0 imps)?         → reason = ColdStart              │
-│        score = (categoryScore ± 0.1 noise) × CPM^α                          │
-│        argmax (categoryScore-weighted, NOT uniform random)                  │
-│                                                                             │
-│  2. ALL candidates under WarmupImps (10)? → reason = Warmup                 │
-│        serve the least-explored (min impressions) — round robin            │
-│                                                                             │
-│  3. SOME cold AND random() < 0.30?        → reason = Exploration            │
-│        ε-greedy: pick a random cold candidate                              │
-│                                                                             │
-│  4. IMPRESSION SHARE GUARANTEE fires?     → reason = ImpressionShare        │
-│        a campaign is below its dynamic fair share → force-serve it         │
-│        (see "Impression Share Guarantee" below)                            │
-│                                                                             │
-│  5. OTHERWISE                             → reason = Exploitation           │
-│        full dual-signal Thompson Sampling, argmax(score)                   │
-│                                                                             │
-└─────────────────────────────────────────────────────────────────────────────┘
-```
-
-**Cold-start sampling detail:** A cold creative (0 impressions) has no click
-history, so its CTR draw uses the page-classification `categoryScore` as a
-prior with `±0.15` uniform jitter. Its fold-rate has no comparable prior, so
-it is sampled from `Beta(1,1)` (uniform) for proper Thompson exploration on
-the fold dimension — without this, a cold creative's fold component would be
-stuck at 0 and it could never out-compete a warm fold-rich creative.
-
-### Impression Share Guarantee
-
-After the cold-start / warmup / ε-greedy phases, before exploitation, the
-selector enforces a minimum exposure floor per campaign so a single high-score
-campaign cannot fully starve the others.
-
-```
-Fires only when:  totalImps > WarmupImpressions (10)  AND  #campaigns > 1
-
-Dynamic fair-share threshold (per campaign):
-  fairShare = MinImpressionShareFactor / numCampaigns
-            = 0.50 / numCampaigns       // half the natural 1/N fair share
-
-A campaign is "starved" if:
-  campaignImps / totalImps < fairShare
-
-If any starved campaign exists:
-  worst = starved campaign with the fewest impressions
-  winner = highest-CPM candidate of `worst`     → reason = ImpressionShare
-```
-
-> The factor is `0.50/N`, NOT a fixed 15%. With 10 campaigns the threshold is
-> 5% (half of the natural 10% fair share), which keeps the guarantee from
-> firing constantly in dense markets.
-
-### Algorithm
+1. **`ThompsonSampling.scoreCandidate`** scores every candidate once —
+   the same function for cold and warm creatives. Exploration is not a
+   separate phase; it emerges from the Beta sampling variance plus the
+   decaying `newcomerBonus`.
+2. **`AdServer.batchAssign`** (the batch-serve path) sorts the page's
+   slots by rendered pixel area descending (premium slot picks first),
+   then greedy-argmaxes the sampled score per slot, hard-excluding
+   creatives and campaigns already assigned on this page.
+3. **`AdServer.pickBestForSlot`** is the single-slot variant shared by
+   the budget-reservation retry loop — same floor + dedup + argmax logic.
 
 ```
 ┌─────────────────────────────────────────────────────────────────────────────┐
-│                         THOMPSON SAMPLING                                   │
+│                    SCORING + BATCH ASSIGNMENT                               │
 ├─────────────────────────────────────────────────────────────────────────────┤
 │                                                                             │
 │  Constants:                                                                 │
-│    EXPLORATION_RATE = 0.30          // ε for epsilon-greedy                 │
-│    WARMUP_IMPRESSIONS = 10          // Minimum before "warm"                │
 │    FOLD_WEIGHT = 2.0                // fold-rate weight in engagement       │
 │    NEWCOMER_BOOST = 0.5             // additive boost at 0 imps             │
-│    NEWCOMER_DECAY_IMPRESSIONS = 50  // boost decays to 0 here              │
-│    MIN_IMPRESSION_SHARE_FACTOR = 0.50  // → fairShare = 0.50/numCampaigns   │
+│    NEWCOMER_DECAY_IMPRESSIONS = 50  // boost decays to 0 here               │
+│    COLD_FOLD_PRIOR = Beta(1, 3)     // cold fold-rate prior, mean 0.25      │
 │                                                                             │
 ├─────────────────────────────────────────────────────────────────────────────┤
 │                                                                             │
-│  function select(candidates, creativeStats, rng, alpha):                    │
+│  function scoreCandidate(candidate, stats, rng, alpha):                     │
 │    │                                                                        │
-│    ├─► // Filter invalid CPMs                                               │
-│    │   validCandidates = candidates.filter(c => c.cpm > 0)                  │
-│    │   if validCandidates.size ≤ 1: return (head, reason=Solo)              │
+│    ├─► if stats.impressions == 0:   // COLD START                           │
+│    │       // CTR: page-classification categoryScore prior, ±0.15 jitter,   │
+│    │       // clamped positive                                              │
+│    │       sampledCtr = max(0.001, categoryScore + Uniform(-0.15, +0.15))   │
+│    │       meanCtr    = max(0.001, categoryScore)                           │
+│    │       // Fold-rate: Beta(1,3) cold prior (mean 0.25). A uniform        │
+│    │       // Beta(1,1) prior made cold creatives win near-deterministically│
+│    │       foldRate     = sampleBeta(1, 3)                                  │
+│    │       meanFoldRate = 0.25                                              │
+│    │   else:                        // WARM                                 │
+│    │       sampledCtr   = sampleBeta(clicks+1, imps-clicks+1)               │
+│    │       meanCtr      = (clicks+1) / (imps+2)                             │
+│    │       foldRate     = sampleBeta(folds+1,  imps-folds+1)                │
+│    │       meanFoldRate = (folds+1) / (imps+2)                              │
 │    │                                                                        │
-│    ├─► // Identify cold/warm candidates                                     │
-│    │   coldCandidates = validCandidates.filter(c =>                         │
-│    │       creativeStats[c.id].impressions == 0)                            │
-│    │   underExplored = validCandidates.filter(c =>                          │
-│    │       creativeStats[c.id].impressions < WARMUP_IMPRESSIONS)            │
+│    ├─► bonus = newcomerBonus(stats.impressions)                             │
 │    │                                                                        │
-│    ├─► // FULL COLD START: categoryScore-weighted argmax (reason=ColdStart)│
-│    │   if coldCandidates.size == validCandidates.size:                      │
-│    │       scored = validCandidates.map(c =>                                │
-│    │           (c.categoryScore + Uniform(-0.1,+0.1)) × c.cpm^alpha)        │
-│    │       return maxBy(scored)                                            │
+│    ├─► sampledEngagement = sampledCtr + FOLD_WEIGHT × foldRate    + bonus   │
+│    │   meanEngagement    = meanCtr    + FOLD_WEIGHT × meanFoldRate + bonus  │
 │    │                                                                        │
-│    ├─► // WARMUP PHASE: round-robin to least explored (reason=Warmup)       │
-│    │   if ALL validCandidates under WARMUP_IMPRESSIONS:                     │
-│    │       return minBy(underExplored, c => stats[c.id].impressions)        │
+│    ├─► cpmFactor = max(cpm, 0.001)^alpha                                    │
 │    │                                                                        │
-│    ├─► // PARTIAL COLD START: ε-greedy exploration (reason=Exploration)     │
-│    │   if coldCandidates.nonEmpty AND random() < EXPLORATION_RATE:          │
-│    │       return randomChoice(coldCandidates)                              │
+│    └─► return CandidateScore(                                               │
+│            score          = sampledEngagement × cpmFactor,  // ALLOCATION   │
+│            meanEngagement = meanEngagement,                 // PRICING      │
+│            meanScore      = meanEngagement × cpmFactor )    // PRICING      │
+│                                                                             │
+├─────────────────────────────────────────────────────────────────────────────┤
+│                                                                             │
+│  function batchAssign(slots, pool, alpha, floors, stats, rng):              │
 │    │                                                                        │
-│    ├─► // IMPRESSION SHARE GUARANTEE (reason=ImpressionShare)               │
-│    │   impsByCampaign = group validCandidates by campaign, sum imps         │
-│    │   totalImps = Σ impsByCampaign                                         │
-│    │   if totalImps > WARMUP_IMPRESSIONS AND #campaigns > 1:                │
-│    │       fairShare = MIN_IMPRESSION_SHARE_FACTOR / #campaigns             │
-│    │       starved = campaigns with imps/totalImps < fairShare              │
-│    │       if starved.nonEmpty:                                            │
-│    │           worst = starved.minBy(imps)                                 │
-│    │           return highest-CPM candidate of worst                       │
+│    ├─► scored = pool.map(c => (c, scoreCandidate(c, stats[c.id], rng, α)))  │
+│    │           // score every candidate ONCE against the joint pool         │
 │    │                                                                        │
-│    ├─► // EXPLOITATION: dual-signal Thompson Sampling (reason=Exploitation) │
-│    │   scored = validCandidates.map { c =>                                  │
-│    │       stats = creativeStats[c.id]                                      │
-│    │       if stats.impressions == 0:                                       │
-│    │           sampledCtr = c.categoryScore + Uniform(-0.15, +0.15)         │
-│    │           foldRate   = sampleBeta(1, 1)        // uniform prior        │
+│    ├─► for slot in slots.sortBy(-pixelArea):                                │
+│    │       eligible = scored.filter(c =>                                    │
+│    │           c.cpm ≥ effectiveFloor(slot, c.category)   // admin slot     │
+│    │           AND c.creativeId ∉ usedCreatives           // override →     │
+│    │           AND c.campaignId ∉ usedCampaigns)          // category →     │
+│    │       if eligible.isEmpty: slot ← no winner          // site floor     │
 │    │       else:                                                            │
-│    │           sampledCtr = sampleBeta(clicks+1, imps-clicks+1)             │
-│    │           foldRate   = sampleBeta(folds+1,  imps-folds+1)              │
-│    │       bonus = newcomerBonus(stats.impressions)                         │
-│    │       engagement = sampledCtr + FOLD_WEIGHT × foldRate + bonus         │
-│    │       score = engagement × c.cpm^alpha                                 │
-│    │       (c, score, sampledCtr)                                           │
-│    │   }                                                                    │
-│    │   sorted = scored.sortBy(-score)                                       │
-│    │   winner = sorted.head                                                 │
-│    │   bestLoserScore = sorted(1).score (or 0 if no runner-up)              │
+│    │           winner = argmax(eligible, _.score)         // sampled score  │
+│    │           bestLoserScore = eligible minus winner,                      │
+│    │               best meanScore IN WINNER'S CATEGORY (else 0)             │
+│    │           clearing = qualityAdjustedClearing(                          │
+│    │               winner.meanEngagement, winner.cpm,                       │
+│    │               bestLoserScore, alpha, effectiveFloor)                   │
+│    │           mark creative + campaign used                                │
 │    │                                                                        │
-│    └─► return (winner, reason=Exploitation, score, sampledCtr,             │
-│                bestLoserScore)   // bestLoserScore feeds clearing price     │
+│    └─► return outcomes                                                      │
 │                                                                             │
 ├─────────────────────────────────────────────────────────────────────────────┤
 │                                                                             │
@@ -727,47 +670,55 @@ If any starved campaign exists:
 └─────────────────────────────────────────────────────────────────────────────┘
 ```
 
-### Exploration vs Exploitation
+**Cold-start sampling detail:** A cold creative (0 impressions) has no click
+history, so its CTR draw uses the page-classification `categoryScore` as a
+prior with `±0.15` uniform jitter, clamped to at least 0.001. Its fold-rate is
+sampled from the `Beta(1,3)` cold prior (mean 0.25) — a uniform `Beta(1,1)`
+prior gave cold creatives an expected fold component of `2.0 × 0.5 = 1.0`, an
+order of magnitude above typical warm fold components, so a newly introduced
+creative won near-deterministically. The `newcomerBonus` is the primary
+exploration knob; the fold prior just keeps genuine Thompson exploration
+alive on the fold dimension.
 
-```
-                    Impressions
-                        │
-    0   10              │                    1000+
-    │────┼──────────────┼──────────────────────│
-    │    │              │                      │
-    ▼    ▼              ▼                      ▼
+> **Dead code:** `ThompsonSampling.MinImpressionShareFactor` (0.50) is still
+> defined in the source but has **zero usages** — the impression-share
+> guarantee it belonged to was removed together with the phased `select()`.
+> There is no per-campaign minimum exposure floor at serve time.
 
- EXPLORE          WARMUP              EXPLOIT
- (uniform)     (round-robin)      (Thompson)
+### Pricing: Quality-Adjusted Clearing (Second Price)
 
- High variance   Forced fair       Low variance
- No preference   exploration       Best arm wins
-```
-
-### Pricing: Quality-Adjusted Clearing
-
-A winning bid is rarely charged in full. What a winner pays depends on WHY it
-was selected.
-
-**Exploitation winners pay a quality-adjusted second price.** The score is
+**The winner is chosen by the Thompson-sampled score, but priced on posterior
+means** — "sample for allocation, price on means." The score is
 `engagement × CPM^α`, so the clearing price inverts that formula against the
-runner-up's score: charge the lowest CPM at which the winner's score would
-still beat the runner-up given the winner's *own* sampled CTR.
+runner-up's posterior-mean score: charge the lowest CPM at which the winner's
+mean score would still beat the runner-up, given the winner's *own*
+posterior-mean engagement. This keeps the price reproducible from observable
+state (same auction state → same price) instead of varying with random draws.
 
 ```
-qualityAdjustedClearing(winnerSampledCtr, winnerBid, bestLoserScore, α, siteFloor):
+qualityAdjustedClearing(winnerMeanEngagement, winnerBid, bestLoserScore, α, floor):
 
-  if winnerSampledCtr > 0 AND bestLoserScore > 0 AND α > 0:
-      clearingCpm = (bestLoserScore / winnerSampledCtr) ^ (1/α)
-      return clamp(clearingCpm, siteFloor, winnerBid)
+  if winnerMeanEngagement > 0 AND bestLoserScore > 0 AND α > 0:
+      clearingCpm = (bestLoserScore / winnerMeanEngagement) ^ (1/α)
+      return clamp(clearingCpm, floor, winnerBid)
   else:
-      return siteFloor   // no runner-up, degenerate CTR, or α ≤ 0
+      return floor   // no runner-up, degenerate engagement, or α ≤ 0
 ```
 
-- `bestLoserScore` is the second-highest score among the slot's eligible
-  candidates (0 when only one candidate fits the slot).
-- The result is clamped to `[siteFloor, winnerBid]` — a winner never pays
-  below the publisher's floor nor more than its own bid.
+- `bestLoserScore` is the best runner-up's **posterior-mean** score
+  (`meanScore`, never the sampled score) **in the winner's own category** —
+  cross-category runners-up never set the price. It is 0 when no
+  same-category runner-up fits the slot.
+- `winnerMeanEngagement` is the winner's `meanEngagement`
+  (mean CTR + 2.0 × mean fold-rate + newcomerBonus) — symmetric with the
+  runner-up: the winner's fold posterior and newcomer bonus discount its
+  price exactly as the runner-up's raise it.
+- The result is clamped to `[floor, winnerBid]` — a winner never pays below
+  the effective floor (admin slot override → category floor → site floor)
+  nor more than its own bid.
+- **Exploration pays the floor.** A sole eligible candidate, a cold pool with
+  no same-category competition, or any degenerate input clears at the floor —
+  there is no separate exploration-pricing formula.
 - The reservation, the `BatchSlotOutcome.clearingPrice`, and the pending-spend
   delta all use this same clearing CPM. **Pending/reserved spend is recorded
   at the clearing price, not the bid** — otherwise pacing would see in-flight
@@ -777,30 +728,6 @@ qualityAdjustedClearing(winnerSampledCtr, winnerBid, bestLoserScore, α, siteFlo
 and the pinned creative is in the pool, it bypasses the auction and serves at
 `clearingPrice = CPM.zero` (folds are free, reader bookmark). This holds even
 when the request was pacing-throttled.
-
-### Pricing: Dynamic Exploration Fraction
-
-For NON-exploitation selections (cold start / warmup / ε-greedy), the system
-does not run a second-price auction. Instead it charges a fraction of the bid
-that scales with how confident the Beta posterior is — fresh creatives explore
-cheaply, well-explored ones pay closer to full price.
-
-```
-explorationPriceFraction(impressions, clicks):
-  α = clicks + 1
-  β = impressions - clicks + 1
-  n = α + β
-  variance   = (α·β) / (n² · (n+1))          // Beta posterior variance
-  confidence = clamp(1 - variance/0.25, 0, 1) // Beta(1,1) has max var 0.25
-  return MinExplorationFraction
-       + (MaxExplorationFraction - MinExplorationFraction) × confidence
-
-  where MinExplorationFraction = 0.50   // fresh creative pays 50% of bid
-        MaxExplorationFraction = 0.95   // confident creative pays 95% of bid
-```
-
-- Beta(1,1) (no data) → variance 0.25 → confidence 0 → pays the 50% floor.
-- As impressions accumulate, variance shrinks → confidence → 1 → pays up to 95%.
 
 ---
 
@@ -1040,15 +967,12 @@ engagement = sampledCtr + 2.0 × foldRate + newcomerBonus(imps)
 score      = engagement × max(CPM, 0.001)^α        // α = publisher bidWeight
 ```
 
-### Quality-Adjusted Clearing Price (Exploitation)
+### Quality-Adjusted Clearing Price (Second Price)
 ```
-clearingCpm = clamp((bestLoserScore / winnerSampledCtr)^(1/α), siteFloor, winnerBid)
+clearingCpm = clamp((bestLoserMeanScore / winnerMeanEngagement)^(1/α), floor, winnerBid)
+// "sample for allocation, price on means" — both inputs are posterior means,
+// runner-up restricted to the winner's category; no runner-up → floor.
 // reserved/pending spend is recorded at clearingCpm, not the bid
-```
-
-### Exploration Price Fraction (Cold/Warmup/ε-greedy)
-```
-fraction = 0.50 + 0.45 × clamp(1 - var/0.25, 0, 1)   // var = Beta posterior variance
 ```
 
 ---
@@ -1067,13 +991,10 @@ fraction = 0.50 + 0.45 × clamp(1 - var/0.25, 0, 1)   // var = Beta posterior va
 | `GracePeriodFrac` | 0.01 | 1% of day |
 | `MinGraceSec` | 10.0 | Minimum grace |
 | `MaxIntegral` | 1.0 | Anti-windup bound |
-| `ExplorationRate` | 0.30 | TS epsilon |
-| `WarmupImpressions` | 10 | TS warmup threshold |
 | `FoldWeight` | 2.0 | Fold-rate weight in engagement signal |
 | `NewcomerBoost` | 0.5 | Additive newcomer bonus at 0 imps |
 | `NewcomerDecayImpressions` | 50 | Imps at which newcomer bonus → 0 |
-| `MinImpressionShareFactor` | 0.50 | Fair share = 0.50 / numCampaigns |
-| `MinExplorationFraction` | 0.50 | Fresh creative pays 50% of bid |
-| `MaxExplorationFraction` | 0.95 | Confident creative pays 95% of bid |
+| `ColdFoldPriorAlpha/Beta` | 1 / 3 | Cold-start fold-rate prior Beta(1,3), mean 0.25 |
+| `MinImpressionShareFactor` | 0.50 | **DEAD — defined but unused** (impression-share guarantee removed) |
 | `bidWeight` (α) | 0.5 | Publisher CPM exponent (0.3/0.5/0.7) |
-| `StatsWindowSize` | 1000 | Creative stats ring buffer |
+| `windowMinutes` | 60 | Creative stats sliding window (minute-bucketed) |

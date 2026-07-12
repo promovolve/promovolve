@@ -2,6 +2,11 @@
 
 Promovolve is an **ad serving platform with pre-computed candidate ranking** built on Apache Pekko with cluster-sharded entities. It orchestrates multi-candidate auctions between publishers (websites) and internal campaigns, using Thompson Sampling for both category ranking and serve-time creative selection, with traffic-shaped budget pacing.
 
+> **Scope:** This document covers the Scala ad-serving core (`modules/core`,
+> `modules/api`, `modules/browser`). The Go platform BFF (dashboards under
+> `platform/`), the banner ad-tag component, and the GKE deployment
+> (`k8s-gke/`) are documented elsewhere.
+
 ## Table of Contents
 
 - [System Overview](#system-overview)
@@ -92,6 +97,23 @@ promovolve/
     └── CountMinSketch
 ```
 
+The `promovolve/` package tree above lives in `modules/core`. Two sibling
+modules complete the Scala side:
+
+```
+modules/
+├── core/                # The package tree above (entities, auction, delivery)
+├── api/                 # HTTP layer: /serve, /v1/classify-page, dashboards, Main
+└── browser/             # Playwright runtime for advertiser LANDING-PAGE analysis
+    ├── LPAnalyzer       #   (renamed from the retired content crawler)
+    └── BrowserSessionPool
+```
+
+`modules/browser` is driven by `LPWorker` shards (in core) that are pinned to
+the `crawler` cluster role — see [Cluster Roles](#cluster-roles). Content
+crawling itself has been removed; pages are classified on demand from real
+traffic (see [SiteEntity](#siteentity)).
+
 ---
 
 ### Advertiser Domain
@@ -107,8 +129,9 @@ State:
 ├── dailyBudget: Budget              # Account-level budget
 ├── spendToday: Spend                # Aggregated from campaigns
 ├── siteBlocklist: Set[SiteId]       # Excluded publishers
-├── creatives: Map[CreativeId, Creative]
-└── approvalStatus: BloomFilter      # Per-site creative approvals
+└── creatives: Map[CreativeId, Creative]
+    ├── approvedSites: Set[SiteId]   # Publisher-approved (servable) sites
+    └── rejectedSites: BloomFilter   # Publisher-rejected/flagged → bid block
 ```
 
 **Key Commands:**
@@ -117,6 +140,27 @@ State:
 - `UpdateDailyBudget` - Budget management
 - `RecordCampaignSpend` - Spend aggregation from campaigns
 - `GetBidContext` - Returns budget + blocklist for bidding
+- `UpdateCreativeApproval` / `RevokeCreativeApproval` - Per-site approval mirror
+
+**Per-site approval lifecycle:**
+
+Approvals are **per creative × site**. The SERVE gate lives in the AdServer /
+ServeIndex; `approvedSites` mirrors it here so the BID path can tell approved
+demand from pending demand (floor optimization reads approved demand only).
+
+- **Pending creatives DO bid** — winning an auction is how a creative reaches
+  the publisher's approval queue in the first place.
+- **Reject / flag → bid block** on that site (`rejectedSites` Bloom filter);
+  the creative stops bidding there entirely.
+- **Revoke = soft undo → back to PENDING.** Clears `approvedSites` (the bid
+  stops teaching floors) but deliberately does **not** block bidding — winning
+  another auction is the creative's only way back into the approval queue.
+- **Explicit campaign pause/delete revokes its approvals** on each site; on
+  resume every creative starts over from PENDING. (Only the explicit
+  advertiser action revokes — auctioneer-originated deactivation churn during
+  deploys keeps approvals.)
+- **Creative pause keeps approvals** (deliberate) — un-pausing resumes serving
+  without re-review.
 
 ---
 
@@ -174,21 +218,47 @@ The auction system uses **multi-candidate shortlisting** rather than single-winn
 
 | Benefit | How It Works |
 |---------|--------------|
-| **Serve-time learning** | Keeping K candidates lets Thompson Sampling explore which creatives actually perform (CTR), not just who bid highest |
+| **Serve-time learning** | Keeping all competitive candidates lets Thompson Sampling explore which creatives actually perform (CTR), not just who bid highest |
 | **Graceful degradation** | If candidate #1's budget exhausts between auction and serve, #2/#3 are ready without re-auction |
 | **Low serve latency** | Auction is pre-computed and cached. Serve is DData lookup + TS sample (sub-millisecond) |
 | **Pacing integration** | Pacing gate applied at serve time without re-running expensive auction pipeline |
 | **Publisher alignment** | TS optimizes for clicks/engagement, benefiting publishers with better user experience |
 
 **Trade-offs accepted:**
-- Not a true price-discovery mechanism (acceptable since all campaigns are internal)
 - Candidates can go stale (mitigated by event-driven re-auction on budget/config changes)
+
+#### Pricing: Quality-Adjusted Second Price
+
+Despite the pre-computed shortlist, serve-time clearing **is** a real
+quality-adjusted second-price mechanism
+(`ThompsonSampling.qualityAdjustedClearing`, invoked from the AdServer's
+`batchAssign` / `pickBestForSlot` paths):
+
+```
+score       = engagement × CPM^α          (α = publisher bidWeight)
+clearingCpm = (bestLoserScore / winnerMeanEngagement)^(1/α)
+```
+
+The winner pays the minimum CPM at which its score still beats the best
+runner-up **in its own category** (cross-category runners-up never set the
+price), clamped to `[floor, winner's bid]`.
+
+**Sample for allocation, price on means:** allocation uses Thompson-*sampled*
+scores (exploration), but both pricing inputs come from the posterior-**mean**
+side of the candidate score — the winner's mean engagement (ctr +
+fold-rate weight + newcomer bonus) and the runner-up's mean score. This keeps
+the price deterministic and reproducible from observable state: the same
+auction state always clears at the same price, and the winner's fold posterior
+and newcomer bonus discount its price exactly as the runner-up's raise it.
+
+When there is no same-category runner-up (sole eligible candidate), the
+winner's engagement is degenerate, or α ≤ 0, the winner pays the **floor**.
 
 #### Sequence Diagram: Auction → Serve Flow
 
 ```
 ┌─────────┐ ┌───────────┐ ┌──────────────┐ ┌──────────────┐    ┌──────────┐ ┌─────────┐ ┌───────────┐
-│ Scraper │ │Auctioneer │ │TaxonomyRanker│ │CategoryBidder│    │ Campaign │ │AdServer │ │ServeIndex │
+│ Ad Tag  │ │Auctioneer │ │TaxonomyRanker│ │CategoryBidder│    │ Campaign │ │AdServer │ │ServeIndex │
 └────┬────┘ └─────┬─────┘ └──────┬───────┘ └──────┬───────┘    └────┬─────┘ └────┬────┘ └─────┬─────┘
      │            │              │                │                 │            │            │
 ═════════════════════════════════════════════════════════════════════════════════════════════════
@@ -225,9 +295,9 @@ The auction system uses **multi-candidate shortlisting** rather than single-winn
      │            │  ┌───────────────────────────────────────┐      │            │            │
      │            │  │ Phase 4: Shortlist & Cache            │      │            │            │
      │            │  └───────────────────────────────────────┘      │            │            │
-     │            │ CandidatesCollected (top K=3)                   │            │            │
+     │            │ CandidatesCollected (all competitive bids)      │            │            │
      │            │─────────────────────────────────────────────────────────────►│            │
-     │            │              │              │                   │            │   Put(K    │
+     │            │              │              │                   │            │   Put(     │
      │            │              │              │                   │            │ candidates)│
      │            │              │              │                   │            │───────────►│
      │            │              │              │                   │            │            │
@@ -239,7 +309,7 @@ The auction system uses **multi-candidate shortlisting** rather than single-winn
      │            │              │              │                   │            │  Get(key)  │
      │            │              │              │                   │            │───────────►│
      │            │              │              │                   │            │◄───────────│
-     │            │              │              │                   │            │[3 candidates]
+     │            │              │              │                   │            │[candidates]│
      │            │              │              │                   │            │            │
      │            │              │              │   ┌─────────────────────┐      │            │
      │            │              │              │   │ 1. Pacing Gate      │      │            │
@@ -247,7 +317,7 @@ The auction system uses **multi-candidate shortlisting** rather than single-winn
      │            │              │              │   │                     │      │            │
      │            │              │              │   │ 2. Thompson Sampling│      │            │
      │            │              │              │   │    pick winner from │      │            │
-     │            │              │              │   │    3 candidates     │      │            │
+     │            │              │              │   │    the shortlist    │      │            │
      │            │              │              │   │                     │      │            │
      │            │              │              │   │ 3. Reserve Budget   │      │            │
      │            │              │              │   └─────────────────────┘      │            │
@@ -256,6 +326,12 @@ The auction system uses **multi-candidate shortlisting** rather than single-winn
      │            │              │              │              │ ◄───────────────│            │
      │            │              │              │              │ (1 winner)      │            │
 ```
+
+**The "Ad Tag" column:** there is no scraper/crawler. On a cold serve miss the
+ad tag extracts the live page's text + slot geometry and POSTs it to
+`POST /v1/classify-page` (fast `202 Accepted`); `SiteEntity` single-flights the
+LLM call and delivers `PageCategoriesClassified` to the auctioneer. See
+[SiteEntity](#siteentity).
 
 **Key insight:** The expensive auction runs once (ahead of time). Serve is just cache lookup + TS sample.
 
@@ -292,14 +368,21 @@ Phase 3: BID COLLECTION
     ├── For each slot × eligible category:
     │   └── CategoryBidderEntity ! CategoryBidRequest
     ├── Aggregate with timeout
-    ├── Filter by CPM threshold (top 20%)
-    └── Select top-K candidates per slot
+    ├── Filter by CPM threshold (top 20%, in CategoryBidderEntity)
+    └── Keep ALL competitive bids — no artificial candidate cap;
+        dedupe by creativeId, order best-per-campaign first
 
 Phase 4: SHORTLIST CACHING
-    ├── Send top-K candidates to AdServer
+    ├── Send all competitive candidates to AdServer
     ├── Cache in ServeIndexDData for fast lookup
     └── Track participating campaigns for re-auction
 ```
+
+There is **no top-K truncation of candidates**: every bid surviving the
+CategoryBidder's 20%-of-winner filter passes through to serve-time Thompson
+Sampling (that CPM threshold is the natural limit on pool size). The
+`keep-candidates-per-slot` setting still exists but is legacy — declared,
+never used to truncate.
 
 **Filler Auction (no-category-match path):**
 
@@ -424,21 +507,55 @@ State:
 #### SiteEntity
 **Sharding:** Per `siteId`
 
-Individual site configuration and crawling.
+Individual site configuration, on-demand page classification, and floor
+optimization (see [Floor CPM Optimizer](#floor-cpm-optimizer)).
 
 ```
 State:
 ├── publisherId: PublisherId
-└── config: SiteConfig
-    ├── domain, seedUrl, cronSchedule
-    ├── maxDepth, concurrency
-    └── taxonomyIds: Set[String]      # Target IAB categories
+├── config: SiteConfig
+│   ├── domain
+│   ├── taxonomyIds: Set[String]      # Target IAB categories
+│   ├── slots: List[AdSlotConfig]     # SlotPrior + admin floorOverride
+│   └── seedUrl, cronSchedule, maxDepth, concurrency   # INERT — crawler vestiges
+├── pageClassifications: Map[URL → ClassificationEntry]  # Persisted, capped
+└── floorCpm / floorCpmByCategory / sweep snapshots
 ```
 
-**Responsibilities:**
-- Scheduled crawling via Quartz
-- Page content → taxonomy classification (see below)
-- Sends classified pages to AuctioneerEntity
+**On-demand classification (crawl-free):**
+
+Site content crawling has been **removed** — nothing schedules crawls anymore
+(the `seedUrl` / `cronSchedule` / `maxDepth` fields in `SiteConfig` are inert
+vestiges kept for serialization compatibility). Pages are classified from real
+traffic instead:
+
+1. On a **cold serve miss**, the ad tag extracts the live page's text and slot
+   geometry and POSTs them to `POST /v1/classify-page`. The route replies with
+   a fast `202 Accepted` and never blocks on the LLM (`ServeRoutes`).
+2. `SiteEntity.ClassifyUrl` **single-flights** per normalized URL — a traffic
+   burst on a new page fires exactly ONE LLM call — and only accepts once the
+   classifier and demand categories are ready.
+3. The slot signals measured by the tag in the visitor's real viewport
+   (above-fold, viewability, page region, text density) are folded into a
+   `SlotPrior` — the crawl-free replacement for the crawler's slot prior,
+   feeding the per-slot effective floor.
+4. The LLM maps page text to **IAB Content Taxonomy 3.0** categories
+   (`TieredCategory` loads `3_0.tsv`; legacy IAB 1.0 / 2.x ids are normalized
+   forward). The result is persisted in `pageClassifications` and announced
+   to `AuctioneerEntity` as `PageCategoriesClassified`.
+
+**Restart resilience:**
+
+- **Boot backfill:** on recovery, SiteEntity replays its persisted
+  `pageClassifications` to the AuctioneerEntity
+  (`RestoreClassifications`), repopulating the auctioneer's `lastPage`
+  cache and the AdServer's freshness tokens, then kicks an immediate
+  re-auction — no re-crawl, no post-restart serve drought.
+- **Reevaluate-miss recovery:** when AuctioneerEntity receives a
+  `Reevaluate` for a URL missing from `lastPage` (e.g. the classification
+  announce was lost while the shard rehomed during a rollout), it asks
+  `SiteEntity.GetPageClassification`, merges the persisted entry back, and
+  re-dispatches — single-flighted per URL so retries don't stampede.
 
 **LLM Classification Provider (configurable):**
 
@@ -539,6 +656,14 @@ CandidatesCollected
                     └── Publisher Reject ──► Promote next candidate
 ```
 
+Approvals are per creative × site and mirrored to `AdvertiserEntity` so the
+bid path can distinguish approved from pending demand. Reject/flag blocks the
+creative's bids on this site; **revoke** is a soft undo back to PENDING (the
+creative keeps bidding — winning again is its way back into the queue); an
+explicit campaign pause/delete revokes the campaign's approvals (resume starts
+from PENDING), while a creative pause deliberately keeps them. See
+[AdvertiserEntity](#advertiserentity).
+
 **Select Flow (with Pacing):**
 ```
 Select(url, slotId)
@@ -587,15 +712,22 @@ Value: ServeView
 ### Complete Flow: Page Load → Ad Served
 
 ```
-┌─ 1. PAGE CLASSIFICATION ─────────────────────────────────────────────────────┐
+┌─ 1. PAGE CLASSIFICATION (on-demand) ─────────────────────────────────────────┐
 │                                                                              │
-│   External Scraper/Classifier                                                │
+│   Ad tag, on a cold serve miss: extracts page text + slot geometry           │
+│         │                                                                    │
+│         ▼                                                                    │
+│   POST /v1/classify-page  ──► 202 Accepted (never blocks on the LLM)         │
+│         │                                                                    │
+│         ▼                                                                    │
+│   SiteEntity[siteId].ClassifyUrl  ── single-flight ──► LLM (Taxonomy 3.0)    │
 │         │                                                                    │
 │         ▼                                                                    │
 │   PageCategoriesClassified(url, categoryScores, slots)                       │
 │         │                                                                    │
 │         ▼                                                                    │
-│   AuctioneerEntity[siteId]  ◄── Cache classification                         │
+│   AuctioneerEntity[siteId]  ◄── Cache classification (persisted copy in      │
+│                                 SiteEntity survives restarts)                │
 │                                                                              │
 └──────────────────────────────────────────────────────────────────────────────┘
                                       │
@@ -631,7 +763,8 @@ Value: ServeView
 │         │                                                                    │
 │         ▼                                                                    │
 │   Aggregate all categories (800ms timeout)                                   │
-│   Select top-K candidates per slot                                           │
+│   Keep all competitive candidates per slot (no cap; dedupe by creative,      │
+│   best-per-campaign ordered first)                                           │
 │                                                                              │
 └──────────────────────────────────────────────────────────────────────────────┘
                                       │
@@ -996,7 +1129,8 @@ ServeStats(
 | CampaignEntity | DurableStateBehavior | PostgreSQL | Auto-recover + replay pending |
 | CampaignDirectory | DurableStateBehavior | PostgreSQL | Auto-recover + rebuild index |
 | TaxonomyRankerEntity | DurableStateBehavior | PostgreSQL | Auto-recover (5s data loss OK) |
-| AuctioneerEntity | Ephemeral | None | Rebuilt on traffic |
+| SiteEntity | DurableStateBehavior | PostgreSQL | Auto-recover; replays pageClassifications to Auctioneer |
+| AuctioneerEntity | Ephemeral | None | Rebuilt on traffic + `RestoreClassifications` backfill from SiteEntity |
 | AdServer | Ephemeral | None | DData replication |
 | ServeIndexDData | DData | In-memory + replicated | Converges across nodes |
 
@@ -1021,7 +1155,15 @@ ServeStats(
 | `CampaignBudgetReset` | CampaignEntity | Targeted | Re-auction campaign's URLs |
 | `AdvertiserBudgetExhausted` | AdvertiserEntity | Full site | Re-auction all recent pages |
 | `AdvertiserBudgetReset` | AdvertiserEntity | Full site | Re-auction all recent pages |
-| `PeriodicReauction` | Timer (4h) | Full site | Re-auction all recent pages |
+| `DebouncedReauction` | Any event-driven trigger | Coalesced | 1s debounce — bursts of triggers collapse into one full re-auction |
+| `PeriodicReauction` | Timer (30min code default; 5min in deployed application.conf) | Full site | **Backstop only** — keeps ServeIndex entries warm and reconciles dropped events |
+
+Primary re-auctions are **event-driven**: campaign/budget/floor changes call
+`scheduleReauction()`, which fires on a 1-second debounce
+(`DebouncedReauction`). Serve misses additionally self-heal on demand (the
+AdServer requests a `Reevaluate`), so the periodic timer is no longer the
+primary fill mechanism — it is kept well under the ServeView TTL (120min) as a
+reconciliation backstop.
 
 ### Event Flow
 
@@ -1059,28 +1201,36 @@ AuctioneerEntity[siteId] (subscriber)
 
 ### Cluster Roles
 
-```
-┌─ API Node ────────────────┐
-│ Roles: ["api"]            │
-│ • HTTP server             │
-│ • Topic proxy             │
-│ • NO entity hosting       │
-└───────────────────────────┘
+The historical three-tier split (dedicated API / entity / singleton nodes) has
+been **consolidated**: the deployed cluster runs 2 identical `api` pods, each
+carrying all roles (`k8s/application-app.conf`):
 
-┌─ Entity Node ─────────────┐
-│ Roles: ["entity"]         │
-│ • Sharded entities        │
-│ • Topic instances         │
-│ • NO HTTP server          │
-└───────────────────────────┘
-
-┌─ Singleton Node ──────────┐
-│ Roles: ["singleton"]      │
-│ • CampaignDirectory       │
-│ • CategoryRegistry        │
-│ • ServeIndexDData         │
-└───────────────────────────┘
+```hocon
+pekko.cluster.roles = ["singleton", "entity", "api", "crawler"]
 ```
+
+```
+┌─ api pod (×2, all roles) ─────────────────────────────┐
+│ Roles: ["singleton", "entity", "api", "crawler"]      │
+│ • HTTP server (/serve, /v1/classify-page, dashboards) │
+│ • All sharded entities + topic instances              │
+│ • Singletons (CampaignDirectory, CategoryRegistry)    │
+│ • LPWorker shards (Playwright landing-page analysis)  │
+└───────────────────────────────────────────────────────┘
+```
+
+Role notes:
+
+- **`crawler` no longer means content crawling** (that was removed — pages
+  are classified on demand). The role exists solely to **pin `LPWorker`
+  shards** — the Playwright workers that analyze advertiser *landing pages*
+  (`modules/browser` `LPAnalyzer`) — so Chromium only runs on crawler-role
+  nodes. The role is load-bearing: with no carrier in the cluster, LP
+  creative generation breaks silently.
+- A dedicated **singleton StatefulSet is kept at `replicas: 0`** — the better
+  shape for real multi-node infrastructure (odd entity count for
+  split-brain-resolver majorities) — and the dedicated crawler tier was
+  deleted.
 
 ---
 
@@ -1094,59 +1244,91 @@ promovolve.auction {
   ask-timeout = 800ms              # Aggregator timeout
   prior-weight = 0.5               # Fallback weight on timeout
   min-score = 0.0                  # Minimum category score
-  keep-candidates-per-slot = 3     # Winners per slot
+  keep-candidates-per-slot = 3     # LEGACY — declared but never used; there is
+                                   # no candidate cap (see Bid Collection)
   ttl = 120m                       # Candidate TTL
-  reauction-interval = 4h          # Periodic re-auction
-  content-recency-window = 48h     # Only monetize recent content
-  floor-cpm = 0.50                 # Minimum CPM
+  reauction-interval = 30m         # Periodic BACKSTOP re-auction (code default;
+                                   # the deployed application.conf sets 5 minutes).
+                                   # Primary re-auctions are event-driven with a
+                                   # 1s debounce — see Event-Driven Re-Auction.
+  content-recency-window = 48h     # Classification-freshness window (code default;
+                                   # not set in application.conf). Publisher-
+                                   # overridable per site (valid 24h–7d)
+  floor-cpm = 0.50                 # Base site floor (see Floor CPM Optimizer)
   max-page-cache-size = 10000      # Max URLs cached
 }
 ```
 
 ### Floor CPM Optimizer
 
-The site-level `floor-cpm` is only the **base**. Per-slot floors layer on top
-of it, and an optional learning agent tunes them automatically.
+The site-level `floor-cpm` is only the **base**. Per-category and per-slot
+floors layer on top of it, tuned automatically by a direct sweep optimizer.
 
 `AuctioneerEntity` resolves each slot's effective floor in priority order:
 
 ```
-1. Admin override     (publisher escape hatch — adminSlotFloorOverrides)
-2. Crawler prior      (SiteEntity.SlotPrior: siteFloor × (0.5 + qualityScore))
-3. RL/sweep override  (learned per-slot floor — slotFloorOverrides)
-4. Site floor         (fallback — the base floor-cpm above)
+1. Admin override        (publisher escape hatch — adminSlotFloorOverrides,
+                          or an override carried on the slot spec via the
+                          classify-page path; always wins)
+2. Sweep-learned override (learned per-slot floor — slotFloorOverrides)
+3. (Per-category floor, else site floor) × slot-prior scaling
+                          — SlotPrior: floor × (0.5 + qualityScore), a
+                            0.5×–1.5× band. The prior is measured by the AD
+                            TAG in the visitor's real viewport (above-fold,
+                            viewability, region, text density) — the crawler
+                            that used to produce it is gone
+4. Site floor            (fallback — the base floor-cpm above)
 ```
 
-`SiteEntity` hosts the floor optimizer and emits two messages to its
-`AuctioneerEntity`:
-
-- `UpdateSlotFloors(Map[SlotId, CPM])` — learned per-slot overrides from the
-  optimizer (RL- or sweep-discovered).
-- `UpdateAdminSlotFloors(Map[SlotId, CPM])` — the publisher escape hatch; a
-  manually pinned floor that always wins over the learned value.
-
-Per-slot overrides only re-shape the floor; everything else (auction, pacing,
-Thompson Sampling) is unchanged. The optimizer is bid-spread-gated — it only
-moves the floor when the bid spread is wide enough for the floor to matter (a
-homogeneous market collapses to the minimum, which is correct but useless).
-
-**Optimizer mode** is selected per `SiteEntity` via `FLOOR_OPTIMIZER_MODE`:
+**FloorSweepOptimizer — the sole floor mechanism.** The former DQN agent was
+removed; there is no mode switch. `FloorSweepOptimizer` is a direct optimizer:
+hold each candidate floor for one observation window, measure **realized
+(post-pacing) served revenue**, pick the argmax, then exploit the winner
+before re-sweeping to track market drift. No value function is needed because
+changing the floor already triggers a re-auction, so each candidate floor
+naturally gets its own real revenue measurement. Candidate bounds are capped
+by the min/max bids actually observed in the current cycle (including
+below-floor rejects, so priced-out campaigns can re-enter).
 
 ```hocon
 promovolve.floor-optimizer {
-  mode = "dqn"                     # default — DQN RL agent (FloorCpmOptimizationAgent)
-  mode = ${?FLOOR_OPTIMIZER_MODE}  # set to "sweep" to use FloorSweepOptimizer
+  candidate-count     = 8     # Floors probed per sweep
+  ticks-per-candidate = 4     # Observation windows held per candidate
+  exploit-ticks       = 60    # Windows parked on the argmax winner (~65% duty)
+  min-imps-for-argmax = 3     # Evidence gate before a candidate can win
+  tie-tolerance       = 0.05  # Near-tie band: prefer the HIGHER floor on a
+                              # revenue plateau (no flip-flop on noise)
 }
 ```
 
-- `"dqn"` — `FloorCpmOptimizationAgent`, an RL agent that learns a value
-  function over floor decisions.
-- `"sweep"` — `FloorSweepOptimizer`, a direct optimizer that holds each
-  candidate floor for one observation window, measures realized (post-pacing)
-  revenue, picks the argmax, then exploits the winner before re-sweeping to
-  track market drift. Both implementations share the same public API so
-  `SiteEntity` swaps them with minimal branching, and both emit
-  `UpdateSlotFloors` the same way.
+**Per-category floors (always on, enforce mode).** Alongside the site-level
+sweep, `SiteEntity` runs one sweep optimizer per serving category and pushes
+the learned floors to `AuctioneerEntity` (`UpdateCategoryFloors`); the
+AdServer applies the same map at serve/clearing time. Unlearned categories
+fall back to the site floor. Two shortcuts skip the sweep:
+
+- **Monopoly:** a category with exactly one bidder sets its floor to that bid
+  directly — instant adaptation, no drift.
+- **Explicit zero demand:** when a category's demand drops to an explicit
+  zero bidders (e.g. the sole bidder's creative was flagged/rejected/revoked),
+  the floor collapses to the publisher minimum and sweep state is wiped — a
+  reserve above bids that no longer exist would only block re-entry.
+
+**Floors read APPROVED demand only.** Pending (not-yet-approved) creatives DO
+bid — winning is how they reach the approval queue — but their bids never
+teach the floor: a pending bid must not peg a reserve that nothing servable
+can fulfil.
+
+`SiteEntity` emits two per-slot messages to its `AuctioneerEntity`:
+
+- `UpdateSlotFloors(Map[SlotId, CPM])` — sweep-learned per-slot overrides.
+- `UpdateAdminSlotFloors(Map[SlotId, CPM])` — the publisher escape hatch; a
+  manually pinned floor that always wins over the learned value.
+
+Floor overrides only re-shape the floor; everything else (auction, pacing,
+Thompson Sampling) is unchanged. Note: in a homogeneous market (all bids
+equal) the optimal floor converges to the minimum — correct but useless; the
+floor only earns money when the bid spread is wide.
 
 ### Taxonomy Ranker Settings
 
@@ -1270,5 +1452,5 @@ Promovolve achieves:
 | **Intelligent learning** | Thompson Sampling for category ranking and creative selection |
 | **Correctness** | Idempotency, JDBC persistence, DData replication |
 | **Budget control** | Traffic-shaped pacing, PI controller, buffered spend tracking |
-| **Multi-candidate auctions** | Top-K shortlisting with CPM thresholds, serve-time MAB selection |
+| **Multi-candidate auctions** | Uncapped shortlisting with CPM thresholds, serve-time MAB selection, quality-adjusted second-price clearing |
 | **Traffic adaptation** | Weekday/weekend shape learning, warmup mode |

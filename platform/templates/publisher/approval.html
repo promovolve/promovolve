@@ -53,6 +53,33 @@ document.body.addEventListener('htmx:beforeRequest', function(evt) {
     window.__pendingApprovalRefresh = true;
   }
 });
+// htmx 2's trigger parser never fires hx-trigger="sse:*" specs (the colon
+// is consumed as a modifier separator), so the declarative triggers on
+// #tab-content are inert — they exist ONLY so the SSE extension registers
+// per-event listeners on the EventSource (which then dispatch
+// htmx:sseMessage). This bridge does the actual refresh. Verified live
+// 2026-07-12: events reached the browser and htmx:sseMessage fired, but
+// no request followed until this bridge existed.
+(function(){
+  var REFRESH_EVENTS = ['pending-updated','approved','rejected','revoked',
+                        'bulk-approved','campaign-status-changed','creative-status-changed'];
+  var last = 0;
+  document.body.addEventListener('htmx:sseMessage', function(e){
+    var t = e.detail && e.detail.type;
+    if (REFRESH_EVENTS.indexOf(t) === -1) return;
+    var now = Date.now();
+    if (now - last < 2000) return; // throttle, mirrors the old throttle:2s
+    last = now;
+    if (document.querySelector('[data-detail]:not(.hidden)')) {
+      // Preview open: don't wipe it — closeDetail() applies the refresh.
+      window.__pendingApprovalRefresh = true;
+      return;
+    }
+    window.__forceInboxReload = true;
+    htmx.ajax('GET', '/publisher/approval', { target: '#tab-content', swap: 'innerHTML' });
+    window.__forceInboxReload = false;
+  });
+})();
 window.closeDetail = function() {
   document.querySelectorAll('[data-detail]').forEach(function(e){ e.classList.add('hidden'); });
   document.querySelectorAll('[data-inbox-item]').forEach(function(e){

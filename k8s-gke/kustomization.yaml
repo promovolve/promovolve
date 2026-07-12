@@ -38,6 +38,7 @@ resources:
   - managed-cert.yaml       # Google-managed TLS for both hosts
   - ingress.yaml            # one global HTTPS LB: host -> service routing
   - storageclass.yaml       # hyperdisk-balanced (c4a/ARM nodes can't attach pd-*)
+  - backup-cronjob.yaml     # nightly pg_dump -> GCS (Workload Identity)
 
 patches:
   # LoadBalancer -> ClusterIP + NEG (container-native LB) + BackendConfig

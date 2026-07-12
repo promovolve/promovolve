@@ -702,6 +702,19 @@ object Protocol {
       replyTo: ActorRef[StatusReply[AssetPointer]]
   ) extends Command
 
+  /**
+   * Internal: creative lookup for the idempotent-approve path — the
+   * creative is already site-approved but its pending selection row is
+   * gone (approving one placement removes the creative from ALL pending
+   * rows, and the inbox lists the same creative under several
+   * placements). Approving again must succeed as a no-op, not 400.
+   */
+  private[delivery] final case class AlreadyApprovedLookedUp(
+      cid: String,
+      creativeOpt: Option[Creative],
+      replyTo: ActorRef[StatusReply[AssetPointer]]
+  ) extends Command
+
   /** Internal: category scores fetched for approval */
   private[delivery] final case class CategoryScoresFetched(
       candidate: Candidate,

@@ -1,0 +1,99 @@
+# Nightly Postgres backup → GCS (gs://promovolve-db-backups, 30-day
+# lifecycle). Accounts, passkey credentials, orgs, and the billing ledger
+# all live on ONE zonal hyperdisk — this is the only recovery path from a
+# disk loss or a bad delete.
+#
+# Auth is Workload Identity (keyless): the db-backup KSA below impersonates
+# db-backup-writer@promovolve.iam.gserviceaccount.com, which holds
+# storage.objectAdmin on the backup bucket ONLY. Requires WI enabled on the
+# cluster + GKE_METADATA on the node pool (see k8s-gke/README.md); until
+# then uploads 403 (the job fails loudly, nothing silent).
+#
+# Shape: initContainer (postgres:15-alpine, matches the timescaledb pg15
+# server) writes a compressed custom-format dump to an emptyDir; the main
+# container (curlimages/curl, multi-arch — deliberately NOT google/cloud-sdk,
+# whose amd64-only builds would exec-format-error on the ARM node) uploads
+# via the GCS JSON API using the metadata-server token.
+#
+# Restore runbook:
+#   gcloud storage cp gs://promovolve-db-backups/<name>.dump .
+#   kubectl -n promovolve cp <name>.dump promovolve-db-0:/tmp/
+#   kubectl -n promovolve exec promovolve-db-0 -- \
+#     pg_restore -U promovolve -d promovolve --clean --if-exists /tmp/<name>.dump
+apiVersion: v1
+kind: ServiceAccount
+metadata:
+  name: db-backup
+  annotations:
+    iam.gke.io/gcp-service-account: db-backup-writer@promovolve.iam.gserviceaccount.com
+---
+apiVersion: batch/v1
+kind: CronJob
+metadata:
+  name: promovolve-db-backup
+spec:
+  schedule: "0 17 * * *"   # 17:00 UTC = 02:00 JST, nightly
+  concurrencyPolicy: Forbid
+  successfulJobsHistoryLimit: 3
+  failedJobsHistoryLimit: 3
+  jobTemplate:
+    spec:
+      backoffLimit: 1
+      activeDeadlineSeconds: 900
+      template:
+        spec:
+          serviceAccountName: db-backup
+          restartPolicy: Never
+          tolerations:
+            - key: kubernetes.io/arch
+              operator: Equal
+              value: arm64
+              effect: NoSchedule
+          initContainers:
+            - name: dump
+              image: postgres:15-alpine
+              command: ["/bin/sh", "-c"]
+              args:
+                - |
+                  set -eu
+                  NAME="promovolve-$(date -u +%Y%m%d-%H%M%S).dump"
+                  echo "dumping to $NAME"
+                  pg_dump -h promovolve-db -U promovolve -d promovolve -Fc -f "/backup/$NAME"
+                  ls -la /backup
+              env:
+                - name: PGPASSWORD
+                  valueFrom:
+                    secretKeyRef:
+                      name: db-secret
+                      key: POSTGRES_PASSWORD
+              volumeMounts:
+                - name: backup
+                  mountPath: /backup
+          containers:
+            - name: upload
+              image: curlimages/curl:8.10.1
+              command: ["/bin/sh", "-c"]
+              args:
+                - |
+                  set -eu
+                  FILE=$(ls /backup/*.dump | head -1)
+                  NAME=$(basename "$FILE")
+                  echo "uploading $NAME ($(du -h "$FILE" | cut -f1))"
+                  TOKEN=$(curl -sf -H "Metadata-Flavor: Google" \
+                    "http://metadata.google.internal/computeMetadata/v1/instance/service-accounts/default/token" \
+                    | sed 's/.*"access_token":"\([^"]*\)".*/\1/')
+                  CODE=$(curl -s -o /tmp/resp.json -w '%{http_code}' -X POST \
+                    -H "Authorization: Bearer $TOKEN" \
+                    -H "Content-Type: application/octet-stream" \
+                    -T "$FILE" \
+                    "https://storage.googleapis.com/upload/storage/v1/b/promovolve-db-backups/o?uploadType=media&name=$NAME")
+                  if [ "$CODE" != "200" ]; then
+                    echo "UPLOAD FAILED HTTP $CODE"; cat /tmp/resp.json; exit 1
+                  fi
+                  echo "uploaded gs://promovolve-db-backups/$NAME"
+              volumeMounts:
+                - name: backup
+                  mountPath: /backup
+          volumes:
+            - name: backup
+              emptyDir: {}

@@ -1899,7 +1899,17 @@ private[delivery] class AdServer(
       Behaviors.same
 
     case GetPendingForApproveResult(url, slot, cid, selectionOpt, replyTo) =>
-      handleGetPendingForApprove(url, slot, cid, selectionOpt, replyTo)
+      handleGetPendingForApprove(url, slot, cid, selectionOpt, state.persistedApprovedIds.map(_.value), replyTo)
+      Behaviors.same
+
+    case AlreadyApprovedLookedUp(cid, creativeOpt, replyTo) =>
+      creativeOpt match {
+        case Some(meta) =>
+          log.info("Approve: creative {} already site-approved — idempotent success", cid)
+          replyTo ! StatusReply.Success(AssetPointer(meta.s3Key, new java.net.URI(meta.s3Key)))
+        case None =>
+          replyTo ! StatusReply.Error("No pending selection for this slot")
+      }
       Behaviors.same
 
     case CreativeLookedUpForApprove(candidate, selection, url, slot, creativeOpt, replyTo) =>
@@ -3233,19 +3243,37 @@ private[delivery] class AdServer(
       slot: String,
       cid: String,
       selectionOpt: Option[Selection],
+      approvedIds: Set[String],
       replyTo: ActorRef[StatusReply[AssetPointer]]
-  ): Unit =
+  ): Unit = {
+    // The inbox lists the same creative under EVERY placement it is pending
+    // on, but approving one placement removes it from ALL pending rows — so
+    // a click on a second listed placement finds no selection. If the
+    // creative is already site-approved, succeed idempotently (approve =
+    // "ensure approved") instead of erroring at the reviewer.
+    def idempotentIfApproved(orElse: => Unit): Unit =
+      if (approvedIds.contains(cid))
+        ctx.pipeToSelf(creativeRepo.get(cid)) {
+          case Success(creativeOpt) => AlreadyApprovedLookedUp(cid, creativeOpt, replyTo)
+          case Failure(_)           => AlreadyApprovedLookedUp(cid, None, replyTo)
+        }
+      else orElse
+
     selectionOpt match {
       case None =>
-        replyTo ! StatusReply.Error("No pending selection for this slot")
+        idempotentIfApproved {
+          replyTo ! StatusReply.Error("No pending selection for this slot")
+        }
 
       case Some(selection) =>
         // Find the candidate in the ordered list (current + alternatives)
         selection.ordered.find(_.creativeId.value == cid) match {
           case None =>
-            replyTo ! StatusReply.Error(
-              s"Creative $cid not found in pending selection for this slot"
-            )
+            idempotentIfApproved {
+              replyTo ! StatusReply.Error(
+                s"Creative $cid not found in pending selection for this slot"
+              )
+            }
           case Some(candidate) =>
             // Async creative lookup - pipe result back to actor
             ctx.pipeToSelf(creativeRepo.get(cid)) {
@@ -3257,6 +3285,7 @@ private[delivery] class AdServer(
             }
         }
     }
+  }
 
   /**
    * Complete single approval: Append to ServeIndex and update inverted indexes.

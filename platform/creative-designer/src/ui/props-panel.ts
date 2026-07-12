@@ -16,7 +16,7 @@
 import { refitItemCropToBox } from "../auto-crop";
 import { packReaderFieldBoxes, packTextItemHeight } from "../render/canvas";
 import { isMultiPage } from "../modes";
-import { adoptTextOverride, currentItem, currentLayout, currentPage, hasLocalTextOverride, pinImageAsMain, propagateTypography, setItemContent, setReaderFieldFontSize, TYPO_SYNC_KEYS, unpinMainImage, updateItem } from "../state";
+import { adoptTextOverride, currentItem, currentLayout, currentPage, hasLocalTextOverride, propagateTypography, setItemContent, setReaderFieldFontSize, TYPO_SYNC_KEYS, updateItem } from "../state";
 import type { Store } from "../store";
 import type { DesignerState, ImageItem, LayoutItem, RectItem } from "../types";
 import { scrimGradient, SCRIM_EDGES, type ScrimEdge, type ScrimSpec } from "../scrim";
@@ -321,51 +321,10 @@ function build(panel: HTMLElement, idx: number, item: LayoutItem, store: Store):
     sections.push(layoutGroup);
   } else if (item.type === "image") {
     const content = group("Image");
-    // Pin-as-main toggle. Pinned = this image is the shared hero
-    // (field:"img" → page.img), syncing across every size; additional images
-    // are local and don't sync. Single-main: while THIS VIEW has another
-    // image pinned, the toggle is disabled — unpin first to switch. Views
-    // whose image never got bound (e.g. a baked variant src that load-time
-    // rebind couldn't match against page.img) keep it ENABLED: ticking runs
-    // pinImageAsMain, which makes this image the shared main everywhere —
-    // deriving "disabled" from page.img alone left those views a dead end.
-    {
-      const isMainImage = (item as { field?: string }).field === "img";
-      const viewHasOtherMain = currentLayout(store.state).some(
-        (it, i) => i !== idx && it.type === "image" && (it as { field?: string }).field === "img",
-      );
-      // A pinnable image needs its own src (pinImageAsMain adopts it as
-      // page.img) — a src-less unbound image has nothing to pin.
-      const hasOwnSrc = !!(item as { src?: string }).src;
-      const pinDisabled = !isMainImage && (viewHasOtherMain || !hasOwnSrc);
-      const pinRow = document.createElement("label");
-      pinRow.style.cssText = `display:flex;align-items:center;gap:8px;margin-bottom:10px;font-size:11px;color:${tokens.ink200};${pinDisabled ? "opacity:0.45;cursor:not-allowed;" : "cursor:pointer;"}`;
-      if (pinDisabled) pinRow.title = "Another image is the shared main — unpin it first to make this one sync.";
-      const cb = document.createElement("input");
-      cb.type = "checkbox";
-      cb.checked = isMainImage;
-      cb.disabled = pinDisabled;
-      cb.style.cssText = "margin:0;cursor:inherit;";
-      cb.addEventListener("change", () => {
-        store.commit(cb.checked ? pinImageAsMain(store.state, idx) : unpinMainImage(store.state, idx));
-      });
-      pinRow.append(cb, document.createTextNode(
-        isMainImage || pinDisabled
-          ? "Main image · syncs across all sizes"
-          : "Local copy · not synced",
-      ));
-      appendToGroup(content, pinRow);
-      // Unchecked-but-tickable = a detached copy (its own src, no other
-      // main in this view). Mirror the text row's self-explanation so the
-      // unchecked state doesn't read as broken — see the sync-row hint.
-      if (!isMainImage && !pinDisabled) {
-        const hint = document.createElement("div");
-        hint.style.cssText = `margin:-4px 0 10px 24px;font-size:11px;color:${tokens.ink300};font-style:italic;`;
-        hint.textContent = "Tick to make this the shared main image";
-        hint.title = "This view shows its own copy of the image. Ticking makes it the main image every size syncs to.";
-        appendToGroup(content, hint);
-      }
-    }
+    // No pin/sync toggle here (removed 2026-07-13, user decision): THE
+    // image is defined by page 1 of the expanded view — normalize.ts
+    // reconciles page.img from it at load, and "Replace image…" fans it
+    // out. Sizes only place/crop it; a per-view checkbox was confusing.
     // "Replace image…" sets/replaces the shared main from the asset library;
     // in a size you adjust placement + crop.
     if (isExpanded) {

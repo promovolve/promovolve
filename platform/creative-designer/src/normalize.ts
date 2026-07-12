@@ -9,6 +9,7 @@
 
 import { resolveLayoutColors } from "./color-contrast";
 import { kitFont, kitColor, type BrandKit } from "./brand-kit";
+import { MOBILE_EXPANDED_KEY } from "./state";
 import type { LayoutItem, Page, TextItem } from "./types";
 
 const DESIGN_ASPECT = "16/9";
@@ -58,34 +59,53 @@ function normalizePage(p: Page, fillDefaultLayout: boolean, kit: BrandKit | null
   // the z-stack). Applied to the expanded master AND every per-size bucket so
   // a creative opened from the backend (or synthesized here) never shows an
   // image on top of its text, regardless of how it was stored.
-  if (Array.isArray(page.layout)) page.layout = rebindMainImage(imagesToBack(page.layout), page);
+  if (Array.isArray(page.layout)) page.layout = imagesToBack(page.layout);
   const banners = page.banners as Record<string, LayoutItem[]>;
   for (const key of Object.keys(banners)) {
-    if (Array.isArray(banners[key])) banners[key] = rebindMainImage(imagesToBack(banners[key]), page);
+    if (Array.isArray(banners[key])) banners[key] = imagesToBack(banners[key]);
   }
+  reconcileMainImage(page);
   return page;
 }
 
-// A stored creative can carry the main image BAKED into a view (a literal
-// src, no field) while page.img holds the same source — server-side
-// generation predates the pin model. That renders identically but breaks
-// the pin row: "main" is derived from field:"img", so the checkbox shows
-// an unmodifiable unchecked box until "Replace image…" happens to rebind
-// it (ensureMainImage). Rebind at load instead: the first image whose src
-// equals page.img becomes the field-bound main. The crop is kept — same
-// source, so the crop window still applies. Non-matching srcs are genuine
-// locals and stay untouched.
-function rebindMainImage(items: LayoutItem[], page: Page): LayoutItem[] {
-  const img = (page as { img?: string }).img;
-  if (!img) return items;
-  if (items.some((it) => it.type === "image" && (it as { field?: string }).field === "img")) return items;
-  const i = items.findIndex((it) => it.type === "image" && (it as { src?: string }).src === img);
-  if (i < 0) return items;
-  return items.map((it, j) => {
-    if (j !== i) return it;
-    const { src: _s, ...rest } = it as LayoutItem & { src?: string };
-    return { ...rest, field: "img" } as LayoutItem;
-  });
+// ONE image per page, defined by the EXPANDED view (user decision
+// 2026-07-13). Stored creatives can disagree with that rule: server-side
+// generation bakes literal srcs into views (sometimes different renditions
+// per view), and page.img can lag what the expanded view actually shows.
+// Reconcile at load:
+//   1. page.img := the expanded view's hero source (its baked src, or the
+//      existing page.img when the hero is already field-bound).
+//   2. Every view's FIRST image (the hero slot — imagesToBack puts images
+//      at the z-back, and the main sits at index 0 by convention) binds to
+//      field:"img", dropping any baked src so it resolves page.img live.
+//      A drifted size visibly snaps to the shared image — that's the rule.
+//      Later images are author-added locals and stay untouched.
+// The expanded edit surface is the portrait reader (mobile-expanded);
+// page.layout (the wide artifact) is the fallback definition source.
+function reconcileMainImage(page: Page): void {
+  const firstImage = (arr?: LayoutItem[]): (LayoutItem & { field?: string; src?: string }) | undefined =>
+    arr?.find((it) => it.type === "image") as (LayoutItem & { field?: string; src?: string }) | undefined;
+  const banners = (page.banners ?? {}) as Record<string, LayoutItem[]>;
+  const expandedHero = firstImage(banners[MOBILE_EXPANDED_KEY]) ?? firstImage(page.layout);
+  if (expandedHero) {
+    if (expandedHero.field !== "img" && expandedHero.src) page.img = expandedHero.src;
+  }
+  if (!page.img) return; // nothing to bind against — leave views as stored
+  const bindHero = (arr: LayoutItem[]): LayoutItem[] => {
+    const i = arr.findIndex((it) => it.type === "image");
+    if (i < 0) return arr;
+    const hero = arr[i] as LayoutItem & { field?: string; src?: string };
+    if (hero.field === "img" && hero.src == null) return arr;
+    return arr.map((it, j) => {
+      if (j !== i) return it;
+      const { src: _s, ...rest } = it as LayoutItem & { src?: string };
+      return { ...rest, field: "img" } as LayoutItem;
+    });
+  };
+  if (Array.isArray(page.layout)) page.layout = bindHero(page.layout);
+  for (const key of Object.keys(banners)) {
+    if (Array.isArray(banners[key])) banners[key] = bindHero(banners[key]);
+  }
 }
 
 // Stable reorder: image items first (back of the z-stack), everything else

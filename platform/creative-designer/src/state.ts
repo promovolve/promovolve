@@ -526,9 +526,9 @@ export function addItem(state: DesignerState, item: LayoutItem): DesignerState {
 }
 
 // Add an image as a LOCAL (unsynced) item to the current view — centered, a
-// modest size, carrying its own baked src. It stays in this creative only;
-// pin it as main (pinImageAsMain) to make it the shared hero. Selected after
-// add so the props panel (incl. its pin toggle) is ready.
+// modest size, carrying its own baked src. It stays in this view only; THE
+// shared image is changed via setMainImage from the expanded view. Selected
+// after add so the props panel is ready.
 export function addLocalImage(state: DesignerState, src: string): DesignerState {
   const item = { type: "image", src, left: 25, top: 25, width: 50, height: 50, fillMode: "fill" } as LayoutItem;
   return addItem(state, item);
@@ -650,8 +650,7 @@ export function setMainImage(state: DesignerState, src: string): DesignerState {
   // first one — drop its baked src/crop so it resolves the new page.img live —
   // drop any extra image items (the "layered on top" duplicate), and move it
   // behind the text. Only a view with no image at all gets a fresh preset slot.
-  // This is the "set THE single main" op (asset-replace); the MULTI-image path
-  // (pinImageAsMain) reconciles views without collapsing locals.
+  // This is the "set THE single main" op (asset-replace).
   const ensureMainImage = (items: LayoutItem[], modeKey: string): LayoutItem[] => {
     const keep = items.find((it) => it.type === "image");
     const rest = items.filter((it) => it.type !== "image");
@@ -684,102 +683,16 @@ export function setMainImage(state: DesignerState, src: string): DesignerState {
   };
 }
 
-// ── Pin / unpin the shared MAIN image ────────────────────────────────
-// "Pinned as main" is not a state machine — it's the single value `page.img`
-// (+ the one item carrying field:"img") and pure derivations of it:
+// ── The shared MAIN image ────────────────────────────────────────────
+// One image per page, everywhere (user decision 2026-07-13): the image on
+// the EXPANDED view defines it. It's the single value `page.img` plus the
+// one item per view carrying field:"img" (which resolves page.img live).
 //   isMain(X)        = X.field === "img"
-//   pinEnabled(X)    = isMain(X) || (X.src set && no OTHER field:"img" item
-//                      in X's view) — per-VIEW, not page.img: a view whose
-//                      image never got bound (baked variant src) must still
-//                      be able to pin, which ADOPTS its src as the new main
-//   syncsAcrossSizes = isMain(X)               // field-bound → resolves page.img everywhere
-// Additional (local) images carry their own baked src and never sync.
-
-// Pin the local image at `idx` (current view) as the shared main: it becomes
-// field:"img" bound to page.img and shows in every size; other views rebind
-// their existing main slot to the new source (their locals preserved) or
-// gain a preset slot. Replaces page.img when one already exists — the UI
-// only offers the toggle when this view has no OTHER bound main.
-export function pinImageAsMain(state: DesignerState, idx: number): DesignerState {
-  const items = currentLayout(state);
-  const target = items[idx] as (LayoutItem & { type?: string; field?: string; src?: string }) | undefined;
-  if (!target || target.type !== "image" || target.field === "img") return state;
-  const src = target.src;
-  if (!src) return state; // a pinnable image must carry its own source
-  const page = currentPage(state);
-  if (!page) return state;
-  const withImg = { ...page, img: src } as Page;
-  // A fresh main slot for a mode, from its preset, bound to page.img.
-  const slotFor = (modeKey: string): LayoutItem | null => {
-    const img = presetLayoutFor(modeKey, withImg)?.find((it) => it.type === "image") as LayoutItem | undefined;
-    return img ? ({ ...img, field: "img", src: undefined } as LayoutItem) : null;
-  };
-  const stripBake = (it: LayoutItem): LayoutItem => {
-    const { src: _s, crop: _c, ...base } = it as LayoutItem & { src?: string; crop?: unknown };
-    return { ...base, field: "img" } as LayoutItem;
-  };
-  // CURRENT view: make the SPECIFIC target the main, at the back; keep the rest.
-  const bindTarget = (arr: LayoutItem[]): LayoutItem[] =>
-    [stripBake(arr[idx]!), ...arr.filter((_, i) => i !== idx)];
-  // OTHER views: rebind an existing main, else ADD a preset slot — NEVER
-  // collapse a local image into the main.
-  const reconcile = (arr: LayoutItem[], modeKey: string): LayoutItem[] => {
-    const mi = arr.findIndex((it) => it.type === "image" && (it as { field?: string }).field === "img");
-    if (mi >= 0) return [stripBake(arr[mi]!), ...arr.filter((_, i) => i !== mi)];
-    const s = slotFor(modeKey);
-    return s ? [s, ...arr] : arr;
-  };
-  const isExpanded = state.mode.key === "expanded";
-  const curSizeKey = state.mode.sizeKey;
-  const layout = page.layout && page.layout.length > 0
-    ? (isExpanded ? bindTarget(page.layout) : reconcile(page.layout, "expanded"))
-    : (page.layout ?? []);
-  const banners = { ...(page.banners ?? {}) };
-  for (const m of MODES) {
-    if (m.key === "expanded" || !m.sizeKey) continue;
-    const arr = banners[m.sizeKey];
-    if (!arr || arr.length === 0) continue;
-    banners[m.sizeKey] = (!isExpanded && m.sizeKey === curSizeKey) ? bindTarget(arr) : reconcile(arr, m.key);
-  }
-  const nextPage = { ...page, img: src, layout, banners } as Page;
-  return {
-    ...state,
-    selectedItemIdxs: [],
-    pages: state.pages.map((p, i) => (i === state.pageIdx ? nextPage : p)),
-  };
-}
-
-// Unpin the main image at `idx` (current view): it stays as a LOCAL image here
-// (keeps the source it was showing), page.img is cleared, and the now-orphaned
-// hero is removed from every other view — the rest "lose the image that syncs".
-export function unpinMainImage(state: DesignerState, idx: number): DesignerState {
-  const items = currentLayout(state);
-  const target = items[idx] as (LayoutItem & { type?: string; field?: string }) | undefined;
-  if (!target || target.type !== "image" || target.field !== "img") return state;
-  const src = (currentPage(state) as { img?: string } | null)?.img;
-  // 1. current view: demote the main to a local image (drop field, bake src).
-  const demoted = updateCurrentLayout(state, (arr) =>
-    arr.map((it, i) => {
-      if (i !== idx) return it;
-      const { field: _f, ...base } = it as LayoutItem & { field?: string };
-      return (src ? { ...base, src } : base) as LayoutItem;
-    }),
-  );
-  // 2. clear page.img + strip any field:"img" hero from every view. The current
-  //    view's image was just demoted (no field), so it survives as a local.
-  const p = currentPage(demoted);
-  if (!p) return demoted;
-  const stripMain = (arr?: LayoutItem[]): LayoutItem[] =>
-    (arr ?? []).filter((it) => !(it.type === "image" && (it as { field?: string }).field === "img"));
-  const banners: Record<string, LayoutItem[]> = {};
-  for (const [k, arr] of Object.entries(p.banners ?? {})) banners[k] = stripMain(arr);
-  const nextPage = { ...p, img: undefined, layout: stripMain(p.layout), banners } as Page;
-  return {
-    ...demoted,
-    selectedItemIdxs: [],
-    pages: demoted.pages.map((pg, i) => (i === demoted.pageIdx ? nextPage : pg)),
-  };
-}
+//   syncsAcrossSizes = always — sizes place/crop the image, never choose it
+// There is no pin/unpin: page.img is reconciled FROM the expanded view at
+// load (normalize.ts reconcileMainImage) and changed via setMainImage
+// ("Replace image…" / canvas drop in the expanded view), which rebinds
+// every view. Author-added extra images are baked locals and never sync.
 
 export function deleteItem(state: DesignerState, idx: number): DesignerState {
   const items = currentLayout(state);
@@ -788,7 +701,7 @@ export function deleteItem(state: DesignerState, idx: number): DesignerState {
   const next = updateCurrentLayout(state, (arr) => arr.filter((_, i) => i !== idx));
   // Deleting the shared main clears page.img so it doesn't resurrect on the
   // next ensureMainImage; the other views keep their own hero slots, which now
-  // resolve an empty source until a new main is pinned.
+  // resolve an empty source until a new image is set from the expanded view.
   const clearedMain = removed && removed.type === "image" && (removed as { field?: string }).field === "img";
   const page = clearedMain ? currentPage(next) : null;
   const withImg = page ? { ...next, pages: next.pages.map((p, i) => (i === next.pageIdx ? ({ ...page, img: undefined } as Page) : p)) } : next;

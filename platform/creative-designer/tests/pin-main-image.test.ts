@@ -1,9 +1,12 @@
-// Pin / unpin the shared MAIN image. "Pinned" is the single value page.img
-// (+ the one item with field:"img") — additional images are local and never
-// sync. See state.ts pinImageAsMain / unpinMainImage / ensureMainImage.
+// THE main image (user decision 2026-07-13): one image per page, defined by
+// the EXPANDED view. There is no pin/unpin — normalize.ts reconcileMainImage
+// derives page.img from the expanded view's hero at load and binds every
+// view's first image to field:"img"; setMainImage changes it from the
+// expanded view. See state.ts "The shared MAIN image".
 
 import { describe, expect, it } from "vitest";
-import { deleteItem, initialState, pinImageAsMain, unpinMainImage } from "../src/state";
+import { deleteItem, initialState } from "../src/state";
+import { normalizePages } from "../src/normalize";
 import type { LayoutItem, Page } from "../src/types";
 
 const mainImg = (extra: Record<string, unknown> = {}): LayoutItem =>
@@ -14,55 +17,60 @@ const txt = (field: string): LayoutItem => ({ type: "text", field }) as LayoutIt
 
 const images = (arr?: LayoutItem[]): LayoutItem[] => (arr ?? []).filter((it) => it.type === "image");
 const isMain = (it: LayoutItem): boolean => it.type === "image" && (it as { field?: string }).field === "img";
+const src = (it: LayoutItem): string | undefined => (it as { src?: string }).src;
 
-describe("pinImageAsMain", () => {
-  it("turns a local image into the shared main (field:img + page.img)", () => {
-    const pages: Page[] = [{ layout: [localImg("a"), txt("headline")] }] as Page[];
-    const out = pinImageAsMain(initialState(pages, "expanded"), 0);
-    expect(out.pages[0]!.img).toBe("a");
-    const im = images(out.pages[0]!.layout)[0]!;
-    expect(isMain(im)).toBe(true);
-    expect((im as { src?: string }).src).toBeUndefined(); // bake dropped → resolves page.img
+describe("reconcileMainImage (normalize load-time)", () => {
+  it("adopts the expanded view's baked hero src as page.img and binds it", () => {
+    const [p] = normalizePages([{
+      headline: "h", img: "stale",
+      banners: { "mobile-expanded": [localImg("expanded-truth"), txt("headline")] },
+    }]);
+    expect(p!.img).toBe("expanded-truth");
+    const hero = images(p!.banners!["mobile-expanded"])[0]!;
+    expect(isMain(hero)).toBe(true);
+    expect(src(hero)).toBeUndefined(); // resolves page.img live
   });
 
-  it("preserves other local images in the same view", () => {
-    const pages: Page[] = [{ layout: [localImg("a"), localImg("b"), txt("headline")] }] as Page[];
-    const out = pinImageAsMain(initialState(pages, "expanded"), 0);
-    const imgs = images(out.pages[0]!.layout);
+  it("snaps a drifted size's hero onto the shared image (bake dropped)", () => {
+    const [p] = normalizePages([{
+      headline: "h", img: "a",
+      banners: {
+        "mobile-expanded": [mainImg(), txt("headline")],
+        "300x250": [localImg("old-variant"), txt("headline")],
+      },
+    }]);
+    expect(p!.img).toBe("a"); // bound expanded hero → page.img untouched
+    const hero = images(p!.banners!["300x250"])[0]!;
+    expect(isMain(hero)).toBe(true);
+    expect(src(hero)).toBeUndefined();
+  });
+
+  it("binds only the FIRST image per view — later locals stay untouched", () => {
+    const [p] = normalizePages([{
+      headline: "h", img: "a",
+      banners: { "300x250": [localImg("a"), localImg("decoration"), txt("headline")] },
+    }]);
+    const imgs = images(p!.banners!["300x250"]);
     expect(imgs.filter(isMain).length).toBe(1);
-    expect(imgs.find((it) => (it as { src?: string }).src === "b")).toBeTruthy(); // the other local kept
+    expect(src(imgs[1]!)).toBe("decoration");
   });
 
-  it("no-ops on a non-image, an already-main item, or an image without a src", () => {
-    const s1 = initialState([{ layout: [txt("headline")] }] as Page[], "expanded");
-    expect(pinImageAsMain(s1, 0)).toBe(s1);
-    const s2 = initialState([{ layout: [mainImg()] }] as Page[], "expanded");
-    expect(pinImageAsMain(s2, 0)).toBe(s2);
-    const s3 = initialState([{ layout: [localImg("")] }] as Page[], "expanded");
-    expect(pinImageAsMain(s3, 0)).toBe(s3); // empty src isn't pinnable
-  });
-});
-
-describe("unpinMainImage", () => {
-  it("demotes the main to a local image (keeps the source) and clears page.img", () => {
-    const pages: Page[] = [{ img: "a", layout: [mainImg(), txt("headline")] }] as Page[];
-    const out = unpinMainImage(initialState(pages, "expanded"), 0);
-    expect(out.pages[0]!.img).toBeUndefined();
-    const im = images(out.pages[0]!.layout)[0]!;
-    expect(isMain(im)).toBe(false);              // no longer the shared main
-    expect((im as { src?: string }).src).toBe("a"); // baked the source it was showing
+  it("no page.img and no expanded hero → views stay as stored", () => {
+    const [p] = normalizePages([{
+      headline: "h",
+      banners: { "300x250": [localImg("only-here"), txt("headline")] },
+    }]);
+    expect(p!.img).toBeUndefined();
+    expect(isMain(images(p!.banners!["300x250"])[0]!)).toBe(false);
   });
 
-  it("strips the orphaned hero from every OTHER view (they lose the synced image)", () => {
-    const pages: Page[] = [{
-      img: "a",
-      layout: [mainImg(), txt("headline")],
-      banners: { "300x250": [mainImg(), localImg("z")] },
-    }] as Page[];
-    const out = unpinMainImage(initialState(pages, "expanded"), 0);
-    const bucket = out.pages[0]!.banners!["300x250"]!;
-    expect(bucket.filter(isMain).length).toBe(0);            // hero gone from the size bucket
-    expect(bucket.find((it) => (it as { src?: string }).src === "z")).toBeTruthy(); // its local survives
+  it("falls back to page.layout as the definition when there is no expanded bucket", () => {
+    const [p] = normalizePages([{
+      headline: "h", img: "stale",
+      layout: [localImg("wide-truth"), txt("headline")],
+    }]);
+    expect(p!.img).toBe("wide-truth");
+    expect(isMain(images(p!.layout)[0]!)).toBe(true);
   });
 });
 

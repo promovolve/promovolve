@@ -9,7 +9,7 @@
 // go through store.replace for live preview; `change` events (blur,
 // slider release, select close) commit a single undo step.
 
-import { currentPage, setPageBg, setTextureBg, setTextureSrc, setVideoBg } from "../state";
+import { currentPage, setPageBg, setSyncPageBg, setTextureBg, setTextureSrc, setVideoBg } from "../state";
 import type { Store } from "../store";
 import type { DesignerState, TextureBg, VideoBg } from "../types";
 import { openAssetModal } from "./asset-modal";
@@ -63,7 +63,7 @@ export function mountPageBgPanel(container: HTMLElement, store: Store): PageBgPa
   return {
     update(state) {
       const page = currentPage(state);
-      colorRow.update(page?.bg ?? "");
+      colorRow.update(page?.bg ?? "", state.pageIdx === 0, !!state.pages[0]?.syncBg);
       const videoBg = page?.videoBg;
       const src = videoBg?.src ?? null;
       // Only rebuild when present/absent state flips — otherwise
@@ -101,12 +101,14 @@ export function mountPageBgPanel(container: HTMLElement, store: Store): PageBgPa
 
 interface ColorRowHandle {
   el: HTMLElement;
-  update(currentBg: string): void;
+  update(currentBg: string, firstPage: boolean, synced: boolean): void;
 }
 
 function mountColorRow(store: Store): ColorRowHandle {
+  const wrap = document.createElement("div");
   const row = document.createElement("div");
   row.style.cssText = "display:flex;align-items:center;gap:8px;";
+  wrap.appendChild(row);
 
   const label = document.createElement("label");
   label.style.cssText = `flex:0 0 80px;color:${tokens.ink300};font-size:11px;`;
@@ -168,9 +170,30 @@ function mountColorRow(store: Store): ColorRowHandle {
     store.commit(setPageBg(store.state, null));
   });
 
+  // "Sync color across all 3 pages" — governs whether the page-1 colour
+  // is copied onto pages 2/3 (see state.ts setSyncPageBg / setPageBg).
+  // ALWAYS rendered so the accordion height never jumps when paging;
+  // operable only while page 1 is selected, greyed on pages 2/3.
+  const syncRow = document.createElement("label");
+  syncRow.style.cssText = `display:flex;align-items:center;gap:8px;margin-top:8px;font-size:11px;color:${tokens.ink200};`;
+  const syncCb = document.createElement("input");
+  syncCb.type = "checkbox";
+  syncCb.style.cssText = "margin:0;cursor:inherit;";
+  syncCb.addEventListener("change", () => {
+    store.commit(setSyncPageBg(store.state, syncCb.checked));
+  });
+  syncRow.append(syncCb, document.createTextNode("Sync color across all 3 pages"));
+  wrap.appendChild(syncRow);
+
+  const setRowEnabled = (input: HTMLInputElement | HTMLButtonElement, on: boolean): void => {
+    input.disabled = !on;
+    input.style.opacity = on ? "" : "0.45";
+    input.style.cursor = on ? "" : "not-allowed";
+  };
+
   return {
-    el: row,
-    update(currentBg) {
+    el: wrap,
+    update(currentBg, firstPage, synced) {
       // Only repopulate when the value differs from the input — avoids
       // clobbering user input mid-edit and keeps focus/caret intact.
       if (text.value !== currentBg) {
@@ -183,6 +206,19 @@ function mountColorRow(store: Store): ColorRowHandle {
           swatch.value = currentBg;
         }
       }
+      // Toggle operable only on page 1 (state readable everywhere).
+      syncCb.checked = synced;
+      setRowEnabled(syncCb, firstPage);
+      syncRow.style.opacity = firstPage ? "" : "0.45";
+      syncRow.style.cursor = firstPage ? "pointer" : "not-allowed";
+      syncRow.title = firstPage ? "" : "Set from page 1";
+      // While synced, pages 2/3 show the colour but can't edit it —
+      // page 1 is the single edit surface.
+      const editable = firstPage || !synced;
+      setRowEnabled(swatch, editable);
+      setRowEnabled(text, editable);
+      setRowEnabled(clear, editable);
+      row.title = editable ? "" : "Color synced from page 1";
     },
   };
 }

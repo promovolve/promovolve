@@ -258,6 +258,11 @@ export interface Page {
   designAspect?: string;
   videoBg?: VideoBg;
   textureBg?: TextureBg;
+  /** Designer-only flag, meaningful on page 0: while true, the page-1
+    * background color is kept copied onto every page (the designer
+    * enforces it on edit; bg values stay materialized per page, so the
+    * renderer never reads this). */
+  syncBg?: boolean;
   [key: string]: unknown;
 }
 

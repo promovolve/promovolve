@@ -1165,20 +1165,51 @@ export function setTextureSrc(state: DesignerState, src: string, sizeBytes?: num
 
 /** Set or clear the current page's solid background color (CSS color
   * string). Pass `null` to remove and revert to the renderer's default
-  * dark gradient. Lives on the page, mirrors setVideoBg. */
+  * dark gradient. Lives on the page, mirrors setVideoBg. While page-1
+  * colour sync is on (pages[0].syncBg), a page-1 edit writes EVERY page —
+  * the UI disables the colour row on pages 2/3, so page 1 is the only
+  * edit surface; a direct pages-2/3 call stays per-page. */
 export function setPageBg(state: DesignerState, bg: string | null): DesignerState {
   const page = currentPage(state);
   if (!page) return state;
-  const nextPage: Page = bg === null || bg === ""
-    ? (() => {
-        const { bg: _drop, ...rest } = page;
-        return rest as Page;
-      })()
-    : { ...page, bg };
+  const apply = (p: Page): Page => {
+    if (bg === null || bg === "") {
+      const { bg: _drop, ...rest } = p;
+      return rest as Page;
+    }
+    return { ...p, bg };
+  };
+  if (state.pageIdx === 0 && state.pages[0]?.syncBg) {
+    return { ...state, pages: state.pages.map(apply) };
+  }
   return {
     ...state,
-    pages: state.pages.map((p, i) => (i === state.pageIdx ? nextPage : p)),
+    pages: state.pages.map((p, i) => (i === state.pageIdx ? apply(p) : p)),
   };
+}
+
+/** Toggle "sync color across all 3 pages" (stored on page 0, persisted
+  * with pagesJSON). Turning it ON immediately copies page 1's background
+  * colour — or its absence — onto every page; turning it OFF leaves the
+  * pages as they are, free to diverge again. */
+export function setSyncPageBg(state: DesignerState, on: boolean): DesignerState {
+  const first = state.pages[0];
+  if (!first) return state;
+  const bg = first.bg;
+  const pages = state.pages.map((p, i) => {
+    let next = p;
+    if (on && i > 0) {
+      if (bg == null) {
+        const { bg: _drop, ...rest } = p;
+        next = rest as Page;
+      } else {
+        next = { ...p, bg };
+      }
+    }
+    if (i === 0) next = { ...next, syncBg: on || undefined } as Page;
+    return next;
+  });
+  return { ...state, pages };
 }
 
 // ─── Navigation (not undoable) ──────────────────────────────────────

@@ -70,14 +70,22 @@ document.body.addEventListener('htmx:beforeRequest', function(evt) {
     var now = Date.now();
     if (now - last < 2000) return; // throttle, mirrors the old throttle:2s
     last = now;
-    if (document.querySelector('[data-detail]:not(.hidden)')) {
-      // Preview open: don't wipe it — closeDetail() applies the refresh.
-      window.__pendingApprovalRefresh = true;
-      return;
-    }
+    // A pane is open on essentially every view (pending items auto-expand
+    // on load), so "defer while a preview is open" meant "never refresh".
+    // Instead: remember the open pane, refresh, and re-open the same pane
+    // if its item survived the update (if the event removed it, staying
+    // closed is the correct outcome).
+    var open = document.querySelector('[data-detail]:not(.hidden)');
+    var openKey = open ? open.id.replace(/^detail-/, '') : null;
     window.__forceInboxReload = true;
-    htmx.ajax('GET', '/publisher/approval', { target: '#tab-content', swap: 'innerHTML' });
-    window.__forceInboxReload = false;
+    htmx.ajax('GET', '/publisher/approval', { target: '#tab-content', swap: 'innerHTML' })
+      .then(function(){
+        if (openKey && document.getElementById('detail-' + openKey)) {
+          var btn = document.querySelector('[data-inbox-item][onclick*="' + openKey + '"]');
+          window.openDetail(openKey, btn);
+        }
+      })
+      .finally(function(){ window.__forceInboxReload = false; });
   });
 })();
 window.closeDetail = function() {

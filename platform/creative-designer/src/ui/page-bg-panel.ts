@@ -517,6 +517,12 @@ function texturePreview(textureBg: TextureBg, store: Store): HTMLElement {
       `background-position: ${fx}% ${fy}%`,
       "cursor: crosshair",
       "touch-action: none",
+      // Safari: without these the drag starts a text selection / native
+      // image drag and WebKit steals the gesture (pointer capture alone
+      // doesn't stop it there, unlike Chrome).
+      "user-select: none",
+      "-webkit-user-select: none",
+      "-webkit-touch-callout: none",
     ].join(";");
 
     const marker = document.createElement("div");
@@ -541,20 +547,34 @@ function texturePreview(textureBg: TextureBg, store: Store): HTMLElement {
       const y = Math.round(Math.max(0, Math.min(100, ((e.clientY - r.top) / r.height) * 100)));
       mutateTex(store, (bg) => ({ ...bg, focusX: x, focusY: y }), commitNow);
     };
+    // Window-scoped drag: older Safari's mouse setPointerCapture is broken
+    // (moves stop being retargeted to the element), so element-scoped
+    // pointermove dies the moment the cursor leaves this 96px swatch.
+    // Listening on window needs no capture at all; capture is still taken
+    // opportunistically so browsers that honor it suppress hover effects
+    // elsewhere during the drag.
     let dragging = false;
-    preview.addEventListener("pointerdown", (e) => {
-      dragging = true;
-      preview.setPointerCapture(e.pointerId);
-      setFromEvent(e, false);
-    });
-    preview.addEventListener("pointermove", (e) => {
+    const onMove = (e: PointerEvent): void => {
       if (dragging) setFromEvent(e, false);
-    });
-    preview.addEventListener("pointerup", (e) => {
+    };
+    const endDrag = (e: PointerEvent): void => {
       if (!dragging) return;
       dragging = false;
+      window.removeEventListener("pointermove", onMove);
+      window.removeEventListener("pointerup", endDrag);
+      window.removeEventListener("pointercancel", endDrag);
       try { preview.releasePointerCapture(e.pointerId); } catch { /* capture may already be released */ }
       setFromEvent(e, true);  // single undo step for the whole drag
+    };
+    preview.addEventListener("pointerdown", (e) => {
+      dragging = true;
+      // Stop Safari from starting a text selection / native drag instead.
+      e.preventDefault();
+      try { preview.setPointerCapture(e.pointerId); } catch { /* optional */ }
+      window.addEventListener("pointermove", onMove);
+      window.addEventListener("pointerup", endDrag);
+      window.addEventListener("pointercancel", endDrag);
+      setFromEvent(e, false);
     });
   } else {
     preview.style.cssText = [

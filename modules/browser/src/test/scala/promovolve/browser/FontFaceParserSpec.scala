@@ -47,7 +47,7 @@ class FontFaceParserSpec extends AnyWordSpec with Matchers {
         """@font-face { font-family: A; font-weight: bold; src: url(a.woff2); }
           |@font-face { font-family: B; font-weight: normal; src: url(b.woff2); }""".stripMargin
       FontFaceParser.parse(css, base).map(f => (f.family, f.weightMin)) shouldBe
-        Vector(("A", 700), ("B", 400))
+      Vector(("A", 700), ("B", 400))
     }
 
     "skip italic faces" in {
@@ -55,7 +55,7 @@ class FontFaceParserSpec extends AnyWordSpec with Matchers {
         """@font-face { font-family: C; font-style: italic; src: url(c-it.woff2); }
           |@font-face { font-family: C; font-style: normal; src: url(c.woff2); }""".stripMargin
       FontFaceParser.parse(css, base).map(_.src) shouldBe
-        Vector("https://cdn.example.com/css/c.woff2")
+      Vector("https://cdn.example.com/css/c.woff2")
     }
 
     "skip faces with no woff2 source" in {
@@ -74,7 +74,7 @@ class FontFaceParserSpec extends AnyWordSpec with Matchers {
       val css =
         """@font-face { font-family: F; src: url(//fonts.example.net/f.woff2); }"""
       FontFaceParser.parse(css, base).map(_.src) shouldBe
-        Vector("https://fonts.example.net/f.woff2")
+      Vector("https://fonts.example.net/f.woff2")
     }
 
     "handle several blocks and unquoted families" in {
@@ -84,7 +84,7 @@ class FontFaceParserSpec extends AnyWordSpec with Matchers {
           |.cls { color: red; }
           |@font-face{font-family:'Beta Sans';src:url(beta.woff2);}""".stripMargin
       FontFaceParser.parse(css, base).map(f => (f.family, f.weightMin)) shouldBe
-        Vector(("Alpha", 300), ("Beta Sans", 400))
+      Vector(("Alpha", 300), ("Beta Sans", 400))
     }
   }
 }

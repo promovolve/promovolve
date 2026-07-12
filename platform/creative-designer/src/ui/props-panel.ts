@@ -323,13 +323,21 @@ function build(panel: HTMLElement, idx: number, item: LayoutItem, store: Store):
     const content = group("Image");
     // Pin-as-main toggle. Pinned = this image is the shared hero
     // (field:"img" → page.img), syncing across every size; additional images
-    // are local and don't sync. Single-main: while one image is pinned, the
-    // others' toggle is disabled — unpin first to switch. Pure derivation of
-    // page.img, no separate state (see state.ts pin/unpin helpers).
+    // are local and don't sync. Single-main: while THIS VIEW has another
+    // image pinned, the toggle is disabled — unpin first to switch. Views
+    // whose image never got bound (e.g. a baked variant src that load-time
+    // rebind couldn't match against page.img) keep it ENABLED: ticking runs
+    // pinImageAsMain, which makes this image the shared main everywhere —
+    // deriving "disabled" from page.img alone left those views a dead end.
     {
       const isMainImage = (item as { field?: string }).field === "img";
-      const hasMain = !!(currentPage(store.state) as { img?: string } | null)?.img;
-      const pinDisabled = hasMain && !isMainImage;
+      const viewHasOtherMain = currentLayout(store.state).some(
+        (it, i) => i !== idx && it.type === "image" && (it as { field?: string }).field === "img",
+      );
+      // A pinnable image needs its own src (pinImageAsMain adopts it as
+      // page.img) — a src-less unbound image has nothing to pin.
+      const hasOwnSrc = !!(item as { src?: string }).src;
+      const pinDisabled = !isMainImage && (viewHasOtherMain || !hasOwnSrc);
       const pinRow = document.createElement("label");
       pinRow.style.cssText = `display:flex;align-items:center;gap:8px;margin-bottom:10px;font-size:11px;color:${tokens.ink200};${pinDisabled ? "opacity:0.45;cursor:not-allowed;" : "cursor:pointer;"}`;
       if (pinDisabled) pinRow.title = "Another image is the shared main — unpin it first to make this one sync.";

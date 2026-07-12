@@ -688,15 +688,18 @@ export function setMainImage(state: DesignerState, src: string): DesignerState {
 // "Pinned as main" is not a state machine — it's the single value `page.img`
 // (+ the one item carrying field:"img") and pure derivations of it:
 //   isMain(X)        = X.field === "img"
-//   hasMain          = page.img != null
-//   pinEnabled(X)    = isMain(X) || !hasMain   // others disabled while one is pinned
+//   pinEnabled(X)    = isMain(X) || (X.src set && no OTHER field:"img" item
+//                      in X's view) — per-VIEW, not page.img: a view whose
+//                      image never got bound (baked variant src) must still
+//                      be able to pin, which ADOPTS its src as the new main
 //   syncsAcrossSizes = isMain(X)               // field-bound → resolves page.img everywhere
 // Additional (local) images carry their own baked src and never sync.
 
 // Pin the local image at `idx` (current view) as the shared main: it becomes
-// field:"img" bound to page.img and shows in every size; other views gain a
-// main slot bound to the same source (their locals preserved). No-op if the
-// item isn't a local image, or a main already exists (guarded in the UI too).
+// field:"img" bound to page.img and shows in every size; other views rebind
+// their existing main slot to the new source (their locals preserved) or
+// gain a preset slot. Replaces page.img when one already exists — the UI
+// only offers the toggle when this view has no OTHER bound main.
 export function pinImageAsMain(state: DesignerState, idx: number): DesignerState {
   const items = currentLayout(state);
   const target = items[idx] as (LayoutItem & { type?: string; field?: string; src?: string }) | undefined;

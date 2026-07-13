@@ -91,18 +91,20 @@ jobs:
         id: filter
         with:
           filters: |
-            # Test sources never ship in the image — a spec-only commit
-            # must not roll the api tier (2026-07-13: one did, and the
-            # restart transient read as "auction broken").
+            # POSITIVE patterns only. With the default predicate-quantifier
+            # (some), a '!'-negation matches every file OUTSIDE its glob, so
+            # 'modules/**' + '!modules/**/src/test/**' made the filter match
+            # ALL commits — docs-only pushes rolled both tiers (2026-07-13).
+            # Test sources never ship in the image — a spec-only commit must
+            # not roll the api tier — so match src/main explicitly instead
+            # of excluding src/test.
             api:
-              - 'modules/**'
-              - '!modules/**/src/test/**'
+              - 'modules/*/src/main/**'
               - 'build.sbt'
               - 'project/**'
               - 'Dockerfile.api'
             platform:
               - 'platform/**'
-              - '!platform/creative-designer/tests/**'
 
   build-api:
     name: Build api (arm64)

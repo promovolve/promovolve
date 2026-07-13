@@ -281,8 +281,13 @@ func (h *Handler) renderAdminUsers(w http.ResponseWriter, r *http.Request, errMs
 	if err != nil {
 		slog.Error("list orgs failed", "error", err)
 	}
+	// Own search param (like ?orgPage) so the users search stays untouched.
+	orgQ := strings.ToLower(strings.TrimSpace(r.URL.Query().Get("orgQ")))
 	orgRows := make([]orgAdminRow, 0, len(orgs))
 	for _, o := range orgs {
+		if orgQ != "" && !strings.Contains(strings.ToLower(o.Domain+" "+o.Name+" "+o.SuspendReason), orgQ) {
+			continue
+		}
 		row := orgAdminRow{
 			ID:            o.ID,
 			Domain:        o.Domain,
@@ -309,6 +314,7 @@ func (h *Handler) renderAdminUsers(w http.ResponseWriter, r *http.Request, errMs
 		AdminUsers:    rows,
 		AdminOrgs:     orgRows[orgStart:orgEnd],
 		AdminOrgsNav:  orgNav,
+		AdminOrgsQ:    r.URL.Query().Get("orgQ"),
 		ListNav:       nav,
 		Query:         r.URL.Query().Get("q"),
 		RecoveryURL:   recoveryURL,

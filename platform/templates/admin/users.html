@@ -14,10 +14,19 @@
   </div>
   {{end}}
 
-  {{if .AdminOrgs}}
+  {{if or .AdminOrgs .AdminOrgsQ}}
   <div class="card mt-6 overflow-x-auto p-0">
-    <h2 class="font-semibold text-lg px-4 pt-4">Organizations</h2>
-    <p class="text-xs text-gray-400 px-4 mt-1">Suspending a company keeps logins working but replaces the dashboard with a notice showing your reason, and freezes serving and billing on both sides. Reversible.</p>
+    <div class="flex items-end justify-between gap-4 px-4 pt-4">
+      <div>
+        <h2 class="font-semibold text-lg">Organizations</h2>
+        <p class="text-xs text-gray-400 mt-1">Suspending a company keeps logins working but replaces the dashboard with a notice showing your reason, and freezes serving and billing on both sides. Reversible.</p>
+      </div>
+      <form method="GET" action="/admin/users" class="flex items-center gap-2 shrink-0">
+        <input name="orgQ" value="{{.AdminOrgsQ}}" class="form-input w-56 text-sm" placeholder="domain, name, or reason">
+        <button type="submit" class="btn btn-secondary btn-sm">Search</button>
+        {{if .AdminOrgsQ}}<a href="/admin/users" class="text-sm text-brand hover:underline">clear</a>{{end}}
+      </form>
+    </div>
     <table class="w-full text-sm mt-3">
       <thead>
         <tr class="border-b text-left text-gray-400">
@@ -65,6 +74,8 @@
             {{end}}
           </td>
         </tr>
+        {{else}}
+        <tr><td class="px-4 py-4 text-gray-400" colspan="4">No organizations match your search.</td></tr>
         {{end}}
       </tbody>
     </table>

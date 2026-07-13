@@ -289,6 +289,7 @@ type pageData struct {
 	AdminUsers        []adminUserRow
 	AdminOrgs         []orgAdminRow
 	AdminOrgsNav      *listNav
+	AdminOrgsQ        string
 	// Pending org side requests on /admin/requests (an existing org asking
 	// for its other side — advertiser or publisher).
 	AdminOrgSideRequests []model.OrgSideRequest
@@ -1459,6 +1460,20 @@ func (h *Handler) PublisherTrusted(w http.ResponseWriter, r *http.Request) {
 		}
 	}
 
+	// Search across everything a publisher would remember an anchor by:
+	// domain, campaign name, advertiser, site, type. Filter before paging.
+	if q := strings.ToLower(strings.TrimSpace(r.URL.Query().Get("q"))); q != "" {
+		filtered := rows[:0:0]
+		for _, row := range rows {
+			hay := strings.ToLower(row.SiteDomain + " " + row.Display + " " + row.AnchorValue + " " +
+				row.Advertiser + " " + row.Type)
+			if strings.Contains(hay, q) {
+				filtered = append(filtered, row)
+			}
+		}
+		rows = filtered
+	}
+
 	start, end, nav := buildListNav(r, len(rows), 25)
 	h.render(w, "publisher/trusted.html", pageData{
 		Title:          "Trusted Advertisers",
@@ -1467,6 +1482,7 @@ func (h *Handler) PublisherTrusted(w http.ResponseWriter, r *http.Request) {
 		TrustedToggles: toggles,
 		TrustedAnchors: rows[start:end],
 		ListNav:        nav,
+		Query:          r.URL.Query().Get("q"),
 	})
 }
 

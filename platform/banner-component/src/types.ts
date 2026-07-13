@@ -263,6 +263,12 @@ export interface Page {
     * enforces it on edit; bg values stay materialized per page, so the
     * renderer never reads this). */
   syncBg?: boolean;
+  /** Designer-only flag, meaningful on page 0: the headline text colour
+    * syncs across all pages while true — and ABSENT means true (that has
+    * always been the typography-sync behavior, unlike syncBg). Explicit
+    * false scopes headline colour edits to their own page. Renderer
+    * never reads this; colours stay materialized per item. */
+  syncHeadlineColor?: boolean;
   [key: string]: unknown;
 }
 

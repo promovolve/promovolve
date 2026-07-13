@@ -16,7 +16,7 @@
 import { refitItemCropToBox } from "../auto-crop";
 import { packReaderFieldBoxes, packTextItemHeight } from "../render/canvas";
 import { isMultiPage } from "../modes";
-import { adoptTextOverride, currentItem, currentLayout, currentPage, hasLocalTextOverride, propagateTypography, setItemContent, setReaderFieldFontSize, TYPO_SYNC_KEYS, updateItem } from "../state";
+import { adoptTextOverride, currentItem, currentLayout, currentPage, hasLocalTextOverride, propagateTypography, setItemContent, setReaderFieldFontSize, setSyncHeadlineColor, TYPO_SYNC_KEYS, updateItem } from "../state";
 import type { Store } from "../store";
 import type { DesignerState, ImageItem, LayoutItem, RectItem } from "../types";
 import { scrimGradient, SCRIM_EDGES, type ScrimEdge, type ScrimSpec } from "../scrim";
@@ -65,10 +65,19 @@ interface RenderedState {
   setters: Record<string, (item: LayoutItem) => void>;
 }
 
-// "|ov" when a field-bound text item carries a baked per-size override.
-// Mirrors the `overridden` derivation in build()'s text branch.
-function overrideMarker(item: LayoutItem): string {
-  return hasLocalTextOverride(item) ? "|ov" : "";
+// Structural suffix for the rebuild key — everything that changes the
+// PANEL SHAPE for the same idx|type must be in here, since setters only
+// patch values. "|ov": field-bound text with a baked per-size override
+// (hint ↔ editable content swap). Headline items additionally encode the
+// page index and the headline-colour page-sync flag (colour picker ↔
+// "synced from page 1" hint swap).
+function structuralMarker(state: DesignerState, item: LayoutItem): string {
+  let m = hasLocalTextOverride(item) ? "|ov" : "";
+  if (item.type === "text" && (item as { field?: string }).field === "headline") {
+    const synced = (state.pages[0] as { syncHeadlineColor?: boolean } | undefined)?.syncHeadlineColor !== false;
+    m += `|pg${state.pageIdx}|hs${synced ? 1 : 0}`;
+  }
+  return m;
 }
 
 export function mountPropsPanel(container: HTMLElement, store: Store): PropsPanelHandle {
@@ -113,7 +122,7 @@ export function mountPropsPanel(container: HTMLElement, store: Store): PropsPane
       // STRUCTURE (read-only hint ↔ editable content field), which setters
       // can't patch — it needs the rebuild. Baked-text keystrokes don't
       // move the marker (text stays non-empty), so focus survives editing.
-      const key = `${idx}|${item.type}${overrideMarker(item)}`;
+      const key = `${idx}|${item.type}${structuralMarker(state, item)}`;
       if (!rendered || rendered.key !== key) {
         rendered = build(panel, idx, item, store);
       } else {
@@ -252,11 +261,42 @@ function build(panel: HTMLElement, idx: number, item: LayoutItem, store: Store):
     } else {
       contentHint(textGroup, effectiveContent(store, item, "text"));
     }
-    setters.color = colorField(textGroup, "color", item.color ?? "#ffffff", (v, c) => mutate(store, idx, (it) => ({ ...it, color: v }), c));
-    mountKitColorChips(textGroup, {
-      campaignId: window.__DESIGNER__?.campaignId ?? "",
-      onPick: (color) => mutate(store, idx, (it) => ({ ...it, color }), true),
-    });
+    // Headline colour page-sync: while pages[0].syncHeadlineColor is on
+    // (absent = on), page 1 is the only place the headline colour is
+    // edited — pages 2/3 show a hint instead of the picker. Mirrors the
+    // Page Background "Sync color across all 3 pages" row.
+    const hlSynced = (store.state.pages[0] as { syncHeadlineColor?: boolean } | undefined)?.syncHeadlineColor !== false;
+    const hlLocked = boundField === "headline" && hlSynced && store.state.pageIdx > 0;
+    if (hlLocked) {
+      const lockHint = document.createElement("div");
+      lockHint.style.cssText = `margin:0 0 10px;font-size:11px;color:${tokens.ink300};font-style:italic;`;
+      lockHint.textContent = "Color synced from page 1";
+      appendToGroup(textGroup, lockHint);
+    } else {
+      setters.color = colorField(textGroup, "color", item.color ?? "#ffffff", (v, c) => mutate(store, idx, (it) => ({ ...it, color: v }), c));
+      mountKitColorChips(textGroup, {
+        campaignId: window.__DESIGNER__?.campaignId ?? "",
+        onPick: (color) => mutate(store, idx, (it) => ({ ...it, color }), true),
+      });
+    }
+    if (boundField === "headline") {
+      // Always rendered for the headline (stable group height when
+      // paging); operable only while page 1 is selected.
+      const firstPage = store.state.pageIdx === 0;
+      const syncColorRow = document.createElement("label");
+      syncColorRow.style.cssText = `display:flex;align-items:center;gap:8px;margin-bottom:10px;font-size:11px;color:${tokens.ink200};${firstPage ? "cursor:pointer;" : "opacity:0.45;cursor:not-allowed;"}`;
+      if (!firstPage) syncColorRow.title = "Set from page 1";
+      const cb = document.createElement("input");
+      cb.type = "checkbox";
+      cb.checked = hlSynced;
+      cb.disabled = !firstPage;
+      cb.style.cssText = "margin:0;cursor:inherit;";
+      cb.addEventListener("change", () => {
+        store.commit(setSyncHeadlineColor(store.state, cb.checked));
+      });
+      syncColorRow.append(cb, document.createTextNode("Sync color across all 3 pages"));
+      appendToGroup(textGroup, syncColorRow);
+    }
     setters.contrastWarning = contrastWarningRow(textGroup, store);
     panel.appendChild(textGroup);
     sections.push(textGroup);
@@ -430,7 +470,7 @@ function build(panel: HTMLElement, idx: number, item: LayoutItem, store: Store):
 
   wireAccordion(sections);
 
-  return { key: `${idx}|${item.type}${overrideMarker(item)}`, setters };
+  return { key: `${idx}|${item.type}${structuralMarker(store.state, item)}`, setters };
 }
 
 // ─── Scrim group ─────────────────────────────────────────────────────

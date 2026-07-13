@@ -321,16 +321,24 @@ export function propagateTypography(
   const keys = Object.keys(effTypo);
   const hasScale = fontScale != null && Number.isFinite(fontScale) && fontScale > 0 && fontScale !== 1;
   if ((keys.length === 0 && !hasScale) || !field) return state;
-  const apply = (items: LayoutItem[]): LayoutItem[] => {
+  const dropColor = (t: Record<string, unknown>): Record<string, unknown> =>
+    Object.fromEntries(Object.entries(t).filter(([k]) => k !== "color"));
+  // Headline colour page-sync toggle (pages[0].syncHeadlineColor, ABSENT =
+  // true — always-synced is the historical behavior): when explicitly off,
+  // headline colour edits stay on their own page (that page's reader +
+  // buckets); every other property still spans all pages.
+  const colorLocalToPage = field === "headline" && "color" in effTypo
+    && (state.pages[0] as Page | undefined)?.syncHeadlineColor === false;
+  const apply = (items: LayoutItem[], pageTypo: Record<string, unknown>): LayoutItem[] => {
     let any = false;
     const next = items.map((it) => {
       if (it.type !== "text" || (it as { field?: string }).field !== field) return it;
       if (it === skip) return it; // source item — already at its new size
       // Detached override (sync unticked): its colour is local — apply
       // everything else (face/weight/scale still one identity per role).
-      const itemTypo = hasLocalTextOverride(it) && "color" in effTypo
-        ? Object.fromEntries(Object.entries(effTypo).filter(([k]) => k !== "color"))
-        : effTypo;
+      const itemTypo = hasLocalTextOverride(it) && "color" in pageTypo
+        ? dropColor(pageTypo)
+        : pageTypo;
       const itemKeys = Object.keys(itemTypo);
       const cur = it as unknown as Record<string, unknown>;
       const styleSame = itemKeys.length === 0 || itemKeys.every((k) => cur[k] === itemTypo[k]);
@@ -351,14 +359,15 @@ export function propagateTypography(
     return any ? next : items;
   };
   let changed = false;
-  const pages = state.pages.map((page) => {
-    const layout = page.layout ? apply(page.layout) : page.layout;
+  const pages = state.pages.map((page, pi) => {
+    const pageTypo = colorLocalToPage && pi !== state.pageIdx ? dropColor(effTypo) : effTypo;
+    const layout = page.layout ? apply(page.layout, pageTypo) : page.layout;
     let banners = page.banners;
     if (banners) {
       let bChanged = false;
       const nb: Record<string, LayoutItem[]> = {};
       for (const [k, items] of Object.entries(banners)) {
-        const r = apply(items);
+        const r = apply(items, pageTypo);
         nb[k] = r;
         if (r !== items) bChanged = true;
       }
@@ -369,6 +378,25 @@ export function propagateTypography(
     return { ...page, layout, banners };
   });
   return changed ? { ...state, pages } : state;
+}
+
+/** Toggle "sync headline colour across all 3 pages" (stored on page 0,
+  * persisted with pagesJSON; ABSENT = on). Turning it ON immediately
+  * re-broadcasts page 1's headline colour to every page; OFF leaves the
+  * pages as they are, free to diverge. */
+export function setSyncHeadlineColor(state: DesignerState, on: boolean): DesignerState {
+  const first = state.pages[0];
+  if (!first) return state;
+  let next: DesignerState = {
+    ...state,
+    pages: state.pages.map((p, i) =>
+      i === 0 ? ({ ...p, syncHeadlineColor: on ? undefined : false } as Page) : p),
+  };
+  if (on) {
+    const color = masterColor(next, "headline");
+    if (color) next = propagateTypography(next, "headline", { color });
+  }
+  return next;
 }
 
 // ── Colour ────────────────────────────────────────────────────────────

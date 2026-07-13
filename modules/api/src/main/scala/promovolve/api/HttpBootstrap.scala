@@ -49,6 +49,9 @@ object HttpBootstrap {
         categoryRegistry: ActorRef[CategoryRegistry.Command],
         serveIndex: ActorRef[ServeIndexDData.Cmd],
         creativeRepo: CreativeRepo,
+        // Shared store from ClusterBootstrap.Repositories — the trusted-
+        // anchors listing reads it directly (same instance AdServer writes).
+        pendingSelectionStore: promovolve.publisher.PendingSelectionStore,
         budgetEventTopic: ActorRef[Topic.Command[BudgetEvent]],
         config: Config,
         affinityRegistry: Option[ActorRef[promovolve.taxonomy.AffinityRegistryDData.Cmd]] = None,
@@ -317,7 +320,8 @@ object HttpBootstrap {
         floorDecisionJournal = floorDecisionJournal,
         trackingEventJournal = trackingJournal,
         lpWorkerEnabled = lpWorkerEnabled,
-        lpWorkerNumWorkers = lpWorkerNumWorkers
+        lpWorkerNumWorkers = lpWorkerNumWorkers,
+        pendingSelectionStore = Some(pendingSelectionStore)
       )(using system)
 
       // Dashboard routes for advertiser performance data

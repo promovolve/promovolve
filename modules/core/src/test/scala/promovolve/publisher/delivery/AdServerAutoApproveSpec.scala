@@ -137,6 +137,7 @@ class AdServerAutoApproveSpec extends AnyWordSpec with Matchers with BeforeAndAf
     val deletedAnchorsFor = TrieMap.empty[String, Option[String]] // campaignId -> domain
     val queuedPending = TrieMap.empty[String, Int] // creativeId -> times queued
     @volatile var pendingSelection: Option[Selection] = None
+    @volatile var pendingRows: Vector[(String, String, Candidate)] = Vector.empty
 
     def upsertPending(sel: Selection): Future[Unit] = {
       sel.ordered.foreach(c => queuedPending.updateWith(c.creativeId.value)(n => Some(n.getOrElse(0) + 1)))
@@ -148,7 +149,7 @@ class AdServerAutoApproveSpec extends AnyWordSpec with Matchers with BeforeAndAf
     def removeCreativeFromPending(p: String, u: String, s: String, c: String): Future[Option[Selection]] =
       Future.successful(None)
     def rejectAndPromote(p: String, u: String, s: String): Future[Option[Selection]] = Future.successful(None)
-    def pendingQueue(p: String): Future[Vector[(String, String, Candidate)]] = Future.successful(Vector.empty)
+    def pendingQueue(p: String): Future[Vector[(String, String, Candidate)]] = Future.successful(pendingRows)
     def purgeExpired(now: Instant): Future[Int] = Future.successful(0)
     def removeByCampaignId(p: String, c: String): Future[Int] = Future.successful(0)
     def removeByAdvertiserId(p: String, a: String): Future[Int] = Future.successful(0)
@@ -443,6 +444,32 @@ class AdServerAutoApproveSpec extends AnyWordSpec with Matchers with BeforeAndAf
         store.queuedPending.get("cr-after-reject") shouldBe Some(1)
       }
       store.insertedApproved.get("cr-after-reject") shouldBe None
+    }
+
+    "sweep the pending queue on toggle-enable and re-auction matching pages only" in {
+      val store = new RecordingStore(initialAnchors =
+        Vector(TrustAnchor(TrustAnchor.TypeCampaign, "camp-s", "seed", Instant.now())))
+      store.pendingRows = Vector(
+        ("http://test.example.com/queued", "slot-1", makeCandidate("cr-q", "camp-s", "shop.acme.com")),
+        ("http://test.example.com/other", "slot-2", makeCandidate("cr-x", "camp-unrelated", "unrelated.example"))
+      )
+      val fx = spawnFixture("site-sweep", store, autoApproveEnabled = false)
+      fx.awaitAnchors(Set("camp-s"), Set.empty)
+
+      // Rising edge: OFF -> ON must re-auction the page holding the
+      // matching pending candidate (and only that page) so it can
+      // auto-approve without waiting for organic traffic.
+      fx.adServer ! AutoApproveConfigUpdated(Some(promovolve.publisher.SiteEntity.CachedAutoApprove(true)))
+
+      import org.apache.pekko.actor.testkit.typed.scaladsl.FishingOutcomes
+      auctioneerProbe.fishForMessage(3.seconds) {
+        case r: promovolve.auction.AuctioneerEntity.Reevaluate if r.url.value.endsWith("/queued") =>
+          FishingOutcomes.complete
+        case r: promovolve.auction.AuctioneerEntity.Reevaluate if r.url.value.endsWith("/other") =>
+          FishingOutcomes.fail("swept a page with no matching pending candidate")
+        case _ => FishingOutcomes.continueAndIgnore
+      }
+      auctioneerProbe.expectNoMessage(300.millis)
     }
 
     "break trust on publisher REVOKE — no auto-re-approve loop" in {

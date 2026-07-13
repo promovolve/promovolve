@@ -977,6 +977,16 @@ object Protocol {
   ) extends Command
 
   /**
+   * Internal: pages whose PENDING candidates match current trust anchors,
+   * found by the sweep that runs when the toggle turns on or a manual
+   * approval mints anchors. Each page gets a re-auction; the fresh wave's
+   * candidate partition then auto-approves the matches through the normal
+   * path (ServeIndex, floor teaching, SSE) — queued creatives must not
+   * wait for organic traffic to benefit from newly-granted trust.
+   */
+  private[delivery] final case class TrustSweepReauction(urls: Vector[String]) extends Command
+
+  /**
    * Internal: the approved creatives to strip from in-memory approval state
    * for a campaign whose approvals were revoked (pause / site-narrow
    * eviction). Carries the campaign's OWN creatives, resolved from the

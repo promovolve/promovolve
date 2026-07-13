@@ -352,6 +352,9 @@ type pageData struct {
 	// Used by templates that need to load the banner script to render
 	// a live creative (e.g., the publisher approval page).
 	BannerScriptURL string
+	// Trusted Advertisers page (auto-approve management)
+	TrustedToggles []trustedSiteToggle
+	TrustedAnchors []trustedAnchorRow
 }
 
 type site struct {
@@ -378,6 +381,25 @@ type siteGroup struct {
 type trustAnchorRow struct {
 	ID   string
 	Name string
+}
+
+// Per-site toggle on the Trusted Advertisers page.
+type trustedSiteToggle struct {
+	SiteID  string
+	Domain  string
+	Enabled bool
+}
+
+// One row of the Trusted Advertisers table.
+type trustedAnchorRow struct {
+	SiteID      string
+	SiteDomain  string
+	Type        string // display: "Campaign" | "Landing domain"
+	AnchorType  string // raw value for the remove form
+	AnchorValue string
+	Display     string // resolved campaign name, or the domain itself
+	Advertiser  string
+	Since       string
 }
 
 type pendingPlacement struct {
@@ -1263,7 +1285,7 @@ func (h *Handler) PublisherApproval(w http.ResponseWriter, r *http.Request) {
 			flagged[i].AdvertiserName = name
 			flagged[i].CampaignName = labelOr(camps, flagged[i].CampaignID)
 		}
-		autoApprove, trustedCampaigns, trustedDomains := h.loadAutoApprove(s.ID, claims)
+		autoApprove, trustedCampaigns, trustedDomains, _ := h.loadAutoApprove(s.ID, claims)
 		// Trusted-campaign names resolve from the campaigns visible in this
 		// page load (pending/serving carry names); raw ID otherwise.
 		campNames := map[string]string{}
@@ -1338,20 +1360,101 @@ func (h *Handler) PublisherApproval(w http.ResponseWriter, r *http.Request) {
 	h.render(w, "publisher/approval.html", data)
 }
 
+// One trust-anchor row from the core, with the source creative's advertiser
+// for display-name resolution. AdvertiserID is nil when the source creative
+// no longer resolves (deleted since the approval).
+type anchorDetail struct {
+	AnchorType       string  `json:"anchorType"`
+	AnchorValue      string  `json:"anchorValue"`
+	SourceCreativeID string  `json:"sourceCreativeId"`
+	AdvertiserID     *string `json:"advertiserId"`
+	CreatedAt        string  `json:"createdAt"`
+}
+
 // loadAutoApprove fetches the site's auto-approve toggle + trust anchors.
 // Errors degrade to "disabled, no anchors" — the panel just renders off.
-func (h *Handler) loadAutoApprove(siteID string, claims *model.Claims) (bool, []string, []string) {
+func (h *Handler) loadAutoApprove(siteID string, claims *model.Claims) (bool, []string, []string, []anchorDetail) {
 	body, err := h.coreGet(fmt.Sprintf("/v1/publishers/me/sites/%s/auto-approve", siteID), claims)
 	if err != nil {
-		return false, nil, nil
+		return false, nil, nil, nil
 	}
 	var resp struct {
-		Enabled          bool     `json:"enabled"`
-		TrustedCampaigns []string `json:"trustedCampaigns"`
-		TrustedDomains   []string `json:"trustedDomains"`
+		Enabled          bool           `json:"enabled"`
+		TrustedCampaigns []string       `json:"trustedCampaigns"`
+		TrustedDomains   []string       `json:"trustedDomains"`
+		AnchorDetails    []anchorDetail `json:"anchorDetails"`
 	}
 	json.Unmarshal(body, &resp)
-	return resp.Enabled, resp.TrustedCampaigns, resp.TrustedDomains
+	return resp.Enabled, resp.TrustedCampaigns, resp.TrustedDomains, resp.AnchorDetails
+}
+
+// PublisherTrusted renders the Trusted Advertisers page: per-site
+// auto-approve toggles plus one table of every trust anchor across the
+// publisher's sites — the scalable home for a list the inbox panel's
+// chips would drown in.
+func (h *Handler) PublisherTrusted(w http.ResponseWriter, r *http.Request) {
+	user, claims := h.sessionUser(r)
+	if user == nil {
+		http.Redirect(w, r, "/login", http.StatusSeeOther)
+		return
+	}
+
+	sitesBody, _ := h.coreGet("/v1/publishers/me/sites?limit=50", claims)
+	var sitesResp struct {
+		Data []struct {
+			ID     string `json:"id"`
+			Domain string `json:"domain"`
+		} `json:"data"`
+	}
+	json.Unmarshal(sitesBody, &sitesResp)
+
+	dir := h.newAdvertiserDirectory()
+	var toggles []trustedSiteToggle
+	var rows []trustedAnchorRow
+	for _, s := range sitesResp.Data {
+		enabled, _, _, details := h.loadAutoApprove(s.ID, claims)
+		siteLabel := s.Domain
+		if siteLabel == "" {
+			siteLabel = s.ID
+		}
+		toggles = append(toggles, trustedSiteToggle{SiteID: s.ID, Domain: siteLabel, Enabled: enabled})
+		for _, d := range details {
+			row := trustedAnchorRow{
+				SiteID:      s.ID,
+				SiteDomain:  siteLabel,
+				AnchorType:  d.AnchorType,
+				AnchorValue: d.AnchorValue,
+				Display:     d.AnchorValue,
+			}
+			switch d.AnchorType {
+			case "campaign":
+				row.Type = "Campaign"
+			case "domain":
+				row.Type = "Landing domain"
+			default:
+				row.Type = d.AnchorType
+			}
+			if d.AdvertiserID != nil {
+				name, camps := dir.resolve(*d.AdvertiserID)
+				row.Advertiser = name
+				if d.AnchorType == "campaign" {
+					row.Display = labelOr(camps, d.AnchorValue)
+				}
+			}
+			if t, err := time.Parse(time.RFC3339Nano, d.CreatedAt); err == nil {
+				row.Since = t.Format("2006-01-02")
+			}
+			rows = append(rows, row)
+		}
+	}
+
+	h.render(w, "publisher/trusted.html", pageData{
+		Title:          "Trusted Advertisers",
+		Nav:            "trusted",
+		User:           user,
+		TrustedToggles: toggles,
+		TrustedAnchors: rows,
+	})
 }
 
 // PublisherAutoApprove flips a site's auto-approve toggle (htmx checkbox —
@@ -1377,7 +1480,17 @@ func (h *Handler) PublisherAutoApprove(w http.ResponseWriter, r *http.Request) {
 		w.WriteHeader(http.StatusNoContent)
 		return
 	}
-	http.Redirect(w, r, "/publisher/approval", http.StatusSeeOther)
+	http.Redirect(w, r, autoApproveReturnPath(r), http.StatusSeeOther)
+}
+
+// The toggle/remove forms live on two pages; plain (no-JS) posts should
+// land back where they came from. Referer is matched against a fixed set
+// of internal paths — never echoed — so it can't become an open redirect.
+func autoApproveReturnPath(r *http.Request) string {
+	if strings.Contains(r.Header.Get("Referer"), "/publisher/trusted") {
+		return "/publisher/trusted"
+	}
+	return "/publisher/approval"
 }
 
 // PublisherTrustAnchorRemove deletes one trust anchor ("stop trusting this
@@ -1406,7 +1519,7 @@ func (h *Handler) PublisherTrustAnchorRemove(w http.ResponseWriter, r *http.Requ
 		w.WriteHeader(http.StatusNoContent)
 		return
 	}
-	http.Redirect(w, r, "/publisher/approval", http.StatusSeeOther)
+	http.Redirect(w, r, autoApproveReturnPath(r), http.StatusSeeOther)
 }
 
 func (h *Handler) ApprovalAction(action string) http.HandlerFunc {

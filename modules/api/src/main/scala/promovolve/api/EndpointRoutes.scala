@@ -42,7 +42,8 @@ class EndpointRoutes(
     // Phase-1 LP offload: when true, analyze-lp dispatches to the
     // crawler-tier LPWorker instead of the in-process LPAnalyzer.
     lpWorkerEnabled: Boolean = false,
-    lpWorkerNumWorkers: Int = 4
+    lpWorkerNumWorkers: Int = 4,
+    pendingSelectionStore: Option[promovolve.publisher.PendingSelectionStore] = None
 )(using system: ActorSystem[?])
     extends ApiJsonFormats {
 
@@ -3040,14 +3041,44 @@ class EndpointRoutes(
     case (publisherId, siteId) =>
       val enabledF: Future[Boolean] = siteRef(siteId).ask(SiteEntity.GetAutoApprove(_))
       val infoF: Future[AdServer.AutoApproveInfo] = adServerRef(siteId).ask(AdServer.GetAutoApproveInfo(_))
+      // Anchor rows for the Trusted Advertisers table, read from the same
+      // store AdServer writes and enriched with each source creative's
+      // advertiser (the dashboard resolves display names from it). A
+      // missing store or failed enrichment degrades to the plain lists.
+      val detailsF: Future[Option[Vector[TrustAnchorDetail]]] = pendingSelectionStore match {
+        case None        => Future.successful(None)
+        case Some(store) =>
+          store
+            .getTrustAnchors(siteId)
+            .flatMap { anchors =>
+              Future.traverse(anchors) { a =>
+                val advertiserF = creativeRepo match {
+                  case Some(repo) => repo.get(a.sourceCreativeId).map(_.map(_.advertiserId))
+                  case None       => Future.successful(None)
+                }
+                advertiserF.recover { case _ => None }.map { adv =>
+                  TrustAnchorDetail(
+                    anchorType = a.anchorType,
+                    anchorValue = a.anchorValue,
+                    sourceCreativeId = a.sourceCreativeId,
+                    advertiserId = adv,
+                    createdAt = a.createdAt.toString
+                  )
+                }
+              }.map(details => Some(details.sortBy(_.createdAt).reverse))
+            }
+            .recover { case _ => None }
+      }
       (for {
         enabled <- enabledF
         info <- infoF
+        details <- detailsF
       } yield Right(AutoApproveSettingsResponse(
         siteId = siteId,
         enabled = enabled,
         trustedCampaigns = info.trustedCampaigns.toVector.sorted,
-        trustedDomains = info.trustedDomains.toVector.sorted
+        trustedDomains = info.trustedDomains.toVector.sorted,
+        anchorDetails = details
       ))).recover { case ex =>
         Left(ErrorResponse("auto_approve_get_failed", ex.getMessage))
       }

@@ -154,6 +154,7 @@ object Main {
           categoryRegistry,
           serveIndex,
           repositories.creative,
+          repositories.pendingSelectionStore,
           topics.budgetEvent,
           config,
           affinityRegistry = Some(affinityRegistry),

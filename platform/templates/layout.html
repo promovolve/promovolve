@@ -72,6 +72,7 @@
       <nav class="flex-1 space-y-1">
         {{if eq .User.Role "publisher"}}
         <a href="/publisher/approval" class="block px-3 py-2 rounded text-sm {{if eq .Nav "approval"}}bg-gray-700 text-white{{else}}text-gray-300 hover:bg-gray-800{{end}}">Approval Queue</a>
+        <a href="/publisher/trusted" class="block px-3 py-2 rounded text-sm {{if eq .Nav "trusted"}}bg-gray-700 text-white{{else}}text-gray-300 hover:bg-gray-800{{end}}">Trusted Advertisers</a>
         <a href="/publisher/sites" class="block px-3 py-2 rounded text-sm {{if eq .Nav "sites"}}bg-gray-700 text-white{{else}}text-gray-300 hover:bg-gray-800{{end}}">Sites</a>
         <a href="/publisher/stats" class="block px-3 py-2 rounded text-sm {{if eq .Nav "stats"}}bg-gray-700 text-white{{else}}text-gray-300 hover:bg-gray-800{{end}}">Stats</a>
         {{if .User.CanBilling}}

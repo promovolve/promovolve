@@ -1,0 +1,74 @@
+{{define "content"}}
+<div class="max-w-4xl">
+  <h1 class="page-title">Trusted Advertisers</h1>
+  <p class="page-sub">
+    Approving a creative manually records trust for its campaign and landing domain.
+    With auto-approve on, new creatives matching a trusted entry skip the approval queue.
+    Rejecting, flagging, or revoking a creative withdraws that trust.
+  </p>
+
+  <!-- Per-site opt-in. Off by default: approved creatives inform floor
+       pricing, so widening what gets approved automatically is deliberate. -->
+  <div class="card mt-6 p-6">
+    <h2 class="font-semibold text-lg">Auto-approve</h2>
+    <p class="text-sm text-gray-500 mt-1">Per site. Turning it off pauses auto-approval without deleting the trust list below.</p>
+    <div class="mt-4 space-y-2">
+      {{range .TrustedToggles}}
+      <form method="POST" action="/publisher/approval/auto-approve">
+        <input type="hidden" name="siteId" value="{{.SiteID}}">
+        <label class="flex items-center gap-3 cursor-pointer select-none">
+          <input type="checkbox" name="enabled" {{if .Enabled}}checked{{end}}
+                 onchange="this.form.submit()" class="rounded border-gray-300">
+          <span class="text-sm font-medium">{{.Domain}}</span>
+          {{if .Enabled}}<span class="badge bg-green-100 text-green-700">on</span>{{end}}
+        </label>
+      </form>
+      {{else}}
+      <p class="text-sm text-gray-400">No sites yet.</p>
+      {{end}}
+    </div>
+  </div>
+
+  <div class="card mt-6 p-0 overflow-x-auto">
+    <h2 class="font-semibold text-lg px-6 pt-6">Trusted campaigns &amp; domains</h2>
+    <table class="w-full text-sm mt-3">
+      <thead>
+        <tr class="border-b text-left text-gray-400">
+          <th class="px-6 py-2 font-medium">Site</th>
+          <th class="px-6 py-2 font-medium">Trusts</th>
+          <th class="px-6 py-2 font-medium">Type</th>
+          <th class="px-6 py-2 font-medium">Advertiser</th>
+          <th class="px-6 py-2 font-medium">Since</th>
+          <th class="px-6 py-2 font-medium"></th>
+        </tr>
+      </thead>
+      <tbody>
+        {{range .TrustedAnchors}}
+        <tr class="border-b last:border-0">
+          <td class="px-6 py-2 text-gray-500 whitespace-nowrap">{{.SiteDomain}}</td>
+          <td class="px-6 py-2 font-medium" title="{{.AnchorValue}}">{{.Display}}</td>
+          <td class="px-6 py-2 text-gray-500">{{.Type}}</td>
+          <td class="px-6 py-2 text-gray-500">{{if .Advertiser}}{{.Advertiser}}{{else}}&mdash;{{end}}</td>
+          <td class="px-6 py-2 text-gray-500 whitespace-nowrap">{{if .Since}}{{.Since}}{{else}}&mdash;{{end}}</td>
+          <td class="px-6 py-2 text-right">
+            <form method="POST" action="/publisher/approval/trust-anchor/remove"
+                  onsubmit="return confirm('Stop trusting {{.Display}}? New creatives from it will return to the approval queue.')">
+              <input type="hidden" name="siteId" value="{{.SiteID}}">
+              <input type="hidden" name="anchorType" value="{{.AnchorType}}">
+              <input type="hidden" name="anchorValue" value="{{.AnchorValue}}">
+              <button type="submit" class="text-red-600 hover:text-red-800 text-xs font-medium">Remove</button>
+            </form>
+          </td>
+        </tr>
+        {{else}}
+        <tr><td class="px-6 py-4 text-gray-400" colspan="6">
+          Nothing trusted yet — approve a creative from the
+          <a href="/publisher/approval" class="text-brand underline">Approval Queue</a>
+          and its campaign and landing domain will appear here.
+        </td></tr>
+        {{end}}
+      </tbody>
+    </table>
+  </div>
+</div>
+{{end}}

@@ -344,31 +344,13 @@ document.body.addEventListener('inboxActed', function(){
             <span class="text-xs font-medium text-gray-600">Auto-approve trusted advertisers</span>
           </label>
         </form>
+        {{/* The full trust list lives on its own page — it grows without
+             bound, so the inbox panel carries only the toggle + a count. */}}
+        {{$anchorCount := len $group.TrustedCampaigns | add (len $group.TrustedDomains)}}
         {{if or $group.TrustedCampaigns $group.TrustedDomains}}
-        <div class="mt-2 flex flex-wrap gap-1">
-          {{range $a := $group.TrustedCampaigns}}
-          <form method="POST" action="/publisher/approval/trust-anchor/remove" hx-post="/publisher/approval/trust-anchor/remove" hx-swap="none" class="inline-flex max-w-full">
-            <input type="hidden" name="siteId" value="{{$group.Site.ID}}">
-            <input type="hidden" name="anchorType" value="campaign">
-            <input type="hidden" name="anchorValue" value="{{$a.ID}}">
-            <span class="inline-flex items-center gap-1 min-w-0 px-2 py-0.5 rounded-full bg-sky-50 text-sky-700 text-xs" title="Trusted campaign · {{$a.ID}}">
-              <span class="truncate">{{$a.Name}}</span>
-              <button type="submit" class="text-sky-400 hover:text-sky-700 shrink-0" title="Stop trusting this campaign">&times;</button>
-            </span>
-          </form>
-          {{end}}
-          {{range $d := $group.TrustedDomains}}
-          <form method="POST" action="/publisher/approval/trust-anchor/remove" hx-post="/publisher/approval/trust-anchor/remove" hx-swap="none" class="inline-flex max-w-full">
-            <input type="hidden" name="siteId" value="{{$group.Site.ID}}">
-            <input type="hidden" name="anchorType" value="domain">
-            <input type="hidden" name="anchorValue" value="{{$d}}">
-            <span class="inline-flex items-center gap-1 min-w-0 px-2 py-0.5 rounded-full bg-emerald-50 text-emerald-700 text-xs" title="Trusted landing domain">
-              <span class="truncate">{{$d}}</span>
-              <button type="submit" class="text-emerald-400 hover:text-emerald-700 shrink-0" title="Stop trusting this domain">&times;</button>
-            </span>
-          </form>
-          {{end}}
-        </div>
+        <a href="/publisher/trusted" class="mt-1.5 inline-block text-xs text-brand hover:underline">
+          {{$anchorCount}} trusted &rarr;
+        </a>
         {{end}}
       </div>
       {{range $i, $c := $group.Pending}}

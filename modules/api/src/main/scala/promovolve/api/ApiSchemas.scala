@@ -208,6 +208,7 @@ object ApiSchemas {
   given Schema[AdProductBlocklistResponse] = Schema.derived
   given Schema[AdProductUnblockRequest] = Schema.derived
   given Schema[AdProductUnblockResponse] = Schema.derived
+  given Schema[TrustAnchorDetail] = Schema.derived
   given Schema[AutoApproveSettingsResponse] = Schema.derived
   given Schema[UpdateAutoApproveRequest] = Schema.derived
   given Schema[RemoveTrustAnchorRequest] = Schema.derived

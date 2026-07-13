@@ -1573,11 +1573,28 @@ object ApiModels {
    * manually approved a creative from). Anchors persist while the toggle
    * is off — they're dormant, not deleted.
    */
+  /**
+   * One trust anchor with the context the dashboard's Trusted Advertisers
+   * table needs: the creative whose manual approval minted it (and that
+   * creative's advertiser, when it still resolves — Nones happen when the
+   * source creative was since deleted).
+   */
+  case class TrustAnchorDetail(
+      anchorType: String,
+      anchorValue: String,
+      sourceCreativeId: String,
+      advertiserId: Option[String] = None,
+      createdAt: String = ""
+  )
+
   case class AutoApproveSettingsResponse(
       siteId: String,
       enabled: Boolean,
       trustedCampaigns: Vector[String],
-      trustedDomains: Vector[String]
+      trustedDomains: Vector[String],
+      // Full anchor rows for the Trusted Advertisers table. Option — spray
+      // jsonFormatN would otherwise break decoding for older callers.
+      anchorDetails: Option[Vector[TrustAnchorDetail]] = None
   )
 
   case class UpdateAutoApproveRequest(

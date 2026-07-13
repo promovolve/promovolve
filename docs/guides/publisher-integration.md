@@ -135,8 +135,12 @@ from the inbox's site panel:
   serving immediately, marked with an *Auto-approved* badge.
 - Rejecting, flagging, or revoking a creative withdraws the trust for its
   campaign and domain — later creatives from them return to the manual
-  queue. You can also remove individual trusted campaigns/domains from the
-  site panel at any time.
+  queue. The full trust list lives on the **Trusted Advertisers** page,
+  where you can review every trusted campaign/domain per site and remove
+  entries individually.
+- Enabling the toggle (or approving a creative that mints new trust) also
+  sweeps the existing queue: pending creatives that match are re-auctioned
+  and auto-approved within seconds — the inbox updates live.
 - Turning the toggle off pauses auto-approval without deleting the trust
   list; turning it back on restores it.
 

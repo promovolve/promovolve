@@ -1288,7 +1288,21 @@ private[delivery] class AdServer(
           log.info("AdServer {} auto-approve toggle updated: {} -> {}", siteId.value,
             wasEnabled: java.lang.Boolean, nowEnabled: java.lang.Boolean)
         }
-        behavior(state.copy(cachedAutoApprove = configOpt))
+        val newState = state.copy(cachedAutoApprove = configOpt)
+        // Rising edge: creatives already sitting in the queue must benefit
+        // from the opt-in without waiting for organic re-auction traffic.
+        if (!wasEnabled && nowEnabled) sweepPendingForTrust(newState)
+        behavior(newState)
+
+      case TrustSweepReauction(urls) =>
+        if (urls.nonEmpty) {
+          log.info("Auto-approve trust sweep: re-auctioning {} page(s) with matching pending creatives on site {}",
+            urls.size: java.lang.Integer, siteId.value)
+          val auctioneerRef =
+            sharding.entityRefFor(promovolve.auction.AuctioneerEntity.TypeKey, siteId.value)
+          urls.foreach(u => auctioneerRef ! promovolve.auction.AuctioneerEntity.Reevaluate(URL(u)))
+        }
+        Behaviors.same
 
       case VerifiedHostUpdated(hostOpt) =>
         log.info("AdServer {} verified host updated: {}", siteId.value, hostOpt.getOrElse("none"))
@@ -2045,6 +2059,10 @@ private[delivery] class AdServer(
         scoreMap,
         replyTo
       )
+      // The approval just minted trust anchors — sweep the queue so
+      // already-pending siblings auto-approve now, not at the next
+      // organic wave.
+      sweepPendingForTrust(newState)
       behavior(newState)
 
     case ApprovalStatusPersisted(url, slot, creativeId, assetPrt, candidateView, replyTo) =>
@@ -2110,6 +2128,8 @@ private[delivery] class AdServer(
 
     case CreativesLookedUpForApproveAll(url, slot, selection, lookedUp, replyTo) =>
       val newState = handleCreativesLookedUpForApproveAll(state, url, slot, selection, lookedUp, replyTo)
+      // Bulk approvals mint anchors too — sweep for pending siblings.
+      sweepPendingForTrust(newState)
       behavior(newState)
 
     case GetPendingForRejectResult(url, slot, cid, reason, selectionOpt, replyTo) =>
@@ -3082,6 +3102,36 @@ private[delivery] class AdServer(
    * but not in the new auction results. This prevents re-auctions from accidentally
    * removing approved creatives from other campaigns (e.g., when their budget is exhausted).
    */
+  /**
+   * Re-auction pages whose PENDING candidates match the current trust
+   * anchors. Runs when the toggle turns on and after a manual approval
+   * mints anchors — creatives already sitting in the queue must not wait
+   * for organic re-auction traffic to benefit from newly-granted trust.
+   * The resulting wave auto-approves them via the normal candidate
+   * partition (same re-auction trick the flag handler uses to fill
+   * vacancies), so ServeIndex, floor teaching, and the SSE live update
+   * all ride the standard path. No-op while the toggle is off.
+   */
+  private def sweepPendingForTrust(state: State): Unit =
+    if (state.cachedAutoApprove.exists(_.enabled) &&
+      (state.trustedCampaigns.nonEmpty || state.trustedDomains.nonEmpty)) {
+      val campaigns = state.trustedCampaigns
+      val domains = state.trustedDomains
+      ctx.pipeToSelf(store.pendingQueue(siteId.value)) {
+        case Success(rows) =>
+          TrustSweepReauction(rows.collect {
+            case (url, _, c)
+                if campaigns.contains(c.campaignId) ||
+                RegistrableDomain.of(c.landingDomain).exists(domains.contains) =>
+              url
+          }.distinct)
+        case Failure(ex) =>
+          log.warn("Auto-approve trust sweep: pending-queue read failed for site {}: {}",
+            siteId.value, ex.getMessage)
+          TrustSweepReauction(Vector.empty)
+      }
+    }
+
   private def processCandidatesWithApprovalStatus(
       url: URL,
       slotId: SlotId,

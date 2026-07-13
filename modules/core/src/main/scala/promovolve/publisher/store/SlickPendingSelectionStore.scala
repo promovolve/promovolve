@@ -208,12 +208,16 @@ final class SlickPendingSelectionStore(db: Database)(using ec: ExecutionContext)
   }
 
   def removeCreativeFromAll(publisherId: String, creativeId: String): Future[Vector[(String, String)]] = {
-    // Get all pending selections for this publisher
-    val query = selections.filter(_.publisherId === publisherId).result
-
-    db.run(query).flatMap { rows =>
-      // Process each selection: remove the specific creative, track affected (url, slot) pairs
-      val updates = rows.map { row =>
+    // ONE transaction with row locks. Two removals routinely run within the
+    // same second (a manual approval mints trust anchors and the sweep
+    // auto-approves a queued sibling right after), and each rewrites FULL
+    // selection JSON — with an unlocked read-modify-write, each write
+    // resurrected the creative the other had just removed (ghost "pending"
+    // duplicates of approved creatives, observed live 2026-07-14).
+    // FOR UPDATE makes the second removal wait and re-read committed rows.
+    val txn = (for {
+      rows <- selections.filter(_.publisherId === publisherId).forUpdate.result
+      results <- DBIO.sequence(rows.map { row =>
         val sel = rowToSelection(row)
         val remaining = sel.ordered.filterNot(_.creativeId.value == creativeId)
         val affected = remaining.size < sel.ordered.size
@@ -234,16 +238,15 @@ final class SlickPendingSelectionStore(db: Database)(using ec: ExecutionContext)
         }
 
         action.map(_ => if (affected) Some((row.url, row.slotId)) else None)
-      }
+      })
+    } yield results.flatten.toVector).transactionally
 
-      db.run(DBIO.sequence(updates)).flatMap { results =>
-        val affected = results.flatten.toVector
-        // Creative paused/removed — drop its queue-age tracking too.
-        val cleanup =
-          if (affected.nonEmpty) deleteFirstSeen(publisherId, Set(creativeId))
-          else Future.successful(())
-        cleanup.map(_ => affected)
-      }
+    db.run(txn).flatMap { affected =>
+      // Creative paused/removed — drop its queue-age tracking too.
+      val cleanup =
+        if (affected.nonEmpty) deleteFirstSeen(publisherId, Set(creativeId))
+        else Future.successful(())
+      cleanup.map(_ => affected)
     }
   }
 

@@ -3288,7 +3288,10 @@ private[delivery] class AdServer(
       // 2. Terminal outcome — queue-age tracking + stale pending rows from
       //    earlier waves are no longer meaningful.
       store.deleteFirstSeen(siteId.value, Set(c.creativeId.value))
-      store.removeCreativeFromAll(siteId.value, c.creativeId.value)
+      store.removeCreativeFromAll(siteId.value, c.creativeId.value).failed.foreach { ex =>
+        log.warn("Auto-approve pending cleanup failed for creative {} on site {}: {}",
+          c.creativeId.value, siteId.value, ex.getMessage)
+      }
       // 3. Teach floors: approvedSites on the AdvertiserEntity is what the
       //    bid path reads to tell approved demand from pending. Fire-and-
       //    forget is the sanctioned boot-backfill form (idempotent there).

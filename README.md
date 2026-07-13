@@ -38,10 +38,10 @@ closed ad network can offer. For the guided version, read
    slot is cached in a replicated in-memory serve index, keeping the
    serve path fast.
 4. **Thompson sampling picks the ad at serve time** — candidates are
-   scored by a sampled engagement rate (clicks and magazine-opens) times
-   `CPM^α`, balancing revenue against ad quality (α is
-   publisher-configurable) and exploring new creatives without
-   re-running the auction.
+   scored by a sampled engagement rate (magazine-opens and dog-ear
+   bookmarks, the latter weighted double) times `CPM^α`, balancing
+   revenue against ad quality (α is publisher-configurable) and
+   exploring new creatives without re-running the auction.
 5. **Winners pay the minimum price that still wins** (quality-adjusted,
    second-price style), so advertisers can simply bid their true value.
    Publisher floor prices are optimized continuously against observed

@@ -262,7 +262,7 @@ spend is fully metered and billed — it becomes wallet debt that nets
 against their first top-up, and they stay paused until then; and
 (b) advertiser accounts only exist via operator approval, so the window
 cannot be farmed by re-registration. When self-service payments land
-(STRIPE_TOPUPS.md), flip to strict prepaid: provision new advertisers
+(Stripe top-ups — future work), flip to strict prepaid: provision new advertisers
 suspended with a $0 wallet, first top-up activates serving, and an
 optional operator-configured signup credit covers trials — at that point
 the friction of funding-before-serving falls on the advertiser's card,

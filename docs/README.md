@@ -28,8 +28,7 @@ Deep dives into why the system works the way it does, in `design/`:
 | Classification | [CONTENT_CLASSIFICATION](design/CONTENT_CLASSIFICATION.md), [ON_DEMAND_CLASSIFICATION](design/ON_DEMAND_CLASSIFICATION.md) |
 | Publisher identity | [SITE_VERIFICATION](design/SITE_VERIFICATION.md) |
 | Creatives | [TEXT_COLOR_PIPELINE](design/TEXT_COLOR_PIPELINE.md) |
-| Internals | [CAMPAIGN_DIRECTORY_REDESIGN](design/CAMPAIGN_DIRECTORY_REDESIGN.md) |
-| Research & direction | [RESEARCH_PAPER_ANALYSIS](design/RESEARCH_PAPER_ANALYSIS.md), [AGENTIC_AI_ROADMAP](design/AGENTIC_AI_ROADMAP.md) |
+| Billing | [BILLING](design/BILLING.md) |
 
 ## Developer notes
 

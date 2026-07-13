@@ -4,7 +4,7 @@
 > to `platform/creative-designer/` (TypeScript designer) and `modules/`
 > (Scala server) as of 2026-06-30.
 >
-> **Related:** [`dev_docs/lp-brand-kit-extraction.md`](../../dev_docs/lp-brand-kit-extraction.md),
+> **Related:** [`book/src/format/brand-kit.md`](../../book/src/format/brand-kit.md),
 > [`DESIGNER_DEV.md`](../../dev_docs/DESIGNER_DEV.md).
 
 ## One-line mental model
@@ -93,7 +93,7 @@ forwarded through `AnalyzeLPResponse`. The editor's `buildBrandKitFromLP(data)`
 `dominantColor, textColor, palette`, runs `_toHex()`, and names the roles
 **`Background, Text, Accent, Brand, Color 5, Color 6`**. After analysis the
 LP-derived kit **always** becomes the editor default
-([`dev_docs/lp-brand-kit-extraction.md`](../../dev_docs/lp-brand-kit-extraction.md)).
+([`book/src/format/brand-kit.md`](../../book/src/format/brand-kit.md)).
 
 Brand-kit load precedence (`brand-kit.ts:82-125`): server-injected
 `window.__DESIGNER__.brandKit` → handoff `brandKitJson` → `localStorage` →

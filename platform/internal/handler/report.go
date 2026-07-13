@@ -4,7 +4,7 @@ package handler
 // picker, totals tiles, daily spend + impressions charts, day x campaign
 // table, and site/category/publisher breakdown tabs with CSV export.
 // Data comes from the core report endpoints (campaign_daily_stats +
-// campaign_dim_daily_stats); see docs/design/ADVERTISER_REPORTING.md.
+// campaign_dim_daily_stats).
 // All days are UTC buckets, matching settlement and billing statements.
 
 import (

@@ -238,6 +238,10 @@ object Protocol {
       needText: Boolean = false
   ) extends BatchSelectResult
 
+  // No longer produced (the too-old branch now replies BatchSelected with a
+  // reclassify token so the ad tag can heal the page — a token-less 204 left
+  // stale pages dark forever). Kept for wire compat during rolling deploys:
+  // an old-image AdServer entity can still send it to a new-image route.
   case object BatchContentTooOld extends BatchSelectResult
   case object BatchHostNotVerified extends BatchSelectResult
 

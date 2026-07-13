@@ -11,14 +11,18 @@ import org.scalatest.wordspec.AnyWordSpec
 import promovolve.*
 import promovolve.publisher.{
   ApprovedCreativeMeta,
+  CDNPath,
+  CandidateView,
   Creative,
   CreativeRepo,
   CreativeStatus,
   FirstSeen,
   FlaggedCreative,
+  MimeType,
   NoOpCreativeStatsSnapshotRepo,
   NoOpTrafficShapeSnapshotRepo,
   PendingSelectionStore,
+  ServeView,
   SiteEntity,
   TrustAnchor
 }
@@ -156,7 +160,10 @@ class AdServerSuspensionSpec extends AnyWordSpec with Matchers with BeforeAndAft
     def getPendingRender(): Future[Vector[Creative]] = Future.successful(Vector.empty)
   }
 
-  private def spawnAdServer(siteId: String) = {
+  private def spawnAdServer(siteId: String): (
+      org.apache.pekko.actor.typed.ActorRef[Command],
+      org.apache.pekko.actor.testkit.typed.scaladsl.TestProbe[ServeIndexDData.Cmd]
+  ) = {
     val serveIndexProbe = testKit.createTestProbe[ServeIndexDData.Cmd]()
     val adServer = testKit.spawn(
       AdServer(
@@ -173,41 +180,91 @@ class AdServerSuspensionSpec extends AnyWordSpec with Matchers with BeforeAndAft
       )
     )
     adServer ! VerifiedHostUpdated(Some("test.example.com"))
-    adServer
+    (adServer, serveIndexProbe)
   }
 
-  private def batchSelect(adServer: org.apache.pekko.actor.typed.ActorRef[Command]) = {
+  private def batchSelect(
+      adServer: org.apache.pekko.actor.typed.ActorRef[Command],
+      freshnessWindowMs: Long = 0L
+  ) = {
     val probe = testKit.createTestProbe[BatchSelectResult]()
     adServer ! BatchSelect(
       url = URL("http://test.example.com/page"),
       slots = Vector(BatchSlotSpec(SlotId("slot-1"), 300, 250)),
-      classificationFreshnessWindowMs = 0L,
+      classificationFreshnessWindowMs = freshnessWindowMs,
       replyTo = probe.ref
     )
-    probe.receiveMessage(3.seconds)
+    probe
   }
 
   "AdServer under operator suspension" should {
 
     "refuse every serve with BatchSiteSuspended while the flag is set, and recover when lifted" in {
-      val adServer = spawnAdServer("site-suspend")
+      val (adServer, _) = spawnAdServer("site-suspend")
 
       adServer ! SiteSuspendedConfigUpdated(Some(SiteEntity.CachedSiteSuspended(true)))
-      batchSelect(adServer) shouldBe BatchSiteSuspended
+      batchSelect(adServer).receiveMessage(3.seconds) shouldBe BatchSiteSuspended
       // Suspension outranks everything, including host mismatch checks —
       // asserted by it being the FIRST gate (no warn about hosts fired).
-      batchSelect(adServer) shouldBe BatchSiteSuspended
+      batchSelect(adServer).receiveMessage(3.seconds) shouldBe BatchSiteSuspended
 
       // Lift: serving resumes through the normal path (warmup/empty pool
       // replies are fine — anything but the suspension refusal).
       adServer ! SiteSuspendedConfigUpdated(Some(SiteEntity.CachedSiteSuspended(false)))
-      val after = batchSelect(adServer)
+      val after = batchSelect(adServer).receiveMessage(3.seconds)
       after should not be BatchSiteSuspended
     }
 
     "serve normally when the flag was never published (absent = not suspended)" in {
-      val adServer = spawnAdServer("site-not-suspended")
-      batchSelect(adServer) should not be BatchSiteSuspended
+      val (adServer, _) = spawnAdServer("site-not-suspended")
+      batchSelect(adServer).receiveMessage(3.seconds) should not be BatchSiteSuspended
+    }
+  }
+
+  "BatchSelect content freshness" should {
+
+    "reply with a reclassify token, not a token-less refusal, when every candidate aged past the window" in {
+      val (adServer, serveIndexProbe) = spawnAdServer("site-stale-content")
+      val probe = batchSelect(adServer, freshnessWindowMs = 1000L)
+
+      // Answer the per-slot ServeIndex Get with a view whose only candidate
+      // is far older than the freshness window — the ContentTooOld state.
+      import org.apache.pekko.actor.testkit.typed.scaladsl.FishingOutcomes
+      val get = serveIndexProbe
+        .fishForMessage(3.seconds) {
+          case _: ServeIndexDData.Get => FishingOutcomes.complete
+          case _                      => FishingOutcomes.continueAndIgnore
+        }
+        .last
+        .asInstanceOf[ServeIndexDData.Get]
+      get.replyTo ! Some(ServeView(
+        candidates = Vector(CandidateView(
+          creativeId = CreativeId("cr-stale"),
+          campaignId = CampaignId("camp-stale"),
+          advertiserId = AdvertiserId("adv-1"),
+          assetUrl = CDNPath("assets/x.webp"),
+          mime = MimeType("image/webp"),
+          width = 300,
+          height = 250,
+          category = CategoryId("test"),
+          cpm = CPM(1.0),
+          classifiedAtMs = System.currentTimeMillis() - 3600_000L
+        )),
+        version = 1L,
+        expiresAtMs = System.currentTimeMillis() + 3600_000L
+      ))
+
+      // The old behavior was a bare BatchContentTooOld → 204 with no body —
+      // the ad tag could never learn it should re-classify, so the page
+      // stayed dark forever. Now: no winner (stale context must not serve)
+      // but the freshness token demands classification, which heals it.
+      probe.receiveMessage(3.seconds) match {
+        case BatchSelected(outcomes, _, reclassifyInMs, needText) =>
+          outcomes.flatMap(_.winner) shouldBe empty
+          needText shouldBe true
+          reclassifyInMs should be <= 0L
+        case other => fail(s"expected BatchSelected with a reclassify token, got $other")
+      }
     }
   }
 }

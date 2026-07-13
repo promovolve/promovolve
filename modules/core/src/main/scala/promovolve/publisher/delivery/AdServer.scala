@@ -2533,7 +2533,21 @@ private[delivery] class AdServer(
                 classificationFreshnessWindowMs: java.lang.Long,
                 ages.mkString(","): String
               )
-              replyTo ! BatchContentTooOld
+              // Reply with the freshness TOKEN, not the bare BatchContentTooOld
+              // 204: a token-less 204 gave the ad tag no reclassify signal, so a
+              // page whose candidates all aged past the window stayed dark
+              // FOREVER (re-auctions restamp the OLD classifiedAt; only a
+              // /v1/classify-page from the tag refreshes it — and the tag only
+              // classifies on reclassifyInMs <= 0). Same shape as the
+              // empty-candidates branches above; still no winner served (stale
+              // context must not serve), still counted as contentTooOld.
+              // Re-auction covers the other stale flavor: classification
+              // already refreshed but the view not yet repopulated.
+              selfHealReauction(url)
+              replyTo ! emptyOutcomes(
+                view.pageCategories,
+                reclassifyInMs = reclassifyInMsFor(url.value, classificationFreshnessWindowMs)
+              )
               behavior(state.copy(serveStats = serveStats.recordContentTooOld))
             } else {
               val currentMsSinceLast = if (lastRequestTimeMs > 0) nowMs - lastRequestTimeMs else 0L

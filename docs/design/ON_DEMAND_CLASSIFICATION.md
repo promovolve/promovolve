@@ -420,6 +420,16 @@ showing the current ad (stale-while-revalidate); a never-classified page (no
 winner + token ≤ 0) is cold until warm. The token alone drives the send; winner-
 presence only decides whether there's an ad to show meanwhile.
 
+**The token must ride EVERY stale-shaped response (bug fixed 2026-07-14):**
+the batch serve path had one branch that dropped it — candidates present but
+ALL older than the freshness window replied a bodyless `BatchContentTooOld`
+204. No body means no token, the tag never re-classified, re-auctions kept
+restamping the old `classifiedAt`, and the page stayed dark permanently (first
+observed on the static demo site, which crossed the 48h window with no ad-tag
+visit to heal it). That branch now replies a normal `BatchSelected` with no
+winners and a `<= 0` token, exactly like the empty-pool branches — stale
+context still never serves, but the next real visit heals the page.
+
 **Server needs `classifiedAt` at serve time** even for no-winner (filler) pages
 → `pageCategoriesCache` becomes `url → (categories, classifiedAt)` (the
 `CandidatesCollected` message already carries `classifiedAt`). The token is then

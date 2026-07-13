@@ -63,7 +63,7 @@ export function mountPageBgPanel(container: HTMLElement, store: Store): PageBgPa
   return {
     update(state) {
       const page = currentPage(state);
-      colorRow.update(page?.bg ?? "", state.pageIdx === 0, !!state.pages[0]?.syncBg);
+      colorRow.update(page?.bg ?? "", state.pageIdx === 0, state.pages[0]?.syncBg !== false);
       const videoBg = page?.videoBg;
       const src = videoBg?.src ?? null;
       // Only rebuild when present/absent state flips — otherwise

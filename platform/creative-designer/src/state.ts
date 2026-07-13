@@ -323,12 +323,12 @@ export function propagateTypography(
   if ((keys.length === 0 && !hasScale) || !field) return state;
   const dropColor = (t: Record<string, unknown>): Record<string, unknown> =>
     Object.fromEntries(Object.entries(t).filter(([k]) => k !== "color"));
-  // Headline colour page-sync toggle (pages[0].syncHeadlineColor, ABSENT =
-  // true — always-synced is the historical behavior): when explicitly off,
-  // headline colour edits stay on their own page (that page's reader +
-  // buckets); every other property still spans all pages.
-  const colorLocalToPage = field === "headline" && "color" in effTypo
-    && (state.pages[0] as Page | undefined)?.syncHeadlineColor === false;
+  // Per-field colour page-sync toggle (headline/body — pages[0].
+  // syncHeadlineColor / syncBodyColor, ABSENT = true; always-synced is
+  // the historical behavior): when explicitly off, that field's colour
+  // edits stay on their own page (that page's reader + buckets); every
+  // other property still spans all pages.
+  const colorLocalToPage = "color" in effTypo && !isFieldColorSynced(state, field);
   const apply = (items: LayoutItem[], pageTypo: Record<string, unknown>): LayoutItem[] => {
     let any = false;
     const next = items.map((it) => {
@@ -380,21 +380,39 @@ export function propagateTypography(
   return changed ? { ...state, pages } : state;
 }
 
-/** Toggle "sync headline colour across all 3 pages" (stored on page 0,
-  * persisted with pagesJSON; ABSENT = on). Turning it ON immediately
-  * re-broadcasts page 1's headline colour to every page; OFF leaves the
-  * pages as they are, free to diverge. */
-export function setSyncHeadlineColor(state: DesignerState, on: boolean): DesignerState {
+/** The page-0 flag key governing a field's colour page-sync, or null for
+  * fields whose colour always syncs (no toggle). */
+export function fieldColorSyncKey(field: string): "syncHeadlineColor" | "syncBodyColor" | null {
+  if (field === "headline") return "syncHeadlineColor";
+  if (field === "body") return "syncBodyColor";
+  return null;
+}
+
+/** Whether `field`'s colour syncs across pages. ABSENT flag = true (the
+  * historical always-synced behavior); only an explicit false opts out.
+  * Fields without a toggle always sync. */
+export function isFieldColorSynced(state: DesignerState, field: string): boolean {
+  const key = fieldColorSyncKey(field);
+  if (!key) return true;
+  return (state.pages[0] as Record<string, unknown> | undefined)?.[key] !== false;
+}
+
+/** Toggle "sync colour across all 3 pages" for a field (headline/body —
+  * stored on page 0, persisted with pagesJSON; ABSENT = on). Turning it
+  * ON immediately re-broadcasts page 1's colour for that field to every
+  * page; OFF leaves the pages as they are, free to diverge. */
+export function setSyncFieldColor(state: DesignerState, field: string, on: boolean): DesignerState {
+  const key = fieldColorSyncKey(field);
   const first = state.pages[0];
-  if (!first) return state;
+  if (!key || !first) return state;
   let next: DesignerState = {
     ...state,
     pages: state.pages.map((p, i) =>
-      i === 0 ? ({ ...p, syncHeadlineColor: on ? undefined : false } as Page) : p),
+      i === 0 ? ({ ...p, [key]: on ? undefined : false } as Page) : p),
   };
   if (on) {
-    const color = masterColor(next, "headline");
-    if (color) next = propagateTypography(next, "headline", { color });
+    const color = masterColor(next, field);
+    if (color) next = propagateTypography(next, field, { color });
   }
   return next;
 }
@@ -1194,9 +1212,10 @@ export function setTextureSrc(state: DesignerState, src: string, sizeBytes?: num
 /** Set or clear the current page's solid background color (CSS color
   * string). Pass `null` to remove and revert to the renderer's default
   * dark gradient. Lives on the page, mirrors setVideoBg. While page-1
-  * colour sync is on (pages[0].syncBg), a page-1 edit writes EVERY page —
-  * the UI disables the colour row on pages 2/3, so page 1 is the only
-  * edit surface; a direct pages-2/3 call stays per-page. */
+  * colour sync is on (pages[0].syncBg, ABSENT = ON — user decision
+  * 2026-07-13), a page-1 edit writes EVERY page — the UI disables the
+  * colour row on pages 2/3, so page 1 is the only edit surface; a
+  * direct pages-2/3 call stays per-page. */
 export function setPageBg(state: DesignerState, bg: string | null): DesignerState {
   const page = currentPage(state);
   if (!page) return state;
@@ -1207,7 +1226,7 @@ export function setPageBg(state: DesignerState, bg: string | null): DesignerStat
     }
     return { ...p, bg };
   };
-  if (state.pageIdx === 0 && state.pages[0]?.syncBg) {
+  if (state.pageIdx === 0 && state.pages[0]?.syncBg !== false) {
     return { ...state, pages: state.pages.map(apply) };
   }
   return {
@@ -1217,9 +1236,9 @@ export function setPageBg(state: DesignerState, bg: string | null): DesignerStat
 }
 
 /** Toggle "sync color across all 3 pages" (stored on page 0, persisted
-  * with pagesJSON). Turning it ON immediately copies page 1's background
-  * colour — or its absence — onto every page; turning it OFF leaves the
-  * pages as they are, free to diverge again. */
+  * with pagesJSON; ABSENT = ON). Turning it ON immediately copies page
+  * 1's background colour — or its absence — onto every page; turning it
+  * OFF leaves the pages as they are, free to diverge again. */
 export function setSyncPageBg(state: DesignerState, on: boolean): DesignerState {
   const first = state.pages[0];
   if (!first) return state;
@@ -1234,7 +1253,7 @@ export function setSyncPageBg(state: DesignerState, on: boolean): DesignerState 
         next = { ...p, bg };
       }
     }
-    if (i === 0) next = { ...next, syncBg: on || undefined } as Page;
+    if (i === 0) next = { ...next, syncBg: on ? undefined : false } as Page;
     return next;
   });
   return { ...state, pages };

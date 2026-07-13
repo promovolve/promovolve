@@ -16,7 +16,7 @@
 import { refitItemCropToBox } from "../auto-crop";
 import { packReaderFieldBoxes, packTextItemHeight } from "../render/canvas";
 import { isMultiPage } from "../modes";
-import { adoptTextOverride, currentItem, currentLayout, currentPage, hasLocalTextOverride, propagateTypography, setItemContent, setReaderFieldFontSize, setSyncHeadlineColor, TYPO_SYNC_KEYS, updateItem } from "../state";
+import { adoptTextOverride, currentItem, currentLayout, currentPage, fieldColorSyncKey, hasLocalTextOverride, isFieldColorSynced, propagateTypography, setItemContent, setReaderFieldFontSize, setSyncFieldColor, TYPO_SYNC_KEYS, updateItem } from "../state";
 import type { Store } from "../store";
 import type { DesignerState, ImageItem, LayoutItem, RectItem } from "../types";
 import { scrimGradient, SCRIM_EDGES, type ScrimEdge, type ScrimSpec } from "../scrim";
@@ -68,14 +68,14 @@ interface RenderedState {
 // Structural suffix for the rebuild key — everything that changes the
 // PANEL SHAPE for the same idx|type must be in here, since setters only
 // patch values. "|ov": field-bound text with a baked per-size override
-// (hint ↔ editable content swap). Headline items additionally encode the
-// page index and the headline-colour page-sync flag (colour picker ↔
-// "synced from page 1" hint swap).
+// (hint ↔ editable content swap). Fields with a colour page-sync toggle
+// (headline/body) additionally encode the page index and that field's
+// flag (colour picker ↔ "synced from page 1" hint swap).
 function structuralMarker(state: DesignerState, item: LayoutItem): string {
   let m = hasLocalTextOverride(item) ? "|ov" : "";
-  if (item.type === "text" && (item as { field?: string }).field === "headline") {
-    const synced = (state.pages[0] as { syncHeadlineColor?: boolean } | undefined)?.syncHeadlineColor !== false;
-    m += `|pg${state.pageIdx}|hs${synced ? 1 : 0}`;
+  const field = item.type === "text" ? (item as { field?: string }).field : undefined;
+  if (field && fieldColorSyncKey(field) != null) {
+    m += `|pg${state.pageIdx}|cs${isFieldColorSynced(state, field) ? 1 : 0}`;
   }
   return m;
 }
@@ -261,13 +261,14 @@ function build(panel: HTMLElement, idx: number, item: LayoutItem, store: Store):
     } else {
       contentHint(textGroup, effectiveContent(store, item, "text"));
     }
-    // Headline colour page-sync: while pages[0].syncHeadlineColor is on
-    // (absent = on), page 1 is the only place the headline colour is
-    // edited — pages 2/3 show a hint instead of the picker. Mirrors the
-    // Page Background "Sync color across all 3 pages" row.
-    const hlSynced = (store.state.pages[0] as { syncHeadlineColor?: boolean } | undefined)?.syncHeadlineColor !== false;
-    const hlLocked = boundField === "headline" && hlSynced && store.state.pageIdx > 0;
-    if (hlLocked) {
+    // Per-field colour page-sync (headline + body): while pages[0]'s
+    // flag is on (absent = on), page 1 is the only place that field's
+    // colour is edited — pages 2/3 show a hint instead of the picker.
+    // Mirrors the Page Background "Sync color across all 3 pages" row.
+    const hasColorPageSync = boundField != null && fieldColorSyncKey(boundField) != null;
+    const fieldSynced = boundField != null && isFieldColorSynced(store.state, boundField);
+    const colorLocked = hasColorPageSync && fieldSynced && store.state.pageIdx > 0;
+    if (colorLocked) {
       const lockHint = document.createElement("div");
       lockHint.style.cssText = `margin:0 0 10px;font-size:11px;color:${tokens.ink300};font-style:italic;`;
       lockHint.textContent = "Color synced from page 1";
@@ -279,8 +280,8 @@ function build(panel: HTMLElement, idx: number, item: LayoutItem, store: Store):
         onPick: (color) => mutate(store, idx, (it) => ({ ...it, color }), true),
       });
     }
-    if (boundField === "headline") {
-      // Always rendered for the headline (stable group height when
+    if (hasColorPageSync && boundField) {
+      // Always rendered for the field (stable group height when
       // paging); operable only while page 1 is selected.
       const firstPage = store.state.pageIdx === 0;
       const syncColorRow = document.createElement("label");
@@ -288,11 +289,11 @@ function build(panel: HTMLElement, idx: number, item: LayoutItem, store: Store):
       if (!firstPage) syncColorRow.title = "Set from page 1";
       const cb = document.createElement("input");
       cb.type = "checkbox";
-      cb.checked = hlSynced;
+      cb.checked = fieldSynced;
       cb.disabled = !firstPage;
       cb.style.cssText = "margin:0;cursor:inherit;";
       cb.addEventListener("change", () => {
-        store.commit(setSyncHeadlineColor(store.state, cb.checked));
+        store.commit(setSyncFieldColor(store.state, boundField, cb.checked));
       });
       syncColorRow.append(cb, document.createTextNode("Sync color across all 3 pages"));
       appendToGroup(textGroup, syncColorRow);

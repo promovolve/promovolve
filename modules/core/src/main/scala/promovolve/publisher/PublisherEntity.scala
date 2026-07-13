@@ -251,8 +251,33 @@ object PublisherEntity {
         Effect.none.thenReply(replyTo)(s => DomainBlocklist(s.domainBlocklist))
 
       case UpdateStatus(status, replyTo) =>
+        val prev = state.status
         val newState = state.withStatus(status)
-        Effect.persist(newState).thenReply(replyTo)(_ => StatusUpdated(state.publisherId, status))
+        Effect
+          .persist(newState)
+          .thenRun { (_: State) =>
+            // Operator suspension freezes serving on every site; resuming
+            // to Active lifts it. SetSuspended is an idempotent flag flip,
+            // so a retried suspend re-fanning is harmless. Known edge: a
+            // site registered WHILE suspended won't inherit the flag —
+            // acceptable because the suspended org's dashboard is locked.
+            val freeze = status match {
+              case Status.Suspended | Status.Closed       => Some(true)
+              case Status.Active if prev != Status.Active => Some(false)
+              case _                                      => None
+            }
+            freeze.foreach { s =>
+              if (state.siteIds.nonEmpty) {
+                ctx.log.info("Publisher {} status {} -> {}: setting suspended={} on {} site(s)",
+                  state.publisherId.value, prev, status, s, state.siteIds.size)
+              }
+              state.siteIds.foreach { siteId =>
+                sharding.entityRefFor(SiteEntity.TypeKey, siteId.value) !
+                SiteEntity.SetSuspended(s, ctx.system.ignoreRef)
+              }
+            }
+          }
+          .thenReply(replyTo)(_ => StatusUpdated(state.publisherId, status))
 
       case GetClassificationFreshnessWindow(replyTo) =>
         Effect.none.thenReply(replyTo)(_ => ClassificationFreshnessWindow(state.classificationFreshnessWindowMs))

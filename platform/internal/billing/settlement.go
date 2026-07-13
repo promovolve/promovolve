@@ -26,11 +26,37 @@ type Settler struct {
 	core     CoreClient
 	marginAt func(ctx context.Context, at time.Time) (int, error)
 
+	// entitySuspended reports whether the org owning a core entity is
+	// OPERATOR-suspended. Wallet health must never resume an advertiser the
+	// operator suspended — governance outranks billing. Nil = no org layer
+	// (tests): never operator-suspended.
+	entitySuspended func(ctx context.Context, entityID string) (bool, error)
+
 	interval time.Duration
 	// maxLookbackDays bounds catch-up to the core's tracking_events
 	// retention; gaps older than this are unrecoverable and alerted.
 	maxLookbackDays int
 	now             func() time.Time
+}
+
+// SetEntitySuspendedLookup wires the org-suspension check (see
+// entitySuspended). Called once at startup.
+func (s *Settler) SetEntitySuspendedLookup(f func(ctx context.Context, entityID string) (bool, error)) {
+	s.entitySuspended = f
+}
+
+// operatorSuspended is the nil-safe read of entitySuspended; lookup errors
+// count as suspended so a flaky org read can't accidentally resume.
+func (s *Settler) operatorSuspended(ctx context.Context, entityID string) bool {
+	if s.entitySuspended == nil {
+		return false
+	}
+	suspended, err := s.entitySuspended(ctx, entityID)
+	if err != nil {
+		slog.Error("org suspension lookup failed; treating as suspended", "entityId", entityID, "error", err)
+		return true
+	}
+	return suspended
 }
 
 func NewSettler(svc *Service, pool *pgxpool.Pool, core CoreClient, marginAt func(context.Context, time.Time) (int, error)) *Settler {
@@ -333,6 +359,12 @@ func (s *Settler) EvaluateWallets(ctx context.Context) error {
 			if !intradayOK {
 				continue // never resume on stale data (see above)
 			}
+			if s.operatorSuspended(ctx, w.id) {
+				// Funded wallet, but the operator suspended the company —
+				// governance outranks billing. Stays benched until the
+				// operator resumes the org (which re-runs the core resume).
+				continue
+			}
 			if err := s.core.ResumeAdvertiser(ctx, w.id); err != nil {
 				slog.Error("core resume failed; will retry next pass", "advertiserId", w.id, "error", err)
 				continue
@@ -373,8 +405,14 @@ func (s *Settler) unsettledSince(ctx context.Context) time.Time {
 
 // ResumeServing is for handlers that just funded a suspended wallet
 // (TopupResult.Reactivated): it tells core to serve again immediately
-// instead of waiting for the next settlement pass.
+// instead of waiting for the next settlement pass. A no-op while the
+// owning org is operator-suspended — a top-up must not un-bench a
+// suspended company.
 func (s *Settler) ResumeServing(ctx context.Context, advertiserID string) error {
+	if s.operatorSuspended(ctx, advertiserID) {
+		slog.Info("top-up resume skipped: org operator-suspended", "advertiserId", advertiserID)
+		return nil
+	}
 	return s.core.ResumeAdvertiser(ctx, advertiserID)
 }
 

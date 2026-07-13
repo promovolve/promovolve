@@ -94,8 +94,8 @@ func (h *Handler) SessionGuard(next http.Handler) http.Handler {
 			return
 		}
 
-		if claims.OrgID != "" && moneyPages[r.URL.Path] && !viewAs {
-			_, m, err := h.orgRepo.ForUser(r.Context(), claims.UserID)
+		if claims.OrgID != "" && !viewAs && (moneyPages[r.URL.Path] || !suspensionExemptPath(r.URL.Path)) {
+			o, m, err := h.orgRepo.ForUser(r.Context(), claims.UserID)
 			if errors.Is(err, org.ErrNotFound) {
 				// Dead session (user/org gone — reset or offboarding): not a
 				// member sneaking into billing. Pass through; sessionUser
@@ -104,7 +104,27 @@ func (h *Handler) SessionGuard(next http.Handler) http.Handler {
 				next.ServeHTTP(w, r)
 				return
 			}
-			if err != nil || m.OrgRole != model.OrgRoleAdmin {
+
+			// Operator suspension of the whole company: authenticated members
+			// see the notice on every dashboard request — fresh DB read, so it
+			// applies immediately to live sessions. Auth itself still works
+			// (the user is told WHY, no mystery 403s); logout and static
+			// assets stay reachable. Operators are org-less and view-as
+			// sessions (an operator investigating) never reach this branch.
+			if err == nil && o.Suspended && !suspensionExemptPath(r.URL.Path) {
+				reason := strings.TrimSpace(o.SuspendReason)
+				if reason == "" {
+					reason = "no reason was recorded"
+				}
+				h.renderGuardError(w, r, pageData{
+					Title:      "Account suspended",
+					Error:      "Your organization's account is suspended: " + reason + ". Serving and billing are paused. Contact the platform operator to resolve this.",
+					LogoutOnly: true,
+				})
+				return
+			}
+
+			if moneyPages[r.URL.Path] && (err != nil || m.OrgRole != model.OrgRoleAdmin) {
 				h.renderGuardError(w, r, pageData{
 					Title: "Org admins only",
 					Error: "Billing pages — the wallet and earnings — are managed by your organization's admins. Ask one of them if you need something changed there.",
@@ -152,6 +172,13 @@ func (h *Handler) clearDeadSessionCookie(w http.ResponseWriter) {
 		Name: "token", Value: "", Path: "/", MaxAge: -1,
 		HttpOnly: true, SameSite: http.SameSiteLaxMode, Secure: h.secureCookies,
 	})
+}
+
+// suspensionExemptPath lists what a suspended org's member may still reach:
+// the exits (logout/login) and the assets the notice page itself needs.
+func suspensionExemptPath(path string) bool {
+	return path == "/logout" || path == "/login" ||
+		strings.HasPrefix(path, "/static/") || path == "/favicon.ico"
 }
 
 func isAuditedPath(path string) bool {

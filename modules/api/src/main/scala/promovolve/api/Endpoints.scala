@@ -583,6 +583,30 @@ object Endpoints extends ApiJsonFormats {
       .in(header[Option[String]]("X-Internal-Key"))
       .out(statusCode(sttp.model.StatusCode.NoContent))
       .errorOut(jsonBody[ErrorResponse])
+  val suspendPublisher: PublicEndpoint[(String, Option[String]), ErrorResponse, Unit, Any] =
+    endpoint
+      .tag("Internal")
+      .summary("Suspend a publisher (operator org suspension) — freezes serving on all sites")
+      .description(
+        "Sets the publisher's status to Suspended and fans a serving-freeze flag out to every one of the publisher's sites. Reversible: nothing is deleted; /resume lifts the freeze. Called by the platform when the operator suspends the owning company.")
+      .post
+      .in(v1 / "internal" / "publishers" / path[String]("publisherId") / "suspend")
+      .in(header[Option[String]]("X-Internal-Key"))
+      .out(statusCode(sttp.model.StatusCode.NoContent))
+      .errorOut(jsonBody[ErrorResponse])
+
+  val resumePublisher: PublicEndpoint[(String, Option[String]), ErrorResponse, Unit, Any] =
+    endpoint
+      .tag("Internal")
+      .summary("Resume a suspended publisher — sites serve again")
+      .description(
+        "Sets the publisher's status back to Active and lifts the serving freeze on all its sites. Called by the platform when the operator resumes the owning company.")
+      .post
+      .in(v1 / "internal" / "publishers" / path[String]("publisherId") / "resume")
+      .in(header[Option[String]]("X-Internal-Key"))
+      .out(statusCode(sttp.model.StatusCode.NoContent))
+      .errorOut(jsonBody[ErrorResponse])
+
   val listTaxonomyCategories: PublicEndpoint[(Option[String], Int, Int), ErrorResponse, TaxonomyCategoryList, Any] =
     endpoint
       .tag("Taxonomy")

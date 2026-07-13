@@ -139,6 +139,19 @@ func (c *HTTPCoreClient) ResumeAdvertiser(ctx context.Context, advertiserID stri
 	return err
 }
 
+// SuspendPublisher freezes serving on every one of the publisher's sites
+// (operator org suspension); ResumePublisher lifts it. Reversible — the
+// core keeps approvals/state intact.
+func (c *HTTPCoreClient) SuspendPublisher(ctx context.Context, publisherID string) error {
+	_, err := c.do(ctx, http.MethodPost, fmt.Sprintf("%s/v1/internal/publishers/%s/suspend", c.BaseURL, publisherID))
+	return err
+}
+
+func (c *HTTPCoreClient) ResumePublisher(ctx context.Context, publisherID string) error {
+	_, err := c.do(ctx, http.MethodPost, fmt.Sprintf("%s/v1/internal/publishers/%s/resume", c.BaseURL, publisherID))
+	return err
+}
+
 func (c *HTTPCoreClient) do(ctx context.Context, method, url string) ([]byte, error) {
 	req, err := http.NewRequestWithContext(ctx, method, url, nil)
 	if err != nil {

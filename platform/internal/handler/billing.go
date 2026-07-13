@@ -691,6 +691,23 @@ func (h *Handler) AdminBillingAccount(w http.ResponseWriter, r *http.Request) {
 	})
 }
 
+// orgSuspendedMsg returns a refusal message when the entity's org is
+// operator-suspended — NEW money movements (top-ups, payouts, adjustments)
+// are frozen with the rest of the relationship. Bookkeeping of pre-existing
+// records (mark-paid, cancel) stays allowed. Lookup errors refuse too:
+// fail-closed for money.
+func (h *Handler) orgSuspendedMsg(ctx context.Context, entityID string) string {
+	suspended, err := h.orgRepo.IsEntitySuspended(ctx, entityID)
+	if err != nil {
+		slog.Error("org suspension lookup failed", "entityId", entityID, "error", err)
+		return "could not verify the organization's status — no money was moved; try again"
+	}
+	if suspended {
+		return "this organization is suspended — resume it from the Users page before moving money"
+	}
+	return ""
+}
+
 func (h *Handler) AdminRecordTopup(w http.ResponseWriter, r *http.Request) {
 	admin, _, ok := h.requireRole(w, r, model.RoleAdmin)
 	if !ok {
@@ -709,6 +726,10 @@ func (h *Handler) AdminRecordTopup(w http.ResponseWriter, r *http.Request) {
 	}
 	if !h.ownerExists(r.Context(), billing.OwnerAdvertiser, advertiserID) {
 		h.renderAdminTopups(w, r, "unknown advertiser: "+advertiserID)
+		return
+	}
+	if msg := h.orgSuspendedMsg(r.Context(), advertiserID); msg != "" {
+		h.renderAdminTopups(w, r, msg)
 		return
 	}
 	res, err := h.billingSvc.RecordTopup(r.Context(), billing.TopupParams{
@@ -750,6 +771,10 @@ func (h *Handler) AdminCreatePayout(w http.ResponseWriter, r *http.Request) {
 	publisherID := strings.TrimSpace(r.FormValue("publisherId"))
 	if publisherID == "" {
 		h.renderAdminPayouts(w, r, "payout needs a publisher")
+		return
+	}
+	if msg := h.orgSuspendedMsg(r.Context(), publisherID); msg != "" {
+		h.renderAdminPayouts(w, r, msg)
 		return
 	}
 	end := time.Now().UTC().Truncate(24*time.Hour).AddDate(0, 0, -1)
@@ -828,6 +853,10 @@ func (h *Handler) AdminAdjust(w http.ResponseWriter, r *http.Request) {
 	}
 	if !h.ownerExists(r.Context(), ownerType, ownerID) {
 		h.renderAdminJournal(w, r, "unknown "+string(ownerType)+" ID: "+ownerID+" — no money was moved")
+		return
+	}
+	if msg := h.orgSuspendedMsg(r.Context(), ownerID); msg != "" {
+		h.renderAdminJournal(w, r, msg)
 		return
 	}
 	idem := fmt.Sprintf("adj:%s:%s:%s:%s:%d", r.FormValue("nonce"), action, ownerType, ownerID, amount)

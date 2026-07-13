@@ -49,6 +49,7 @@ object AdServer {
     BatchSelect,
     BatchSelectResult,
     BatchSelected,
+    BatchSiteSuspended,
     BatchSlotOutcome,
     BatchSlotSpec,
     CampaignPaused,
@@ -746,6 +747,7 @@ object AdServer {
         type PacingConfigMap = LWWMap[SiteId, SiteEntity.PacingConfig]
         type AdProductBlocklistMap = LWWMap[SiteId, SiteEntity.CachedAdProductBlocklist]
         type AutoApproveMap = LWWMap[SiteId, SiteEntity.CachedAutoApprove]
+        type SiteSuspendedMap = LWWMap[SiteId, SiteEntity.CachedSiteSuspended]
         type VerifiedHostMap = LWWMap[SiteId, String]
         type PageWinnersMap = LWWMap[String, PageWinners]
         type AdvertiserBlocklistMap = LWWMap[AdvertiserId, AdvertiserEntity.CachedSiteDomainBlocklist]
@@ -771,6 +773,8 @@ object AdServer {
                 AdProductBlocklistUpdated(changed.dataValue.asInstanceOf[AdProductBlocklistMap].get(publisherId))
               case SiteEntity.AutoApproveKey =>
                 AutoApproveConfigUpdated(changed.dataValue.asInstanceOf[AutoApproveMap].get(publisherId))
+              case SiteEntity.SiteSuspendedKey =>
+                SiteSuspendedConfigUpdated(changed.dataValue.asInstanceOf[SiteSuspendedMap].get(publisherId))
               case SiteEntity.VerifiedHostKey =>
                 VerifiedHostUpdated(changed.dataValue.asInstanceOf[VerifiedHostMap].get(publisherId))
               case PageWinnersKey =>
@@ -803,6 +807,8 @@ object AdServer {
                 AdProductBlocklistUpdated(success.dataValue.asInstanceOf[AdProductBlocklistMap].get(publisherId))
               case SiteEntity.AutoApproveKey =>
                 AutoApproveConfigUpdated(success.dataValue.asInstanceOf[AutoApproveMap].get(publisherId))
+              case SiteEntity.SiteSuspendedKey =>
+                SiteSuspendedConfigUpdated(success.dataValue.asInstanceOf[SiteSuspendedMap].get(publisherId))
               case SiteEntity.VerifiedHostKey =>
                 VerifiedHostUpdated(success.dataValue.asInstanceOf[VerifiedHostMap].get(publisherId))
               case PageWinnersKey =>
@@ -825,6 +831,7 @@ object AdServer {
         replicator ! Replicator.Subscribe(SiteEntity.PacingConfigKey, subscribeAdapter)
         replicator ! Replicator.Subscribe(SiteEntity.AdProductBlocklistKey, subscribeAdapter)
         replicator ! Replicator.Subscribe(SiteEntity.AutoApproveKey, subscribeAdapter)
+        replicator ! Replicator.Subscribe(SiteEntity.SiteSuspendedKey, subscribeAdapter)
         replicator ! Replicator.Subscribe(SiteEntity.VerifiedHostKey, subscribeAdapter)
         replicator ! Replicator.Subscribe(PageWinnersKey, subscribeAdapter)
 
@@ -834,6 +841,7 @@ object AdServer {
         replicator ! Replicator.Get(SiteEntity.PacingConfigKey, Replicator.ReadLocal, getAdapter)
         replicator ! Replicator.Get(SiteEntity.AdProductBlocklistKey, Replicator.ReadLocal, getAdapter)
         replicator ! Replicator.Get(SiteEntity.AutoApproveKey, Replicator.ReadLocal, getAdapter)
+        replicator ! Replicator.Get(SiteEntity.SiteSuspendedKey, Replicator.ReadLocal, getAdapter)
         replicator ! Replicator.Get(SiteEntity.VerifiedHostKey, Replicator.ReadLocal, getAdapter)
         replicator ! Replicator.Get(PageWinnersKey, Replicator.ReadLocal, getAdapter)
 
@@ -1293,6 +1301,15 @@ private[delivery] class AdServer(
         // from the opt-in without waiting for organic re-auction traffic.
         if (!wasEnabled && nowEnabled) sweepPendingForTrust(newState)
         behavior(newState)
+
+      case SiteSuspendedConfigUpdated(configOpt) =>
+        val was = state.siteSuspended
+        val now = configOpt.exists(_.suspended)
+        if (was != now) {
+          log.info("AdServer {} operator suspension updated: {} -> {}", siteId.value,
+            was: java.lang.Boolean, now: java.lang.Boolean)
+        }
+        behavior(state.copy(siteSuspended = now))
 
       case TrustSweepReauction(urls) =>
         if (urls.nonEmpty) {
@@ -2366,89 +2383,99 @@ private[delivery] class AdServer(
       // recordRequestArrival above.
 
       case BatchSelect(url, slots, classificationFreshnessWindowMs, replyTo, excludedCreatives, excludedCampaigns) =>
-        val hostOk = AdServer.hostMatches(url.value, verifiedHost)
-        if (!hostOk) {
-          log.warn("Batch serve rejected: host-mismatch site={} url={}", siteId.value, url.value)
-          replyTo ! BatchHostNotVerified
-          // Mirror per-slot path: count host-mismatch attempts but skip
-          // the rate observer / lifecycle bookkeeping.
+        if (siteSuspended) {
+          // Operator suspension: refuse before ANY classification/auction/
+          // lifecycle work — no serve means no impressions, so earnings
+          // and spend freeze without touching a single record.
+          log.info("Batch serve refused: site {} is operator-suspended", siteId.value)
+          replyTo ! BatchSiteSuspended
           behavior(state.copy(requestCount = requestCount + 1, lastRequestTimeMs = System.currentTimeMillis()))
         } else {
-          val (newState, action) = recordRequestArrival(state)
-          action match {
-            case ArrivalAction.SkipRolloverGrace =>
-              // All-null outcomes — clients render unfilled slots, retry next page load.
-              replyTo ! BatchSelected(
-                slots.map(s =>
-                  BatchSlotOutcome(
-                    slotId = s.slotId, winner = None,
-                    dogear = AdServer.dogearFallthrough(s, persistedApprovedIds.contains)
-                  )),
-                Set.empty
-              )
-              behavior(newState)
-            case ArrivalAction.SkipWarmup =>
-              replyTo ! BatchSelected(
-                slots.map(s =>
-                  BatchSlotOutcome(
-                    slotId = s.slotId, winner = None,
-                    dogear = AdServer.dogearFallthrough(s, persistedApprovedIds.contains)
-                  )),
-                Set.empty
-              )
-              behavior(newState)
-            case ArrivalAction.Proceed =>
-              if (slots.isEmpty) {
-                replyTo ! BatchSelected(Vector.empty)
+          val hostOk = AdServer.hostMatches(url.value, verifiedHost)
+          if (!hostOk) {
+            log.warn("Batch serve rejected: host-mismatch site={} url={}", siteId.value, url.value)
+            replyTo ! BatchHostNotVerified
+            // Mirror per-slot path: count host-mismatch attempts but skip
+            // the rate observer / lifecycle bookkeeping.
+            behavior(state.copy(requestCount = requestCount + 1, lastRequestTimeMs = System.currentTimeMillis()))
+          } else {
+            val (newState, action) = recordRequestArrival(state)
+            action match {
+              case ArrivalAction.SkipRolloverGrace =>
+                // All-null outcomes — clients render unfilled slots, retry next page load.
+                replyTo ! BatchSelected(
+                  slots.map(s =>
+                    BatchSlotOutcome(
+                      slotId = s.slotId, winner = None,
+                      dogear = AdServer.dogearFallthrough(s, persistedApprovedIds.contains)
+                    )),
+                  Set.empty
+                )
                 behavior(newState)
-              } else {
-                import org.apache.pekko.actor.typed.scaladsl.AskPattern.*
-                given Timeout = Timeout(300.millis)
-                // Fetch each slot's ServeView in parallel so the batch
-                // handler can score against whichever pool is populated.
-                // Unions the pools below by taking the first non-empty view
-                // (simplification — all slots on the same page URL pull from
-                // the same site auction, so representative pools overlap).
-                val viewFutures: Vector[Future[Option[ServeView]]] =
-                  slots.map { slot =>
-                    val slotKey = key(siteId, slot.slotId)
-                    serveIndex
-                      .ask[Option[ServeView]](ServeIndexDData.Get(slotKey, _))
-                      .recover { case _ => None }
-                  }
-                ctx.pipeToSelf(Future.sequence(viewFutures)) {
-                  case scala.util.Success(views) =>
-                    // Union every slot's pool, deduped by creativeId.
-                    // The previous `views.flatten.headOption` worked when
-                    // every creative was registered at one fixed pixel
-                    // size — picking any one slot's view gave a representative
-                    // pool. With fluid creatives whose CandidateView carries
-                    // the creative's NATIVE render size (regardless of which
-                    // slot it bid for), only the slot whose pixel size matches
-                    // that native size could fill. Unioning + dedup hands
-                    // every creative to every slot's `pickBestForSlot`,
-                    // which then applies fluid vs. exact-size rules.
-                    val merged: Option[ServeView] = views.flatten match {
-                      case Vector() => None
-                      case nonEmpty =>
-                        val deduped = nonEmpty.iterator
-                          .flatMap(_.candidates)
-                          .toVector
-                          .distinctBy(_.creativeId)
-                        val pageCats = nonEmpty.iterator.flatMap(_.pageCategories).toSet
-                        val maxExpiry = nonEmpty.map(_.expiresAtMs).max
-                        Some(ServeView(deduped, nonEmpty.head.version, maxExpiry, pageCats))
+              case ArrivalAction.SkipWarmup =>
+                replyTo ! BatchSelected(
+                  slots.map(s =>
+                    BatchSlotOutcome(
+                      slotId = s.slotId, winner = None,
+                      dogear = AdServer.dogearFallthrough(s, persistedApprovedIds.contains)
+                    )),
+                  Set.empty
+                )
+                behavior(newState)
+              case ArrivalAction.Proceed =>
+                if (slots.isEmpty) {
+                  replyTo ! BatchSelected(Vector.empty)
+                  behavior(newState)
+                } else {
+                  import org.apache.pekko.actor.typed.scaladsl.AskPattern.*
+                  given Timeout = Timeout(300.millis)
+                  // Fetch each slot's ServeView in parallel so the batch
+                  // handler can score against whichever pool is populated.
+                  // Unions the pools below by taking the first non-empty view
+                  // (simplification — all slots on the same page URL pull from
+                  // the same site auction, so representative pools overlap).
+                  val viewFutures: Vector[Future[Option[ServeView]]] =
+                    slots.map { slot =>
+                      val slotKey = key(siteId, slot.slotId)
+                      serveIndex
+                        .ask[Option[ServeView]](ServeIndexDData.Get(slotKey, _))
+                        .recover { case _ => None }
                     }
-                    BatchSelectViewLoaded(
-                      view = merged,
-                      url, slots, classificationFreshnessWindowMs, replyTo, excludedCreatives, excludedCampaigns
-                    )
-                  case scala.util.Failure(_) =>
-                    BatchSelectViewLoaded(None, url, slots, classificationFreshnessWindowMs, replyTo, excludedCreatives,
-                      excludedCampaigns)
+                  ctx.pipeToSelf(Future.sequence(viewFutures)) {
+                    case scala.util.Success(views) =>
+                      // Union every slot's pool, deduped by creativeId.
+                      // The previous `views.flatten.headOption` worked when
+                      // every creative was registered at one fixed pixel
+                      // size — picking any one slot's view gave a representative
+                      // pool. With fluid creatives whose CandidateView carries
+                      // the creative's NATIVE render size (regardless of which
+                      // slot it bid for), only the slot whose pixel size matches
+                      // that native size could fill. Unioning + dedup hands
+                      // every creative to every slot's `pickBestForSlot`,
+                      // which then applies fluid vs. exact-size rules.
+                      val merged: Option[ServeView] = views.flatten match {
+                        case Vector() => None
+                        case nonEmpty =>
+                          val deduped = nonEmpty.iterator
+                            .flatMap(_.candidates)
+                            .toVector
+                            .distinctBy(_.creativeId)
+                          val pageCats = nonEmpty.iterator.flatMap(_.pageCategories).toSet
+                          val maxExpiry = nonEmpty.map(_.expiresAtMs).max
+                          Some(ServeView(deduped, nonEmpty.head.version, maxExpiry, pageCats))
+                      }
+                      BatchSelectViewLoaded(
+                        view = merged,
+                        url, slots, classificationFreshnessWindowMs, replyTo, excludedCreatives, excludedCampaigns
+                      )
+                    case scala.util.Failure(_) =>
+                      BatchSelectViewLoaded(None, url, slots, classificationFreshnessWindowMs, replyTo,
+                        excludedCreatives,
+                        excludedCampaigns)
+                  }
+                  behavior(newState)
                 }
-                behavior(newState)
-              }
+            }
           }
         }
 
@@ -4560,6 +4587,10 @@ private[delivery] class AdServer(
       // Auto-approve toggle mirrored from SiteEntity via DData
       // (SiteEntity.AutoApproveKey). None/absent = disabled.
       cachedAutoApprove: Option[SiteEntity.CachedAutoApprove] = None,
+      // Operator suspension mirrored from SiteEntity via DData
+      // (SiteEntity.SiteSuspendedKey). While true every serve is refused
+      // before any classification/auction work. Absent = not suspended.
+      siteSuspended: Boolean = false,
       // Auto-approve trust anchors, mirrored from site_auto_approve_trust.
       // Written on MANUAL approvals (auto-approvals never widen trust),
       // shrunk on publisher reject/flag/revoke (TrustBroken). Loaded at

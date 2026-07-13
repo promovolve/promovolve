@@ -163,6 +163,14 @@ object SiteEntity {
   /** DData key for auto-approve toggle distribution — AdServer reads it at candidate-partition time */
   val AutoApproveKey: LWWMapKey[SiteId, CachedAutoApprove] = LWWMapKey("site-auto-approve")
 
+  /**
+   * DData key for the operator suspension flag — AdServer gates every serve
+   * on it. Deliberately its OWN key (not a cleared verified-host): the
+   * recovery block republishes verifiedHost from durable state, which would
+   * silently re-open a suspension that borrowed that gate.
+   */
+  val SiteSuspendedKey: LWWMapKey[SiteId, CachedSiteSuspended] = LWWMapKey("site-suspended")
+
   /** Cached ad product blocklist for fast lookup by AdServer */
   final case class CachedAdProductBlocklist(categories: Set[AdProductCategoryId]) extends CborSerializable {
     def contains(cat: AdProductCategoryId): Boolean = categories.contains(cat)
@@ -171,6 +179,9 @@ object SiteEntity {
 
   /** Cached auto-approve toggle for fast lookup by AdServer */
   final case class CachedAutoApprove(enabled: Boolean) extends CborSerializable
+
+  /** Cached operator-suspension flag for the serve gate in AdServer */
+  final case class CachedSiteSuspended(suspended: Boolean) extends CborSerializable
 
   // ---------- Behavior ----------
   def apply(
@@ -473,6 +484,16 @@ object SiteEntity {
               ddataResponseAdapter
             )(_.put(selfUniqueAddress, siteId, CachedAutoApprove(enabled)))
             ctx.log.info("SiteEntity {} published auto-approve={} to DData", siteId.value, enabled)
+          }
+
+          def publishSiteSuspended(suspended: Boolean): Unit = {
+            replicator ! Replicator.Update(
+              SiteSuspendedKey,
+              LWWMap.empty[SiteId, CachedSiteSuspended],
+              Replicator.WriteLocal,
+              ddataResponseAdapter
+            )(_.put(selfUniqueAddress, siteId, CachedSiteSuspended(suspended)))
+            ctx.log.info("SiteEntity {} published suspended={} to DData", siteId.value, suspended)
           }
 
           def publishVerifiedHost(host: Option[String]): Unit = {
@@ -835,6 +856,16 @@ object SiteEntity {
 
               case GetAutoApprove(replyTo) =>
                 Effect.none.thenReply(replyTo)(_ => state.autoApproveEnabled)
+
+              case SetSuspended(suspended, replyTo) =>
+                ctx.log.info("SiteEntity {} operator suspension set to {}", siteId.value, suspended)
+                Effect
+                  .persist(state.withSuspended(suspended))
+                  .thenRun((_: State) => publishSiteSuspended(suspended))
+                  .thenReply(replyTo)(_ => SiteSuspendedUpdated(siteId, suspended))
+
+              case GetSuspended(replyTo) =>
+                Effect.none.thenReply(replyTo)(_ => state.suspended)
 
               case ForceVerifyHost(host, replyTo) =>
                 ctx.log.info("SiteEntity {} force-verifying host '{}' (dev/test)", siteId.value, host)
@@ -1403,6 +1434,7 @@ object SiteEntity {
               floorCpm = state.floorCpm.toDouble))
             publishAdProductBlocklist(state.adProductBlocklist)
             publishAutoApprove(state.autoApproveEnabled)
+            publishSiteSuspended(state.suspended)
             publishVerifiedHost(state.verifiedHost)
             // Replay admin per-slot floor overrides to AuctioneerEntity so
             // they survive restarts. RL overrides are transient and will
@@ -1928,6 +1960,17 @@ object SiteEntity {
   final case class GetAutoApprove(replyTo: ActorRef[Boolean]) extends Command
 
   /**
+   * Operator suspension of this site's serving (company/org suspended by
+   * the platform operator). Reversible freeze: nothing is deleted — the
+   * AdServer serve gate simply refuses while the flag is set.
+   */
+  final case class SetSuspended(suspended: Boolean, replyTo: ActorRef[SiteSuspendedUpdated]) extends Command
+  final case class SiteSuspendedUpdated(siteId: SiteId, suspended: Boolean) extends promovolve.CborSerializable
+
+  /** Get current operator-suspension state */
+  final case class GetSuspended(replyTo: ActorRef[Boolean]) extends Command
+
+  /**
    * One snapshot of what the floor-CPM sweep optimizer did during a single
    * 15-minute observation window. Held in an in-memory ring buffer per
    * SiteEntity for production observability — the dashboard reads
@@ -2052,6 +2095,11 @@ object SiteEntity {
       // like manual ones, so the opt-in must be deliberate. Pre-feature
       // states deserialize false (no migration).
       autoApproveEnabled: Boolean = false,
+      // Operator suspension (company/org suspended). While true the
+      // AdServer serve gate refuses everything for this site — a
+      // reversible freeze, deliberately separate from verification.
+      // Pre-feature states deserialize false (no migration).
+      suspended: Boolean = false,
       // Persisted page classifications, used to repopulate
       // AuctioneerEntity's in-memory `lastPage` cache on cluster
       // restart. Without this, every restart triggers a bootstrap
@@ -2119,6 +2167,7 @@ object SiteEntity {
       )
     def withAcceptsFillerTraffic(accept: Boolean): State = copy(acceptsFillerTraffic = accept)
     def withAutoApprove(enabled: Boolean): State = copy(autoApproveEnabled = enabled)
+    def withSuspended(s: Boolean): State = copy(suspended = s)
 
     /**
      * Insert/replace a classification entry; if the map would exceed

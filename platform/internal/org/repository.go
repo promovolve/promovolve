@@ -66,15 +66,37 @@ func DomainOf(email string) string {
 	return strings.ToLower(email[at+1:])
 }
 
-const orgColumns = `id, domain, name, advertiser_id, publisher_id, created_at, updated_at`
+const orgColumns = `id, domain, name, advertiser_id, publisher_id, created_at, updated_at,
+	suspended, suspend_reason, suspended_at, suspended_by`
 
 func scanOrg(row pgx.Row) (*model.Org, error) {
 	o := &model.Org{}
-	err := row.Scan(&o.ID, &o.Domain, &o.Name, &o.AdvertiserID, &o.PublisherID, &o.CreatedAt, &o.UpdatedAt)
+	err := row.Scan(&o.ID, &o.Domain, &o.Name, &o.AdvertiserID, &o.PublisherID, &o.CreatedAt, &o.UpdatedAt,
+		&o.Suspended, &o.SuspendReason, &o.SuspendedAt, &o.SuspendedBy)
 	if errors.Is(err, pgx.ErrNoRows) {
 		return nil, ErrNotFound
 	}
 	return o, err
+}
+
+// SetSuspended flips the operator suspension. Suspending records the reason
+// and actor; resuming clears them. The flag is read on every authenticated
+// request (SessionGuard) and by the settlement auto-resume, so it takes
+// effect immediately for live sessions.
+func (r *Repository) SetSuspended(ctx context.Context, orgID string, suspended bool, reason, actorEmail string) error {
+	var err error
+	if suspended {
+		_, err = r.pool.Exec(ctx, `
+			UPDATE orgs SET suspended = TRUE, suspend_reason = $2, suspended_at = NOW(),
+			                suspended_by = $3, updated_at = NOW()
+			WHERE id = $1`, orgID, reason, actorEmail)
+	} else {
+		_, err = r.pool.Exec(ctx, `
+			UPDATE orgs SET suspended = FALSE, suspend_reason = '', suspended_at = NULL,
+			                suspended_by = '', updated_at = NOW()
+			WHERE id = $1`, orgID)
+	}
+	return err
 }
 
 func (r *Repository) GetByID(ctx context.Context, id string) (*model.Org, error) {
@@ -113,6 +135,39 @@ func (r *Repository) SetSideEntity(ctx context.Context, orgID string, side model
 	return nil
 }
 
+// List returns every org, suspended first then by domain — the operator's
+// organizations table on /admin/users.
+func (r *Repository) List(ctx context.Context) ([]*model.Org, error) {
+	rows, err := r.pool.Query(ctx, `SELECT `+orgColumns+` FROM orgs ORDER BY suspended DESC, domain`)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	var out []*model.Org
+	for rows.Next() {
+		o, err := scanOrg(rows)
+		if err != nil {
+			return nil, err
+		}
+		out = append(out, o)
+	}
+	return out, rows.Err()
+}
+
+// IsEntitySuspended reports whether the org owning a core entity id (either
+// side) is operator-suspended. Org-less legacy entities are never suspended.
+// Used by the settlement auto-resume and top-up paths so a funded wallet
+// cannot un-bench an operator-suspended company.
+func (r *Repository) IsEntitySuspended(ctx context.Context, entityID string) (bool, error) {
+	var suspended bool
+	err := r.pool.QueryRow(ctx, `
+		SELECT suspended FROM orgs WHERE advertiser_id = $1 OR publisher_id = $1`, entityID).Scan(&suspended)
+	if errors.Is(err, pgx.ErrNoRows) {
+		return false, nil
+	}
+	return suspended, err
+}
+
 // ForUser resolves a user's org and membership in one query; ErrNotFound for
 // users outside any org (the platform operator).
 func (r *Repository) ForUser(ctx context.Context, userID string) (*model.Org, *model.OrgMembership, error) {
@@ -120,10 +175,12 @@ func (r *Repository) ForUser(ctx context.Context, userID string) (*model.Org, *m
 	m := &model.OrgMembership{}
 	err := r.pool.QueryRow(ctx, `
 		SELECT o.id, o.domain, o.name, o.advertiser_id, o.publisher_id, o.created_at, o.updated_at,
+		       o.suspended, o.suspend_reason, o.suspended_at, o.suspended_by,
 		       m.org_id, m.user_id, m.org_role, COALESCE(m.preferred_side, ''), m.invited_by, m.created_at
 		FROM org_members m JOIN orgs o ON o.id = m.org_id
 		WHERE m.user_id = $1`, userID,
 	).Scan(&o.ID, &o.Domain, &o.Name, &o.AdvertiserID, &o.PublisherID, &o.CreatedAt, &o.UpdatedAt,
+		&o.Suspended, &o.SuspendReason, &o.SuspendedAt, &o.SuspendedBy,
 		&m.OrgID, &m.UserID, &m.OrgRole, &m.PreferredSide, &m.InvitedBy, &m.CreatedAt)
 	if errors.Is(err, pgx.ErrNoRows) {
 		return nil, nil, ErrNotFound

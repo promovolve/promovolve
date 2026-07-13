@@ -162,6 +162,29 @@ For dev/test environments only, `POST /v1/publishers/{pub}/sites/{siteId}/force-
 bypasses verification — never expose test routes in production
 (`ENABLE_TEST_ROUTES` must stay `false`).
 
+## Suspending a company
+
+The operator can suspend an organization from **Admin → Users →
+Organizations** (a required reason is part of the form). Suspension is a
+reversible freeze of the whole relationship:
+
+- **Members can still log in** — their passkeys keep working — but every
+  dashboard page is replaced by a notice showing your reason, so nobody
+  debugs a mystery 403. Log out is the only action left to them.
+- **Serving stops on both sides.** The advertiser side is benched exactly
+  like a wallet suspension (approvals kept); the publisher side's sites
+  refuse every ad request, so impressions — and therefore earnings and
+  spend — stop.
+- **Money freezes too.** New top-ups, payouts, and adjustments for the
+  org are refused; recording an external payment as paid or cancelling an
+  existing payout remains possible. A wallet top-up recorded by mistake
+  will NOT resume serving: operator suspension outranks wallet health.
+- **Resume restores everything** — dashboards on the members' next
+  request, sites within seconds, and the advertiser side unless its wallet
+  is still unfunded (then the normal prepaid policy keeps it benched).
+
+Suspend/resume actions land in the audit log with the reason.
+
 ## Break-glass CLI (run inside the platform pod)
 
 Two subcommands on the platform binary cover the cases the passkey-only

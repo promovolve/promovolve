@@ -4908,11 +4908,51 @@ class EndpointRoutes(
       }
   }
 
+  private val suspendPublisherLogic: ((String, Option[String])) => Future[Either[ErrorResponse, Unit]] = {
+    case (publisherId, key) =>
+      requireInternalKey(key) match {
+        case Left(err) => Future.successful(Left(err))
+        case Right(()) =>
+          publisherRef(publisherId)
+            .ask[PublisherEntity.StatusUpdated](
+              PublisherEntity.UpdateStatus(PublisherEntity.Status.Suspended, _)
+            )
+            .map(_ => Right(()))
+            .recover { case ex => Left(ErrorResponse("suspend_failed", ex.getMessage)) }
+      }
+  }
+
+  private val resumePublisherLogic: ((String, Option[String])) => Future[Either[ErrorResponse, Unit]] = {
+    case (publisherId, key) =>
+      requireInternalKey(key) match {
+        case Left(err) => Future.successful(Left(err))
+        case Right(()) =>
+          publisherRef(publisherId)
+            .ask[PublisherEntity.PublisherInfo](PublisherEntity.GetPublisher(_))
+            .flatMap {
+              case info if info.status == PublisherEntity.Status.Closed =>
+                // Resume never resurrects an operator-Closed publisher —
+                // same rule as the advertiser pair above.
+                system.log.warn("resume ignored for CLOSED publisher {}", publisherId)
+                Future.successful(Right(()))
+              case _ =>
+                publisherRef(publisherId)
+                  .ask[PublisherEntity.StatusUpdated](
+                    PublisherEntity.UpdateStatus(PublisherEntity.Status.Active, _)
+                  )
+                  .map(_ => Right(()))
+            }
+            .recover { case ex => Left(ErrorResponse("resume_failed", ex.getMessage)) }
+      }
+  }
+
   private val internalRoutes: List[Route] = List(
     PekkoHttpServerInterpreter().toRoute(Endpoints.getMeteringDaily.serverLogic(getMeteringDailyLogic)),
     PekkoHttpServerInterpreter().toRoute(Endpoints.getMeteringIntraday.serverLogic(getMeteringIntradayLogic)),
     PekkoHttpServerInterpreter().toRoute(Endpoints.suspendAdvertiser.serverLogic(suspendAdvertiserLogic)),
-    PekkoHttpServerInterpreter().toRoute(Endpoints.resumeAdvertiser.serverLogic(resumeAdvertiserLogic))
+    PekkoHttpServerInterpreter().toRoute(Endpoints.resumeAdvertiser.serverLogic(resumeAdvertiserLogic)),
+    PekkoHttpServerInterpreter().toRoute(Endpoints.suspendPublisher.serverLogic(suspendPublisherLogic)),
+    PekkoHttpServerInterpreter().toRoute(Endpoints.resumePublisher.serverLogic(resumePublisherLogic))
   )
 
   private val pacingRoutes: List[Route] = List(

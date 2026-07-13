@@ -297,6 +297,13 @@ func Migrate(pool *pgxpool.Pool) error {
 			created_at    TIMESTAMPTZ NOT NULL DEFAULT NOW(),
 			updated_at    TIMESTAMPTZ NOT NULL DEFAULT NOW()
 		);
+		-- Operator suspension of the whole company: members still authenticate
+		-- but see a notice with the reason; both sides' serving freezes.
+		-- Reversible — resume clears the fields.
+		ALTER TABLE orgs ADD COLUMN IF NOT EXISTS suspended BOOLEAN NOT NULL DEFAULT FALSE;
+		ALTER TABLE orgs ADD COLUMN IF NOT EXISTS suspend_reason TEXT NOT NULL DEFAULT '';
+		ALTER TABLE orgs ADD COLUMN IF NOT EXISTS suspended_at TIMESTAMPTZ;
+		ALTER TABLE orgs ADD COLUMN IF NOT EXISTS suspended_by TEXT NOT NULL DEFAULT '';
 
 		-- Org membership: each user belongs to at most one org. org_role is the
 		-- in-org role (billing + member management), NOT the platform operator

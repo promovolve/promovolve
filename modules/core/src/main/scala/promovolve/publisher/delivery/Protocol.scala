@@ -241,6 +241,14 @@ object Protocol {
   case object BatchContentTooOld extends BatchSelectResult
   case object BatchHostNotVerified extends BatchSelectResult
 
+  /**
+   * The site's org is operator-suspended — serving is frozen. Distinct from
+   * BatchHostNotVerified so logs/metrics can tell governance from
+   * misconfiguration; the HTTP layer renders it as a quiet 204 (no ads),
+   * not an error the page would surface.
+   */
+  case object BatchSiteSuspended extends BatchSelectResult
+
   /** Result of ApproveAll */
   final case class ApproveAllResult(approved: Int, failed: Int) extends CborSerializable
 
@@ -941,6 +949,11 @@ object Protocol {
   /** Internal: auto-approve toggle update from DData (SiteEntity.AutoApproveKey). */
   private[delivery] final case class AutoApproveConfigUpdated(
       config: Option[SiteEntity.CachedAutoApprove]
+  ) extends Command
+
+  /** Internal: operator-suspension flag update from DData (SiteEntity.SiteSuspendedKey). */
+  private[delivery] final case class SiteSuspendedConfigUpdated(
+      config: Option[SiteEntity.CachedSiteSuspended]
   ) extends Command
 
   /**

@@ -14,6 +14,63 @@
   </div>
   {{end}}
 
+  {{if .AdminOrgs}}
+  <div class="card mt-6 overflow-x-auto p-0">
+    <h2 class="font-semibold text-lg px-4 pt-4">Organizations</h2>
+    <p class="text-xs text-gray-400 px-4 mt-1">Suspending a company keeps logins working but replaces the dashboard with a notice showing your reason, and freezes serving and billing on both sides. Reversible.</p>
+    <table class="w-full text-sm mt-3">
+      <thead>
+        <tr class="border-b text-left text-gray-400">
+          <th class="px-4 py-2 font-medium">Domain</th>
+          <th class="px-4 py-2 font-medium">Sides</th>
+          <th class="px-4 py-2 font-medium">Status</th>
+          <th class="px-4 py-2 font-medium"></th>
+        </tr>
+      </thead>
+      <tbody>
+        {{range .AdminOrgs}}
+        <tr class="border-b last:border-0 align-top">
+          <td class="px-4 py-2 whitespace-nowrap">
+            <span class="font-medium">{{if .Name}}{{.Name}}{{else}}{{.Domain}}{{end}}</span>
+            <span class="text-gray-400">@{{.Domain}}</span>
+          </td>
+          <td class="px-4 py-2 whitespace-nowrap">
+            {{if .HasAdvertiser}}<span class="badge bg-blue-100 text-blue-700">advertiser</span>{{end}}
+            {{if .HasPublisher}}<span class="badge bg-purple-100 text-purple-700">publisher</span>{{end}}
+          </td>
+          <td class="px-4 py-2">
+            {{if .Suspended}}
+            <span class="badge bg-red-100 text-red-700">Suspended</span>
+            <p class="text-xs text-gray-500 mt-1">{{.SuspendReason}}</p>
+            <p class="text-xs text-gray-400">by {{.SuspendedBy}} · {{.SuspendedAt}}</p>
+            {{else}}
+            <span class="badge bg-green-100 text-green-700">Active</span>
+            {{end}}
+          </td>
+          <td class="px-4 py-2 text-right">
+            {{if .Suspended}}
+            <form method="POST" action="/admin/orgs/resume"
+                  onsubmit="return confirm('Resume {{.Domain}}? Serving and billing unfreeze.')">
+              <input type="hidden" name="orgId" value="{{.ID}}">
+              <button type="submit" class="btn btn-secondary btn-sm">Resume</button>
+            </form>
+            {{else}}
+            <form method="POST" action="/admin/orgs/suspend" class="flex items-center justify-end gap-2">
+              <input type="hidden" name="orgId" value="{{.ID}}">
+              <input name="reason" required class="form-input w-64 text-xs"
+                     placeholder="Reason (shown to their members)">
+              <button type="submit" class="btn btn-danger btn-sm"
+                      onclick="return confirm('Suspend {{.Domain}}? Members see your reason at login; serving and billing freeze.')">Suspend</button>
+            </form>
+            {{end}}
+          </td>
+        </tr>
+        {{end}}
+      </tbody>
+    </table>
+  </div>
+  {{end}}
+
   <form method="GET" action="/admin/users" class="flex items-end gap-3 mt-6">
     <div>
       <label class="form-label">Search</label>

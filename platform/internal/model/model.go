@@ -140,6 +140,13 @@ type Org struct {
 	PublisherID  *string   `json:"publisherId,omitempty"`
 	CreatedAt    time.Time `json:"createdAt"`
 	UpdatedAt    time.Time `json:"updatedAt"`
+	// Operator suspension: members still authenticate but every dashboard
+	// request renders a notice with SuspendReason; serving on both sides
+	// is frozen. Reversible.
+	Suspended     bool       `json:"suspended"`
+	SuspendReason string     `json:"suspendReason,omitempty"`
+	SuspendedAt   *time.Time `json:"suspendedAt,omitempty"`
+	SuspendedBy   string     `json:"suspendedBy,omitempty"`
 }
 
 // HasSide reports whether the org holds the core account for a side.

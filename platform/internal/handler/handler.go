@@ -85,6 +85,9 @@ type Handler struct {
 	// settler is only used to resume core serving immediately after an
 	// admin tops up a suspended wallet; the job itself runs from main.
 	settler *billing.Settler
+	// orgCore reaches the core /v1/internal endpoints for the operator
+	// org suspend/resume cascade.
+	orgCore *billing.HTTPCoreClient
 	// devAuth mirrors config.DevAuth: renders the legacy password forms and
 	// accepts password POSTs on /login. Never true in production.
 	devAuth bool
@@ -107,8 +110,11 @@ type Deps struct {
 	OrgRepo         *org.Repository
 	AuditRepo       *audit.Repository
 	Settler         *billing.Settler
-	DevAuth         bool
-	SecureCookies   bool
+	// OrgCore reaches the core's /v1/internal endpoints (X-Internal-Key) for
+	// the org suspend/resume cascade — the operator-privileged channel.
+	OrgCore       *billing.HTTPCoreClient
+	DevAuth       bool
+	SecureCookies bool
 }
 
 type UserService interface {
@@ -202,6 +208,7 @@ func New(d Deps) *Handler {
 		orgRepo:         d.OrgRepo,
 		auditRepo:       d.AuditRepo,
 		settler:         d.Settler,
+		orgCore:         d.OrgCore,
 		devAuth:         d.DevAuth,
 		secureCookies:   d.SecureCookies,
 	}
@@ -280,6 +287,7 @@ type pageData struct {
 	// Admin site-request queue (/admin/sites)
 	AdminSiteRequests []adminSiteRequestRow
 	AdminUsers        []adminUserRow
+	AdminOrgs         []orgAdminRow
 	// Pending org side requests on /admin/requests (an existing org asking
 	// for its other side — advertiser or publisher).
 	AdminOrgSideRequests []model.OrgSideRequest
@@ -355,6 +363,8 @@ type pageData struct {
 	// Trusted Advertisers page (auto-approve management)
 	TrustedToggles []trustedSiteToggle
 	TrustedAnchors []trustedAnchorRow
+	// Guard-error variant: suspension notice — hide "Go back", offer Logout.
+	LogoutOnly bool
 }
 
 type site struct {

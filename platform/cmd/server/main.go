@@ -96,11 +96,15 @@ func main() {
 	// enforces the prepaid-wallet policy (docs/design/BILLING.md). Idempotent
 	// per day, catches up after downtime, single-pod by design.
 	billingSvc := billing.NewService(pool)
+	coreInternal := billing.NewHTTPCoreClient(cfg.CoreAPIURL, cfg.InternalAPIKey)
 	settler := billing.NewSettler(
 		billingSvc, pool,
-		billing.NewHTTPCoreClient(cfg.CoreAPIURL, cfg.InternalAPIKey),
+		coreInternal,
 		settingsSvc.MarginBpsAt,
 	)
+	// Operator org suspension outranks wallet health: the settler consults
+	// the org flag before any auto-resume.
+	settler.SetEntitySuspendedLookup(orgRepo.IsEntitySuspended)
 	settleCtx, stopSettler := context.WithCancel(context.Background())
 	defer stopSettler()
 	go settler.Run(settleCtx)
@@ -118,6 +122,7 @@ func main() {
 		OrgRepo:         orgRepo,
 		AuditRepo:       auditRepo,
 		Settler:         settler,
+		OrgCore:         coreInternal,
 		DevAuth:         cfg.DevAuth,
 		SecureCookies:   cfg.RPID != "localhost",
 	})
@@ -241,6 +246,8 @@ func main() {
 	mux.HandleFunc("POST /admin/users/recovery-link", adm(h.MintRecoveryLink))
 	mux.HandleFunc("POST /admin/users/invite-admin", adm(h.InviteAdmin))
 	mux.HandleFunc("POST /admin/users/delete", adm(h.AdminDeleteUser))
+	mux.HandleFunc("POST /admin/orgs/suspend", adm(h.AdminSuspendOrg))
+	mux.HandleFunc("POST /admin/orgs/resume", adm(h.AdminResumeOrg))
 	mux.HandleFunc("POST /admin/view-as", adm(h.AdminViewAs))
 	mux.HandleFunc("POST /admin/org-side/approve", adm(h.OrgSideDecision("approve")))
 	mux.HandleFunc("POST /admin/org-side/reject", adm(h.OrgSideDecision("reject")))

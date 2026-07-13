@@ -336,6 +336,10 @@ final class ServeRoutes(
                   onSuccess(resultF) {
                     case (AdServer.BatchHostNotVerified, _) =>
                       complete(StatusCodes.Forbidden)
+                    case (AdServer.BatchSiteSuspended, _) =>
+                      // Operator-suspended org: quiet no-ads, never an error
+                      // the page would surface to readers.
+                      complete(StatusCodes.NoContent)
                     case (AdServer.BatchContentTooOld, _) =>
                       complete(StatusCodes.NoContent)
                     case (AdServer.BatchSelected(outcomes, _, reclassifyInMs, needText), stalePins) =>

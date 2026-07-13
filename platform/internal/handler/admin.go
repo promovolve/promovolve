@@ -10,6 +10,7 @@ import (
 
 	"github.com/google/uuid"
 
+	"github.com/hanishi/promovolve/platform/internal/billing"
 	"github.com/hanishi/promovolve/platform/internal/model"
 )
 
@@ -276,17 +277,137 @@ func (h *Handler) renderAdminUsers(w http.ResponseWriter, r *http.Request, errMs
 			IsSelf:        u.ID == user.ID,
 		})
 	}
+	orgs, err := h.orgRepo.List(r.Context())
+	if err != nil {
+		slog.Error("list orgs failed", "error", err)
+	}
+	orgRows := make([]orgAdminRow, 0, len(orgs))
+	for _, o := range orgs {
+		row := orgAdminRow{
+			ID:            o.ID,
+			Domain:        o.Domain,
+			Name:          o.Name,
+			HasAdvertiser: o.AdvertiserID != nil && *o.AdvertiserID != "",
+			HasPublisher:  o.PublisherID != nil && *o.PublisherID != "",
+			Suspended:     o.Suspended,
+			SuspendReason: o.SuspendReason,
+			SuspendedBy:   o.SuspendedBy,
+		}
+		if o.SuspendedAt != nil {
+			row.SuspendedAt = o.SuspendedAt.Format("2006-01-02")
+		}
+		orgRows = append(orgRows, row)
+	}
+
 	h.render(w, "admin/users.html", pageData{
 		Title:         "Users",
 		Nav:           "admin-users",
 		User:          user,
 		Error:         errMsg,
 		AdminUsers:    rows,
+		AdminOrgs:     orgRows,
 		ListNav:       nav,
 		Query:         r.URL.Query().Get("q"),
 		RecoveryURL:   recoveryURL,
 		RecoveryEmail: recoveryEmail,
 	})
+}
+
+// orgAdminRow is one organization in the /admin/users organizations table.
+type orgAdminRow struct {
+	ID            string
+	Domain        string
+	Name          string
+	HasAdvertiser bool
+	HasPublisher  bool
+	Suspended     bool
+	SuspendReason string
+	SuspendedAt   string
+	SuspendedBy   string
+}
+
+// AdminSuspendOrg freezes a company: org flag first (locks the dashboard for
+// members on their next request), then the serving cascade into core for
+// whichever sides the org holds. Cascade failures log-and-continue — the
+// button is an idempotent retry.
+func (h *Handler) AdminSuspendOrg(w http.ResponseWriter, r *http.Request) {
+	admin, _, ok := h.requireRole(w, r, model.RoleAdmin)
+	if !ok {
+		return
+	}
+	r.ParseForm()
+	orgID := r.FormValue("orgId")
+	reason := strings.TrimSpace(r.FormValue("reason"))
+	if orgID == "" || reason == "" {
+		h.renderAdminUsers(w, r, "a suspension needs a reason — it's shown to the company's members", "", "")
+		return
+	}
+	o, err := h.orgRepo.GetByID(r.Context(), orgID)
+	if err != nil {
+		h.renderAdminUsers(w, r, "unknown organization", "", "")
+		return
+	}
+	if err := h.orgRepo.SetSuspended(r.Context(), orgID, true, reason, admin.Email); err != nil {
+		h.renderAdminUsers(w, r, "suspend failed: "+err.Error(), "", "")
+		return
+	}
+	if o.AdvertiserID != nil && *o.AdvertiserID != "" {
+		if err := h.orgCore.SuspendAdvertiser(r.Context(), *o.AdvertiserID); err != nil {
+			slog.Error("org suspend: advertiser cascade failed (retry via the button)",
+				"org", o.Domain, "advertiserId", *o.AdvertiserID, "error", err)
+		}
+	}
+	if o.PublisherID != nil && *o.PublisherID != "" {
+		if err := h.orgCore.SuspendPublisher(r.Context(), *o.PublisherID); err != nil {
+			slog.Error("org suspend: publisher cascade failed (retry via the button)",
+				"org", o.Domain, "publisherId", *o.PublisherID, "error", err)
+		}
+	}
+	h.auditRepo.Log(r.Context(), admin.ID, admin.Email, orgID, "org_suspend", o.Domain, reason)
+	http.Redirect(w, r, "/admin/users", http.StatusSeeOther)
+}
+
+// AdminResumeOrg lifts a suspension. The advertiser side resumes only when
+// its wallet isn't billing-suspended — governance ends, but the prepaid
+// policy still applies (the settler would re-bench an unfunded wallet
+// anyway; skipping avoids a serving blip).
+func (h *Handler) AdminResumeOrg(w http.ResponseWriter, r *http.Request) {
+	admin, _, ok := h.requireRole(w, r, model.RoleAdmin)
+	if !ok {
+		return
+	}
+	r.ParseForm()
+	orgID := r.FormValue("orgId")
+	o, err := h.orgRepo.GetByID(r.Context(), orgID)
+	if err != nil {
+		h.renderAdminUsers(w, r, "unknown organization", "", "")
+		return
+	}
+	if err := h.orgRepo.SetSuspended(r.Context(), orgID, false, "", admin.Email); err != nil {
+		h.renderAdminUsers(w, r, "resume failed: "+err.Error(), "", "")
+		return
+	}
+	if o.AdvertiserID != nil && *o.AdvertiserID != "" {
+		resume := true
+		if acc, err := h.billingSvc.GetAccount(r.Context(), billing.OwnerAdvertiser, *o.AdvertiserID); err == nil &&
+			acc.Status == billing.StatusSuspended {
+			resume = false // wallet-suspended: benched until funded, as before the org suspension
+		}
+		if resume {
+			if err := h.orgCore.ResumeAdvertiser(r.Context(), *o.AdvertiserID); err != nil {
+				slog.Error("org resume: advertiser cascade failed (settlement pass will retry)",
+					"org", o.Domain, "advertiserId", *o.AdvertiserID, "error", err)
+			}
+		}
+	}
+	if o.PublisherID != nil && *o.PublisherID != "" {
+		if err := h.orgCore.ResumePublisher(r.Context(), *o.PublisherID); err != nil {
+			slog.Error("org resume: publisher cascade failed (retry via suspend+resume)",
+				"org", o.Domain, "publisherId", *o.PublisherID, "error", err)
+		}
+	}
+	h.auditRepo.Log(r.Context(), admin.ID, admin.Email, orgID, "org_resume", o.Domain, "")
+	http.Redirect(w, r, "/admin/users", http.StatusSeeOther)
 }
 
 // InviteAdmin adds another platform operator: creates the admin account and

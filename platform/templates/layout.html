@@ -44,8 +44,12 @@
     </form>
   </div>
   {{end}}
+  {{/* shrink-0: the sidebar is a flex sibling of <main> — wide unbreakable
+       content on the right (long URLs, tables) used to steal width from it
+       and squash the footer links. min-w-0 + overflow-x-auto on <main>
+       makes wide content scroll inside the pane instead. */}}
   <div class="flex min-h-screen">
-    <aside class="w-56 bg-gray-900 text-gray-100 p-4 flex flex-col">
+    <aside class="w-56 shrink-0 bg-gray-900 text-gray-100 p-4 flex flex-col">
       <div class="mb-8">
         <h2 class="text-lg font-semibold">Promovolve</h2>
         <p class="text-xs text-gray-400 mt-1">
@@ -107,7 +111,7 @@
         </div>
       </div>
     </aside>
-    <main class="flex-1 p-8">
+    <main class="flex-1 min-w-0 overflow-x-auto p-8">
       {{template "content" .}}
     </main>
   </div>

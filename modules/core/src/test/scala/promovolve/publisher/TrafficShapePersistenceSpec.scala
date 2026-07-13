@@ -58,6 +58,33 @@ class TrafficShapePersistenceSpec extends AnyWordSpec with Matchers {
       tracker.weekendVolumes.toSeq shouldBe weekday.toSeq
     }
 
+    "restored tracker does NOT re-enter bootstrap intra-day learning" in {
+      // A restored shape is known: only the daily rollover blend may
+      // change it. Pre-fix, useLegacyMode survived restore, so every
+      // restart day re-applied the per-bucket EMA on top of the learned
+      // shape (up to 23 x alpha=0.1 pulls vs the intended 0.2/day).
+      val back = TrafficShapeRowMapping.fromRow(TrafficShapeRowMapping.toRow("site-a", snapshot))
+      val tracker = TrafficShapeTracker.fromSnapshot(back)
+      val before = tracker.weekdayVolumes.toSeq
+
+      // Simulate a busy boot day crossing many bucket boundaries.
+      for (bucket <- 0 until 24) {
+        for (_ <- 0 until 500) tracker.recordRequest(bucket * 3600 + 1800)
+      }
+      tracker.flush()
+      tracker.weekdayVolumes.toSeq shouldBe before
+
+      // A FRESH tracker under the same traffic DOES learn intra-day.
+      val fresh = new TrafficShapeTracker(bucketCount = 24)
+      val freshBefore = fresh.weekdayVolumes.toSeq
+      for (bucket <- 0 until 24) {
+        val n = if (bucket == 12) 2000 else 100
+        for (_ <- 0 until n) fresh.recordRequest(bucket * 3600 + 1800)
+      }
+      fresh.flush()
+      fresh.weekdayVolumes.toSeq should not be freshBefore
+    }
+
     "restored tracker keeps the two shapes distinct end to end" in {
       val back = TrafficShapeRowMapping.fromRow(TrafficShapeRowMapping.toRow("site-a", snapshot))
       val tracker = TrafficShapeTracker.fromSnapshot(back, interpolateVolumes = true)

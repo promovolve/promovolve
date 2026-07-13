@@ -116,7 +116,11 @@ class TrafficShapeTracker(
   private var todayIsWeekend: Boolean = false
   // Current bucket being tracked
   private var currentBucket: Int = -1
-  // Legacy: for backward compatibility with existing EMA-based updates within a day
+  // Bootstrap intra-day learning: a FRESH tracker (no snapshot, no
+  // rollover yet) learns per-bucket within its first day so pacing gets
+  // rough shape awareness immediately. Restore and the first rollover
+  // both turn it off — from then on the daily 20/80 blend is the only
+  // writer. (Field name kept for snapshot/test stability.)
   private var requestsInBucket: Long = 0
   private var emaBucketRequests: Double = 1.0
   private var useLegacyMode: Boolean = true
@@ -159,7 +163,8 @@ class TrafficShapeTracker(
 
     // Track current bucket for display purposes
     if (bucket != currentBucket) {
-      // Bucket changed - apply legacy EMA update if in legacy mode
+      // Bucket changed - apply bootstrap intra-day EMA (first day of a
+      // fresh tracker only; see useLegacyMode)
       if (useLegacyMode && currentBucket >= 0 && requestsInBucket > 0) {
         applyBucketUpdate(currentBucket, requestsInBucket)
       }
@@ -170,7 +175,7 @@ class TrafficShapeTracker(
     }
   }
 
-  /** Apply EMA update when bucket completes (legacy mode) */
+  /** Apply EMA update when bucket completes (bootstrap first-day mode only) */
   private def applyBucketUpdate(bucket: Int, requests: Long): Unit = {
     val req = requests.toDouble
 
@@ -206,7 +211,13 @@ class TrafficShapeTracker(
    * Flush pending updates. Call at day boundary to ensure last bucket is recorded.
    */
   def flush(): Unit = {
-    if (currentBucket >= 0 && requestsInBucket > 0) {
+    // Gated on bootstrap mode: flush is called by EVERY snapshot
+    // (hourly timer, rollover persist, PostStop), and ungated it applied
+    // a bootstrap-EMA nudge to the learned shape's current bucket on
+    // each call even in daily-blend mode — a slow, scheduled distortion
+    // of exactly the shape it was persisting (found 2026-07-13 by the
+    // restore regression spec).
+    if (useLegacyMode && currentBucket >= 0 && requestsInBucket > 0) {
       applyBucketUpdate(currentBucket, requestsInBucket)
       requestsInBucket = 0
     }
@@ -629,6 +640,13 @@ class TrafficShapeTracker(
     weekendTotal = weekendShape.sum
     // Mark as warmed up since we have a known pattern
     bucketUpdateCount = warmupThreshold
+    // A restored shape is KNOWN: learning proceeds via the daily 20/80
+    // rollover blend only. Leaving bootstrap intra-day learning on here
+    // meant every restart day re-applied the per-bucket EMA on top of
+    // the learned shape — up to 23 × α=0.1 pulls per day against the
+    // intended 0.2 per day, quietly smearing the shape on each boot
+    // (found 2026-07-13).
+    useLegacyMode = false
   }
 
   /**
@@ -657,6 +675,8 @@ class TrafficShapeTracker(
     weekdayTotal = weekdayShape.sum
     weekendTotal = weekendShape.sum
     bucketUpdateCount = warmupThreshold
+    // Known shape → daily-blend learning only (see restore()).
+    useLegacyMode = false
   }
 
   /**

@@ -1029,6 +1029,19 @@ uniform distribution (= linear pacing) and converging over ~5 days of
 20/80 daily blending. Both shapes persist per site (weekday and weekend
 independently) and are restored on restart.
 
+Finalized semantics (2026-07-13):
+
+- The shape measures **ad-request volume** (demand opportunities), not
+  impressions or spend — every arriving select trains it, served or not.
+- **Bootstrap intra-day learning runs only on a fresh tracker's first
+  day** (no snapshot, no rollover yet), giving rough shape awareness
+  within hours. A restore or the first rollover switches the tracker to
+  daily-blend-only — a known shape is never mutated mid-day.
+- **Warmup exit is manual by design** — flip `warmupMode` off once the
+  shape has diverged from uniform (Floor Decisions page shows it).
+- Constants (24 hourly buckets, intra-day α 0.1, daily blend 0.2,
+  hourly snapshot cadence) are deliberate hardcodes, not config.
+
 ### Day Rollover
 
 At day boundary, today's observations blend into the appropriate shape:

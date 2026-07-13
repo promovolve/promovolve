@@ -59,6 +59,29 @@ describe("deleteSelection in the expanded reader", () => {
   });
 });
 
+describe("deleteSelection survivor selection", () => {
+  it("selects the item that took the deleted slot's place", () => {
+    let s = initialState(onePage(), "mobile");
+    s = { ...s, selectedItemIdxs: [1] }; // headline; body slides into idx 1
+    const out = deleteSelection(s);
+    expect(out.selectedItemIdxs).toEqual([1]);
+  });
+
+  it("clamps to the new last item when the tail was deleted", () => {
+    let s = initialState(onePage(), "mobile");
+    s = { ...s, selectedItemIdxs: [1, 2] }; // headline + body → img remains at 0
+    const out = deleteSelection(s);
+    expect(out.selectedItemIdxs).toEqual([0]);
+  });
+
+  it("empty layout after delete → empty selection (deselect fallback)", () => {
+    let s = initialState(([{ headline: "H", banners: { "mobile-expanded": [txt("headline")] } }] as Page[]), "mobile");
+    s = { ...s, selectedItemIdxs: [0] };
+    const out = deleteSelection(s);
+    expect(out.selectedItemIdxs).toEqual([]);
+  });
+});
+
 describe("deleteSelection in a collapsed size", () => {
   it("stays per-view — other sizes and the reader keep the field", () => {
     let s = initialState(onePage(), "mobile");

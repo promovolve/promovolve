@@ -790,9 +790,14 @@ export function deleteItem(state: DesignerState, idx: number): DesignerState {
   return { ...next, selectedItemIdxs: nextSelected };
 }
 
-// Deletes every currently-selected item. Cleared selection afterwards.
-// Shares deleteItem's cross-view semantics (hero clear + one-source
-// field strip) — this is the path every UI delete goes through.
+// Deletes every currently-selected item. Shares deleteItem's cross-view
+// semantics (hero clear + one-source field strip) — this is the path
+// every UI delete goes through. Afterwards the NEAREST SURVIVOR is
+// selected (the item that took the first deleted slot's place, else the
+// new last item): an empty selection collapses the Properties section
+// and the one-open accordion snaps to its default, which is jarring
+// mid-editing (user 2026-07-13). Deleting the last item leaves the
+// selection empty — the deselect fallback is correct there.
 export function deleteSelection(state: DesignerState): DesignerState {
   if (state.selectedItemIdxs.length === 0) return state;
   const items = currentLayout(state);
@@ -801,7 +806,10 @@ export function deleteSelection(state: DesignerState): DesignerState {
   let next = updateCurrentLayout(state, (arr) => arr.filter((_, i) => !drop.has(i)));
   next = clearMainIfRemoved(next, removed);
   next = stripDeletedFields(next, removed);
-  return { ...next, selectedItemIdxs: [] };
+  const newLen = currentLayout(next).length;
+  const anchor = Math.min(...state.selectedItemIdxs);
+  const nextSelected = newLen > 0 ? [Math.min(anchor, newLen - 1)] : [];
+  return { ...next, selectedItemIdxs: nextSelected };
 }
 
 // ─── Z-order (built on top of reorderItem) ─────────────────────────

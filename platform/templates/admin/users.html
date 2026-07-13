@@ -68,6 +68,16 @@
         {{end}}
       </tbody>
     </table>
+    {{if and .AdminOrgsNav (gt .AdminOrgsNav.TotalPages 1)}}
+    <div class="flex items-center justify-between px-4 py-3 text-sm text-gray-500">
+      <span>{{.AdminOrgsNav.From}}&ndash;{{.AdminOrgsNav.To}} of {{.AdminOrgsNav.Total}}</span>
+      <div class="flex items-center gap-3">
+        {{if .AdminOrgsNav.PrevURL}}<a href="{{.AdminOrgsNav.PrevURL}}" class="text-brand hover:underline">&larr; Prev</a>{{else}}<span class="text-gray-300">&larr; Prev</span>{{end}}
+        <span>Page {{.AdminOrgsNav.Page}} / {{.AdminOrgsNav.TotalPages}}</span>
+        {{if .AdminOrgsNav.NextURL}}<a href="{{.AdminOrgsNav.NextURL}}" class="text-brand hover:underline">Next &rarr;</a>{{else}}<span class="text-gray-300">Next &rarr;</span>{{end}}
+      </div>
+    </div>
+    {{end}}
   </div>
   {{end}}
 

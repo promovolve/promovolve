@@ -31,6 +31,10 @@
     form[method="post" i]:not([data-viewas-allowed]) input,
     form[method="post" i]:not([data-viewas-allowed]) select,
     form[method="post" i]:not([data-viewas-allowed]) textarea,
+    {{/* labels too: clicking a label ACTIVATES its wrapped control even
+         when the control itself is pointer-inert (the auto-approve card's
+         label-wrapped toggles reached the read-only page through this). */}}
+    form[method="post" i]:not([data-viewas-allowed]) label,
     [hx-post], [hx-put], [hx-delete],
     [data-viewas-block] {
       pointer-events: none !important;

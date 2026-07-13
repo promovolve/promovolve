@@ -298,6 +298,8 @@ func (h *Handler) renderAdminUsers(w http.ResponseWriter, r *http.Request, errMs
 		}
 		orgRows = append(orgRows, row)
 	}
+	// Separate page param so paging orgs doesn't reset the users table.
+	orgStart, orgEnd, orgNav := buildListNavParam(r, len(orgRows), 25, "orgPage")
 
 	h.render(w, "admin/users.html", pageData{
 		Title:         "Users",
@@ -305,7 +307,8 @@ func (h *Handler) renderAdminUsers(w http.ResponseWriter, r *http.Request, errMs
 		User:          user,
 		Error:         errMsg,
 		AdminUsers:    rows,
-		AdminOrgs:     orgRows,
+		AdminOrgs:     orgRows[orgStart:orgEnd],
+		AdminOrgsNav:  orgNav,
 		ListNav:       nav,
 		Query:         r.URL.Query().Get("q"),
 		RecoveryURL:   recoveryURL,

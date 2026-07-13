@@ -288,6 +288,7 @@ type pageData struct {
 	AdminSiteRequests []adminSiteRequestRow
 	AdminUsers        []adminUserRow
 	AdminOrgs         []orgAdminRow
+	AdminOrgsNav      *listNav
 	// Pending org side requests on /admin/requests (an existing org asking
 	// for its other side — advertiser or publisher).
 	AdminOrgSideRequests []model.OrgSideRequest
@@ -1458,12 +1459,14 @@ func (h *Handler) PublisherTrusted(w http.ResponseWriter, r *http.Request) {
 		}
 	}
 
+	start, end, nav := buildListNav(r, len(rows), 25)
 	h.render(w, "publisher/trusted.html", pageData{
 		Title:          "Trusted Advertisers",
 		Nav:            "trusted",
 		User:           user,
 		TrustedToggles: toggles,
-		TrustedAnchors: rows,
+		TrustedAnchors: rows[start:end],
+		ListNav:        nav,
 	})
 }
 

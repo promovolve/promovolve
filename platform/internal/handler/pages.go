@@ -2726,8 +2726,15 @@ type listNav struct {
 // buildListNav reads ?sort and ?page off the request and returns the
 // slice bounds for the current page plus the nav state for the footer.
 func buildListNav(r *http.Request, total, pageSize int) (start, end int, nav *listNav) {
+	return buildListNavParam(r, total, pageSize, "page")
+}
+
+// buildListNavParam is buildListNav with a custom page-param name, for pages
+// that paginate TWO independent tables (e.g. /admin/users: users on ?page,
+// organizations on ?orgPage) without each nav resetting the other.
+func buildListNavParam(r *http.Request, total, pageSize int, pageParam string) (start, end int, nav *listNav) {
 	sortKey := r.URL.Query().Get("sort")
-	page, _ := strconv.Atoi(r.URL.Query().Get("page"))
+	page, _ := strconv.Atoi(r.URL.Query().Get(pageParam))
 	if page < 1 {
 		page = 1
 	}
@@ -2745,7 +2752,7 @@ func buildListNav(r *http.Request, total, pageSize int) (start, end int, nav *li
 	}
 	mk := func(p int) string {
 		q := r.URL.Query()
-		q.Set("page", strconv.Itoa(p))
+		q.Set(pageParam, strconv.Itoa(p))
 		return r.URL.Path + "?" + q.Encode()
 	}
 	nav = &listNav{Sort: sortKey, Page: page, TotalPages: totalPages, Total: total, From: start + 1, To: end}

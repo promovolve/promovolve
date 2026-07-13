@@ -19,7 +19,9 @@ not because of who is reading it.
 Being open source is not incidental: **transparency is the product**.
 Publishers and advertisers can read the auction, the pricing, and the
 pacing logic and verify there is no hidden manipulation — something no
-closed ad network can offer.
+closed ad network can offer. For the guided version, read
+**[the Promovolve book](https://promovolve.github.io/promovolve-book/)** —
+13 short chapters on why the system is built the way it is.
 
 ## Demo
 
@@ -36,8 +38,9 @@ closed ad network can offer.
    slot is cached in a replicated in-memory serve index, keeping the
    serve path fast.
 4. **Thompson sampling picks the ad at serve time** — candidates are
-   scored by `sampledCTR × CPM^α`, balancing revenue against ad quality
-   (α is publisher-configurable) and exploring new creatives without
+   scored by a sampled engagement rate (clicks and magazine-opens) times
+   `CPM^α`, balancing revenue against ad quality (α is
+   publisher-configurable) and exploring new creatives without
    re-running the auction.
 5. **Winners pay the minimum price that still wins** (quality-adjusted,
    second-price style), so advertisers can simply bid their true value.
@@ -84,6 +87,7 @@ without R2 and an LLM provider. Details in the
 
 ## Documentation
 
+- [**The Promovolve book**](https://promovolve.github.io/promovolve-book/) — the design, explained: format, classification, auction, pricing, pacing, floors, cluster ([source repo](https://github.com/promovolve/promovolve-book))
 - [`docs/README.md`](docs/README.md) — index of all guides and design docs
 - [`docs/ARCHITECTURE.md`](docs/ARCHITECTURE.md) — system overview
 

@@ -1,5 +1,6 @@
 package promovolve.publisher
 
+import com.fasterxml.jackson.annotation.JsonAlias
 import org.apache.pekko.actor.typed.scaladsl.{ ActorContext, Behaviors }
 import org.apache.pekko.actor.typed.{ ActorRef, ActorSystem, Behavior }
 import org.apache.pekko.cluster.ddata.typed.scaladsl.{ DistributedData, Replicator }
@@ -253,16 +254,17 @@ object PublisherEntity {
         val newState = state.withStatus(status)
         Effect.persist(newState).thenReply(replyTo)(_ => StatusUpdated(state.publisherId, status))
 
-      case GetContentRecencyWindow(replyTo) =>
-        Effect.none.thenReply(replyTo)(_ => ContentRecencyWindow(state.contentRecencyWindowMs))
+      case GetClassificationFreshnessWindow(replyTo) =>
+        Effect.none.thenReply(replyTo)(_ => ClassificationFreshnessWindow(state.classificationFreshnessWindowMs))
 
-      case SetContentRecencyWindow(windowMs, replyTo) =>
+      case SetClassificationFreshnessWindow(windowMs, replyTo) =>
         // Validate: 24 hours to 7 days
         val minMs = 24L * 60 * 60 * 1000
         val maxMs = 7L * 24 * 60 * 60 * 1000
         val validWindowMs = math.max(minMs, math.min(maxMs, windowMs))
-        val newState = state.withContentRecencyWindow(validWindowMs)
-        Effect.persist(newState).thenReply(replyTo)(_ => ContentRecencyWindowUpdated(state.publisherId, validWindowMs))
+        val newState = state.withClassificationFreshnessWindow(validWindowMs)
+        Effect.persist(newState).thenReply(replyTo)(_ =>
+          ClassificationFreshnessWindowUpdated(state.publisherId, validWindowMs))
 
       case GetHmacSecret(replyTo) =>
         Effect.none.thenReply(replyTo)(_ => HmacSecret(state.hmacSecret))
@@ -344,7 +346,9 @@ object PublisherEntity {
       status: Status,
       siteIds: Set[SiteId],
       domainBlocklist: Set[String],
-      contentRecencyWindowMs: Long
+      // Wire alias: pre-rename senders during a rolling deploy still decode.
+      @JsonAlias(Array("contentRecencyWindowMs"))
+      classificationFreshnessWindowMs: Long
   ) extends promovolve.CborSerializable
 
   /** Get domain blacklist only (for filtering during ad serving) */
@@ -357,16 +361,17 @@ object PublisherEntity {
 
   final case class StatusUpdated(publisherId: PublisherId, status: Status) extends promovolve.CborSerializable
 
-  /** Get content recency window */
-  final case class GetContentRecencyWindow(replyTo: ActorRef[ContentRecencyWindow]) extends Command
+  /** Get classification freshness window */
+  final case class GetClassificationFreshnessWindow(replyTo: ActorRef[ClassificationFreshnessWindow]) extends Command
 
-  final case class ContentRecencyWindow(windowMs: Long) extends promovolve.CborSerializable
+  final case class ClassificationFreshnessWindow(windowMs: Long) extends promovolve.CborSerializable
 
-  /** Set content recency window (24 hours to 7 days) */
-  final case class SetContentRecencyWindow(windowMs: Long, replyTo: ActorRef[ContentRecencyWindowUpdated])
+  /** Set classification freshness window (24 hours to 7 days) */
+  final case class SetClassificationFreshnessWindow(windowMs: Long,
+      replyTo: ActorRef[ClassificationFreshnessWindowUpdated])
       extends Command
 
-  final case class ContentRecencyWindowUpdated(publisherId: PublisherId, windowMs: Long)
+  final case class ClassificationFreshnessWindowUpdated(publisherId: PublisherId, windowMs: Long)
       extends promovolve.CborSerializable
 
   /** Get HMAC secret for signing tracking URLs */
@@ -392,7 +397,10 @@ object PublisherEntity {
       status: Status,
       siteIds: Set[SiteId],
       domainBlocklist: Set[String],
-      contentRecencyWindowMs: Long = 48 * 60 * 60 * 1000, // Default 48 hours
+      // Persistence alias: durable state written before the rename carries
+      // the old field name; recovery must keep reading it forever.
+      @JsonAlias(Array("contentRecencyWindowMs"))
+      classificationFreshnessWindowMs: Long = 48 * 60 * 60 * 1000, // Default 48 hours
       hmacSecret: Option[Array[Byte]] = None
   ) extends CborSerializable {
     def addSite(siteId: SiteId): State =
@@ -413,14 +421,14 @@ object PublisherEntity {
     def withStatus(status: Status): State =
       copy(status = status)
 
-    def withContentRecencyWindow(windowMs: Long): State =
-      copy(contentRecencyWindowMs = windowMs)
+    def withClassificationFreshnessWindow(windowMs: Long): State =
+      copy(classificationFreshnessWindowMs = windowMs)
 
     def withHmacSecret(secret: Option[Array[Byte]]): State =
       copy(hmacSecret = secret)
 
     def toInfo: PublisherInfo =
-      PublisherInfo(publisherId, status, siteIds, domainBlocklist, contentRecencyWindowMs)
+      PublisherInfo(publisherId, status, siteIds, domainBlocklist, classificationFreshnessWindowMs)
   }
 
   /** Cached domain blacklist in DData (replicated across cluster for fast reads by AdServer) */
@@ -451,7 +459,7 @@ object PublisherEntity {
         status = Status.Active,
         siteIds = Set.empty,
         domainBlocklist = Set.empty,
-        contentRecencyWindowMs = 48L * 60 * 60 * 1000 // Default 48 hours
+        classificationFreshnessWindowMs = 48L * 60 * 60 * 1000 // Default 48 hours
       )
   }
 

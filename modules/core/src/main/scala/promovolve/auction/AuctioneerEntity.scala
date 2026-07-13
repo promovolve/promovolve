@@ -238,8 +238,8 @@ object AuctioneerEntity {
       // warm and reconcile any dropped removal-events. Override via
       // promovolve.auction.reauction-interval.
       reauctionInterval: FiniteDuration = 30.minutes,
-      contentRecencyWindow: FiniteDuration =
-        48.hours, // Only monetize content published within this window
+      classificationFreshnessWindow: FiniteDuration =
+        48.hours, // Classification-freshness TTL (keys off classifiedAt, NOT publish date)
       cleanupInterval: FiniteDuration = 5.minutes, // More aggressive cleanup (was 1 hour)
       floorCpm: CPM = CPM(0.50), // Minimum CPM floor price (default $0.50)
       maxPageCacheSize: Int = 10000, // Max URLs to cache per publisher (prevents unbounded growth)
@@ -317,7 +317,7 @@ object AuctioneerEntity {
       entry: Option[SiteEntity.ClassificationEntry]
   ) extends Internal
 
-  /** Remove old content classifications (recency-only model) */
+  /** Remove old content classifications (classification-freshness TTL) */
   private case object CleanupStaleContent extends Internal
 
   /** Max retries for empty auctions before giving up (waits for periodic re-auction) */
@@ -420,7 +420,7 @@ private final class AuctioneerEntity private (
       // already hold at the same-or-newer timestamp are skipped, so the
       // steady-state resend restores nothing and kicks nothing. Persisted
       // entries don't go through eviction here — CleanupStaleContent
-      // prunes anything older than contentRecencyWindow on its next tick.
+      // prunes anything older than classificationFreshnessWindow on its next tick.
       var restored = 0
       classifications.foreach { case (urlStr, entry) =>
         val url = URL(urlStr)
@@ -471,7 +471,7 @@ private final class AuctioneerEntity private (
           // rehoming mid-rollout (hit live 2026-07-12: page classified during
           // a CI deploy stayed invisible to auctions, and the AdServer
           // freshness token then blocked the ad tag from re-classifying for
-          // the whole recency window). Recover from SiteEntity's persisted
+          // the whole freshness window). Recover from SiteEntity's persisted
           // copy instead of silently ignoring the request.
           if (!classificationFetchInFlight.contains(url)) {
             classificationFetchInFlight += url
@@ -801,10 +801,10 @@ private final class AuctioneerEntity private (
       Behaviors.same
 
     case PeriodicReauction =>
-      // Recency-only model: Only reauction recent content within contentRecencyWindow
+      // Only reauction pages classified within classificationFreshnessWindow
       // (Defensive filter - CleanupStaleContent should have already removed old entries)
       val now = Instant.now()
-      val cutoff = now.minus(java.time.Duration.ofSeconds(cfg.contentRecencyWindow.toSeconds))
+      val cutoff = now.minus(java.time.Duration.ofSeconds(cfg.classificationFreshnessWindow.toSeconds))
 
       val recentPages = lastPage.filter { case (_, (_, _, classifiedAt)) =>
         classifiedAt.isAfter(cutoff)
@@ -832,15 +832,15 @@ private final class AuctioneerEntity private (
         ctx.log.debug(
           "Periodic reauction triggered for {} recent pages (within {} window)",
           recentPages.size,
-          cfg.contentRecencyWindow
+          cfg.classificationFreshnessWindow
         )
       }
       Behaviors.same
 
     case CleanupStaleContent =>
-      // Recency-only model: Remove classifications older than contentRecencyWindow
+      // Remove classifications older than classificationFreshnessWindow
       val now = Instant.now()
-      val cutoff = now.minus(java.time.Duration.ofSeconds(cfg.contentRecencyWindow.toSeconds))
+      val cutoff = now.minus(java.time.Duration.ofSeconds(cfg.classificationFreshnessWindow.toSeconds))
       val sizeBefore = lastPage.size
 
       // Find URLs being removed
@@ -879,7 +879,7 @@ private final class AuctioneerEntity private (
 
       if (removed > 0) {
         ctx.log.info(
-          "Recency cleanup: removed {} old classifications (cutoff={}, kept {} recent pages)",
+          "Freshness cleanup: removed {} old classifications (cutoff={}, kept {} recent pages)",
           removed,
           cutoff,
           lastPage.size
@@ -1055,7 +1055,7 @@ private final class AuctioneerEntity private (
     //
     // 1. Advertiser budget events are rare (at most once per day per advertiser)
     // 2. This "full" re-auction is scoped to THIS publisher only (AuctioneerEntity is per-site)
-    // 3. Further filtered to pages within contentRecencyWindow (default 48h)
+    // 3. Further filtered to pages within classificationFreshnessWindow (default 48h)
     // 4. Uses the existing PeriodicReauction mechanism which handles this efficiently
     //
     // So "full re-auction" here means: re-auction recent pages for this single publisher,
@@ -1470,7 +1470,7 @@ private final class AuctioneerEntity private (
       // Start a periodic reauction timer
       timers.startTimerAtFixedRate(PeriodicReauction, cfg.reauctionInterval)
 
-      // Start a cleanup timer (recency-only: remove old content)
+      // Start a cleanup timer (classification-freshness: remove stale classifications)
       timers.startTimerAtFixedRate(CleanupStaleContent, cfg.cleanupInterval)
 
       ctx.log.info(
@@ -1478,7 +1478,7 @@ private final class AuctioneerEntity private (
         siteId,
         cfg.reauctionInterval,
         cfg.cleanupInterval,
-        cfg.contentRecencyWindow
+        cfg.classificationFreshnessWindow
       )
 
       Behaviors
@@ -1497,7 +1497,7 @@ private final class AuctioneerEntity private (
             entryOpt match {
               case Some(entry) =>
                 // Same merge as RestoreClassifications: bypasses the eviction
-                // cap (CleanupStaleContent prunes by recency) and repopulates
+                // cap (CleanupStaleContent prunes by classification age) and repopulates
                 // the AdServer freshness token.
                 val slots = entry.slots.iterator.map(_.toAdSlotSpec).toList
                 val ts = Instant.ofEpochMilli(entry.classifiedAt)
@@ -1683,7 +1683,7 @@ private final class AuctioneerEntity private (
   }
 
   private def completeAuction(url: URL, slotId: SlotId, ordered: Vector[Candidate]): Unit = {
-    // Get classification timestamp from cache (for recency validation)
+    // Get classification timestamp from cache (for freshness validation)
     val classifiedAt = lastPage.get(url) match {
       case Some((_, _, ts)) => ts
       case None             => Instant.now

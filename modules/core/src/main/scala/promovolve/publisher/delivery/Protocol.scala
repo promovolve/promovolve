@@ -1,5 +1,6 @@
 package promovolve.publisher.delivery
 
+import com.fasterxml.jackson.annotation.JsonAlias
 import org.apache.pekko.actor.typed.ActorRef
 import org.apache.pekko.pattern.StatusReply
 import promovolve.*
@@ -185,7 +186,9 @@ object Protocol {
   final case class BatchSelect(
       url: URL,
       slots: Vector[BatchSlotSpec],
-      contentRecencyWindowMs: Long,
+      // Wire alias: pre-rename senders during a rolling deploy still decode.
+      @JsonAlias(Array("contentRecencyWindowMs"))
+      classificationFreshnessWindowMs: Long,
       replyTo: ActorRef[BatchSelectResult],
       // Pinned creatives the user has saved for slots NOT on this page.
       // Excluded from every slot's auction so the user's pinned creative
@@ -217,7 +220,7 @@ object Protocol {
 
   /**
    * @param reclassifyInMs freshness token: ms until this page's classification
-   *   should be refreshed (= classifiedAt + recencyWindow - now). `> 0` → fresh,
+   *   should be refreshed (= classifiedAt + freshnessWindow - now). `> 0` → fresh,
    *   the ad tag does nothing. `<= 0` → the ad tag should extract live-page text
    *   and POST /v1/classify-page (covers BOTH the cold case — never classified,
    *   token defaults to 0 — and the stale case — classification aged out).
@@ -615,7 +618,7 @@ object Protocol {
       view: Option[ServeView],
       url: URL,
       slots: Vector[BatchSlotSpec],
-      contentRecencyWindowMs: Long,
+      classificationFreshnessWindowMs: Long,
       replyTo: ActorRef[BatchSelectResult],
       excludedCreatives: Set[CreativeId] = Set.empty,
       excludedCampaigns: Set[CampaignId] = Set.empty

@@ -150,13 +150,13 @@ object AdServer {
    * `reclassifyInMsFor`). Returns ms until the page should be re-classified:
    * `> 0` fresh (the ad tag does nothing), `<= 0` needs (re)classification —
    * cold (`None` → 0) or stale (aged past the window). The window is the
-   * publisher's content-recency window when set (`> 0`), else the 48h default.
-   * Extracted so the recency-window handling is unit-testable — it was once
+   * publisher's classification-freshness window when set (`> 0`), else the 48h default.
+   * Extracted so the freshness-window handling is unit-testable — it was once
    * hardcoded to 0 downstream, silently forcing the default and ignoring the
    * publisher's setting.
    */
-  private[delivery] def reclassifyInMs(classifiedAtMs: Option[Long], recencyWindowMs: Long, now: Long): Long = {
-    val window = if (recencyWindowMs > 0) recencyWindowMs else DefaultReclassifyWindowMs
+  private[delivery] def reclassifyInMs(classifiedAtMs: Option[Long], freshnessWindowMs: Long, now: Long): Long = {
+    val window = if (freshnessWindowMs > 0) freshnessWindowMs else DefaultReclassifyWindowMs
     classifiedAtMs match {
       case Some(ts) => (ts + window) - now
       case None     => 0L
@@ -686,7 +686,7 @@ object AdServer {
   // SiteEntity.MaxPersistedClassifications / AuctioneerEntity lastPage cap.
   val MaxPageCategoriesCache: Int = 50000
 
-  // Fallback reclassify window when the publisher's content-recency window is
+  // Fallback reclassify window when the publisher's classification-freshness window is
   // unset/0. ~48h: a page is re-classified by traffic at most once per window.
   val DefaultReclassifyWindowMs: Long = 48L * 60 * 60 * 1000
 
@@ -962,9 +962,9 @@ private[delivery] class AdServer(
   // Freshness token: ms until this page's classification should be refreshed.
   // <= 0 means "(re)classify now" — covers both never-classified (no record →
   // 0) and stale (aged past the window). > 0 means fresh. The reclassify window
-  // is the content-recency window when set, else a 48h default.
-  private def reclassifyInMsFor(urlValue: String, recencyWindowMs: Long): Long =
-    AdServer.reclassifyInMs(classifiedAtMsByUrl.get(urlValue), recencyWindowMs, System.currentTimeMillis())
+  // is the classification-freshness window when set, else a 48h default.
+  private def reclassifyInMsFor(urlValue: String, freshnessWindowMs: Long): Long =
+    AdServer.reclassifyInMs(classifiedAtMsByUrl.get(urlValue), freshnessWindowMs, System.currentTimeMillis())
   // Track pending creative IDs per (url|slot) to suppress duplicate SSE events on re-auction
   private var lastPendingCreativeIds: Map[String, Set[String]] = Map.empty
   // Site floor CPM for clearing price floor (synced via DData PacingConfig)
@@ -2172,7 +2172,7 @@ private[delivery] class AdServer(
   //             ▼
   //   ┌───────────────────┐
   //   │  3. Content       │  Filter out stale content
-  //   │     Recency       │  (older than contentRecencyWindow)
+  //   │     Recency       │  (older than classificationFreshnessWindow)
   //   └─────────┬─────────┘
   //             │
   //             ▼
@@ -2239,7 +2239,7 @@ private[delivery] class AdServer(
       // ResetDayStart fan-out, traffic shape, warmup gating) lives in
       // recordRequestArrival above.
 
-      case BatchSelect(url, slots, contentRecencyWindowMs, replyTo, excludedCreatives, excludedCampaigns) =>
+      case BatchSelect(url, slots, classificationFreshnessWindowMs, replyTo, excludedCreatives, excludedCampaigns) =>
         val hostOk = AdServer.hostMatches(url.value, verifiedHost)
         if (!hostOk) {
           log.warn("Batch serve rejected: host-mismatch site={} url={}", siteId.value, url.value)
@@ -2315,10 +2315,10 @@ private[delivery] class AdServer(
                     }
                     BatchSelectViewLoaded(
                       view = merged,
-                      url, slots, contentRecencyWindowMs, replyTo, excludedCreatives, excludedCampaigns
+                      url, slots, classificationFreshnessWindowMs, replyTo, excludedCreatives, excludedCampaigns
                     )
                   case scala.util.Failure(_) =>
-                    BatchSelectViewLoaded(None, url, slots, contentRecencyWindowMs, replyTo, excludedCreatives,
+                    BatchSelectViewLoaded(None, url, slots, classificationFreshnessWindowMs, replyTo, excludedCreatives,
                       excludedCampaigns)
                 }
                 behavior(newState)
@@ -2326,7 +2326,7 @@ private[delivery] class AdServer(
           }
         }
 
-      case BatchSelectViewLoaded(viewOpt, url, slots, contentRecencyWindowMs, replyTo, excludedCreatives,
+      case BatchSelectViewLoaded(viewOpt, url, slots, classificationFreshnessWindowMs, replyTo, excludedCreatives,
             excludedCampaigns) =>
         // Whenever a slot carries a pin but the ServeView path can't
         // produce a winner, surface dogearFallthrough so the bootstrap
@@ -2355,36 +2355,36 @@ private[delivery] class AdServer(
             // Keying off classifiedAt (recorded the moment a page is classified,
             // independent of bidders) is what stops a classified-but-no-bidder
             // page from re-classifying on every serve.
-            val reclassify = reclassifyInMsFor(url.value, contentRecencyWindowMs)
+            val reclassify = reclassifyInMsFor(url.value, classificationFreshnessWindowMs)
             replyTo ! emptyOutcomes(Set.empty, reclassifyInMs = reclassify)
             behavior(state.copy(serveStats = serveStats.recordNoCandidates))
           case Some(view) if view.candidates.isEmpty =>
             selfHealReauction(url)
-            val reclassify = reclassifyInMsFor(url.value, contentRecencyWindowMs)
+            val reclassify = reclassifyInMsFor(url.value, classificationFreshnessWindowMs)
             replyTo ! emptyOutcomes(view.pageCategories, reclassifyInMs = reclassify)
             behavior(state.copy(serveStats = serveStats.recordNoCandidates))
           case Some(view) =>
             val nowMs = System.currentTimeMillis()
-            // Content recency filter — mirror processSelectViewLoaded.
-            // Skip when recencyWindowMs is 0 (publisher opted out / not
+            // Classification-freshness filter — mirror processSelectViewLoaded.
+            // Skip when freshnessWindowMs is 0 (publisher opted out / not
             // configured) to avoid accidentally dropping every candidate.
-            val recencyFiltered =
-              if (contentRecencyWindowMs > 0)
-                view.candidates.filter(c => nowMs - c.classifiedAtMs <= contentRecencyWindowMs)
+            val freshnessFiltered =
+              if (classificationFreshnessWindowMs > 0)
+                view.candidates.filter(c => nowMs - c.classifiedAtMs <= classificationFreshnessWindowMs)
               else view.candidates
-            if (contentRecencyWindowMs > 0 && recencyFiltered.isEmpty && view.candidates.nonEmpty) {
+            if (classificationFreshnessWindowMs > 0 && freshnessFiltered.isEmpty && view.candidates.nonEmpty) {
               val ages = view.candidates.map(c => nowMs - c.classifiedAtMs)
               log.info(
-                "BATCH ContentTooOld: {} candidates all older than recencyWindow={}ms (ages={}ms)",
+                "BATCH ContentTooOld: {} candidates all older than freshnessWindow={}ms (ages={}ms)",
                 view.candidates.size: java.lang.Integer,
-                contentRecencyWindowMs: java.lang.Long,
+                classificationFreshnessWindowMs: java.lang.Long,
                 ages.mkString(","): String
               )
               replyTo ! BatchContentTooOld
               behavior(state.copy(serveStats = serveStats.recordContentTooOld))
             } else {
               val currentMsSinceLast = if (lastRequestTimeMs > 0) nowMs - lastRequestTimeMs else 0L
-              val filteredView = view.copy(candidates = recencyFiltered)
+              val filteredView = view.copy(candidates = freshnessFiltered)
               val selCtx = SelectionContext(
                 creativeStats = creativeStats,
                 pacingStrategy = pacingStrategy,

@@ -6,8 +6,10 @@ Promovolve uses a **periodic auction model** instead of realtime bidding (RTB). 
 
 ## Classification Freshness: the 48-Hour Window
 
-The **content recency window** (48h default, per-site configurable; `0`
-disables it) is a **classification-freshness TTL, not a publish-date gate**.
+The **classification freshness window** (48h default; `0` disables it) is a
+**classification-freshness TTL, not a publish-date gate**. Per-publisher
+plumbing exists in `PublisherEntity` (valid range 24h–7d) but no API route
+exposes the setter yet, so every publisher currently runs the default.
 Nothing extracts or checks when an article was published — the window measures
 how long ago the page was last *classified*.
 
@@ -83,7 +85,7 @@ User visits page → banner script collects all slots
 POST /v1/serve/batch  (one request per page load, all slots)
   ↓
 AdServer(site).BatchSelect:
-  verify host → recency check → ServeIndex lookup → pacing gate
+  verify host → freshness check → ServeIndex lookup → pacing gate
   → Thompson scoring → greedy slot assignment (one campaign per page)
   ↓
 Return creatives with tracking URLs
@@ -141,7 +143,7 @@ Return creatives with tracking URLs
 │     ↓                                                        │
 │  AdServer(site).BatchSelect:                                │
 │    1. Host verified? (else 403)                             │
-│    2. Content within recency window? (else 204)             │
+│    2. Classification fresh enough? (else 204)               │
 │    3. pool = ServeIndex lookup (local, instant)             │
 │    4. Pacing gate (PI controller) — may skip serving        │
 │    5. Thompson Sampling scores each candidate:              │
@@ -231,7 +233,7 @@ Auction results need refreshing because:
 ### AdServer (one per site)
 - Serve-time selection: pacing gate, Thompson scoring, batch slot
   assignment, budget reservation, quality-adjusted clearing
-- Enforces host verification and content recency
+- Enforces host verification and classification freshness
 
 ### ServeRoutes
 - HTTP layer: `POST /v1/serve/batch`, `POST /v1/classify-page`
@@ -289,7 +291,7 @@ final case class Settings(
     reauctionInterval: FiniteDuration = 30.minutes,  // Code default; deployed override = 5 minutes
 
     // Classification-freshness settings (IMPLEMENTED)
-    contentRecencyWindow: FiniteDuration = 48.hours,  // Classification-freshness TTL (not publish date)
+    classificationFreshnessWindow: FiniteDuration = 48.hours,  // Classification-freshness TTL (not publish date)
     cleanupInterval: FiniteDuration = 5.minutes,      // How often to remove old classifications
 
     floorCpm: CPM = CPM(0.50),    // Minimum CPM floor price (default $0.50)
@@ -326,12 +328,12 @@ best-per-campaign first keeps the pool fair before serve-time selection.
 **Cache Size Bounds** (classification-freshness window):
 - **Per-site page cache capped at `maxPageCacheSize = 10000` URLs**
   (oldest entry evicted when full — `AuctioneerEntity.Settings`)
-- In practice, cache size is also bounded by: `publishRate × contentRecencyWindow`
+- In practice, cache size is also bounded by: `publishRate × classificationFreshnessWindow`
 - Example: 100 articles/day × 2 days = 200 entries (~100 KB), well under the cap
 - Memory leaks impossible (hard cap + time-based eviction)
 
-**Content Recency at Serve Time:**
-- The recency window (48h default) is validated inside `AdServer.BatchSelect`
+**Classification Freshness at Serve Time:**
+- The freshness window (48h default) is validated inside `AdServer.BatchSelect`
 - Stale content returns `204 No Content` (`BatchContentTooOld`)
 
 ## Status

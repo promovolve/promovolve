@@ -684,12 +684,12 @@ Used when multiple campaigns may be affected or when a campaign has no tracked U
 ```scala
 case PeriodicReauction =>
   val recentPages = lastPage.filter { case (_, (_, _, classifiedAt)) =>
-    classifiedAt.isAfter(cutoff) // Within contentRecencyWindow
+    classifiedAt.isAfter(cutoff) // Within classificationFreshnessWindow
   }
   recentPages.foreach { case (url, _) => ctx.self ! Reevaluate(url) }
 ```
 
-Note: "Full site" is scoped to THIS publisher only (AuctioneerEntity is per-site) and filtered to pages within `contentRecencyWindow` (default 48h).
+Note: "Full site" is scoped to THIS publisher only (AuctioneerEntity is per-site) and filtered to pages within `classificationFreshnessWindow` (default 48h).
 
 ## Testing Checklist
 

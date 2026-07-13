@@ -1855,7 +1855,7 @@ object SiteEntity {
    * fire-and-forget tell and drops when the auctioneer shard is rehoming
    * (hit live 2026-07-12: a page classified mid-rollout stayed invisible to
    * auctions, while the AdServer freshness token stopped the ad tag from
-   * re-classifying for the whole recency window). Instead of ignoring a
+   * re-classifying for the whole freshness window). Instead of ignoring a
    * re-auction request for a page it doesn't know, the auctioneer asks for
    * the persisted copy. Keyed by the raw URL string, same as storage. The
    * reply wraps the Option in a case class (cross-node serialization rule:

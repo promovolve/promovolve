@@ -91,7 +91,7 @@ object HttpBootstrap {
         ))
       } else None
 
-      // Publisher settings (content recency windows) - backed by PublisherEntity
+      // Publisher settings (classification freshness windows) - backed by PublisherEntity
       val publisherSettings = new EntityBackedPublisherSettings(sharding)
 
       // CDN base URL for asset URLs

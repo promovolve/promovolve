@@ -15,7 +15,7 @@ import promovolve.publisher.delivery.Protocol.{ BatchSlotOutcome, DogearOutcome 
  *    the dead-Thompson bug (the batch path — the only production serve path —
  *    never recorded impressions, so every creative scored cold forever).
  *  - `reclassifyInMs` — the freshness token honours the publisher's
- *    content-recency window. Regression for the window once hardcoded to 0
+ *    classification-freshness window. Regression for the window once hardcoded to 0
  *    downstream, which silently forced the 48h default.
  */
 class AdServerServeAccountingSpec extends AnyWordSpec with Matchers {
@@ -80,28 +80,28 @@ class AdServerServeAccountingSpec extends AnyWordSpec with Matchers {
     val oneHour = 3600000L
 
     "return 0 for a never-classified page (cold)" in {
-      AdServer.reclassifyInMs(classifiedAtMs = None, recencyWindowMs = oneHour, now = now) shouldBe 0L
+      AdServer.reclassifyInMs(classifiedAtMs = None, freshnessWindowMs = oneHour, now = now) shouldBe 0L
     }
 
-    "be > 0 (fresh) when classified within the recency window" in {
+    "be > 0 (fresh) when classified within the freshness window" in {
       // classified 10 min ago, window 1h → ~50 min of freshness left.
-      AdServer.reclassifyInMs(Some(now - 600000L), recencyWindowMs = oneHour, now = now) should be > 0L
+      AdServer.reclassifyInMs(Some(now - 600000L), freshnessWindowMs = oneHour, now = now) should be > 0L
     }
 
-    "be <= 0 (stale) when classified longer ago than the recency window" in {
+    "be <= 0 (stale) when classified longer ago than the freshness window" in {
       // classified 2h ago, window 1h → aged out.
-      AdServer.reclassifyInMs(Some(now - 2 * oneHour), recencyWindowMs = oneHour, now = now) should be <= 0L
+      AdServer.reclassifyInMs(Some(now - 2 * oneHour), freshnessWindowMs = oneHour, now = now) should be <= 0L
     }
 
-    "respect the publisher's recency window, not the 48h default (the threading fix)" in {
+    "respect the publisher's freshness window, not the 48h default (the threading fix)" in {
       // Regression: the window was hardcoded to 0 downstream, so a page
       // classified 3h ago read as fresh under the 48h default. With the
       // publisher's 1h window threaded through it is correctly stale — and
       // window = 0 still falls back to the 48h default (the old behaviour),
       // proving the value actually flows.
       val threeHoursAgo = now - 3 * oneHour
-      AdServer.reclassifyInMs(Some(threeHoursAgo), recencyWindowMs = oneHour, now = now) should be <= 0L
-      AdServer.reclassifyInMs(Some(threeHoursAgo), recencyWindowMs = 0L, now = now) should be > 0L
+      AdServer.reclassifyInMs(Some(threeHoursAgo), freshnessWindowMs = oneHour, now = now) should be <= 0L
+      AdServer.reclassifyInMs(Some(threeHoursAgo), freshnessWindowMs = 0L, now = now) should be > 0L
     }
   }
 }

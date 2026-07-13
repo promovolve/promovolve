@@ -13,7 +13,7 @@ import scala.concurrent.duration.*
 trait PublisherSettings {
 
   /**
-   * Get the content recency window for a publisher.
+   * Get the classification freshness window for a publisher.
    * Only content classified within this window will be monetized.
    *
    * Examples:
@@ -23,11 +23,11 @@ trait PublisherSettings {
    *
    * Valid range: 24 hours to 7 days
    */
-  def contentRecencyWindow(publisherId: SiteId): Future[FiniteDuration]
+  def classificationFreshnessWindow(publisherId: SiteId): Future[FiniteDuration]
 
   /** Default: 48 hours (news/media standard) */
-  def contentRecencyWindowMs(publisherId: SiteId): Future[Long] =
-    contentRecencyWindow(publisherId).map(_.toMillis)(using ExecutionContext.parasitic)
+  def classificationFreshnessWindowMs(publisherId: SiteId): Future[Long] =
+    classificationFreshnessWindow(publisherId).map(_.toMillis)(using ExecutionContext.parasitic)
 }
 
 /**
@@ -42,9 +42,9 @@ class EntityBackedPublisherSettings(sharding: ClusterSharding)(
   private given Timeout = Timeout(5.seconds)
   private given ExecutionContext = system.executionContext
 
-  def contentRecencyWindow(publisherId: SiteId): Future[FiniteDuration] = {
+  def classificationFreshnessWindow(publisherId: SiteId): Future[FiniteDuration] = {
     val ref = sharding.entityRefFor(PublisherEntity.TypeKey, publisherId.value)
-    ref.ask[PublisherEntity.ContentRecencyWindow](PublisherEntity.GetContentRecencyWindow(_))
+    ref.ask[PublisherEntity.ClassificationFreshnessWindow](PublisherEntity.GetClassificationFreshnessWindow(_))
       .map(_.windowMs.millis)
       .recover {
         case _: Exception => 48.hours // Default on error

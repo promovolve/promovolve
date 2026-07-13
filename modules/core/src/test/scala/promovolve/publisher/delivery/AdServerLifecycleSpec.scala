@@ -251,7 +251,7 @@ class AdServerLifecycleSpec extends AnyWordSpec with Matchers with BeforeAndAfte
       adServer ! BatchSelect(
         url = URL("http://test.example.com/page"),
         slots = Vector(BatchSlotSpec(SlotId("slot-1"), 300, 250)),
-        contentRecencyWindowMs = 0L,
+        classificationFreshnessWindowMs = 0L,
         replyTo = selectProbe.ref
       )
       // Lifecycle is synchronous before the view fetch; absence of
@@ -268,7 +268,7 @@ class AdServerLifecycleSpec extends AnyWordSpec with Matchers with BeforeAndAfte
       adServer ! BatchSelect(
         url = URL("http://test.example.com/page"),
         slots = Vector(BatchSlotSpec(SlotId("slot-1"), 300, 250)),
-        contentRecencyWindowMs = 0L,
+        classificationFreshnessWindowMs = 0L,
         replyTo = selectProbe.ref
       )
 

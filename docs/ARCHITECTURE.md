@@ -1132,7 +1132,7 @@ ServeStats(
   pacingSkipped: Long,     // Throttled by pacing gate
   budgetExhausted: Long,   // Campaign/advertiser out of budget
   noCandidates: Long,      // No approved ads
-  contentTooOld: Long,     // Content beyond recency window
+  contentTooOld: Long,     // Classification older than the freshness window
   warmup: Long,            // Warmup mode requests
   totalSpend: Double,      // Actual spend in dollars
   hourlyImpressions: Array[Long]  // Per-hour breakdown
@@ -1273,7 +1273,7 @@ promovolve.auction {
                                    # the deployed application.conf sets 5 minutes).
                                    # Primary re-auctions are event-driven with a
                                    # 1s debounce — see Event-Driven Re-Auction.
-  content-recency-window = 48h     # Classification-freshness window (code default;
+  classification-freshness-window = 48h  # Classification-freshness TTL (code default;
                                    # not set in application.conf). Publisher-
                                    # overridable per site (valid 24h–7d)
   floor-cpm = 0.50                 # Base site floor (see Floor CPM Optimizer)

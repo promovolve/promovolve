@@ -206,12 +206,12 @@ trait ServeJson extends DefaultJsonProtocol {
   given RootJsonFormat[BatchServeRes] = jsonFormat4(BatchServeRes.apply)
 }
 
-/** Hot-path JSON responder: AdServer handles selection, recency filtering, and DData. */
+/** Hot-path JSON responder: AdServer handles selection, freshness filtering, and DData. */
 final class ServeRoutes(
     trackingBase: String,
     sharding: ClusterSharding,
     secretsRepo: PublisherSecretsRepo,
-    publisherSettings: PublisherSettings, // Per-publisher content recency window (24h to 1 week)
+    publisherSettings: PublisherSettings, // Per-publisher classification freshness window (24h to 1 week)
     cdnBaseUrl: String,
     bannerScriptUrl: String, // URL of <expandable-magazine-banner> web component
     creativeRepo: Option[promovolve.publisher.CreativeRepo] = None
@@ -252,7 +252,7 @@ final class ServeRoutes(
                   val excludedCreatives: Set[promovolve.CreativeId] =
                     offPagePinCreatives.map(promovolve.CreativeId.apply)
                   val resultF = for {
-                    recencyWindowMs <- publisherSettings.contentRecencyWindowMs(SiteId(req.pub))
+                    freshnessWindowMs <- publisherSettings.classificationFreshnessWindowMs(SiteId(req.pub))
                     // Resolve pinned creativeIds → campaignIds via the
                     // creative repo so the batch can exclude the whole
                     // advertiser, not just the bookmarked frame. The
@@ -326,7 +326,7 @@ final class ServeRoutes(
                             pin = pinByslot.get(i.id).map(promovolve.CreativeId.apply)
                           )
                         },
-                        contentRecencyWindowMs = recencyWindowMs,
+                        classificationFreshnessWindowMs = freshnessWindowMs,
                         replyTo = replyTo,
                         excludedCreatives = excludedCreatives,
                         excludedCampaigns = excludedCampaigns

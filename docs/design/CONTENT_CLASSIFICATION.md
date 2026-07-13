@@ -27,8 +27,9 @@ no static relevance-score table.
 
 ## Classification (`taxonomy/IABTaxonomy.scala`)
 
-LLM-backed classifier with pluggable providers — Gemini (`gemini-2.0-flash`,
-cheapest, the effective default in deployment), OpenAI (`gpt-4o-mini`), and
+LLM-backed classifier with pluggable providers — Gemini (the effective
+deployment default is `gemini-2.5-flash`, set in `ClusterBootstrap`; the bare
+case-class default is `gemini-2.0-flash`), OpenAI (`gpt-4o-mini`), and
 Anthropic (`claude-3-haiku`). Operational hardening around the call:
 
 - **Circuit breaker** — 5 consecutive failures open the breaker for 30s
@@ -36,8 +37,8 @@ Anthropic (`claude-3-haiku`). Operational hardening around the call:
 - **Rate limiting** — Gemini calls go through `GeminiRateLimiter` (a
   `TokenBucketLimiter` singleton). The default budget assumes the free tier
   (8 RPM); set `GEMINI_TOKENS_PER_MINUTE` / `GEMINI_BURST` higher for paid
-  keys, or bursty crawls will time out past the 30s acquire deadline and fall
-  back to low-confidence generic categories.
+  keys, or bursty classification loads will time out past the 30s acquire
+  deadline and fall back to low-confidence generic categories.
 
 ## When classification runs
 
@@ -48,7 +49,7 @@ dashboard's "Matched Category" column is expectedly blank — that's the gate,
 not a bug.
 
 Classifications are persisted in `SiteEntity` state (`pageClassifications`)
-and replayed on recovery, so a restart does not re-crawl/re-classify
+and replayed on recovery, so a restart does not re-classify
 already-known pages.
 
 ## Campaign demand side
@@ -66,5 +67,8 @@ matches the page's classified categories.
   `DELIVERY_ALGORITHMS.md`), with the category match as a binary gate and the
   category's sampled prior informing cold-start.
 - No ad-product blocklist. The publisher-facing block tool is the
-  **advertiser domain blocklist** (`AdvertiserDomainKey` DData map, enforced
-  at serve time in `AdServer`), plus the campaign-side `siteAllowlist`.
+  **advertiser domain blocklist**, enforced at serve time in `AdServer` by
+  matching each candidate's landing domain against the publisher's blocked
+  domains. (The `AdvertiserDomainKey` DData map is the campaign→landing-domain
+  registry that feeds this check, not the blocklist itself.) Plus the
+  campaign-side `siteAllowlist`.

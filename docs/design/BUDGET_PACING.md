@@ -95,7 +95,7 @@ PI-controlled pacing that directly adjusts throttle probability based on spend e
 |-----------|---------|-------------|
 | `Kp` | 0.5 | Proportional gain - immediate response to error |
 | `Ki` | 0.3 | Integral gain - accumulated error correction |
-| `feedforwardWindow` | 0.0-0.2 | Proactive adjustment near bucket transitions |
+| `feedforwardWindow` | 0.0 (disabled) | Proactive adjustment near bucket transitions — off in production |
 | `gracePeriodFraction` | 0.01 | Startup period (1% of day) with no PI adjustment |
 
 These are **baseline** gains. At runtime they are modulated by asymmetric over-pacing gains, a self-tuned overpace multiplier, a transition boost, and cross-day learning — see the self-tuning sections below.
@@ -110,19 +110,6 @@ The controller uses **asymmetric gains** to recover from overspend faster than i
 This is because overspend is costly (budget exhaustion stops delivery), while underspend is recoverable (can catch up later).
 
 The 2.0x is only a **starting point** — the overpace multiplier is self-tuning at runtime and carried across days. See [Self-Tuning PI Gains](#self-tuning-pi-gains) below.
-
-### Volatility-Adjusted Gains
-
-When created via `AdaptivePacing.forShape()`, PI gains are automatically tuned based on traffic shape volatility:
-
-| Volatility (CV) | Kp | Ki | Feedforward | Use Case |
-|-----------------|-----|-----|-------------|----------|
-| 0.0 (uniform) | 0.3 | 0.2 | 20% | Flat traffic |
-| 0.5 (typical) | 0.5 | 0.3 | 10% | Normal daily pattern |
-| 1.0 (high) | 0.8 | 0.5 | 0% | Drastic peaks/valleys |
-| 1.5+ (extreme) | 1.0 | 0.6 | 0% | Very spiky traffic |
-
-The volatility-adjusted `Kp`/`Ki` set the **baseline** gains. On top of this baseline, the controller applies several runtime self-tuning layers described below.
 
 ### Self-Tuning PI Gains
 
@@ -450,7 +437,9 @@ final case class PacingContext(
     competingCampaigns: Int = 1,
     avgCpm: Double = 5.0,
     dayDurationSeconds: Int = 86400,       // Must be <= 86400
-    trafficShape: Option[TrafficShapeTracker] = None
+    trafficShape: Option[TrafficShapeTracker] = None,
+    requestCount: Long = 0L,               // Requests seen this day (grace-period exit)
+    msSinceLastRequest: Long = 0L          // Staleness signal for low-traffic grace
 ) {
   def elapsedHours: Double
   def expectedSpendFraction: Double        // Traffic-shaped or linear
@@ -471,10 +460,15 @@ curl -X PUT http://localhost:8080/v1/publishers/pub-1/sites/site-123/pacing \
   -H "Content-Type: application/json" \
   -d '{
     "dayDurationSeconds": 600,
-    "weekdayShapeVolumes": [0.3,0.2,1.0,0.2,0.0,0.3,0.5,2.5,0.1,2.0,1.5,2.0,2.5,3.0,2.5,2.0,1.5,1.2,1.2,1.0,0.4,2.0,5.0,0.4],
-    "weekendShapeVolumes": [0.3,0.2,0.1,0.1,0.1,0.2,0.3,0.5,0.8,1.2,1.5,1.8,2.0,2.2,2.3,2.2,2.0,1.8,2.0,2.5,2.8,2.0,1.2,0.5]
+    "warmupMode": false
   }'
 ```
+
+Traffic shapes are **learn-only** — there is no API field to set them. The tracker
+learns the weekday/weekend shapes from observed ad-request arrivals; the learned
+shapes are visible (read-only) in `GET /v1/publishers/{pub}/sites/{site}/stats`
+as `weekdayShapeVolumes` / `weekendShapeVolumes`, and rendered on the site
+observations page.
 
 ### Test Throttle Override
 
@@ -496,7 +490,7 @@ To use a different strategy, modify `AdServer.apply()`:
 AdServer(
   publisherId,
   // ... other params
-  pacingStrategy = AdaptivePacing.forShapeVolumes(myShapeArray),
+  pacingStrategy = AdaptivePacing.rateAware(), // or tweak kp/ki/avgCpm via named args
   // or: pacingStrategy = FixedThrottlePacing(0.3),
 )
 ```
@@ -558,7 +552,7 @@ Per-creative impressions are tracked **server-side** in `creativeStats` when `Se
 case CampaignEntity.Reserved(budgetRemaining) =>
   // Record impression immediately - no HTTP call dependency
   val currentCreativeStats = creativeStats.getOrElse(candidate.creativeId, CreativeStats())
-  val updatedCreativeStats = creativeStats.updated(candidate.creativeId, currentCreativeStats.recordImpression())
+  val updatedCreativeStats = creativeStats.updated(candidate.creativeId, currentCreativeStats.recordImpression(now))
   replyTo ! Selected(candidate, requestId)
   behavior(..., updatedCreativeStats, ...)
 ```

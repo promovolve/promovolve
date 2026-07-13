@@ -49,7 +49,7 @@ Only **permanent** removal events (pause, suspension) delete from ServeIndex.
 |-------|------------------------|------------|-------|
 | **Creative Approved** | ❌ No (added) | ❌ No | Creative added to ServeIndex directly |
 | **Creative Rejected** | ✅ Yes | ✅ Yes (if queue exhausted) | Next pending promoted, or re-auction |
-| **Creative Flagged** | ✅ Yes | ✅ Yes | Added to cuckoo filter (permanently blocked for this site), re-auction fills vacancy |
+| **Creative Flagged** | ✅ Yes | ✅ Yes | Added to cuckoo filter (blocked for this site until unflagged), re-auction fills vacancy |
 | **Creative Unflagged** | ❌ No | ✅ Yes | Removed from cuckoo filter, can compete in re-auction |
 | **Creative Revoked** | ✅ Yes | ❌ No | Removed from ServeIndex only (creative goes back to pending on next auction). Does NOT modify cuckoo filter |
 | **Domain Blocked** | ✅ Yes (affected) | ✅ Yes | Blocked creatives removed via `RemoveByDomains` |
@@ -175,12 +175,18 @@ final case class RefreshTTLForAdvertiser(advertiserId: AdvertiserId) extends Com
 
 **CampaignPaused Handler**
 ```scala
-case CampaignPaused(campaignId) =>
+case Protocol.CampaignPaused(campaignId, revokeApprovals) =>
   // Remove creatives from paused campaign from ALL slots for this site
   serveIndex ! ServeIndexDData.RemoveCampaignBySite(siteId.value, campaignId)
-  // Also remove from pending queue and persisted approvals
+  // Also remove from pending queue
   store.removeByCampaignId(siteId.value, campaignId.value)
-  store.deleteApprovedByCampaignId(siteId.value, campaignId.value)
+  // Approvals are revoked ONLY on an explicit user pause
+  // (revokeApprovals=true, set by the CampaignEntity.UpdateStatus topic
+  // event) — revoke routes via AdvertiserEntity.RevokeCreativeApproval so
+  // the creative returns to PENDING on resume. Every other sender keeps
+  // approvals; revoking on scope-blind CampaignChanged churn re-creates
+  // the "approval queue is gone" cascade (0e1304c4).
+  if (revokeApprovals) { /* announce + revoke, see AdServer.scala */ }
 ```
 
 **CreativePaused Handler**
@@ -714,7 +720,7 @@ Note: "Full site" is scoped to THIS publisher only (AuctioneerEntity is per-site
 
 ### Publisher Approval Actions
 - [ ] Revoke creative → Removed from ServeIndex only (no cuckoo filter change)
-- [ ] Flag creative → Added to cuckoo filter (permanently blocked for this site)
+- [ ] Flag creative → Added to cuckoo filter (blocked for this site until unflagged)
 - [ ] Unflag creative → Removed from cuckoo filter, eligible for re-auction
 
 ### Day Rollover

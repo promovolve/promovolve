@@ -14,7 +14,7 @@ A **verified host** is a domain that a publisher has proven they control by plac
 
 Verification proves: "the person who registered this site in Promovolve also controls the web server at that domain."
 
-## Verification method: HTTP-file
+## Verification methods: well-known file, DNS TXT fallback
 
 The publisher must create a file at:
 
@@ -28,15 +28,21 @@ With exact content:
 promovolve-site-verification=<token>
 ```
 
-When the publisher triggers verification, the system fetches this URL and checks the token matches. On success, the site's verified host is persisted and broadcast to all serving nodes via DData.
+When the publisher triggers verification, the system fetches this URL and checks the token matches. Public hosts are fetched **HTTPS first, then HTTP**; private hosts (dev/loopback) are HTTP-only. On success, the site's verified host is persisted and broadcast to all serving nodes via DData.
+
+**DNS TXT fallback**: hosts that can't serve the well-known file (locked-down
+managed hosting) can instead publish a DNS TXT record carrying the same
+`promovolve-site-verification=<token>` value at a promovolve-specific record
+name (kept off the apex so it doesn't collide with SPF/DMARC). If the
+HTTP-file check fails, the TXT record is consulted.
+
+**Site-approval gate**: before a publisher can even attempt verification, the
+added site must be approved by an operator (`site_requests` table, admin
+approval queue).
 
 ## Where enforcement happens
 
-### 1. Crawl gating (SiteEntity)
-
-`StartCrawling`, `BootstrapCrawl`, and `TriggerCrawl` commands check `state.isVerified` before proceeding. Unverified sites cannot be crawled — no page classification, no auctions, no candidates.
-
-### 2. Serve-time host check (AdServer — hot path)
+### 1. Serve-time host check (AdServer — hot path)
 
 On every `/v1/serve` request, before any pacing/ranking/selection:
 
@@ -51,7 +57,7 @@ This check is:
 - **In-memory**: verifiedHost is held in AdServer's state via DData subscription
 - **Early**: runs before any auction/pacing work
 
-### 3. DData propagation
+### 2. DData propagation
 
 SiteEntity publishes to `VerifiedHostKey` (LWWMap[SiteId, String]) on:
 - Successful verification
@@ -66,17 +72,18 @@ Reject unless ALL of the following are true:
 - Request URL is parseable
 - Normalized request host == publisher's verified host
 
+Host normalization lowercases and drops a leading `www.`, so a site verified
+as `example.com` also fills on `www.example.com` and vice-versa (the common
+WordPress www/non-www split). Subdomains are otherwise distinct sites — the
+host IS the site identity.
+
 ## Tradeoffs and follow-up items
 
 ### Current limitations
-- **HTTP-only fetch**: the well-known-file check is hardcoded to `http://` for ALL hosts (`SiteEntity.scala`, `val scheme = "http"`) — intentional, so plain-HTTP hosts (e.g. the GitHub Pages demo behind the tunnel) can verify; HTTPS sites still pass via redirect
-- **No DNS TXT verification**: designed for extension but only HTTP-file is implemented
-- **No wildcard domains**: `www.example.com` and `example.com` are treated as distinct hosts
 - **No automatic re-verification**: once verified, stays verified. A periodic re-check could be added
-- **Existing sites default to unverified**: after deploying this change, existing sites need manual verification
+- **No verification expiry**: a host that changes hands keeps serving until manually revoked
 
 ### Future work
-- DNS TXT record verification method
 - Periodic re-verification (e.g., monthly)
 - Verification expiry / revocation
 - Admin override for verification

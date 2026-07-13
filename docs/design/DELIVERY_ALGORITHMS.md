@@ -166,7 +166,25 @@ def update_request_rate(now_ms, window_start_ms, requests_in_window, current_smo
 
 Learn hourly traffic patterns to shape the expected spend curve. Without this, linear pacing over-throttles during peaks and sets impossible targets during valleys.
 
-### Mathematical Model
+### Two Learning Paths
+
+The tracker learns in two distinct modes:
+
+1. **Bootstrap (first day of a fresh tracker only)** — the intra-day
+   per-bucket EMA below, so a brand-new site gets a usable shape within
+   hours instead of days. Permanently disabled (`useLegacyMode = false`)
+   after a snapshot restore or the first day rollover.
+2. **Steady state** — the shape changes **only** at the UTC-midnight
+   rollover, when today's normalized request counts blend 20/80 into the
+   day-type shape (`dayAlpha = 0.2`). Weekday and weekend shapes are
+   learned and persisted **separately**; both survive restarts
+   (`traffic_shape_snapshot` row per site).
+
+Shapes are **learn-only**: there is no API or UI to set them. A fresh
+tracker starts flat (uniform 1.0s), which degrades gracefully to exactly
+linear pacing.
+
+### Mathematical Model (bootstrap path)
 
 **Per-bucket EMA** with scale-invariant normalization:
 
@@ -227,7 +245,8 @@ Result: Over-throttle at peaks,          Result: Budget follows traffic,
 │    currentBucket: Int = -1                                                  │
 │    requestsInBucket: Long = 0                                               │
 │    emaBucketRequests: Double = 1.0                                          │
-│    frozen: Boolean = false                                                  │
+│    bootstrap: Boolean = true   // code: useLegacyMode; false forever        │
+│                                // after restore or first day rollover       │
 │                                                                             │
 │  Constants:                                                                 │
 │    BUCKET_COUNT = 24                                                        │
@@ -243,12 +262,12 @@ Result: Over-throttle at peaks,          Result: Budget follows traffic,
 │    │                                                                        │
 │    └─► if bucket ≠ currentBucket:                                           │
 │            │                                                                │
-│            ├─► if !frozen AND currentBucket >= 0 AND requestsInBucket > 0:  │
+│            ├─► if bootstrap AND currentBucket >= 0 AND requestsInBucket > 0:│
 │            │       applyBucketUpdate(currentBucket, requestsInBucket)       │
 │            │                                                                │
 │            ├─► currentBucket = bucket                                       │
-│            └─► requestsInBucket = (frozen ? 0 : 1)                          │
-│        else if !frozen:                                                     │
+│            └─► requestsInBucket = (bootstrap ? 1 : 0)                       │
+│        else if bootstrap:                                                   │
 │            requestsInBucket += 1                                            │
 │                                                                             │
 ├─────────────────────────────────────────────────────────────────────────────┤
@@ -680,10 +699,9 @@ creative won near-deterministically. The `newcomerBonus` is the primary
 exploration knob; the fold prior just keeps genuine Thompson exploration
 alive on the fold dimension.
 
-> **Dead code:** `ThompsonSampling.MinImpressionShareFactor` (0.50) is still
-> defined in the source but has **zero usages** — the impression-share
-> guarantee it belonged to was removed together with the phased `select()`.
-> There is no per-campaign minimum exposure floor at serve time.
+> **Note:** the impression-share guarantee (and its
+> `MinImpressionShareFactor` constant) was removed together with the phased
+> `select()`. There is no per-campaign minimum exposure floor at serve time.
 
 ### Pricing: Quality-Adjusted Clearing (Second Price)
 
@@ -995,6 +1013,5 @@ clearingCpm = clamp((bestLoserMeanScore / winnerMeanEngagement)^(1/α), floor, w
 | `NewcomerBoost` | 0.5 | Additive newcomer bonus at 0 imps |
 | `NewcomerDecayImpressions` | 50 | Imps at which newcomer bonus → 0 |
 | `ColdFoldPriorAlpha/Beta` | 1 / 3 | Cold-start fold-rate prior Beta(1,3), mean 0.25 |
-| `MinImpressionShareFactor` | 0.50 | **DEAD — defined but unused** (impression-share guarantee removed) |
 | `bidWeight` (α) | 0.5 | Publisher CPM exponent (0.3/0.5/0.7) |
 | `windowMinutes` | 60 | Creative stats sliding window (minute-bucketed) |

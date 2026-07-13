@@ -80,8 +80,9 @@ collapsed layout then ships **copy only** (headline + body) via
 
 ### Where the brand kit comes from
 
-The kit is **DOM-extracted from the landing page in the Playwright crawler** —
-not from an LLM (`modules/browser/src/main/resources/lp-analyzer.js`):
+The kit is **DOM-extracted from the landing page by the Playwright LP
+analyzer** (`LPWorker`, running on crawler-role nodes) — not from an LLM
+(`modules/browser/src/main/resources/lp-analyzer.js`):
 
 - `extractDominantColor()` — first usable element background (pure white skipped).
 - `extractTextColor()` — `color` of the first `p`/main/article/body.

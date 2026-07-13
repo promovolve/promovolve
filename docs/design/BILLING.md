@@ -274,7 +274,9 @@ default $0) lets an operator offer trial spend without faking a top-up.
 ### 4. Publisher payout (manual, accrual-based)
 
 `publisher_payable` accrues from settlements. **Admin → Billing → Payouts**
-lists every publisher whose payable ≥ their `min_payout`, with a "Create
+lists every publisher whose payable ≥ their effective payout floor — the
+greater of their per-publisher `min_payout_micros` and the global operator
+floor (`platform_settings` key `payout_floor_micros`) — with a "Create
 payout" action:
 
 1. Creates a `payouts` row (`pending`) for the full payable over a period,

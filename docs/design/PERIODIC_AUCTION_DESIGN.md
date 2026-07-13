@@ -2,7 +2,7 @@
 
 ## Overview
 
-Promovolve uses a **periodic auction model** instead of realtime bidding (RTB). Auctions run at crawl time (periodically), and results are cached. Serving is just a fast cache lookup.
+Promovolve uses a **periodic auction model** instead of realtime bidding (RTB). Auctions run when a page's content is classified (on demand, triggered by the first ad request for an unknown URL) and are re-run periodically and on ecosystem events. Results are cached; serving is a fast cache lookup plus serve-time Thompson Sampling.
 
 ## Promovolve's Key Differentiator: Recency-Only Monetization
 
@@ -19,21 +19,22 @@ Unlike traditional ad networks that serve ads on any content (static ad units), 
 **How it works:**
 1. Content classified within 48 hours → Eligible for monetization
 2. Content older than 48 hours → No ads served (returns `204 No Content`)
-3. Automatic cleanup removes stale classifications every hour
+3. Automatic cleanup removes stale classifications every 5 minutes
 
 This recency-only model is implemented across three layers:
 - **AuctioneerEntity**: Cleans up classifications older than 48h
-- **ServeRoutes**: Validates content age before serving ads
+- **AdServer**: Validates content age at serve time (`BatchContentTooOld` → 204)
 - **PeriodicReauction**: Only processes recent pages
 
 ## Key Design Decisions
 
-### 1. Auction Timing: Periodic, Not Realtime
+### 1. Auction Timing: Periodic + Event-Driven, Not Realtime
 
-- **Auction**: Runs every 4 hours (configurable) at crawl time
-- **Serving**: Microsecond cache lookups from ServeIndexDData
-- **Performance**: 100,000+ req/sec vs 10 req/sec for RTB
-- **Tradeoff**: Up to 4 hours of staleness vs instant results
+- **Auction**: Runs when a page is first classified, then re-runs on a periodic
+  tick (**5 minutes** via the deployed config override; code default 30 minutes)
+  and on ecosystem events (campaign changes, approvals, budget exhaustion)
+- **Serving**: Fast lookups from the cached candidate pool (ServeIndexDData)
+- **Tradeoff**: Minutes of staleness vs the cost and latency of per-impression RTB
 
 ### 2. Two-Phase Process
 
@@ -42,16 +43,20 @@ This recency-only model is implemented across three layers:
 > multi-armed-bandit selection (Thompson Sampling) runs at **serve time**,
 > once per impression, when a user actually visits the page. See Phase 2.
 
-#### Phase 1: Crawl Time (Offline/Batch)
+#### Phase 1: Auction Time (classification or re-auction)
 ```
-SiteEntity crawls page
+Ad request arrives for a URL with no cached classification
   ↓
-TaxonomyRanker classifies content → Categories
+POST /v1/classify-page → 202 Accepted (async)
+  ↓
+SiteEntity classifies the page (single-flight per URL, Gemini + IAB taxonomy)
+  → Categories persisted in SiteEntity, replayed to the auctioneer on restart
   ↓
 AuctioneerEntity assembles the candidate pool:
   1. Get eligible campaigns from CategoryBidderEntity
   2. Ask each CampaignEntity for creatives
-  3. Filter by publisher approval
+  3. Include pending (not-yet-approved) demand — it bids so it can reach
+     the publisher approval queue, but approval gates actual delivery
   4. Order candidates: best creative per campaign first (by CPM),
      then remaining — NO candidate cap is applied
   ↓
@@ -61,13 +66,15 @@ Cache ALL eligible candidates in ServeIndexDData
 
 #### Phase 2: Serve Time (Realtime)
 ```
-User visits page
+User visits page → banner script collects all slots
   ↓
-ServeRoutes.GET /v1/serve?url=...&size=300x250
+POST /v1/serve/batch  (one request per page load, all slots)
   ↓
-Lookup ServeIndex[pageUrl, size] (local, instant)
+AdServer(site).BatchSelect:
+  verify host → recency check → ServeIndex lookup → pacing gate
+  → Thompson scoring → greedy slot assignment (one campaign per page)
   ↓
-Return creative with tracking URLs
+Return creatives with tracking URLs
 ```
 
 ## Architecture Flow
@@ -76,65 +83,66 @@ Return creative with tracking URLs
 
 ```
 ┌─────────────────────────────────────────────────────────────┐
-│  CRAWL TIME (Every 4 hours)                                 │
+│  AUCTION TIME (on classification; re-run every 5 min +      │
+│  on ecosystem events)                                        │
 ├─────────────────────────────────────────────────────────────┤
 │                                                              │
-│  1. SiteEntity.CrawlPage(url)                               │
+│  1. First ad request for an unknown URL                     │
+│     → POST /v1/classify-page (202 Accepted)                 │
 │     ↓                                                        │
-│  2. Fetch HTML, extract text                                │
+│  2. SiteEntity.ClassifyUrl (single-flight per URL)          │
 │     ↓                                                        │
-│  3. TaxonomyRankerEntity.ClassifyContent(text)              │
+│  3. Gemini + IAB taxonomy classification                    │
 │     → Categories: {Sports: 0.8, News: 0.3}                  │
+│     → persisted in SiteEntity; replayed to the auctioneer   │
+│       at recovery, at AuctioneerStarted handshake, and on   │
+│       a 5-min refresh tick (restart self-healing)           │
 │     ↓                                                        │
 │  4. AuctioneerEntity.RunAuction(                            │
 │       pageUrl, category=Sports, sizes={300x250, 728x90}     │
 │     )                                                        │
 │     ↓                                                        │
-│  5. CategoryBidderEntity[Sports].GetCampaigns               │
+│  5. CategoryBidderEntity[category|shard].GetCampaigns       │
 │     → Returns: [Campaign A, B, C]                           │
 │     ↓                                                        │
 │  6. For each campaign:                                      │
 │     CampaignEntity.CampaignBidRequest(...)                  │
 │     → Returns: creatives=[Creative 1, Creative 2, ...]      │
 │     ↓                                                        │
-│  7. Filter by approval:                                     │
-│     approvedCreatives = all.filter(approved)                │
-│     ↓                                                        │
-│  8. Order candidates (no cap):                              │
+│  7. Order candidates (no cap):                              │
 │     best-per-campaign first by CPM, then the rest           │
 │     (NO Thompson Sampling here — see serve time)            │
 │     ↓                                                        │
-│  9. Cache the FULL candidate pool in ServeIndexDData:       │
-│      ServeIndex[pageUrl, 300x250] = [candidate, ...]        │
+│  8. Cache the FULL candidate pool in ServeIndexDData;       │
+│     pre-approved creatives can serve, pending ones are      │
+│     queued for publisher approval                           │
 │                                                              │
 └─────────────────────────────────────────────────────────────┘
 
 ┌─────────────────────────────────────────────────────────────┐
-│  SERVE TIME (Every impression)                              │
+│  SERVE TIME (Every page load)                               │
 ├─────────────────────────────────────────────────────────────┤
 │                                                              │
-│  User visits page → JavaScript loads                        │
+│  User visits page → banner script loads                     │
 │     ↓                                                        │
-│  GET /v1/serve?url=...&size=300x250                         │
+│  POST /v1/serve/batch { pub, url, imp: [slots...], pins }   │
 │     ↓                                                        │
-│  ServeRoutes:                                               │
-│    pool = serveIndex.lookup(pageUrl, size) // ← Instant!    │
+│  AdServer(site).BatchSelect:                                │
+│    1. Host verified? (else 403)                             │
+│    2. Content within recency window? (else 204)             │
+│    3. pool = ServeIndex lookup (local, instant)             │
+│    4. Pacing gate (PI controller) — may skip serving        │
+│    5. Thompson Sampling scores each candidate:              │
+│       engagement = sampledCTR + 2.0 × sampledFoldRate       │
+│                    + newcomerBonus                          │
+│       score = engagement × CPM^α   (α = publisher bidWeight)│
+│    6. Greedy assignment, largest slot first;                │
+│       one creative AND one campaign per page                │
+│    7. CampaignEntity ! TryReserve (budget reservation)      │
+│       — impression recorded server-side on Reserved         │
+│    8. Quality-adjusted second-price clearing                │
 │     ↓                                                        │
-│  Thompson Sampling selects the winner from the pool:        │
-│    score = sampledCTR × CPM^α   (α = publisher bidWeight)   │
-│    winner = pool.maxBy(score)                               │
-│     ↓                                                        │
-│  Fetch creative metadata:                                   │
-│    meta = creativeMetadataRepo.get(winner.creativeId)       │
-│     ↓                                                        │
-│  Build response:                                            │
-│    {                                                         │
-│      imageUrl: cdn.resolve(meta.s3Key),                     │
-│      clickUrl: trackingBase/click?creative=...,             │
-│      impressionUrl: trackingBase/impression?...             │
-│    }                                                         │
-│     ↓                                                        │
-│  Return JSON (< 1ms)                                        │
+│  Return JSON (creatives + tracking URLs)                    │
 │                                                              │
 └─────────────────────────────────────────────────────────────┘
 
@@ -142,20 +150,22 @@ Return creative with tracking URLs
 │  TRACKING (Async, fire-and-forget)                          │
 ├─────────────────────────────────────────────────────────────┤
 │                                                              │
-│  User sees ad → Impression pixel fires                      │
+│  Impressions are recorded server-side at selection time     │
+│  (no dependency on the pixel firing).                       │
+│                                                              │
+│  View / click / fold / CTA events:                          │
+│  POST /v1/track/... → LearningEventLog                      │
 │     ↓                                                        │
-│  POST /v1/track/impression                                  │
-│     ↓                                                        │
-│  TrackRoutes → LearningEventLog:                            │
-│    1. CampaignEntity ! TryReserve (budget reservation)      │
-│    2. AdServer ! RecordImpression (Thompson Sampling stats) │
-│     ↓                                                        │
-│  Update MAB state (for serve-time selection)                │
+│  CreativeStats update (60-min sliding window)               │
+│  → feeds serve-time Thompson Sampling posteriors            │
+│                                                              │
+│  Dog-eared (pin-honored) re-views are counted in separate   │
+│  dogeared_* counters and EXCLUDED from learning.            │
 │                                                              │
 └─────────────────────────────────────────────────────────────┘
 ```
 
-## Re-Auction Strategies
+## Re-Auction Triggers
 
 ### Why Re-Auction Frequently?
 
@@ -164,124 +174,71 @@ Auction results need refreshing because:
 1. **Content staleness (RECENCY-ONLY MODEL)** - Content older than 48 hours loses monetization eligibility
 2. **Budget depletion** - Winning campaign runs out of money
 3. **New campaigns** - Better campaigns start bidding
-4. **MAB learning** - Creative quality scores evolve
-5. **Creative approvals** - New creatives get approved
-6. **Campaign status** - Pause/resume changes
+4. **Creative approvals** - New creatives get approved
+5. **Campaign status** - Pause/resume changes
 
 **Note:** With the recency-only model, re-auctions only process pages within the 48-hour window, making the system more efficient.
 
-### Strategy Options
+### What Is Implemented
 
-#### Option A: Scheduled Re-Crawl
-```scala
-// In SiteEntity
-crawlerConfig = CrawlerConfig(
-  cronSchedule = "0 */4 * * *" // Every 4 hours
-)
-```
-**Good for:** Stable content, predictable load
-
-#### Option B: Event-Driven Re-Auction
-```scala
-// Trigger re-auction on ecosystem changes
-case BudgetDepleted(campaignId) =>
-  affectedPages.foreach { page =>
-    auctioneer ! ReAuction(page)
-  }
-
-case NewCampaign(campaignId, categories, maxCpm) =>
-  relevantPages.foreach { page =>
-    auctioneer ! ReAuction(page)
-  }
-```
-**Good for:** Fresh results, minimal waste
-
-#### Option C: Hybrid (Recommended)
-```scala
-// 1. Full re-crawl: Daily at 2am
-//    - Fetch HTML (page content might change)
-//    - Re-classify content
-//    - Run auction
-cronSchedule = "0 0 2 * * ?"
-
-// 2. Re-auction only: Every 4 hours
-//    - Use cached categories (from last crawl)
-//    - Re-run auction (advertiser ecosystem changes)
-timers.startTimerAtFixedRate(ReAuctionOnly, 4.hours)
-
-// 3. Event-driven: Immediate re-auction
-//    - Budget depletion (high priority)
-//    - New high-value campaigns (CPM > $10)
-//    - Creative approvals (medium priority)
-```
-
-## Implementation Phases
-
-### Phase 1: Basic Periodic Auction ✓
-- [x] CampaignEntity returns all eligible creatives
-- [x] Publisher-side filtering and selection
-- [x] Creative approval workflow (Topic-based)
-- [x] AuctioneerEntity implementation
-- [x] ServeIndexDData cache (full candidate pool, no cap)
-- [x] MAB optimization (Thompson Sampling) — runs at serve time
-
-### Phase 2: Re-Auction Logic ✓
-- [x] Scheduled re-auction timer (PeriodicReauction)
-- [x] Page classification caching (lastPage in AuctioneerEntity)
-- [x] Re-auction without re-crawl (Reevaluate command)
-
-### Phase 3: Event-Driven Triggers ✓
-- [x] Budget depletion triggers (CampaignBudgetExhausted/AdvertiserBudgetExhausted)
-- [x] New campaign triggers (CampaignChanged events)
-- [x] Creative approval triggers (CreativeStatusChanged events)
-- [x] Budget exhaustion preserves ServeIndex (TTL refresh instead of removal)
-
-### Phase 4: Optimizations (Partial)
-- [x] Auction result TTL management (TTL sweep + RefreshTTLForKey)
-- [x] Traffic-aware budget pacing (RateAwarePacing with PI control)
-- [ ] Per-page auction frequency
-- [ ] High-traffic page prioritization
+1. **Periodic tick** — every site re-evaluates its cached pages on the
+   `reauctionInterval` timer (5 minutes deployed, 30 minutes code default).
+   Uses cached categories; no re-classification.
+2. **Event-driven re-auction** — `CampaignChanged`, `CreativeStatusChanged`,
+   and floor changes trigger immediate re-evaluation of affected pages.
+   Budget exhaustion (`CampaignBudgetExhausted`/`AdvertiserBudgetExhausted`)
+   does NOT remove ServeIndex entries — it refreshes their TTL
+   (`dayDurationSeconds × 1.1`) so approval status survives until the
+   budget resets.
+3. **Boot self-healing** — a fresh auctioneer incarnation starts with an
+   empty page cache. `SiteEntity` replays its persisted classifications at
+   the `AuctioneerStarted` handshake and again on its 5-minute refresh
+   tick; `RestoreClassifications` is idempotent (same-or-newer timestamps
+   are skipped) and kicks a re-auction only when something was actually
+   restored.
 
 ## Key Components
 
 ### SiteEntity
-- Crawls pages periodically
-- Caches page classifications (categories)
-- Triggers re-auctions on schedule or events
+- Owns on-demand page classification (single-flight per URL)
+- Persists classifications; replays them to the auctioneer after restarts
+- Manages site verification and slot configuration
 
-### AuctioneerEntity (per publisher)
-- Runs auction during crawl / re-auction
-- Filters by approval status
+### AuctioneerEntity (one per site)
+- Runs the auction at classification time and on re-auction ticks/events
 - Orders candidates (best-per-campaign first); applies **no cap**
 - Caches the full candidate pool in ServeIndex
   (Thompson Sampling runs later, at serve time)
+- Routes pending creatives into the publisher approval queue
 
 ### ServeIndexDData
-- Replicated cache (DData)
-- Stores auction winners per (pageUrl, adSize)
+- Replicated cache (DData, LMDB-durable)
+- Stores the candidate pool per (site, slot)
 - Local reads (no network hop)
 
+### AdServer (one per site)
+- Serve-time selection: pacing gate, Thompson scoring, batch slot
+  assignment, budget reservation, quality-adjusted clearing
+- Enforces host verification and content recency
+
 ### ServeRoutes
-- Serves ads via cache lookup
-- Generates tracking URLs
-- Returns creative metadata
+- HTTP layer: `POST /v1/serve/batch`, `POST /v1/classify-page`
+- Maps actor replies to status codes (403 unverified, 204 stale content)
 
 ## Performance Characteristics
 
 ### Serving (Hot Path)
-- **Latency**: < 1ms (local cache read)
-- **Throughput**: 100,000+ req/sec per node
-- **Scalability**: Horizontal (add more nodes)
+- **Latency**: a few ms (sharded actor ask + local cache read)
+- **Scalability**: Horizontal (entities rebalance across nodes)
 
 ### Auction (Cold Path)
-- **Frequency**: Every 4 hours per page
-- **Duration**: ~100ms per page
-- **Complexity**: Can use expensive algorithms (MAB, ML)
+- **Frequency**: On classification + every 5 minutes per site + events
+- **Complexity**: Can use expensive algorithms (LLM classification, fan-out asks)
 
 ### Tracking (Async)
-- **Latency**: < 10ms (fire-and-forget via Pekko Pub/Sub)
-- **Processing**: Async via TrackingEventConsumer
-- **Learning**: Updates MAB state for next auction
+- **Impressions**: recorded server-side at selection (no pixel dependency)
+- **Views/clicks/folds/CTAs**: fire-and-forget via tracking endpoints
+- **Learning**: Updates CreativeStats for serve-time selection
 
 ## Creative Approval Flow
 
@@ -289,22 +246,18 @@ timers.startTimerAtFixedRate(ReAuctionOnly, 4.hours)
 Advertiser uploads creative
   ↓
 CampaignEntity.UpsertCreatives
+  (RichCreativeProcessor: render → R2 → Gemini verify)
   ↓
-Publish to Topic: NewCreativesAvailable(
-  campaignId, categories, creatives
-)
+Campaign bids in auctions for sites matching its categories
+  — pending demand bids so it can reach the approval queue,
+    but is invisible to floor optimization and cannot serve
   ↓
-All AuctioneerEntity instances receive event
+AdServer routes winners:
+  - Pre-approved creatives → serve immediately
+  - Pending creatives → publisher approval queue (live via SSE)
   ↓
-Filter by category overlap:
-  - Relevant: Submit for approval
-  - Not relevant: Ignore
-  ↓
-ApprovalManager:
-  - Automated checks (content policy, brand safety)
-  - Manual review (optional)
-  ↓
-Approved creatives available in next auction
+Publisher approves → creative serves on that site
+Publisher flags/rejects → bid block for that site (reversible)
 ```
 
 ## Configuration
@@ -321,7 +274,7 @@ final case class Settings(
     priorHalfLife: FiniteDuration = 1.hour,
 
     // Re-auction settings (implemented)
-    reauctionInterval: FiniteDuration = 30.minutes,  // Periodic backstop; event-driven re-auctions dominate
+    reauctionInterval: FiniteDuration = 30.minutes,  // Code default; deployed override = 5 minutes
 
     // Recency-only model settings (IMPLEMENTED)
     contentRecencyWindow: FiniteDuration = 48.hours,  // Only monetize content within this window
@@ -359,32 +312,33 @@ strategy), a single campaign could dominate due to stable sort order. Ordering
 best-per-campaign first keeps the pool fair before serve-time selection.
 
 **Cache Size Bounds** (Recency-Only Model):
-- **Per-publisher page cache capped at `maxPageCacheSize = 10000` URLs**
+- **Per-site page cache capped at `maxPageCacheSize = 10000` URLs**
   (oldest entry evicted when full — `AuctioneerEntity.Settings`)
 - In practice, cache size is also bounded by: `publishRate × contentRecencyWindow`
 - Example: 100 articles/day × 2 days = 200 entries (~100 KB), well under the cap
 - Memory leaks impossible (hard cap + time-based eviction)
 
-**ServeRoutes Configuration:**
-```scala
-contentRecencyWindowMs: Long = 48 * 60 * 60 * 1000L // 48 hours
-```
-- Validates content age before serving
-- Returns `204 No Content` for stale content
+**Content Recency at Serve Time:**
+- The recency window (48h default) is validated inside `AdServer.BatchSelect`
+- Stale content returns `204 No Content` (`BatchContentTooOld`)
 
 ## Status
 
 All core phases are implemented:
+- On-demand classification (`/v1/classify-page`, single-flight in SiteEntity)
+  with persistence and restart replay
 - AuctioneerEntity assembles + caches the full candidate pool (no cap)
 - ServeIndexDData with TTL sweep, site-scoped removal, and TTL refresh for budget exhaustion
-- Periodic re-auction timers and event-driven triggers
+- Periodic re-auction timers, event-driven triggers, and boot self-healing
 - Traffic-aware budget pacing (RateAwarePacing with PI control)
 - Serve-time Thompson Sampling for creative selection
-  (`score = sampledCTR × CPM^α`, α = publisher-configurable bidWeight)
+  (`score = (sampledCTR + 2.0 × sampledFoldRate + newcomerBonus) × CPM^α`,
+  α = publisher-configurable bidWeight)
 
 ## References
 
 - `/modules/core/src/main/scala/promovolve/advertiser/CampaignEntity.scala` - Returns all eligible creatives
-- `/modules/api/src/main/scala/promovolve/api/Main.scala` - ServeRoutes setup
+- `/modules/api/src/main/scala/promovolve/api/ServeRoutes.scala` - `POST /v1/serve/batch`, `POST /v1/classify-page`
 - `/modules/core/src/main/scala/promovolve/auction/AuctioneerEntity.scala` - candidate pool assembly, `Settings` (no candidate cap; `maxPageCacheSize = 10000`)
-- `/modules/core/src/main/scala/promovolve/publisher/delivery/ThompsonSampling.scala` - serve-time MAB selection, `score = sampledCTR × CPM^α`
+- `/modules/core/src/main/scala/promovolve/publisher/delivery/AdServer.scala` - serve-time batch selection, pacing, budget reservation
+- `/modules/core/src/main/scala/promovolve/publisher/delivery/ThompsonSampling.scala` - serve-time MAB selection

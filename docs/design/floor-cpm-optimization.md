@@ -82,5 +82,7 @@ dashboard can show this-cycle-vs-last-cycle deltas.
   market (all bids equal), every floor below the common bid is
   revenue-equivalent and the optimizer correctly settles anywhere on that
   plateau.
-- Per-slot floor overrides (crawler prior + admin escape hatch) layer on top of
-  the site-level optimized floor.
+- Per-slot floor overrides (admin escape hatch) layer on top of the site-level
+  optimized floor. (The crawler-seeded slot prior is defunct for new slots
+  since the crawler tier was removed; slots created back then keep their
+  persisted priors.)

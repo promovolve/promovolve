@@ -1311,6 +1311,22 @@ type argmaxStability struct {
 	N           int    // count of cycles considered
 }
 
+// trafficShapeView renders the learned 24-bucket traffic shapes on the
+// observations page — pacing decisions are only explainable next to the
+// curve that drives them.
+type shapeBar struct {
+	Hour      int
+	HeightPct int    // 4..100, scaled to the max volume across both shapes
+	Title     string // tooltip: "14:00 UTC · 1.42× average"
+	IsNow     bool   // current UTC hour on today's day-type row
+}
+
+type trafficShapeView struct {
+	Weekday  []shapeBar
+	Weekend  []shapeBar
+	Learning bool // both shapes ≈ uniform → tracker still converging
+}
+
 type floorObservationsData struct {
 	SiteID          string
 	ArgmaxHistory   []argmaxHistoryPoint // completed cycles' picks (site-wide sweep only)
@@ -1327,6 +1343,8 @@ type floorObservationsData struct {
 	// per-category floors are what actually price each advertiser segment, so
 	// they lead and the site-wide sweep is demoted to a fallback.
 	CategoryFloors []categoryFloorRow
+	// TrafficShape is nil when the stats fetch failed — section omitted.
+	TrafficShape *trafficShapeView
 	// FloorRange is the headline summary of the LIVE per-category floors
 	// (categories with current bidders), e.g. "$1.00 – $2.50". Historical
 	// floors are excluded — they price nothing. Empty when there are no
@@ -1874,6 +1892,7 @@ func (h *Handler) FloorObservations(w http.ResponseWriter, r *http.Request) {
 		FloorRange:           floorRange,
 		ActiveCategories:     activeCats,
 		HistoricalCategories: historicalCats,
+		TrafficShape:         h.fetchTrafficShape(siteID, claims),
 	}
 	h.render(w, "publisher/site-observations.html", pageData{
 		Title:             "Floor Decisions · " + siteID,
@@ -1881,6 +1900,75 @@ func (h *Handler) FloorObservations(w http.ResponseWriter, r *http.Request) {
 		User:              user,
 		FloorObservations: &data,
 	})
+}
+
+// fetchTrafficShape pulls the learned weekday/weekend traffic shapes
+// from the site stats endpoint and turns them into renderable bars.
+// Returns nil (section omitted) when the fetch fails or the tracker
+// hasn't reported shapes.
+func (h *Handler) fetchTrafficShape(siteID string, claims *model.Claims) *trafficShapeView {
+	body, err := h.coreGet(fmt.Sprintf("/v1/publishers/me/sites/%s/stats", siteID), claims)
+	if err != nil {
+		return nil
+	}
+	var resp struct {
+		WeekdayShapeVolumes []float64 `json:"weekdayShapeVolumes"`
+		WeekendShapeVolumes []float64 `json:"weekendShapeVolumes"`
+	}
+	if json.Unmarshal(body, &resp) != nil ||
+		len(resp.WeekdayShapeVolumes) != 24 || len(resp.WeekendShapeVolumes) != 24 {
+		return nil
+	}
+
+	globalMax := 0.0
+	for _, v := range append(append([]float64{}, resp.WeekdayShapeVolumes...), resp.WeekendShapeVolumes...) {
+		if v > globalMax {
+			globalMax = v
+		}
+	}
+	if globalMax <= 0 {
+		return nil
+	}
+
+	// "Still learning": a fresh tracker is exactly uniform (all 1.0); after
+	// real learning, buckets diverge. 5% spread on both shapes ≈ untrained.
+	flat := func(vs []float64) bool {
+		lo, hi := vs[0], vs[0]
+		for _, v := range vs {
+			if v < lo {
+				lo = v
+			}
+			if v > hi {
+				hi = v
+			}
+		}
+		return lo > 0 && hi/lo < 1.05
+	}
+
+	now := time.Now().UTC()
+	wd := now.Weekday()
+	todayIsWeekend := wd == time.Saturday || wd == time.Sunday
+	bars := func(vs []float64, markNow bool) []shapeBar {
+		out := make([]shapeBar, 24)
+		for i, v := range vs {
+			pct := int(v/globalMax*100 + 0.5)
+			if pct < 4 {
+				pct = 4 // a zero-height bar reads as missing data
+			}
+			out[i] = shapeBar{
+				Hour:      i,
+				HeightPct: pct,
+				Title:     fmt.Sprintf("%02d:00 UTC · %.2f× average", i, v),
+				IsNow:     markNow && i == now.Hour(),
+			}
+		}
+		return out
+	}
+	return &trafficShapeView{
+		Weekday:  bars(resp.WeekdayShapeVolumes, !todayIsWeekend),
+		Weekend:  bars(resp.WeekendShapeVolumes, todayIsWeekend),
+		Learning: flat(resp.WeekdayShapeVolumes) && flat(resp.WeekendShapeVolumes),
+	}
 }
 
 // ResetFloorAgent wipes a site's persisted floor-optimizer snapshot so

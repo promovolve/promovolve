@@ -171,7 +171,7 @@ trait ApiJsonFormats extends DefaultJsonProtocol {
   given RootJsonFormat[AdvertiserCampaignSpendTodayResponse] = jsonFormat3(AdvertiserCampaignSpendTodayResponse.apply)
   given RootJsonFormat[HourlyDeliveryRow] = jsonFormat3(HourlyDeliveryRow.apply)
   given RootJsonFormat[AdvertiserHourlyTodayResponse] = jsonFormat3(AdvertiserHourlyTodayResponse.apply)
-  given RootJsonFormat[ReportDailyRow] = jsonFormat7(ReportDailyRow.apply)
+  given RootJsonFormat[ReportDailyRow] = jsonFormat11(ReportDailyRow.apply)
   given RootJsonFormat[AdvertiserReportResponse] = jsonFormat4(AdvertiserReportResponse.apply)
   given RootJsonFormat[ReportBreakdownRow] = jsonFormat7(ReportBreakdownRow.apply)
   given RootJsonFormat[AdvertiserReportBreakdownResponse] = jsonFormat6(AdvertiserReportBreakdownResponse.apply)

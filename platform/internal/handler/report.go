@@ -32,6 +32,13 @@ type reportRow struct {
 	Clicks       int64
 	CTAClicks    int64
 	DogearedImps int64
+	// Dog-ear engagement — free by design (CPF dropped 2026-07-13):
+	// folds/unfolds are reader bookmark actions; dogeared clicks/CTAs
+	// happen on $0 pin-honored re-encounters.
+	Folds             int64
+	Unfolds           int64
+	DogearedClicks    int64
+	DogearedCTAClicks int64
 	Spend        float64
 	SpendDisp    string // "X.XX" — "$" added by the template
 	CTR          string
@@ -43,6 +50,11 @@ type reportTotals struct {
 	Clicks       int64
 	CTAClicks    int64
 	DogearedImps int64
+	Folds             int64
+	Unfolds           int64
+	DogearedClicks    int64
+	DogearedCTAClicks int64
+	FoldRate          string // folds per fresh impression, "" below 1 imp
 	Spend        float64
 	SpendDisp    string
 	CTR          string
@@ -253,6 +265,10 @@ func (h *Handler) fetchReportRows(rangeQS string, names map[string]string, claim
 			CtaClicks           int64  `json:"ctaClicks"`
 			Spend               string `json:"spend"`
 			DogearedImpressions int64  `json:"dogearedImpressions"`
+			Folds               int64  `json:"folds"`
+			Unfolds             int64  `json:"unfolds"`
+			DogearedClicks      int64  `json:"dogearedClicks"`
+			DogearedCtaClicks   int64  `json:"dogearedCtaClicks"`
 		} `json:"rows"`
 	}
 	if json.Unmarshal(body, &resp) != nil {
@@ -262,14 +278,18 @@ func (h *Handler) fetchReportRows(rangeQS string, names map[string]string, claim
 	for _, rr := range resp.Rows {
 		spend, _ := strconv.ParseFloat(rr.Spend, 64)
 		row := reportRow{
-			Day:          rr.Day,
-			CampaignID:   rr.CampaignID,
-			CampaignName: labelOr(names, rr.CampaignID),
-			Impressions:  rr.Impressions,
-			Clicks:       rr.Clicks,
-			CTAClicks:    rr.CtaClicks,
-			DogearedImps: rr.DogearedImpressions,
-			Spend:        spend,
+			Day:               rr.Day,
+			CampaignID:        rr.CampaignID,
+			CampaignName:      labelOr(names, rr.CampaignID),
+			Impressions:       rr.Impressions,
+			Clicks:            rr.Clicks,
+			CTAClicks:         rr.CtaClicks,
+			DogearedImps:      rr.DogearedImpressions,
+			Folds:             rr.Folds,
+			Unfolds:           rr.Unfolds,
+			DogearedClicks:    rr.DogearedClicks,
+			DogearedCTAClicks: rr.DogearedCtaClicks,
+			Spend:             spend,
 		}
 		row.SpendDisp, row.CTR, row.ECPM = funnelDisplay(spend, rr.Impressions, rr.Clicks)
 		rows = append(rows, row)
@@ -542,9 +562,16 @@ func sumReportTotals(rows []reportRow) reportTotals {
 		t.Clicks += r.Clicks
 		t.CTAClicks += r.CTAClicks
 		t.DogearedImps += r.DogearedImps
+		t.Folds += r.Folds
+		t.Unfolds += r.Unfolds
+		t.DogearedClicks += r.DogearedClicks
+		t.DogearedCTAClicks += r.DogearedCTAClicks
 		t.Spend += r.Spend
 	}
 	t.SpendDisp, t.CTR, t.ECPM = funnelDisplay(t.Spend, t.Impressions, t.Clicks)
+	if t.Impressions > 0 && t.Folds > 0 {
+		t.FoldRate = fmt.Sprintf("%.2f%%", float64(t.Folds)/float64(t.Impressions)*100)
+	}
 	return t
 }
 
@@ -702,7 +729,7 @@ func writeDailyCSV(w http.ResponseWriter, from, to string, rows []reportRow) {
 	w.Header().Set("Content-Disposition",
 		fmt.Sprintf("attachment; filename=%q", "promovolve-report-"+from+"-"+to+".csv"))
 	cw := csv.NewWriter(w)
-	cw.Write([]string{"day", "campaign", "impressions", "clicks", "ctr_pct", "cta_clicks", "dogeared_impressions", "spend", "ecpm"})
+	cw.Write([]string{"day", "campaign", "impressions", "clicks", "ctr_pct", "cta_clicks", "dogeared_impressions", "folds", "unfolds", "dogeared_clicks", "dogeared_cta_clicks", "spend", "ecpm"})
 	for _, r := range rows {
 		cw.Write([]string{
 			r.Day, r.CampaignName,
@@ -711,6 +738,10 @@ func writeDailyCSV(w http.ResponseWriter, from, to string, rows []reportRow) {
 			csvRate(r.Clicks, r.Impressions),
 			strconv.FormatInt(r.CTAClicks, 10),
 			strconv.FormatInt(r.DogearedImps, 10),
+			strconv.FormatInt(r.Folds, 10),
+			strconv.FormatInt(r.Unfolds, 10),
+			strconv.FormatInt(r.DogearedClicks, 10),
+			strconv.FormatInt(r.DogearedCTAClicks, 10),
 			fmt.Sprintf("%.4f", r.Spend),
 			csvECPM(r.Spend, r.Impressions),
 		})

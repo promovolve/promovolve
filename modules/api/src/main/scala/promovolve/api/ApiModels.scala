@@ -960,7 +960,14 @@ object ApiModels {
       clicks: Long,
       ctaClicks: Long,
       spend: String, // dollars, %.4f
-      dogearedImpressions: Long
+      dogearedImpressions: Long,
+      // Dog-ear engagement (free — CPF was dropped for good 2026-07-13):
+      // folds/unfolds are reader actions; dogeared clicks/CTAs happen on
+      // $0 pin-honored re-encounters. Powers the report Engagement tile.
+      folds: Long,
+      unfolds: Long,
+      dogearedClicks: Long,
+      dogearedCtaClicks: Long
   )
   case class AdvertiserReportResponse(
       advertiserId: String,

@@ -42,6 +42,28 @@
   </div>
 </div>
 
+{{/* Dog-ear engagement — folds are free reader bookmarks; each one pins
+     the creative to that reader's slot for 7 days, and the re-encounters
+     (impressions/clicks/CTAs below) cost $0 and are excluded from the
+     primary metrics above. Only shown once any fold exists. */}}
+{{if $r.Totals.Folds}}
+<div class="card card-tight mb-6">
+  <div class="flex flex-wrap items-baseline gap-x-8 gap-y-2">
+    <div>
+      <p class="text-xs text-gray-500">Dog-ears (reader bookmarks)</p>
+      <p class="text-xl font-semibold mt-1">{{$r.Totals.Folds}}
+        {{if $r.Totals.FoldRate}}<span class="text-sm font-normal text-gray-500">· {{$r.Totals.FoldRate}} of impressions</span>{{end}}
+        {{if $r.Totals.Unfolds}}<span class="text-sm font-normal text-gray-400">({{$r.Totals.Unfolds}} removed)</span>{{end}}
+      </p>
+    </div>
+    <div>
+      <p class="text-xs text-gray-500">Free re-exposure earned</p>
+      <p class="text-sm mt-1">{{$r.Totals.DogearedImps}} views · {{$r.Totals.DogearedClicks}} clicks · {{$r.Totals.DogearedCTAClicks}} CTA clicks <span class="text-gray-400">— $0, not in the totals above</span></p>
+    </div>
+  </div>
+</div>
+{{end}}
+
 <div x-data="{tab: 'daily'}">
   <div class="flex items-center gap-1 border-b mb-4">
     <button @click="tab='daily'" :class="tab==='daily' ? 'border-brand text-gray-900' : 'border-transparent text-gray-500 hover:text-gray-700'" class="px-4 py-2 text-sm font-medium border-b-2 -mb-px">Daily</button>

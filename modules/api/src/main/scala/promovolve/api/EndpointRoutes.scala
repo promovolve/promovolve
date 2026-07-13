@@ -4013,28 +4013,31 @@ class EndpointRoutes(
             case Some(db) =>
               import slick.jdbc.PostgresProfile.api.*
               import slick.jdbc.GetResult
-              given GetResult[(String, String, Long, Long, Long, Double, Long)] =
+              given GetResult[(String, String, Long, Long, Long, Double, Long, Long, Long, Long, Long)] =
                 GetResult(using r =>
                   (r.nextString(), r.nextString(), r.nextLong(), r.nextLong(), r.nextLong(), r.nextDouble(),
-                    r.nextLong()))
+                    r.nextLong(), r.nextLong(), r.nextLong(), r.nextLong(), r.nextLong()))
               // Ownership gate: daily stats carry no advertiser_id — same
               // EXISTS-against-campaign_stats idiom as DashboardRoutes.
               val q = sql"""
                 SELECT d.day_bucket::text, d.campaign_id, d.impressions, d.clicks, d.cta_clicks,
-                       d.spend::double precision, d.dogeared_impressions
+                       d.spend::double precision, d.dogeared_impressions,
+                       d.folds, d.unfolds, d.dogeared_clicks, d.dogeared_cta_clicks
                 FROM campaign_daily_stats d
                 WHERE EXISTS (SELECT 1 FROM campaign_stats cs
                               WHERE cs.campaign_id = d.campaign_id AND cs.advertiser_id = $advertiserId)
                   AND d.day_bucket BETWEEN $from::date AND $to::date
                 ORDER BY d.day_bucket DESC, d.campaign_id
-              """.as[(String, String, Long, Long, Long, Double, Long)]
+              """.as[(String, String, Long, Long, Long, Double, Long, Long, Long, Long, Long)]
               db.run(q).map { rows =>
                 Right(AdvertiserReportResponse(
                   advertiserId = advertiserId,
                   from = from,
                   to = to,
-                  rows = rows.toVector.map { case (day, cid, imps, clicks, ctas, spend, dogeared) =>
-                    ReportDailyRow(day, cid, imps, clicks, ctas, f"$spend%.4f", dogeared)
+                  rows = rows.toVector.map {
+                    case (day, cid, imps, clicks, ctas, spend, dogeared, folds, unfolds, dgClicks, dgCtas) =>
+                      ReportDailyRow(day, cid, imps, clicks, ctas, f"$spend%.4f", dogeared,
+                        folds, unfolds, dgClicks, dgCtas)
                   }
                 ))
               }.recover { case ex =>

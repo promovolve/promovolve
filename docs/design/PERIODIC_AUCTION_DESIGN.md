@@ -260,7 +260,8 @@ Auction results need refreshing because:
 Advertiser uploads creative
   ↓
 CampaignEntity.UpsertCreatives
-  (RichCreativeProcessor: render → R2 → Gemini verify)
+  (RichCreativeProcessor: render → R2 → Gemini category-match + brand-safety
+   verify; text-preferred, image fallback — no re-render loop)
   ↓
 Campaign bids in auctions for sites matching its categories
   — pending demand bids so it can reach the approval queue,
@@ -303,7 +304,9 @@ final case class Settings(
 
 There is **no artificial candidate cap** — *all* competitive bids pass through
 to serve-time Thompson Sampling. The CPM threshold filter in
-`CategoryBidderEntity` (top 20%) is the only natural limit on pool size.
+`CategoryBidderEntity` (bids within 80% of the category's best) and its
+per-category cap (`maxCampaignsPerCategory = 50`, top campaigns by CPM) are
+the only limits on pool size.
 The auction does, however, **order** candidates so that each campaign's best
 creative comes first:
 

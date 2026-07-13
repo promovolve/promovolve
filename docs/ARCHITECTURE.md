@@ -368,8 +368,9 @@ Phase 3: BID COLLECTION
     ├── For each slot × eligible category:
     │   └── CategoryBidderEntity ! CategoryBidRequest
     ├── Aggregate with timeout
-    ├── Filter by CPM threshold (top 20%, in CategoryBidderEntity)
-    └── Keep ALL competitive bids — no artificial candidate cap;
+    ├── Filter in CategoryBidderEntity: bids within 80% of the
+    │   category's best + top-50 campaigns per category by CPM
+    └── Keep ALL bids from those campaigns — no further cap;
         dedupe by creativeId, order best-per-campaign first
 
 Phase 4: SHORTLIST CACHING

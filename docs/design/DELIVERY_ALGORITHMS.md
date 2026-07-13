@@ -734,9 +734,12 @@ qualityAdjustedClearing(winnerMeanEngagement, winnerBid, bestLoserScore, α, flo
 - The result is clamped to `[floor, winnerBid]` — a winner never pays below
   the effective floor (admin slot override → category floor → site floor)
   nor more than its own bid.
-- **Exploration pays the floor.** A sole eligible candidate, a cold pool with
-  no same-category competition, or any degenerate input clears at the floor —
-  there is no separate exploration-pricing formula.
+- **Degenerate cases pay the floor.** A sole eligible candidate, a cold pool
+  with no same-category competition, or any degenerate input clears at the
+  floor. There is no separate exploration-pricing formula — a cold winner is
+  priced by the same mean formula on its cold-prior engagement (which the
+  newcomer bonus usually clamps down to the floor, but a strong same-category
+  runner-up can price it above).
 - The reservation, the `BatchSlotOutcome.clearingPrice`, and the pending-spend
   delta all use this same clearing CPM. **Pending/reserved spend is recorded
   at the clearing price, not the bid** — otherwise pacing would see in-flight

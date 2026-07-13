@@ -1,1 +1,4 @@
 /server
+
+# Built simulator binary — source is cmd/simulate-traffic
+/simulate-traffic

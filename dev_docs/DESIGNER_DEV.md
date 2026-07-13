@@ -19,6 +19,12 @@ Two dev loops short-circuit that. Pick by what you're changing.
 
 ## Loop A — true HMR against a real backend  ⭐ (default for UI/UX work)
 
+Under `vite serve` (this loop only) the designer exposes its store as
+`window.__STORE__` — Playwright can inject state and assert against it,
+and `await import("/src/<module>.ts")` inside `page.evaluate` gives
+unit-level access to any module. The hook is gated on `import.meta.hot`,
+so no build ever ships it.
+
 Serve the designer straight from source with Vite, and point its **own built-in
 proxy** (`vite.config.ts → server.proxy`) at an already-running backend. Edits
 hot-reload in the browser instantly; backend calls (auth, asset upload, save,

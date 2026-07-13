@@ -2,17 +2,22 @@
 
 How to drive end-to-end auction traffic through a running PromoVolve cluster for debugging or development.
 
-The recommended testing path is the scala-cli script `scripts/RunScenario.scala`, which orchestrates the production `/v1/...` flow in one shot, plus the Go simulator at `platform/simulate-traffic` for steady-state load. (A few low-level `/test/*` debug endpoints still exist — e.g. `/test/bid`, `/test/direct-bid`, `/test/spend` in `AuctionRoutes.scala` — but `/test/register` and `/test/serve-index` are gone; campaign registration goes through `POST /v1/auction/categories/{category}/campaigns` and the serve index is inspected via `GET /v1/publishers/{id}/sites/{siteId}/serve-index`.)
+The recommended testing path is the scala-cli script `scripts/RunScenario.scala`, which orchestrates the production `/v1/...` flow in one shot, plus the Go simulator at `platform/cmd/simulate-traffic` (`go build ./cmd/simulate-traffic`) for steady-state load. (A few low-level `/test/*` debug endpoints still exist — e.g. `/test/bid`, `/test/direct-bid`, `/test/spend` in `AuctionRoutes.scala` — but `/test/register` and `/test/serve-index` are gone; campaign registration goes through `POST /v1/auction/categories/{category}/campaigns` and the serve index is inspected via `GET /v1/publishers/{id}/sites/{siteId}/serve-index`.)
 
 ## Prerequisites
 
-Start the cluster:
+Dev runs on the local Kubernetes cluster (Docker Desktop) — **never**
+start the API with `sbt`/`run-dev.sh`: a forked `api/run` JVM squats
+`:8080` and shadows the k8s LoadBalancer, producing ghost 403s that look
+like auth bugs.
 
 ```bash
-scripts/run-dev.sh --fresh   # truncates DB, rebuilds schema, clears DData, runs api/run
+kubectl config use-context docker-desktop   # ALWAYS pin the context — a GKE prod context exists
+k8s/up.sh                                   # bring the dev cluster up (2 all-roles api pods + postgres)
+k8s/reset.sh --yes                          # optional factory reset — verify PVC ages after, one run has silently no-opped
 ```
 
-The API listens on `http://localhost:8080`. The dashboard (Go) is a separate process — run with `scripts/run-dashboard.sh`. The example publisher sites under `modules/examples/publisher-site*/` are static — serve them with any static file server (e.g., `python3 -m http.server 8888`) from inside the chosen site directory.
+The API listens on `http://localhost:8080` via the k8s service. The dashboard (Go) is a separate process — run with `scripts/run-dashboard.sh`. The example publisher sites under `modules/examples/publisher-site*/` are static — serve them with any static file server (e.g., `python3 -m http.server 8888`) from inside the chosen site directory.
 
 ## End-to-end flow with `RunScenario.scala`
 

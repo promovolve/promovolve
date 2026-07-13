@@ -47,6 +47,38 @@ env:
   PLATFORM_IMAGE: docker.io/hanishi/promovolve-platform
 
 jobs:
+  # Deploy is gated on the CI workflow for the SAME commit: a red
+  # scalafmt/compile must not ship. (Learned 2026-07-13: a Test/compile
+  # break rode Deploy to production for a day because the two workflows
+  # were independent.) Polls rather than workflow_run-chains so the
+  # path-filter and manual-dispatch semantics of this workflow stay
+  # exactly as they are.
+  ci-gate:
+    name: Gate on CI (same commit)
+    runs-on: ubuntu-latest
+    steps:
+      - name: Wait for the CI workflow on this commit
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          set -euo pipefail
+          sha="${{ github.sha }}"
+          echo "Gating deploy of $sha on the CI workflow"
+          for i in $(seq 1 90); do   # up to 30 min
+            line=$(gh api \
+              "repos/${{ github.repository }}/actions/workflows/ci.yml/runs?head_sha=$sha&per_page=1" \
+              -q '.workflow_runs[0] | "\(.status) \(.conclusion // "none")"' 2>/dev/null || echo "absent none")
+            status="${line%% *}"; conclusion="${line##* }"
+            if [ "$status" = "completed" ]; then
+              if [ "$conclusion" = "success" ]; then
+                echo "CI is green for $sha — proceeding"; exit 0
+              fi
+              echo "CI concluded '$conclusion' for $sha — refusing to deploy"; exit 1
+            fi
+            echo "CI $status… ($i/90)"; sleep 20
+          done
+          echo "Timed out waiting for CI on $sha — refusing to deploy"; exit 1
+
   changes:
     name: What changed
     runs-on: ubuntu-latest
@@ -69,8 +101,10 @@ jobs:
 
   build-api:
     name: Build api (arm64)
-    needs: changes
-    if: needs.changes.outputs.api == 'true'
+    needs: [changes, ci-gate]
+    # Explicit ci-gate check: a custom `if` drops the implicit success()
+    # of needs, so spell it out.
+    if: needs.ci-gate.result == 'success' && needs.changes.outputs.api == 'true'
     runs-on: ubuntu-24.04-arm   # native arm64 — matches the c4a nodes
     outputs:
       digest: ${{ steps.build.outputs.digest }}
@@ -96,8 +130,8 @@ jobs:
 
   build-platform:
     name: Build platform (arm64)
-    needs: changes
-    if: needs.changes.outputs.platform == 'true'
+    needs: [changes, ci-gate]
+    if: needs.ci-gate.result == 'success' && needs.changes.outputs.platform == 'true'
     runs-on: ubuntu-24.04-arm
     outputs:
       digest: ${{ steps.build.outputs.digest }}

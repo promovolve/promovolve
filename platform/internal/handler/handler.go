@@ -365,6 +365,19 @@ type siteGroup struct {
 	Pending []pendingCreative
 	Serving []servingCreative
 	Flagged []flaggedCreative
+	// Auto-approve: per-site opt-in toggle plus the trust anchors earned by
+	// manual approvals (campaigns / landing registrable-domains). Anchors
+	// persist while the toggle is off — dormant, not deleted.
+	AutoApprove      bool
+	TrustedCampaigns []trustAnchorRow
+	TrustedDomains   []string
+}
+
+// One trusted campaign in the auto-approve panel. Name resolves from the
+// campaigns visible in this page load; falls back to the raw ID.
+type trustAnchorRow struct {
+	ID   string
+	Name string
 }
 
 type pendingPlacement struct {
@@ -472,6 +485,9 @@ type servingCreative struct {
 	CampaignName     string
 	LandingDomain    string
 	LandingURL       string
+	// True when this approval came from the auto-approve trust path
+	// rather than an explicit publisher click ("Auto-approved" badge).
+	AutoApproved bool
 }
 
 type servingPlacement struct {
@@ -972,6 +988,7 @@ func (h *Handler) loadServing(siteID string, claims *model.Claims, floorCpm floa
 			BannerConfigJSON *string `json:"bannerConfigJson"`
 			LandingDomain    *string `json:"landingDomain"`
 			LandingURL       *string `json:"landingUrl"`
+			AutoApproved     *bool   `json:"autoApproved"`
 			Placements       []struct {
 				URL          string  `json:"url"`
 				SlotID       string  `json:"slotId"`
@@ -1019,6 +1036,9 @@ func (h *Handler) loadServing(siteID string, claims *model.Claims, floorCpm floa
 		}
 		if s.LandingURL != nil {
 			sc.LandingURL = *s.LandingURL
+		}
+		if s.AutoApproved != nil {
+			sc.AutoApproved = *s.AutoApproved
 		}
 		for _, pl := range s.Placements {
 			plc := servingPlacement{
@@ -1243,12 +1263,37 @@ func (h *Handler) PublisherApproval(w http.ResponseWriter, r *http.Request) {
 			flagged[i].AdvertiserName = name
 			flagged[i].CampaignName = labelOr(camps, flagged[i].CampaignID)
 		}
-		if len(pending) > 0 || len(serving) > 0 || len(flagged) > 0 {
+		autoApprove, trustedCampaigns, trustedDomains := h.loadAutoApprove(s.ID, claims)
+		// Trusted-campaign names resolve from the campaigns visible in this
+		// page load (pending/serving carry names); raw ID otherwise.
+		campNames := map[string]string{}
+		for i := range pending {
+			campNames[pending[i].CampaignID] = pending[i].CampaignName
+		}
+		for i := range serving {
+			campNames[serving[i].CampaignID] = serving[i].CampaignName
+		}
+		var trustedCampaignRows []trustAnchorRow
+		for _, cid := range trustedCampaigns {
+			name := campNames[cid]
+			if name == "" {
+				name = cid
+			}
+			trustedCampaignRows = append(trustedCampaignRows, trustAnchorRow{ID: cid, Name: name})
+		}
+		// A site earns a section when it has inbox content OR auto-approve
+		// state to manage (toggle on / anchors present) — otherwise a
+		// publisher could never see or undo the feature on a quiet site.
+		if len(pending) > 0 || len(serving) > 0 || len(flagged) > 0 || autoApprove || len(trustedCampaignRows) > 0 ||
+			len(trustedDomains) > 0 {
 			groups = append(groups, siteGroup{
-				Site:    s,
-				Pending: pending,
-				Serving: serving,
-				Flagged: flagged,
+				Site:             s,
+				Pending:          pending,
+				Serving:          serving,
+				Flagged:          flagged,
+				AutoApprove:      autoApprove,
+				TrustedCampaigns: trustedCampaignRows,
+				TrustedDomains:   trustedDomains,
 			})
 		}
 		allPending = append(allPending, pending...)
@@ -1291,6 +1336,77 @@ func (h *Handler) PublisherApproval(w http.ResponseWriter, r *http.Request) {
 	}
 
 	h.render(w, "publisher/approval.html", data)
+}
+
+// loadAutoApprove fetches the site's auto-approve toggle + trust anchors.
+// Errors degrade to "disabled, no anchors" — the panel just renders off.
+func (h *Handler) loadAutoApprove(siteID string, claims *model.Claims) (bool, []string, []string) {
+	body, err := h.coreGet(fmt.Sprintf("/v1/publishers/me/sites/%s/auto-approve", siteID), claims)
+	if err != nil {
+		return false, nil, nil
+	}
+	var resp struct {
+		Enabled          bool     `json:"enabled"`
+		TrustedCampaigns []string `json:"trustedCampaigns"`
+		TrustedDomains   []string `json:"trustedDomains"`
+	}
+	json.Unmarshal(body, &resp)
+	return resp.Enabled, resp.TrustedCampaigns, resp.TrustedDomains
+}
+
+// PublisherAutoApprove flips a site's auto-approve toggle (htmx checkbox —
+// an unchecked box submits no "enabled" field, which reads as false).
+func (h *Handler) PublisherAutoApprove(w http.ResponseWriter, r *http.Request) {
+	_, claims := h.sessionUser(r)
+	if claims == nil {
+		http.Redirect(w, r, "/login", http.StatusSeeOther)
+		return
+	}
+	r.ParseForm()
+	siteID := r.FormValue("siteId")
+	enabled := r.FormValue("enabled") != ""
+	bodyJSON, _ := json.Marshal(map[string]bool{"enabled": enabled})
+	resp, err := h.corePut(fmt.Sprintf("/v1/publishers/me/sites/%s/auto-approve", siteID), claims, string(bodyJSON))
+	if err != nil {
+		slog.Error("auto-approve toggle failed", "siteId", siteID, "error", err)
+	} else {
+		slog.Info("auto-approve toggle", "siteId", siteID, "enabled", enabled, "response", string(resp))
+	}
+	if r.Header.Get("HX-Request") == "true" {
+		w.Header().Set("HX-Trigger", `{"inboxActed": true}`)
+		w.WriteHeader(http.StatusNoContent)
+		return
+	}
+	http.Redirect(w, r, "/publisher/approval", http.StatusSeeOther)
+}
+
+// PublisherTrustAnchorRemove deletes one trust anchor ("stop trusting this
+// campaign/domain") from the site's auto-approve panel.
+func (h *Handler) PublisherTrustAnchorRemove(w http.ResponseWriter, r *http.Request) {
+	_, claims := h.sessionUser(r)
+	if claims == nil {
+		http.Redirect(w, r, "/login", http.StatusSeeOther)
+		return
+	}
+	r.ParseForm()
+	siteID := r.FormValue("siteId")
+	bodyJSON, _ := json.Marshal(map[string]string{
+		"anchorType":  r.FormValue("anchorType"),
+		"anchorValue": r.FormValue("anchorValue"),
+	})
+	resp, err := h.coreDelete(fmt.Sprintf("/v1/publishers/me/sites/%s/auto-approve/anchors", siteID), claims,
+		string(bodyJSON))
+	if err != nil {
+		slog.Error("trust anchor remove failed", "siteId", siteID, "error", err)
+	} else {
+		slog.Info("trust anchor removed", "siteId", siteID, "response", string(resp))
+	}
+	if r.Header.Get("HX-Request") == "true" {
+		w.Header().Set("HX-Trigger", `{"inboxActed": true}`)
+		w.WriteHeader(http.StatusNoContent)
+		return
+	}
+	http.Redirect(w, r, "/publisher/approval", http.StatusSeeOther)
 }
 
 func (h *Handler) ApprovalAction(action string) http.HandlerFunc {

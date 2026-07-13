@@ -60,6 +60,18 @@ object PendingEventHub {
       creativeId: String
   ) extends Command
 
+  /**
+   * Publish an auto-approval event (creative skipped the queue via the
+   * site's auto-approve trust and went straight to serving)
+   */
+  final case class PublishAutoApproved(
+      siteId: String,
+      url: String,
+      slotId: String,
+      creativeId: String,
+      campaignId: String
+  ) extends Command
+
   /** Publish a bulk approval event */
   final case class PublishBulkApproved(
       siteId: String,
@@ -112,6 +124,14 @@ object PendingEventHub {
       url: String,
       slotId: String,
       creativeId: String,
+      timestamp: Instant
+  ) extends PendingEvent
+  final case class AutoApproved(
+      siteId: String,
+      url: String,
+      slotId: String,
+      creativeId: String,
+      campaignId: String,
       timestamp: Instant
   ) extends PendingEvent
   final case class BulkApproved(
@@ -218,6 +238,18 @@ object PendingEventHub {
         if (subscribers.nonEmpty) {
           ctx.log.info(
             "Broadcasting rejected to {} subscribers: site={} creativeId={}",
+            subscribers.size, siteId, creativeId
+          )
+          subscribers.foreach(_ ! event)
+        }
+        Behaviors.same
+
+      case PublishAutoApproved(siteId, url, slotId, creativeId, campaignId) =>
+        val event = AutoApproved(siteId, url, slotId, creativeId, campaignId, Instant.now())
+        val subscribers = state.getSubscribers(siteId)
+        if (subscribers.nonEmpty) {
+          ctx.log.info(
+            "Broadcasting auto-approved to {} subscribers: site={} creativeId={}",
             subscribers.size, siteId, creativeId
           )
           subscribers.foreach(_ ! event)

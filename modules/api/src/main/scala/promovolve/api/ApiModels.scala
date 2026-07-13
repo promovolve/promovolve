@@ -1242,7 +1242,10 @@ object ApiModels {
       landingDomain: Option[String] = None,
       // Full landing-page URL for the CTA → opens the LP in a new tab from
       // the approval preview (same as pending).
-      landingUrl: Option[String] = None
+      landingUrl: Option[String] = None,
+      // True when the approval was granted by the auto-approve trust path
+      // rather than an explicit publisher click ("Auto-approved" badge).
+      autoApproved: Option[Boolean] = None
   )
 
   case class ServingCreativeGroupList(
@@ -1560,6 +1563,36 @@ object ApiModels {
   case class AdProductUnblockResponse(
       siteId: String,
       unblocked: Vector[String]
+  )
+
+  // ----------------- Site Auto-Approve (trust anchors) -----------------
+
+  /**
+   * Auto-approve settings for a site: the opt-in toggle plus the current
+   * trust anchors (campaigns / landing registrable-domains the publisher
+   * manually approved a creative from). Anchors persist while the toggle
+   * is off — they're dormant, not deleted.
+   */
+  case class AutoApproveSettingsResponse(
+      siteId: String,
+      enabled: Boolean,
+      trustedCampaigns: Vector[String],
+      trustedDomains: Vector[String]
+  )
+
+  case class UpdateAutoApproveRequest(
+      enabled: Boolean
+  )
+
+  /** Remove one trust anchor. anchorType is "campaign" | "domain". */
+  case class RemoveTrustAnchorRequest(
+      anchorType: String,
+      anchorValue: String
+  )
+
+  case class RemoveTrustAnchorResponse(
+      siteId: String,
+      removed: Boolean
   )
 
   // ----------------- Category Verification -----------------

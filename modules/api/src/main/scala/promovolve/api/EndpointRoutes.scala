@@ -2561,6 +2561,12 @@ class EndpointRoutes(
       val floorF = siteRef(siteId).ask[CPM](SiteEntity.GetFloorCpm(_))
       val catFloorsF =
         siteRef(siteId).ask[promovolve.proto.site.CategoryFloors](SiteEntity.GetCategoryFloors(_)).map(_.floors)
+      // Which approvals came from the auto-approve path ("Auto-approved"
+      // badge). Non-fatal: an ask failure just drops the badge.
+      val autoApprovedF = adServerRef(siteId)
+        .ask[AdServer.AutoApproveInfo](AdServer.GetAutoApproveInfo(_))
+        .map(_.autoApprovedCreativeIds)
+        .recover { case _ => Set.empty[String] }
       // Admin per-slot floor overrides — a creative serving on an overridden
       // slot competes against THAT floor, so the "Pin-only" (belowFloor)
       // badge must judge it the same way the serve gate does.
@@ -2572,6 +2578,7 @@ class EndpointRoutes(
         floorCpm <- floorF
         catFloors <- catFloorsF
         slotFloors <- slotFloorsF
+        autoApprovedIds <- autoApprovedF
         creativeIds = candidates.iterator.map(_.creativeId.value).toSet
         placementRows <- trackingEventJournal match {
           case Some(j) => j.listServingPlacements(siteId, creativeIds, since)
@@ -2627,7 +2634,8 @@ class EndpointRoutes(
             pagesJson = creative.flatMap(_.pagesJson),
             bannerConfigJson = creative.flatMap(_.bannerConfigJson),
             landingDomain = creative.map(_.landingDomain),
-            landingUrl = creative.map(_.landingUrl).filter(_.nonEmpty)
+            landingUrl = creative.map(_.landingUrl).filter(_.nonEmpty),
+            autoApproved = Some(autoApprovedIds.contains(c.creativeId.value))
           )
         }.sortBy(-_.cpm.toDouble)
         Right(ServingCreativeGroupList(data = groups,
@@ -3023,6 +3031,47 @@ class EndpointRoutes(
         }
         .recover { case ex =>
           Left(ErrorResponse("blocklist_update_failed", ex.getMessage))
+        }
+  }
+
+  // ----------------- Site Auto-Approve Logic -----------------
+  private val getAutoApproveLogic
+      : ((String, String)) => Future[Either[ErrorResponse, AutoApproveSettingsResponse]] = {
+    case (publisherId, siteId) =>
+      val enabledF: Future[Boolean] = siteRef(siteId).ask(SiteEntity.GetAutoApprove(_))
+      val infoF: Future[AdServer.AutoApproveInfo] = adServerRef(siteId).ask(AdServer.GetAutoApproveInfo(_))
+      (for {
+        enabled <- enabledF
+        info <- infoF
+      } yield Right(AutoApproveSettingsResponse(
+        siteId = siteId,
+        enabled = enabled,
+        trustedCampaigns = info.trustedCampaigns.toVector.sorted,
+        trustedDomains = info.trustedDomains.toVector.sorted
+      ))).recover { case ex =>
+        Left(ErrorResponse("auto_approve_get_failed", ex.getMessage))
+      }
+  }
+
+  private val updateAutoApproveLogic
+      : ((String, String, UpdateAutoApproveRequest)) => Future[Either[ErrorResponse, AutoApproveSettingsResponse]] = {
+    case (publisherId, siteId, req) =>
+      siteRef(siteId)
+        .ask[SiteEntity.AutoApproveUpdated](SiteEntity.UpdateAutoApprove(req.enabled, _))
+        .flatMap(_ => getAutoApproveLogic((publisherId, siteId)))
+        .recover { case ex =>
+          Left(ErrorResponse("auto_approve_update_failed", ex.getMessage))
+        }
+  }
+
+  private val removeTrustAnchorLogic
+      : ((String, String, RemoveTrustAnchorRequest)) => Future[Either[ErrorResponse, RemoveTrustAnchorResponse]] = {
+    case (publisherId, siteId, req) =>
+      adServerRef(siteId)
+        .ask[AdServer.TrustAnchorRemoved](AdServer.RemoveTrustAnchor(req.anchorType, req.anchorValue, _))
+        .map(r => Right(RemoveTrustAnchorResponse(siteId = siteId, removed = r.removed)))
+        .recover { case ex =>
+          Left(ErrorResponse("trust_anchor_remove_failed", ex.getMessage))
         }
   }
 
@@ -4907,7 +4956,10 @@ class EndpointRoutes(
     PekkoHttpServerInterpreter().toRoute(
       Endpoints.getAdProductBlocklist.serverLogic(gateSite2(getAdProductBlocklistLogic))),
     PekkoHttpServerInterpreter().toRoute(Endpoints.blockAdProducts.serverLogic(gateSite3(blockAdProductsLogic))),
-    PekkoHttpServerInterpreter().toRoute(Endpoints.unblockAdProducts.serverLogic(gateSite3(unblockAdProductsLogic)))
+    PekkoHttpServerInterpreter().toRoute(Endpoints.unblockAdProducts.serverLogic(gateSite3(unblockAdProductsLogic))),
+    PekkoHttpServerInterpreter().toRoute(Endpoints.getAutoApprove.serverLogic(gateSite2(getAutoApproveLogic))),
+    PekkoHttpServerInterpreter().toRoute(Endpoints.updateAutoApprove.serverLogic(gateSite3(updateAutoApproveLogic))),
+    PekkoHttpServerInterpreter().toRoute(Endpoints.removeTrustAnchor.serverLogic(gateSite3(removeTrustAnchorLogic)))
   )
   private val creativeRoutes: List[Route] = List(
     PekkoHttpServerInterpreter().toRoute(Endpoints.listCreatives.serverLogic(listCreativesLogic)),

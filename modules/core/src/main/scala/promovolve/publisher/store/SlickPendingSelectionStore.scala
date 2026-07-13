@@ -1,7 +1,7 @@
 package promovolve.publisher.store
 
 import promovolve.*
-import promovolve.publisher.{ FirstSeen, FlaggedCreative, PendingSelectionStore }
+import promovolve.publisher.{ ApprovedCreativeMeta, FirstSeen, FlaggedCreative, PendingSelectionStore, TrustAnchor }
 import slick.jdbc.PostgresProfile.api.*
 import spray.json.*
 
@@ -380,7 +380,28 @@ final class SlickPendingSelectionStore(db: Database)(using ec: ExecutionContext)
         campaign_id   VARCHAR(255) NOT NULL,
         advertiser_id VARCHAR(255) NOT NULL,
         approved_at   TIMESTAMP    NOT NULL,
+        approved_via  VARCHAR(16)  NOT NULL DEFAULT 'manual',
         PRIMARY KEY (publisher_id, creative_id)
+      )
+    """
+    Await.result(db.run(createTableSql), 10.seconds)
+    val addViaColumnSql = sqlu"""
+      ALTER TABLE approved_creative ADD COLUMN IF NOT EXISTS approved_via VARCHAR(16) NOT NULL DEFAULT 'manual'
+    """
+    Await.result(db.run(addViaColumnSql), 10.seconds)
+  }
+
+  def ensureTrustSchema(): Unit = {
+    import scala.concurrent.Await
+    import scala.concurrent.duration.*
+    val createTableSql = sqlu"""
+      CREATE TABLE IF NOT EXISTS site_auto_approve_trust (
+        publisher_id       VARCHAR(255) NOT NULL,
+        anchor_type        VARCHAR(16)  NOT NULL,
+        anchor_value       VARCHAR(512) NOT NULL,
+        source_creative_id VARCHAR(255) NOT NULL,
+        created_at         TIMESTAMP    NOT NULL,
+        PRIMARY KEY (publisher_id, anchor_type, anchor_value)
       )
     """
     Await.result(db.run(createTableSql), 10.seconds)
@@ -410,16 +431,68 @@ final class SlickPendingSelectionStore(db: Database)(using ec: ExecutionContext)
     db.run(query).map(_.toMap)
   }
 
-  def insertApproved(publisherId: String, creativeId: String, campaignId: String, advertiserId: String)
+  def insertApproved(publisherId: String, creativeId: String, campaignId: String, advertiserId: String, via: String)
       : Future[Unit] = {
     val row = ApprovedCreativeRow(
       publisherId = publisherId,
       creativeId = creativeId,
       campaignId = campaignId,
       advertiserId = advertiserId,
-      approvedAt = Instant.now()
+      approvedAt = Instant.now(),
+      approvedVia = via
     )
     db.run(approvedCreatives.insertOrUpdate(row)).map(_ => ())
+  }
+
+  def getApprovedCreativeMeta(publisherId: String): Future[Vector[ApprovedCreativeMeta]] = {
+    val query = approvedCreatives
+      .filter(_.publisherId === publisherId)
+      .map(r => (r.creativeId, r.advertiserId, r.approvedVia))
+      .result
+    db.run(query).map(_.map(ApprovedCreativeMeta.apply.tupled).toVector)
+  }
+
+  // ==================== Auto-Approve Trust Anchors ====================
+
+  private val trustAnchors = TableQuery[TrustAnchorTable]
+
+  def insertTrustAnchors(publisherId: String, anchors: Seq[(String, String)], sourceCreativeId: String)
+      : Future[Unit] = {
+    if (anchors.isEmpty) Future.successful(())
+    else {
+      val now = Instant.now()
+      val rows = anchors.map { case (anchorType, anchorValue) =>
+        TrustAnchorRow(publisherId, anchorType, anchorValue, sourceCreativeId, now)
+      }
+      // insertOrUpdate keeps the ORIGINAL createdAt semantics irrelevant here:
+      // re-approval refreshing the row is fine, the anchor key is what matters.
+      db.run(DBIO.sequence(rows.map(trustAnchors.insertOrUpdate))).map(_ => ())
+    }
+  }
+
+  def deleteTrustAnchorsFor(publisherId: String, campaignId: String, domain: Option[String]): Future[Int] = {
+    val action = trustAnchors
+      .filter(r =>
+        r.publisherId === publisherId &&
+          ((r.anchorType === TrustAnchor.TypeCampaign && r.anchorValue === campaignId) ||
+            (r.anchorType === TrustAnchor.TypeDomain && r.anchorValue === domain.getOrElse("")))
+      )
+      .delete
+    db.run(action)
+  }
+
+  def deleteTrustAnchor(publisherId: String, anchorType: String, anchorValue: String): Future[Boolean] = {
+    val action = trustAnchors
+      .filter(r => r.publisherId === publisherId && r.anchorType === anchorType && r.anchorValue === anchorValue)
+      .delete
+    db.run(action).map(_ > 0)
+  }
+
+  def getTrustAnchors(publisherId: String): Future[Vector[TrustAnchor]] = {
+    val query = trustAnchors.filter(_.publisherId === publisherId).result
+    db.run(query).map(_.map { row =>
+      TrustAnchor(row.anchorType, row.anchorValue, row.sourceCreativeId, row.createdAt)
+    }.toVector)
   }
 
   def deleteApproved(publisherId: String, creativeId: String): Future[Boolean] = {
@@ -663,7 +736,8 @@ object SlickPendingSelectionStore {
       creativeId: String,
       campaignId: String,
       advertiserId: String,
-      approvedAt: Instant
+      approvedAt: Instant,
+      approvedVia: String
   )
 
   class ApprovedCreativeTable(tag: Tag) extends Table[ApprovedCreativeRow](tag, "approved_creative") {
@@ -672,10 +746,31 @@ object SlickPendingSelectionStore {
     def campaignId = column[String]("campaign_id")
     def advertiserId = column[String]("advertiser_id")
     def approvedAt = column[Instant]("approved_at")
+    def approvedVia = column[String]("approved_via")
 
     def pk = primaryKey("pk_approved_creative", (publisherId, creativeId))
 
-    def * = (publisherId, creativeId, campaignId, advertiserId, approvedAt).mapTo[ApprovedCreativeRow]
+    def * = (publisherId, creativeId, campaignId, advertiserId, approvedAt, approvedVia).mapTo[ApprovedCreativeRow]
+  }
+
+  case class TrustAnchorRow(
+      publisherId: String,
+      anchorType: String,
+      anchorValue: String,
+      sourceCreativeId: String,
+      createdAt: Instant
+  )
+
+  class TrustAnchorTable(tag: Tag) extends Table[TrustAnchorRow](tag, "site_auto_approve_trust") {
+    def publisherId = column[String]("publisher_id")
+    def anchorType = column[String]("anchor_type")
+    def anchorValue = column[String]("anchor_value")
+    def sourceCreativeId = column[String]("source_creative_id")
+    def createdAt = column[Instant]("created_at")
+
+    def pk = primaryKey("pk_site_auto_approve_trust", (publisherId, anchorType, anchorValue))
+
+    def * = (publisherId, anchorType, anchorValue, sourceCreativeId, createdAt).mapTo[TrustAnchorRow]
   }
 
   case class FlaggedCreativeRow(

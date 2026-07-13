@@ -147,6 +147,17 @@ class SseRoutes(
           ).compactPrint
           ServerSentEvent(data, "rejected")
 
+        case PendingEventHub.AutoApproved(siteId, url, slotId, creativeId, campaignId, timestamp) =>
+          val data = JsObject(
+            "siteId" -> JsString(siteId),
+            "url" -> JsString(url),
+            "slotId" -> JsString(slotId),
+            "creativeId" -> JsString(creativeId),
+            "campaignId" -> JsString(campaignId),
+            "timestamp" -> JsString(timestamp.toString)
+          ).compactPrint
+          ServerSentEvent(data, "auto-approved")
+
         case PendingEventHub.BulkApproved(siteId, url, slotId, approvedCount, timestamp) =>
           val data = JsObject(
             "siteId" -> JsString(siteId),

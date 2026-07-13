@@ -610,3 +610,19 @@ final case class PendingCreativesQueued(
     topCreativeId: CreativeId,
     timestamp: Instant
 ) extends BudgetEvent
+
+/**
+ * A creative skipped the approval queue via the site's auto-approve trust
+ * (same campaign / landing registrable-domain as an earlier manual approval).
+ *
+ * Published by AdServer at candidate-partition time; PendingEventHub
+ * broadcasts it so an open approval page refreshes live.
+ */
+final case class CreativeAutoApproved(
+    siteId: SiteId,
+    url: URL,
+    slotId: SlotId,
+    creativeId: CreativeId,
+    campaignId: CampaignId,
+    timestamp: Instant
+) extends BudgetEvent

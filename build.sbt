@@ -134,6 +134,7 @@ lazy val commonSettings = Seq(
     "com.microsoft.playwright" % "playwright"                  % "1.54.0",
     "org.apache.commons"      % "commons-math3"                % "3.6.1",  // Beta distribution for Thompson Sampling
     "com.github.blemale"     %% "scaffeine"                    % "5.3.0",  // Scala wrapper for Caffeine cache
+    "com.google.guava"        % "guava"                        % "33.4.8-jre",  // InternetDomainName (public-suffix eTLD+1 for auto-approve trust)
     "com.sksamuel.scrimage"   % "scrimage-webp"                % "4.3.0",   // WebP encoder (bundles cwebp/dwebp native binaries)
     "org.apache.pekko"       %% "pekko-connectors-s3"          % "1.2.0",   // S3/R2 connector (streaming)
     "com.softwaremill.sttp.tapir" %% "tapir-pekko-http-server" % tapirVersion,

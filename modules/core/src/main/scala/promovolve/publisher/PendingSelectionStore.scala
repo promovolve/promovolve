@@ -92,13 +92,26 @@ trait PendingSelectionStore {
   def getApprovedCreativeAdvertisers(publisherId: String): Future[Map[String, String]]
 
   /**
+   * Full approval metadata for the boot backfill: advertiser (for the
+   * re-announce) plus how the approval happened ("manual" | "auto"), so
+   * AdServer can rebuild its auto-approved set for UI badging.
+   */
+  def getApprovedCreativeMeta(publisherId: String): Future[Vector[ApprovedCreativeMeta]]
+
+  /**
    * Same, restricted to one campaign. Used when an explicit campaign
    * pause/delete revokes the campaign's approvals on this site.
    */
   def getApprovedCreativeAdvertisersByCampaign(publisherId: String, campaignId: String): Future[Map[String, String]]
 
-  /** Record a creative as approved for a publisher. */
-  def insertApproved(publisherId: String, creativeId: String, campaignId: String, advertiserId: String): Future[Unit]
+  /** Record a creative as approved for a publisher. `via` is "manual" or "auto". */
+  def insertApproved(
+      publisherId: String,
+      creativeId: String,
+      campaignId: String,
+      advertiserId: String,
+      via: String = "manual"
+  ): Future[Unit]
 
   /**
    * Delete a specific approved creative for a publisher.
@@ -146,6 +159,34 @@ trait PendingSelectionStore {
    */
   def deleteFirstSeen(publisherId: String, creativeIds: Set[String]): Future[Unit]
 
+  // ==================== Auto-Approve Trust Anchors ====================
+  // A trust anchor records that the publisher manually approved a creative
+  // from a campaign / landing registrable-domain on this site. When the
+  // site's auto-approve toggle is on, later candidates matching an anchor
+  // skip the manual queue. Anchors are written on MANUAL approval only
+  // (auto-approval consumes trust, never widens it) and deleted when the
+  // publisher rejects/flags/revokes a creative from that campaign/domain.
+
+  /**
+   * Record trust anchors earned by a manual approval. `anchors` are
+   * (anchorType, anchorValue) pairs — anchorType is "campaign" | "domain",
+   * domain values already normalized to eTLD+1. Idempotent.
+   */
+  def insertTrustAnchors(publisherId: String, anchors: Seq[(String, String)], sourceCreativeId: String): Future[Unit]
+
+  /**
+   * Break trust after a publisher reject/flag/revoke: delete the campaign
+   * anchor and (when known) the domain anchor the creative belongs to.
+   * Returns number of anchors deleted.
+   */
+  def deleteTrustAnchorsFor(publisherId: String, campaignId: String, domain: Option[String]): Future[Int]
+
+  /** Delete one anchor by key (publisher UI "remove trust" action). */
+  def deleteTrustAnchor(publisherId: String, anchorType: String, anchorValue: String): Future[Boolean]
+
+  /** All trust anchors for a publisher site. */
+  def getTrustAnchors(publisherId: String): Future[Vector[TrustAnchor]]
+
   // ==================== Flagging / Quarantine ====================
 
   /**
@@ -178,6 +219,21 @@ trait PendingSelectionStore {
  * within milliseconds and count once).
  */
 case class FirstSeen(firstSeen: Instant, lastQueued: Instant, requeueCount: Int)
+
+/** Boot-backfill row: who to re-announce to, and how the approval happened. */
+case class ApprovedCreativeMeta(creativeId: String, advertiserId: String, approvedVia: String)
+
+/**
+ * One unit of auto-approve trust on a site. anchorType is "campaign" or
+ * "domain" (plain strings — Jackson sealed-trait rule); domain values are
+ * eTLD+1 normalized.
+ */
+case class TrustAnchor(anchorType: String, anchorValue: String, sourceCreativeId: String, createdAt: Instant)
+
+object TrustAnchor {
+  val TypeCampaign = "campaign"
+  val TypeDomain = "domain"
+}
 
 /** A creative that has been flagged/quarantined by the publisher. */
 case class FlaggedCreative(

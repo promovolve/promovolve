@@ -196,7 +196,7 @@ trait ApiJsonFormats extends DefaultJsonProtocol {
   given RootJsonFormat[PendingCreativeGroup] = jsonFormat18(PendingCreativeGroup.apply)
   given RootJsonFormat[PendingCreativeGroupList] = jsonFormat2(PendingCreativeGroupList.apply)
   given RootJsonFormat[ServingPlacement] = jsonFormat5(ServingPlacement.apply)
-  given RootJsonFormat[ServingCreativeGroup] = jsonFormat14(ServingCreativeGroup.apply)
+  given RootJsonFormat[ServingCreativeGroup] = jsonFormat15(ServingCreativeGroup.apply)
   given RootJsonFormat[ServingCreativeGroupList] = jsonFormat2(ServingCreativeGroupList.apply)
   given RootJsonFormat[ApproveCreativeRequest] = jsonFormat3(ApproveCreativeRequest.apply)
   given RootJsonFormat[ApproveCreativeResponse] = jsonFormat3(ApproveCreativeResponse.apply)
@@ -258,6 +258,12 @@ trait ApiJsonFormats extends DefaultJsonProtocol {
   given RootJsonFormat[AdProductBlocklistResponse] = jsonFormat2(AdProductBlocklistResponse.apply)
   given RootJsonFormat[AdProductUnblockRequest] = jsonFormat1(AdProductUnblockRequest.apply)
   given RootJsonFormat[AdProductUnblockResponse] = jsonFormat2(AdProductUnblockResponse.apply)
+
+  // Site Auto-Approve (trust anchors)
+  given RootJsonFormat[AutoApproveSettingsResponse] = jsonFormat4(AutoApproveSettingsResponse.apply)
+  given RootJsonFormat[UpdateAutoApproveRequest] = jsonFormat1(UpdateAutoApproveRequest.apply)
+  given RootJsonFormat[RemoveTrustAnchorRequest] = jsonFormat2(RemoveTrustAnchorRequest.apply)
+  given RootJsonFormat[RemoveTrustAnchorResponse] = jsonFormat2(RemoveTrustAnchorResponse.apply)
 
   // Category Verification
   given RootJsonFormat[VerifyCategoryRequest] = jsonFormat3(VerifyCategoryRequest.apply)

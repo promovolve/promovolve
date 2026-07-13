@@ -34,7 +34,7 @@
 <div class="flex-1 min-h-0 flex flex-col" hx-ext="sse" sse-connect="/sse/publishers/events">
   <div id="tab-content" class="flex-1 min-h-0 flex flex-col"
        hx-get="/publisher/approval"
-       hx-trigger="sse:pending-updated throttle:2s, sse:approved throttle:2s, sse:rejected throttle:2s, sse:revoked throttle:2s, sse:bulk-approved throttle:2s, sse:campaign-status-changed throttle:2s, sse:creative-status-changed throttle:2s"
+       hx-trigger="sse:pending-updated throttle:2s, sse:approved throttle:2s, sse:auto-approved throttle:2s, sse:rejected throttle:2s, sse:revoked throttle:2s, sse:bulk-approved throttle:2s, sse:campaign-status-changed throttle:2s, sse:creative-status-changed throttle:2s"
        hx-target="#tab-content"
        hx-swap="innerHTML">
     {{template "approval-tab" .}}
@@ -61,7 +61,7 @@ document.body.addEventListener('htmx:beforeRequest', function(evt) {
 // 2026-07-12: events reached the browser and htmx:sseMessage fired, but
 // no request followed until this bridge existed.
 (function(){
-  var REFRESH_EVENTS = ['pending-updated','approved','rejected','revoked',
+  var REFRESH_EVENTS = ['pending-updated','approved','auto-approved','rejected','revoked',
                         'bulk-approved','campaign-status-changed','creative-status-changed'];
   var last = 0;
   document.body.addEventListener('htmx:sseMessage', function(e){
@@ -293,7 +293,9 @@ document.body.addEventListener('inboxActed', function(){
 {{end}}
 
 {{define "approval-tab"}}
-{{if and (not .Pending) (not .Serving) (not .Flagged)}}
+{{/* A group can exist with an empty inbox (auto-approve toggle/anchors on a
+     quiet site) — key the empty state off groups so the panel stays reachable. */}}
+{{if not .SiteGroups}}
 <div class="flex flex-col items-center justify-center flex-1 min-h-0 text-gray-400">
   <div class="text-5xl mb-4">&#x2713;</div>
   <p class="text-lg font-medium">Inbox zero</p>
@@ -327,6 +329,47 @@ document.body.addEventListener('inboxActed', function(){
     <div data-group data-site="{{$group.Site.ID}}">
       <div class="px-3 pt-3 pb-1 text-xs font-semibold text-gray-500 uppercase tracking-wide {{if $g}}mt-3 border-t{{end}}">
         {{if $group.Site.Domain}}{{$group.Site.Domain}}{{else}}{{$group.Site.ID}}{{end}}
+      </div>
+      {{/* Auto-approve: per-site opt-in. Manual approvals mint trust anchors
+           (campaign + landing domain); with the toggle on, new creatives
+           matching an anchor skip this queue. Reject/flag/revoke withdraws
+           the anchor. Anchors persist (dormant) while the toggle is off. */}}
+      <div class="mx-1 mt-1 mb-2 px-3 py-2 rounded-lg bg-gray-50 border border-gray-200">
+        <form method="POST" action="/publisher/approval/auto-approve" hx-post="/publisher/approval/auto-approve" hx-swap="none">
+          <input type="hidden" name="siteId" value="{{$group.Site.ID}}">
+          <label class="flex items-center gap-2 cursor-pointer select-none"
+                 title="Automatically approve new creatives from campaigns or landing domains you already approved on this site. Rejecting, flagging, or revoking a creative withdraws that trust.">
+            <input type="checkbox" name="enabled" {{if $group.AutoApprove}}checked{{end}}
+                   onchange="this.form.requestSubmit()" class="rounded border-gray-300">
+            <span class="text-xs font-medium text-gray-600">Auto-approve trusted advertisers</span>
+          </label>
+        </form>
+        {{if or $group.TrustedCampaigns $group.TrustedDomains}}
+        <div class="mt-2 flex flex-wrap gap-1">
+          {{range $a := $group.TrustedCampaigns}}
+          <form method="POST" action="/publisher/approval/trust-anchor/remove" hx-post="/publisher/approval/trust-anchor/remove" hx-swap="none" class="inline-flex max-w-full">
+            <input type="hidden" name="siteId" value="{{$group.Site.ID}}">
+            <input type="hidden" name="anchorType" value="campaign">
+            <input type="hidden" name="anchorValue" value="{{$a.ID}}">
+            <span class="inline-flex items-center gap-1 min-w-0 px-2 py-0.5 rounded-full bg-sky-50 text-sky-700 text-xs" title="Trusted campaign · {{$a.ID}}">
+              <span class="truncate">{{$a.Name}}</span>
+              <button type="submit" class="text-sky-400 hover:text-sky-700 shrink-0" title="Stop trusting this campaign">&times;</button>
+            </span>
+          </form>
+          {{end}}
+          {{range $d := $group.TrustedDomains}}
+          <form method="POST" action="/publisher/approval/trust-anchor/remove" hx-post="/publisher/approval/trust-anchor/remove" hx-swap="none" class="inline-flex max-w-full">
+            <input type="hidden" name="siteId" value="{{$group.Site.ID}}">
+            <input type="hidden" name="anchorType" value="domain">
+            <input type="hidden" name="anchorValue" value="{{$d}}">
+            <span class="inline-flex items-center gap-1 min-w-0 px-2 py-0.5 rounded-full bg-emerald-50 text-emerald-700 text-xs" title="Trusted landing domain">
+              <span class="truncate">{{$d}}</span>
+              <button type="submit" class="text-emerald-400 hover:text-emerald-700 shrink-0" title="Stop trusting this domain">&times;</button>
+            </span>
+          </form>
+          {{end}}
+        </div>
+        {{end}}
       </div>
       {{range $i, $c := $group.Pending}}
       {{/* WaitingFor is the honest queue age (survives the core's TTL
@@ -459,7 +502,8 @@ document.body.addEventListener('inboxActed', function(){
              creative is approved and in the pool but cannot deliver
              until the blocker clears. */}}
         {{if $c.Benched}}{{$badge = $c.Benched}}{{$badgeClass = "bg-gray-200 text-gray-600"}}{{end}}
-        {{template "preview-pane" dict "Pages" $c.PagesJSON "Config" $c.BannerConfigJSON "Landing" $c.LandingURL "Asset" $c.AssetURL "Width" $c.Width "Height" $c.Height "Site" $site "Badge" $badge "BadgeClass" $badgeClass}}
+        {{$extraBadge := ""}}{{if $c.AutoApproved}}{{$extraBadge = "Auto-approved"}}{{end}}
+        {{template "preview-pane" dict "Pages" $c.PagesJSON "Config" $c.BannerConfigJSON "Landing" $c.LandingURL "Asset" $c.AssetURL "Width" $c.Width "Height" $c.Height "Site" $site "Badge" $badge "BadgeClass" $badgeClass "ExtraBadge" $extraBadge "ExtraBadgeClass" "bg-sky-100 text-sky-700"}}
         <div class="grid grid-cols-2 gap-4 text-sm mb-6">
           <div><p class="text-gray-500">Advertiser</p><p class="font-medium" title="{{$c.AdvertiserID}}">{{if $c.AdvertiserName}}{{$c.AdvertiserName}}{{else}}&mdash;{{end}}</p></div>
           <div><p class="text-gray-500">Campaign</p><p class="font-medium" title="{{$c.CampaignID}}">{{if $c.CampaignName}}{{$c.CampaignName}}{{else}}&mdash;{{end}}</p></div>
@@ -600,6 +644,7 @@ document.getElementById('previewDialog').addEventListener('close', () => {
 <div class="mb-4 flex items-center gap-2">
   <span class="badge badge-neutral">{{.Site}}</span>
   <span class="badge {{.BadgeClass}}">{{.Badge}}</span>
+  {{if .ExtraBadge}}<span class="badge {{.ExtraBadgeClass}}" title="Approved automatically via this site's trusted campaigns/domains">{{.ExtraBadge}}</span>{{end}}
 </div>
 {{if .Pages}}
 {{/* The detail pane is too narrow for the full simulated-page preview (two

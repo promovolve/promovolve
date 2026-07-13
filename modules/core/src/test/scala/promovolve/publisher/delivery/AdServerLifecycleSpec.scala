@@ -151,14 +151,23 @@ class AdServerLifecycleSpec extends AnyWordSpec with Matchers with BeforeAndAfte
       Future.successful(None)
     def unflagCreative(p: String, c: String): Future[Option[FlaggedCreative]] = Future.successful(None)
     def getFlagged(p: String): Future[Vector[FlaggedCreative]] = Future.successful(Vector.empty)
-    def insertApproved(p: String, c: String, ca: String, a: String): Future[Unit] = Future.successful(())
+    def insertApproved(p: String, c: String, ca: String, a: String, via: String): Future[Unit] =
+      Future.successful(())
     def getApprovedCreativeIds(p: String): Future[Set[String]] = Future.successful(Set.empty)
     def getApprovedCreativeAdvertisers(p: String): Future[Map[String, String]] = Future.successful(Map.empty)
+    def getApprovedCreativeMeta(p: String): Future[Vector[promovolve.publisher.ApprovedCreativeMeta]] =
+      Future.successful(Vector.empty)
     def getApprovedCreativeAdvertisersByCampaign(p: String, c: String): Future[Map[String, String]] =
       Future.successful(Map.empty)
     def deleteApproved(p: String, c: String): Future[Boolean] = Future.successful(true)
     def deleteApprovedByCampaignId(p: String, c: String): Future[Int] = Future.successful(0)
     def deleteApprovedByAdvertiserId(p: String, a: String): Future[Int] = Future.successful(0)
+    def insertTrustAnchors(p: String, anchors: Seq[(String, String)], src: String): Future[Unit] =
+      Future.successful(())
+    def deleteTrustAnchorsFor(p: String, c: String, d: Option[String]): Future[Int] = Future.successful(0)
+    def deleteTrustAnchor(p: String, t: String, v: String): Future[Boolean] = Future.successful(false)
+    def getTrustAnchors(p: String): Future[Vector[promovolve.publisher.TrustAnchor]] =
+      Future.successful(Vector.empty)
   }
 
   private class IgnoringCreativeRepo extends CreativeRepo {

@@ -213,6 +213,7 @@ object ClusterBootstrap {
       pendingSelectionStore.ensureSchema()
       pendingSelectionStore.ensureFlaggedSchema()
       pendingSelectionStore.ensureApprovedSchema()
+      pendingSelectionStore.ensureTrustSchema()
 
       val statsSnapshot = new TimescaleCreativeStatsRepo(db)
       statsSnapshot.ensureSchema()

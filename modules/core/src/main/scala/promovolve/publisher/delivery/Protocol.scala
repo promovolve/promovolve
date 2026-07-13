@@ -347,6 +347,32 @@ object Protocol {
    */
   final case class RevokeCreativeApproval(creativeId: CreativeId) extends Command
 
+  /**
+   * Auto-approve trust state for the publisher dashboard: the anchors
+   * (campaigns / landing registrable-domains the publisher manually
+   * approved a creative from) plus which currently-approved creatives got
+   * in via auto-approval, for UI badging. Crosses nodes → CborSerializable.
+   */
+  final case class GetAutoApproveInfo(replyTo: ActorRef[AutoApproveInfo]) extends Command
+  final case class AutoApproveInfo(
+      trustedCampaigns: Set[String],
+      trustedDomains: Set[String],
+      autoApprovedCreativeIds: Set[String]
+  ) extends CborSerializable
+
+  /**
+   * Publisher removes one trust anchor from the dashboard ("stop trusting
+   * this campaign/domain"). anchorType is "campaign" | "domain". The
+   * in-memory set shrinks synchronously; the reply arrives after the DB
+   * delete completes so the UI can trust a refreshed anchor list.
+   */
+  final case class RemoveTrustAnchor(
+      anchorType: String,
+      anchorValue: String,
+      replyTo: ActorRef[TrustAnchorRemoved]
+  ) extends Command
+  final case class TrustAnchorRemoved(removed: Boolean) extends CborSerializable
+
   /** Notifies AdServer that a creative has been paused - remove it from ServeIndex */
   final case class CreativePaused(creativeId: CreativeId) extends Command
 
@@ -888,7 +914,10 @@ object Protocol {
    */
   private[delivery] final case class ApprovedCreativeIdsLoaded(
       ids: Set[CreativeId],
-      advertiserByCreative: Map[CreativeId, AdvertiserId] = Map.empty
+      advertiserByCreative: Map[CreativeId, AdvertiserId] = Map.empty,
+      // Subset of `ids` whose approval was written by the auto-approve
+      // path (approved_via='auto') — rebuilds the badge set on restart.
+      autoApproved: Set[CreativeId] = Set.empty
   ) extends Command
 
   /**
@@ -905,6 +934,46 @@ object Protocol {
   /** Internal: scheduled retry of the approvals load. */
   private[delivery] final case class ApprovedCreativeIdsRetryLoad(
       attempt: Int
+  ) extends Command
+
+  // ---------- Auto-approve trust anchors (internal) ----------
+
+  /** Internal: auto-approve toggle update from DData (SiteEntity.AutoApproveKey). */
+  private[delivery] final case class AutoApproveConfigUpdated(
+      config: Option[SiteEntity.CachedAutoApprove]
+  ) extends Command
+
+  /**
+   * Internal: trust anchors loaded from DB on startup. Like the approvals
+   * load, a failure must never become empty sets silently — but the safe
+   * degradation here is the opposite direction: with no anchors loaded,
+   * candidates simply queue for MANUAL review (never wrongly auto-approve).
+   */
+  private[delivery] final case class TrustAnchorsLoaded(
+      campaigns: Set[CampaignId],
+      domains: Set[String]
+  ) extends Command
+
+  /** Internal: the startup trust-anchor load failed — retried with backoff. */
+  private[delivery] final case class TrustAnchorsLoadFailed(reason: String, attempt: Int) extends Command
+
+  /** Internal: scheduled retry of the trust-anchor load. */
+  private[delivery] final case class TrustAnchorsRetryLoad(attempt: Int) extends Command
+
+  /**
+   * Internal: a publisher reject/flag/revoke broke auto-approve trust for
+   * this campaign (and its landing registrable-domain when known). Deletes
+   * the persisted anchors and synchronously shrinks the in-memory sets.
+   */
+  private[delivery] final case class TrustBroken(
+      campaignId: CampaignId,
+      domain: Option[String]
+  ) extends Command
+
+  /** Internal: DB delete for RemoveTrustAnchor completed — release the reply. */
+  private[delivery] final case class TrustAnchorRemovalDone(
+      removed: Boolean,
+      replyTo: ActorRef[TrustAnchorRemoved]
   ) extends Command
 
   /**

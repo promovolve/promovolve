@@ -854,6 +854,44 @@ object Endpoints extends ApiJsonFormats {
       .out(jsonBody[AdProductUnblockResponse])
       .errorOut(jsonBody[ErrorResponse])
 
+  // ----------------- Site Auto-Approve -----------------
+  val getAutoApprove: PublicEndpoint[(String, String), ErrorResponse, AutoApproveSettingsResponse, Any] =
+    endpoint
+      .tag("Sites")
+      .summary("Get auto-approve settings")
+      .description(
+        "Returns the site's auto-approve toggle plus its trust anchors (campaigns / landing "
+        + "registrable-domains earned by manual approvals). With the toggle on, new creatives "
+        + "matching an anchor skip the approval queue.")
+      .get
+      .in(sitesBase / path[String]("siteId") / "auto-approve")
+      .out(jsonBody[AutoApproveSettingsResponse])
+      .errorOut(jsonBody[ErrorResponse])
+
+  val updateAutoApprove
+      : PublicEndpoint[(String, String, UpdateAutoApproveRequest), ErrorResponse, AutoApproveSettingsResponse, Any] =
+    endpoint
+      .tag("Sites")
+      .summary("Update auto-approve setting")
+      .description("Enables/disables auto-approval of creatives from trusted campaigns/domains for this site")
+      .put
+      .in(sitesBase / path[String]("siteId") / "auto-approve")
+      .in(jsonBody[UpdateAutoApproveRequest])
+      .out(jsonBody[AutoApproveSettingsResponse])
+      .errorOut(jsonBody[ErrorResponse])
+
+  val removeTrustAnchor
+      : PublicEndpoint[(String, String, RemoveTrustAnchorRequest), ErrorResponse, RemoveTrustAnchorResponse, Any] =
+    endpoint
+      .tag("Sites")
+      .summary("Remove a trust anchor")
+      .description("Stops auto-approving creatives from one trusted campaign or landing domain")
+      .delete
+      .in(sitesBase / path[String]("siteId") / "auto-approve" / "anchors")
+      .in(jsonBody[RemoveTrustAnchorRequest])
+      .out(jsonBody[RemoveTrustAnchorResponse])
+      .errorOut(jsonBody[ErrorResponse])
+
   // ----------------- Serve Index -----------------
   val getServeIndex: PublicEndpoint[(String, String, Option[String]), ErrorResponse, ServeIndexResponse, Any] =
     endpoint

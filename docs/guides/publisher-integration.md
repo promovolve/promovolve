@@ -120,6 +120,30 @@ better: Promovolve continuously sweeps floor candidates against observed
 demand and picks the revenue-maximizing floor for you (see
 [floor-cpm-optimization](../design/floor-cpm-optimization.md)).
 
+## Creative approval and auto-approval
+
+Every creative that wins an auction on your site first lands in the
+dashboard **Approval** inbox; nothing serves until you approve it. For
+advertisers you already vetted you can opt in to auto-approval, per site,
+from the inbox's site panel:
+
+- Each **manual** approval records trust for that creative's campaign and
+  its landing-page domain (`shop.acme.com` and `www.acme.com` count as the
+  same `acme.com`).
+- With **Auto-approve trusted advertisers** switched on, a new creative
+  from a trusted campaign or landing domain skips the queue and starts
+  serving immediately, marked with an *Auto-approved* badge.
+- Rejecting, flagging, or revoking a creative withdraws the trust for its
+  campaign and domain — later creatives from them return to the manual
+  queue. You can also remove individual trusted campaigns/domains from the
+  site panel at any time.
+- Turning the toggle off pauses auto-approval without deleting the trust
+  list; turning it back on restores it.
+
+The toggle is off by default: approved creatives inform your floor
+pricing, so widening what gets approved automatically is a deliberate
+choice.
+
 ## Troubleshooting
 
 - **A slot renders nothing** — check the browser console. A missing or

@@ -160,11 +160,17 @@ object SiteEntity {
   /** DData key for verified host distribution — AdServer uses this for serve-time host check */
   val VerifiedHostKey: LWWMapKey[SiteId, String] = LWWMapKey("site-verified-host")
 
+  /** DData key for auto-approve toggle distribution — AdServer reads it at candidate-partition time */
+  val AutoApproveKey: LWWMapKey[SiteId, CachedAutoApprove] = LWWMapKey("site-auto-approve")
+
   /** Cached ad product blocklist for fast lookup by AdServer */
   final case class CachedAdProductBlocklist(categories: Set[AdProductCategoryId]) extends CborSerializable {
     def contains(cat: AdProductCategoryId): Boolean = categories.contains(cat)
     def contains(cat: Option[AdProductCategoryId]): Boolean = cat.exists(categories.contains)
   }
+
+  /** Cached auto-approve toggle for fast lookup by AdServer */
+  final case class CachedAutoApprove(enabled: Boolean) extends CborSerializable
 
   // ---------- Behavior ----------
   def apply(
@@ -457,6 +463,16 @@ object SiteEntity {
             )(_.put(selfUniqueAddress, siteId, cached))
             ctx.log.info("SiteEntity {} published ad product blocklist to DData ({} categories)", siteId.value,
               blocklist.size)
+          }
+
+          def publishAutoApprove(enabled: Boolean): Unit = {
+            replicator ! Replicator.Update(
+              AutoApproveKey,
+              LWWMap.empty[SiteId, CachedAutoApprove],
+              Replicator.WriteLocal,
+              ddataResponseAdapter
+            )(_.put(selfUniqueAddress, siteId, CachedAutoApprove(enabled)))
+            ctx.log.info("SiteEntity {} published auto-approve={} to DData", siteId.value, enabled)
           }
 
           def publishVerifiedHost(host: Option[String]): Unit = {
@@ -809,6 +825,16 @@ object SiteEntity {
 
               case GetAcceptsFillerTraffic(replyTo) =>
                 Effect.none.thenReply(replyTo)(_ => state.acceptsFillerTraffic)
+
+              case UpdateAutoApprove(enabled, replyTo) =>
+                ctx.log.info("SiteEntity {} set autoApproveEnabled={}", siteId.value, enabled)
+                Effect
+                  .persist(state.withAutoApprove(enabled))
+                  .thenRun((_: State) => publishAutoApprove(enabled))
+                  .thenReply(replyTo)(_ => AutoApproveUpdated(siteId, enabled))
+
+              case GetAutoApprove(replyTo) =>
+                Effect.none.thenReply(replyTo)(_ => state.autoApproveEnabled)
 
               case ForceVerifyHost(host, replyTo) =>
                 ctx.log.info("SiteEntity {} force-verifying host '{}' (dev/test)", siteId.value, host)
@@ -1376,6 +1402,7 @@ object SiteEntity {
             publishPacingConfig(state.pacingConfig.copy(bidWeight = state.bidWeight,
               floorCpm = state.floorCpm.toDouble))
             publishAdProductBlocklist(state.adProductBlocklist)
+            publishAutoApprove(state.autoApproveEnabled)
             publishVerifiedHost(state.verifiedHost)
             // Replay admin per-slot floor overrides to AuctioneerEntity so
             // they survive restarts. RL overrides are transient and will
@@ -1890,6 +1917,17 @@ object SiteEntity {
   final case class GetAcceptsFillerTraffic(replyTo: ActorRef[Boolean]) extends Command
 
   /**
+   * Toggle auto-approval of creatives from campaigns / landing domains the
+   * publisher already manually approved on this site. Off by default —
+   * approved demand teaches floors, so the opt-in must be deliberate.
+   */
+  final case class UpdateAutoApprove(enabled: Boolean, replyTo: ActorRef[AutoApproveUpdated]) extends Command
+  final case class AutoApproveUpdated(siteId: SiteId, enabled: Boolean) extends promovolve.CborSerializable
+
+  /** Get current auto-approve opt-in state */
+  final case class GetAutoApprove(replyTo: ActorRef[Boolean]) extends Command
+
+  /**
    * One snapshot of what the floor-CPM sweep optimizer did during a single
    * 15-minute observation window. Held in an in-memory ring buffer per
    * SiteEntity for production observability — the dashboard reads
@@ -2007,6 +2045,13 @@ object SiteEntity {
       // publishers flip this off if they'd never approve filler
       // creatives and don't want them in their approval queue.
       acceptsFillerTraffic: Boolean = true,
+      // When true, a new candidate whose campaign or landing registrable-
+      // domain the publisher already manually approved on this site skips
+      // the approval queue (AdServer consults the site_auto_approve_trust
+      // anchors). Off by default: auto-approved creatives teach floors
+      // like manual ones, so the opt-in must be deliberate. Pre-feature
+      // states deserialize false (no migration).
+      autoApproveEnabled: Boolean = false,
       // Persisted page classifications, used to repopulate
       // AuctioneerEntity's in-memory `lastPage` cache on cluster
       // restart. Without this, every restart triggers a bootstrap
@@ -2073,6 +2118,7 @@ object SiteEntity {
         floorSweepSnapshotByCategory = floorSweepSnapshotByCategory ++ snaps
       )
     def withAcceptsFillerTraffic(accept: Boolean): State = copy(acceptsFillerTraffic = accept)
+    def withAutoApprove(enabled: Boolean): State = copy(autoApproveEnabled = enabled)
 
     /**
      * Insert/replace a classification entry; if the map would exceed

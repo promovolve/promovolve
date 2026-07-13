@@ -57,6 +57,7 @@ object AdServer {
     CreativeReactivated,
     CreativeStats,
     CreativeStatsMap,
+    AutoApproveInfo,
     Done,
     EvictCampaignFromSite,
     EvictCampaignFromSlots,
@@ -64,6 +65,7 @@ object AdServer {
     FlagResult,
     FlaggedItem,
     FlaggedList,
+    GetAutoApproveInfo,
     GetCreativeStats,
     GetServeStats,
     ListFlagged,
@@ -79,8 +81,10 @@ object AdServer {
     RefreshTTLForCampaign,
     Reject,
     RemoveAdvertiser,
+    RemoveTrustAnchor,
     RevokeCreativeApproval,
     ServeStats,
+    TrustAnchorRemoved,
     Unflag,
     UnflagResult
   }
@@ -741,6 +745,7 @@ object AdServer {
         // Type aliases for clarity
         type PacingConfigMap = LWWMap[SiteId, SiteEntity.PacingConfig]
         type AdProductBlocklistMap = LWWMap[SiteId, SiteEntity.CachedAdProductBlocklist]
+        type AutoApproveMap = LWWMap[SiteId, SiteEntity.CachedAutoApprove]
         type VerifiedHostMap = LWWMap[SiteId, String]
         type PageWinnersMap = LWWMap[String, PageWinners]
         type AdvertiserBlocklistMap = LWWMap[AdvertiserId, AdvertiserEntity.CachedSiteDomainBlocklist]
@@ -764,6 +769,8 @@ object AdServer {
                 PacingConfigUpdated(changed.dataValue.asInstanceOf[PacingConfigMap].get(publisherId))
               case SiteEntity.AdProductBlocklistKey =>
                 AdProductBlocklistUpdated(changed.dataValue.asInstanceOf[AdProductBlocklistMap].get(publisherId))
+              case SiteEntity.AutoApproveKey =>
+                AutoApproveConfigUpdated(changed.dataValue.asInstanceOf[AutoApproveMap].get(publisherId))
               case SiteEntity.VerifiedHostKey =>
                 VerifiedHostUpdated(changed.dataValue.asInstanceOf[VerifiedHostMap].get(publisherId))
               case PageWinnersKey =>
@@ -794,6 +801,8 @@ object AdServer {
                 PacingConfigUpdated(success.dataValue.asInstanceOf[PacingConfigMap].get(publisherId))
               case SiteEntity.AdProductBlocklistKey =>
                 AdProductBlocklistUpdated(success.dataValue.asInstanceOf[AdProductBlocklistMap].get(publisherId))
+              case SiteEntity.AutoApproveKey =>
+                AutoApproveConfigUpdated(success.dataValue.asInstanceOf[AutoApproveMap].get(publisherId))
               case SiteEntity.VerifiedHostKey =>
                 VerifiedHostUpdated(success.dataValue.asInstanceOf[VerifiedHostMap].get(publisherId))
               case PageWinnersKey =>
@@ -815,6 +824,7 @@ object AdServer {
         replicator ! Replicator.Subscribe(AdvertiserEntity.DomainBlocklistCacheKey, subscribeAdapter)
         replicator ! Replicator.Subscribe(SiteEntity.PacingConfigKey, subscribeAdapter)
         replicator ! Replicator.Subscribe(SiteEntity.AdProductBlocklistKey, subscribeAdapter)
+        replicator ! Replicator.Subscribe(SiteEntity.AutoApproveKey, subscribeAdapter)
         replicator ! Replicator.Subscribe(SiteEntity.VerifiedHostKey, subscribeAdapter)
         replicator ! Replicator.Subscribe(PageWinnersKey, subscribeAdapter)
 
@@ -823,6 +833,7 @@ object AdServer {
         replicator ! Replicator.Get(AdvertiserEntity.DomainBlocklistCacheKey, Replicator.ReadLocal, getAdapter)
         replicator ! Replicator.Get(SiteEntity.PacingConfigKey, Replicator.ReadLocal, getAdapter)
         replicator ! Replicator.Get(SiteEntity.AdProductBlocklistKey, Replicator.ReadLocal, getAdapter)
+        replicator ! Replicator.Get(SiteEntity.AutoApproveKey, Replicator.ReadLocal, getAdapter)
         replicator ! Replicator.Get(SiteEntity.VerifiedHostKey, Replicator.ReadLocal, getAdapter)
         replicator ! Replicator.Get(PageWinnersKey, Replicator.ReadLocal, getAdapter)
 
@@ -863,13 +874,27 @@ object AdServer {
         // check is ServeIndex membership, which is circular after a restart —
         // an entity that boots "unapproved" can never repair itself. Failures
         // log at ERROR and retry with backoff (handler below).
-        ctx.pipeToSelf(store.getApprovedCreativeAdvertisers(publisherId.value)) {
-          case Success(m) =>
+        ctx.pipeToSelf(store.getApprovedCreativeMeta(publisherId.value)) {
+          case Success(rows) =>
             ApprovedCreativeIdsLoaded(
-              m.keySet.map(CreativeId(_)),
-              m.map { case (c, a) => CreativeId(c) -> AdvertiserId(a) }
+              rows.map(r => CreativeId(r.creativeId)).toSet,
+              rows.map(r => CreativeId(r.creativeId) -> AdvertiserId(r.advertiserId)).toMap,
+              autoApproved = rows.collect { case r if r.approvedVia == "auto" => CreativeId(r.creativeId) }.toSet
             )
           case Failure(e) => ApprovedCreativeIdsLoadFailed(e.getMessage, attempt = 1)
+        }
+
+        // Load auto-approve trust anchors on startup. Same retry discipline
+        // as the approvals load, but the safe degradation is inverted: with
+        // no anchors, candidates queue for MANUAL review — a failed load can
+        // delay auto-approvals but never wrongly grant one.
+        ctx.pipeToSelf(store.getTrustAnchors(publisherId.value)) {
+          case Success(anchors) =>
+            TrustAnchorsLoaded(
+              anchors.collect { case a if a.anchorType == TrustAnchor.TypeCampaign => CampaignId(a.anchorValue) }.toSet,
+              anchors.collect { case a if a.anchorType == TrustAnchor.TypeDomain => a.anchorValue }.toSet
+            )
+          case Failure(e) => TrustAnchorsLoadFailed(e.getMessage, attempt = 1)
         }
 
         new AdServer(
@@ -1256,6 +1281,15 @@ private[delivery] class AdServer(
 
         behavior(state.copy(cachedAdProductBlocklist = newBlocklist))
 
+      case AutoApproveConfigUpdated(configOpt) =>
+        val wasEnabled = state.cachedAutoApprove.exists(_.enabled)
+        val nowEnabled = configOpt.exists(_.enabled)
+        if (wasEnabled != nowEnabled) {
+          log.info("AdServer {} auto-approve toggle updated: {} -> {}", siteId.value,
+            wasEnabled: java.lang.Boolean, nowEnabled: java.lang.Boolean)
+        }
+        behavior(state.copy(cachedAutoApprove = configOpt))
+
       case VerifiedHostUpdated(hostOpt) =>
         log.info("AdServer {} verified host updated: {}", siteId.value, hostOpt.getOrElse("none"))
         behavior(state.copy(verifiedHost = hostOpt))
@@ -1535,6 +1569,7 @@ private[delivery] class AdServer(
           behavior(state.copy(
             keysByCreative = keysByCreative -- creativeIds,
             persistedApprovedIds = persistedApprovedIds -- creativeIds,
+            autoApprovedIds = state.autoApprovedIds -- creativeIds,
             pinnedCreativeIds = pinnedCreativeIds -- creativeIds
           ))
         }
@@ -1605,9 +1640,26 @@ private[delivery] class AdServer(
           }
         }
         store.deleteApproved(siteId.value, creativeId.value)
+        // Revoke breaks auto-approve trust — without this, a trust anchor
+        // would auto-re-approve the creative on its very next auction win,
+        // making revoke a no-op loop. The wire message carries only the
+        // creativeId, so resolve campaign/domain from the creative repo.
+        ctx.pipeToSelf(creativeRepo.get(creativeId.value)) {
+          case Success(Some(creative)) =>
+            TrustBroken(CampaignId(creative.campaignId), RegistrableDomain.of(creative.landingDomain))
+          case Success(None) =>
+            log.warn("Revoked creative {} not in CreativeRepo — trust anchors NOT broken for site {}",
+              creativeId.value, siteId.value)
+            NoOp
+          case Failure(ex) =>
+            log.error("Creative lookup for revoke trust-break failed: creative={} site={}: {}",
+              creativeId.value, siteId.value, ex.getMessage)
+            NoOp
+        }
         behavior(state.copy(
           keysByCreative = keysByCreative - creativeId,
           persistedApprovedIds = state.persistedApprovedIds - creativeId,
+          autoApprovedIds = state.autoApprovedIds - creativeId,
           pinnedCreativeIds = state.pinnedCreativeIds - creativeId
         ))
 
@@ -1829,12 +1881,22 @@ private[delivery] class AdServer(
           existingCreativeIds.size,
           siteWideApproved.size
         )
-        processCandidatesWithApprovalStatus(
+        val autoApprovedNow = processCandidatesWithApprovalStatus(
           url, slotId, candidates, classifiedAt, ttl, slotKey, siteWideApproved, effectiveView,
           cachedDomainBlocklist, cachedAdProductBlocklist,
-          cachedAdvertiserBlocklists, AdServer.mySiteDomainOpt(verifiedHost)
+          cachedAdvertiserBlocklists, AdServer.mySiteDomainOpt(verifiedHost),
+          autoApproveEnabled = cachedAutoApprove.exists(_.enabled),
+          trustedCampaigns = trustedCampaigns,
+          trustedDomains = trustedDomains
         )
-        Behaviors.same
+        // Auto-approvals join persistedApprovedIds SYNCHRONOUSLY, same
+        // doctrine as manual approve/revoke (see the one-source-of-truth
+        // comment above) — the next wave must see them as approved.
+        if (autoApprovedNow.isEmpty) Behaviors.same
+        else behavior(state.copy(
+          persistedApprovedIds = state.persistedApprovedIds ++ autoApprovedNow,
+          autoApprovedIds = state.autoApprovedIds ++ autoApprovedNow
+        ))
 
       case CandidateScoresFetched(
             url,
@@ -2095,6 +2157,16 @@ private[delivery] class AdServer(
           // Remove flagged creative from ServeIndex across all slots
           serveIndex ! ServeIndexDData.RemoveCreativeBySite(siteId.value, CreativeId(flagged.creativeId))
 
+          // Flag breaks auto-approve trust like a reject. FlaggedCreative
+          // doesn't carry the landing domain, so resolve it from the
+          // creative repo; a failed lookup still breaks the campaign anchor.
+          ctx.pipeToSelf(creativeRepo.get(flagged.creativeId)) {
+            case Success(Some(creative)) =>
+              TrustBroken(CampaignId(flagged.campaignId), RegistrableDomain.of(creative.landingDomain))
+            case _ =>
+              TrustBroken(CampaignId(flagged.campaignId), None)
+          }
+
           // Trigger re-auction to fill the vacancy left by the flagged creative
           val auctioneerRef = sharding.entityRefFor(
             promovolve.auction.AuctioneerEntity.TypeKey,
@@ -2148,6 +2220,40 @@ private[delivery] class AdServer(
 
     case ListFlaggedResult(items, replyTo) =>
       replyTo ! FlaggedList(items)
+      Behaviors.same
+
+    // ==================== Auto-Approve Trust ====================
+
+    case GetAutoApproveInfo(replyTo) =>
+      replyTo ! AutoApproveInfo(
+        trustedCampaigns = state.trustedCampaigns.map(_.value),
+        trustedDomains = state.trustedDomains,
+        autoApprovedCreativeIds = state.autoApprovedIds.map(_.value)
+      )
+      Behaviors.same
+
+    case RemoveTrustAnchor(anchorType, anchorValue, replyTo) =>
+      log.info("Publisher removing trust anchor for site {}: {}={}", siteId.value, anchorType, anchorValue)
+      ctx.pipeToSelf(store.deleteTrustAnchor(siteId.value, anchorType, anchorValue)) {
+        case Success(removed) => TrustAnchorRemovalDone(removed, replyTo)
+        case Failure(ex)      =>
+          log.error("Trust anchor delete failed for site {}: {}={}: {}", siteId.value, anchorType, anchorValue,
+            ex.getMessage)
+          TrustAnchorRemovalDone(removed = false, replyTo)
+      }
+      // In-memory removal is synchronous so the very next auction wave
+      // stops auto-approving, even before the DB delete lands.
+      anchorType match {
+        case TrustAnchor.TypeCampaign =>
+          behavior(state.copy(trustedCampaigns = state.trustedCampaigns - CampaignId(anchorValue)))
+        case TrustAnchor.TypeDomain =>
+          behavior(state.copy(trustedDomains = state.trustedDomains - anchorValue))
+        case _ =>
+          Behaviors.same
+      }
+
+    case TrustAnchorRemovalDone(removed, replyTo) =>
+      replyTo ! TrustAnchorRemoved(removed)
       Behaviors.same
   }
 
@@ -2851,8 +2957,9 @@ private[delivery] class AdServer(
         )
         Behaviors.same
 
-      case ApprovedCreativeIdsLoaded(ids, advertiserByCreative) =>
-        log.info("Loaded {} persisted approved creative IDs for site {}", ids.size, siteId.value)
+      case ApprovedCreativeIdsLoaded(ids, advertiserByCreative, autoApproved) =>
+        log.info("Loaded {} persisted approved creative IDs for site {} ({} auto-approved)",
+          ids.size, siteId.value, autoApproved.size)
         // Backfill: re-announce each persisted approval to its AdvertiserEntity
         // so `Creative.approvedSites` converges — the bid path reads it to tell
         // approved (floor-teaching) demand from pending demand. Idempotent: the
@@ -2866,7 +2973,7 @@ private[delivery] class AdServer(
             replyTo = system.ignoreRef
           )
         }
-        behavior(state.copy(persistedApprovedIds = ids))
+        behavior(state.copy(persistedApprovedIds = ids, autoApprovedIds = autoApproved))
 
       case ApprovedCreativeIdsLoadFailed(reason, attempt) =>
         // Keep whatever approved set we already have (never clobber with
@@ -2891,15 +2998,72 @@ private[delivery] class AdServer(
         Behaviors.same
 
       case ApprovedCreativeIdsRetryLoad(attempt) =>
-        ctx.pipeToSelf(store.getApprovedCreativeAdvertisers(siteId.value)) {
-          case Success(m) =>
+        ctx.pipeToSelf(store.getApprovedCreativeMeta(siteId.value)) {
+          case Success(rows) =>
             ApprovedCreativeIdsLoaded(
-              m.keySet.map(CreativeId(_)),
-              m.map { case (c, a) => CreativeId(c) -> AdvertiserId(a) }
+              rows.map(r => CreativeId(r.creativeId)).toSet,
+              rows.map(r => CreativeId(r.creativeId) -> AdvertiserId(r.advertiserId)).toMap,
+              autoApproved = rows.collect { case r if r.approvedVia == "auto" => CreativeId(r.creativeId) }.toSet
             )
           case Failure(e) => ApprovedCreativeIdsLoadFailed(e.getMessage, attempt)
         }
         Behaviors.same
+
+      case TrustAnchorsLoaded(campaigns, domains) =>
+        if (campaigns.nonEmpty || domains.nonEmpty) {
+          log.info("Loaded auto-approve trust anchors for site {}: {} campaigns, {} domains",
+            siteId.value, campaigns.size: java.lang.Integer, domains.size: java.lang.Integer)
+        }
+        behavior(state.copy(trustedCampaigns = campaigns, trustedDomains = domains))
+
+      case TrustAnchorsLoadFailed(reason, attempt) =>
+        // Unlike the approvals load, failing here is fail-SAFE (candidates
+        // just queue for manual review), but still retry so an enabled
+        // site's auto-approvals resume without a restart.
+        log.error(
+          "Trust-anchor load FAILED for site {} (attempt {}): {} — retrying",
+          siteId.value, attempt: java.lang.Integer, reason
+        )
+        if (attempt < 6) {
+          ctx.scheduleOnce((5 * attempt).seconds, ctx.self, TrustAnchorsRetryLoad(attempt + 1))
+        } else {
+          log.error(
+            "Trust-anchor load for site {} gave up after {} attempts — auto-approve is dormant until the next anchor event or restart",
+            siteId.value, attempt: java.lang.Integer
+          )
+        }
+        Behaviors.same
+
+      case TrustAnchorsRetryLoad(attempt) =>
+        ctx.pipeToSelf(store.getTrustAnchors(siteId.value)) {
+          case Success(anchors) =>
+            TrustAnchorsLoaded(
+              anchors.collect { case a if a.anchorType == TrustAnchor.TypeCampaign => CampaignId(a.anchorValue) }.toSet,
+              anchors.collect { case a if a.anchorType == TrustAnchor.TypeDomain => a.anchorValue }.toSet
+            )
+          case Failure(e) => TrustAnchorsLoadFailed(e.getMessage, attempt)
+        }
+        Behaviors.same
+
+      case TrustBroken(campaignId, domainOpt) =>
+        val hadTrust = state.trustedCampaigns.contains(campaignId) ||
+          domainOpt.exists(state.trustedDomains.contains)
+        if (hadTrust) {
+          log.info(
+            "Auto-approve trust BROKEN for site {}: campaign={} domain={} — siblings return to the manual queue",
+            siteId.value, campaignId.value, domainOpt.getOrElse("(unknown)")
+          )
+        }
+        // Delete persisted anchors even when the in-memory sets don't have
+        // them (boot-race window) so DB and memory converge on "no trust".
+        store.deleteTrustAnchorsFor(siteId.value, campaignId.value, domainOpt).failed.foreach { ex =>
+          log.error("Failed to delete trust anchors for site {} campaign {}: {}",
+            siteId.value, campaignId.value, ex.getMessage)
+        }
+        behavior(state.copy(
+          trustedCampaigns = state.trustedCampaigns - campaignId,
+          trustedDomains = domainOpt.fold(state.trustedDomains)(state.trustedDomains - _)
+        ))
     }
   }
 
@@ -2929,8 +3093,11 @@ private[delivery] class AdServer(
       cachedDomainBlocklist: Option[PublisherEntity.CachedDomainBlocklist],
       cachedAdProductBlocklist: Option[SiteEntity.CachedAdProductBlocklist],
       cachedAdvertiserBlocklists: Map[AdvertiserId, Set[String]],
-      mySiteDomain: Option[String]
-  ): Unit = {
+      mySiteDomain: Option[String],
+      autoApproveEnabled: Boolean,
+      trustedCampaigns: Set[CampaignId],
+      trustedDomains: Set[String]
+  ): Set[CreativeId] = {
     log.info(
       "AdServer[{}] processing {} candidates with ServeIndex approval: url={} slot={} existingApproved={}",
       siteId.value,
@@ -3000,13 +3167,58 @@ private[delivery] class AdServer(
     // existingCreativeIds includes creatives from this slot's ServeIndex AND creatives
     // approved at any other slot on this site (via keysByCreative inverted index).
     // This ensures a creative approved at one slot is treated as approved site-wide.
-    val (approved, pending) = filteredCandidates.partition(c =>
+    val (alreadyApproved, rest) = filteredCandidates.partition(c =>
       existingCreativeIds.contains(c.creativeId)
     )
 
+    // Auto-approve: with the site's toggle on, a NEW candidate whose
+    // campaign or landing registrable-domain the publisher already manually
+    // approved skips the queue and rides the approved batch path below —
+    // which gives it the same ServeIndex entry a manual approval gets.
+    val (autoApproved, pending) =
+      if (autoApproveEnabled && (trustedCampaigns.nonEmpty || trustedDomains.nonEmpty))
+        rest.partition(c =>
+          trustedCampaigns.contains(c.campaignId) ||
+            RegistrableDomain.of(c.landingDomain).exists(trustedDomains.contains)
+        )
+      else (Vector.empty[Candidate], rest)
+
+    autoApproved.foreach { c =>
+      log.info(
+        "✅ AUTO-APPROVED creative {} (campaign={} domain={}) via trust anchor: pub={} url={} slot={}",
+        c.creativeId.value, c.campaignId.value, c.landingDomain, siteId.value, url.value, slotId.value
+      )
+      // Replicate manual approval's persistence + floor-teaching side
+      // effects (completeApprovalWithScore needs a pending Selection this
+      // candidate never had, so the batch path handles ServeIndex instead):
+      // 1. Persist the approval (survives restart; via='auto' for badging).
+      store.insertApproved(siteId.value, c.creativeId.value, c.campaignId.value, c.advertiserId.value, via = "auto")
+      // 2. Terminal outcome — queue-age tracking + stale pending rows from
+      //    earlier waves are no longer meaningful.
+      store.deleteFirstSeen(siteId.value, Set(c.creativeId.value))
+      store.removeCreativeFromAll(siteId.value, c.creativeId.value)
+      // 3. Teach floors: approvedSites on the AdvertiserEntity is what the
+      //    bid path reads to tell approved demand from pending. Fire-and-
+      //    forget is the sanctioned boot-backfill form (idempotent there).
+      sharding.entityRefFor(AdvertiserEntity.TypeKey, c.advertiserId.value) !
+      AdvertiserEntity.UpdateCreativeApproval(
+        creativeId = c.creativeId,
+        siteId = siteId,
+        status = ApprovalStatus.Approved,
+        replyTo = system.ignoreRef
+      )
+      // 4. Live-update any open approval dashboard.
+      budgetEventTopic ! Topic.Publish(
+        promovolve.CreativeAutoApproved(siteId, url, slotId, c.creativeId, c.campaignId, Instant.now())
+      )
+    }
+
+    val approved = alreadyApproved ++ autoApproved
+
     log.info(
-      "Partitioned candidates by site-wide approval: approved={} pending={}",
+      "Partitioned candidates by site-wide approval: approved={} (auto={}) pending={}",
       approved.size,
+      autoApproved.size,
       pending.size
     )
 
@@ -3041,6 +3253,7 @@ private[delivery] class AdServer(
           CandidateScoresFetched(url, slotId, approved, pending, classifiedAt, ttl, slotKey, Map.empty, existingView)
       }
     }
+    autoApproved.map(_.creativeId).toSet
   }
 
   /**
@@ -3353,6 +3566,18 @@ private[delivery] class AdServer(
     // Terminal outcome — queue-age tracking is no longer meaningful
     store.deleteFirstSeen(siteId.value, Set(candidate.creativeId.value))
 
+    // A MANUAL approval earns auto-approve trust for the campaign and the
+    // landing registrable-domain (anchors persist even while the site's
+    // toggle is off — dormant until the publisher opts in). Auto-approvals
+    // deliberately never write anchors: trust must not chain transitively.
+    val domainAnchor = RegistrableDomain.of(candidate.landingDomain)
+    store.insertTrustAnchors(
+      siteId.value,
+      Seq(TrustAnchor.TypeCampaign -> candidate.campaignId.value) ++
+        domainAnchor.map(TrustAnchor.TypeDomain -> _),
+      candidate.creativeId.value
+    )
+
     // Persist approval status on AdvertiserEntity (wait for confirmation)
     persistApprovalAndComplete(
       candidate.advertiserId,
@@ -3364,7 +3589,13 @@ private[delivery] class AdServer(
       replyTo
     )
     addCandidateToIndexes(state, slotKey, candidateView)
-      .copy(persistedApprovedIds = state.persistedApprovedIds + candidate.creativeId)
+      .copy(
+        persistedApprovedIds = state.persistedApprovedIds + candidate.creativeId,
+        // Manual approval supersedes any earlier auto-approval badge
+        autoApprovedIds = state.autoApprovedIds - candidate.creativeId,
+        trustedCampaigns = state.trustedCampaigns + candidate.campaignId,
+        trustedDomains = state.trustedDomains ++ domainAnchor
+      )
   }
 
   /** Persist approval status on AdvertiserEntity and pipe completion back to actor. */
@@ -3494,6 +3725,15 @@ private[delivery] class AdServer(
             // Terminal outcome — queue-age tracking is no longer meaningful
             store.deleteFirstSeen(siteId.value, Set(cid))
 
+            // Manual approval earns auto-approve trust (see completeApprovalWithScore)
+            val domainAnchor = RegistrableDomain.of(candidate.landingDomain)
+            store.insertTrustAnchors(
+              siteId.value,
+              Seq(TrustAnchor.TypeCampaign -> candidate.campaignId.value) ++
+                domainAnchor.map(TrustAnchor.TypeDomain -> _),
+              cid
+            )
+
             // Persist approval status on AdvertiserEntity (wait for confirmation)
             val advertiserRef = sharding.entityRefFor(
               promovolve.advertiser.AdvertiserEntity.TypeKey,
@@ -3518,7 +3758,12 @@ private[delivery] class AdServer(
             )
             val withIndex = addCandidateToIndexes(accState, slotKey, candidateView)
             val withPersisted =
-              withIndex.copy(persistedApprovedIds = withIndex.persistedApprovedIds + candidate.creativeId)
+              withIndex.copy(
+                persistedApprovedIds = withIndex.persistedApprovedIds + candidate.creativeId,
+                autoApprovedIds = withIndex.autoApprovedIds - candidate.creativeId,
+                trustedCampaigns = withIndex.trustedCampaigns + candidate.campaignId,
+                trustedDomains = withIndex.trustedDomains ++ domainAnchor
+              )
             (withPersisted, accResults :+ (true, Some(approvalFuture)))
 
           case None =>
@@ -3598,6 +3843,11 @@ private[delivery] class AdServer(
 
           // Terminal outcome — queue-age tracking is no longer meaningful
           store.deleteFirstSeen(siteId.value, Set(cid))
+
+          // A reject is direct evidence the auto-approve inference failed
+          // for this campaign/domain — break the trust anchors so siblings
+          // return to the manual queue.
+          ctx.self ! TrustBroken(candidate.campaignId, RegistrableDomain.of(candidate.landingDomain))
 
           log.info(
             "Rejected creative: campaign={} creative={} publisher={} reason={} - removed from ServeIndex",
@@ -4256,6 +4506,18 @@ private[delivery] class AdServer(
       idsForKey: Map[String, (Set[CampaignId], Set[CreativeId], Set[AdvertiserId])] = Map.empty,
       // Persisted approved creative IDs (survives restart)
       persistedApprovedIds: Set[CreativeId] = Set.empty,
+      // Auto-approve toggle mirrored from SiteEntity via DData
+      // (SiteEntity.AutoApproveKey). None/absent = disabled.
+      cachedAutoApprove: Option[SiteEntity.CachedAutoApprove] = None,
+      // Auto-approve trust anchors, mirrored from site_auto_approve_trust.
+      // Written on MANUAL approvals (auto-approvals never widen trust),
+      // shrunk on publisher reject/flag/revoke (TrustBroken). Loaded at
+      // boot with retry; empty-until-loaded degrades to manual queueing.
+      trustedCampaigns: Set[CampaignId] = Set.empty,
+      trustedDomains: Set[String] = Set.empty,
+      // Subset of persistedApprovedIds that got approved via the
+      // auto-approve path — drives the "Auto-approved" dashboard badge.
+      autoApprovedIds: Set[CreativeId] = Set.empty,
       // Best-effort set of creativeIds readers currently have pinned
       // (dog-ear). TRANSIENT — not snapshotted; rebuilt as serves
       // arrive. Populated when a serve honors a pin (BatchSelected

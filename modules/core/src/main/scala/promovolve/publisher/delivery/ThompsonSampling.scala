@@ -219,14 +219,6 @@ object ThompsonSampling {
   }
 
   /**
-   * Minimum impression share factor per campaign. The actual threshold is
-   * MinImpressionShareFactor / numCampaigns — so with 10 campaigns the threshold
-   * is 5% (half of the natural 10% fair share), not a fixed 15%.
-   * This prevents the guarantee from firing constantly in dense markets.
-   */
-  val MinImpressionShareFactor: Double = 0.50 // half of natural fair share
-
-  /**
    * Sample from Beta distribution using the Gamma trick.
    * Beta(α, β) = X / (X + Y) where X ~ Gamma(α, 1), Y ~ Gamma(β, 1)
    */

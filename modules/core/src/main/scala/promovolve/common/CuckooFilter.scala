@@ -1,7 +1,10 @@
 package promovolve.common
 
+import promovolve.SiteId
+
 import java.nio.{ ByteBuffer, ByteOrder }
-import scala.util.Random
+import java.util.UUID
+import scala.util.{ Random, Try }
 
 /**
  * A Cuckoo Filter implementation with support for insert, lookup, and delete.
@@ -350,5 +353,94 @@ object CuckooFilter {
     v |= v >> 8
     v |= v >> 16
     v + 1
+  }
+}
+
+// ============================================================================
+// Serialized-filter extension ops (moved from BloomFilter.scala 2026-07-13 —
+// they construct CuckooFilters; co-locating them ends the misleading file
+// split where cuckoo semantics lived under the Bloom filter's name).
+// ============================================================================
+
+/**
+ * Cuckoo filter operations for site rejection tracking.
+ *
+ * Supports deletion, making rejections reversible.
+ *
+ * Fingerprint size:
+ * - rejectedSites: 16-bit (~1 in 10,000 FP) - FP just means lost revenue
+ */
+extension (serializedFilter: Array[Byte]) {
+
+  /** Best-effort deserialize. Returns None for empty/corrupted filters (fail-safe). */
+  private def safeDeserialize(bytes: Array[Byte]): Option[CuckooFilter] =
+    Option.when(bytes.nonEmpty)(bytes).flatMap(b => Try(CuckooFilter.fromBytes(b)).toOption)
+
+  // --- SiteId-based membership (publisher approval tracking) ---
+
+  /** Check if site ID is in the filter. */
+  def mightContain(siteId: SiteId): Boolean =
+    safeDeserialize(serializedFilter).exists(_.mightContain(siteId.value))
+
+  /**
+   * Add site ID to rejected filter (16-bit fingerprints).
+   * FP on rejectedSites just means lost revenue - acceptable trade-off.
+   */
+  def addRejected(
+      siteId: SiteId,
+      expectedInsertions: Int = 2000
+  ): Array[Byte] = {
+    val fpp = 0.0001 // 16-bit fingerprints: ~1 in 10,000 FP rate
+    val filter = safeDeserialize(serializedFilter)
+      .getOrElse(CuckooFilter(expectedInsertions, fpp))
+    filter.insert(siteId.value)
+    filter.toBytes
+  }
+
+  /** Generic add - prefer addRejected for site rejection tracking. */
+  def add(
+      siteId: SiteId,
+      expectedInsertions: Int = 2000,
+      fpp: Double = 0.0001
+  ): Array[Byte] = {
+    val filter = safeDeserialize(serializedFilter)
+      .getOrElse(CuckooFilter(expectedInsertions, fpp))
+    filter.insert(siteId.value)
+    filter.toBytes
+  }
+
+  /** Remove site ID from filter and return new serialized filter. */
+  def remove(siteId: SiteId): Array[Byte] = {
+    safeDeserialize(serializedFilter) match {
+      case Some(filter) =>
+        filter.delete(siteId.value)
+        filter.toBytes
+      case None =>
+        serializedFilter
+    }
+  }
+
+  /** Check if this filter supports deletion (always true for Cuckoo). */
+  def supportsDeletion: Boolean = serializedFilter.nonEmpty
+
+  // --- UUID-based membership (idempotency) ---
+
+  /** Check if UUID might be in the filter. */
+  def mightContainUUID(uuid: UUID): Boolean =
+    safeDeserialize(serializedFilter).exists(_.mightContain(uuid.toString))
+
+  /**
+   * Add multiple UUIDs to filter efficiently.
+   * Returns new serialized filter.
+   */
+  def addUUIDs(
+      uuids: IterableOnce[UUID],
+      expectedInsertions: Int = 50000,
+      fpp: Double = 0.001
+  ): Array[Byte] = {
+    val filter = safeDeserialize(serializedFilter)
+      .getOrElse(CuckooFilter(expectedInsertions, fpp))
+    uuids.iterator.foreach(uuid => filter.insert(uuid.toString))
+    filter.toBytes
   }
 }

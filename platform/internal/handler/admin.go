@@ -5,6 +5,7 @@ import (
 	"log/slog"
 	"net/http"
 	"net/mail"
+	"strconv"
 	"strings"
 
 	"github.com/google/uuid"
@@ -473,7 +474,30 @@ func (h *Handler) renderAdminSettings(w http.ResponseWriter, r *http.Request, er
 		MarginPct:     formatBps(current),
 		MarginHistory: rows,
 		PayoutFloor:   payoutFloor,
+		OrgMaxMembers: h.orgRepo.MaxMembers(r.Context()),
 	})
+}
+
+// UpdateOrgMaxMembers sets the operator-tunable member cap per org. The
+// cap gates NEW invites/approvals only — orgs already above it keep
+// their members.
+func (h *Handler) UpdateOrgMaxMembers(w http.ResponseWriter, r *http.Request) {
+	admin, _, ok := h.requireRole(w, r, model.RoleAdmin)
+	if !ok {
+		return
+	}
+	r.ParseForm()
+	n, err := strconv.Atoi(strings.TrimSpace(r.FormValue("orgMaxMembers")))
+	if err != nil || n < 1 || n > 100 {
+		h.renderAdminSettings(w, r, "member cap must be a whole number between 1 and 100")
+		return
+	}
+	if err := h.orgRepo.SetMaxMembers(r.Context(), n, admin.ID); err != nil {
+		slog.Error("set org member cap failed", "error", err)
+		h.renderAdminSettings(w, r, "could not update the member cap")
+		return
+	}
+	http.Redirect(w, r, "/admin/settings", http.StatusSeeOther)
 }
 
 // UpdatePayoutFloor sets the platform-wide minimum payout. Publishers can

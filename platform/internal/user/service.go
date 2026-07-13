@@ -115,8 +115,8 @@ func (s *Service) attachMembership(ctx context.Context, o *model.Org, userID str
 	if err != nil {
 		return err
 	}
-	if n >= model.MaxOrgMembers {
-		return fmt.Errorf("organization %s already has the maximum of %d members", o.Domain, model.MaxOrgMembers)
+	if max := s.orgs.MaxMembers(ctx); n >= max {
+		return fmt.Errorf("organization %s already has the maximum of %d members", o.Domain, max)
 	}
 	role := model.OrgRoleMember
 	if n == 0 {

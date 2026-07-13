@@ -41,6 +41,19 @@
     </form>
   </div>
 
+  <div class="card mt-6">
+    <h2 class="font-semibold text-lg">Organization size</h2>
+    <p class="text-sm text-gray-500 mt-1 mb-4">Maximum members per organization (the first admin plus invitees). Existing larger orgs keep their members; the cap gates new invites and approvals.</p>
+    <form method="POST" action="/admin/settings/org-max-members" class="flex items-end gap-3">
+      <div>
+        <label class="form-label">Max members</label>
+        <input type="number" name="orgMaxMembers" min="1" max="100" step="1"
+          value="{{.OrgMaxMembers}}" class="form-input w-32">
+      </div>
+      <button type="submit" class="btn btn-primary">Update cap</button>
+    </form>
+  </div>
+
   <div class="card mt-6 p-0 overflow-x-auto">
     <h2 class="font-semibold text-lg px-6 pt-6">History</h2>
     <table class="w-full text-sm mt-3">

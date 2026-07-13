@@ -126,9 +126,11 @@ const (
 )
 
 // Org is one customer organization: exactly one per email domain, holding the
-// advertiser and/or publisher core entities its members operate. MaxOrgMembers
-// caps the org (the first admin + up to two invitees).
-const MaxOrgMembers = 3
+// advertiser and/or publisher core entities its members operate.
+// DefaultMaxOrgMembers caps the org (first admin + invitees) unless the
+// platform operator overrides it in /admin/settings (platform_settings
+// key org_max_members — see org.Repository.MaxMembers).
+const DefaultMaxOrgMembers = 5
 
 type Org struct {
 	ID           string    `json:"id"`

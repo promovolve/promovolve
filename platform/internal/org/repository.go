@@ -6,6 +6,8 @@ package org
 import (
 	"context"
 	"errors"
+	"fmt"
+	"strconv"
 	"strings"
 
 	"github.com/jackc/pgx/v5"
@@ -22,6 +24,37 @@ type Repository struct {
 
 func NewRepository(pool *pgxpool.Pool) *Repository {
 	return &Repository{pool: pool}
+}
+
+const maxMembersKey = "org_max_members"
+
+// MaxMembers is the operator-set member cap per organization
+// (/admin/settings), defaulting to model.DefaultMaxOrgMembers when the
+// setting was never written or is unreadable. Read per check — invite
+// and approval are rare paths, no cache needed.
+func (r *Repository) MaxMembers(ctx context.Context) int {
+	var raw string
+	if err := r.pool.QueryRow(ctx,
+		`SELECT value FROM platform_settings WHERE key = $1`, maxMembersKey,
+	).Scan(&raw); err == nil {
+		if n, convErr := strconv.Atoi(raw); convErr == nil && n >= 1 {
+			return n
+		}
+	}
+	return model.DefaultMaxOrgMembers
+}
+
+func (r *Repository) SetMaxMembers(ctx context.Context, n int, updatedBy string) error {
+	if n < 1 {
+		return fmt.Errorf("org: member cap must be at least 1")
+	}
+	_, err := r.pool.Exec(ctx, `
+		INSERT INTO platform_settings (key, value, updated_by, updated_at)
+		VALUES ($1, $2, $3, NOW())
+		ON CONFLICT (key) DO UPDATE SET value = $2, updated_by = $3, updated_at = NOW()`,
+		maxMembersKey, strconv.Itoa(n), updatedBy,
+	)
+	return err
 }
 
 // DomainOf extracts the lowercase email domain ("" when malformed).

@@ -229,9 +229,10 @@ type orgPageData struct {
 	Name    string
 	Members []org.MemberRow
 	// The signed-in member's own vantage point.
-	SelfID    string
-	IsAdmin   bool
-	CanInvite bool
+	SelfID     string
+	IsAdmin    bool
+	CanInvite  bool
+	MaxMembers int
 	// MissingSide is the side the org doesn't hold yet ("" when it has both);
 	// SidePending marks an operator review already in flight for it.
 	MissingSide string
@@ -261,13 +262,15 @@ func (h *Handler) renderOrgMembers(w http.ResponseWriter, r *http.Request, errMs
 		slog.Error("list org members failed", "error", err)
 		errMsg = "could not load your team"
 	}
+	maxMembers := h.orgRepo.MaxMembers(r.Context())
 	data := &orgPageData{
 		Domain:      u.Org.Domain,
 		Name:        u.Org.Name,
 		Members:     members,
 		SelfID:      u.ID,
 		IsAdmin:     u.IsOrgAdmin(),
-		CanInvite:   u.IsOrgAdmin() && len(members) < model.MaxOrgMembers,
+		CanInvite:   u.IsOrgAdmin() && len(members) < maxMembers,
+		MaxMembers:  maxMembers,
 		InviteURL:   inviteURL,
 		InviteEmail: inviteEmail,
 		Notice:      notice,
@@ -292,7 +295,8 @@ func (h *Handler) renderOrgMembers(w http.ResponseWriter, r *http.Request, errMs
 	})
 }
 
-// OrgInvite creates a member account (same email domain only, org cap 3) and
+// OrgInvite creates a member account (same email domain only, capped at the
+// operator-set org member limit) and
 // mints its one-time passkey registration link — the recovery-link machinery
 // reused as the invite flow. Operator approval is deliberately NOT involved:
 // the org admin vouches for their own colleague.
@@ -318,8 +322,8 @@ func (h *Handler) OrgInvite(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	n, err := h.orgRepo.CountMembers(r.Context(), u.Org.ID)
-	if err != nil || n >= model.MaxOrgMembers {
-		h.renderOrgMembers(w, r, fmt.Sprintf("your organization already has the maximum of %d members", model.MaxOrgMembers), "", "", "")
+	if max := h.orgRepo.MaxMembers(r.Context()); err != nil || n >= max {
+		h.renderOrgMembers(w, r, fmt.Sprintf("your organization already has the maximum of %d members", max), "", "", "")
 		return
 	}
 

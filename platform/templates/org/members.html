@@ -1,7 +1,7 @@
 {{define "content"}}
 <div class="max-w-4xl">
   <h1 class="page-title">Team</h1>
-  <p class="page-sub">{{if .OrgPage.Name}}{{.OrgPage.Name}} · {{end}}@{{.OrgPage.Domain}} — up to 3 members share this organization's accounts.</p>
+  <p class="page-sub">{{if .OrgPage.Name}}{{.OrgPage.Name}} · {{end}}@{{.OrgPage.Domain}} — up to {{.OrgPage.MaxMembers}} members share this organization's accounts.</p>
 
   {{if .Error}}
   <div class="bg-red-50 border border-red-200 text-red-700 rounded-lg p-3 mt-6 text-sm">{{.Error}}</div>
@@ -94,7 +94,7 @@
     </form>
   </div>
   {{else if .OrgPage.IsAdmin}}
-  <p class="text-sm text-gray-400 mt-6">Your organization has reached the maximum of 3 members.</p>
+  <p class="text-sm text-gray-400 mt-6">Your organization has reached the maximum of {{.OrgPage.MaxMembers}} members.</p>
   {{end}}
 
   {{if and .OrgPage.IsAdmin .OrgPage.MissingSide}}

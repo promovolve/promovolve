@@ -264,6 +264,8 @@ type pageData struct {
 	// (pacing) and wallet (funds) are never seen in isolation.
 	WalletBalance  string
 	WalletUnfunded bool
+	// OrgMaxMembers is the operator-set member cap per organization.
+	OrgMaxMembers int
 	// PayoutFloor is the platform-wide minimum payout (dollars string) on
 	// the admin settings page.
 	PayoutFloor string

@@ -1008,13 +1008,16 @@ Warmup Mode:
 │        ▼                                                  │
 │  Return WarmupModeActive (no ads served)                  │
 │                                                           │
-│  After sufficient data:                                   │
-│    1. Export learned shapes via API                       │
-│    2. Configure site with shapes                          │
-│    3. Exit warmup mode                                    │
-│    4. Normal serving begins with accurate pacing          │
+│  The shape learns in place (persisted per site). Once     │
+│  it has diverged from uniform — check the Floor Decisions │
+│  page or GET /sites/{id}/stats — exit warmup mode and     │
+│  normal serving begins with accurate pacing.              │
 └──────────────────────────────────────────────────────────┘
 ```
+
+Shapes are never configured by hand: a hand-authored shape encodes
+intuition rather than measurement, and a wrong shape paces worse than
+the flat one (flat = linear pacing). The tracker is the only writer.
 
 **API Endpoints:**
 - `GET /sites/{id}/stats` — Returns learned `weekdayShapeVolumes` and `weekendShapeVolumes` (read-only export)

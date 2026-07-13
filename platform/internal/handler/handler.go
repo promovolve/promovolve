@@ -12,6 +12,7 @@ import (
 	"io/fs"
 	"log/slog"
 	"net/http"
+	"net/url"
 	"strconv"
 	"strings"
 	"time"
@@ -133,6 +134,25 @@ var funcMap = template.FuncMap{
 	// asset builds a version-stamped /static URL (see staticVersion).
 	"asset": func(name string) string {
 		return "/static/" + name + "?v=" + staticVersion
+	},
+	// stripQuery renders a URL without its query/fragment — display trim
+	// for UTM-laden landing URLs; pair with queryCount so the reader can
+	// tell params were dropped (the full URL stays in href/title).
+	"stripQuery": func(raw string) string {
+		u, err := url.Parse(raw)
+		if err != nil {
+			return raw
+		}
+		u.RawQuery = ""
+		u.Fragment = ""
+		return u.String()
+	},
+	"queryCount": func(raw string) int {
+		u, err := url.Parse(raw)
+		if err != nil {
+			return 0
+		}
+		return len(u.Query())
 	},
 	"slice": func(s string, start, end int) string {
 		if end > len(s) {

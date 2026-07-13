@@ -346,7 +346,11 @@
       <div class="grid grid-cols-3 gap-6 text-sm">
         <div>
           <p class="text-gray-500 text-xs uppercase mb-2">Campaign</p>
-          <p>Landing: {{if .LandingURL}}{{.LandingURL}}{{else}}&mdash;{{end}}</p>
+          {{/* UTM-laden landing URLs are too long to print whole: show the
+               trimmed URL, but keep the FULL url one interaction away — the
+               link opens it (params included, the real "is it set right"
+               check) and the tooltip shows it. Grey +N hint = params exist. */}}
+          <p class="break-all">Landing: {{if .LandingURL}}<a href="{{.LandingURL}}" target="_blank" rel="noopener" title="{{.LandingURL}}" class="text-brand hover:underline">{{stripQuery .LandingURL}}</a>{{with queryCount .LandingURL}} <span class="text-gray-400 text-xs whitespace-nowrap">+{{.}} param{{if gt . 1}}s{{end}}</span>{{end}}{{else}}&mdash;{{end}}</p>
           <p class="mt-1">ID: <span class="font-mono text-xs">{{.ID}}</span></p>
         </div>
         <div>

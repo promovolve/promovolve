@@ -734,6 +734,16 @@ object SiteEntity {
                   "SiteEntity {} re-arming restarted auctioneer with {} admin slot floors",
                   siteId.value, adminMap.size)
                 auctioneerRef ! AuctioneerEntity.UpdateAdminSlotFloors(adminMap)
+                // The page-classification cache (`lastPage`) is in-memory
+                // only too, and used to be replayed ONLY at SiteEntity's own
+                // recovery — an auctioneer incarnation spawned in between
+                // ran EMPTY and auctions silently stopped until a visitor
+                // happened to hit the site (live 2026-07-13, right after a
+                // CI deploy). Replay on the same handshake; the auctioneer
+                // skips entries it already holds and kicks a re-auction only
+                // when something was actually restored.
+                if (state.pageClassifications.nonEmpty)
+                  auctioneerRef ! AuctioneerEntity.RestoreClassifications(state.pageClassifications)
                 Effect.none
 
               case UpdateSlotFloorOverride(slotId, floor, replyTo) =>
@@ -1310,6 +1320,17 @@ object SiteEntity {
 
               case RefreshDemandCategories =>
                 refreshDemandCategories()
+                // Best-effort page-classification replay rides the same tick:
+                // the auctioneer's page cache is in-memory only, and an
+                // incarnation spawned between SiteEntity recoveries (shard
+                // rebalance; a floor update waking a fresh shard) runs EMPTY —
+                // auctions silently stop until a visitor happens to hit the
+                // site (live 2026-07-13, right after a CI deploy). The
+                // auctioneer skips entries it already has and kicks a
+                // re-auction only when something was actually restored, so
+                // the steady-state resend is a no-op.
+                if (state.pageClassifications.nonEmpty)
+                  auctioneerRef ! AuctioneerEntity.RestoreClassifications(state.pageClassifications)
                 Effect.none
 
               case DemandCategoriesRefreshed(categories) =>

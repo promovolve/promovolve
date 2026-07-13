@@ -413,31 +413,41 @@ private final class AuctioneerEntity private (
       Behaviors.same
 
     case RestoreClassifications(classifications) =>
-      // Merge with whatever lastPage already holds (typically empty on
-      // restart, but be defensive if SiteEntity sends twice). Persisted
+      // Merge with whatever lastPage already holds. This arrives at
+      // SiteEntity recovery AND on its periodic refresh tick (the resend
+      // heals an incarnation of THIS entity that spawned empty between
+      // SiteEntity recoveries — live 2026-07-13). Idempotent: entries we
+      // already hold at the same-or-newer timestamp are skipped, so the
+      // steady-state resend restores nothing and kicks nothing. Persisted
       // entries don't go through eviction here — CleanupStaleContent
-      // will prune anything older than contentRecencyWindow on its
-      // first tick, so the load stays bounded.
+      // prunes anything older than contentRecencyWindow on its next tick.
+      var restored = 0
       classifications.foreach { case (urlStr, entry) =>
         val url = URL(urlStr)
-        val slots = entry.slots.iterator.map(_.toAdSlotSpec).toList
         val tsInst = Instant.ofEpochMilli(entry.classifiedAt)
-        lastPage = lastPage.updated(url, (entry.categories, slots, tsInst))
-        // Repopulate AdServer's freshness token after a restart so restored
-        // pages (incl. no-bidder ones) aren't treated as cold on first serve.
-        adServer ! AdServer.MarkClassified(url, tsInst)
+        val isNew = lastPage.get(url).forall { case (_, _, haveTs) => tsInst.isAfter(haveTs) }
+        if (isNew) {
+          val slots = entry.slots.iterator.map(_.toAdSlotSpec).toList
+          lastPage = lastPage.updated(url, (entry.categories, slots, tsInst))
+          // Repopulate AdServer's freshness token after a restart so restored
+          // pages (incl. no-bidder ones) aren't treated as cold on first serve.
+          adServer ! AdServer.MarkClassified(url, tsInst)
+          restored += 1
+        }
       }
-      ctx.log.info(
-        "Restored {} page classifications from SiteEntity (lastPage size now {})",
-        classifications.size: java.lang.Integer,
-        lastPage.size: java.lang.Integer
-      )
-      // Kick off an immediate re-auction so ServeIndex repopulates
-      // within ~1 second instead of waiting up to reauctionInterval
-      // for the periodic tick. Without this, skipping the bootstrap
-      // crawl creates a serve drought after restart even though
-      // lastPage is full.
-      scheduleReauction()
+      if (restored > 0) {
+        ctx.log.info(
+          "Restored {} page classifications from SiteEntity (lastPage size now {})",
+          restored: java.lang.Integer,
+          lastPage.size: java.lang.Integer
+        )
+        // Kick off an immediate re-auction so ServeIndex repopulates
+        // within ~1 second instead of waiting up to reauctionInterval
+        // for the periodic tick. Without this, skipping the bootstrap
+        // crawl creates a serve drought after restart even though
+        // lastPage is full.
+        scheduleReauction()
+      }
       Behaviors.same
 
     case Reevaluate(url) =>

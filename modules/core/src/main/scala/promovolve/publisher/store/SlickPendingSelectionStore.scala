@@ -474,8 +474,8 @@ final class SlickPendingSelectionStore(db: Database)(using ec: ExecutionContext)
     val action = trustAnchors
       .filter(r =>
         r.publisherId === publisherId &&
-          ((r.anchorType === TrustAnchor.TypeCampaign && r.anchorValue === campaignId) ||
-            (r.anchorType === TrustAnchor.TypeDomain && r.anchorValue === domain.getOrElse("")))
+        ((r.anchorType === TrustAnchor.TypeCampaign && r.anchorValue === campaignId) ||
+        (r.anchorType === TrustAnchor.TypeDomain && r.anchorValue === domain.getOrElse("")))
       )
       .delete
     db.run(action)

@@ -410,7 +410,8 @@ class AdServerAutoApproveSpec extends AnyWordSpec with Matchers with BeforeAndAf
       val cid = "cr-rejected"
       val store = new RecordingStore(initialAnchors = Vector(
         TrustAnchor(TrustAnchor.TypeCampaign, "camp-r", "seed", Instant.now()),
-        TrustAnchor(TrustAnchor.TypeDomain, "acme.com", "seed", Instant.now())
+        TrustAnchor(TrustAnchor.TypeDomain, "acme.com", "seed",
+          Instant.now())
       ))
       val fx = spawnFixture("site-reject-break", store)
       fx.awaitAnchors(Set("camp-r"), Set("acme.com"))
@@ -448,7 +449,8 @@ class AdServerAutoApproveSpec extends AnyWordSpec with Matchers with BeforeAndAf
       val cid = "cr-revoked"
       val store = new RecordingStore(initialAnchors = Vector(
         TrustAnchor(TrustAnchor.TypeCampaign, "camp-v", "seed", Instant.now()),
-        TrustAnchor(TrustAnchor.TypeDomain, "acme.com", "seed", Instant.now())
+        TrustAnchor(TrustAnchor.TypeDomain, "acme.com", "seed",
+          Instant.now())
       ))
       val repo = new FixedCreativeRepo(Map(cid -> testCreative(cid, "camp-v", "shop.acme.com")))
       val fx = spawnFixture("site-revoke-break", store, creativeRepo = repo)

@@ -43,6 +43,7 @@ object AdServer {
     Approve,
     ApproveAll,
     ApproveAllResult,
+    AutoApproveInfo,
     BatchContentTooOld,
     BatchHostNotVerified,
     BatchSelect,
@@ -57,7 +58,6 @@ object AdServer {
     CreativeReactivated,
     CreativeStats,
     CreativeStatsMap,
-    AutoApproveInfo,
     Done,
     EvictCampaignFromSite,
     EvictCampaignFromSlots,
@@ -3051,7 +3051,8 @@ private[delivery] class AdServer(
         if (hadTrust) {
           log.info(
             "Auto-approve trust BROKEN for site {}: campaign={} domain={} — siblings return to the manual queue",
-            siteId.value, campaignId.value, domainOpt.getOrElse("(unknown)")
+            siteId.value, campaignId.value,
+            domainOpt.getOrElse("(unknown)")
           )
         }
         // Delete persisted anchors even when the in-memory sets don't have
@@ -3179,7 +3180,7 @@ private[delivery] class AdServer(
       if (autoApproveEnabled && (trustedCampaigns.nonEmpty || trustedDomains.nonEmpty))
         rest.partition(c =>
           trustedCampaigns.contains(c.campaignId) ||
-            RegistrableDomain.of(c.landingDomain).exists(trustedDomains.contains)
+          RegistrableDomain.of(c.landingDomain).exists(trustedDomains.contains)
         )
       else (Vector.empty[Candidate], rest)
 
@@ -3574,7 +3575,7 @@ private[delivery] class AdServer(
     store.insertTrustAnchors(
       siteId.value,
       Seq(TrustAnchor.TypeCampaign -> candidate.campaignId.value) ++
-        domainAnchor.map(TrustAnchor.TypeDomain -> _),
+      domainAnchor.map(TrustAnchor.TypeDomain -> _),
       candidate.creativeId.value
     )
 
@@ -3730,7 +3731,7 @@ private[delivery] class AdServer(
             store.insertTrustAnchors(
               siteId.value,
               Seq(TrustAnchor.TypeCampaign -> candidate.campaignId.value) ++
-                domainAnchor.map(TrustAnchor.TypeDomain -> _),
+              domainAnchor.map(TrustAnchor.TypeDomain -> _),
               cid
             )
 

@@ -78,16 +78,16 @@ class AdServerSuspensionSpec extends AnyWordSpec with Matchers with BeforeAndAft
   // auctioneer; the shard type must exist or entityRefFor throws and kills
   // the actor. Sink probes, same harness shape as AdServerAutoApproveSpec.
   private val auctioneerProbe = testKit.createTestProbe[promovolve.auction.AuctioneerEntity.Command]()
-  sharding.init(org.apache.pekko.cluster.sharding.typed.scaladsl.Entity(promovolve.auction.AuctioneerEntity.TypeKey)(
-    _ =>
+  sharding.init(
+    org.apache.pekko.cluster.sharding.typed.scaladsl.Entity(promovolve.auction.AuctioneerEntity.TypeKey)(_ =>
       Behaviors.receiveMessage[promovolve.auction.AuctioneerEntity.Command] { msg =>
         auctioneerProbe.ref ! msg
         Behaviors.same
       }
-  ))
+    ))
   private val advertiserProbe = testKit.createTestProbe[promovolve.advertiser.AdvertiserEntity.Command]()
-  sharding.init(org.apache.pekko.cluster.sharding.typed.scaladsl.Entity(promovolve.advertiser.AdvertiserEntity.TypeKey)(
-    _ =>
+  sharding.init(
+    org.apache.pekko.cluster.sharding.typed.scaladsl.Entity(promovolve.advertiser.AdvertiserEntity.TypeKey)(_ =>
       Behaviors.receiveMessage[
         promovolve.advertiser.AdvertiserEntity.Command | promovolve.advertiser.AdvertiserEntity.DDataUpdateResponse
       ] {
@@ -97,7 +97,7 @@ class AdServerSuspensionSpec extends AnyWordSpec with Matchers with BeforeAndAft
         case _ =>
           Behaviors.same
       }
-  ))
+    ))
 
   override def afterAll(): Unit = testKit.shutdownTestKit()
 

@@ -95,12 +95,15 @@
       </nav>
       <div class="border-t border-gray-700 pt-4 mt-4">
         <p class="text-xs text-gray-400 truncate mb-2">{{.User.Email}}</p>
-        <div class="flex items-center gap-3">
+        {{/* whitespace-nowrap + flex-wrap: a link that doesn't fit moves to
+             the next line WHOLE — "Sign out" used to break mid-phrase when
+             Team/Passkeys/Sign out outgrew the sidebar width. */}}
+        <div class="flex flex-wrap items-center gap-x-3 gap-y-1">
           {{if .User.Org}}
-          <a href="/org/members" class="text-sm {{if eq .Nav "team"}}text-white{{else}}text-gray-400 hover:text-white{{end}}">Team</a>
+          <a href="/org/members" class="text-sm whitespace-nowrap {{if eq .Nav "team"}}text-white{{else}}text-gray-400 hover:text-white{{end}}">Team</a>
           {{end}}
-          <a href="/account/passkeys" class="text-sm {{if eq .Nav "passkeys"}}text-white{{else}}text-gray-400 hover:text-white{{end}}">Passkeys</a>
-          <a href="/logout" class="text-sm text-gray-400 hover:text-white">Sign out</a>
+          <a href="/account/passkeys" class="text-sm whitespace-nowrap {{if eq .Nav "passkeys"}}text-white{{else}}text-gray-400 hover:text-white{{end}}">Passkeys</a>
+          <a href="/logout" class="text-sm whitespace-nowrap text-gray-400 hover:text-white">Sign out</a>
         </div>
       </div>
     </aside>

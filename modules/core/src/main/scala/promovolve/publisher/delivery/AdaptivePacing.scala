@@ -124,8 +124,9 @@ object AdaptivePacing {
   val SpendRatioSmoothingAlpha: Double = 0.3
 
   /**
-   * Default feedforward window: disabled by default since volatility-adjusted PI gains
-   * are typically sufficient. Enable (0.1-0.2) for smooth shapes where PI is conservative.
+   * Default feedforward window: disabled — the PI controller plus the
+   * traffic-shape rate multiplier (with bucket interpolation) pace
+   * smoothly without anticipatory correction.
    */
   val DefaultFeedforwardWindow: Double = 0.0
 
@@ -141,106 +142,13 @@ object AdaptivePacing {
       feedforwardWindow: Double = DefaultFeedforwardWindow
   ): RateAwarePacing = new RateAwarePacing(avgCpm, gracePeriodFraction, kp, ki, feedforwardWindow)
 
-  /**
-   * Create rate-aware pacing from raw traffic shape volumes.
-   *
-   * Convenience method when you have the shape array but not a tracker instance.
-   *
-   * @param volumes 24-element array of hourly traffic volumes
-   * @param avgCpm  Estimated average CPM (default 5.00)
-   * @param gracePeriodFraction Grace period as fraction of day (default 0.01)
-   * @return RateAwarePacing with volatility-adjusted PI gains
-   */
-  def forShapeVolumes(
-      volumes: Seq[Double],
-      avgCpm: Double = DefaultAvgCpm,
-      gracePeriodFraction: Double = DefaultGracePeriodFraction
-  ): RateAwarePacing = {
-    require(volumes.size == 24, s"Expected 24 volumes, got ${volumes.size}")
-    val tracker = TrafficShapeTracker(bucketCount = 24)
-    tracker.restore(volumes.toArray)
-    forShape(tracker, avgCpm, gracePeriodFraction)
-  }
-
-  /**
-   * Create rate-aware pacing with PI gains automatically tuned for traffic shape volatility.
-   *
-   * Higher volatility (drastic traffic changes) → higher PI gains for faster response.
-   * Lower volatility (smooth traffic) → lower PI gains for stability.
-   *
-   * == Gain Scaling ==
-   *
-   * The volatility is the coefficient of variation (stddev/mean) of the traffic shape:
-   *  - `0.0`: Uniform traffic → use minimum gains (0.3 Kp, 0.2 Ki)
-   *  - `0.5`: Typical daily pattern → use default gains (0.5 Kp, 0.3 Ki)
-   *  - `1.0`: High volatility → use elevated gains (0.8 Kp, 0.5 Ki)
-   *  - `1.5+`: Extreme volatility → use maximum gains (1.0 Kp, 0.6 Ki)
-   *
-   * The scaling is linear between these points, clamped at min/max.
-   *
-   * @param trafficShape The traffic shape tracker to analyze
-   * @param avgCpm       Estimated average CPM (default 5.00)
-   * @param gracePeriodFraction Grace period as fraction of day (default 0.01)
-   * @return RateAwarePacing with volatility-adjusted PI gains
-   */
-  def forShape(
-      trafficShape: TrafficShapeTracker,
-      avgCpm: Double = DefaultAvgCpm,
-      gracePeriodFraction: Double = DefaultGracePeriodFraction
-  ): RateAwarePacing = {
-    val volatility = trafficShape.volatility
-    val (kp, ki) = gainsForVolatility(volatility)
-    val ff = feedforwardForVolatility(volatility)
-    new RateAwarePacing(avgCpm, gracePeriodFraction, kp, ki, ff)
-  }
-
-  /**
-   * Calculate feedforward window based on traffic shape volatility.
-   *
-   * Feedforward helps smooth shapes where PI gains are conservative.
-   * For volatile shapes, aggressive PI gains handle transitions - feedforward would over-correct.
-   *
-   * Scaling (inverse of PI gain scaling):
-   *  - `0.0` volatility (uniform): 20% feedforward (smooth transitions help)
-   *  - `0.5` volatility (typical): 10% feedforward (moderate)
-   *  - `1.0+` volatility (drastic): 0% feedforward (PI is aggressive enough)
-   *
-   * @param volatility Coefficient of variation of traffic shape (0.0 = uniform)
-   * @return Feedforward window fraction (0.0-0.2)
-   */
-  def feedforwardForVolatility(volatility: Double): Double = {
-    val maxFeedforward = 0.2 // 20% for smooth shapes
-    val minFeedforward = 0.0 // 0% for volatile shapes
-    val volatilityThreshold = 1.0 // Above this, no feedforward
-
-    // Linear interpolation: high volatility → low feedforward
-    val t = math.max(0.0, math.min(1.0, volatility / volatilityThreshold))
-    maxFeedforward - t * (maxFeedforward - minFeedforward)
-  }
-
-  /**
-   * Calculate PI gains based on traffic shape volatility.
-   *
-   * @param volatility Coefficient of variation of traffic shape (0.0 = uniform)
-   * @return (Kp, Ki) tuple with volatility-adjusted gains
-   */
-  def gainsForVolatility(volatility: Double): (Double, Double) = {
-    // Define gain ranges
-    val minKp = 0.3
-    val maxKp = 1.0
-    val minKi = 0.2
-    val maxKi = 0.6
-
-    val maxVolatility = 1.5 // Cap for scaling
-
-    // Linear interpolation based on volatility
-    val t = math.max(0.0, math.min(1.0, volatility / maxVolatility))
-
-    val kp = minKp + t * (maxKp - minKp)
-    val ki = minKi + t * (maxKi - minKi)
-
-    (kp, ki)
-  }
+  // NOTE (2026-07-13): the volatility-adjusted constructor family
+  // (forShape / forShapeVolumes / gainsForVolatility /
+  // feedforwardForVolatility) was removed — production only ever built
+  // the plain rateAware() controller, and the runtime selfTune +
+  // overpace multiplier already adapt gains from OBSERVED behavior,
+  // which beats pre-computing them from shape volatility. Git history
+  // has the design if a real pacing oscillation ever calls for it.
 }
 
 /**

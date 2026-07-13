@@ -1047,6 +1047,19 @@ private[delivery] class AdServer(
       case (_, org.apache.pekko.actor.typed.PostStop) =>
         log.info("AdServer stopping for publisher {}, unsubscribing from topics", siteId.value)
         budgetEventTopic ! Topic.Unsubscribe(budgetEventAdapter)
+        // Best-effort shape save: passivation/rebalance/shutdown would
+        // otherwise discard up to an hour of learning (the periodic
+        // SnapshotStats cadence). Bounded blocking is acceptable in
+        // PostStop; failures are non-fatal (the hourly snapshot remains).
+        try
+          scala.concurrent.Await.ready(
+            trafficShapeSnapshotRepo.upsert(siteId.value, state.trafficShapeTracker.toSnapshot),
+            scala.concurrent.duration.DurationInt(2).seconds
+          )
+        catch {
+          case scala.util.control.NonFatal(ex) =>
+            log.warn("Traffic shape save on stop failed for {}: {}", siteId.value, ex.getMessage)
+        }
         Behaviors.same
     }
   }
@@ -1282,7 +1295,8 @@ private[delivery] class AdServer(
             // Reset traffic shape tracker if dayDurationSeconds changed (learned shape is invalid)
             val newTrafficShapeTracker = if (dayDurationChanged) {
               log.info("Resetting traffic shape tracker due to dayDurationSeconds change")
-              val tracker = TrafficShapeTracker(bucketCount = 24, alpha = trafficShapeTracker.alpha)
+              val tracker =
+                new TrafficShapeTracker(bucketCount = 24, alpha = trafficShapeTracker.alpha, interpolateVolumes = true)
               tracker.setDayType(java.time.LocalDate.now(java.time.ZoneOffset.UTC).getDayOfWeek)
               tracker
             } else {
@@ -1321,7 +1335,12 @@ private[delivery] class AdServer(
                   advertiserRef ! AdvertiserEntity.ResetDayStart(system.ignoreRef, silent = true)
                 }
               }
-              Some(Instant.now())
+              if (config.dayDurationSeconds == 86400)
+                // Real days anchor to UTC midnight (calendar-day budgets);
+                // only simulated days anchor to "now".
+                Some(java.time.LocalDate.now(java.time.ZoneOffset.UTC)
+                  .atStartOfDay(java.time.ZoneOffset.UTC).toInstant)
+              else Some(Instant.now())
             } else {
               lastDayStart
             }
@@ -2819,7 +2838,7 @@ private[delivery] class AdServer(
             snapshot.bucketCount,
             snapshot.updatedAt
           )
-          val restoredTracker = TrafficShapeTracker.fromSnapshot(snapshot)
+          val restoredTracker = TrafficShapeTracker.fromSnapshot(snapshot, interpolateVolumes = true)
           restoredTracker.setDayType(today)
           behavior(state.copy(trafficShapeTracker = restoredTracker))
         }
@@ -3817,6 +3836,13 @@ private[delivery] class AdServer(
           log.info("Traffic shape now using {} pattern",
             if (nextDayOfWeek.getValue >= 6) "weekend" else "weekday")
 
+          // Persist immediately: rolloverDay just blended today into the
+          // learned shape — waiting for the hourly SnapshotStats timer
+          // loses the whole day's contribution to any restart in between.
+          ctx.pipeToSelf(trafficShapeSnapshotRepo.upsert(siteId.value, trafficShapeTracker.toSnapshot)) {
+            _.fold(ex => TrafficShapeSnapshotSaveResult(Some(ex)), _ => TrafficShapeSnapshotSaveResult(None))
+          }
+
           if (dayDurationSeconds != 86400 && participatingCampaigns.nonEmpty) {
             // Simulated days only: campaigns rely on this signal to roll their
             // budget window. Real days: CampaignEntity rolls itself off
@@ -4198,14 +4224,23 @@ private[delivery] class AdServer(
       cachedAdvertiserBlocklists: Map[AdvertiserId, Set[String]] = Map.empty,
       creativeStats: Map[CreativeId, CreativeStats] = Map.empty,
       serveStats: ServeStats = ServeStats(siteId.value),
-      lastDayStart: Option[Instant] = Some(Instant.now()),
+      // Anchored to UTC midnight, NOT boot time: campaign budgets are
+      // calendar-day scoped, and rollover re-anchors to midnight anyway
+      // (see newDayStart) — a boot-time anchor skewed expectedSpend for
+      // the whole boot day (the 2026-07-06 incident family; fixed for
+      // the boot path 2026-07-13). Simulated days re-anchor explicitly
+      // on PacingConfigUpdated.
+      lastDayStart: Option[Instant] = Some(
+        java.time.LocalDate.now(java.time.ZoneOffset.UTC).atStartOfDay(java.time.ZoneOffset.UTC).toInstant),
       pacingStrategy: PacingStrategy = initialPacingStrategy,
       smoothedReqRate: Double = 0.0,
       pendingSpendByCampaign: Map[CampaignId, (Double, Instant)] = Map.empty,
       dayDurationSeconds: Int = 86400,
       spendInfoCache: Map[CampaignId, CachedSpendInfo] = Map.empty,
       spendInfoLastUpdated: Map[CampaignId, Instant] = Map.empty,
-      trafficShapeTracker: TrafficShapeTracker = TrafficShapeTracker(),
+      // interpolateVolumes: the pacing rate multiplier ramps across bucket
+      // boundaries instead of stepping at each hour.
+      trafficShapeTracker: TrafficShapeTracker = new TrafficShapeTracker(interpolateVolumes = true),
       rolloverGraceUntilMs: Long = 0L,
       warmupMode: Boolean = false,
       requestCount: Long = 0L,

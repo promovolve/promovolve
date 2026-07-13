@@ -120,12 +120,7 @@ class TrafficShapeTracker(
   private var requestsInBucket: Long = 0
   private var emaBucketRequests: Double = 1.0
   private var useLegacyMode: Boolean = true
-  // Adaptive learning rate support
-  private var alphaBoostFactor: Double = 1.0
-  private var alphaBoostDecay: Double = 0.0 // Decay per bucket update (0 = no decay)
-  private var recentSurprise: Double = 0.0 // EMA of squared prediction error
-  // Warmup tracking - surprise is not meaningful until all buckets have been visited.
-  // Threshold is bucketCount - 1 because we count bucket transitions, not buckets.
+  // Warmup tracking. Threshold is bucketCount - 1 because we count bucket transitions, not buckets.
   // Starting in bucket 0 and transitioning through all 24 buckets requires 23 transitions
   // (0→1, 1→2, ..., 22→23) to visit every bucket.
   private var bucketUpdateCount: Int = 0
@@ -181,8 +176,7 @@ class TrafficShapeTracker(
 
     // Track typical absolute traffic for this site so normalization adapts to volume changes.
     // This keeps historical scale-invariant (shape only), avoiding arbitrary constants.
-    val effectiveAlpha = math.min(1.0, alpha * alphaBoostFactor)
-    emaBucketRequests = effectiveAlpha * req + (1 - effectiveAlpha) * emaBucketRequests
+    emaBucketRequests = alpha * req + (1 - alpha) * emaBucketRequests
 
     // Normalize to a dimensionless relative observation around ~1.0.
     // If traffic doubles/halves, the observation remains comparable and learning dynamics stay stable.
@@ -193,11 +187,7 @@ class TrafficShapeTracker(
     val shape = currentShape
     val oldValue = shape(bucket)
 
-    // Track surprise (squared prediction error) for pattern change detection
-    val predictionError = observation - oldValue
-    recentSurprise = 0.1 * (predictionError * predictionError) + 0.9 * recentSurprise
-
-    val newValue = effectiveAlpha * observation + (1 - effectiveAlpha) * oldValue
+    val newValue = alpha * observation + (1 - alpha) * oldValue
     shape(bucket) = newValue
 
     // Maintain cached total incrementally (update the correct total)
@@ -210,11 +200,6 @@ class TrafficShapeTracker(
 
     // Track warmup progress
     bucketUpdateCount += 1
-
-    // Decay boost factor toward 1.0
-    if (alphaBoostDecay > 0 && alphaBoostFactor > 1.0) {
-      alphaBoostFactor = math.max(1.0, alphaBoostFactor - alphaBoostDecay)
-    }
   }
 
   /**
@@ -541,9 +526,6 @@ class TrafficShapeTracker(
   /**
    * Whether the tracker has completed warmup (seen enough bucket updates).
    *
-   * During warmup, surprise values are not meaningful as the tracker is
-   * still calibrating to the traffic volume.
-   *
    * @return true if warmup is complete (bucketCount updates have occurred)
    */
   def isWarmedUp: Boolean = bucketUpdateCount >= warmupThreshold
@@ -552,20 +534,6 @@ class TrafficShapeTracker(
    * Number of bucket updates completed (for monitoring warmup progress).
    */
   def updateCount: Int = bucketUpdateCount
-
-  /**
-   * Recent surprise metric (EMA of squared prediction error).
-   *
-   * High values indicate the traffic pattern is deviating from learned expectations.
-   * Typical stable values are < 0.1. Values > 0.5 suggest significant pattern change.
-   *
-   * '''Note:''' During warmup (before [[isWarmedUp]] returns true), surprise values
-   * are artificially high as the tracker calibrates to traffic volume. The returned
-   * value is the raw EMA; use [[isWarmedUp]] to determine if it's meaningful.
-   *
-   * Can be used to trigger [[boostLearningRate]] when patterns shift.
-   */
-  def surprise: Double = recentSurprise
 
   /**
    * Volatility metric measuring how drastic the traffic shape variations are.
@@ -627,46 +595,6 @@ class TrafficShapeTracker(
       i += 1
     }
     maxRatio
-  }
-
-  /**
-   * Current effective alpha multiplier.
-   *
-   * @return Current boost factor (1.0 = normal, >1.0 = boosted)
-   */
-  def currentBoostFactor: Double = alphaBoostFactor
-
-  /**
-   * Temporarily boost the learning rate to adapt faster to pattern changes.
-   *
-   * Use this when external signals indicate the traffic pattern has changed
-   * (e.g., new feature launch, seasonal event, marketing campaign).
-   *
-   * The boost decays back to 1.0 over the specified number of bucket updates.
-   *
-   * {{{
-   * // Example: 3x learning rate for next 24 bucket updates (1 day with hourly buckets)
-   * tracker.boostLearningRate(factor = 3.0, decayOverBuckets = 24)
-   * }}}
-   *
-   * @param factor           Multiplier for alpha (e.g., 3.0 = 3x faster learning)
-   * @param decayOverBuckets Number of bucket updates over which to decay back to 1.0.
-   *                         Set to 0 for no decay (manual reset required).
-   */
-  def boostLearningRate(factor: Double, decayOverBuckets: Int = 24): Unit = {
-    require(factor >= 1.0, "Boost factor must be >= 1.0")
-    require(decayOverBuckets >= 0, "decayOverBuckets must be >= 0")
-
-    alphaBoostFactor = factor
-    alphaBoostDecay = if (decayOverBuckets > 0) (factor - 1.0) / decayOverBuckets else 0.0
-  }
-
-  /**
-   * Reset learning rate boost to normal.
-   */
-  def resetBoost(): Unit = {
-    alphaBoostFactor = 1.0
-    alphaBoostDecay = 0.0
   }
 
   /**
@@ -748,9 +676,6 @@ class TrafficShapeTracker(
     currentBucket = -1
     requestsInBucket = 0
     emaBucketRequests = 1.0
-    alphaBoostFactor = 1.0
-    alphaBoostDecay = 0.0
-    recentSurprise = 0.0
     bucketUpdateCount = 0
     useLegacyMode = true
   }
@@ -810,8 +735,8 @@ object TrafficShapeTracker {
    * @param snapshot Previously saved state
    * @return Restored tracker, or new tracker if snapshot is incompatible
    */
-  def fromSnapshot(snapshot: TrafficShapeSnapshot): TrafficShapeTracker = {
-    val tracker = new TrafficShapeTracker(snapshot.bucketCount, snapshot.alpha)
+  def fromSnapshot(snapshot: TrafficShapeSnapshot, interpolateVolumes: Boolean = false): TrafficShapeTracker = {
+    val tracker = new TrafficShapeTracker(snapshot.bucketCount, snapshot.alpha, interpolateVolumes)
     // Check if we have separate weekday/weekend shapes
     (snapshot.weekdayVolumes, snapshot.weekendVolumes) match {
       case (Some(weekdayVols), Some(weekendVols))

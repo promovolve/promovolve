@@ -1017,8 +1017,14 @@ Warmup Mode:
 ```
 
 **API Endpoints:**
-- `GET /sites/{id}/stats` — Returns learned `weekdayShapeVolumes` and `weekendShapeVolumes`
-- `PUT /sites/{id}/pacing` — Configure shapes and exit warmup mode
+- `GET /sites/{id}/stats` — Returns learned `weekdayShapeVolumes` and `weekendShapeVolumes` (read-only export)
+- `PUT /sites/{id}/pacing` — Exit warmup mode (`warmupMode: false`)
+
+Shapes are **learn-only**: there is deliberately no import/configure
+endpoint — a site's shape comes from its own traffic, starting from a
+uniform distribution (= linear pacing) and converging over ~5 days of
+20/80 daily blending. Both shapes persist per site (weekday and weekend
+independently) and are restored on restart.
 
 ### Day Rollover
 

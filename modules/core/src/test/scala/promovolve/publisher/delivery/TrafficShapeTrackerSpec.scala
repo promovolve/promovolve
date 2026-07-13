@@ -332,73 +332,10 @@ class TrafficShapeTrackerSpec extends AnyFlatSpec with Matchers {
     finalRatio should be > 4.5 // Should show meaningful differentiation
   }
 
-  it should "track surprise metric when pattern changes" in {
-    val tracker = new TrafficShapeTracker(bucketCount = 24, alpha = 0.1)
-
-    // First, establish a stable pattern (uniform)
-    for (day <- 1 to 10) {
-      for (bucket <- 0 until 24) {
-        for (_ <- 0 until 100) tracker.recordRequest(bucket * 3600 + 1800)
-        if (bucket < 23) tracker.recordRequest((bucket + 1) * 3600 + 1)
-      }
-      tracker.flush()
-    }
-
-    val surpriseBeforeChange = tracker.surprise
-    println(f"\n  Surprise before pattern change: $surpriseBeforeChange%.4f")
-
-    // Now drastically change the pattern - noon spike
-    for (bucket <- 0 until 24) {
-      val requests = if (bucket == 12) 1000 else 100 // 10x at noon
-      for (_ <- 0 until requests) tracker.recordRequest(bucket * 3600 + 1800)
-      if (bucket < 23) tracker.recordRequest((bucket + 1) * 3600 + 1)
-    }
-    tracker.flush()
-
-    val surpriseAfterChange = tracker.surprise
-    println(f"  Surprise after pattern change: $surpriseAfterChange%.4f")
-
-    // Surprise should increase significantly
-    surpriseAfterChange should be > surpriseBeforeChange * 2
-  }
-
-  it should "adapt faster with boosted learning rate" in {
-    // Tracker 1: normal learning
-    val normalTracker = new TrafficShapeTracker(bucketCount = 24, alpha = 0.1)
-    // Tracker 2: boosted learning (3x)
-    val boostedTracker = new TrafficShapeTracker(bucketCount = 24, alpha = 0.1)
-
-    // Target: noon spike
-    val targetShape = Array.fill(24)(1.0)
-    targetShape(12) = 10.0
-
-    // Simulate 5 days with boosted tracker starting with 3x boost
-    boostedTracker.boostLearningRate(3.0, decayOverBuckets = 24 * 5) // Decay over 5 days
-
-    for (day <- 1 to 5) {
-      for (bucket <- 0 until 24) {
-        val requests = (targetShape(bucket) * 100).toInt
-        for (_ <- 0 until requests) {
-          normalTracker.recordRequest(bucket * 3600 + 1800)
-          boostedTracker.recordRequest(bucket * 3600 + 1800)
-        }
-        if (bucket < 23) {
-          normalTracker.recordRequest((bucket + 1) * 3600 + 1)
-          boostedTracker.recordRequest((bucket + 1) * 3600 + 1)
-        }
-      }
-      normalTracker.flush()
-      boostedTracker.flush()
-    }
-
-    val normalRatio = normalTracker.volumeForBucket(12) / normalTracker.volumeForBucket(0)
-    val boostedRatio = boostedTracker.volumeForBucket(12) / boostedTracker.volumeForBucket(0)
-
-    println(f"\n  After 5 days - Normal ratio: $normalRatio%.2fx, Boosted ratio: $boostedRatio%.2fx")
-
-    // Boosted tracker should have converged more
-    boostedRatio should be > normalRatio
-  }
+  // (surprise-metric and learning-rate-boost tests removed 2026-07-13
+  //  with the machinery itself — it was dead in production: only the
+  //  legacy intra-day path updated it, which rolloverDay permanently
+  //  disables after day one.)
 
   it should "work correctly with simulated short days" in {
     val tracker = new TrafficShapeTracker(bucketCount = 24, alpha = 0.1)

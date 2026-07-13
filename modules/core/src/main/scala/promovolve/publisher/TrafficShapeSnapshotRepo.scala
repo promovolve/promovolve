@@ -16,8 +16,14 @@ final case class TrafficShapeSnapshotRow(
     siteId: String,
     bucketCount: Int,
     alpha: Double,
-    volumes: String, // JSON array: "[0.3, 0.2, ...]"
+    volumes: String, // JSON array: "[0.3, 0.2, ...]" — current shape (legacy restore path)
     emaBucketRequests: Double,
+    // Weekday/weekend shapes learn independently (rolloverDay blends into
+    // one or the other by day type) — persisting only `volumes` silently
+    // collapsed the split on every restart (weekend learning could never
+    // accumulate; found 2026-07-13). Nullable so pre-existing rows load.
+    weekdayVolumes: Option[String],
+    weekendVolumes: Option[String],
     updatedAt: Instant
 )
 
@@ -64,6 +70,45 @@ final class InMemoryTrafficShapeSnapshotRepo extends TrafficShapeSnapshotRepo {
   }
 }
 
+/**
+ * Pure row ↔ snapshot mapping, extracted so serialization fidelity —
+ * including the legacy-row fallback where weekday/weekend columns are
+ * NULL — is unit-testable without a database.
+ */
+private[publisher] object TrafficShapeRowMapping {
+  import promovolve.publisher.delivery.TrafficShapeSnapshot
+
+  def toJson(volumes: Array[Double]): String = volumes.mkString("[", ",", "]")
+
+  def parseVolumes(json: String): Array[Double] =
+    json.stripPrefix("[").stripSuffix("]").split(",").map(_.trim.toDouble)
+
+  def toRow(siteId: String, snapshot: TrafficShapeSnapshot): TrafficShapeSnapshotRow =
+    TrafficShapeSnapshotRow(
+      siteId = siteId,
+      bucketCount = snapshot.bucketCount,
+      alpha = snapshot.alpha,
+      volumes = toJson(snapshot.volumes),
+      emaBucketRequests = snapshot.emaBucketRequests,
+      weekdayVolumes = snapshot.weekdayVolumes.map(toJson),
+      weekendVolumes = snapshot.weekendVolumes.map(toJson),
+      updatedAt = snapshot.updatedAt
+    )
+
+  def fromRow(row: TrafficShapeSnapshotRow): TrafficShapeSnapshot =
+    TrafficShapeSnapshot(
+      bucketCount = row.bucketCount,
+      alpha = row.alpha,
+      volumes = parseVolumes(row.volumes),
+      emaBucketRequests = row.emaBucketRequests,
+      updatedAt = row.updatedAt,
+      // Absent on legacy rows — fromSnapshot then falls back to seeding
+      // both shapes from `volumes`, exactly the pre-fix behavior.
+      weekdayVolumes = row.weekdayVolumes.map(parseVolumes),
+      weekendVolumes = row.weekendVolumes.map(parseVolumes)
+    )
+}
+
 /** PostgreSQL-backed implementation using Slick. */
 final class SlickTrafficShapeSnapshotRepo(db: Database)(using ec: ExecutionContext)
     extends TrafficShapeSnapshotRepo {
@@ -75,44 +120,24 @@ final class SlickTrafficShapeSnapshotRepo(db: Database)(using ec: ExecutionConte
   def ensureSchema(): Unit = {
     val createAction = shapes.schema.createIfNotExists
     Await.result(db.run(createAction), 10.seconds)
+    // Pre-existing tables (created before the weekday/weekend split was
+    // persisted) need the columns added — createIfNotExists won't.
+    val alter = DBIO.seq(
+      sqlu"""ALTER TABLE traffic_shape_snapshot ADD COLUMN IF NOT EXISTS weekday_volumes TEXT""",
+      sqlu"""ALTER TABLE traffic_shape_snapshot ADD COLUMN IF NOT EXISTS weekend_volumes TEXT"""
+    )
+    Await.result(db.run(alter), 10.seconds)
   }
 
   override def upsert(siteId: String, snapshot: TrafficShapeSnapshot): Future[Unit] = {
-    val volumesJson = snapshot.volumes.mkString("[", ",", "]")
-    val row = TrafficShapeSnapshotRow(
-      siteId = siteId,
-      bucketCount = snapshot.bucketCount,
-      alpha = snapshot.alpha,
-      volumes = volumesJson,
-      emaBucketRequests = snapshot.emaBucketRequests,
-      updatedAt = snapshot.updatedAt
-    )
-
     // Use insertOrUpdate for upsert behavior
-    val action = shapes.insertOrUpdate(row)
+    val action = shapes.insertOrUpdate(TrafficShapeRowMapping.toRow(siteId, snapshot))
     db.run(action).map(_ => ())
   }
 
   override def get(siteId: String): Future[Option[TrafficShapeSnapshot]] = {
     val query = shapes.filter(_.siteId === siteId).result.headOption
-    db.run(query).map(_.map(rowToSnapshot))
-  }
-
-  private def rowToSnapshot(row: TrafficShapeSnapshotRow): TrafficShapeSnapshot = {
-    // Parse JSON array "[0.3, 0.2, ...]" to Array[Double]
-    val volumes = row.volumes
-      .stripPrefix("[")
-      .stripSuffix("]")
-      .split(",")
-      .map(_.trim.toDouble)
-
-    TrafficShapeSnapshot(
-      bucketCount = row.bucketCount,
-      alpha = row.alpha,
-      volumes = volumes,
-      emaBucketRequests = row.emaBucketRequests,
-      updatedAt = row.updatedAt
-    )
+    db.run(query).map(_.map(TrafficShapeRowMapping.fromRow))
   }
 
   override def delete(siteId: String): Future[Unit] = {
@@ -122,7 +147,7 @@ final class SlickTrafficShapeSnapshotRepo(db: Database)(using ec: ExecutionConte
 
   private class TrafficShapeTable(tag: Tag)
       extends Table[TrafficShapeSnapshotRow](tag, "traffic_shape_snapshot") {
-    def * = (siteId, bucketCount, alpha, volumes, emaBucketRequests, updatedAt)
+    def * = (siteId, bucketCount, alpha, volumes, emaBucketRequests, weekdayVolumes, weekendVolumes, updatedAt)
       .mapTo[TrafficShapeSnapshotRow]
 
     def siteId = column[String]("site_id", O.PrimaryKey)
@@ -134,6 +159,10 @@ final class SlickTrafficShapeSnapshotRepo(db: Database)(using ec: ExecutionConte
     def volumes = column[String]("volumes") // JSON array
 
     def emaBucketRequests = column[Double]("ema_bucket_requests")
+
+    def weekdayVolumes = column[Option[String]]("weekday_volumes") // JSON array, null on legacy rows
+
+    def weekendVolumes = column[Option[String]]("weekend_volumes") // JSON array, null on legacy rows
 
     def updatedAt = column[Instant]("updated_at")
   }

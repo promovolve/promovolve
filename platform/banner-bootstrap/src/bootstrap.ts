@@ -35,11 +35,12 @@
 //      display:none so they don't leave reserved space.
 
 import {
-  clearCounted, clearPin, clearPinsByCreativeIds, getAllPins, markCounted, pinExpiresAt, setPin,
-  touchPin, wasCounted,
+  clearPin, clearPinsByCreativeIds, getAllPins, markCounted, pinExpiresAt, setPin,
+  wasCounted,
   type Pin,
 } from "./dogear-storage.js";
 import { attachLpPrefetch } from "./lp-prefetch.js";
+import { clearRemovedPin, isCreativeRemoved, processDogearResponse } from "./dogear-response.js";
 
 // ─── Types mirroring server-side BatchServeReq / BatchServeRes ────
 
@@ -243,68 +244,6 @@ function loadBannerScript(url: string): Promise<void> {
   return promise;
 }
 
-/** Append `&dogeared=1` to the impression URL when the server honored
- *  this slot's pin. Re-encounter telemetry only — not billed. Uses a
- *  string concat (`?` vs `&`) instead of URL parsing because the imp
- *  URL is server-built and known to already carry query params.
- */
-function withDogearedFlag(impUrl: string): string {
-  if (impUrl.indexOf("dogeared=") >= 0) return impUrl;
-  const sep = impUrl.indexOf("?") >= 0 ? "&" : "?";
-  return `${impUrl}${sep}dogeared=1`;
-}
-
-/** Process the dogear field on a serve response. Returns the (possibly
- *  modified) impression URL and the pinned-page index to forward to
- *  the banner — null if there was no pin or if the pin was cleared.
- *
- *  Side effect: clears the IndexedDB pin if the response signals the
- *  creative is no longer servable (`reason === "creative_removed"`,
- *  per the v1 server-side simplification). Other reasons retain the
- *  pin (campaign may resume).
- */
-async function processDogearResponse(
-  slot: Slot,
-  winner: ServeRes,
-  pin: Pin | undefined,
-): Promise<{ impUrl: string; clickUrl: string; ctaUrl: string; pinnedPage: number | null }> {
-  let impUrl = winner.impUrl;
-  let clickUrl = winner.clickUrl;
-  let ctaUrl = winner.ctaUrl;
-  let pinnedPage: number | null = null;
-
-  const dogear = winner.dogear;
-  if (dogear) {
-    if (dogear.honored) {
-      // Pin honored — flag every beacon URL as a re-encounter so the
-      // server suppresses metrics for this serve (the user already
-      // saw the creative when they folded it; this is bookmark
-      // fulfillment, not a billable re-impression).
-      impUrl   = withDogearedFlag(impUrl);
-      clickUrl = withDogearedFlag(clickUrl);
-      ctaUrl   = withDogearedFlag(ctaUrl);
-      if (pin) pinnedPage = pin.page;
-      // Reader visited the pinned creative again — bump lastSeenAt so
-      // the idle-sweep timer resets. Without this, a reader who keeps
-      // re-encountering the pin would still lose it after 24h because
-      // the field never refreshes.
-      void touchPin(slot.id);
-    } else if (dogear.reason === "creative_removed") {
-      // Server signal: the creative behind this pin is no longer
-      // servable. Clear the pin client-side so subsequent serves don't
-      // ride along with a stale hint. Also clear the ts_counted record
-      // so a future resurrected campaign with the same creativeId
-      // gets a fresh fold count instead of being silently dedup'd.
-      // Other reasons (campaign_inactive, budget_exhausted,
-      // dogear_disabled) leave the pin alone — the campaign may resume.
-      await clearPin(slot.id);
-      if (pin) await clearCounted(pin.creativeId);
-    }
-  }
-
-  return { impUrl, clickUrl, ctaUrl, pinnedPage };
-}
-
 /** Listen for dogear-fold / dogear-unfold custom events on the banner
  *  and persist them: setPin/clearPin against IndexedDB and POST to
  *  /v1/dogear-event. The banner is presentation-only — all storage
@@ -418,7 +357,7 @@ async function renderWinner(slot: Slot, winner: ServeRes, pin?: Pin): Promise<vo
     console.warn("[promovolve] winner missing bannerScriptUrl; skipping");
     return;
   }
-  const { impUrl, clickUrl, ctaUrl, pinnedPage } = await processDogearResponse(slot, winner, pin);
+  const { impUrl, clickUrl, ctaUrl, pinnedPage } = await processDogearResponse(slot.id, winner, pin);
   // Every winner on this platform is a magazine creative authored in
   // the designer. Lazy-load the web component bundle from the URL the
   // server returned (per-creative content-hashed URL, cache-safe to
@@ -748,11 +687,8 @@ async function displayImpl(): Promise<void> {
     // server only emits creative_removed when the creative is actually
     // gone from the repo (paused/deleted), so it's safe to clear without
     // worrying about transient ServeView misses.
-    if (result?.dogear && result.dogear.honored === false &&
-        result.dogear.reason === "creative_removed") {
-      void clearPin(slot.id);
-      const stalePin = pinsBySlot.get(slot.id);
-      if (stalePin) void clearCounted(stalePin.creativeId);
+    if (isCreativeRemoved(result?.dogear)) {
+      void clearRemovedPin(slot.id, result?.dogear, pinsBySlot.get(slot.id));
     }
     if (result?.winner) {
       renderTasks.push(renderWinner(slot, result.winner, pinsBySlot.get(slot.id)));

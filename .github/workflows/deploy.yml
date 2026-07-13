@@ -91,13 +91,18 @@ jobs:
         id: filter
         with:
           filters: |
+            # Test sources never ship in the image — a spec-only commit
+            # must not roll the api tier (2026-07-13: one did, and the
+            # restart transient read as "auction broken").
             api:
               - 'modules/**'
+              - '!modules/**/src/test/**'
               - 'build.sbt'
               - 'project/**'
               - 'Dockerfile.api'
             platform:
               - 'platform/**'
+              - '!platform/creative-designer/tests/**'
 
   build-api:
     name: Build api (arm64)

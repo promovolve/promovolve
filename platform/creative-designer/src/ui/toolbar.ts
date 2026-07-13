@@ -8,7 +8,8 @@
 // through font-color. The vertical divider before Delete separates
 // the pointer + create cluster from the destructive action.
 
-import { addItem, addLocalImage, currentItem, currentLayout, currentPage, deleteSelection, hasSelection, selectItem } from "../state";
+import { addItem, addLocalImage, currentItem, currentLayout, currentPage, selectItem } from "../state";
+import { commitDeleteSelection } from "./confirm-delete";
 import type { Store } from "../store";
 import type { DesignerState, LayoutItem, RectItem, TextItem } from "../types";
 import { pickContrast } from "../color-contrast";
@@ -59,7 +60,7 @@ export function mountToolbar(host: HTMLElement, store: Store): void {
     iconBtn(ICON_BRAND, "Brand kit", () => openBrandKitModal(window.__DESIGNER__?.campaignId ?? "")),
     divider(),
     iconBtn(ICON_TRASH,  "Delete · ⌫",  () => {
-      if (hasSelection(store.state)) store.commit(deleteSelection(store.state));
+      commitDeleteSelection(store);
     }, { danger: true }),
   );
 

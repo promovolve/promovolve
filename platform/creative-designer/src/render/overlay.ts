@@ -29,7 +29,6 @@ import {
   bringToFront,
   currentItem,
   currentLayout,
-  deleteSelection,
   groupSelection,
   hasSelection,
   isSelected,
@@ -42,6 +41,7 @@ import {
   ungroupSelection,
   updateItem,
 } from "../state";
+import { commitDeleteSelection } from "../ui/confirm-delete";
 import type { Store } from "../store";
 import type { DesignerState, LayoutItem } from "../types";
 import type { Rect } from "../coords";
@@ -785,7 +785,7 @@ function buildMenu(store: Store): MenuEntry[] {
       label: "Delete",
       shortcut: "⌫",
       disabled: !hasSel,
-      onSelect: () => store.commit(deleteSelection(store.state)),
+      onSelect: () => commitDeleteSelection(store),
     },
   ];
 }

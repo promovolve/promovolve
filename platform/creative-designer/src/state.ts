@@ -740,27 +740,67 @@ export function setMainImage(state: DesignerState, src: string): DesignerState {
 // ("Replace image…" / canvas drop in the expanded view), which rebinds
 // every view. Author-added extra images are baked locals and never sync.
 
+// One-source deletion (user decision 2026-07-13): removing a field-bound
+// TEXT item from an EXPANDED reader removes that field from this page
+// EVERYWHERE — the wide layout artifact and every size bucket. Not on
+// the expanded page = doesn't exist (mirrors the one-image model). The
+// shared page[field] VALUE is kept so undo and Regenerate can restore
+// the wording. Deleting from a collapsed SIZE stays per-view — small
+// formats legitimately omit text.
+function stripDeletedFields(state: DesignerState, removed: LayoutItem[]): DesignerState {
+  if (!isMultiPage(state.mode)) return state;
+  const fields = new Set(
+    removed
+      .filter((it) => it.type === "text")
+      .map((it) => (it as { field?: string }).field)
+      .filter((f): f is string => !!f),
+  );
+  if (fields.size === 0) return state;
+  const strip = (arr?: LayoutItem[]): LayoutItem[] =>
+    (arr ?? []).filter((it) => !(it.type === "text" && fields.has((it as { field?: string }).field ?? "")));
+  const page = currentPage(state);
+  if (!page) return state;
+  const banners: Record<string, LayoutItem[]> = {};
+  for (const [k, arr] of Object.entries(page.banners ?? {})) banners[k] = strip(arr);
+  const nextPage = { ...page, layout: strip(page.layout), banners } as Page;
+  return { ...state, pages: state.pages.map((p, i) => (i === state.pageIdx ? nextPage : p)) };
+}
+
+// Deleting the shared main hero clears page.img so it doesn't resurrect
+// on the next ensureMainImage; the other views keep their own hero
+// slots, which resolve an empty source until a new image is set from
+// the expanded view.
+function clearMainIfRemoved(state: DesignerState, removed: LayoutItem[]): DesignerState {
+  const clearedMain = removed.some((it) => it.type === "image" && (it as { field?: string }).field === "img");
+  if (!clearedMain) return state;
+  const page = currentPage(state);
+  if (!page) return state;
+  return { ...state, pages: state.pages.map((p, i) => (i === state.pageIdx ? ({ ...page, img: undefined } as Page) : p)) };
+}
+
 export function deleteItem(state: DesignerState, idx: number): DesignerState {
   const items = currentLayout(state);
   if (idx < 0 || idx >= items.length) return state;
-  const removed = items[idx];
-  const next = updateCurrentLayout(state, (arr) => arr.filter((_, i) => i !== idx));
-  // Deleting the shared main clears page.img so it doesn't resurrect on the
-  // next ensureMainImage; the other views keep their own hero slots, which now
-  // resolve an empty source until a new image is set from the expanded view.
-  const clearedMain = removed && removed.type === "image" && (removed as { field?: string }).field === "img";
-  const page = clearedMain ? currentPage(next) : null;
-  const withImg = page ? { ...next, pages: next.pages.map((p, i) => (i === next.pageIdx ? ({ ...page, img: undefined } as Page) : p)) } : next;
+  const removed = items[idx]!;
+  let next = updateCurrentLayout(state, (arr) => arr.filter((_, i) => i !== idx));
+  next = clearMainIfRemoved(next, [removed]);
+  next = stripDeletedFields(next, [removed]);
   // Drop the deleted idx from the selection; shift higher indexes down.
   const nextSelected = shiftSelectionAfterDelete(state.selectedItemIdxs, idx);
-  return { ...withImg, selectedItemIdxs: nextSelected };
+  return { ...next, selectedItemIdxs: nextSelected };
 }
 
 // Deletes every currently-selected item. Cleared selection afterwards.
+// Shares deleteItem's cross-view semantics (hero clear + one-source
+// field strip) — this is the path every UI delete goes through.
 export function deleteSelection(state: DesignerState): DesignerState {
   if (state.selectedItemIdxs.length === 0) return state;
+  const items = currentLayout(state);
   const drop = new Set(state.selectedItemIdxs);
-  const next = updateCurrentLayout(state, (arr) => arr.filter((_, i) => !drop.has(i)));
+  const removed = state.selectedItemIdxs.flatMap((i) => (items[i] ? [items[i]!] : []));
+  let next = updateCurrentLayout(state, (arr) => arr.filter((_, i) => !drop.has(i)));
+  next = clearMainIfRemoved(next, removed);
+  next = stripDeletedFields(next, removed);
   return { ...next, selectedItemIdxs: [] };
 }
 

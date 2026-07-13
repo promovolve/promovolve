@@ -16,7 +16,6 @@ import {
   bringForward,
   bringToFront,
   currentLayout,
-  deleteSelection,
   groupSelection,
   hasSelection,
   selectItem,
@@ -25,6 +24,7 @@ import {
   ungroupSelection,
   updateItem,
 } from "../state";
+import { commitDeleteSelection } from "../ui/confirm-delete";
 import type { Store } from "../store";
 import type { DesignerState } from "../types";
 import { copy, duplicate, paste } from "./clipboard";
@@ -106,7 +106,7 @@ export function installKeyboard(store: Store): () => void {
 
     if ((e.key === "Delete" || e.key === "Backspace") && hasSelection(store.state)) {
       e.preventDefault();
-      store.commit(deleteSelection(store.state));
+      commitDeleteSelection(store);
       return;
     }
 

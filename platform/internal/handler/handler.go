@@ -412,6 +412,10 @@ type trustedAnchorRow struct {
 	Display     string // resolved campaign name, or the domain itself
 	Advertiser  string
 	Since       string
+	// Non-empty when this campaign anchor's landing domain is itself a
+	// trusted domain on the same site: the domain row already covers it,
+	// so the table nests it under that row.
+	CoveredBy string
 }
 
 type pendingPlacement struct {
@@ -1381,6 +1385,7 @@ type anchorDetail struct {
 	SourceCreativeID string  `json:"sourceCreativeId"`
 	AdvertiserID     *string `json:"advertiserId"`
 	CreatedAt        string  `json:"createdAt"`
+	LandingDomain    *string `json:"landingDomain"`
 }
 
 // loadAutoApprove fetches the site's auto-approve toggle + trust anchors.
@@ -1430,6 +1435,9 @@ func (h *Handler) PublisherTrusted(w http.ResponseWriter, r *http.Request) {
 			siteLabel = s.ID
 		}
 		toggles = append(toggles, trustedSiteToggle{SiteID: s.ID, Domain: siteLabel, Enabled: enabled})
+
+		var domainRows, campaignRows []trustedAnchorRow
+		trustedDomains := map[string]bool{}
 		for _, d := range details {
 			row := trustedAnchorRow{
 				SiteID:      s.ID,
@@ -1437,14 +1445,6 @@ func (h *Handler) PublisherTrusted(w http.ResponseWriter, r *http.Request) {
 				AnchorType:  d.AnchorType,
 				AnchorValue: d.AnchorValue,
 				Display:     d.AnchorValue,
-			}
-			switch d.AnchorType {
-			case "campaign":
-				row.Type = "Campaign"
-			case "domain":
-				row.Type = "Landing domain"
-			default:
-				row.Type = d.AnchorType
 			}
 			if d.AdvertiserID != nil {
 				name, camps := dir.resolve(*d.AdvertiserID)
@@ -1456,7 +1456,43 @@ func (h *Handler) PublisherTrusted(w http.ResponseWriter, r *http.Request) {
 			if t, err := time.Parse(time.RFC3339Nano, d.CreatedAt); err == nil {
 				row.Since = t.Format("2006-01-02")
 			}
-			rows = append(rows, row)
+			switch d.AnchorType {
+			case "campaign":
+				row.Type = "Campaign"
+				if d.LandingDomain != nil {
+					row.CoveredBy = *d.LandingDomain // provisional; kept only if the domain row exists
+				}
+				campaignRows = append(campaignRows, row)
+			case "domain":
+				row.Type = "Landing domain"
+				trustedDomains[d.AnchorValue] = true
+				domainRows = append(domainRows, row)
+			default:
+				row.Type = d.AnchorType
+				campaignRows = append(campaignRows, row)
+			}
+		}
+		// Grouped order: each domain row followed by the campaign rows it
+		// covers (nested in the UI), then campaigns standing alone — e.g.
+		// their domain anchor was removed, or the landing host had no
+		// registrable domain.
+		for i := range campaignRows {
+			if !trustedDomains[campaignRows[i].CoveredBy] {
+				campaignRows[i].CoveredBy = ""
+			}
+		}
+		for _, dr := range domainRows {
+			rows = append(rows, dr)
+			for _, cr := range campaignRows {
+				if cr.CoveredBy == dr.AnchorValue {
+					rows = append(rows, cr)
+				}
+			}
+		}
+		for _, cr := range campaignRows {
+			if cr.CoveredBy == "" {
+				rows = append(rows, cr)
+			}
 		}
 	}
 

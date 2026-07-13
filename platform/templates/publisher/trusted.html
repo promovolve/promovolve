@@ -54,8 +54,17 @@
       <tbody>
         {{range .TrustedAnchors}}
         <tr class="border-b last:border-0">
-          <td class="px-6 py-2 text-gray-500 whitespace-nowrap">{{.SiteDomain}}</td>
+          <td class="px-6 py-2 text-gray-500 whitespace-nowrap">{{if .CoveredBy}}{{else}}{{.SiteDomain}}{{end}}</td>
+          {{if .CoveredBy}}
+          {{/* Campaign already covered by the domain row above it — nested,
+               with the redundancy stated: removing this row changes nothing
+               while the domain stays trusted. */}}
+          <td class="px-6 py-2 pl-10 text-gray-500" title="{{.AnchorValue}}">&#8627; {{.Display}}
+            <span class="text-xs text-gray-400">covered by {{.CoveredBy}}</span>
+          </td>
+          {{else}}
           <td class="px-6 py-2 font-medium" title="{{.AnchorValue}}">{{.Display}}</td>
+          {{end}}
           <td class="px-6 py-2 text-gray-500">{{.Type}}</td>
           <td class="px-6 py-2 text-gray-500">{{if .Advertiser}}{{.Advertiser}}{{else}}&mdash;{{end}}</td>
           <td class="px-6 py-2 text-gray-500 whitespace-nowrap">{{if .Since}}{{.Since}}{{else}}&mdash;{{end}}</td>

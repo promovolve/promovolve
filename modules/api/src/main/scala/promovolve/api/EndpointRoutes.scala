@@ -3052,17 +3052,19 @@ class EndpointRoutes(
             .getTrustAnchors(siteId)
             .flatMap { anchors =>
               Future.traverse(anchors) { a =>
-                val advertiserF = creativeRepo match {
-                  case Some(repo) => repo.get(a.sourceCreativeId).map(_.map(_.advertiserId))
+                val creativeF = creativeRepo match {
+                  case Some(repo) => repo.get(a.sourceCreativeId)
                   case None       => Future.successful(None)
                 }
-                advertiserF.recover { case _ => None }.map { adv =>
+                creativeF.recover { case _ => None }.map { creative =>
                   TrustAnchorDetail(
                     anchorType = a.anchorType,
                     anchorValue = a.anchorValue,
                     sourceCreativeId = a.sourceCreativeId,
-                    advertiserId = adv,
-                    createdAt = a.createdAt.toString
+                    advertiserId = creative.map(_.advertiserId),
+                    createdAt = a.createdAt.toString,
+                    landingDomain =
+                      creative.flatMap(c => promovolve.publisher.RegistrableDomain.of(c.landingDomain))
                   )
                 }
               }.map(details => Some(details.sortBy(_.createdAt).reverse))

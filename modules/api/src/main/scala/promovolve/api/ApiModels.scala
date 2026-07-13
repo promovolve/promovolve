@@ -1584,7 +1584,11 @@ object ApiModels {
       anchorValue: String,
       sourceCreativeId: String,
       advertiserId: Option[String] = None,
-      createdAt: String = ""
+      createdAt: String = "",
+      // Registrable domain of the source creative's landing page — lets the
+      // dashboard nest a campaign anchor under the domain anchor that
+      // already covers it.
+      landingDomain: Option[String] = None
   )
 
   case class AutoApproveSettingsResponse(

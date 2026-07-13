@@ -260,7 +260,7 @@ trait ApiJsonFormats extends DefaultJsonProtocol {
   given RootJsonFormat[AdProductUnblockResponse] = jsonFormat2(AdProductUnblockResponse.apply)
 
   // Site Auto-Approve (trust anchors)
-  given RootJsonFormat[TrustAnchorDetail] = jsonFormat5(TrustAnchorDetail.apply)
+  given RootJsonFormat[TrustAnchorDetail] = jsonFormat6(TrustAnchorDetail.apply)
   given RootJsonFormat[AutoApproveSettingsResponse] = jsonFormat5(AutoApproveSettingsResponse.apply)
   given RootJsonFormat[UpdateAutoApproveRequest] = jsonFormat1(UpdateAutoApproveRequest.apply)
   given RootJsonFormat[RemoveTrustAnchorRequest] = jsonFormat2(RemoveTrustAnchorRequest.apply)

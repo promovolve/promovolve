@@ -4,27 +4,39 @@
 
 Promovolve uses a **periodic auction model** instead of realtime bidding (RTB). Auctions run when a page's content is classified (on demand, triggered by the first ad request for an unknown URL) and are re-run periodically and on ecosystem events. Results are cached; serving is a fast cache lookup plus serve-time Thompson Sampling.
 
-## Promovolve's Key Differentiator: Recency-Only Monetization
+## Classification Freshness: the 48-Hour Window
 
-Unlike traditional ad networks that serve ads on any content (static ad units), **Promovolve only monetizes fresh content**:
+The **content recency window** (48h default, per-site configurable; `0`
+disables it) is a **classification-freshness TTL, not a publish-date gate**.
+Nothing extracts or checks when an article was published — the window measures
+how long ago the page was last *classified*.
 
-- **Content Recency Window**: Only content published within the last **48 hours** receives ads
-- **Why**: Content freshness directly impacts contextual relevance and ad quality
-- **Business Model**: Premium positioning ("fresh context only") justifies higher CPMs
-- **System Benefits**:
-  - Bounded cache size (no memory leaks)
-  - Simple cleanup logic (time-based, no complex LRU)
-  - Natural alignment with news/media publishers
+- A page serves ads for 48 hours after its most recent classification
+- When the window lapses, the serve response's `reclassifyInMs` token goes
+  ≤ 0 and the ad tag re-submits the page text on the next visit — a fresh
+  classification opens a fresh window
+- So content of **any age keeps serving as long as it has live traffic**;
+  what actually expires is pages whose traffic stopped
+
+**Why it exists:**
+- **Bounded state**: pages nobody visits fall out of the caches automatically
+  (no complex LRU)
+- **Drift correction**: periodic re-classification picks up content changes
+- **Natural fit for news/media**: a story classifies once on its traffic
+  spike, serves through it, and quietly expires when readers move on
 
 **How it works:**
-1. Content classified within 48 hours → Eligible for monetization
-2. Content older than 48 hours → No ads served (returns `204 No Content`)
+1. Classification less than 48h old → eligible for monetization
+2. All candidates' classifications older than 48h → no ads served
+   (`BatchContentTooOld` → `204 No Content`) — until the next visit
+   re-classifies the page
 3. Automatic cleanup removes stale classifications every 5 minutes
 
-This recency-only model is implemented across three layers:
+This is implemented across three layers:
 - **AuctioneerEntity**: Cleans up classifications older than 48h
-- **AdServer**: Validates content age at serve time (`BatchContentTooOld` → 204)
-- **PeriodicReauction**: Only processes recent pages
+- **AdServer**: Filters candidates by classification age at serve time and
+  issues the `reclassifyInMs` token
+- **PeriodicReauction**: Only processes recently-classified pages
 
 ## Key Design Decisions
 
@@ -171,13 +183,13 @@ Return creatives with tracking URLs
 
 Auction results need refreshing because:
 
-1. **Content staleness (RECENCY-ONLY MODEL)** - Content older than 48 hours loses monetization eligibility
+1. **Classification staleness** - A classification older than 48 hours loses monetization eligibility (until traffic re-classifies the page)
 2. **Budget depletion** - Winning campaign runs out of money
 3. **New campaigns** - Better campaigns start bidding
 4. **Creative approvals** - New creatives get approved
 5. **Campaign status** - Pause/resume changes
 
-**Note:** With the recency-only model, re-auctions only process pages within the 48-hour window, making the system more efficient.
+**Note:** Re-auctions only process pages classified within the 48-hour window, making the system more efficient.
 
 ### What Is Implemented
 
@@ -276,8 +288,8 @@ final case class Settings(
     // Re-auction settings (implemented)
     reauctionInterval: FiniteDuration = 30.minutes,  // Code default; deployed override = 5 minutes
 
-    // Recency-only model settings (IMPLEMENTED)
-    contentRecencyWindow: FiniteDuration = 48.hours,  // Only monetize content within this window
+    // Classification-freshness settings (IMPLEMENTED)
+    contentRecencyWindow: FiniteDuration = 48.hours,  // Classification-freshness TTL (not publish date)
     cleanupInterval: FiniteDuration = 5.minutes,      // How often to remove old classifications
 
     floorCpm: CPM = CPM(0.50),    // Minimum CPM floor price (default $0.50)
@@ -311,7 +323,7 @@ campaigns have the same CPM (common when advertisers use the same bidding
 strategy), a single campaign could dominate due to stable sort order. Ordering
 best-per-campaign first keeps the pool fair before serve-time selection.
 
-**Cache Size Bounds** (Recency-Only Model):
+**Cache Size Bounds** (classification-freshness window):
 - **Per-site page cache capped at `maxPageCacheSize = 10000` URLs**
   (oldest entry evicted when full — `AuctioneerEntity.Settings`)
 - In practice, cache size is also bounded by: `publishRate × contentRecencyWindow`

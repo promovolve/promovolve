@@ -68,6 +68,20 @@ export class ExpandableMagazineBanner extends HTMLElement {
   // the ad can be dog-eared. Purely visual — it settles back and never
   // sets fold state or pins (that stays a deliberate user gesture).
   private _teaserPlayed = false;
+  // Expanded-reader tease budget: at most ONE corner-peel demonstration
+  // per magazine-open, shared across all pages and both input paths
+  // (touch top-sheet tease + hover tease). Per-page teasing played the
+  // flap on every swipe, which read as nagging rather than a hint —
+  // the static dashed crease carries the affordance after the one play.
+  // Reset in _expand() so each reading session gets its single hint.
+  private _overlayTeasePlayed = false;
+  /** Check-and-consume the per-open tease budget. Returns true exactly
+    * once per magazine-open; passed into buildDogEar as the gate. */
+  private consumeOverlayTease = (): boolean => {
+    if (this._overlayTeasePlayed) return false;
+    this._overlayTeasePlayed = true;
+    return true;
+  };
   // Dog-ear handles for every page in the current render. Used by the
   // host-level fold/unfold listener to broadcast visual state across
   // all pages so folding one page folds every page (the pin is on the
@@ -483,6 +497,7 @@ export class ExpandableMagazineBanner extends HTMLElement {
   private _expand(): void {
     this._expanded = true;
     this.currentPage = 0;
+    this._overlayTeasePlayed = false; // fresh open → one tease available
     window.addEventListener("keydown", this.handleKeyDown);
     // Defensive: nuke any lingering overlays from a prior expansion whose
     // close animation didn't finish (animationend can be flaky on iOS
@@ -1562,6 +1577,7 @@ export class ExpandableMagazineBanner extends HTMLElement {
         page.bg,
         resolveReadingRtl(cfg, this.pagesData),
         true, // alignToPeel: px-match the dotted crease to the peel (PC + mobile)
+        this.consumeOverlayTease, // one tease per magazine-open, all pages
       );
       // On the rotating sheet, not the static stack — a fold belongs
       // to its page and turns with it.
@@ -1813,9 +1829,11 @@ export class ExpandableMagazineBanner extends HTMLElement {
       de.wrap.style.visibility = isTop ? "" : "hidden";
       if (folded && isTop) de.applyFolded();
       else de.applyUnfolded();
-      // Touch: demonstrate the corner once per page, when that page
-      // becomes the top sheet — the touch counterpart of the hover
-      // tease, with the same top-sheet-only rule PC has.
+      // Touch: schedule the corner demonstration when a page becomes
+      // the top sheet — the touch counterpart of the hover tease.
+      // teasePlayed only stops re-SCHEDULING for the same page; the
+      // per-open budget inside peelTease is what limits actual plays
+      // to one per magazine-open (flapping on every swipe was too much).
       if (touchTease && isTop && !folded && !de.teasePlayed) {
         de.teasePlayed = true;
         window.setTimeout(() => de.peelTease(), 350);
@@ -1871,8 +1889,10 @@ interface DogEarHandle {
   applyFolded: () => void;
   applyUnfolded: () => void;
   /** One peel-and-return demonstration of the corner. Hover devices
-    * fire it per hover; touch devices get it from applyStackLayout —
-    * on the TOP sheet only, once (see teasePlayed). The old
+    * fire it on hover entry; touch devices get it from applyStackLayout
+    * on the top sheet (see teasePlayed). Both paths are additionally
+    * capped by the banner's per-open tease budget (teaseGate): at most
+    * ONE tease plays per magazine-open across all pages. The old
     * per-corner IntersectionObserver fired ALL pages at once in the
     * unified reader, where every sheet occupies the same box. */
   peelTease: () => void;
@@ -1985,6 +2005,11 @@ function buildDogEar(
   // crease (cqmin doesn't convert 1:1 to the peel's px geometry). Used
   // on mobile, where the corner should match the auto-peel.
   alignToPeel = false,
+  // Check-and-consume budget shared across ALL pages of one magazine
+  // open: returns true exactly once, so the reader sees at most one
+  // tease per open regardless of how many pages they turn or hover.
+  // Absent (designer/standalone contexts) = unlimited, old behavior.
+  teaseGate?: () => boolean,
 ): DogEarHandle {
   // The folded clip punches the corner through the WHOLE pageBox —
   // but a clip-path confines ALL painting to its polygon, so a
@@ -2214,6 +2239,9 @@ function buildDogEar(
   const peelTease = (): void => {
     const now = Date.now();
     if (peeling || wrap.dataset.folded === "1" || !peelSheet() || now < teaseBlockedUntil) return;
+    // Per-open budget LAST, after the cheap guards — a skipped attempt
+    // (mid-peel, already folded) must not burn the open's single tease.
+    if (teaseGate && !teaseGate()) return;
     teaseBlockedUntil = now + 4000 + Math.random() * 4000;
     peeling = true;
     // 2× slower than before (240/160/200 → 480/320/400) so the peel reads

@@ -1348,6 +1348,34 @@ func (h *Handler) PublisherApproval(w http.ResponseWriter, r *http.Request) {
 			flagged[i].AdvertiserName = name
 			flagged[i].CampaignName = labelOr(camps, flagged[i].CampaignID)
 		}
+		// Disambiguate visually-identical rows: auto-generated creative
+		// names ("Creative - domain") plus a shared landing domain render
+		// two different creatives as the same row. Where the (name, domain)
+		// pair collides within the site, suffix a short creative-id.
+		labelCount := map[string]int{}
+		for i := range pending {
+			labelCount[pending[i].CreativeName+"|"+pending[i].LandingDomain]++
+		}
+		for i := range serving {
+			labelCount[serving[i].CreativeName+"|"+serving[i].LandingDomain]++
+		}
+		shortID := func(cid string) string {
+			if len(cid) > 6 {
+				return cid[len(cid)-6:]
+			}
+			return cid
+		}
+		for i := range pending {
+			if labelCount[pending[i].CreativeName+"|"+pending[i].LandingDomain] > 1 {
+				pending[i].CreativeName = strings.TrimSpace(pending[i].CreativeName + " #" + shortID(pending[i].CreativeID))
+			}
+		}
+		for i := range serving {
+			if labelCount[serving[i].CreativeName+"|"+serving[i].LandingDomain] > 1 {
+				serving[i].CreativeName = strings.TrimSpace(serving[i].CreativeName + " #" + shortID(serving[i].CreativeID))
+			}
+		}
+
 		autoApprove, trustedCampaigns, trustedDomains, _ := h.loadAutoApprove(s.ID, claims)
 		// Trusted-campaign names resolve from the campaigns visible in this
 		// page load (pending/serving carry names); raw ID otherwise.

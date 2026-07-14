@@ -147,9 +147,11 @@ function mountColorRow(store: Store): ColorRowHandle {
     "cursor:pointer",
   ].join(";");
 
+  // Order: hex field first, swatch after it — the swatch doubles as a
+  // preview of what the field says, so it reads value → color.
   row.appendChild(label);
-  row.appendChild(swatch);
   row.appendChild(text);
+  row.appendChild(swatch);
   row.appendChild(clear);
 
   // Keep the swatch and text input in sync. Picker fires "input" on

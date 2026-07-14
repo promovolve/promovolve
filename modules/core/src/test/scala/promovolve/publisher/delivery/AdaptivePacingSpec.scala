@@ -163,4 +163,58 @@ class AdaptivePacingSpec extends AnyFlatSpec with Matchers {
     val c = ctx(hour = 12, spend = 40)
     c.spendRatio shouldBe 0.8 +- 0.01
   }
+
+  // ==================== Advertiser-timezone pacing (window override) ====================
+
+  it should "use expectedSpendOverride for spendRatio when set" in {
+    // Zone-aware pacing pre-computes the aggregate expected spend across
+    // per-campaign windows (PacingLogic.computeAggregateExpectedSpend) and
+    // injects it here; the fraction-based dailyBudget × expectedSpendFraction
+    // must NOT be consulted.
+    val c = ctx(hour = 6, spend = 30).copy(expectedSpendOverride = Some(BigDecimal(60)))
+    c.expectedSpend shouldBe BigDecimal(60)
+    // 30 / 60, not 30 / (100 × 6/24) = 1.2
+    c.spendRatio shouldBe 0.5 +- 1e-9
+  }
+
+  it should "not hard-stop after dayStart+24h while windowEnd is still in the future" in {
+    // A JST campaign's budget day can end up to 24h after the site's cached
+    // dayStart+24h. remainingHours must follow windowEnd, so the day-over
+    // hard stop only fires when EVERY campaign's budget day is over.
+    val dayStart = Instant.parse("2024-01-01T00:00:00Z")
+    val now = dayStart.plusSeconds(25 * 3600L) // dayStart + 24h already passed
+    val base = PacingContext(
+      dailyBudget = BigDecimal(100),
+      todaySpend = BigDecimal(50),
+      dayStart = dayStart,
+      now = now,
+      requestCount = 100L,
+      msSinceLastRequest = 100L
+    )
+
+    // Identical context, no windowEnd: legacy day-over hard stop.
+    base.remainingHours shouldBe 0.0
+    AdaptivePacing().throttleProbability(base) shouldBe 1.0
+
+    // Only difference: a windowEnd still 2h out.
+    val zoned = base.copy(windowEnd = Some(now.plusSeconds(2 * 3600L)))
+    zoned.remainingHours shouldBe 2.0 +- 0.01
+    AdaptivePacing().throttleProbability(zoned) should not be 1.0
+  }
+
+  it should "hard-stop once windowEnd has passed" in {
+    val dayStart = Instant.parse("2024-01-01T00:00:00Z")
+    val now = dayStart.plusSeconds(6 * 3600L) // well inside the legacy day
+    val c = PacingContext(
+      dailyBudget = BigDecimal(100),
+      todaySpend = BigDecimal(10),
+      dayStart = dayStart,
+      now = now,
+      requestCount = 100L,
+      msSinceLastRequest = 100L,
+      windowEnd = Some(now.minusSeconds(3600L))
+    )
+    c.remainingHours shouldBe 0.0
+    AdaptivePacing().throttleProbability(c) shouldBe 1.0
+  }
 }

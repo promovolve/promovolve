@@ -34,7 +34,17 @@ final case class PacingContext(
     dayDurationSeconds: Int = 86400, // Simulated day length (default: 24h). Set lower for testing.
     trafficShape: Option[TrafficShapeTracker] = None, // Traffic pattern for shaped pacing
     requestCount: Long = 0, // Requests seen today (for initial grace period)
-    msSinceLastRequest: Long = 0 // Milliseconds since last request (for staleness detection)
+    msSinceLastRequest: Long = 0, // Milliseconds since last request (for staleness detection)
+    // Advertiser-timezone pacing (real days, zone-aware flag ON): the
+    // pre-computed per-campaign-window expected spend replaces
+    // dailyBudget × expectedSpendFraction — with mixed advertiser zones
+    // there is no single day window the fraction could describe.
+    // See PacingLogic.computeAggregateExpectedSpend.
+    expectedSpendOverride: Option[BigDecimal] = None,
+    // Latest budget-window end across the campaign pool. Drives
+    // remainingHours so the hard stop fires only when EVERY campaign's
+    // budget day is over, not at the earliest zone's midnight.
+    windowEnd: Option[Instant] = None
 ) {
 
   /**
@@ -60,7 +70,8 @@ final case class PacingContext(
   }
 
   /** Expected spend based on traffic shape (or linear if unavailable) */
-  def expectedSpend: BigDecimal = dailyBudget * expectedSpendFraction
+  def expectedSpend: BigDecimal =
+    expectedSpendOverride.getOrElse(dailyBudget * expectedSpendFraction)
 
   /**
    * Expected spend fraction based on traffic shape (or linear if unavailable).
@@ -121,8 +132,11 @@ final case class PacingContext(
   /** Remaining budget */
   def remainingBudget: BigDecimal = dailyBudget - todaySpend
 
-  /** Hours remaining in the day */
-  def remainingHours: Double = math.max(0, dayDurationHours - elapsedHours)
+  /** Hours remaining in the day (to windowEnd when zone-aware pacing set it) */
+  def remainingHours: Double = windowEnd match {
+    case Some(we) => math.max(0, Duration.between(now, we).toMillis / 3600000.0)
+    case None     => math.max(0, dayDurationHours - elapsedHours)
+  }
 }
 
 /**

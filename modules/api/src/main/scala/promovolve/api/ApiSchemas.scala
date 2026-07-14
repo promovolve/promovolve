@@ -15,6 +15,7 @@ object ApiSchemas {
   given Schema[AdvertiserList] = Schema.derived
   given Schema[BudgetStatus] = Schema.derived
   given Schema[AdvertiserDetail] = Schema.derived
+  given Schema[SetTimezoneRequest] = Schema.derived
 
   // Campaign
   given Schema[CampaignBudget] = Schema.derived

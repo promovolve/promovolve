@@ -250,6 +250,7 @@ func main() {
 	mux.HandleFunc("POST /admin/users/delete", adm(h.AdminDeleteUser))
 	mux.HandleFunc("POST /admin/orgs/suspend", adm(h.AdminSuspendOrg))
 	mux.HandleFunc("POST /admin/orgs/resume", adm(h.AdminResumeOrg))
+	mux.HandleFunc("POST /admin/orgs/timezone", adm(h.AdminSetOrgTimezone))
 	mux.HandleFunc("POST /admin/view-as", adm(h.AdminViewAs))
 	mux.HandleFunc("POST /admin/org-side/approve", adm(h.OrgSideDecision("approve")))
 	mux.HandleFunc("POST /admin/org-side/reject", adm(h.OrgSideDecision("reject")))

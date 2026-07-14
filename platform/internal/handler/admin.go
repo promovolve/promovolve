@@ -1,12 +1,14 @@
 package handler
 
 import (
+	"context"
 	"fmt"
 	"log/slog"
 	"net/http"
 	"net/mail"
 	"strconv"
 	"strings"
+	"time"
 
 	"github.com/google/uuid"
 
@@ -131,6 +133,13 @@ func (h *Handler) ApprovalDecision(action string) http.HandlerFunc {
 			slog.Error("request decision failed", "action", action, "userId", userID, "error", err)
 			h.renderAdminRequests(w, r, fmt.Sprintf("could not %s the request: %v", action, err))
 			return
+		}
+		if action == "approve" {
+			// Approval may have provisioned the advertiser entity for an org
+			// whose timezone the operator already set — push it to the core.
+			if o, _, oerr := h.orgRepo.ForUser(r.Context(), userID); oerr == nil {
+				h.pushOrgTimezone(r.Context(), o)
+			}
 		}
 		http.Redirect(w, r, "/admin/requests", http.StatusSeeOther)
 	}
@@ -296,6 +305,7 @@ func (h *Handler) renderAdminUsers(w http.ResponseWriter, r *http.Request, errMs
 			Suspended:     o.Suspended,
 			SuspendReason: o.SuspendReason,
 			SuspendedBy:   o.SuspendedBy,
+			Timezone:      o.Timezone,
 		}
 		if o.SuspendedAt != nil {
 			row.SuspendedAt = o.SuspendedAt.In(user.Location()).Format("2006-01-02")
@@ -304,6 +314,25 @@ func (h *Handler) renderAdminUsers(w http.ResponseWriter, r *http.Request, errMs
 	}
 	// Separate page param so paging orgs doesn't reset the users table.
 	orgStart, orgEnd, orgNav := buildListNavParam(r, len(orgRows), 25, "orgPage")
+
+	// Timezone dropdown: the curated preference list, plus any (possibly
+	// exotic) zone an org already carries so a re-save never resets it.
+	zones := preferenceTimezones
+	for _, o := range orgs {
+		if o.Timezone == "" {
+			continue
+		}
+		found := false
+		for _, z := range zones {
+			if z == o.Timezone {
+				found = true
+				break
+			}
+		}
+		if !found {
+			zones = append(zones, o.Timezone)
+		}
+	}
 
 	h.render(w, "admin/users.html", pageData{
 		Title:         "Users",
@@ -314,6 +343,7 @@ func (h *Handler) renderAdminUsers(w http.ResponseWriter, r *http.Request, errMs
 		AdminOrgs:     orgRows[orgStart:orgEnd],
 		AdminOrgsNav:  orgNav,
 		AdminOrgsQ:    r.URL.Query().Get("orgQ"),
+		Timezones:     zones,
 		ListNav:       nav,
 		Query:         r.URL.Query().Get("q"),
 		RecoveryURL:   recoveryURL,
@@ -332,6 +362,9 @@ type orgAdminRow struct {
 	SuspendReason string
 	SuspendedAt   string
 	SuspendedBy   string
+	// Advertiser-account timezone (IANA; "" = UTC) — the operator-only
+	// budget-day control on the organizations table.
+	Timezone string
 }
 
 // AdminSuspendOrg freezes a company: org flag first (locks the dashboard for
@@ -416,6 +449,64 @@ func (h *Handler) AdminResumeOrg(w http.ResponseWriter, r *http.Request) {
 	}
 	h.auditRepo.Log(r.Context(), admin.ID, admin.Email, orgID, "org_resume", o.Domain, "")
 	http.Redirect(w, r, "/admin/users", http.StatusSeeOther)
+}
+
+// AdminSetOrgTimezone sets the org's advertiser-account timezone (IANA;
+// "" = UTC): budget rollover and pacing follow the advertiser's day on the
+// core, while settlement stays UTC. Operator-only. The core cascade
+// log-and-continues like suspend — re-saving is the retry.
+func (h *Handler) AdminSetOrgTimezone(w http.ResponseWriter, r *http.Request) {
+	admin, _, ok := h.requireRole(w, r, model.RoleAdmin)
+	if !ok {
+		return
+	}
+	r.ParseForm()
+	orgID := r.FormValue("orgId")
+	tz := strings.TrimSpace(r.FormValue("timezone"))
+	if !validTimezone(tz) {
+		h.renderAdminUsers(w, r, fmt.Sprintf("unknown timezone %q — use an IANA zone like Asia/Tokyo", tz), "", "")
+		return
+	}
+	o, err := h.orgRepo.GetByID(r.Context(), orgID)
+	if err != nil {
+		h.renderAdminUsers(w, r, "unknown organization", "", "")
+		return
+	}
+	if err := h.orgRepo.SetTimezone(r.Context(), orgID, tz); err != nil {
+		h.renderAdminUsers(w, r, "timezone update failed: "+err.Error(), "", "")
+		return
+	}
+	if o.AdvertiserID != nil && *o.AdvertiserID != "" {
+		if err := h.orgCore.SetAdvertiserTimezone(r.Context(), *o.AdvertiserID, tz); err != nil {
+			slog.Error("org timezone: advertiser cascade failed (re-save to retry)",
+				"org", o.Domain, "advertiserId", *o.AdvertiserID, "error", err)
+		}
+	}
+	h.auditRepo.Log(r.Context(), admin.ID, admin.Email, orgID, "org_timezone", o.Domain, tz)
+	http.Redirect(w, r, "/admin/users", http.StatusSeeOther)
+}
+
+// validTimezone accepts "" (= UTC, the default) or any loadable IANA zone.
+func validTimezone(tz string) bool {
+	if tz == "" {
+		return true
+	}
+	_, err := time.LoadLocation(tz)
+	return err == nil
+}
+
+// pushOrgTimezone forwards a non-default org timezone to the core advertiser
+// — for the approval flows, where the advertiser entity may be provisioned
+// AFTER the operator already set the org's zone. Log-and-continue like the
+// suspend cascade; the /admin/users timezone control is the retry.
+func (h *Handler) pushOrgTimezone(ctx context.Context, o *model.Org) {
+	if o == nil || o.Timezone == "" || o.AdvertiserID == nil || *o.AdvertiserID == "" {
+		return
+	}
+	if err := h.orgCore.SetAdvertiserTimezone(ctx, *o.AdvertiserID, o.Timezone); err != nil {
+		slog.Error("org timezone: core push failed (retry via the /admin/users timezone control)",
+			"org", o.Domain, "advertiserId", *o.AdvertiserID, "error", err)
+	}
 }
 
 // InviteAdmin adds another platform operator: creates the admin account and

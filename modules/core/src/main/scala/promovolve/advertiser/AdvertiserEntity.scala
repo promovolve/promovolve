@@ -11,9 +11,9 @@ import org.apache.pekko.persistence.typed.PersistenceId
 import org.apache.pekko.persistence.typed.state.RecoveryCompleted
 import org.apache.pekko.persistence.typed.state.scaladsl.{ DurableStateBehavior, Effect }
 import promovolve.*
-import promovolve.common.{ addRejected, mightContain, remove }
+import promovolve.common.{ addRejected, mightContain, remove, Timezones }
 
-import java.time.{ Instant, LocalDate, ZoneOffset }
+import java.time.Instant
 
 /**
  * Sharded entity representing an advertiser account.
@@ -234,6 +234,16 @@ object AdvertiserEntity {
       )
       Effect
         .persist(state.addCampaign(campaignId))
+        .thenRun { persisted =>
+          // Stamp the account timezone onto the new campaign so its budget day
+          // is correct from the first spend (self-heal would fix it within
+          // 5 min anyway, but the first day shouldn't start on UTC).
+          if (persisted.timezone.nonEmpty)
+            sharding.entityRefFor(
+              CampaignEntity.TypeKey,
+              s"${persisted.advertiserId.value}|${campaignId.value}"
+            ) ! CampaignEntity.SetTimezone(persisted.timezone)
+        }
         .thenReply(replyTo)(_ => CampaignCreated(state.advertiserId, campaignId))
 
     case RemoveCampaign(campaignId, replyTo) =>
@@ -242,6 +252,52 @@ object AdvertiserEntity {
           .persist(state.removeCampaign(campaignId))
           .thenReply(replyTo)(state => CampaignRemoved(state.advertiserId, campaignId))
       else Effect.none.thenReply(replyTo)(_ => CampaignRemoved(state.advertiserId, campaignId))
+
+    case SetTimezone(tz, replyTo) =>
+      if (tz.nonEmpty && !Timezones.isValid(tz)) {
+        // API validates too; this is defense. Reply with the zone actually in effect.
+        ctx.log.warn(
+          "Rejected invalid timezone '{}' for advertiser {}",
+          tz,
+          state.advertiserId.value
+        )
+        Effect.none.thenReply(replyTo)(state => TimezoneUpdated(state.advertiserId, state.timezone))
+      } else if (tz == state.timezone)
+        Effect.none.thenReply(replyTo)(state => TimezoneUpdated(state.advertiserId, state.timezone))
+      else {
+        val now = Instant.now()
+        val newState = state.withTimezone(tz, now)
+        Effect
+          .persist(newState)
+          .thenRun { persisted =>
+            // A zone change moves the budget-day boundary: the current day now
+            // ends at the next NEW-zone midnight (or rolls on the next spend if
+            // the last reset already falls on an earlier new-zone day). Spend is
+            // never reset here — only the normal roll paths do that. This warn
+            // is the mandated operator trace for that boundary jump.
+            ctx.log.warn(
+              "Timezone change for advertiser {}: '{}' -> '{}' spendToday={} lastResetEpochDay={} immediateRollPending={}",
+              state.advertiserId.value,
+              state.timezone,
+              tz,
+              state.spendToday.value,
+              state.lastResetEpochDay,
+              persisted.needsRoll(now)
+            )
+            // Fan out to campaigns (at-most-once; their 5-min self-heal refresh
+            // from this entity covers lost tells).
+            persisted.campaignIds.foreach { cid =>
+              sharding.entityRefFor(
+                CampaignEntity.TypeKey,
+                s"${persisted.advertiserId.value}|${cid.value}"
+              ) ! CampaignEntity.SetTimezone(tz)
+            }
+          }
+          .thenReply(replyTo)(_ => TimezoneUpdated(state.advertiserId, tz))
+      }
+
+    case GetTimezone(replyTo) =>
+      Effect.none.thenReply(replyTo)(state => AdvertiserTimezone(state.advertiserId, state.timezone))
   }
 
   // ═══════════════════════════════════════════════════════════════════════════
@@ -321,11 +377,11 @@ object AdvertiserEntity {
           CampaignSpendRecorded(state.advertiserId, campaignId, state.spendToday, state.remaining)
         )
       } else {
-        // Check if daily window needs rolling
-        val today = LocalDate.ofInstant(ts, ZoneOffset.UTC).toEpochDay
-        val needsRoll = state.lastResetEpochDay != today
+        // Check if daily window needs rolling (day boundary = advertiser-zone midnight)
+        val today = Timezones.localEpochDay(ts, state.timezone)
+        val needsRoll = state.needsRoll(ts)
         val wasExhausted = !state.withinBudget
-        val rolledState = if (needsRoll) state.rollWindow(today) else state
+        val rolledState = if (needsRoll) state.rollWindow(today, ts) else state
 
         // Record spend and track flushId for idempotency
         val wasWithin = rolledState.withinBudget
@@ -382,7 +438,8 @@ object AdvertiserEntity {
 
     case ResetDayStart(replyTo, silent) =>
       // Reset daily spend for simulated day rollover (testing)
-      val today = LocalDate.now(ZoneOffset.UTC).toEpochDay
+      val resetAt = Instant.now()
+      val today = Timezones.localEpochDay(resetAt, state.timezone)
       ctx.log.info(
         "ResetDayStart: advertiser={} oldSpend={} oldEpochDay={} newEpochDay={} silent={}",
         state.advertiserId.value,
@@ -391,7 +448,7 @@ object AdvertiserEntity {
         today,
         silent
       )
-      val newState = state.rollWindow(today)
+      val newState = state.rollWindow(today, resetAt)
       // Publish budget reset event so AdServer knows budget is available
       // Skip publishing when silent=true (used by PacingConfigUpdated to avoid re-auctions)
       if (!silent) {
@@ -624,8 +681,24 @@ object AdvertiserEntity {
       name: Name,
       status: Status,
       campaignIds: Set[CampaignId],
-      siteDomainBlocklist: Set[String]
+      siteDomainBlocklist: Set[String],
+      timezone: String = ""
   ) extends promovolve.CborSerializable
+
+  /**
+   * Set the account timezone (IANA id, "" = UTC). Operator-only, pushed from
+   * the platform via the internal API. Changing it moves the budget-day
+   * boundary — the change day gets one shortened or extended budget window.
+   */
+  case class SetTimezone(timezone: String, replyTo: ActorRef[TimezoneUpdated]) extends Command
+
+  /** Carries the zone actually in effect (an invalid set request is rejected). */
+  case class TimezoneUpdated(advertiserId: AdvertiserId, timezone: String) extends promovolve.CborSerializable
+
+  /** Read the account timezone (campaigns self-heal from this periodically). */
+  case class GetTimezone(replyTo: ActorRef[AdvertiserTimezone]) extends Command
+
+  case class AdvertiserTimezone(advertiserId: AdvertiserId, timezone: String) extends promovolve.CborSerializable
 
   /** Update advertiser name */
   case class UpdateName(name: Name, replyTo: ActorRef[NameUpdated]) extends Command
@@ -852,7 +925,16 @@ object AdvertiserEntity {
       spendToday: Spend,
       lastResetEpochDay: Long,
       processedFlushIds: Set[FlushId] = Set.empty,
-      flushIdQueue: Vector[FlushId] = Vector.empty
+      flushIdQueue: Vector[FlushId] = Vector.empty,
+      // Account timezone (IANA id); "" = UTC. Plain String so Jackson recovery
+      // of pre-timezone snapshots defaults cleanly. Budget days roll at this
+      // zone's midnight; settlement/metering deliberately stay UTC.
+      timezone: String = "",
+      // Instant of the last budget roll; EPOCH = legacy/unknown (pre-timezone
+      // snapshot). Roll detection compares calendar days of this instant vs
+      // now IN THE ACCOUNT ZONE — an Instant is zone-independent, so a zone
+      // change can never double-roll (unlike the day-number comparison).
+      lastResetAt: Instant = Instant.EPOCH
   ) extends CborSerializable {
     def addCampaign(campaignId: CampaignId): State =
       copy(campaignIds = campaignIds + campaignId)
@@ -926,13 +1008,37 @@ object AdvertiserEntity {
       }
     }
 
-    def rollWindow(newEpochDay: Long): State =
+    def rollWindow(newEpochDay: Long, at: Instant): State =
       // Clear processed flush IDs on window roll (new day = new idempotency window)
       copy(
         spendToday = Spend.zero,
         lastResetEpochDay = newEpochDay,
         processedFlushIds = Set.empty,
-        flushIdQueue = Vector.empty
+        flushIdQueue = Vector.empty,
+        lastResetAt = at
+      )
+
+    /**
+     * Should the daily window roll at `now`? Day boundary is the account
+     * zone's midnight. Legacy states (lastResetAt == EPOCH) fall back to the
+     * pre-timezone day-number comparison once; the first roll stamps
+     * lastResetAt and the instant-based rule takes over.
+     */
+    def needsRoll(now: Instant): Boolean =
+      if (lastResetAt != Instant.EPOCH)
+        Timezones.localEpochDay(lastResetAt, timezone) != Timezones.localEpochDay(now, timezone)
+      else
+        lastResetEpochDay != Timezones.localEpochDay(now, timezone)
+
+    /**
+     * Adopt a new account timezone. Never touches spend; a legacy state
+     * (lastResetAt == EPOCH) gets its current budget day relabeled to start
+     * "now" so the day simply ends at the next new-zone midnight.
+     */
+    def withTimezone(tz: String, now: Instant): State =
+      copy(
+        timezone = tz,
+        lastResetAt = if (lastResetAt == Instant.EPOCH) now else lastResetAt
       )
 
     def remaining: Budget =
@@ -944,7 +1050,7 @@ object AdvertiserEntity {
      * AdvertiserEntity processes its own ResetDayStart command.
      */
     def remainingForBidding: Budget = {
-      val today = java.time.LocalDate.now(java.time.ZoneOffset.UTC).toEpochDay
+      val today = Timezones.localEpochDay(Instant.now(), timezone)
       if (today > lastResetEpochDay) {
         // Day has changed but reset not yet processed - treat as fresh budget
         dailyBudget
@@ -957,7 +1063,7 @@ object AdvertiserEntity {
       spendToday.value < dailyBudget.value
 
     def toInfo: AdvertiserInfo =
-      AdvertiserInfo(advertiserId, name, status, campaignIds, siteDomainBlocklist)
+      AdvertiserInfo(advertiserId, name, status, campaignIds, siteDomainBlocklist, timezone)
   }
 
   /** Remove a creative */

@@ -6,8 +6,13 @@ import java.time.{ Duration, Instant, LocalDate, ZoneOffset }
  * Time source abstraction for day boundary detection.
  *
  * Enables simulated days for testing without modifying CampaignEntity's
- * real UTC budget accounting. AdServer uses DayClock for pacing calculations
+ * real budget accounting. AdServer uses DayClock for pacing calculations
  * while CampaignEntity continues to use real calendar days.
+ *
+ * NOTE: these are TRAFFIC-SHAPE days (site-local, deliberately UTC), not
+ * budget days. Budget windows roll at the advertiser account timezone's
+ * midnight (CampaignEntity/AdvertiserEntity `State.timezone`) — do not use
+ * DayClock for budget-window math.
  *
  * == Usage ==
  * {{{

@@ -308,6 +308,10 @@ func Migrate(pool *pgxpool.Pool) error {
 		ALTER TABLE orgs ADD COLUMN IF NOT EXISTS suspend_reason TEXT NOT NULL DEFAULT '';
 		ALTER TABLE orgs ADD COLUMN IF NOT EXISTS suspended_at TIMESTAMPTZ;
 		ALTER TABLE orgs ADD COLUMN IF NOT EXISTS suspended_by TEXT NOT NULL DEFAULT '';
+		-- Advertiser account timezone (IANA); '' = UTC. Drives budget rollover
+		-- + pacing day on the core, NOT billing (settlement stays UTC).
+		-- Operator-changeable only.
+		ALTER TABLE orgs ADD COLUMN IF NOT EXISTS timezone TEXT NOT NULL DEFAULT '';
 
 		-- Org membership: each user belongs to at most one org. org_role is the
 		-- in-org role (billing + member management), NOT the platform operator

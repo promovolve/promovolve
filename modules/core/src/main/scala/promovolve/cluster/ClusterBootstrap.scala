@@ -451,6 +451,16 @@ object ClusterBootstrap {
           cfg.getDuration("promovolve.adserver.page-winners-ttl").toMillis.millis
         else AdServer.DefaultPageWinnersTtl
 
+      // Advertiser-timezone pacing kill switch (default OFF). When on, real-day
+      // expected spend integrates the UTC traffic shape over each campaign's
+      // advertiser-zone budget window instead of assuming a shared UTC day.
+      // Off — or on with every zone unset — is behavior-identical to before;
+      // flip via PACING_ZONE_AWARE without a code change. Deliberately a flag
+      // (unlike pacing itself): this math sits on the serve-death codepath.
+      val zoneAwarePacing: Boolean =
+        cfg.hasPath("promovolve.pacing.zone-aware") &&
+        cfg.getBoolean("promovolve.pacing.zone-aware")
+
       sharding.init(Entity(AdServer.TypeKey) { ctx =>
         AdServer(
           SiteId(ctx.entityId),
@@ -462,7 +472,8 @@ object ClusterBootstrap {
           trafficShapeSnapshotRepo,
           budgetEventTopic,
           pacingStrategy = pacingStrategy,
-          pageWinnersTtl = pageWinnersTtl
+          pageWinnersTtl = pageWinnersTtl,
+          zoneAwarePacing = zoneAwarePacing
         )(using system)
       }.withEntityProps(DispatcherSelector.fromConfig("serve-dispatcher")))
     }

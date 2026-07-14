@@ -542,7 +542,11 @@ final case class SpendUpdate(
     dailyBudget: Budget,
     todaySpend: Spend,
     dayStart: Instant,
-    timestamp: Instant
+    timestamp: Instant,
+    // Advertiser account zone ("" = UTC): the budget window runs from
+    // dayStart to that zone's next midnight. Defaulted so in-flight events
+    // from pre-timezone senders deserialize during a rolling deploy.
+    timezone: String = ""
 ) extends BudgetEvent
 
 // ---------- Advertiser-level budget events ----------

@@ -710,7 +710,11 @@ object AdServer {
       purgeInterval: FiniteDuration = 5.minutes,
       snapshotInterval: FiniteDuration = 1.hour,
       pageWinnersTtl: FiniteDuration = DefaultPageWinnersTtl,
-      rng: Random = new Random()
+      rng: Random = new Random(),
+      // Advertiser-timezone pacing (real days): expected spend per campaign
+      // budget window instead of one shared UTC day. Kill switch, default off
+      // (promovolve.pacing.zone-aware) — see ClusterBootstrap.initAdServerEntity.
+      zoneAwarePacing: Boolean = false
   )(using system: ActorSystem[?]): Behavior[Command] =
     Behaviors.setup { ctx =>
       Behaviors.withTimers { timers =>
@@ -922,7 +926,8 @@ object AdServer {
           ddataUpdateAdapter,
           selfUniqueAddress,
           budgetEventTopic,
-          budgetEventAdapter
+          budgetEventAdapter,
+          zoneAwarePacing
         ).behavior()
       }
     }
@@ -945,7 +950,8 @@ private[delivery] class AdServer(
     ddataUpdateAdapter: ActorRef[Replicator.UpdateResponse[?]],
     selfUniqueAddress: SelfUniqueAddress,
     budgetEventTopic: ActorRef[Topic.Command[BudgetEvent]],
-    budgetEventAdapter: ActorRef[BudgetEvent]
+    budgetEventAdapter: ActorRef[BudgetEvent],
+    zoneAwarePacing: Boolean = false
 )(using system: ActorSystem[?], ec: ExecutionContext) {
 
   // Cached as a Long so the hot filter loops don't re-call .toMillis on every entry.
@@ -1134,7 +1140,8 @@ private[delivery] class AdServer(
             log.info("Grace period ended: fresh SpendUpdate received for campaign={}", su.campaignId.value)
             0L
           } else rolloverGraceUntilMs
-          val cached = CachedSpendInfo(su.advertiserId, su.dailyBudget, su.todaySpend, su.dayStart, su.timestamp)
+          val cached =
+            CachedSpendInfo(su.advertiserId, su.dailyBudget, su.todaySpend, su.dayStart, su.timestamp, su.timezone)
           // Initialize lastDayStart from SpendUpdate if not yet set
           val updatedDayStart = lastDayStart.orElse(Some(su.dayStart))
           if (lastDayStart.isEmpty) {
@@ -2633,6 +2640,17 @@ private[delivery] class AdServer(
           val effectiveDayStart =
             if (selCtx.dayDurationSeconds == 86400) cachedDayStart
             else lastDayStart.filter(_.isAfter(cachedDayStart)).getOrElse(cachedDayStart)
+          // Zone-aware pacing (flag ON, real days): expected spend is the sum
+          // over each campaign's advertiser-zone budget window, and the hard-
+          // stop horizon is the LATEST window end — min(dayStart) alone would
+          // hard-stop the whole site at the earliest zone's midnight.
+          // effectiveDayStart still feeds elapsed/grace unchanged.
+          val (expectedOverride, windowEnd) =
+            if (zoneAwarePacing && selCtx.dayDurationSeconds == 86400) {
+              val (expected, maxEnd) =
+                PacingLogic.computeAggregateExpectedSpend(validInfos, selCtx.trafficShapeTracker, now)
+              (Some(expected), Some(maxEnd))
+            } else (None, None)
           val pacingCtx = PacingContext(
             dailyBudget = totalDailyBudget,
             todaySpend = totalTodaySpend,
@@ -2644,7 +2662,9 @@ private[delivery] class AdServer(
             dayDurationSeconds = selCtx.dayDurationSeconds,
             trafficShape = Some(selCtx.trafficShapeTracker),
             requestCount = selCtx.requestCount,
-            msSinceLastRequest = selCtx.msSinceLastRequest
+            msSinceLastRequest = selCtx.msSinceLastRequest,
+            expectedSpendOverride = expectedOverride,
+            windowEnd = windowEnd
           )
           val throttle = pacingStrategy.throttleProbability(pacingCtx)
           val requestPasses = rng.nextDouble() >= throttle
@@ -4457,7 +4477,8 @@ private[delivery] class AdServer(
                   dailyBudget = info.dailyBudget,
                   todaySpend = info.todaySpend,
                   dayStart = info.dayStart,
-                  timestamp = now
+                  timestamp = now,
+                  timezone = info.timezone
                 )))
             }
             .recover { case _ => (campId, None) }
@@ -4481,10 +4502,17 @@ private[delivery] class AdServer(
       )
       val cachedDayStart = validInfos.map(_._2.dayStart).minBy(_.toEpochMilli)
       // Same anchor rule as the batch path: real days pace against the
-      // campaign's UTC day start, never the boot-reset entity anchor.
+      // campaign's day start, never the boot-reset entity anchor.
       val effectiveDayStart =
         if (dayDurationSeconds == 86400) cachedDayStart
         else lastDayStart.filter(_.isAfter(cachedDayStart)).getOrElse(cachedDayStart)
+      // Same zone-aware rule as the batch path (see comment there).
+      val (expectedOverride, windowEnd) =
+        if (zoneAwarePacing && dayDurationSeconds == 86400) {
+          val (expected, maxEnd) =
+            PacingLogic.computeAggregateExpectedSpend(validInfos, trafficShapeTracker, now)
+          (Some(expected), Some(maxEnd))
+        } else (None, None)
       val pacingCtx = PacingContext(
         dailyBudget = totalDailyBudget,
         todaySpend = totalTodaySpend,
@@ -4496,7 +4524,9 @@ private[delivery] class AdServer(
         dayDurationSeconds = dayDurationSeconds,
         trafficShape = Some(trafficShapeTracker),
         requestCount = requestCount,
-        msSinceLastRequest = msSinceLastRequest
+        msSinceLastRequest = msSinceLastRequest,
+        expectedSpendOverride = expectedOverride,
+        windowEnd = windowEnd
       )
       val throttle = pacingStrategy.throttleProbability(pacingCtx)
       val requestPasses = rng.nextDouble() >= throttle

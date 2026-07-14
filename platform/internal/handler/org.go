@@ -597,6 +597,15 @@ func (h *Handler) OrgSideDecision(action string) http.HandlerFunc {
 			h.renderAdminRequests(w, r, fmt.Sprintf("could not %s the side request: %v", action, err))
 			return
 		}
+		if action == "approve" {
+			// A side approval may have provisioned the advertiser entity for
+			// an org whose timezone was already set — push it to the core.
+			if sr, serr := h.orgRepo.GetSideRequest(r.Context(), requestID); serr == nil {
+				if o, oerr := h.orgRepo.GetByID(r.Context(), sr.OrgID); oerr == nil {
+					h.pushOrgTimezone(r.Context(), o)
+				}
+			}
+		}
 		http.Redirect(w, r, "/admin/requests", http.StatusSeeOther)
 	}
 }

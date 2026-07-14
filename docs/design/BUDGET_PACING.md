@@ -2,6 +2,30 @@
 
 Budget pacing spreads ad spend evenly throughout the day instead of exhausting the budget early. This prevents campaigns from going dark in the afternoon after burning through their budget in the morning.
 
+## Which day? The three-clock split
+
+The system deliberately runs on three different day definitions:
+
+- **Budget day — advertiser account timezone.** Campaign and account daily
+  budgets roll at the midnight of the advertiser's IANA timezone
+  (`orgs.timezone`, default UTC; operator-set, pushed to
+  `AdvertiserEntity`/`CampaignEntity`). The advertiser's "today's spend"
+  endpoints use the same window. Google Ads model: one account timezone,
+  inherited by all campaigns. Changing it mid-stream gives the change day one
+  shortened or extended budget window — set at provisioning, operator-change
+  only.
+- **Traffic-shape day — UTC (site-local).** The learned hourly volume curve
+  belongs to the publisher site; a global-audience site has no single zone.
+  When the zone-aware pacing flag (`promovolve.pacing.zone-aware`) is on,
+  expected spend integrates this UTC curve over each campaign's
+  advertiser-zone budget window (`PacingLogic.expectedWindowFraction` handles
+  the UTC-midnight wrap).
+- **Billing day — UTC, always.** Settlement, metering, and the ledger book
+  UTC days (`/v1/internal/metering/*`, the Go settler). Billing day ≠ account
+  day is intentional — the shared ledger needs one canonical day, and Google
+  keeps the same split. Historical daily reports likewise stay UTC-bucketed
+  (`campaign_daily_stats.day_bucket` is computed at projection-write time).
+
 ## Overview
 
 Pacing is **always enforced** at the AdServer level using a pluggable `PacingStrategy`. The default strategy is `RateAwarePacing`, which uses PI (Proportional-Integral) control to dynamically adjust throttling based on:

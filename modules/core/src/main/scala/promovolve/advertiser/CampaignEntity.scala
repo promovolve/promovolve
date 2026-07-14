@@ -15,7 +15,7 @@ import org.apache.pekko.util.Timeout
 import promovolve.*
 import promovolve.advertiser.AdvertiserEntity.CampaignSpendRecorded
 import promovolve.taxonomy.{ Iab2xTo3xMigration, TieredCategory }
-import promovolve.common.{ hash, BloomFilter }
+import promovolve.common.{ hash, BloomFilter, Timezones }
 import promovolve.publisher.CategoryDemandRepo
 
 import java.time
@@ -48,7 +48,8 @@ import scala.util.{ Failure, Success }
  *   - '''Idempotency''': Scaffeine cache prevents duplicate spend recording
  *   - '''At-Least-Once Delivery''': Pending reports survive restarts via `pendingReports` in State
  *   - '''Probabilistic Throttling''': Gradually reduces bid probability as budget depletes
- *   - '''Daily Budget Windows''': Auto-resets at UTC midnight
+ *   - '''Daily Budget Windows''': Auto-resets at the advertiser account
+ *     timezone's midnight (`State.timezone`, "" = UTC)
  */
 object CampaignEntity {
 
@@ -364,6 +365,18 @@ object CampaignEntity {
             AdvertiserEntity.GetBidContext(creativeIds, _)
           )
 
+        // Self-heal for the account timezone: the advertiser's SetTimezone
+        // fan-out is an at-most-once tell, so refresh from the source on
+        // recovery and every CheckWindowRoll tick (5 min). SetTimezone is a
+        // no-op when unchanged, so the steady-state cost is one ask.
+        def refreshTimezoneFromAdvertiser(): Unit =
+          ctx.pipeToSelf(
+            advertiserRef.ask[AdvertiserEntity.AdvertiserTimezone](AdvertiserEntity.GetTimezone(_))
+          ) {
+            case Success(t) => SetTimezone(t.timezone)
+            case Failure(_) => TimezoneRefreshFailed
+          }
+
         // Total spend = persisted + buffered
         def totalSpend(state: State): Spend = state.spendToday + bufferedSpend
 
@@ -375,8 +388,8 @@ object CampaignEntity {
         // This handles the race condition where AdvertiserBudgetReset triggers re-auction before
         // CampaignEntity processes its own ResetDayStart command.
         def remainingBudgetForBidding(state: State, now: Instant): Budget = {
-          val today = LocalDate.ofInstant(now, ZoneOffset.UTC).toEpochDay
-          val lastResetDay = LocalDate.ofInstant(state.lastResetInstant, ZoneOffset.UTC).toEpochDay
+          val today = Timezones.localEpochDay(now, state.timezone)
+          val lastResetDay = Timezones.localEpochDay(state.lastResetInstant, state.timezone)
           if (today > lastResetDay) {
             // Day has changed but reset not yet processed - treat as fresh budget
             state.dailyBudget
@@ -388,7 +401,11 @@ object CampaignEntity {
         // Budget check accounting for buffer
         def withinBudget(state: State): Boolean = totalSpend(state) < state.dailyBudget
 
-        // Helper to extract epoch day from Instant (for flush IDs and day roll detection)
+        // UTC epoch day — feeds flush IDs ONLY. FlushIds must stay
+        // zone-independent: they're a persisted dedup key on the advertiser
+        // side, and making them follow an operator-changeable zone would add
+        // a second variable to the (already delicate) dedup scheme. Budget
+        // ROLL decisions use Timezones.localEpochDay(_, state.timezone).
         def epochDayOf(instant: Instant): Long =
           LocalDate.ofInstant(instant, ZoneOffset.UTC).toEpochDay
 
@@ -532,14 +549,16 @@ object CampaignEntity {
               replyTo ! SpendRecorded(
                 totalSpend(state),
                 remainingBudget(state),
-                epochDayOf(state.lastResetInstant)
+                Timezones.localEpochDay(state.lastResetInstant, state.timezone)
               )
               Effect.none
             } else {
-              // Check daily window roll (skip in simulated mode — day resets driven by ResetDayStart)
+              // Check daily window roll (skip in simulated mode — day resets driven by ResetDayStart).
+              // Day boundary = the advertiser account zone's midnight, not UTC.
               val simulatedMode = simDayDurationSeconds < 86400.0
-              val today = LocalDate.ofInstant(ts, ZoneOffset.UTC).toEpochDay
-              val needsRoll = !simulatedMode && epochDayOf(state.lastResetInstant) != today
+              val today = Timezones.localEpochDay(ts, state.timezone)
+              val needsRoll =
+                !simulatedMode && Timezones.localEpochDay(state.lastResetInstant, state.timezone) != today
 
               // Guard against double roll: if CheckWindowRoll already rolled to this day, skip
               val alreadyRolled = if (needsRoll) tryMarkDayRoll(today) else false
@@ -589,7 +608,8 @@ object CampaignEntity {
                       dailyBudget = newState.dailyBudget,
                       todaySpend = totalSpend(newState),
                       dayStart = newState.lastResetInstant,
-                      timestamp = ts
+                      timestamp = ts,
+                      timezone = newState.timezone
                     )
                   )
                 }
@@ -601,7 +621,7 @@ object CampaignEntity {
                 replyTo ! SpendRecorded(
                   totalSpend(state),
                   remainingBudget(state),
-                  epochDayOf(state.lastResetInstant)
+                  Timezones.localEpochDay(state.lastResetInstant, state.timezone)
                 )
 
                 // Flush if batch size reached
@@ -644,7 +664,8 @@ object CampaignEntity {
                     dailyBudget = newState.dailyBudget,
                     todaySpend = newState.spendToday,
                     dayStart = newState.lastResetInstant,
-                    timestamp = ts
+                    timestamp = ts,
+                    timezone = newState.timezone
                   )
                 )
               }
@@ -664,6 +685,8 @@ object CampaignEntity {
             Effect.none
 
           case CheckWindowRoll =>
+            // Piggyback the timezone self-heal on the roll tick.
+            refreshTimezoneFromAdvertiser()
             // Auto-flip Active → Ended when endAt has passed. This is a
             // pure UI / housekeeping transition — canBid already returns
             // false from isWithinSchedule regardless of status, so the
@@ -683,10 +706,12 @@ object CampaignEntity {
                 )
               }
             } else {
-              // Skip in simulated mode — day resets driven by ResetDayStart
+              // Skip in simulated mode — day resets driven by ResetDayStart.
+              // Day boundary = the advertiser account zone's midnight, not UTC.
               val simulatedMode = simDayDurationSeconds < 86400.0
-              val today = LocalDate.now(ZoneOffset.UTC).toEpochDay
-              val needsRoll = !simulatedMode && epochDayOf(state.lastResetInstant) != today
+              val today = Timezones.localEpochDay(Instant.now(), state.timezone)
+              val needsRoll =
+                !simulatedMode && Timezones.localEpochDay(state.lastResetInstant, state.timezone) != today
               // Guard against double roll: if RecordSpend already rolled to this day, skip
               val alreadyRolled = if (needsRoll) tryMarkDayRoll(today) else false
 
@@ -879,7 +904,8 @@ object CampaignEntity {
                     dailyBudget = newState.dailyBudget,
                     todaySpend = totalSpend(newState),
                     dayStart = newState.lastResetInstant,
-                    timestamp = Instant.now()
+                    timestamp = Instant.now(),
+                    timezone = newState.timezone
                   )
                 )
               }
@@ -954,7 +980,8 @@ object CampaignEntity {
                     dailyBudget = newState.dailyBudget,
                     todaySpend = totalSpend(newState),
                     dayStart = newState.lastResetInstant,
-                    timestamp = ts
+                    timestamp = ts,
+                    timezone = newState.timezone
                   )
                 )
               }
@@ -964,6 +991,50 @@ object CampaignEntity {
                   promovolve.CampaignAdProductChanged(campaignId, ts)
                 )
                 ctx.log.info("Ad product category changed for campaign {}, publishing removal", campaignId.value)
+              }
+            }
+
+          case SetTimezone(tz) =>
+            if ((tz.nonEmpty && !Timezones.isValid(tz)) || tz == state.timezone)
+              Effect.none
+            else {
+              val newState = state.copy(timezone = tz)
+              Effect.persist(newState).thenRun { persisted =>
+                // Re-derive the double-roll guard in the NEW zone so it
+                // neither blocks the legitimate next roll nor allows a double
+                // roll (the old guard value is a day number in the old zone).
+                ephemeral = ephemeral.copy(
+                  lastRolledEpochDay = Timezones.localEpochDay(persisted.lastResetInstant, tz)
+                )
+                // lastResetInstant is deliberately untouched: the current
+                // budget day simply ends at the next new-zone midnight, or
+                // rolls on the next spend/tick if the last reset already
+                // falls on an earlier new-zone day. Spend only ever resets
+                // via the normal roll paths; this warn is the operator trace
+                // for the boundary jump.
+                ctx.log.warn(
+                  "Timezone change for campaign {}: '{}' -> '{}' spendToday={} lastResetInstant={} immediateRollPending={}",
+                  campaignId.value,
+                  state.timezone,
+                  tz,
+                  totalSpend(persisted).value,
+                  persisted.lastResetInstant,
+                  Timezones.localEpochDay(persisted.lastResetInstant, tz) !=
+                    Timezones.localEpochDay(Instant.now(), tz)
+                )
+                // Nudge AdServer pacing onto the new window right away
+                // instead of waiting for the next flush.
+                budgetEventTopic ! Topic.Publish(
+                  promovolve.SpendUpdate(
+                    campaignId = campaignId,
+                    advertiserId = advertiserId,
+                    dailyBudget = persisted.dailyBudget,
+                    todaySpend = totalSpend(persisted),
+                    dayStart = persisted.lastResetInstant,
+                    timestamp = Instant.now(),
+                    timezone = tz
+                  )
+                )
               }
             }
 
@@ -1057,7 +1128,8 @@ object CampaignEntity {
             replyTo ! SpendInfo(
               dailyBudget = state.dailyBudget,
               todaySpend = totalSpend(state),
-              dayStart = state.lastResetInstant
+              dayStart = state.lastResetInstant,
+              timezone = state.timezone
             )
             Effect.none
 
@@ -1130,7 +1202,8 @@ object CampaignEntity {
                     dailyBudget = newState.dailyBudget,
                     todaySpend = Spend.zero,
                     dayStart = now,
-                    timestamp = now
+                    timestamp = now,
+                    timezone = newState.timezone
                   )
                 )
               }.thenReply(replyTo)(_ => DayStartReset(campaignId, now))
@@ -1233,7 +1306,8 @@ object CampaignEntity {
                   dailyBudget = newBudget,
                   todaySpend = spendTotal,
                   dayStart = state.lastResetInstant,
-                  timestamp = ts
+                  timestamp = ts,
+                  timezone = state.timezone
                 )
               )
 
@@ -1252,6 +1326,10 @@ object CampaignEntity {
         def lifecycle(state: State): PartialFunction[Command, Effect[State]] = {
           case IgnoreDDataResponse =>
             // Adapted DData Update reply — fire-and-forget publish, nothing to do.
+            Effect.none
+
+          case TimezoneRefreshFailed =>
+            // Advertiser ask timed out/failed — next CheckWindowRoll retries.
             Effect.none
 
           case MigrateLegacyCategories =>
@@ -1346,6 +1424,10 @@ object CampaignEntity {
           // Start timers AFTER recovery to prevent processing timer messages before state is ready
           timers.startTimerWithFixedDelay(FlushTick, flushInterval)
           timers.startTimerWithFixedDelay(CheckWindowRoll, 5.minutes)
+
+          // Adopt the account timezone in case the advertiser's fan-out tell
+          // was lost while this entity was passivated (no-op when unchanged).
+          refreshTimezoneFromAdvertiser()
           // RL disabled — quality-adjusted auction makes bid shading counterproductive.
           // Bidding true value (maxCPM) is always optimal in Vickrey auction.
 
@@ -1399,6 +1481,9 @@ object CampaignEntity {
    */
   private case object MigrateLegacyCategories extends Internal
   private case object IgnoreDDataResponse extends Internal
+
+  /** Timezone self-heal ask failed — benign, retried on the next roll tick. */
+  private case object TimezoneRefreshFailed extends Internal
 
   private sealed trait SpendReportResult extends Internal
 
@@ -1592,6 +1677,9 @@ object CampaignEntity {
   final case class SpendRecorded(
       spendToday: Spend,
       remaining: Budget,
+      // Budget-day number of the current window in the ADVERTISER's zone
+      // (not UTC). Informational only — the sole consumer (AuctionRoutes'
+      // test route) ignores it.
       epochDay: Long
   ) extends promovolve.CborSerializable
 
@@ -1617,8 +1705,20 @@ object CampaignEntity {
   final case class SpendInfo(
       dailyBudget: Budget,
       todaySpend: Spend,
-      dayStart: Instant
+      dayStart: Instant,
+      // Advertiser account zone ("" = UTC); the budget window ends at this
+      // zone's next midnight after dayStart. Defaulted for cross-node
+      // compat with pre-timezone senders.
+      timezone: String = ""
   ) extends promovolve.CborSerializable
+
+  /**
+   * Set the campaign's effective budget-day timezone (IANA id, "" = UTC).
+   * Tell-only: pushed by AdvertiserEntity on account-zone change / campaign
+   * creation, and self-healed from it on recovery + every roll tick. No-op
+   * persist when unchanged.
+   */
+  final case class SetTimezone(timezone: String) extends Command
 
   /** Reset day start to current time (for testing - syncs server time with client) */
   final case class ResetDayStart(replyTo: ActorRef[DayStartReset], dayDurationSeconds: Int = 86400) extends Command
@@ -1736,7 +1836,12 @@ object CampaignEntity {
       // the campaign id as the "name" on every read, which is why ULIDs
       // leaked all over the dashboard. Default-empty is Jackson-safe;
       // legacy campaigns read back "" and the API falls back to the id.
-      name: String = ""
+      name: String = "",
+      // Advertiser account timezone (IANA id); "" = UTC. Budget days roll at
+      // this zone's midnight. Mirrored from AdvertiserEntity (fan-out on
+      // change + periodic self-heal); plain String so Jackson recovery of
+      // pre-timezone snapshots defaults cleanly. FlushIds stay UTC-based.
+      timezone: String = ""
   ) extends CborSerializable {
 
     /**

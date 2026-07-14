@@ -1,6 +1,7 @@
 package billing
 
 import (
+	"bytes"
 	"context"
 	"encoding/json"
 	"fmt"
@@ -37,6 +38,10 @@ type CoreClient interface {
 	MeteringIntraday(ctx context.Context, since time.Time) (map[string]int64, error)
 	SuspendAdvertiser(ctx context.Context, advertiserID string) error
 	ResumeAdvertiser(ctx context.Context, advertiserID string) error
+	// SetAdvertiserTimezone pushes the advertiser account's IANA timezone
+	// ("" = UTC) — budget rollover + pacing follow it on the core;
+	// settlement stays UTC.
+	SetAdvertiserTimezone(ctx context.Context, advertiserID, timezone string) error
 }
 
 // HTTPCoreClient talks to the Scala core's /v1/internal endpoints.
@@ -139,6 +144,19 @@ func (c *HTTPCoreClient) ResumeAdvertiser(ctx context.Context, advertiserID stri
 	return err
 }
 
+// SetAdvertiserTimezone pushes the advertiser account's timezone (IANA name;
+// "" = UTC) so budget rollover and pacing follow the advertiser's day.
+// Settlement deliberately stays UTC.
+func (c *HTTPCoreClient) SetAdvertiserTimezone(ctx context.Context, advertiserID, timezone string) error {
+	payload, err := json.Marshal(map[string]string{"timezone": timezone})
+	if err != nil {
+		return err
+	}
+	_, err = c.doJSON(ctx, http.MethodPost,
+		fmt.Sprintf("%s/v1/internal/advertisers/%s/timezone", c.BaseURL, advertiserID), payload)
+	return err
+}
+
 // SuspendPublisher freezes serving on every one of the publisher's sites
 // (operator org suspension); ResumePublisher lifts it. Reversible — the
 // core keeps approvals/state intact.
@@ -153,9 +171,21 @@ func (c *HTTPCoreClient) ResumePublisher(ctx context.Context, publisherID string
 }
 
 func (c *HTTPCoreClient) do(ctx context.Context, method, url string) ([]byte, error) {
-	req, err := http.NewRequestWithContext(ctx, method, url, nil)
+	return c.doJSON(ctx, method, url, nil)
+}
+
+// doJSON is do with an optional application/json request body.
+func (c *HTTPCoreClient) doJSON(ctx context.Context, method, url string, body []byte) ([]byte, error) {
+	var reader io.Reader
+	if body != nil {
+		reader = bytes.NewReader(body)
+	}
+	req, err := http.NewRequestWithContext(ctx, method, url, reader)
 	if err != nil {
 		return nil, err
+	}
+	if body != nil {
+		req.Header.Set("Content-Type", "application/json")
 	}
 	if c.InternalKey != "" {
 		req.Header.Set("X-Internal-Key", c.InternalKey)
@@ -165,16 +195,16 @@ func (c *HTTPCoreClient) do(ctx context.Context, method, url string) ([]byte, er
 		return nil, err
 	}
 	defer resp.Body.Close()
-	body, err := io.ReadAll(io.LimitReader(resp.Body, 16<<20))
+	respBody, err := io.ReadAll(io.LimitReader(resp.Body, 16<<20))
 	if err != nil {
 		return nil, err
 	}
 	if resp.StatusCode < 200 || resp.StatusCode > 299 {
-		snippet := string(body)
+		snippet := string(respBody)
 		if len(snippet) > 300 {
 			snippet = snippet[:300]
 		}
 		return nil, fmt.Errorf("core %s %s: %s: %s", method, url, resp.Status, snippet)
 	}
-	return body, nil
+	return respBody, nil
 }

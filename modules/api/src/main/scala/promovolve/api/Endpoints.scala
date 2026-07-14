@@ -583,6 +583,19 @@ object Endpoints extends ApiJsonFormats {
       .in(header[Option[String]]("X-Internal-Key"))
       .out(statusCode(sttp.model.StatusCode.NoContent))
       .errorOut(jsonBody[ErrorResponse])
+  val setAdvertiserTimezone: PublicEndpoint[(String, SetTimezoneRequest, Option[String]), ErrorResponse, Unit, Any] =
+    endpoint
+      .tag("Internal")
+      .summary("Set an advertiser's account timezone (budget-day boundary)")
+      .description(
+        "Sets the IANA timezone that defines the advertiser's budget day: campaign and account daily budgets roll at this zone's midnight, and pacing paces toward it. Empty string = UTC. Settlement and metering deliberately stay UTC (billing day ≠ account day). Called by the platform at provisioning and on operator change — changing it mid-stream gives the change day one shortened or extended budget window.")
+      .post
+      .in(v1 / "internal" / "advertisers" / path[String]("advertiserId") / "timezone")
+      .in(jsonBody[SetTimezoneRequest])
+      .in(header[Option[String]]("X-Internal-Key"))
+      .out(statusCode(sttp.model.StatusCode.NoContent))
+      .errorOut(jsonBody[ErrorResponse])
+
   val suspendPublisher: PublicEndpoint[(String, Option[String]), ErrorResponse, Unit, Any] =
     endpoint
       .tag("Internal")

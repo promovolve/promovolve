@@ -150,6 +150,10 @@ type Org struct {
 	SuspendReason string     `json:"suspendReason,omitempty"`
 	SuspendedAt   *time.Time `json:"suspendedAt,omitempty"`
 	SuspendedBy   string     `json:"suspendedBy,omitempty"`
+	// Advertiser account timezone (IANA name; "" = UTC). Operator-set only:
+	// budget rollover + pacing follow this day on the core, while settlement
+	// stays UTC.
+	Timezone string `json:"timezone,omitempty"`
 }
 
 // Location resolves the user's timezone preference; unset or invalid

@@ -1,12 +1,13 @@
 package promovolve.publisher.delivery.pacing
 
 import promovolve.CampaignId
+import promovolve.common.Timezones
 import promovolve.publisher.CandidateView
 import promovolve.publisher.delivery.Protocol.CachedSpendInfo
-import promovolve.publisher.delivery.{ AdaptivePacing, FixedThrottlePacing, PacingStrategy }
+import promovolve.publisher.delivery.{ AdaptivePacing, FixedThrottlePacing, PacingStrategy, TrafficShapeTracker }
 import promovolve.publisher.SiteEntity
 
-import java.time.Instant
+import java.time.{ Instant, ZoneOffset }
 
 /**
  * Pure helper functions for pacing computations.
@@ -147,4 +148,107 @@ object PacingLogic {
    */
   def elapsedSeconds(dayStart: Instant, now: Instant): Double =
     java.time.Duration.between(dayStart, now).toMillis / 1000.0
+
+  // ═══════════════════════════════════════════════════════════════════════
+  // ADVERTISER-TIMEZONE BUDGET WINDOWS (real calendar days only)
+  //
+  // The traffic shape stays a UTC hour-of-day curve (it's the SITE's
+  // observed volume — a global-audience site has no single zone). Each
+  // campaign's budget window is [dayStart, next advertiser-zone midnight),
+  // which for a non-UTC advertiser WRAPS the UTC day boundary, so expected
+  // spend integrates the UTC curve across that wrap.
+  // ═══════════════════════════════════════════════════════════════════════
+
+  /** End of a campaign's budget window: next advertiser-zone midnight after dayStart. */
+  def windowEndFor(dayStart: Instant, timezone: String): Instant =
+    Timezones.nextMidnightAfter(dayStart, timezone)
+
+  /** Seconds into the UTC day of `instant` (traffic-shape bucket coordinate). */
+  def secOfUtcDay(instant: Instant): Double =
+    instant.atZone(ZoneOffset.UTC).toLocalTime.toSecondOfDay.toDouble
+
+  /**
+   * Traffic-shape mass over a possibly-midnight-wrapping interval of the UTC
+   * day. `fullDay` short-circuits to 1.0 — needed because an interval
+   * spanning the whole 24h cycle has fromSec == toSec, which the wrap
+   * formula would misread as an empty interval.
+   */
+  def wrappedMass(
+      tracker: TrafficShapeTracker,
+      fromSec: Double,
+      toSec: Double,
+      fullDay: Boolean
+  ): Double =
+    if (fullDay) 1.0
+    else if (toSec >= fromSec)
+      tracker.cumulativeFractionAtTime(toSec) - tracker.cumulativeFractionAtTime(fromSec)
+    else
+      (1.0 - tracker.cumulativeFractionAtTime(fromSec)) + tracker.cumulativeFractionAtTime(toSec)
+
+  /**
+   * Expected fraction of a campaign's budget spent by `now`, integrating the
+   * UTC traffic shape over the campaign's budget window.
+   *
+   * For a UTC advertiser this is algebraically identical to the legacy
+   * remaining-hours formula in [[promovolve.publisher.delivery.PacingContext]]
+   * (windowEnd at UTC midnight makes the denominator `1 - CDF(start)`).
+   *
+   * Known accepted approximations (bounded, documented):
+   *   - a wrapped window can straddle a weekday/weekend shape flip; the
+   *     tracker's currentShape is single-day-type.
+   *   - on a DST-change day a zone's "day" is 23h/25h; the fullDay guard and
+   *     second-of-day coordinates treat it as 24h, mis-weighting at most the
+   *     lapped hour once or twice a year.
+   */
+  def expectedWindowFraction(
+      tracker: TrafficShapeTracker,
+      dayStart: Instant,
+      windowEnd: Instant,
+      now: Instant
+  ): Double =
+    if (!now.isBefore(windowEnd)) 1.0
+    else if (!now.isAfter(dayStart)) 0.0
+    else {
+      // dayStart at (or within seconds of) the zone midnight ⇒ the window is
+      // the full 24h cycle and from/to coincide — mass is 1, not 0.
+      val fullDay = java.time.Duration.between(dayStart, windowEnd).getSeconds >= 86395L
+      val fromSec = secOfUtcDay(dayStart)
+      val denom = wrappedMass(tracker, fromSec, secOfUtcDay(windowEnd), fullDay)
+      if (denom < 0.001) {
+        // Degenerate: near-zero shape mass in the window — fall back to
+        // linear-in-window (zone-safe by construction).
+        val total = java.time.Duration.between(dayStart, windowEnd).toMillis.toDouble
+        if (total <= 0) 1.0
+        else math.min(1.0, java.time.Duration.between(dayStart, now).toMillis.toDouble / total)
+      } else
+        math.min(1.0, wrappedMass(tracker, fromSec, secOfUtcDay(now), fullDay = false) / denom)
+    }
+
+  /**
+   * Aggregate expected spend across campaigns whose budget windows may sit in
+   * DIFFERENT advertiser zones, plus the latest window end.
+   *
+   * Replaces the single-dayStart `dailyBudget × expectedSpendFraction`: with
+   * mixed zones there is no one day window, so each campaign contributes its
+   * own `budget × expectedWindowFraction`, and the pacing hard-stop horizon
+   * is the LAST window end (the site must not hard-stop while any campaign
+   * still has budget-day left).
+   *
+   * @return (expected aggregate spend, max window end across campaigns)
+   */
+  def computeAggregateExpectedSpend(
+      validInfos: Seq[(CampaignId, CachedSpendInfo)],
+      tracker: TrafficShapeTracker,
+      now: Instant
+  ): (BigDecimal, Instant) = {
+    var expected = BigDecimal(0)
+    var maxWindowEnd = now
+    validInfos.foreach { case (_, info) =>
+      val windowEnd = windowEndFor(info.dayStart, info.timezone)
+      expected += info.dailyBudget.value *
+      BigDecimal(expectedWindowFraction(tracker, info.dayStart, windowEnd, now))
+      if (windowEnd.isAfter(maxWindowEnd)) maxWindowEnd = windowEnd
+    }
+    (expected, maxWindowEnd)
+  }
 }

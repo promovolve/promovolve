@@ -67,12 +67,12 @@ func DomainOf(email string) string {
 }
 
 const orgColumns = `id, domain, name, advertiser_id, publisher_id, created_at, updated_at,
-	suspended, suspend_reason, suspended_at, suspended_by`
+	suspended, suspend_reason, suspended_at, suspended_by, timezone`
 
 func scanOrg(row pgx.Row) (*model.Org, error) {
 	o := &model.Org{}
 	err := row.Scan(&o.ID, &o.Domain, &o.Name, &o.AdvertiserID, &o.PublisherID, &o.CreatedAt, &o.UpdatedAt,
-		&o.Suspended, &o.SuspendReason, &o.SuspendedAt, &o.SuspendedBy)
+		&o.Suspended, &o.SuspendReason, &o.SuspendedAt, &o.SuspendedBy, &o.Timezone)
 	if errors.Is(err, pgx.ErrNoRows) {
 		return nil, ErrNotFound
 	}
@@ -96,6 +96,17 @@ func (r *Repository) SetSuspended(ctx context.Context, orgID string, suspended b
 			                suspended_by = '', updated_at = NOW()
 			WHERE id = $1`, orgID)
 	}
+	return err
+}
+
+// SetTimezone records the org's advertiser-account timezone (IANA name;
+// "" = UTC). Operator-set only; the handler validates the zone loads before
+// it gets here. Budget rollover + pacing follow this day on the core —
+// settlement stays UTC.
+func (r *Repository) SetTimezone(ctx context.Context, orgID, tz string) error {
+	_, err := r.pool.Exec(ctx, `
+		UPDATE orgs SET timezone = $2, updated_at = NOW()
+		WHERE id = $1`, orgID, tz)
 	return err
 }
 
@@ -175,12 +186,12 @@ func (r *Repository) ForUser(ctx context.Context, userID string) (*model.Org, *m
 	m := &model.OrgMembership{}
 	err := r.pool.QueryRow(ctx, `
 		SELECT o.id, o.domain, o.name, o.advertiser_id, o.publisher_id, o.created_at, o.updated_at,
-		       o.suspended, o.suspend_reason, o.suspended_at, o.suspended_by,
+		       o.suspended, o.suspend_reason, o.suspended_at, o.suspended_by, o.timezone,
 		       m.org_id, m.user_id, m.org_role, COALESCE(m.preferred_side, ''), m.invited_by, m.created_at
 		FROM org_members m JOIN orgs o ON o.id = m.org_id
 		WHERE m.user_id = $1`, userID,
 	).Scan(&o.ID, &o.Domain, &o.Name, &o.AdvertiserID, &o.PublisherID, &o.CreatedAt, &o.UpdatedAt,
-		&o.Suspended, &o.SuspendReason, &o.SuspendedAt, &o.SuspendedBy,
+		&o.Suspended, &o.SuspendReason, &o.SuspendedAt, &o.SuspendedBy, &o.Timezone,
 		&m.OrgID, &m.UserID, &m.OrgRole, &m.PreferredSide, &m.InvitedBy, &m.CreatedAt)
 	if errors.Is(err, pgx.ErrNoRows) {
 		return nil, nil, ErrNotFound

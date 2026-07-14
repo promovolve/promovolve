@@ -3894,43 +3894,64 @@ class EndpointRoutes(
         .recover { case ex => Left(ErrorResponse("get_floor_observations_failed", ex.getMessage)) }
   }
 
+  /**
+   * The advertiser's "today" starts at their account zone's midnight, not
+   * UTC's — matching the budget-rollover boundary. Falls back to UTC when
+   * the zone is unset or the advertiser entity is unreachable. Returns the
+   * window-start UTC instant (bound as ::timestamptz to keep this file free
+   * of SetParameter[Instant], mirroring the ::date approach below).
+   */
+  private def advertiserTodayWindow(advertiserId: String): Future[(String, java.time.Instant)] =
+    advertiserRef(advertiserId)
+      .ask[AdvertiserEntity.AdvertiserTimezone](AdvertiserEntity.GetTimezone(_))
+      .map(_.timezone)
+      .recover { case _ => "" }
+      .map { tz =>
+        val zone = promovolve.common.Timezones.zoneOf(tz)
+        // Postgres zone name for AT TIME ZONE — never "Z" (ZoneOffset.UTC's id)
+        val pgZone = if (promovolve.common.Timezones.isValid(tz)) tz else "UTC"
+        (pgZone, java.time.LocalDate.now(zone).atStartOfDay(zone).toInstant)
+      }
+
   private val getAdvertiserSpendTodayLogic: String => Future[Either[ErrorResponse, AdvertiserSpendTodayResponse]] = {
     advertiserId =>
-      val sinceUtcLabel = java.time.OffsetDateTime.now(java.time.ZoneOffset.UTC)
-        .toLocalDate.atStartOfDay().toString + "Z"
-      val zero = AdvertiserSpendTodayResponse(
-        advertiserId = advertiserId,
-        sinceUtc = sinceUtcLabel,
-        spend = "0.0000",
-        impressions = 0L,
-        eCpm = "0.0000"
-      )
-      dashboardDb match {
-        case None     => Future.successful(Right(zero))
-        case Some(db) =>
-          import slick.jdbc.PostgresProfile.api.*
-          import slick.jdbc.GetResult
-          given GetResult[(Long, Double)] = GetResult(using r => (r.nextLong(), r.nextDouble()))
-          val q = sql"""
-            SELECT COUNT(*)::bigint, COALESCE(SUM(cpm) / 1000.0, 0.0)::double precision
-            FROM tracking_events
-            WHERE advertiser_id = $advertiserId
-              AND event_type = 'impression'
-              AND event_time >= date_trunc('day', NOW() AT TIME ZONE 'UTC')
-          """.as[(Long, Double)].headOption
-          db.run(q).map { opt =>
-            val (imps, spend) = opt.getOrElse((0L, 0.0))
-            val eCpm = if (imps > 0L) spend / imps.toDouble * 1000.0 else 0.0
-            Right(AdvertiserSpendTodayResponse(
-              advertiserId = advertiserId,
-              sinceUtc = sinceUtcLabel,
-              spend = f"$spend%.4f",
-              impressions = imps,
-              eCpm = f"$eCpm%.4f"
-            ))
-          }.recover { case ex =>
-            Left(ErrorResponse("spend_today_failed", ex.getMessage))
-          }
+      advertiserTodayWindow(advertiserId).flatMap { case (_, dayStart) =>
+        val sinceLabel = dayStart.toString
+        val zero = AdvertiserSpendTodayResponse(
+          advertiserId = advertiserId,
+          sinceUtc = sinceLabel,
+          spend = "0.0000",
+          impressions = 0L,
+          eCpm = "0.0000"
+        )
+        dashboardDb match {
+          case None     => Future.successful(Right(zero))
+          case Some(db) =>
+            import slick.jdbc.PostgresProfile.api.*
+            import slick.jdbc.GetResult
+            given GetResult[(Long, Double)] = GetResult(using r => (r.nextLong(), r.nextDouble()))
+            val dayStartStr = dayStart.toString
+            val q = sql"""
+              SELECT COUNT(*)::bigint, COALESCE(SUM(cpm) / 1000.0, 0.0)::double precision
+              FROM tracking_events
+              WHERE advertiser_id = $advertiserId
+                AND event_type = 'impression'
+                AND event_time >= $dayStartStr::timestamptz
+            """.as[(Long, Double)].headOption
+            db.run(q).map { opt =>
+              val (imps, spend) = opt.getOrElse((0L, 0.0))
+              val eCpm = if (imps > 0L) spend / imps.toDouble * 1000.0 else 0.0
+              Right(AdvertiserSpendTodayResponse(
+                advertiserId = advertiserId,
+                sinceUtc = sinceLabel,
+                spend = f"$spend%.4f",
+                impressions = imps,
+                eCpm = f"$eCpm%.4f"
+              ))
+            }.recover { case ex =>
+              Left(ErrorResponse("spend_today_failed", ex.getMessage))
+            }
+        }
       }
   }
 
@@ -3993,72 +4014,77 @@ class EndpointRoutes(
   private val getAdvertiserCampaignSpendTodayLogic
       : String => Future[Either[ErrorResponse, AdvertiserCampaignSpendTodayResponse]] = {
     advertiserId =>
-      val sinceUtcLabel = java.time.OffsetDateTime.now(java.time.ZoneOffset.UTC)
-        .toLocalDate.atStartOfDay().toString + "Z"
-      val zero = AdvertiserCampaignSpendTodayResponse(advertiserId, sinceUtcLabel, Vector.empty)
-      dashboardDb match {
-        case None     => Future.successful(Right(zero))
-        case Some(db) =>
-          import slick.jdbc.PostgresProfile.api.*
-          import slick.jdbc.GetResult
-          given GetResult[(String, Long, Double)] =
-            GetResult(using r => (r.nextString(), r.nextLong(), r.nextDouble()))
-          val q = sql"""
-            SELECT campaign_id, COUNT(*)::bigint, COALESCE(SUM(cpm) / 1000.0, 0.0)::double precision
-            FROM tracking_events
-            WHERE advertiser_id = $advertiserId
-              AND event_type = 'impression'
-              AND event_time >= date_trunc('day', NOW() AT TIME ZONE 'UTC')
-            GROUP BY campaign_id
-          """.as[(String, Long, Double)]
-          db.run(q).map { rows =>
-            Right(AdvertiserCampaignSpendTodayResponse(
-              advertiserId = advertiserId,
-              sinceUtc = sinceUtcLabel,
-              campaigns = rows.toVector.map { case (cid, imps, spend) =>
-                CampaignSpendTodayRow(cid, f"$spend%.4f", imps)
-              }
-            ))
-          }.recover { case ex =>
-            Left(ErrorResponse("campaign_spend_today_failed", ex.getMessage))
-          }
+      advertiserTodayWindow(advertiserId).flatMap { case (_, dayStart) =>
+        val sinceLabel = dayStart.toString
+        val zero = AdvertiserCampaignSpendTodayResponse(advertiserId, sinceLabel, Vector.empty)
+        dashboardDb match {
+          case None     => Future.successful(Right(zero))
+          case Some(db) =>
+            import slick.jdbc.PostgresProfile.api.*
+            import slick.jdbc.GetResult
+            given GetResult[(String, Long, Double)] =
+              GetResult(using r => (r.nextString(), r.nextLong(), r.nextDouble()))
+            val dayStartStr = dayStart.toString
+            val q = sql"""
+              SELECT campaign_id, COUNT(*)::bigint, COALESCE(SUM(cpm) / 1000.0, 0.0)::double precision
+              FROM tracking_events
+              WHERE advertiser_id = $advertiserId
+                AND event_type = 'impression'
+                AND event_time >= $dayStartStr::timestamptz
+              GROUP BY campaign_id
+            """.as[(String, Long, Double)]
+            db.run(q).map { rows =>
+              Right(AdvertiserCampaignSpendTodayResponse(
+                advertiserId = advertiserId,
+                sinceUtc = sinceLabel,
+                campaigns = rows.toVector.map { case (cid, imps, spend) =>
+                  CampaignSpendTodayRow(cid, f"$spend%.4f", imps)
+                }
+              ))
+            }.recover { case ex =>
+              Left(ErrorResponse("campaign_spend_today_failed", ex.getMessage))
+            }
+        }
       }
   }
 
   private val getAdvertiserHourlyTodayLogic: String => Future[Either[ErrorResponse, AdvertiserHourlyTodayResponse]] = {
     advertiserId =>
-      val sinceUtcLabel = java.time.OffsetDateTime.now(java.time.ZoneOffset.UTC)
-        .toLocalDate.atStartOfDay().toString + "Z"
-      val zero = AdvertiserHourlyTodayResponse(advertiserId, sinceUtcLabel, Vector.empty)
-      dashboardDb match {
-        case None     => Future.successful(Right(zero))
-        case Some(db) =>
-          import slick.jdbc.PostgresProfile.api.*
-          import slick.jdbc.GetResult
-          given GetResult[(Int, Long, Double)] =
-            GetResult(using r => (r.nextInt(), r.nextLong(), r.nextDouble()))
-          val q = sql"""
-            SELECT EXTRACT(HOUR FROM event_time AT TIME ZONE 'UTC')::int,
-                   COUNT(*)::bigint,
-                   COALESCE(SUM(cpm) / 1000.0, 0.0)::double precision
-            FROM tracking_events
-            WHERE advertiser_id = $advertiserId
-              AND event_type = 'impression'
-              AND event_time >= date_trunc('day', NOW() AT TIME ZONE 'UTC')
-            GROUP BY 1
-            ORDER BY 1
-          """.as[(Int, Long, Double)]
-          db.run(q).map { rows =>
-            Right(AdvertiserHourlyTodayResponse(
-              advertiserId = advertiserId,
-              sinceUtc = sinceUtcLabel,
-              hours = rows.toVector.map { case (h, imps, spend) =>
-                HourlyDeliveryRow(h, imps, f"$spend%.4f")
-              }
-            ))
-          }.recover { case ex =>
-            Left(ErrorResponse("hourly_today_failed", ex.getMessage))
-          }
+      advertiserTodayWindow(advertiserId).flatMap { case (pgZone, dayStart) =>
+        val sinceLabel = dayStart.toString
+        val zero = AdvertiserHourlyTodayResponse(advertiserId, sinceLabel, Vector.empty)
+        dashboardDb match {
+          case None     => Future.successful(Right(zero))
+          case Some(db) =>
+            import slick.jdbc.PostgresProfile.api.*
+            import slick.jdbc.GetResult
+            given GetResult[(Int, Long, Double)] =
+              GetResult(using r => (r.nextInt(), r.nextLong(), r.nextDouble()))
+            val dayStartStr = dayStart.toString
+            // Hour buckets in the advertiser's zone, matching the budget day
+            val q = sql"""
+              SELECT EXTRACT(HOUR FROM event_time AT TIME ZONE $pgZone)::int,
+                     COUNT(*)::bigint,
+                     COALESCE(SUM(cpm) / 1000.0, 0.0)::double precision
+              FROM tracking_events
+              WHERE advertiser_id = $advertiserId
+                AND event_type = 'impression'
+                AND event_time >= $dayStartStr::timestamptz
+              GROUP BY 1
+              ORDER BY 1
+            """.as[(Int, Long, Double)]
+            db.run(q).map { rows =>
+              Right(AdvertiserHourlyTodayResponse(
+                advertiserId = advertiserId,
+                sinceUtc = sinceLabel,
+                hours = rows.toVector.map { case (h, imps, spend) =>
+                  HourlyDeliveryRow(h, imps, f"$spend%.4f")
+                }
+              ))
+            }.recover { case ex =>
+              Left(ErrorResponse("hourly_today_failed", ex.getMessage))
+            }
+        }
       }
   }
 
@@ -4912,6 +4938,28 @@ class EndpointRoutes(
       }
   }
 
+  private val setAdvertiserTimezoneLogic
+      : ((String, SetTimezoneRequest, Option[String])) => Future[Either[ErrorResponse, Unit]] = {
+    case (advertiserId, req, key) =>
+      requireInternalKey(key) match {
+        case Left(err) => Future.successful(Left(err))
+        case Right(()) =>
+          val tz = req.timezone.trim
+          if (tz.nonEmpty && !promovolve.common.Timezones.isValid(tz))
+            Future.successful(Left(ErrorResponse("invalid_timezone", s"unknown IANA timezone '$tz'")))
+          else
+            provisionedAdvertiser(advertiserId)
+              .flatMap {
+                case Left(err) => Future.successful(Left(err))
+                case Right(_)  =>
+                  advertiserRef(advertiserId)
+                    .ask[AdvertiserEntity.TimezoneUpdated](AdvertiserEntity.SetTimezone(tz, _))
+                    .map(_ => Right(()))
+              }
+              .recover { case ex => Left(ErrorResponse("set_timezone_failed", ex.getMessage)) }
+      }
+  }
+
   private val suspendPublisherLogic: ((String, Option[String])) => Future[Either[ErrorResponse, Unit]] = {
     case (publisherId, key) =>
       requireInternalKey(key) match {
@@ -4955,6 +5003,7 @@ class EndpointRoutes(
     PekkoHttpServerInterpreter().toRoute(Endpoints.getMeteringIntraday.serverLogic(getMeteringIntradayLogic)),
     PekkoHttpServerInterpreter().toRoute(Endpoints.suspendAdvertiser.serverLogic(suspendAdvertiserLogic)),
     PekkoHttpServerInterpreter().toRoute(Endpoints.resumeAdvertiser.serverLogic(resumeAdvertiserLogic)),
+    PekkoHttpServerInterpreter().toRoute(Endpoints.setAdvertiserTimezone.serverLogic(setAdvertiserTimezoneLogic)),
     PekkoHttpServerInterpreter().toRoute(Endpoints.suspendPublisher.serverLogic(suspendPublisherLogic)),
     PekkoHttpServerInterpreter().toRoute(Endpoints.resumePublisher.serverLogic(resumePublisherLogic))
   )

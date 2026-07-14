@@ -32,6 +32,14 @@ object ApiModels {
       meta: Meta
   )
 
+  /**
+   * Internal: advertiser account timezone (IANA id, "" = UTC). Defines the
+   * budget-day boundary — NOT billing, which stays UTC.
+   */
+  case class SetTimezoneRequest(
+      timezone: String
+  )
+
   // ----------------- Budget Status -----------------
 
   case class BudgetStatus(

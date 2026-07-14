@@ -2,8 +2,11 @@ package promovolve.advertiser
 
 import org.scalatest.matchers.should.Matchers
 import org.scalatest.wordspec.AnyWordSpec
-import promovolve.{ AdvertiserId, CreativeId, SiteId }
+import promovolve.{ AdvertiserId, CreativeId, SiteId, Spend }
+import promovolve.common.Timezones
 import promovolve.publisher.ApprovalStatus
+
+import java.time.Instant
 
 /**
  * Pure-data tests for AdvertiserEntity.State helpers around the
@@ -129,6 +132,71 @@ class AdvertiserEntitySpec extends AnyWordSpec with Matchers {
 
     "return empty when nothing survives" in {
       AdvertiserEntity.normalizeDomains(Set("", "<bad>", "..")) shouldBe Set.empty[String]
+    }
+  }
+
+  "State timezone helpers (advertiser-zone budget days)" should {
+
+    val JST = "Asia/Tokyo"
+    // 15:00Z is JST midnight: t1459/t1501 straddle it within one UTC day;
+    // t2359/t0001 straddle UTC midnight within one JST day.
+    val t1459 = Instant.parse("2026-07-13T14:59:00Z")
+    val t1501 = Instant.parse("2026-07-13T15:01:00Z")
+    val t2359 = Instant.parse("2026-07-13T23:59:00Z")
+    val t0001 = Instant.parse("2026-07-14T00:01:00Z")
+
+    "needsRoll at the account zone's midnight, not UTC's (instant-based)" in {
+      val jst = emptyState.copy(timezone = JST, lastResetAt = t1459)
+      jst.needsRoll(t1459) shouldBe false
+      jst.needsRoll(t1501) shouldBe true // crossed 00:00 JST inside one UTC day
+
+      val jstLate = emptyState.copy(timezone = JST, lastResetAt = t2359)
+      jstLate.needsRoll(t0001) shouldBe false // crossed UTC midnight only
+    }
+
+    "needsRoll at UTC midnight for the default (empty) zone" in {
+      emptyState.copy(lastResetAt = t2359).needsRoll(t0001) shouldBe true
+      emptyState.copy(lastResetAt = t1459).needsRoll(t1501) shouldBe false
+    }
+
+    "fall back to the day-number comparison for legacy states (lastResetAt == EPOCH)" in {
+      val now = Instant.parse("2026-07-13T10:00:00Z")
+      val legacySameDay = emptyState.copy(lastResetEpochDay = Timezones.localEpochDay(now, ""))
+      legacySameDay.lastResetAt shouldBe Instant.EPOCH
+      legacySameDay.needsRoll(now) shouldBe false
+      // State.empty carries lastResetEpochDay = 0 → any modern instant rolls.
+      emptyState.needsRoll(now) shouldBe true
+    }
+
+    "withTimezone stamps lastResetAt only when legacy (EPOCH) and never touches spend" in {
+      val now = Instant.parse("2026-07-13T10:00:00Z")
+      val legacy = emptyState.copy(
+        spendToday = Spend(5.0),
+        lastResetEpochDay = Timezones.localEpochDay(now, "")
+      )
+      val adopted = legacy.withTimezone(JST, now)
+      adopted.timezone shouldBe JST
+      adopted.lastResetAt shouldBe now // relabeled: current day starts "now"
+      adopted.spendToday shouldBe Spend(5.0) // spend NEVER resets here
+      adopted.needsRoll(now) shouldBe false // no immediate double roll
+    }
+
+    "withTimezone keeps a non-EPOCH lastResetAt (previous roll under UTC)" in {
+      val rolled = emptyState
+        .addSpend(Spend(7.0))
+        .rollWindow(Timezones.localEpochDay(t1459, ""), t1459)
+      val relabeled = rolled.withTimezone(JST, t1501)
+      relabeled.timezone shouldBe JST
+      relabeled.lastResetAt shouldBe t1459 // untouched
+      relabeled.spendToday shouldBe Spend.zero // rollWindow reset it, not withTimezone
+    }
+
+    "rollWindow resets spend and stamps the roll instant" in {
+      val s = emptyState.addSpend(Spend(9.0))
+      val rolled = s.rollWindow(12345L, t1501)
+      rolled.spendToday shouldBe Spend.zero
+      rolled.lastResetEpochDay shouldBe 12345L
+      rolled.lastResetAt shouldBe t1501
     }
   }
 

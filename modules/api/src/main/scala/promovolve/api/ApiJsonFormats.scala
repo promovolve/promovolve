@@ -15,6 +15,7 @@ trait ApiJsonFormats extends DefaultJsonProtocol {
   given RootJsonFormat[AdvertiserList] = jsonFormat2(AdvertiserList.apply)
   given RootJsonFormat[BudgetStatus] = jsonFormat4(BudgetStatus.apply)
   given RootJsonFormat[AdvertiserDetail] = jsonFormat8(AdvertiserDetail.apply)
+  given RootJsonFormat[SetTimezoneRequest] = jsonFormat1(SetTimezoneRequest.apply)
 
   // Campaign
   given RootJsonFormat[CampaignBudget] = jsonFormat2(CampaignBudget.apply)

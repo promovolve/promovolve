@@ -20,6 +20,7 @@
       <div>
         <h2 class="font-semibold text-lg">Organizations</h2>
         <p class="text-xs text-gray-400 mt-1">Suspending a company keeps logins working but replaces the dashboard with a notice showing your reason, and freezes serving and billing on both sides. Reversible.</p>
+        <p class="text-xs text-gray-400 mt-1">Timezone is the advertiser side's budget day (settlement stays UTC). Changing the timezone shifts the budget day; the change day gets a shortened or extended budget window.</p>
       </div>
       <form method="GET" action="/admin/users" class="flex items-center gap-2 shrink-0">
         <input name="orgQ" value="{{.AdminOrgsQ}}" class="form-input w-56 text-sm" placeholder="domain, name, or reason">
@@ -32,6 +33,7 @@
         <tr class="border-b text-left text-gray-400">
           <th class="px-4 py-2 font-medium">Domain</th>
           <th class="px-4 py-2 font-medium">Sides</th>
+          <th class="px-4 py-2 font-medium">Timezone</th>
           <th class="px-4 py-2 font-medium">Status</th>
           <th class="px-4 py-2 font-medium"></th>
         </tr>
@@ -46,6 +48,22 @@
           <td class="px-4 py-2 whitespace-nowrap">
             {{if .HasAdvertiser}}<span class="badge bg-blue-100 text-blue-700">advertiser</span>{{end}}
             {{if .HasPublisher}}<span class="badge bg-purple-100 text-purple-700">publisher</span>{{end}}
+          </td>
+          <td class="px-4 py-2 whitespace-nowrap">
+            {{if .HasAdvertiser}}
+            <form method="POST" action="/admin/orgs/timezone" class="flex items-center gap-2"
+                  onsubmit="return confirm('Change the budget timezone for {{.Domain}}? The budget day shifts; the change day gets a shortened or extended budget window.')">
+              <input type="hidden" name="orgId" value="{{.ID}}">
+              {{$tz := .Timezone}}
+              <select name="timezone" class="form-input text-xs">
+                <option value="">UTC (default)</option>
+                {{range $.Timezones}}{{if ne . "UTC"}}<option value="{{.}}" {{if eq . $tz}}selected{{end}}>{{.}}</option>{{end}}{{end}}
+              </select>
+              <button type="submit" class="btn btn-secondary btn-sm">Save</button>
+            </form>
+            {{else}}
+            <span class="text-gray-400">{{if .Timezone}}{{.Timezone}}{{else}}UTC{{end}}</span>
+            {{end}}
           </td>
           <td class="px-4 py-2">
             {{if .Suspended}}
@@ -75,7 +93,7 @@
           </td>
         </tr>
         {{else}}
-        <tr><td class="px-4 py-4 text-gray-400" colspan="4">No organizations match your search.</td></tr>
+        <tr><td class="px-4 py-4 text-gray-400" colspan="5">No organizations match your search.</td></tr>
         {{end}}
       </tbody>
     </table>

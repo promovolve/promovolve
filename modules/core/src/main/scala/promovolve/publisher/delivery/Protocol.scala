@@ -23,7 +23,10 @@ object Protocol {
       dailyBudget: Budget,
       todaySpend: Spend,
       dayStart: Instant,
-      timestamp: Instant
+      timestamp: Instant,
+      // Advertiser account zone ("" = UTC); the campaign's budget window ends
+      // at this zone's next midnight after dayStart. Local-only cache entry.
+      timezone: String = ""
   )
 
   /** Context for ad selection pipeline - bundles state needed across pacing/selection stages */

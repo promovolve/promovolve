@@ -142,7 +142,9 @@ class DashboardRoutes(dbConfig: DatabaseConfig[PostgresProfile])(using system: A
   }
 
   private def getCampaignDailyStats(advertiserId: String, campaignId: String, days: Int): Future[Seq[DailyStatsDTO]] = {
-    val cutoff = LocalDate.now().minusDays(days)
+    // Explicit UTC: day_bucket is written in UTC by DashboardProjectionHandler;
+    // the JVM-default-zone LocalDate.now() drifted off it for non-UTC hosts.
+    val cutoff = LocalDate.now(java.time.ZoneOffset.UTC).minusDays(days)
     // See getCampaignHourlyStats: gate on ownership via campaign_stats since
     // campaign_daily_stats carries no advertiser_id column.
     val query = sql"""

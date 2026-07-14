@@ -2510,7 +2510,8 @@ class EndpointRoutes(
                     pagesJson = c.flatMap(_.pagesJson),
                     createdAt = c.map(_.createdAt.toString).getOrElse(""),
                     bannerConfigJson = c.flatMap(_.bannerConfigJson),
-                    landingUrl = c.map(_.landingUrl).filter(_.nonEmpty)
+                    landingUrl = c.map(_.landingUrl).filter(_.nonEmpty),
+                    creativeName = c.map(_.name).filter(_.nonEmpty)
                   ))
                 .recover { case _ => g }
             }
@@ -2636,7 +2637,8 @@ class EndpointRoutes(
             bannerConfigJson = creative.flatMap(_.bannerConfigJson),
             landingDomain = creative.map(_.landingDomain),
             landingUrl = creative.map(_.landingUrl).filter(_.nonEmpty),
-            autoApproved = Some(autoApprovedIds.contains(c.creativeId.value))
+            autoApproved = Some(autoApprovedIds.contains(c.creativeId.value)),
+            creativeName = creative.map(_.name).filter(_.nonEmpty)
           )
         }.sortBy(-_.cpm.toDouble)
         Right(ServingCreativeGroupList(data = groups,

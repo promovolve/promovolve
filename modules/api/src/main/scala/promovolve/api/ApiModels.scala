@@ -1172,6 +1172,10 @@ object ApiModels {
       // first) and auto-selects the most recent. "" when the repo has
       // no record yet — those sort last.
       createdAt: String = "",
+      // The advertiser-given creative name — inbox rows are labeled by
+      // landing domain, so without it two creatives of one advertiser
+      // are visually identical.
+      creativeName: Option[String] = None,
       // Banner-level config (expandAnimation, duration, reading dir, …),
       // the same blob the serve path passes to the banner as the `config`
       // attribute. The approval preview needs it so the creative's chosen
@@ -1245,7 +1249,9 @@ object ApiModels {
       landingUrl: Option[String] = None,
       // True when the approval was granted by the auto-approve trust path
       // rather than an explicit publisher click ("Auto-approved" badge).
-      autoApproved: Option[Boolean] = None
+      autoApproved: Option[Boolean] = None,
+      // Advertiser-given creative name (see PendingCreativeGroup).
+      creativeName: Option[String] = None
   )
 
   case class ServingCreativeGroupList(

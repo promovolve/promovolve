@@ -416,6 +416,9 @@ type trustedAnchorRow struct {
 	// trusted domain on the same site: the domain row already covers it,
 	// so the table nests it under that row.
 	CoveredBy string
+	// True when the site's auto-approve toggle is off: the trust is kept
+	// but not acting ("paused" — deliberately not "removed").
+	Paused bool
 }
 
 type pendingPlacement struct {
@@ -474,6 +477,9 @@ type pendingCreative struct {
 	// the advertiser opted in to unmatched traffic. Drives the badge
 	// + alternate "Why matched" copy in the approval UI.
 	Filler bool
+	// Advertiser-given creative name. Rows are labeled by landing domain,
+	// so without it two creatives of one advertiser look identical.
+	CreativeName string
 	// ISO-8601 creation time of the creative (from core). The Creative
 	// Inbox orders newest-first and auto-selects the most recent; the
 	// template emits this as data-ts for the client-side pick.
@@ -526,6 +532,8 @@ type servingCreative struct {
 	// True when this approval came from the auto-approve trust path
 	// rather than an explicit publisher click ("Auto-approved" badge).
 	AutoApproved bool
+	// Advertiser-given creative name (see pendingCreative.CreativeName).
+	CreativeName string
 }
 
 type servingPlacement struct {
@@ -896,6 +904,7 @@ func (h *Handler) loadPending(siteID string, claims *model.Claims) []pendingCrea
 			FirstSeenAt           *int64  `json:"firstSeenAt"`
 			RequeueCount          *int    `json:"requeueCount"`
 			BannerConfigJSON      *string `json:"bannerConfigJson"`
+			CreativeName          *string `json:"creativeName"`
 			Placements            []struct {
 				URL          string  `json:"url"`
 				SlotID       string  `json:"slotId"`
@@ -916,6 +925,9 @@ func (h *Handler) loadPending(siteID string, claims *model.Claims) []pendingCrea
 			SiteID:     siteID,
 			Filler:     p.Filler,
 			CreatedAt:  p.CreatedAt,
+		}
+		if p.CreativeName != nil {
+			pc.CreativeName = *p.CreativeName
 		}
 		if p.FirstSeenAt != nil {
 			pc.WaitingFor = humanizeSince(time.UnixMilli(*p.FirstSeenAt))
@@ -1027,6 +1039,7 @@ func (h *Handler) loadServing(siteID string, claims *model.Claims, floorCpm floa
 			LandingDomain    *string `json:"landingDomain"`
 			LandingURL       *string `json:"landingUrl"`
 			AutoApproved     *bool   `json:"autoApproved"`
+			CreativeName     *string `json:"creativeName"`
 			Placements       []struct {
 				URL          string  `json:"url"`
 				SlotID       string  `json:"slotId"`
@@ -1077,6 +1090,9 @@ func (h *Handler) loadServing(siteID string, claims *model.Claims, floorCpm floa
 		}
 		if s.AutoApproved != nil {
 			sc.AutoApproved = *s.AutoApproved
+		}
+		if s.CreativeName != nil {
+			sc.CreativeName = *s.CreativeName
 		}
 		for _, pl := range s.Placements {
 			plc := servingPlacement{
@@ -1476,6 +1492,7 @@ func (h *Handler) PublisherTrusted(w http.ResponseWriter, r *http.Request) {
 				AnchorType:  d.AnchorType,
 				AnchorValue: d.AnchorValue,
 				Display:     d.AnchorValue,
+				Paused:      !enabled,
 			}
 			if d.AdvertiserID != nil {
 				name, camps := dir.resolve(*d.AdvertiserID)

@@ -20,7 +20,8 @@
           <input type="checkbox" name="enabled" {{if .Enabled}}checked{{end}}
                  onchange="this.form.submit()" class="rounded border-gray-300">
           <span class="text-sm font-medium">{{.Domain}}</span>
-          {{if .Enabled}}<span class="badge bg-green-100 text-green-700">on</span>{{end}}
+          {{if .Enabled}}<span class="badge bg-green-100 text-green-700">on</span>
+          {{else}}<span class="badge bg-gray-200 text-gray-600" title="Trust below is kept but not acting — enable to resume auto-approval">paused</span>{{end}}
         </label>
       </form>
       {{else}}
@@ -54,7 +55,7 @@
       <tbody>
         {{range .TrustedAnchors}}
         <tr class="border-b last:border-0">
-          <td class="px-6 py-2 text-gray-500 whitespace-nowrap">{{if .CoveredBy}}{{else}}{{.SiteDomain}}{{end}}</td>
+          <td class="px-6 py-2 text-gray-500 whitespace-nowrap">{{if .CoveredBy}}{{else}}{{.SiteDomain}}{{if .Paused}} <span class="text-xs text-gray-400">(paused)</span>{{end}}{{end}}</td>
           {{if .CoveredBy}}
           {{/* Campaign already covered by the domain row above it — nested,
                with the redundancy stated: removing this row changes nothing

@@ -349,7 +349,7 @@ document.body.addEventListener('inboxActed', function(){
         {{$anchorCount := len $group.TrustedCampaigns | add (len $group.TrustedDomains)}}
         {{if or $group.TrustedCampaigns $group.TrustedDomains}}
         <a href="/publisher/trusted" class="mt-1.5 inline-block text-xs text-brand hover:underline">
-          {{$anchorCount}} trusted &rarr;
+          {{$anchorCount}} trusted{{if not $group.AutoApprove}} <span class="text-gray-400">(paused)</span>{{end}} &rarr;
         </a>
         {{end}}
       </div>
@@ -357,11 +357,11 @@ document.body.addEventListener('inboxActed', function(){
       {{/* WaitingFor is the honest queue age (survives the core's TTL
            purge/re-queue cycle) — surface it right in the row so stale
            items are visible without opening the detail pane. */}}
-      {{$sub := printf "Max bid $%s" $c.CPM}}{{if $c.WaitingFor}}{{$sub = printf "%s · waiting %s" $sub $c.WaitingFor}}{{end}}
+      {{$sub := printf "Max bid $%s" $c.CPM}}{{if $c.WaitingFor}}{{$sub = printf "%s · waiting %s" $sub $c.WaitingFor}}{{end}}{{if $c.CreativeName}}{{$sub = printf "%s · %s" $c.CreativeName $sub}}{{end}}
       {{template "inbox-row" dict "Key" (printf "pending-%s-%d" $group.Site.ID $i) "State" "pending" "Ts" $c.CreatedAt "Cid" $c.CreativeID "Label" (or $c.LandingDomain (slice $c.CreativeID 0 16)) "Sub" $sub "Asset" $c.AssetURL "Pages" $c.PagesJSON "Search" (printf "%s %s %s %s %s" $c.AdvertiserID $c.CampaignID $c.LandingDomain $c.AdvertiserName $c.CampaignName)}}
       {{end}}
       {{range $i, $c := $group.Serving}}
-      {{$servSub := printf "Max bid $%s" $c.CPM}}{{if $c.Benched}}{{$servSub = printf "%s · benched" $servSub}}{{end}}
+      {{$servSub := printf "Max bid $%s" $c.CPM}}{{if $c.Benched}}{{$servSub = printf "%s · benched" $servSub}}{{end}}{{if $c.CreativeName}}{{$servSub = printf "%s · %s" $c.CreativeName $servSub}}{{end}}
       {{template "inbox-row" dict "Key" (printf "serving-%s-%d" $group.Site.ID $i) "State" "serving" "Ts" "" "Cid" $c.CreativeID "Label" (or $c.LandingDomain (slice $c.CreativeID 0 16)) "Sub" $servSub "Asset" $c.AssetURL "Pages" $c.PagesJSON "Search" (printf "%s %s %s %s %s" $c.AdvertiserID $c.CampaignID $c.LandingDomain $c.AdvertiserName $c.CampaignName)}}
       {{end}}
       {{range $i, $c := $group.Flagged}}

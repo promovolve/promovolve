@@ -16,7 +16,7 @@
 import { refitItemCropToBox } from "../auto-crop";
 import { packReaderFieldBoxes, packTextItemHeight } from "../render/canvas";
 import { isMultiPage } from "../modes";
-import { adoptTextOverride, currentItem, currentLayout, currentPage, fieldColorSyncKey, hasLocalTextOverride, isFieldColorSynced, propagateTypography, setItemContent, setReaderFieldFontSize, setSyncFieldColor, TYPO_SYNC_KEYS, updateItem } from "../state";
+import { currentItem, currentLayout, currentPage, fieldColorSyncKey, hasLocalTextOverride, isFieldColorSynced, propagateTypography, setItemContent, setReaderFieldFontSize, setSyncFieldColor, TYPO_SYNC_KEYS, updateItem } from "../state";
 import type { Store } from "../store";
 import type { DesignerState, ImageItem, LayoutItem, RectItem } from "../types";
 import { scrimGradient, SCRIM_EDGES, type ScrimEdge, type ScrimSpec } from "../scrim";
@@ -211,96 +211,61 @@ function build(panel: HTMLElement, idx: number, item: LayoutItem, store: Store):
   // a read-only resolved hint there.
   const isExpanded = isMultiPage(store.state.mode);
   if (item.type === "text") {
-    const textGroup = group("Text");
     const boundField = (item as { field?: string }).field;
-    const bakedText = (item as { text?: string }).text;
-    const overridden = !!boundField && bakedText != null && bakedText !== "";
-    // Field-bound text in a SIZE: synced from the expanded view by default
-    // (one source of truth), but overridable — unticking bakes the current
-    // resolved value locally so this size edits its own copy; re-ticking
-    // drops the bake and falls back to the shared field. Mirrors the
-    // image "Main image · syncs across all sizes" pin row.
-    if (!isExpanded && boundField) {
-      // The toggle changes panel STRUCTURE (hint ↔ editable field, plus the
-      // resync hint below), so the row renders its state statically — the
-      // override marker in the rebuild key guarantees a rebuild on toggle.
-      const syncRow = document.createElement("label");
-      syncRow.style.cssText = `display:flex;align-items:center;gap:8px;margin-bottom:${overridden ? "4px" : "10px"};font-size:11px;color:${overridden ? tokens.amber : tokens.ink200};cursor:pointer;`;
-      const cb = document.createElement("input");
-      cb.type = "checkbox";
-      cb.checked = !overridden;
-      cb.style.cssText = "margin:0;cursor:inherit;";
-      cb.addEventListener("change", () => {
-        if (cb.checked) {
-          // Re-tick = ADOPT: this size's text + colour become the shared
-          // version everywhere, then the item re-links.
-          store.commit(adoptTextOverride(store.state, idx));
-        } else {
-          mutateContent(store, idx, effectiveContent(store, item, "text"), "text", true);
-        }
-      });
-      syncRow.append(cb, document.createTextNode(
-        overridden
-          ? `Overridden for this size (${boundField})`
-          : `Synced across all sizes (${boundField})`,
-      ));
-      appendToGroup(textGroup, syncRow);
-      if (overridden) {
-        const resync = document.createElement("div");
-        resync.style.cssText = `margin:0 0 10px 24px;font-size:11px;color:${tokens.ink300};font-style:italic;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;`;
-        resync.textContent = "Re-tick to apply this text & color to all sizes";
-        resync.title = "Text and color edits stay in this size while unticked. Ticking the box makes them the shared version every size shows.";
-        appendToGroup(textGroup, resync);
-      }
-    }
-    if (isExpanded || !boundField || overridden) {
-      // Expanded view, LOCAL text (no field — e.g. dropped straight onto a
-      // size; it exists nowhere else, so it must be editable here), or a
-      // field item whose sync was unticked above: editable.
+    // RULE: every banner size shows the SAME text in the SAME color — both
+    // are decided on the full screen. So a field-bound item in a sized tab
+    // has NO Text section at all: no content edit, no color picker, no sync
+    // checkboxes (the old per-size override row — "Synced across all
+    // sizes" — read as font-size jargon and invited per-size divergence).
+    // A LOCAL item (no field — dropped straight onto one size, exists
+    // nowhere else) keeps its Text section: it has no full-screen source.
+    // Typography below stays in every mode — fitting the shared text to a
+    // shape (size/weight/orientation) is exactly what sized tabs are for.
+    if (isExpanded || !boundField) {
+      const textGroup = group("Text");
       setters.text = textField(textGroup, "content", effectiveContent(store, item, "text"), (v, c) => mutateContent(store, idx, v, "text", c));
-    } else {
-      contentHint(textGroup, effectiveContent(store, item, "text"));
+      // Per-field colour page-sync (headline + body): while pages[0]'s
+      // flag is on (absent = on), page 1 is the only place that field's
+      // colour is edited — pages 2/3 show a hint instead of the picker.
+      // Mirrors the Page Background "Sync color across all 3 pages" row.
+      const hasColorPageSync = boundField != null && fieldColorSyncKey(boundField) != null;
+      const fieldSynced = boundField != null && isFieldColorSynced(store.state, boundField);
+      const colorLocked = hasColorPageSync && fieldSynced && store.state.pageIdx > 0;
+      if (colorLocked) {
+        const lockHint = document.createElement("div");
+        lockHint.style.cssText = `margin:0 0 10px;font-size:11px;color:${tokens.ink300};font-style:italic;`;
+        lockHint.textContent = "Color synced from page 1";
+        appendToGroup(textGroup, lockHint);
+      } else {
+        setters.color = colorField(textGroup, "color", item.color ?? "#ffffff", (v, c) => mutate(store, idx, (it) => ({ ...it, color: v }), c));
+        mountKitColorChips(textGroup, {
+          campaignId: window.__DESIGNER__?.campaignId ?? "",
+          onPick: (color) => mutate(store, idx, (it) => ({ ...it, color }), true),
+        });
+      }
+      if (hasColorPageSync && boundField) {
+        // Full-screen only (this whole group is): governs whether page 1's
+        // colour drives pages 2/3. Rendered for the field whenever the
+        // group shows (stable height when paging); operable on page 1.
+        const firstPage = store.state.pageIdx === 0;
+        const syncColorRow = document.createElement("label");
+        syncColorRow.style.cssText = `display:flex;align-items:center;gap:8px;margin-bottom:10px;font-size:11px;color:${tokens.ink200};${firstPage ? "cursor:pointer;" : "opacity:0.45;cursor:not-allowed;"}`;
+        if (!firstPage) syncColorRow.title = "Set from page 1";
+        const cb = document.createElement("input");
+        cb.type = "checkbox";
+        cb.checked = fieldSynced;
+        cb.disabled = !firstPage;
+        cb.style.cssText = "margin:0;cursor:inherit;";
+        cb.addEventListener("change", () => {
+          store.commit(setSyncFieldColor(store.state, boundField, cb.checked));
+        });
+        syncColorRow.append(cb, document.createTextNode("Sync color across all 3 pages"));
+        appendToGroup(textGroup, syncColorRow);
+      }
+      setters.contrastWarning = contrastWarningRow(textGroup, store);
+      panel.appendChild(textGroup);
+      sections.push(textGroup);
     }
-    // Per-field colour page-sync (headline + body): while pages[0]'s
-    // flag is on (absent = on), page 1 is the only place that field's
-    // colour is edited — pages 2/3 show a hint instead of the picker.
-    // Mirrors the Page Background "Sync color across all 3 pages" row.
-    const hasColorPageSync = boundField != null && fieldColorSyncKey(boundField) != null;
-    const fieldSynced = boundField != null && isFieldColorSynced(store.state, boundField);
-    const colorLocked = hasColorPageSync && fieldSynced && store.state.pageIdx > 0;
-    if (colorLocked) {
-      const lockHint = document.createElement("div");
-      lockHint.style.cssText = `margin:0 0 10px;font-size:11px;color:${tokens.ink300};font-style:italic;`;
-      lockHint.textContent = "Color synced from page 1";
-      appendToGroup(textGroup, lockHint);
-    } else {
-      setters.color = colorField(textGroup, "color", item.color ?? "#ffffff", (v, c) => mutate(store, idx, (it) => ({ ...it, color: v }), c));
-      mountKitColorChips(textGroup, {
-        campaignId: window.__DESIGNER__?.campaignId ?? "",
-        onPick: (color) => mutate(store, idx, (it) => ({ ...it, color }), true),
-      });
-    }
-    if (hasColorPageSync && boundField) {
-      // Always rendered for the field (stable group height when
-      // paging); operable only while page 1 is selected.
-      const firstPage = store.state.pageIdx === 0;
-      const syncColorRow = document.createElement("label");
-      syncColorRow.style.cssText = `display:flex;align-items:center;gap:8px;margin-bottom:10px;font-size:11px;color:${tokens.ink200};${firstPage ? "cursor:pointer;" : "opacity:0.45;cursor:not-allowed;"}`;
-      if (!firstPage) syncColorRow.title = "Set from page 1";
-      const cb = document.createElement("input");
-      cb.type = "checkbox";
-      cb.checked = fieldSynced;
-      cb.disabled = !firstPage;
-      cb.style.cssText = "margin:0;cursor:inherit;";
-      cb.addEventListener("change", () => {
-        store.commit(setSyncFieldColor(store.state, boundField, cb.checked));
-      });
-      syncColorRow.append(cb, document.createTextNode("Sync color across all 3 pages"));
-      appendToGroup(textGroup, syncColorRow);
-    }
-    setters.contrastWarning = contrastWarningRow(textGroup, store);
-    panel.appendChild(textGroup);
-    sections.push(textGroup);
 
     const typo = group("Typography");
     setters.fontFamily = selectField(typo, "font", item.fontFamily ?? "sans-serif",
@@ -894,10 +859,12 @@ function mutate(store: Store, idx: number, fn: (it: LayoutItem) => LayoutItem, c
     const typo: Record<string, unknown> = {};
     // Colour syncs like every other typography prop — one typographic
     // identity per role, from whichever surface the edit happens on —
-    // EXCEPT on a detached override (sync checkbox unticked): there the
-    // colour is a per-size choice and stays local, both outbound (here)
-    // and inbound (propagateTypography skips detached items). Re-ticking
-    // adopts the local text + colour everywhere (adoptTextOverride).
+    // EXCEPT on a detached override (legacy per-size bake): its colour
+    // stays local, both outbound (here) and inbound (propagateTypography
+    // skips detached items). The UI to create overrides is gone (every
+    // banner size shows the same text in the same color; sized tabs have
+    // no Text section for field items), but persisted bakes from before
+    // that rule still render, so the guard stays.
     for (const k of TYPO_SYNC_KEYS) if (a[k] !== b[k]) typo[k] = a[k];
     if (hasLocalTextOverride(after)) delete typo.color;
     if (Object.keys(typo).length > 0) next = propagateTypography(next, field, typo);

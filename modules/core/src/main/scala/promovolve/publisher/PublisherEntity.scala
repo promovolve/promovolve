@@ -256,15 +256,19 @@ object PublisherEntity {
         Effect
           .persist(newState)
           .thenRun { (_: State) =>
-            // Operator suspension freezes serving on every site; resuming
-            // to Active lifts it. SetSuspended is an idempotent flag flip,
-            // so a retried suspend re-fanning is harmless. Known edge: a
-            // site registered WHILE suspended won't inherit the flag —
-            // acceptable because the suspended org's dashboard is locked.
+            // Operator suspension freezes serving on every site; resuming to
+            // Active lifts it. SetSuspended is an idempotent flag flip, so
+            // BOTH directions fan out UNCONDITIONALLY (not just on the status
+            // transition): if a site missed the first broadcast — actor
+            // mid-restart, transient message loss — clicking Suspend/Resume
+            // again must re-broadcast and heal it. A governance control has
+            // to be reliably retryable. Known edge: a site registered WHILE
+            // suspended won't inherit the flag — acceptable because the
+            // suspended org's dashboard is locked.
             val freeze = status match {
-              case Status.Suspended | Status.Closed       => Some(true)
-              case Status.Active if prev != Status.Active => Some(false)
-              case _                                      => None
+              case Status.Suspended | Status.Closed => Some(true)
+              case Status.Active                    => Some(false)
+              case _                                => None
             }
             freeze.foreach { s =>
               if (state.siteIds.nonEmpty) {

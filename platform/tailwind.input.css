@@ -41,6 +41,18 @@
     --c-gray-900: 20 17 14;
     --c-gray-950: 12 8 6;
   }
+  /* Safety net for raw form controls that don't use .form-input: theme their
+     background + text so a stray <input>/<select>/<textarea> is never
+     white-on-dark. Base layer = lowest priority, so explicit utility classes
+     (e.g. a disabled field's bg-gray-50) still win. Checkbox/radio/buttons
+     excluded — an opaque bg would hide their glyph/accent. */
+  input:not([type='checkbox']):not([type='radio']):not([type='submit']):not([type='button']):not([type='range']),
+  select,
+  textarea {
+    background-color: rgb(var(--c-white));
+    color: rgb(var(--c-gray-900));
+  }
+
   .dark {
     --c-white: 24 22 20;    /* raised card/surface, sits above the page void */
     --c-gray-50: 15 13 11;  /* page background */
@@ -78,7 +90,12 @@
   .badge-danger { @apply bg-red-100 text-red-700 dark:bg-red-500/15 dark:text-red-300; }
   .badge-neutral { @apply bg-gray-100 text-gray-600; }
   .form-label { @apply block text-sm font-medium text-gray-700 mb-1; }
-  .form-input { @apply w-full px-3 py-2 border border-gray-300 rounded-md text-sm focus:outline-none focus:ring-2 focus:ring-brand/20 focus:border-brand; }
+  /* bg-white + text-gray-900 both route through the inverting vars: white bg
+     / dark text in light mode, dark surface / light text in dark mode. Before
+     this, the input had NO bg/text of its own — it kept the browser's white
+     background while text inherited the page's dark-mode light color, i.e.
+     invisible light-on-white. */
+  .form-input { @apply w-full px-3 py-2 border border-gray-300 rounded-md text-sm bg-white text-gray-900 placeholder:text-gray-400 focus:outline-none focus:ring-2 focus:ring-brand/20 focus:border-brand; }
   .form-hint { @apply text-xs text-gray-400 mt-1; }
   .page-title { @apply text-2xl font-semibold; }
   .page-sub { @apply text-sm text-gray-500 mt-1; }

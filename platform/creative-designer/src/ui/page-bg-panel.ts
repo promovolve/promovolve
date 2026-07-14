@@ -56,15 +56,6 @@ export function mountPageBgPanel(container: HTMLElement, store: Store): PageBgPa
   const textureBody = document.createElement("div");
   panel.appendChild(textureBody);
 
-  // Video/texture are FULL-SCREEN-ONLY backdrops (the banner renders them
-  // solely in the expanded reader — see banner.ts). Hide their controls in
-  // the sized tabs so the panel never offers something the delivered size
-  // won't show; a one-line hint says where they live instead.
-  const sizedHint = document.createElement("div");
-  sizedHint.style.cssText = `font-size:11px;color:${tokens.ink400};margin-top:14px;`;
-  sizedHint.textContent = "Video and texture backdrops apply to the full-screen reader — switch to the full screen tab to edit them.";
-  panel.appendChild(sizedHint);
-
   let renderedSrc: string | null | undefined = undefined;
   // Texture rebuilds on src OR mode change (mode toggles the tile-size
   // row in/out); opacity ticks live via patchTextureValues.
@@ -73,12 +64,7 @@ export function mountPageBgPanel(container: HTMLElement, store: Store): PageBgPa
   return {
     update(state) {
       const page = currentPage(state);
-      colorRow.update(page?.bg ?? "", state.pageIdx === 0, state.pages[0]?.syncBg !== false);
-      const sized = isSized(state.mode);
-      for (const el of [videoHeader, body, textureHeader, textureBody]) {
-        el.style.display = sized ? "none" : "";
-      }
-      sizedHint.style.display = sized ? "" : "none";
+      colorRow.update(page?.bg ?? "", state.pageIdx === 0, state.pages[0]?.syncBg !== false, isSized(state.mode));
       const videoBg = page?.videoBg;
       const src = videoBg?.src ?? null;
       // Only rebuild when present/absent state flips — otherwise
@@ -116,7 +102,7 @@ export function mountPageBgPanel(container: HTMLElement, store: Store): PageBgPa
 
 interface ColorRowHandle {
   el: HTMLElement;
-  update(currentBg: string, firstPage: boolean, synced: boolean): void;
+  update(currentBg: string, firstPage: boolean, synced: boolean, sized: boolean): void;
 }
 
 function mountColorRow(store: Store): ColorRowHandle {
@@ -197,9 +183,13 @@ function mountColorRow(store: Store): ColorRowHandle {
   syncCb.addEventListener("change", () => {
     store.commit(setSyncPageBg(store.state, syncCb.checked));
   });
-  // "All pages", not "all 3 pages": in the sized tabs the magazine's
-  // page structure isn't visible, so a count reads as jargon.
-  syncRow.append(syncCb, document.createTextNode("Apply color to all pages"));
+  // Label is CONTEXT-SENSITIVE (see update below): in the full-screen
+  // tabs the magazine's pages are visible, so "all 3 pages" reads
+  // naturally; on a sized tab (300×250, 728×90, …) that structure is
+  // invisible and "which 3 pages?" is the first question — there the
+  // label says what the tick means from that vantage point instead.
+  const syncLabel = document.createTextNode("Sync color across all 3 pages");
+  syncRow.append(syncCb, syncLabel);
   wrap.appendChild(syncRow);
 
   const setRowEnabled = (input: HTMLInputElement | HTMLButtonElement, on: boolean): void => {
@@ -210,7 +200,10 @@ function mountColorRow(store: Store): ColorRowHandle {
 
   return {
     el: wrap,
-    update(currentBg, firstPage, synced) {
+    update(currentBg, firstPage, synced, sized) {
+      syncLabel.data = sized
+        ? "Use one color for the whole creative"
+        : "Sync color across all 3 pages";
       // Only repopulate when the value differs from the input — avoids
       // clobbering user input mid-edit and keeps focus/caret intact.
       if (text.value !== currentBg) {

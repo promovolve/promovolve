@@ -108,7 +108,7 @@ configMapGenerator:
       # NOT a secret — tracked here so deploys are reproducible from committed
       # config. The API (envFrom) and platform (configMapKeyRef) both read it;
       # update on each `banner-component` R2 publish (npm run publish:r2).
-      - BANNER_SCRIPT_URL=https://pub-7ab486148c8740dbb2cc31c5072eb91c.r2.dev/js/expandable-magazine-banner.153722d407.js
+      - BANNER_SCRIPT_URL=https://pub-7ab486148c8740dbb2cc31c5072eb91c.r2.dev/js/expandable-magazine-banner.63b5af7304.js
       # Gemini rate limiter (GeminiRateLimiter.scala reads these from env).
       # Defaults are sized for the AI Studio FREE tier (8 RPM / burst 5), which
       # makes a multi-page crawl queue past the 30s acquire deadline → pages

@@ -1286,6 +1286,37 @@ func (h *Handler) PublisherApproval(w http.ResponseWriter, r *http.Request) {
 		pending := h.loadPending(s.ID, claims)
 		serving := h.loadServing(s.ID, claims, s.FloorCpm)
 		flagged := h.loadFlagged(s.ID, claims)
+
+		// ONE row per creative per site. The lists come from different
+		// stores with different propagation clocks (pending from Postgres,
+		// serving from the replicated ServeIndex), and transitions like
+		// revoke have no atomic end state — a render sampled mid-cascade
+		// legitimately finds the same creative in two lists. Pending wins
+		// (revoke's serving-side cleanup can lag a full auction wave),
+		// then flagged, then serving.
+		pendingSet := map[string]bool{}
+		for i := range pending {
+			pendingSet[pending[i].CreativeID] = true
+		}
+		flaggedSet := map[string]bool{}
+		filteredFlagged := flagged[:0:0]
+		for i := range flagged {
+			if pendingSet[flagged[i].CreativeID] {
+				continue
+			}
+			flaggedSet[flagged[i].CreativeID] = true
+			filteredFlagged = append(filteredFlagged, flagged[i])
+		}
+		flagged = filteredFlagged
+		filteredServing := serving[:0:0]
+		for i := range serving {
+			if pendingSet[serving[i].CreativeID] || flaggedSet[serving[i].CreativeID] {
+				continue
+			}
+			filteredServing = append(filteredServing, serving[i])
+		}
+		serving = filteredServing
+
 		for i := range pending {
 			name, camps := dir.resolve(pending[i].AdvertiserID)
 			pending[i].AdvertiserName = name

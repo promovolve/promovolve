@@ -5,6 +5,19 @@
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
   <title>{{.Title}} — Promovolve</title>
+  {{/* Pre-paint theme: set .dark on <html> BEFORE the stylesheet applies, so
+       there's no light-flash for dark-mode users. Tri-state (auto/light/dark)
+       persisted in localStorage, matching the designer. */}}
+  <script>
+    (function () {
+      try {
+        var m = localStorage.getItem('promovolve.dashboard.theme') || 'auto';
+        if (m === 'dark' || (m === 'auto' && matchMedia('(prefers-color-scheme: dark)').matches)) {
+          document.documentElement.classList.add('dark');
+        }
+      } catch (e) {}
+    })();
+  </script>
   {{/* Precompiled Tailwind (was the Play CDN's ~350KB in-browser JIT).
        Design tokens live in platform/tailwind.config.js, canonical component
        classes in platform/tailwind.input.css — see dev_docs/DESIGN_SYSTEM.md.
@@ -53,7 +66,10 @@
        and squash the footer links. min-w-0 + overflow-x-auto on <main>
        makes wide content scroll inside the pane instead. */}}
   <div class="flex min-h-screen">
-    <aside class="w-56 shrink-0 bg-gray-900 text-gray-100 p-4 flex flex-col">
+    {{/* theme-light-scope freezes the gray/white variables to their light
+         values inside the sidebar, so this always-dark chrome (dark bg, light
+         text) looks identical in both themes instead of inverting. */}}
+    <aside class="theme-light-scope w-56 shrink-0 bg-gray-900 text-gray-100 p-4 flex flex-col">
       <div class="mb-8">
         <h2 class="text-lg font-semibold">Promovolve</h2>
         <p class="text-xs text-gray-400 mt-1">
@@ -114,6 +130,9 @@
           <a href="/account/preferences" class="text-sm whitespace-nowrap {{if eq .Nav "preferences"}}text-white{{else}}text-gray-400 hover:text-white{{end}}">Preferences</a>
           <a href="/account/passkeys" class="text-sm whitespace-nowrap {{if eq .Nav "passkeys"}}text-white{{else}}text-gray-400 hover:text-white{{end}}">Passkeys</a>
           <a href="/logout" class="text-sm whitespace-nowrap text-gray-400 hover:text-white">Sign out</a>
+          <button type="button" id="theme-cycle" class="text-sm whitespace-nowrap text-gray-400 hover:text-white inline-flex items-center gap-1">
+            <span data-icon aria-hidden="true">◐</span><span data-label class="capitalize">auto</span>
+          </button>
         </div>
       </div>
     </aside>
@@ -124,6 +143,36 @@
   {{else}}
   {{template "content" .}}
   {{end}}
+  {{/* Theme cycle (auto → light → dark → auto), mirroring the designer. The
+       pre-paint script in <head> already set the initial class; this wires
+       the toggle, keeps auto following the OS live, and updates the icon. */}}
+  <script>
+    (function () {
+      var KEY = 'promovolve.dashboard.theme';
+      var ICON = { auto: '◐', light: '☀', dark: '☾' };
+      var NEXT = { auto: 'light', light: 'dark', dark: 'auto' };
+      var mq = matchMedia('(prefers-color-scheme: dark)');
+      function mode() { try { return localStorage.getItem(KEY) || 'auto'; } catch (e) { return 'auto'; } }
+      function apply(m) {
+        var dark = m === 'dark' || (m === 'auto' && mq.matches);
+        document.documentElement.classList.toggle('dark', dark);
+        var b = document.getElementById('theme-cycle');
+        if (b) {
+          b.querySelector('[data-icon]').textContent = ICON[m];
+          b.querySelector('[data-label]').textContent = m;
+          b.title = 'Theme: ' + m + (m === 'auto' ? ' (follows your OS)' : '') + ' — click to cycle';
+        }
+      }
+      var btn = document.getElementById('theme-cycle');
+      if (btn) btn.addEventListener('click', function () {
+        var n = NEXT[mode()];
+        try { localStorage.setItem(KEY, n); } catch (e) {}
+        apply(n);
+      });
+      mq.addEventListener('change', function () { if (mode() === 'auto') apply('auto'); });
+      apply(mode());
+    })();
+  </script>
 </body>
 </html>
 {{end}}

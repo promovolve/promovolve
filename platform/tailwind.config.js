@@ -8,6 +8,9 @@
  * Go build stays node-free.
  */
 module.exports = {
+  // Dark mode is a `.dark` class on <html>, toggled by the inline head
+  // script in layout.html (tri-state auto/light/dark like the designer).
+  darkMode: 'class',
   content: [
     './templates/**/*.html', // includes classes built in the templates' inline JS
     './static/passkey.js',
@@ -17,16 +20,32 @@ module.exports = {
       colors: {
         /* Brand = the creative designer's amber (tokens.ts light theme,
            oklch(0.62 0.17 50) → hex). Text on brand is DARK INK, not
-           white — the designer's convention; white fails AA on this amber. */
+           white — the designer's convention; white fails AA on this amber.
+           Intentionally NOT variable-driven: the accent is stable across
+           themes. */
         brand: { DEFAULT: '#d35f00', hover: '#c35800', soft: '#fce4c4' },
-        /* Neutrals = the designer's warm ink scale (hue ~60-75, low
-           chroma) mapped onto the gray-* steps the templates already
-           use — overriding `gray` restyles every page without touching
-           markup. Cool Tailwind gray is retired from the dashboard. */
+        /* Neutrals + white route through CSS variables (space-separated RGB
+           triples, defined in tailwind.input.css :root / .dark). Every
+           bg-white / bg-gray-* / text-gray-* / border-gray-* across the
+           templates re-themes when `.dark` flips those variables — no
+           per-page edits. `<alpha-value>` keeps opacity modifiers
+           (bg-gray-100/40) working. Each step preserves its CONTRAST ROLE
+           across themes (gray-50 = lightest surface in light mode → the page
+           void in dark; gray-900 = darkest text in light → near-white text
+           in dark), so a light-authored template reads correctly in both. */
+        white: 'rgb(var(--c-white) / <alpha-value>)',
         gray: {
-          50: '#fcfaf7', 100: '#f5f3f0', 200: '#eae7e4', 300: '#d3d0cd',
-          400: '#a8a49f', 500: '#7d7a75', 600: '#5b5753', 700: '#403c38',
-          800: '#272320', 900: '#14110e', 950: '#0c0806',
+          50: 'rgb(var(--c-gray-50) / <alpha-value>)',
+          100: 'rgb(var(--c-gray-100) / <alpha-value>)',
+          200: 'rgb(var(--c-gray-200) / <alpha-value>)',
+          300: 'rgb(var(--c-gray-300) / <alpha-value>)',
+          400: 'rgb(var(--c-gray-400) / <alpha-value>)',
+          500: 'rgb(var(--c-gray-500) / <alpha-value>)',
+          600: 'rgb(var(--c-gray-600) / <alpha-value>)',
+          700: 'rgb(var(--c-gray-700) / <alpha-value>)',
+          800: 'rgb(var(--c-gray-800) / <alpha-value>)',
+          900: 'rgb(var(--c-gray-900) / <alpha-value>)',
+          950: 'rgb(var(--c-gray-950) / <alpha-value>)',
         },
       },
     },

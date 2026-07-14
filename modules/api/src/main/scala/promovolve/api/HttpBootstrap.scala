@@ -255,27 +255,21 @@ object HttpBootstrap {
       // Creative processor: orchestrates image download, banner render, verification
       val creativeProcessor: Option[ActorRef[CreativeProcessor.Command]] = {
         import org.apache.pekko.actor.typed.DispatcherSelector
-        (Some(imageStorage), Some(imageAssetRepo)) match {
-          case (Some(storage), Some(imgRepo)) =>
-            // Self-hosted web fonts: fetch allow-listed Google fonts at
-            // publish and store in R2 so the expanded view loads them
-            // from our CDN, never Google at the visitor's runtime.
-            val fontProvisioner = Some(new GoogleFontProvisioner(storage))
-            val behavior = CreativeProcessor(
-              creativeRepo, imgRepo, storage, cdnBase,
-              lpAnalyzer, categoryVerificationClient, sharding,
-              fontProvisioner
-            )
-            Some(system.systemActorOf(
-              org.apache.pekko.actor.typed.scaladsl.Behaviors.supervise(behavior)
-                .onFailure(org.apache.pekko.actor.typed.SupervisorStrategy.resume),
-              "creative-processor",
-              DispatcherSelector.fromConfig("blocking-io-dispatcher")
-            ))
-          case _ =>
-            system.log.warn("CreativeProcessor not started — ImageStorage or ImageAssetRepo not available")
-            None
-        }
+        // Self-hosted web fonts: fetch allow-listed Google fonts at publish and
+        // store in R2 so the expanded view loads them from our CDN, never Google
+        // at the visitor's runtime.
+        val fontProvisioner = Some(new GoogleFontProvisioner(imageStorage))
+        val behavior = CreativeProcessor(
+          creativeRepo, imageAssetRepo, imageStorage, cdnBase,
+          lpAnalyzer, categoryVerificationClient, sharding,
+          fontProvisioner
+        )
+        Some(system.systemActorOf(
+          org.apache.pekko.actor.typed.scaladsl.Behaviors.supervise(behavior)
+            .onFailure(org.apache.pekko.actor.typed.SupervisorStrategy.resume),
+          "creative-processor",
+          DispatcherSelector.fromConfig("blocking-io-dispatcher")
+        ))
       }
 
       // PendingEventHub for SSE notifications (created before EndpointRoutes so it can be passed in)

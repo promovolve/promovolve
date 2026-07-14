@@ -45,6 +45,18 @@
             their own threshold above it, never below. Changeable in Settings.
           </p>
         </div>
+        <div>
+          <label class="form-label">Default advertiser timezone</label>
+          <select id="setup-timezone" class="form-input">
+            <option value="">UTC (default)</option>
+            {{range .Timezones}}{{if ne . "UTC"}}<option value="{{.}}">{{.}}</option>{{end}}{{end}}
+          </select>
+          <p class="form-hint">
+            Budget days for new advertiser accounts roll at this zone's
+            midnight. Per-account override available later; billing always
+            uses UTC days. Changeable in Settings.
+          </p>
+        </div>
         <button type="submit" id="setup-submit" class="btn btn-primary w-full">Create admin passkey &amp; finish setup</button>
         <p class="form-hint text-center">
           Sign-in is passkey-only — your browser will prompt you to create one
@@ -68,6 +80,10 @@
           <input type="password" name="password" placeholder="Password" class="form-input">
           <input type="number" name="marginPercent" min="0" max="99.99" step="0.01" value="15" class="form-input">
           <input type="number" name="payoutFloor" min="0.01" step="0.01" value="50" class="form-input">
+          <select name="timezone" class="form-input">
+            <option value="">UTC (default)</option>
+            {{range .Timezones}}{{if ne . "UTC"}}<option value="{{.}}">{{.}}</option>{{end}}{{end}}
+          </select>
           <button type="submit" class="btn btn-secondary w-full">Create dev admin</button>
         </form>
       </div>
@@ -90,6 +106,7 @@
               email: document.getElementById('setup-email').value,
               marginPercent: document.getElementById('setup-margin').value,
               payoutFloor: document.getElementById('setup-payout-floor').value,
+              timezone: document.getElementById('setup-timezone').value,
             });
             if (res.redirect) window.location.href = res.redirect;
           } catch (e) {

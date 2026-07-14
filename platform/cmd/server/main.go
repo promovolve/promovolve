@@ -258,6 +258,7 @@ func main() {
 	mux.HandleFunc("POST /admin/settings/margin", adm(h.UpdateMargin))
 	mux.HandleFunc("POST /admin/settings/payout-floor", adm(h.UpdatePayoutFloor))
 	mux.HandleFunc("POST /admin/settings/org-max-members", adm(h.UpdateOrgMaxMembers))
+	mux.HandleFunc("POST /admin/settings/default-timezone", adm(h.UpdateDefaultOrgTimezone))
 	mux.HandleFunc("GET /admin/billing", adm(h.AdminBilling))
 	mux.HandleFunc("GET /admin/billing/topups", adm(h.AdminBillingTopups))
 	mux.HandleFunc("GET /admin/billing/accounts", adm(h.AdminBillingAccounts))

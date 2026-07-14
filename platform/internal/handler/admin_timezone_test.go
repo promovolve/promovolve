@@ -52,3 +52,23 @@ func TestAdminUsersTemplateRenders(t *testing.T) {
 		t.Errorf("admin/users.html failed to render: %v", err)
 	}
 }
+
+func TestAdminSettingsTemplateRenders(t *testing.T) {
+	SetFS(platform.Templates, platform.Static)
+
+	admin := &model.User{Email: "admin@test", Role: model.RoleAdmin}
+	data := pageData{
+		Title: "Platform Settings", Nav: "admin-settings", User: admin,
+		MarginPct: "15", PayoutFloor: "50", OrgMaxMembers: 10,
+		// The default-timezone select renders with the current default
+		// selected (exotic zones are prepended by the handler).
+		DefaultOrgTimezone: "Asia/Tokyo",
+		Timezones:          preferenceTimezones,
+		MarginHistory: []marginRow{
+			{Percent: "15", EffectiveFrom: "2026-07-14 12:00", By: "admin@test"},
+		},
+	}
+	if err := getPage("admin/settings.html").ExecuteTemplate(io.Discard, "layout", data); err != nil {
+		t.Errorf("admin/settings.html failed to render: %v", err)
+	}
+}

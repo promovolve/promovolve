@@ -686,15 +686,34 @@ func (h *Handler) renderAdminSettings(w http.ResponseWriter, r *http.Request, er
 		payoutFloor = usd(floor)
 	}
 
+	// Timezone dropdown: the curated preference list, plus the (possibly
+	// exotic) current default so a re-save never resets it.
+	defaultTZ := h.orgRepo.DefaultTimezone(r.Context())
+	zones := preferenceTimezones
+	if defaultTZ != "" {
+		found := false
+		for _, z := range zones {
+			if z == defaultTZ {
+				found = true
+				break
+			}
+		}
+		if !found {
+			zones = append([]string{defaultTZ}, zones...)
+		}
+	}
+
 	h.render(w, "admin/settings.html", pageData{
-		Title:         "Platform Settings",
-		Nav:           "admin-settings",
-		User:          user,
-		Error:         errMsg,
-		MarginPct:     formatBps(current),
-		MarginHistory: rows,
-		PayoutFloor:   payoutFloor,
-		OrgMaxMembers: h.orgRepo.MaxMembers(r.Context()),
+		Title:              "Platform Settings",
+		Nav:                "admin-settings",
+		User:               user,
+		Error:              errMsg,
+		MarginPct:          formatBps(current),
+		MarginHistory:      rows,
+		PayoutFloor:        payoutFloor,
+		OrgMaxMembers:      h.orgRepo.MaxMembers(r.Context()),
+		DefaultOrgTimezone: defaultTZ,
+		Timezones:          zones,
 	})
 }
 
@@ -715,6 +734,29 @@ func (h *Handler) UpdateOrgMaxMembers(w http.ResponseWriter, r *http.Request) {
 	if err := h.orgRepo.SetMaxMembers(r.Context(), n, admin.ID); err != nil {
 		slog.Error("set org member cap failed", "error", err)
 		h.renderAdminSettings(w, r, "could not update the member cap")
+		return
+	}
+	http.Redirect(w, r, "/admin/settings", http.StatusSeeOther)
+}
+
+// UpdateDefaultOrgTimezone sets the advertiser-account timezone seeded onto
+// NEW organizations at creation (IANA; "" = UTC). Creation-time only —
+// existing orgs keep their zone; the per-org control on /admin/users is the
+// override.
+func (h *Handler) UpdateDefaultOrgTimezone(w http.ResponseWriter, r *http.Request) {
+	admin, _, ok := h.requireRole(w, r, model.RoleAdmin)
+	if !ok {
+		return
+	}
+	r.ParseForm()
+	tz := strings.TrimSpace(r.FormValue("timezone"))
+	if !validTimezone(tz) {
+		h.renderAdminSettings(w, r, fmt.Sprintf("unknown timezone %q — use an IANA zone like Asia/Tokyo", tz))
+		return
+	}
+	if err := h.orgRepo.SetDefaultTimezone(r.Context(), tz, admin.ID); err != nil {
+		slog.Error("set default org timezone failed", "error", err)
+		h.renderAdminSettings(w, r, "could not update the default timezone")
 		return
 	}
 	http.Redirect(w, r, "/admin/settings", http.StatusSeeOther)

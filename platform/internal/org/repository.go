@@ -57,6 +57,37 @@ func (r *Repository) SetMaxMembers(ctx context.Context, n int, updatedBy string)
 	return err
 }
 
+// DefaultTimezoneKey is the platform_settings row holding the default
+// advertiser-account timezone for NEW orgs (IANA name; "" = UTC); exported
+// so the setup wizard can seed it inside its guarded install transaction.
+const DefaultTimezoneKey = "default_org_timezone"
+
+// DefaultTimezone is the operator-set timezone seeded onto NEW orgs at
+// creation (/admin/settings; "" = UTC). Creation-time only — changing it
+// later never rewrites existing orgs (the per-org control on /admin/users
+// is the override). Unset or unreadable degrades to "" (UTC).
+func (r *Repository) DefaultTimezone(ctx context.Context) string {
+	var tz string
+	if err := r.pool.QueryRow(ctx,
+		`SELECT value FROM platform_settings WHERE key = $1`, DefaultTimezoneKey,
+	).Scan(&tz); err != nil {
+		return ""
+	}
+	return tz
+}
+
+// SetDefaultTimezone records the default (IANA name; "" = UTC). Operator-set
+// only; the handler validates the zone loads before it gets here.
+func (r *Repository) SetDefaultTimezone(ctx context.Context, tz, updatedBy string) error {
+	_, err := r.pool.Exec(ctx, `
+		INSERT INTO platform_settings (key, value, updated_by, updated_at)
+		VALUES ($1, $2, $3, NOW())
+		ON CONFLICT (key) DO UPDATE SET value = $2, updated_by = $3, updated_at = NOW()`,
+		DefaultTimezoneKey, tz, updatedBy,
+	)
+	return err
+}
+
 // DomainOf extracts the lowercase email domain ("" when malformed).
 func DomainOf(email string) string {
 	at := strings.LastIndexByte(email, '@')
@@ -119,11 +150,13 @@ func (r *Repository) GetByDomain(ctx context.Context, domain string) (*model.Org
 }
 
 // Create inserts a new org; the UNIQUE(domain) constraint is the one-org-per-
-// domain rule, so a concurrent duplicate surfaces as an error here.
+// domain rule, so a concurrent duplicate surfaces as an error here. New rows
+// are born with the operator's default advertiser timezone — an INSERT-time
+// seed only, so a later default change never touches existing orgs.
 func (r *Repository) Create(ctx context.Context, domain, name string) (*model.Org, error) {
 	return scanOrg(r.pool.QueryRow(ctx, `
-		INSERT INTO orgs (domain, name) VALUES ($1, $2)
-		RETURNING `+orgColumns, strings.ToLower(domain), name))
+		INSERT INTO orgs (domain, name, timezone) VALUES ($1, $2, $3)
+		RETURNING `+orgColumns, strings.ToLower(domain), name, r.DefaultTimezone(ctx)))
 }
 
 // SetSideEntity records a provisioned core entity on the org. It only fills

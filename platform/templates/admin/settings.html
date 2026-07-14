@@ -54,6 +54,21 @@
     </form>
   </div>
 
+  <div class="card mt-6">
+    <h2 class="font-semibold text-lg">Default advertiser timezone</h2>
+    <p class="text-sm text-gray-500 mt-1 mb-4">Budget days for new advertiser accounts roll at this zone's midnight. Applied to organizations at creation only — existing organizations keep their zone (per-org override on Users). Billing always uses UTC days.</p>
+    <form method="POST" action="/admin/settings/default-timezone" class="flex items-end gap-3">
+      <div>
+        <label class="form-label">Timezone</label>
+        <select name="timezone" class="form-input">
+          <option value="">UTC (default)</option>
+          {{range .Timezones}}{{if ne . "UTC"}}<option value="{{.}}" {{if eq . $.DefaultOrgTimezone}}selected{{end}}>{{.}}</option>{{end}}{{end}}
+        </select>
+      </div>
+      <button type="submit" class="btn btn-primary">Update timezone</button>
+    </form>
+  </div>
+
   <div class="card mt-6 p-0 overflow-x-auto">
     <h2 class="font-semibold text-lg px-6 pt-6">History</h2>
     <table class="w-full text-sm mt-3">

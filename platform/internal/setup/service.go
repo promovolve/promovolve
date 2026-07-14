@@ -16,6 +16,7 @@ import (
 
 	"github.com/hanishi/promovolve/platform/internal/billing"
 	"github.com/hanishi/promovolve/platform/internal/model"
+	"github.com/hanishi/promovolve/platform/internal/org"
 	"github.com/hanishi/promovolve/platform/internal/passkey"
 	"github.com/hanishi/promovolve/platform/internal/user"
 )
@@ -60,10 +61,10 @@ func (s *Service) Initialized(ctx context.Context) bool {
 }
 
 // CreateAdmin creates the one admin account, its passkey (nil for the
-// DEV_AUTH password variant), and the initial platform economics — margin
-// and minimum payout floor — in a single transaction guarded against
-// concurrent setup attempts.
-func (s *Service) CreateAdmin(ctx context.Context, admin *model.User, cred *webauthn.Credential, credName string, marginBps int, payoutFloorMicros int64) error {
+// DEV_AUTH password variant), and the initial platform economics — margin,
+// minimum payout floor, and the default advertiser timezone for new orgs —
+// in a single transaction guarded against concurrent setup attempts.
+func (s *Service) CreateAdmin(ctx context.Context, admin *model.User, cred *webauthn.Credential, credName string, marginBps int, payoutFloorMicros int64, defaultTimezone string) error {
 	tx, err := s.pool.Begin(ctx)
 	if err != nil {
 		return err
@@ -102,6 +103,13 @@ func (s *Service) CreateAdmin(ctx context.Context, admin *model.User, cred *weba
 		INSERT INTO platform_settings (key, value, updated_by) VALUES ($1, $2, $3)
 		ON CONFLICT (key) DO UPDATE SET value = $2, updated_by = $3, updated_at = NOW()`,
 		billing.PayoutFloorKey, strconv.FormatInt(payoutFloorMicros, 10), admin.ID,
+	); err != nil {
+		return err
+	}
+	if _, err := tx.Exec(ctx, `
+		INSERT INTO platform_settings (key, value, updated_by) VALUES ($1, $2, $3)
+		ON CONFLICT (key) DO UPDATE SET value = $2, updated_by = $3, updated_at = NOW()`,
+		org.DefaultTimezoneKey, defaultTimezone, admin.ID,
 	); err != nil {
 		return err
 	}

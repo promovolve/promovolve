@@ -24,6 +24,7 @@ type setupPayload struct {
 	User              *model.User
 	MarginBps         int
 	PayoutFloorMicros int64
+	DefaultTimezone   string
 }
 
 // SetupPage renders the one-time installation wizard. Inert once an admin
@@ -34,8 +35,9 @@ func (h *Handler) SetupPage(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	h.render(w, "setup.html", pageData{
-		Title:   "Set up PromoVolve",
-		DevAuth: h.devAuth,
+		Title:     "Set up PromoVolve",
+		DevAuth:   h.devAuth,
+		Timezones: preferenceTimezones,
 	})
 }
 
@@ -44,23 +46,28 @@ type setupBeginRequest struct {
 	DisplayName   string `json:"displayName"`
 	MarginPercent string `json:"marginPercent"`
 	PayoutFloor   string `json:"payoutFloor"`
+	Timezone      string `json:"timezone"`
 }
 
-func (req *setupBeginRequest) validate() (*model.User, int, int64, error) {
+func (req *setupBeginRequest) validate() (*model.User, int, int64, string, error) {
 	email := strings.TrimSpace(strings.ToLower(req.Email))
 	if _, err := mail.ParseAddress(email); err != nil {
-		return nil, 0, 0, errors.New("a valid email address is required")
+		return nil, 0, 0, "", errors.New("a valid email address is required")
 	}
 	if strings.TrimSpace(req.DisplayName) == "" {
-		return nil, 0, 0, errors.New("a display name is required")
+		return nil, 0, 0, "", errors.New("a display name is required")
 	}
 	bps, err := parseMarginPercent(req.MarginPercent)
 	if err != nil {
-		return nil, 0, 0, err
+		return nil, 0, 0, "", err
 	}
 	floor, err := parseDollars(req.PayoutFloor)
 	if err != nil {
-		return nil, 0, 0, errors.New("the minimum payout must be a positive dollar amount")
+		return nil, 0, 0, "", errors.New("the minimum payout must be a positive dollar amount")
+	}
+	tz := strings.TrimSpace(req.Timezone)
+	if !validTimezone(tz) {
+		return nil, 0, 0, "", errors.New("the default timezone must be an IANA zone like Asia/Tokyo (leave blank for UTC)")
 	}
 	return &model.User{
 		ID:          uuid.New().String(),
@@ -68,7 +75,7 @@ func (req *setupBeginRequest) validate() (*model.User, int, int64, error) {
 		DisplayName: strings.TrimSpace(req.DisplayName),
 		Role:        model.RoleAdmin,
 		Status:      model.StatusActive,
-	}, bps, floor, nil
+	}, bps, floor, tz, nil
 }
 
 // parseMarginPercent converts "15" / "15.25" to basis points, rejecting
@@ -95,14 +102,14 @@ func (h *Handler) SetupBegin(w http.ResponseWriter, r *http.Request) {
 		writeJSONError(w, http.StatusBadRequest, "invalid request body")
 		return
 	}
-	admin, bps, floor, err := req.validate()
+	admin, bps, floor, tz, err := req.validate()
 	if err != nil {
 		writeJSONError(w, http.StatusBadRequest, err.Error())
 		return
 	}
 
 	creation, token, err := h.passkeySvc.BeginRegistration(r.Context(), admin,
-		setupPayload{User: admin, MarginBps: bps, PayoutFloorMicros: floor})
+		setupPayload{User: admin, MarginBps: bps, PayoutFloorMicros: floor, DefaultTimezone: tz})
 	if err != nil {
 		slog.Error("setup begin failed", "error", err)
 		writeJSONError(w, http.StatusInternalServerError, "could not start passkey registration")
@@ -135,7 +142,7 @@ func (h *Handler) SetupFinish(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	if err := h.setupSvc.CreateAdmin(r.Context(), sp.User, cred, "Setup passkey", sp.MarginBps, sp.PayoutFloorMicros); err != nil {
+	if err := h.setupSvc.CreateAdmin(r.Context(), sp.User, cred, "Setup passkey", sp.MarginBps, sp.PayoutFloorMicros, sp.DefaultTimezone); err != nil {
 		if errors.Is(err, setup.ErrAlreadyInitialized) {
 			writeJSONError(w, http.StatusConflict, "platform is already initialized")
 			return
@@ -167,12 +174,13 @@ func (h *Handler) SetupDev(w http.ResponseWriter, r *http.Request) {
 		DisplayName:   r.FormValue("displayName"),
 		MarginPercent: r.FormValue("marginPercent"),
 		PayoutFloor:   r.FormValue("payoutFloor"),
+		Timezone:      r.FormValue("timezone"),
 	}
 	renderErr := func(msg string) {
-		h.render(w, "setup.html", pageData{Title: "Set up PromoVolve", DevAuth: h.devAuth, Error: msg})
+		h.render(w, "setup.html", pageData{Title: "Set up PromoVolve", DevAuth: h.devAuth, Error: msg, Timezones: preferenceTimezones})
 	}
 
-	admin, bps, floor, err := req.validate()
+	admin, bps, floor, tz, err := req.validate()
 	if err != nil {
 		renderErr(err.Error())
 		return
@@ -189,7 +197,7 @@ func (h *Handler) SetupDev(w http.ResponseWriter, r *http.Request) {
 	}
 	admin.PasswordHash = string(hash)
 
-	if err := h.setupSvc.CreateAdmin(r.Context(), admin, nil, "", bps, floor); err != nil {
+	if err := h.setupSvc.CreateAdmin(r.Context(), admin, nil, "", bps, floor, tz); err != nil {
 		if errors.Is(err, setup.ErrAlreadyInitialized) {
 			http.Redirect(w, r, "/login", http.StatusSeeOther)
 			return

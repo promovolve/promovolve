@@ -278,6 +278,9 @@ type pageData struct {
 	// PayoutFloor is the platform-wide minimum payout (dollars string) on
 	// the admin settings page.
 	PayoutFloor string
+	// DefaultOrgTimezone is the timezone seeded onto NEW orgs at creation
+	// ("" = UTC), on the admin settings page.
+	DefaultOrgTimezone string
 	// Login
 	Mode      string
 	Role      string

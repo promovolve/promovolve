@@ -137,75 +137,16 @@ final class SlickPendingSelectionStore(db: Database)(using ec: ExecutionContext)
     db.run(action)
   }
 
-  def removeByCampaignId(publisherId: String, campaignId: String): Future[Int] = {
-    // Get all pending selections for this publisher
-    val query = selections.filter(_.publisherId === publisherId).result
+  def removeByCampaignId(publisherId: String, campaignId: String): Future[Int] =
+    // ONE transaction + FOR UPDATE row locks: this reads every pending row,
+    // strips a campaign's candidates from the JSON in memory, and writes the
+    // full JSON back — an unlocked read-modify-write clobbers a concurrent
+    // removal (each resurrects the other's stripped creative, the ghost-
+    // duplicate bug fixed in removeCreativeFromAll). Same guard here.
+    scanAndRewrite(publisherId, _.campaignId.value == campaignId)
 
-    db.run(query).flatMap { rows =>
-      // Campaign is leaving the marketplace on this publisher — its
-      // creatives' first-seen tracking goes with it.
-      val removedIds = rows
-        .flatMap(r => rowToSelection(r).ordered.filter(_.campaignId.value == campaignId).map(_.creativeId.value))
-        .toSet
-      // Process each selection: remove candidates from the specified campaign
-      val updates = rows.map { row =>
-        val sel = rowToSelection(row)
-        val remaining = sel.ordered.filterNot(_.campaignId.value == campaignId)
-
-        if (remaining.isEmpty) {
-          // No candidates left - delete the selection
-          selections
-            .filter(r => r.publisherId === publisherId && r.url === row.url && r.slotId === row.slotId)
-            .delete
-        } else if (remaining.size < sel.ordered.size) {
-          // Some candidates removed - update the selection
-          val updated = sel.copy(ordered = remaining, idx = 0, state = SelState.Pending)
-          val updatedRow = row.copy(selectionJson = updated.toJson.compactPrint)
-          selections.insertOrUpdate(updatedRow).map(_ => 1)
-        } else {
-          // No change for this selection
-          DBIO.successful(0)
-        }
-      }
-
-      db.run(DBIO.sequence(updates))
-        .flatMap(counts => deleteFirstSeen(publisherId, removedIds).map(_ => counts.sum))
-    }
-  }
-
-  def removeByAdvertiserId(publisherId: String, advertiserId: String): Future[Int] = {
-    // Get all pending selections for this publisher
-    val query = selections.filter(_.publisherId === publisherId).result
-
-    db.run(query).flatMap { rows =>
-      val removedIds = rows
-        .flatMap(r => rowToSelection(r).ordered.filter(_.advertiserId.value == advertiserId).map(_.creativeId.value))
-        .toSet
-      // Process each selection: remove candidates from the specified advertiser
-      val updates = rows.map { row =>
-        val sel = rowToSelection(row)
-        val remaining = sel.ordered.filterNot(_.advertiserId.value == advertiserId)
-
-        if (remaining.isEmpty) {
-          // No candidates left - delete the selection
-          selections
-            .filter(r => r.publisherId === publisherId && r.url === row.url && r.slotId === row.slotId)
-            .delete
-        } else if (remaining.size < sel.ordered.size) {
-          // Some candidates removed - update the selection
-          val updated = sel.copy(ordered = remaining, idx = 0, state = SelState.Pending)
-          val updatedRow = row.copy(selectionJson = updated.toJson.compactPrint)
-          selections.insertOrUpdate(updatedRow).map(_ => 1)
-        } else {
-          // No change for this selection
-          DBIO.successful(0)
-        }
-      }
-
-      db.run(DBIO.sequence(updates))
-        .flatMap(counts => deleteFirstSeen(publisherId, removedIds).map(_ => counts.sum))
-    }
-  }
+  def removeByAdvertiserId(publisherId: String, advertiserId: String): Future[Int] =
+    scanAndRewrite(publisherId, _.advertiserId.value == advertiserId)
 
   def removeCreativeFromAll(publisherId: String, creativeId: String): Future[Vector[(String, String)]] = {
     // ONE transaction with row locks. Two removals routinely run within the
@@ -250,73 +191,42 @@ final class SlickPendingSelectionStore(db: Database)(using ec: ExecutionContext)
     }
   }
 
-  def removeByLandingDomain(publisherId: String, landingDomain: String): Future[Int] = {
-    // Get all pending selections for this publisher
-    val query = selections.filter(_.publisherId === publisherId).result
+  def removeByLandingDomain(publisherId: String, landingDomain: String): Future[Int] =
+    scanAndRewrite(publisherId, _.landingDomain == landingDomain)
 
-    db.run(query).flatMap { rows =>
-      val removedIds = rows
-        .flatMap(r => rowToSelection(r).ordered.filter(_.landingDomain == landingDomain).map(_.creativeId.value))
-        .toSet
-      // Process each selection: remove candidates with the blocked landing domain
-      val updates = rows.map { row =>
+  def removeByAdProductCategory(publisherId: String, adProductCategory: String): Future[Int] =
+    scanAndRewrite(publisherId, _.adProductCategory.exists(_.value == adProductCategory))
+
+  /**
+   * Strip every candidate matching `matches` from all of a publisher's pending
+   * selections in ONE transaction with FOR UPDATE row locks — so a concurrent
+   * rewrite (another remove-by, or the approval/sweep removeCreativeFromAll)
+   * can't clobber it and resurrect a stripped creative. Selections emptied by
+   * the strip are deleted; first-seen tracking for removed creatives is cleared
+   * after commit. Returns the number of selections changed.
+   */
+  private def scanAndRewrite(publisherId: String, matches: Candidate => Boolean): Future[Int] = {
+    val txn = (for {
+      rows <- selections.filter(_.publisherId === publisherId).forUpdate.result
+      counts <- DBIO.sequence(rows.map { row =>
         val sel = rowToSelection(row)
-        val remaining = sel.ordered.filterNot(_.landingDomain == landingDomain)
-
-        if (remaining.isEmpty) {
-          // No candidates left - delete the selection
+        val remaining = sel.ordered.filterNot(matches)
+        if (remaining.isEmpty)
           selections
             .filter(r => r.publisherId === publisherId && r.url === row.url && r.slotId === row.slotId)
             .delete
-        } else if (remaining.size < sel.ordered.size) {
-          // Some candidates removed - update the selection
+        else if (remaining.size < sel.ordered.size) {
           val updated = sel.copy(ordered = remaining, idx = 0, state = SelState.Pending)
-          val updatedRow = row.copy(selectionJson = updated.toJson.compactPrint)
-          selections.insertOrUpdate(updatedRow).map(_ => 1)
-        } else {
-          // No change for this selection
-          DBIO.successful(0)
-        }
-      }
+          selections.insertOrUpdate(row.copy(selectionJson = updated.toJson.compactPrint)).map(_ => 1)
+        } else DBIO.successful(0)
+      })
+    } yield {
+      val removedIds = rows.flatMap(r => rowToSelection(r).ordered.filter(matches).map(_.creativeId.value)).toSet
+      (removedIds, counts.sum)
+    }).transactionally
 
-      db.run(DBIO.sequence(updates))
-        .flatMap(counts => deleteFirstSeen(publisherId, removedIds).map(_ => counts.sum))
-    }
-  }
-
-  def removeByAdProductCategory(publisherId: String, adProductCategory: String): Future[Int] = {
-    // Get all pending selections for this publisher
-    val query = selections.filter(_.publisherId === publisherId).result
-
-    db.run(query).flatMap { rows =>
-      val removedIds = rows
-        .flatMap(r =>
-          rowToSelection(r).ordered.filter(_.adProductCategory.exists(_.value == adProductCategory)).map(
-            _.creativeId.value))
-        .toSet
-      // Process each selection: remove candidates with the blocked ad product category
-      val updates = rows.map { row =>
-        val sel = rowToSelection(row)
-        val remaining = sel.ordered.filterNot(_.adProductCategory.exists(_.value == adProductCategory))
-
-        if (remaining.isEmpty) {
-          // No candidates left - delete the selection
-          selections
-            .filter(r => r.publisherId === publisherId && r.url === row.url && r.slotId === row.slotId)
-            .delete
-        } else if (remaining.size < sel.ordered.size) {
-          // Some candidates removed - update the selection
-          val updated = sel.copy(ordered = remaining, idx = 0, state = SelState.Pending)
-          val updatedRow = row.copy(selectionJson = updated.toJson.compactPrint)
-          selections.insertOrUpdate(updatedRow).map(_ => 1)
-        } else {
-          // No change for this selection
-          DBIO.successful(0)
-        }
-      }
-
-      db.run(DBIO.sequence(updates))
-        .flatMap(counts => deleteFirstSeen(publisherId, removedIds).map(_ => counts.sum))
+    db.run(txn).flatMap { case (removedIds, total) =>
+      deleteFirstSeen(publisherId, removedIds).map(_ => total)
     }
   }
 

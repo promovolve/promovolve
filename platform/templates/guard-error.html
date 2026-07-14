@@ -7,10 +7,9 @@
     <div class="flex items-center justify-center gap-3">
       {{if .LogoutOnly}}
       {{/* Suspension notice: there is nowhere to "go back" to — the whole
-           dashboard is gated. Log out is the only exit. */}}
-      <form method="POST" action="/logout">
-        <button type="submit" class="btn btn-secondary">Log out</button>
-      </form>
+           dashboard is gated. Log out is the only exit. Plain anchor: the
+           logout route is GET (matches the layout's Sign out link). */}}
+      <a href="/logout" class="btn btn-secondary">Log out</a>
       {{else}}
       <a href="javascript:history.back()" class="btn btn-secondary">Go back</a>
       {{end}}

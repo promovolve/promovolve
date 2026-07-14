@@ -254,7 +254,7 @@ func (h *Handler) renderPublisherSites(w http.ResponseWriter, r *http.Request, e
 			SiteID:       sr.SiteID,
 			Status:       sr.Status,
 			RejectReason: sr.RejectReason,
-			RequestedAt:  sr.CreatedAt.Format("2006-01-02 15:04"),
+			RequestedAt:  sr.CreatedAt.In(user.Location()).Format("2006-01-02 15:04"),
 		})
 	}
 

@@ -284,6 +284,10 @@ func Migrate(pool *pgxpool.Pool) error {
 		CREATE INDEX IF NOT EXISTS idx_site_requests_publisher ON site_requests(publisher_id, created_at DESC);
 		CREATE INDEX IF NOT EXISTS idx_site_requests_status ON site_requests(status, created_at);
 
+		-- Per-user preferences (v1: timezone; display_name predates this).
+		-- '' = unset, timestamps render in UTC as before.
+		ALTER TABLE platform_users ADD COLUMN IF NOT EXISTS timezone TEXT NOT NULL DEFAULT '';
+
 		-- Organizations: exactly one per email domain. The org — not the
 		-- individual user — owns the core advertiser/publisher entities; members
 		-- share them. Either side may be NULL: sides are only added through

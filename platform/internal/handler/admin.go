@@ -74,7 +74,6 @@ func (h *Handler) renderAdminRequests(w http.ResponseWriter, r *http.Request, er
 	if !ok {
 		return
 	}
-	_ = user
 
 	pending, err := h.userSvc.ListByStatus(r.Context(), model.StatusPending)
 	if err != nil {
@@ -91,7 +90,7 @@ func (h *Handler) renderAdminRequests(w http.ResponseWriter, r *http.Request, er
 			Email:       u.Email,
 			Role:        string(u.RequestedSide),
 			Message:     u.RequestMessage,
-			RequestedAt: u.CreatedAt.Format("2006-01-02 15:04"),
+			RequestedAt: u.CreatedAt.In(user.Location()).Format("2006-01-02 15:04"),
 		})
 	}
 	sideRequests, err := h.orgRepo.ListPendingSideRequests(r.Context())
@@ -176,7 +175,7 @@ func (h *Handler) renderAdminSiteRequests(w http.ResponseWriter, r *http.Request
 			PageURL:     p.PageURL,
 			Publisher:   publisher,
 			Company:     p.RequesterCompany,
-			RequestedAt: p.CreatedAt.Format("2006-01-02 15:04"),
+			RequestedAt: p.CreatedAt.In(user.Location()).Format("2006-01-02 15:04"),
 		})
 	}
 	h.render(w, "admin/sites.html", pageData{
@@ -268,7 +267,7 @@ func (h *Handler) renderAdminUsers(w http.ResponseWriter, r *http.Request, errMs
 			Role:          displayRole(u),
 			Status:        string(u.Status),
 			Passkeys:      count,
-			CreatedAt:     u.CreatedAt.Format("2006-01-02"),
+			CreatedAt:     u.CreatedAt.In(user.Location()).Format("2006-01-02"),
 			OrgDomain:     m.Domain,
 			OrgRole:       string(m.OrgRole),
 			OrgAdvertiser: m.HasAdvertiser,
@@ -299,7 +298,7 @@ func (h *Handler) renderAdminUsers(w http.ResponseWriter, r *http.Request, errMs
 			SuspendedBy:   o.SuspendedBy,
 		}
 		if o.SuspendedAt != nil {
-			row.SuspendedAt = o.SuspendedAt.Format("2006-01-02")
+			row.SuspendedAt = o.SuspendedAt.In(user.Location()).Format("2006-01-02")
 		}
 		orgRows = append(orgRows, row)
 	}
@@ -586,7 +585,7 @@ func (h *Handler) renderAdminSettings(w http.ResponseWriter, r *http.Request, er
 		}
 		rows = append(rows, marginRow{
 			Percent:       formatBps(e.MarginBps),
-			EffectiveFrom: e.EffectiveFrom.Format("2006-01-02 15:04"),
+			EffectiveFrom: e.EffectiveFrom.In(user.Location()).Format("2006-01-02 15:04"),
 			By:            by,
 		})
 	}

@@ -5,6 +5,8 @@ import (
 	"encoding/json"
 	"log/slog"
 	"net/http"
+	"strings"
+	"time"
 
 	"github.com/hanishi/promovolve/platform/internal/model"
 )
@@ -15,6 +17,114 @@ type passkeyRow struct {
 	Name     string
 	Created  string
 	LastUsed string
+}
+
+// Curated IANA zones for the preferences dropdown — the full database is
+// ~600 entries; these cover the audiences the platform serves. The user's
+// current (possibly exotic) zone is always included by the handler.
+var preferenceTimezones = []string{
+	"UTC",
+	"Asia/Tokyo", "Asia/Seoul", "Asia/Shanghai", "Asia/Singapore", "Asia/Kolkata", "Asia/Dubai",
+	"Australia/Sydney", "Pacific/Auckland",
+	"Europe/London", "Europe/Paris", "Europe/Berlin", "Europe/Madrid", "Europe/Amsterdam",
+	"America/New_York", "America/Chicago", "America/Denver", "America/Los_Angeles",
+	"America/Toronto", "America/Sao_Paulo",
+}
+
+// AccountPreferencesPage renders per-user preferences: display name,
+// timezone (rendering only — stored data stays UTC), and, for dual-side
+// orgs, which side a fresh login lands on. Email is deliberately absent:
+// the address's domain binds the user to their org, so changing it would
+// be an account migration, not a preference.
+func (h *Handler) AccountPreferencesPage(w http.ResponseWriter, r *http.Request) {
+	h.renderPreferences(w, r, "", r.URL.Query().Get("saved") == "1")
+}
+
+func (h *Handler) renderPreferences(w http.ResponseWriter, r *http.Request, errMsg string, saved bool) {
+	user, _ := h.sessionUser(r)
+	if user == nil {
+		http.Redirect(w, r, "/login", http.StatusSeeOther)
+		return
+	}
+
+	zones := preferenceTimezones
+	if user.Timezone != "" {
+		found := false
+		for _, z := range zones {
+			if z == user.Timezone {
+				found = true
+				break
+			}
+		}
+		if !found {
+			zones = append([]string{user.Timezone}, zones...)
+		}
+	}
+
+	// Landing side: only meaningful for members of a dual-side org.
+	landingSide := ""
+	var landingSides []string
+	if user.HasBothSides() {
+		landingSides = []string{"advertiser", "publisher"}
+		if _, m, err := h.orgRepo.ForUser(r.Context(), user.ID); err == nil && m.PreferredSide != "" {
+			landingSide = string(m.PreferredSide)
+		}
+	}
+
+	h.render(w, "account-preferences.html", pageData{
+		Title:        "Preferences",
+		Nav:          "preferences",
+		User:         user,
+		Error:        errMsg,
+		Saved:        saved,
+		Timezones:    zones,
+		LandingSide:  landingSide,
+		LandingSides: landingSides,
+	})
+}
+
+// SavePreferences applies the form. Timezone must be a loadable IANA zone
+// (or empty = UTC); landing side must be a side the org actually holds.
+func (h *Handler) SavePreferences(w http.ResponseWriter, r *http.Request) {
+	user, _ := h.sessionUser(r)
+	if user == nil {
+		http.Redirect(w, r, "/login", http.StatusSeeOther)
+		return
+	}
+	r.ParseForm()
+
+	displayName := strings.TrimSpace(r.FormValue("displayName"))
+	if len(displayName) > 80 {
+		h.renderPreferences(w, r, "display name is limited to 80 characters", false)
+		return
+	}
+
+	tz := strings.TrimSpace(r.FormValue("timezone"))
+	if tz != "" {
+		if _, err := time.LoadLocation(tz); err != nil {
+			h.renderPreferences(w, r, "unknown timezone: "+tz, false)
+			return
+		}
+	}
+
+	user.DisplayName = displayName
+	user.Timezone = tz
+	if err := h.userSvc.Update(r.Context(), user); err != nil {
+		slog.Error("save preferences failed", "user", user.ID, "error", err)
+		h.renderPreferences(w, r, "could not save preferences — try again", false)
+		return
+	}
+
+	if side := r.FormValue("landingSide"); side != "" && user.HasBothSides() {
+		role := model.Role(side)
+		if user.Org != nil && user.Org.HasSide(role) {
+			if err := h.orgRepo.SetPreferredSide(r.Context(), user.Org.ID, user.ID, role); err != nil {
+				slog.Error("save landing side failed", "user", user.ID, "error", err)
+			}
+		}
+	}
+
+	http.Redirect(w, r, "/account/preferences?saved=1", http.StatusSeeOther)
 }
 
 // --- Lost-passkey recovery (admin-minted one-time links) --------------------
@@ -131,11 +241,12 @@ func (h *Handler) AccountPasskeysPage(w http.ResponseWriter, r *http.Request) {
 	if err != nil {
 		slog.Error("list passkeys failed", "error", err)
 	}
+	loc := user.Location()
 	rows := make([]passkeyRow, 0, len(stored))
 	for _, sc := range stored {
-		row := passkeyRow{ID: sc.ID, Name: sc.Name, Created: sc.CreatedAt.Format("2006-01-02"), LastUsed: "never"}
+		row := passkeyRow{ID: sc.ID, Name: sc.Name, Created: sc.CreatedAt.In(loc).Format("2006-01-02"), LastUsed: "never"}
 		if sc.LastUsedAt != nil {
-			row.LastUsed = sc.LastUsedAt.Format("2006-01-02 15:04")
+			row.LastUsed = sc.LastUsedAt.In(loc).Format("2006-01-02 15:04")
 		}
 		rows = append(rows, row)
 	}

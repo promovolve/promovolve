@@ -128,6 +128,8 @@ type UserService interface {
 	Reject(ctx context.Context, userID, reviewerID string) error
 	ListByStatus(ctx context.Context, status model.UserStatus) ([]model.User, error)
 	ListAll(ctx context.Context) ([]model.User, error)
+	// Per-user preferences (display name, timezone)
+	Update(ctx context.Context, u *model.User) error
 	// Org membership + operator management
 	CreateAdmin(ctx context.Context, u *model.User) error
 	InviteMember(ctx context.Context, u *model.User, orgID, invitedBy string, side model.Role) error
@@ -367,6 +369,11 @@ type pageData struct {
 	TrustedAnchors []trustedAnchorRow
 	// Guard-error variant: suspension notice — hide "Go back", offer Logout.
 	LogoutOnly bool
+	// Preferences page
+	Saved        bool // "saved ✓" banner after a successful POST-redirect
+	Timezones    []string
+	LandingSide  string
+	LandingSides []string
 }
 
 type site struct {

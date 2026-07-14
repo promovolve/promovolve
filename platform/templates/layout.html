@@ -111,6 +111,7 @@
           {{if .User.Org}}
           <a href="/org/members" class="text-sm whitespace-nowrap {{if eq .Nav "team"}}text-white{{else}}text-gray-400 hover:text-white{{end}}">Team</a>
           {{end}}
+          <a href="/account/preferences" class="text-sm whitespace-nowrap {{if eq .Nav "preferences"}}text-white{{else}}text-gray-400 hover:text-white{{end}}">Preferences</a>
           <a href="/account/passkeys" class="text-sm whitespace-nowrap {{if eq .Nav "passkeys"}}text-white{{else}}text-gray-400 hover:text-white{{end}}">Passkeys</a>
           <a href="/logout" class="text-sm whitespace-nowrap text-gray-400 hover:text-white">Sign out</a>
         </div>

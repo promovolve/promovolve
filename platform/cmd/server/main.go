@@ -211,6 +211,8 @@ func main() {
 
 	// Self-service passkey management (any signed-in role)
 	mux.HandleFunc("GET /account/passkeys", h.AccountPasskeysPage)
+	mux.HandleFunc("GET /account/preferences", h.AccountPreferencesPage)
+	mux.HandleFunc("POST /account/preferences", h.SavePreferences)
 	mux.HandleFunc("POST /account/passkeys/delete", h.DeletePasskey)
 	mux.HandleFunc("POST /webauthn/passkeys/begin", h.AddPasskeyBegin)
 	mux.HandleFunc("POST /webauthn/passkeys/finish", h.AddPasskeyFinish)

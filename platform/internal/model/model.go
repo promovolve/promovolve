@@ -32,6 +32,9 @@ type User struct {
 	PasswordHash string  `json:"-"` // empty for passkey-only users
 	Role         Role    `json:"role"`
 	DisplayName  string  `json:"displayName"`
+	// IANA zone for rendering timestamps ("" = UTC). A per-user preference;
+	// stored data stays UTC, only display converts.
+	Timezone string `json:"timezone,omitempty"`
 	AdvertiserID *string `json:"advertiserId,omitempty"`
 	PublisherID  *string `json:"publisherId,omitempty"`
 	// RequestedSide is the side a pending account request asked for — the
@@ -147,6 +150,19 @@ type Org struct {
 	SuspendReason string     `json:"suspendReason,omitempty"`
 	SuspendedAt   *time.Time `json:"suspendedAt,omitempty"`
 	SuspendedBy   string     `json:"suspendedBy,omitempty"`
+}
+
+// Location resolves the user's timezone preference; unset or invalid
+// zones fall back to UTC so a bad value can never break a render.
+func (u *User) Location() *time.Location {
+	if u == nil || u.Timezone == "" {
+		return time.UTC
+	}
+	loc, err := time.LoadLocation(u.Timezone)
+	if err != nil {
+		return time.UTC
+	}
+	return loc
 }
 
 // HasSide reports whether the org holds the core account for a side.

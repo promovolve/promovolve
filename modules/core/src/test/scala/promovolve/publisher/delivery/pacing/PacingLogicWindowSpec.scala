@@ -49,16 +49,16 @@ class PacingLogicWindowSpec extends AnyFlatSpec with Matchers {
 
   "windowEndFor" should "end a UTC window at the next UTC midnight" in {
     PacingLogic.windowEndFor(Instant.parse("2026-07-13T11:00:00Z"), "") shouldBe
-      Instant.parse("2026-07-14T00:00:00Z")
+    Instant.parse("2026-07-14T00:00:00Z")
   }
 
   it should "end a JST window at the next JST midnight (15:00Z)" in {
     // 2026-07-13T15:00Z == 2026-07-14T00:00 JST, so the next JST midnight is
     // exactly 24h later.
     PacingLogic.windowEndFor(Instant.parse("2026-07-13T15:00:00Z"), "Asia/Tokyo") shouldBe
-      Instant.parse("2026-07-14T15:00:00Z")
+    Instant.parse("2026-07-14T15:00:00Z")
     PacingLogic.windowEndFor(Instant.parse("2026-07-13T16:30:00Z"), "Asia/Tokyo") shouldBe
-      Instant.parse("2026-07-14T15:00:00Z")
+    Instant.parse("2026-07-14T15:00:00Z")
   }
 
   // ==================== wrappedMass ====================
@@ -165,7 +165,8 @@ class PacingLogicWindowSpec extends AnyFlatSpec with Matchers {
       timezone = timezone
     )
 
-  "computeAggregateExpectedSpend" should "sum per-window expectations for mixed zones and return the latest window end" in {
+  "computeAggregateExpectedSpend" should
+  "sum per-window expectations for mixed zones and return the latest window end" in {
     val tracker = uniformTracker
     val utcStart = Instant.parse("2026-07-13T00:00:00Z") // UTC midnight → full-day window
     val jstStart = Instant.parse("2026-07-13T15:00:00Z") // JST midnight → wrapped full-day window

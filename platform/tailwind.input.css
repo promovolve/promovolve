@@ -161,3 +161,12 @@
    mode. These bgs are stable across themes, so pin the text contrast. */
 .dark .btn-primary { color: #14110e; }              /* dark ink on amber (both themes) */
 .dark .btn-success, .dark .btn-danger { color: #fff; } /* white on green/red */
+
+/* Inbox selection highlight: bg-brand-soft is a literal pale peach that
+   doesn't invert — in dark mode it's a light fill under the theme's light
+   text (unreadable). Give the selected row a translucent brand-amber fill
+   that reads in dark, plus a left accent bar so selection is unmistakable in
+   both themes. Scoped to [data-inbox-item] so other bg-brand-soft uses (date
+   picker, request-account radios) are untouched. */
+[data-inbox-item].bg-brand-soft { box-shadow: inset 3px 0 0 0 #d35f00; }
+.dark [data-inbox-item].bg-brand-soft { background-color: rgba(211, 95, 0, .22); }

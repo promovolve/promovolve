@@ -3713,19 +3713,19 @@ func (h *Handler) CreativeDesign(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	data := struct {
-		CampaignID      string
-		LandingURL      string
-		CreativeName    string
-		BannerSize      string
-		PagesJSON       string
-		LPTextSnapshot  string
-		CreativeID      string
-		BannerScriptURL string
-		BrandKitJSON    string
-		TemplateID      string
-		LPFontsJSON     string
-	}{campID, landingURL, creativeName, bannerSize, pagesJSON, lpTextSnapshot, creativeID, h.bannerScriptURL, brandKitJSON, templateID, lpFontsJSON}
+	data := creativeDesignData{
+		CampaignID:      campID,
+		LandingURL:      landingURL,
+		CreativeName:    creativeName,
+		BannerSize:      bannerSize,
+		PagesJSON:       pagesJSON,
+		LPTextSnapshot:  lpTextSnapshot,
+		CreativeID:      creativeID,
+		BannerScriptURL: h.bannerScriptURL,
+		BrandKitJSON:    brandKitJSON,
+		TemplateID:      templateID,
+		LPFontsJSON:     lpFontsJSON,
+	}
 
 	w.Header().Set("Content-Type", "text/html; charset=utf-8")
 	w.Header().Set("Cache-Control", "no-cache, no-store, must-revalidate")
@@ -3734,6 +3734,28 @@ func (h *Handler) CreativeDesign(w http.ResponseWriter, r *http.Request) {
 		slog.Error("creative-design render failed", "error", err)
 		http.Error(w, "render error: "+err.Error(), http.StatusInternalServerError)
 	}
+}
+
+// creativeDesignData is the template payload for creative-design.html —
+// shared by CreativeDesign (fresh design) and ResumeDraft. ONE type on
+// purpose: the template dies mid-stream (blank page) on any field it
+// references that the payload lacks, and the two hand-copied anonymous
+// structs drifted exactly that way once (LPFontsJSON added for the LP-font
+// license flow reached only the design path; resuming any draft went
+// blank). A shared type makes template-field additions a compile-visible,
+// single-site change.
+type creativeDesignData struct {
+	CampaignID      string
+	LandingURL      string
+	CreativeName    string
+	BannerSize      string
+	PagesJSON       string
+	LPTextSnapshot  string
+	CreativeID      string
+	BannerScriptURL string
+	BrandKitJSON    string
+	TemplateID      string
+	LPFontsJSON     string
 }
 
 // SaveCreative saves an expandable magazine banner creative
@@ -3875,18 +3897,7 @@ func (h *Handler) ResumeDraft(w http.ResponseWriter, r *http.Request) {
 	// Render the designer template directly with the draft's state,
 	// bypassing the editor/handoff form flow since the pages are
 	// already authored.
-	data := struct {
-		CampaignID      string
-		LandingURL      string
-		CreativeName    string
-		BannerSize      string
-		PagesJSON       string
-		LPTextSnapshot  string
-		CreativeID      string
-		BannerScriptURL string
-		BrandKitJSON    string
-		TemplateID      string
-	}{
+	data := creativeDesignData{
 		CampaignID:      campID,
 		LandingURL:      draft.LandingURL,
 		CreativeName:    draft.Name,
@@ -3895,12 +3906,13 @@ func (h *Handler) ResumeDraft(w http.ResponseWriter, r *http.Request) {
 		LPTextSnapshot:  draft.LPTextSnapshot,
 		CreativeID:      draft.CreativeID,
 		BannerScriptURL: h.bannerScriptURL,
-		// A resumed draft is already authored, so brand-kit / template
-		// (generation-time inputs) aren't needed — but the shared
-		// creative-design.html template references both, so they must be
-		// present (empty) or the render fails and the page comes back blank.
+		// A resumed draft is already authored: brand-kit/template are
+		// generation-time inputs and LP-font grants are one-shot save-request
+		// data (the quarantined fonts were already activated to R2 by the
+		// save that carried them) — empty is correct, not just safe.
 		BrandKitJSON: "",
 		TemplateID:   "",
+		LPFontsJSON:  "",
 	}
 
 	w.Header().Set("Content-Type", "text/html; charset=utf-8")

@@ -23,7 +23,7 @@
 import type { Store } from "../store";
 import type { DesignerContext, DesignerState } from "../types";
 import { mountPreviewButton } from "./preview-button";
-import { mountSaveButton } from "./save";
+import { mountPublishButton } from "./save";
 import { tokens, cycleMode, getMode, type ThemeMode } from "./tokens";
 
 export interface MenuBarHandle {
@@ -114,7 +114,9 @@ export function mountMenuBar(
   // actions belong next to the tools, not the lifecycle buttons.)
   actions.appendChild(themeToggle());
   mountPreviewButton(actions, store);
-  mountSaveButton(actions, store, ctx);
+  // Publish only — Save Draft moved to the canvas header next to the
+  // editing tools, so a mis-tap near Publish can't silently publish.
+  mountPublishButton(actions, store, ctx);
 
   container.appendChild(bar);
 

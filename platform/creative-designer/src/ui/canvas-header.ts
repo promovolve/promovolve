@@ -19,11 +19,12 @@
 
 import { switchPage } from "../state";
 import type { Store } from "../store";
-import type { DesignerState } from "../types";
+import type { DesignerContext, DesignerState } from "../types";
 import { regenerateCurrentMode } from "../auto-layout";
 import { isMultiPage } from "../modes";
 import { mountAlignToolbar } from "./align-toolbar";
 import { mountHistoryButtons } from "./history-buttons";
+import { mountDraftButton } from "./save";
 import { mountToolbar } from "./toolbar";
 import { tokens } from "./tokens";
 
@@ -31,7 +32,7 @@ export interface CanvasHeaderHandle {
   update(state: DesignerState): void;
 }
 
-export function mountCanvasHeader(host: HTMLElement, store: Store): CanvasHeaderHandle {
+export function mountCanvasHeader(host: HTMLElement, store: Store, ctx: DesignerContext): CanvasHeaderHandle {
   const bar = document.createElement("div");
   bar.className = "cd-canvas-header";
   bar.style.cssText = [
@@ -61,6 +62,12 @@ export function mountCanvasHeader(host: HTMLElement, store: Store): CanvasHeader
   // lives at the far left of the header, followed by a divider
   // separating it from the banner identity cluster.
   mountToolbar(bar, store);
+  bar.appendChild(verticalDivider());
+
+  // Save draft lives HERE with the editing tools — deliberately far from
+  // Publish (menu bar): the two were adjacent icon buttons once and a
+  // mis-tap published a creative with no confirmation.
+  mountDraftButton(bar, store, ctx);
   bar.appendChild(verticalDivider());
 
   // Undo / redo — editing actions live with the tools (moved here

@@ -969,12 +969,17 @@ export class ExpandableMagazineBanner extends HTMLElement {
         <div class="collapsed-dogear-flap"></div>
       </div>`;
 
-    // Per-page full-bleed video background. Runs in every mode —
-    // collapsed PC, collapsed mobile, and every IAB size — because
-    // we inject it into .design-box, which every render path builds.
+    // Video/texture backdrops are FULL-SCREEN-ONLY (the expanded reader).
+    // They used to render here too — "behind every size" — which meant the
+    // collapsed unit autoplayed a full video on publisher pages before
+    // anyone expanded (pure weight) and the backdrop competed with the
+    // sized layouts. The page's background COLOR still applies everywhere
+    // (it's the paper color); only the cinematic backdrop is reserved for
+    // the reader. Deliberately NO edit-mode exception: the designer canvas
+    // must show what delivery shows — backdrops are authored on the
+    // full-screen tab, where they render.
     const designBox = this.shadowRoot.querySelector<HTMLElement>(".design-box");
     if (designBox) {
-      applyTextureBg(designBox, page.textureBg, applyVideoBg(designBox, page.videoBg));
       // Logo is an EXPANDED-view element. In the collapsed render it shows
       // ONLY in the designer (edit mode), so the author can place it on the
       // expanded master — delivery's collapsed served ad carries no logo.

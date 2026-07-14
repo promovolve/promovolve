@@ -16,31 +16,51 @@ import type { Store } from "../store";
 import type { DesignerContext } from "../types";
 import { tokens } from "./tokens";
 
-export function mountSaveButtons(container: HTMLElement, store: Store, ctx: DesignerContext): HTMLElement {
-  const group = document.createElement("div");
-  group.style.cssText = "display:flex;gap:8px;";
-
+/**
+ * Text "Save draft" button for the CANVAS HEADER (next to the editing
+ * tools). Deliberately far from Publish: the two lived side by side as
+ * icon-only 30px targets and a mis-tap on the paper-plane published a
+ * creative with no confirmation. Save-often belongs with the tools;
+ * publish is a lifecycle decision that stays alone in the menu bar.
+ * Text label, not the floppy icon — the floppy is a dead metaphor.
+ */
+export function mountDraftButton(container: HTMLElement, store: Store, ctx: DesignerContext): HTMLButtonElement {
   const draftBtn = document.createElement("button");
   draftBtn.type = "button";
-  // Icon-only (floppy = save). Action names live on the tooltips.
-  draftBtn.innerHTML = `<svg viewBox="0 0 16 16" width="15" height="15" fill="none" stroke="currentColor" stroke-width="1.3" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M3 2.5h8L13 4.5v9a.5.5 0 0 1-.5.5h-9a.5.5 0 0 1-.5-.5v-11a.5.5 0 0 1 .5-.5z" transform="translate(0,-0.5)"/><path d="M5 2v3.5h5V2"/><rect x="5" y="9" width="6" height="4.5"/></svg>`;
-  draftBtn.title = "Save Draft — save a draft you can come back to. Not delivered.";
-  draftBtn.setAttribute("aria-label", "Save Draft");
+  draftBtn.textContent = "Save draft";
+  draftBtn.title = "Save a draft you can come back to. Not delivered.";
+  draftBtn.setAttribute("aria-label", "Save draft");
   draftBtn.style.cssText = [
     "display: inline-flex",
     "align-items: center",
-    "justify-content: center",
-    "width: 30px",
-    "height: 28px",
-    "padding: 0",
+    "padding: 4px 9px",
     "background: transparent",
-    `color: ${tokens.ink100}`,
+    `color: ${tokens.ink200}`,
     `border: 1px solid ${tokens.ink500}`,
     "border-radius: 4px",
     "cursor: pointer",
     "font: inherit",
+    "font-size: 11px",
+    "white-space: nowrap",
+    "transition: background .12s, color .12s",
   ].join(";");
+  draftBtn.addEventListener("mouseenter", () => {
+    draftBtn.style.background = tokens.ink700;
+    draftBtn.style.color = tokens.ink100;
+  });
+  draftBtn.addEventListener("mouseleave", () => {
+    draftBtn.style.background = "transparent";
+    draftBtn.style.color = tokens.ink200;
+  });
   draftBtn.addEventListener("click", () => submitSave(store, ctx, /*draft=*/ true));
+  container.appendChild(draftBtn);
+  return draftBtn;
+}
+
+/** Publish button for the menu bar's lifecycle cluster. */
+export function mountPublishButton(container: HTMLElement, store: Store, ctx: DesignerContext): HTMLElement {
+  const group = document.createElement("div");
+  group.style.cssText = "display:flex;gap:8px;";
 
   const publishBtn = document.createElement("button");
   publishBtn.type = "button";
@@ -82,7 +102,7 @@ export function mountSaveButtons(container: HTMLElement, store: Store, ctx: Desi
     submitSave(store, ctx, /*draft=*/ false);
   });
 
-  group.append(draftBtn, publishBtn);
+  group.append(publishBtn);
   container.appendChild(group);
   return group;
 }
@@ -171,8 +191,6 @@ function showEmptyBlock(anchor: HTMLElement, empties: EmptySize[]): void {
   setTimeout(() => document.addEventListener("click", dismiss, true), 0);
 }
 
-// Back-compat export for any caller still importing the old single-button API.
-export const mountSaveButton = mountSaveButtons;
 
 function submitSave(store: Store, ctx: DesignerContext, draft: boolean): void {
   const { w, h } = bannerDimensions(ctx.bannerSize);

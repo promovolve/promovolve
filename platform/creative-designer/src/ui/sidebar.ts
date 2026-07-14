@@ -161,14 +161,15 @@ export function mountSidebar(host: HTMLElement): SidebarHandle {
   tabBody.appendChild(animationSection);
   panel.appendChild(tabBody);
 
-  // Initial state: open Page Background (bulky + commonly edited),
-  // collapse the rest. The delegated handler takes over on click.
+  // RULE: with no component selected, the BANNER section is the open one —
+  // always. That covers the initial state here and deselection below;
+  // selecting a component opens Properties instead (handler further down).
   const setSectionOpen = (g: { group: HTMLElement; body: HTMLElement }, open: boolean): void => {
     g.body.style.display = open ? "" : "none";
     const caret = g.group.querySelector<HTMLElement>(":scope > .cd-group-header > .cd-group-caret");
     if (caret) caret.style.transform = open ? "" : "rotate(-90deg)";
   };
-  for (const g of propTabGroups) setSectionOpen(g, g === pageBgG);
+  for (const g of propTabGroups) setSectionOpen(g, g === bannerG);
 
   // Single-open accordion delegated at the sidebar level, but scoped
   // to sibling .cd-group elements that share the same parent <section>.
@@ -231,14 +232,14 @@ export function mountSidebar(host: HTMLElement): SidebarHandle {
     for (const g of propTabGroups) setSectionOpen(g, g === propsG);
   });
 
-  // Clicking the creative's BACKGROUND (empty canvas, deselect) surfaces the
-  // Page Background section — the background is what the author just picked.
-  // Also keeps the always-one-open invariant across deselection: without
-  // this, Properties stays "open" with an emptied body and the sidebar
-  // reads as all-collapsed.
+  // Clicking the creative's BACKGROUND (empty canvas, deselect) returns to
+  // the Banner section — the no-selection rule above. Also keeps the
+  // always-one-open invariant across deselection: without this, Properties
+  // stays "open" with an emptied body and the sidebar reads as
+  // all-collapsed. (Page Background is one click away on its own header.)
   document.addEventListener("cd:background-selected", () => {
     setTab("properties");
-    for (const g of propTabGroups) setSectionOpen(g, g === pageBgG);
+    for (const g of propTabGroups) setSectionOpen(g, g === bannerG);
   });
 
   return { bannerConfigSection, pageBgSection, propsSection, animationSection, layersSection };

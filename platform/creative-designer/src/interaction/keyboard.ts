@@ -100,13 +100,22 @@ export function installKeyboard(store: Store): () => void {
     }
 
     if (e.key === "Escape") {
-      if (hasSelection(store.state)) store.replace(selectItem(store.state, null));
+      if (hasSelection(store.state)) {
+        store.replace(selectItem(store.state, null));
+        // No selection + nothing focused = the sidebar's default state:
+        // the Banner section (same event the canvas background-click
+        // fires; ui/sidebar.ts owns the rule).
+        document.dispatchEvent(new CustomEvent("cd:background-selected"));
+      }
       return;
     }
 
     if ((e.key === "Delete" || e.key === "Backspace") && hasSelection(store.state)) {
       e.preventDefault();
       commitDeleteSelection(store);
+      // Deleting the selection empties it — back to the no-selection
+      // default section (Banner), not a stale empty Properties body.
+      document.dispatchEvent(new CustomEvent("cd:background-selected"));
       return;
     }
 

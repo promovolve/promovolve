@@ -230,7 +230,7 @@ function boot(ctx: DesignerContext): void {
 
   const menuBar = mountMenuBar(shell.menuBarHost, store, ctx);
   const matrix = mountSizeMatrix(shell.matrixHost, store);
-  const canvasHdr = mountCanvasHeader(shell.canvasHeaderHost, store);
+  const canvasHdr = mountCanvasHeader(shell.canvasHeaderHost, store, ctx);
   const canvas = mountCanvas(shell.canvasHost, store.state, store);
   const overlay = mountOverlay(canvas.root, store);
   const logoOverlay = mountLogoOverlay(canvas.root, store);

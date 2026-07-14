@@ -170,6 +170,19 @@ export function hasCjk(text: string): boolean {
   * URL is available (then font loading is skipped → system fallback). */
 export function deriveCdnOrigin(pages: Page[]): string | null {
   for (const page of pages) {
+    // Page-level image FIRST: designer-authored layouts store image items
+    // as field REFERENCES ({field:"img"}, no src — the URL lives on
+    // page.img), so an item-src-only scan finds nothing and silently
+    // disables font self-hosting for every designer creative. Baked
+    // LP-to-creative layouts may still carry item srcs — checked next.
+    const pageImg = (page as { img?: unknown }).img;
+    if (typeof pageImg === "string" && pageImg) {
+      try {
+        return new URL(pageImg).origin;
+      } catch {
+        // relative / malformed — keep looking
+      }
+    }
     const groups: Array<unknown[] | undefined> = [page.layout, ...Object.values(page.banners ?? {})];
     for (const items of groups) {
       if (!items) continue;

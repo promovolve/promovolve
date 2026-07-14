@@ -24,6 +24,20 @@ describe("deriveCdnOrigin", () => {
     expect(deriveCdnOrigin([page([{ type: "text", fontFamily: "Montserrat" }])])).toBeNull();
     expect(deriveCdnOrigin([page([{ type: "image", src: "/relative/x.webp" }])])).toBeNull();
   });
+
+  it("derives from page.img when image items are field references (designer layouts)", () => {
+    // Designer-authored layouts store {type:"image", field:"img"} with NO
+    // src — the URL lives on page.img. This exact shape silently disabled
+    // font self-hosting for every designer creative once.
+    const p = {
+      img: "https://cdn.example.com/assets/cover.webp",
+      layout: [
+        { type: "image", field: "img" },
+        { type: "text", fontFamily: "Shippori Mincho B1 Medium, Georgia, serif" },
+      ],
+    } as unknown as Page;
+    expect(deriveCdnOrigin([p])).toBe("https://cdn.example.com");
+  });
 });
 
 describe("collectExpandedFonts", () => {

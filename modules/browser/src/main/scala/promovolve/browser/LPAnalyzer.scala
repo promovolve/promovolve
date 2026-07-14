@@ -778,7 +778,35 @@ final class LPAnalyzer(
             |</head><body><div id="root"></div></body></html>""".stripMargin
           page.setContent(shell, new com.microsoft.playwright.Page.SetContentOptions().setTimeout(10000))
 
-          // 2. Load the web component over HTTP from bannerScriptUrl. Same URL
+          // 2a. Track the component's font loads BEFORE its script runs.
+          // The banner loads brand fonts as STANDALONE FontFace objects and
+          // only document.fonts.add()s them after load resolves — a face
+          // outside the FontFaceSet is invisible to document.fonts.status/
+          // ready, so those signals report 'loaded' while woff2s are still
+          // in flight (the fallback-glyph snapshots). Wrapping FontFace
+          // captures every load() promise so readiness can await the real
+          // thing. Failures are pre-caught: a 404'd face settles instead of
+          // wedging the wait (system fallback is the correct render then).
+          page.evaluate(
+            """() => {
+              |  window.__fontLoads = [];
+              |  const Orig = window.FontFace;
+              |  if (typeof Orig === 'function') {
+              |    window.FontFace = function (family, source, descriptors) {
+              |      const face = new Orig(family, source, descriptors);
+              |      const origLoad = face.load.bind(face);
+              |      face.load = () => {
+              |        const p = origLoad();
+              |        window.__fontLoads.push(p.catch(() => {}));
+              |        return p;
+              |      };
+              |      return face;
+              |    };
+              |  }
+              |}""".stripMargin
+          )
+
+          // 2b. Load the web component over HTTP from bannerScriptUrl. Same URL
           // that publishers' browsers and the dashboard use — one artifact,
           // one origin. Playwright's Chromium fetches it like any <script>.
           page.addScriptTag(new com.microsoft.playwright.Page.AddScriptTagOptions()
@@ -813,20 +841,32 @@ final class LPAnalyzer(
               """() => {
                 |  const el = document.querySelector('expandable-magazine-banner');
                 |  if (!el || !el.shadowRoot) return false;
+                |  // Font loads only START once the IntersectionObserver-driven
+                |  // preload fires — require it so the allSettled below can't
+                |  // race an empty __fontLoads. Guarded: if a future bundle
+                |  // renames the field, degrade to not gating on it.
+                |  if ('_preloadFired' in el && el._preloadFired !== true) return false;
                 |  const imgs = Array.from(el.shadowRoot.querySelectorAll('img'));
-                |  if (!imgs.every(i => i.complete && i.naturalWidth > 0)) return false;
-                |  return document.fonts.status === 'loaded';
+                |  return imgs.every(i => i.complete && i.naturalWidth > 0);
                 |}""".stripMargin,
               null,
               new com.microsoft.playwright.Page.WaitForFunctionOptions().setTimeout(8000)
             )
           catch { case _: Exception => () } // best-effort: capture what loaded
-          // Belt: fonts.ready resolves post-load; one settle frame for
-          // font re-render + gradients before the shot.
+          // Await the tracked standalone FontFace loads (see 2a — these are
+          // invisible to document.fonts.ready until added post-load), then
+          // fonts.ready for anything set-registered. Capped so a stalled
+          // fetch can't hang the pipeline.
           try
             page.evaluate(
-              "() => Promise.race([document.fonts.ready, new Promise(r => setTimeout(r, 1000))])")
+              """() => Promise.race([
+                |  Promise.allSettled(window.__fontLoads || []).then(() => document.fonts.ready),
+                |  new Promise(r => setTimeout(r, 4000))
+                |])""".stripMargin
+            )
           catch { case _: Exception => () }
+          // One settle frame: the post-load document.fonts.add() + shadow
+          // re-render with the swapped face + gradients.
           page.waitForTimeout(250)
 
           // 5. Screenshot the page at banner coordinates

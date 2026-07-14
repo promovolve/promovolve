@@ -139,14 +139,25 @@ object CreativeProcessor {
     import org.apache.pekko.actor.typed.scaladsl.adapter.*
     val httpExt = Http(system.toClassic)
 
-    // Self-host allow-listed Google fonts referenced by the (final,
-    // non-draft) creative. Fire-and-forget — provisioning never blocks
-    // publish and failures fall back to the system font in the CSS stack.
-    def provisionFonts(pagesJson: String): Unit =
-      fontProvisioner.foreach { p =>
+    // Self-host allow-listed Google fonts referenced by the creative —
+    // DRAFTS included: the thumbnail webp renders through the same banner
+    // component, so a draft whose fonts were never provisioned snapshots
+    // in fallback glyphs (and for CJK creatives the per-text subset key
+    // changes with every text edit, so each revision may need a fresh
+    // woff2). Returns a Future the render pass AWAITS: provisioning used
+    // to be fire-and-forget, which raced the snapshot — the woff2 landed
+    // in R2 moments after the render 404'd it. ensure() is best-effort
+    // internally (failures resolve, creative falls back to the CSS stack
+    // system font), so awaiting this can delay a render but never fail it.
+    def provisionFonts(pagesJson: String): Future[Unit] =
+      fontProvisioner.fold(Future.unit) { p =>
         // CJK faces need a per-text `text=` subset; latin ignores it.
         val subset = subsetTextFromPagesJson(pagesJson)
-        fontsFromPagesJson(pagesJson).foreach { case (fam, w) => p.ensure(fam, w, Some(subset)); () }
+        Future
+          .traverse(fontsFromPagesJson(pagesJson).toVector) { case (fam, w) =>
+            p.ensure(fam, w, Some(subset))
+          }
+          .map(_ => ())
       }
 
     // On startup, scan for creatives that need banner rendering
@@ -313,7 +324,13 @@ object CreativeProcessor {
                     }
                 }
               }.map(_ => ())
-            val renderF = activateF.flatMap(_ =>
+            // Provision Google-hosted faces alongside LP-font activation and
+            // WAIT for both before rendering — the snapshot must fetch the
+            // same woff2s a visitor's browser will. Draft saves come through
+            // here too (their thumbnail needs the true face as much as a
+            // published render does).
+            val provisionF: Future[Unit] = provisionFonts(updatedPagesJson)
+            val renderF = activateF.zip(provisionF).flatMap(_ =>
               analyzer.renderBanner(updatedPagesJson, width, height)
             ).flatMap { pngBytes =>
               // Re-encode PNG → WebP. Playwright only outputs PNG/JPEG
@@ -402,11 +419,8 @@ object CreativeProcessor {
           // creative flow (or the pages JSON parse fails). Falls back
           // further to the rendered banner image bytes when neither
           // text source is available.
-          // Self-host any allow-listed Google fonts the creative uses so
-          // the expanded view renders the exact brand face from our CDN
-          // (never Google at the visitor's runtime). Fire-and-forget,
-          // dedup'd + idempotent inside the provisioner.
-          provisionFonts(updatedPagesJson)
+          // Font self-hosting happens up in the render pass (provisionF,
+          // awaited before the snapshot) — drafts and publishes alike.
           val designerText = textFromPagesJson(updatedPagesJson)
           // Fire-and-forget verification — prefer stored LP text over image bytes
           updateF.foreach { lpText =>

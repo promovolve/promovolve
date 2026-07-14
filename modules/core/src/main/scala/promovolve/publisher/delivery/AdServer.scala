@@ -2018,6 +2018,14 @@ private[delivery] class AdServer(
       creativeOpt match {
         case Some(meta) =>
           log.info("Approve: creative {} already site-approved — idempotent success", cid)
+          // "Approve" means "ensure approved AND not pending anywhere" —
+          // the shortcut must sweep stale pending rows too, or a ghost row
+          // on a DIFFERENT placement than the clicked one survives (the
+          // pre-2fecc91 removal race left exactly those behind).
+          store.removeCreativeFromAll(siteId.value, cid).failed.foreach { ex =>
+            log.warn("Idempotent-approve pending cleanup failed for creative {} on site {}: {}",
+              cid, siteId.value, ex.getMessage)
+          }
           replyTo ! StatusReply.Success(AssetPointer(meta.s3Key, new java.net.URI(meta.s3Key)))
         case None =>
           replyTo ! StatusReply.Error("No pending selection for this slot")

@@ -798,9 +798,38 @@ final class LPAnalyzer(
             |  document.getElementById('root').appendChild(el);
             |}""".stripMargin)
 
-          page.waitForTimeout(2000) // let component render + gradients settle
+          // 4. Wait until the banner is actually READY, not a fixed sleep:
+          // the component preloads its images and registers self-hosted
+          // FontFaces asynchronously (IntersectionObserver-triggered), and
+          // the woff2s may have been uploaded to R2 only milliseconds ago
+          // (activateF), so a timed wait races both — snapshots captured
+          // half-loaded or in fallback glyphs. Readiness = shadow DOM
+          // rendered + every shadow <img> decoded + document font loads
+          // settled. Capped: a 404'd image/font must not hang the render —
+          // past the cap we screenshot whatever loaded (old behavior).
+          page.waitForTimeout(300) // let the render + preload observer kick off
+          try
+            page.waitForFunction(
+              """() => {
+                |  const el = document.querySelector('expandable-magazine-banner');
+                |  if (!el || !el.shadowRoot) return false;
+                |  const imgs = Array.from(el.shadowRoot.querySelectorAll('img'));
+                |  if (!imgs.every(i => i.complete && i.naturalWidth > 0)) return false;
+                |  return document.fonts.status === 'loaded';
+                |}""".stripMargin,
+              null,
+              new com.microsoft.playwright.Page.WaitForFunctionOptions().setTimeout(8000)
+            )
+          catch { case _: Exception => () } // best-effort: capture what loaded
+          // Belt: fonts.ready resolves post-load; one settle frame for
+          // font re-render + gradients before the shot.
+          try
+            page.evaluate(
+              "() => Promise.race([document.fonts.ready, new Promise(r => setTimeout(r, 1000))])")
+          catch { case _: Exception => () }
+          page.waitForTimeout(250)
 
-          // 4. Screenshot the page at banner coordinates
+          // 5. Screenshot the page at banner coordinates
           page.screenshot(new com.microsoft.playwright.Page.ScreenshotOptions()
             .setType(com.microsoft.playwright.options.ScreenshotType.PNG)
             .setClip(0, 0, width.toDouble, height.toDouble))

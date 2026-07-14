@@ -69,7 +69,7 @@
     {{/* theme-light-scope freezes the gray/white variables to their light
          values inside the sidebar, so this always-dark chrome (dark bg, light
          text) looks identical in both themes instead of inverting. */}}
-    <aside class="theme-light-scope w-56 shrink-0 bg-gray-900 text-gray-100 p-4 flex flex-col">
+    <aside class="theme-light-scope w-60 shrink-0 bg-gray-900 text-gray-100 p-4 flex flex-col">
       <div class="mb-8">
         <h2 class="text-lg font-semibold">Promovolve</h2>
         <p class="text-xs text-gray-400 mt-1">
@@ -119,10 +119,18 @@
         {{end}}
       </nav>
       <div class="border-t border-gray-700 pt-4 mt-4">
-        <p class="text-xs text-gray-400 truncate mb-2">{{.User.Email}}</p>
+        {{/* Email + theme toggle share a row so the account links below have
+             the full width. Theme is icon-only (designer-style) to save
+             space — the tooltip carries the current mode. */}}
+        <div class="flex items-center justify-between gap-2 mb-2">
+          <p class="text-xs text-gray-400 truncate">{{.User.Email}}</p>
+          <button type="button" id="theme-cycle" title="Theme"
+                  class="shrink-0 text-base leading-none text-gray-400 hover:text-white">
+            <span data-icon aria-hidden="true">◐</span>
+          </button>
+        </div>
         {{/* whitespace-nowrap + flex-wrap: a link that doesn't fit moves to
-             the next line WHOLE — "Sign out" used to break mid-phrase when
-             Team/Passkeys/Sign out outgrew the sidebar width. */}}
+             the next line WHOLE, never breaking mid-phrase. */}}
         <div class="flex flex-wrap items-center gap-x-3 gap-y-1">
           {{if .User.Org}}
           <a href="/org/members" class="text-sm whitespace-nowrap {{if eq .Nav "team"}}text-white{{else}}text-gray-400 hover:text-white{{end}}">Team</a>
@@ -130,9 +138,6 @@
           <a href="/account/preferences" class="text-sm whitespace-nowrap {{if eq .Nav "preferences"}}text-white{{else}}text-gray-400 hover:text-white{{end}}">Preferences</a>
           <a href="/account/passkeys" class="text-sm whitespace-nowrap {{if eq .Nav "passkeys"}}text-white{{else}}text-gray-400 hover:text-white{{end}}">Passkeys</a>
           <a href="/logout" class="text-sm whitespace-nowrap text-gray-400 hover:text-white">Sign out</a>
-          <button type="button" id="theme-cycle" class="text-sm whitespace-nowrap text-gray-400 hover:text-white inline-flex items-center gap-1">
-            <span data-icon aria-hidden="true">◐</span><span data-label class="capitalize">auto</span>
-          </button>
         </div>
       </div>
     </aside>
@@ -159,7 +164,6 @@
         var b = document.getElementById('theme-cycle');
         if (b) {
           b.querySelector('[data-icon]').textContent = ICON[m];
-          b.querySelector('[data-label]').textContent = m;
           b.title = 'Theme: ' + m + (m === 'auto' ? ' (follows your OS)' : '') + ' — click to cycle';
         }
       }

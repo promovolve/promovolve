@@ -86,7 +86,7 @@ jobs:
       api: ${{ steps.filter.outputs.api == 'true' || (github.event_name == 'workflow_dispatch' && inputs.rebuild != 'platform') }}
       platform: ${{ steps.filter.outputs.platform == 'true' || (github.event_name == 'workflow_dispatch' && inputs.rebuild != 'api') }}
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@9c091bb21b7c1c1d1991bb908d89e4e9dddfe3e0 # v7.0.0
       - uses: dorny/paths-filter@v3
         id: filter
         with:
@@ -116,7 +116,7 @@ jobs:
     outputs:
       digest: ${{ steps.build.outputs.digest }}
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@9c091bb21b7c1c1d1991bb908d89e4e9dddfe3e0 # v7.0.0
       - uses: docker/setup-buildx-action@v3
       - uses: docker/login-action@v3
         with:
@@ -143,7 +143,7 @@ jobs:
     outputs:
       digest: ${{ steps.build.outputs.digest }}
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@9c091bb21b7c1c1d1991bb908d89e4e9dddfe3e0 # v7.0.0
       - uses: docker/setup-buildx-action@v3
       - uses: docker/login-action@v3
         with:

@@ -460,19 +460,25 @@ function creativeEditor() {
     saveBrandKitToStorage() {
       try {
         const key = 'promovolve.designer.brandKit.{{.CampaignID}}';
-        // No colours = treat as a delete; clearing the kit removes the
-        // localStorage entry so a future load returns the empty state
-        // instead of {colors: []}.
+        // The designer's brand-kit modal saves logoUrl into the same key; an
+        // LP re-seed (analysis has no logo concept) must never wipe the
+        // author's logo — not even when clearing colours.
+        let prevLogo = '';
+        try { prevLogo = (JSON.parse(localStorage.getItem(key) || 'null') || {}).logoUrl || ''; } catch (e) {}
+        // No colours = treat as a delete of the colour kit; but keep a
+        // logo-only kit if the author set a logo, rather than removing the
+        // whole entry (which would drop the logo too).
         if (this.brandKitColors.length === 0) {
-          localStorage.removeItem(key);
+          if (prevLogo) {
+            localStorage.setItem(key, JSON.stringify({
+              name: this.brandKitName || '', colors: [], fonts: this.brandKitFonts, logoUrl: prevLogo,
+            }));
+          } else {
+            localStorage.removeItem(key);
+          }
           this.useBrandKit = true;
           return;
         }
-        // Preserve fields the wizard doesn't manage (the designer's
-        // brand-kit modal saves logoUrl into the same key; an LP re-seed
-        // must not wipe the author's logo — analysis has no logo concept).
-        let prevLogo = '';
-        try { prevLogo = (JSON.parse(localStorage.getItem(key) || 'null') || {}).logoUrl || ''; } catch (e) {}
         const kit = {
           name: this.brandKitName || '',
           colors: this.brandKitColors,

@@ -308,6 +308,9 @@ function boot(ctx: DesignerContext): void {
   // Keep the on-creative logo in sync with the brand kit: setting/clearing
   // the brand logo updates the logo's src (preserving the author's position),
   // or removes it. Makes the brand-kit modal's logo show live.
+  // Track the kit's last-known logo so a removal can be told apart from a
+  // cold/shadowed save. Seed from the kit that was current at load.
+  let lastKitLogoUrl = loadBrandKit(window.__DESIGNER__?.campaignId)?.logoUrl;
   subscribeBrandKit((kit) => {
     // Re-apply the kit's fonts to existing text (headline → fonts[0], else
     // → fonts[1]) so editing the brand kit propagates to the canvas, not
@@ -322,9 +325,14 @@ function boot(ctx: DesignerContext): void {
           : { src: kit.logoUrl, left: 4, top: 4, width: 18, height: 12 };
         next = { ...next, bannerConfig: { ...bc, logo } };
       }
-    } else if (bc.logo) {
+    } else if (lastKitLogoUrl && bc.logo) {
+      // Only mirror a removal when the kit ACTUALLY HAD a logo and it was
+      // just cleared (the modal's Remove). A save where the kit never had a
+      // logo — a cold browser, or localStorage shadowing a server kit —
+      // must NOT wipe a logo the author already placed on the creative.
       next = { ...next, bannerConfig: { ...bc, logo: undefined } };
     }
+    lastKitLogoUrl = kit.logoUrl;
     if (next !== store.state) store.replace(next);
   });
 

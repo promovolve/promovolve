@@ -118,6 +118,12 @@
         <a href="/admin/billing" class="block px-3 py-2 rounded text-sm {{if eq .Nav "admin-billing"}}bg-gray-700 text-white{{else}}text-gray-300 hover:bg-gray-800{{end}}">Billing</a>
         {{end}}
       </nav>
+      {{/* The account footer (email, theme, Team/Preferences/Passkeys/Sign
+           out) is the viewed user's own controls — hidden in a read-only
+           view-as session, where they'd be inert or wrong (Sign out would
+           end the whole session instead of exiting view; the banner's
+           "Exit view" is the way out). */}}
+      {{if not .User.ViewAsBy}}
       <div class="border-t border-gray-700 pt-4 mt-4">
         {{/* Email + theme toggle share a row so the account links below have
              the full width. Theme is icon-only (designer-style) to save
@@ -140,6 +146,7 @@
           <a href="/logout" class="text-sm whitespace-nowrap text-gray-400 hover:text-white">Sign out</a>
         </div>
       </div>
+      {{end}}
     </aside>
     <main class="flex-1 min-w-0 overflow-x-auto p-8">
       {{template "content" .}}

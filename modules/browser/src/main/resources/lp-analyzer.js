@@ -87,7 +87,8 @@ window.extractSections = function (strategy) {
     var seen = new Set();
 
     container.querySelectorAll("img").forEach(function (img) {
-      var src = img.getAttribute("src")
+      var src = img.currentSrc // the srcset variant the browser ACTUALLY loaded (== what the analysis captured for R2)
+        || img.getAttribute("src")
         || img.getAttribute("data-src")
         || img.getAttribute("data-lazy-src")
         || img.getAttribute("data-original");
@@ -283,7 +284,8 @@ window.extractSections = function (strategy) {
     var seenSrc = new Set();
 
     document.querySelectorAll("img").forEach(function (img) {
-      var src = img.getAttribute("src")
+      var src = img.currentSrc // the srcset variant the browser ACTUALLY loaded (== what the analysis captured for R2)
+        || img.getAttribute("src")
         || img.getAttribute("data-src")
         || img.getAttribute("data-lazy-src")
         || img.getAttribute("data-original");

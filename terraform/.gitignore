@@ -1,0 +1,6 @@
+# Local state + provider cache; a shared backend is the operator's choice.
+.terraform/
+.terraform.lock.hcl
+*.tfstate
+*.tfstate.*
+*.tfvars

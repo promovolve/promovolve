@@ -164,72 +164,88 @@ object CreativeProcessor {
     ctx.self ! ScanPending
 
     def downloadAndStoreImage(url: String): Future[String] = {
-      // Accept: image/webp first so CDNs running format negotiation
-      // (Cloudinary f_auto, Imgix auto=format, Cloudflare Polish, …)
-      // hand us pre-compressed WebP instead of larger JPEG defaults.
-      // When the CDN honours it, the byte shrink compounds — R2
-      // stores smaller objects and every impression ships less.
-      val request = HttpRequest(
-        uri = url,
-        headers = List(
-          `User-Agent`("Mozilla/5.0 (compatible; Promovolve/1.0)"),
-          org.apache.pekko.http.scaladsl.model.headers.Accept(
-            org.apache.pekko.http.scaladsl.model.MediaRange(
-              org.apache.pekko.http.scaladsl.model.MediaTypes.`image/webp`
-            ),
-            org.apache.pekko.http.scaladsl.model.MediaRange(
-              org.apache.pekko.http.scaladsl.model.MediaTypes.`image/jpeg`
-            ),
-            org.apache.pekko.http.scaladsl.model.MediaRange(
-              org.apache.pekko.http.scaladsl.model.MediaTypes.`image/png`
-            ),
-            org.apache.pekko.http.scaladsl.model.MediaRanges.`image/*`
+      def once(): Future[String] = {
+        // Accept: image/webp first so CDNs running format negotiation
+        // (Cloudinary f_auto, Imgix auto=format, Cloudflare Polish, …)
+        // hand us pre-compressed WebP instead of larger JPEG defaults.
+        // When the CDN honours it, the byte shrink compounds — R2
+        // stores smaller objects and every impression ships less.
+        val request = HttpRequest(
+          uri = url,
+          headers = List(
+            `User-Agent`("Mozilla/5.0 (compatible; Promovolve/1.0)"),
+            org.apache.pekko.http.scaladsl.model.headers.Accept(
+              org.apache.pekko.http.scaladsl.model.MediaRange(
+                org.apache.pekko.http.scaladsl.model.MediaTypes.`image/webp`
+              ),
+              org.apache.pekko.http.scaladsl.model.MediaRange(
+                org.apache.pekko.http.scaladsl.model.MediaTypes.`image/jpeg`
+              ),
+              org.apache.pekko.http.scaladsl.model.MediaRange(
+                org.apache.pekko.http.scaladsl.model.MediaTypes.`image/png`
+              ),
+              org.apache.pekko.http.scaladsl.model.MediaRanges.`image/*`
+            )
           )
         )
-      )
-      httpExt.singleRequest(request).flatMap { response =>
-        if (response.status.isSuccess) {
-          val rawMime = response.entity.contentType.mediaType.toString
-          Unmarshal(response.entity).to[Array[Byte]].flatMap { rawBytes =>
-            // Compress + dimension-clamp via the same pipeline used by
-            // storeIfNew, so LP-to-Creative scraped images land on R2
-            // at the same weight budget as direct uploads. See
-            // ImageCompression for the format policy.
-            val (bytes, mime, w, h) = ImageCompression.compress(rawBytes, rawMime)
-            val hash = MessageDigest.getInstance("SHA-256")
-              .digest(bytes).map("%02x".format(_)).mkString
-            imageStorage.exists(hash).flatMap { exists =>
-              if (!exists) {
-                imageStorage.store(hash, bytes, mime).flatMap { s3Key =>
-                  imageAssetRepo.put(ImageAsset(hash, s3Key, mime, w, h, Instant.now()))
-                    .map(_ => s"$cdnBaseUrl/$s3Key")
-                }
-              } else {
-                // Image already in storage — look up the s3Key, or reconstruct from MIME
-                imageAssetRepo.get(hash).flatMap {
-                  case Some(a) => Future.successful(s"$cdnBaseUrl/${a.s3Key}")
-                  case None    =>
-                    // DB row missing (e.g. after --fresh) but R2 has the file — re-insert
-                    val ext = mime match {
-                      case "image/jpeg"    => "jpg"
-                      case "image/png"     => "png"
-                      case "image/gif"     => "gif"
-                      case "image/webp"    => "webp"
-                      case "image/svg+xml" => "svg"
-                      case _               => "bin"
-                    }
-                    val s3Key = s"assets/$hash.$ext"
+        httpExt.singleRequest(request).flatMap { response =>
+          if (response.status.isSuccess) {
+            val rawMime = response.entity.contentType.mediaType.toString
+            Unmarshal(response.entity).to[Array[Byte]].flatMap { rawBytes =>
+              // Compress + dimension-clamp via the same pipeline used by
+              // storeIfNew, so LP-to-Creative scraped images land on R2
+              // at the same weight budget as direct uploads. See
+              // ImageCompression for the format policy.
+              val (bytes, mime, w, h) = ImageCompression.compress(rawBytes, rawMime)
+              val hash = MessageDigest.getInstance("SHA-256")
+                .digest(bytes).map("%02x".format(_)).mkString
+              imageStorage.exists(hash).flatMap { exists =>
+                if (!exists) {
+                  imageStorage.store(hash, bytes, mime).flatMap { s3Key =>
                     imageAssetRepo.put(ImageAsset(hash, s3Key, mime, w, h, Instant.now()))
                       .map(_ => s"$cdnBaseUrl/$s3Key")
+                  }
+                } else {
+                  // Image already in storage — look up the s3Key, or reconstruct from MIME
+                  imageAssetRepo.get(hash).flatMap {
+                    case Some(a) => Future.successful(s"$cdnBaseUrl/${a.s3Key}")
+                    case None    =>
+                      // DB row missing (e.g. after --fresh) but R2 has the file — re-insert
+                      val ext = mime match {
+                        case "image/jpeg"    => "jpg"
+                        case "image/png"     => "png"
+                        case "image/gif"     => "gif"
+                        case "image/webp"    => "webp"
+                        case "image/svg+xml" => "svg"
+                        case _               => "bin"
+                      }
+                      val s3Key = s"assets/$hash.$ext"
+                      imageAssetRepo.put(ImageAsset(hash, s3Key, mime, w, h, Instant.now()))
+                        .map(_ => s"$cdnBaseUrl/$s3Key")
+                  }
                 }
               }
             }
+          } else {
+            response.entity.discardBytes()
+            Future.failed(new RuntimeException(s"HTTP ${response.status} for $url"))
           }
-        } else {
-          response.entity.discardBytes()
-          Future.failed(new RuntimeException(s"HTTP ${response.status} for $url"))
         }
       }
+      // Retry transient refusals before giving up and keeping the original
+      // (hotlink-prone) URL: a fourseasons-class CDN that tarpits/403s the
+      // FIRST automated fetch commonly serves the retry, and a rehosted image
+      // renders fine (no cross-origin 403 in the render browser), so this
+      // directly prevents baked-in broken images. Bounded + short backoff so
+      // it still fits inside the per-image timeout at the call site.
+      def go(n: Int): Future[String] =
+        once().recoverWith {
+          case e if n < 3 =>
+            system.log.info("image download attempt {} failed for {} ({}), retrying", n: java.lang.Integer, url,
+              e.getMessage)
+            org.apache.pekko.pattern.after((250L * n).millis, system.classicSystem.scheduler)(go(n + 1))
+        }
+      go(1)
     }
 
     Behaviors.receiveMessage {

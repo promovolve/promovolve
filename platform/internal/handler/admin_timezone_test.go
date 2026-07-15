@@ -34,9 +34,9 @@ func TestAdminUsersTemplateRenders(t *testing.T) {
 		Timezones: preferenceTimezones,
 		AdminOrgs: []orgAdminRow{
 			// Advertiser side present → the timezone select renders, with the
-			// org's (exotic) zone selected.
+			// org's (exotic) zone selected. Active admin → View-as button.
 			{ID: "org-1", Domain: "adv.example.com", Name: "Adv Co",
-				HasAdvertiser: true, Timezone: "Asia/Tokyo"},
+				HasAdvertiser: true, Timezone: "Asia/Tokyo", ViewAsUserID: "u1"},
 			// Publisher-only → static zone text ("UTC" when unset).
 			{ID: "org-2", Domain: "pub.example.com", Name: "Pub Co", HasPublisher: true},
 			{ID: "org-3", Domain: "gone.example.com", Suspended: true,

@@ -375,6 +375,32 @@ func (r *Repository) MembershipSummaries(ctx context.Context) (map[string]Member
 	return out, rows.Err()
 }
 
+// ViewableAdminByOrg maps each org id to one representative active org-admin
+// user id — the earliest-joined one — for the operator's per-org "view as"
+// action. Orgs whose admins are all inactive are absent (no button rendered).
+// The view-as handler re-validates the target, so a race (admin deleted
+// between render and click) degrades to a clean error, never a wrong session.
+func (r *Repository) ViewableAdminByOrg(ctx context.Context) (map[string]string, error) {
+	rows, err := r.pool.Query(ctx, `
+		SELECT DISTINCT ON (m.org_id) m.org_id, m.user_id
+		FROM org_members m JOIN platform_users u ON u.id = m.user_id
+		WHERE m.org_role = 'admin' AND u.status = 'active'
+		ORDER BY m.org_id, m.created_at`)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	out := map[string]string{}
+	for rows.Next() {
+		var orgID, userID string
+		if err := rows.Scan(&orgID, &userID); err != nil {
+			return nil, err
+		}
+		out[orgID] = userID
+	}
+	return out, rows.Err()
+}
+
 // DeleteOrg removes an org row (memberships and side requests cascade).
 // Only for operator teardown of an org whose last member is being deleted:
 // it frees the domain for a fresh signup. Billing ledger rows survive

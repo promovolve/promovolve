@@ -289,6 +289,10 @@ func (h *Handler) renderAdminUsers(w http.ResponseWriter, r *http.Request, errMs
 	if err != nil {
 		slog.Error("list orgs failed", "error", err)
 	}
+	adminByOrg, err := h.orgRepo.ViewableAdminByOrg(r.Context())
+	if err != nil {
+		slog.Error("list org admins failed", "error", err)
+	}
 	// Own search param (like ?orgPage) so the users search stays untouched.
 	orgQ := strings.ToLower(strings.TrimSpace(r.URL.Query().Get("orgQ")))
 	orgRows := make([]orgAdminRow, 0, len(orgs))
@@ -306,6 +310,7 @@ func (h *Handler) renderAdminUsers(w http.ResponseWriter, r *http.Request, errMs
 			SuspendReason: o.SuspendReason,
 			SuspendedBy:   o.SuspendedBy,
 			Timezone:      o.Timezone,
+			ViewAsUserID:  adminByOrg[o.ID],
 		}
 		if o.SuspendedAt != nil {
 			row.SuspendedAt = o.SuspendedAt.In(user.Location()).Format("2006-01-02")
@@ -365,6 +370,10 @@ type orgAdminRow struct {
 	// Advertiser-account timezone (IANA; "" = UTC) — the operator-only
 	// budget-day control on the organizations table.
 	Timezone string
+	// ViewAsUserID is a representative active org-admin to open a read-only
+	// view-as session for; empty when the org has no active admin (button
+	// hidden). Reuses the audited /admin/view-as flow, keyed on this user.
+	ViewAsUserID string
 }
 
 // AdminSuspendOrg freezes a company: org flag first (locks the dashboard for

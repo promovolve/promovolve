@@ -74,22 +74,31 @@
             <span class="badge bg-green-100 text-green-700">Active</span>
             {{end}}
           </td>
-          <td class="px-4 py-2 text-right">
-            {{if .Suspended}}
-            <form method="POST" action="/admin/orgs/resume"
-                  onsubmit="return confirm('Resume {{.Domain}}? Serving and billing unfreeze.')">
-              <input type="hidden" name="orgId" value="{{.ID}}">
-              <button type="submit" class="btn btn-secondary btn-sm">Resume</button>
-            </form>
-            {{else}}
-            <form method="POST" action="/admin/orgs/suspend" class="flex items-center justify-end gap-2">
-              <input type="hidden" name="orgId" value="{{.ID}}">
-              <input name="reason" required class="form-input w-64 text-xs"
-                     placeholder="Reason (shown to their members)">
-              <button type="submit" class="btn btn-danger btn-sm"
-                      onclick="return confirm('Suspend {{.Domain}}? Members see your reason at login; serving and billing freeze.')">Suspend</button>
-            </form>
-            {{end}}
+          <td class="px-4 py-2">
+            <div class="flex items-center justify-end gap-2 flex-wrap">
+              {{if .ViewAsUserID}}
+              <form method="POST" action="/admin/view-as" class="inline">
+                <input type="hidden" name="userId" value="{{.ViewAsUserID}}">
+                <button type="submit" class="btn btn-secondary btn-sm"
+                        title="Open a read-only session as an admin of {{.Domain}}">View as</button>
+              </form>
+              {{end}}
+              {{if .Suspended}}
+              <form method="POST" action="/admin/orgs/resume"
+                    onsubmit="return confirm('Resume {{.Domain}}? Serving and billing unfreeze.')">
+                <input type="hidden" name="orgId" value="{{.ID}}">
+                <button type="submit" class="btn btn-secondary btn-sm">Resume</button>
+              </form>
+              {{else}}
+              <form method="POST" action="/admin/orgs/suspend" class="flex items-center gap-2">
+                <input type="hidden" name="orgId" value="{{.ID}}">
+                <input name="reason" required class="form-input w-64 text-xs"
+                       placeholder="Reason (shown to their members)">
+                <button type="submit" class="btn btn-danger btn-sm"
+                        onclick="return confirm('Suspend {{.Domain}}? Members see your reason at login; serving and billing freeze.')">Suspend</button>
+              </form>
+              {{end}}
+            </div>
           </td>
         </tr>
         {{else}}

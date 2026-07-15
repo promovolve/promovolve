@@ -21,6 +21,7 @@ import type { Store } from "../store";
 import type { DesignerState, ImageItem, LayoutItem, RectItem } from "../types";
 import { scrimGradient, SCRIM_EDGES, type ScrimEdge, type ScrimSpec } from "../scrim";
 import { contrastRatio, WCAG_AA_NORMAL } from "../color-contrast";
+import { loadBrandKit } from "../brand-kit";
 import { mountKitColorChips } from "./brand-kit-chips";
 import { openAssetModal } from "./asset-modal";
 import { openCropModal } from "./crop-modal";
@@ -30,33 +31,36 @@ export interface PropsPanelHandle {
   update(state: DesignerState): void;
 }
 
-// Typography font menu. System buckets (always render) + the allow-listed
-// Google families we self-host in the expanded view (value = the full CSS
-// stack so it both renders a sensible fallback and triggers self-hosting at
-// publish; mirror of GoogleFontCatalog.scala / banner font-catalog.ts). The
-// trailing bucket is the fallback when the woff2 isn't loaded.
+// Typography font menu. System buckets (always render) + a SMALL generic
+// fallback set. The fonts an advertiser actually reaches for are their own —
+// the LP-extracted / brand-kit families (some Google, some LP-original
+// opt-in) — which fontOptions() surfaces FIRST; the generic families below
+// are the rarely-used fallback, so this is a trimmed shortlist, not the full
+// catalog. (The self-host allow-list in GoogleFontCatalog.scala / banner
+// font-catalog.ts stays broad — this only governs what the picker OFFERS,
+// and every entry here is a subset of it, so all still self-host.)
 const SYSTEM_FONTS = ["sans-serif", "serif", "monospace", "Georgia", "Helvetica Neue"];
 const GOOGLE_FONT_STACKS: string[] = ([
   ["Montserrat", "sans-serif"], ["Poppins", "sans-serif"], ["Roboto", "sans-serif"], ["Open Sans", "sans-serif"],
-  ["Lato", "sans-serif"], ["Inter", "sans-serif"], ["Raleway", "sans-serif"], ["Nunito", "sans-serif"],
-  ["Nunito Sans", "sans-serif"], ["Work Sans", "sans-serif"], ["Rubik", "sans-serif"], ["Mulish", "sans-serif"],
-  ["Manrope", "sans-serif"], ["DM Sans", "sans-serif"], ["Be Vietnam Pro", "sans-serif"], ["Oswald", "sans-serif"],
-  ["Bebas Neue", "sans-serif"], ["Archivo", "sans-serif"], ["Barlow", "sans-serif"], ["Kanit", "sans-serif"],
-  ["Josefin Sans", "sans-serif"], ["Quicksand", "sans-serif"], ["Karla", "sans-serif"], ["Figtree", "sans-serif"],
-  ["Plus Jakarta Sans", "sans-serif"], ["Space Grotesk", "sans-serif"], ["Outfit", "sans-serif"],
-  ["Playfair Display", "serif"], ["Merriweather", "serif"], ["Lora", "serif"], ["PT Serif", "serif"],
-  ["Noto Serif", "serif"], ["Source Serif 4", "serif"], ["Cormorant Garamond", "serif"], ["EB Garamond", "serif"],
-  ["Libre Baskerville", "serif"], ["Crimson Text", "serif"], ["Bitter", "serif"], ["DM Serif Display", "serif"],
-  ["Roboto Slab", "serif"],
+  ["Inter", "sans-serif"], ["Lato", "sans-serif"], ["Oswald", "sans-serif"], ["Bebas Neue", "sans-serif"],
+  ["Playfair Display", "serif"], ["Merriweather", "serif"], ["Lora", "serif"], ["Roboto Slab", "serif"],
 ] as Array<[string, string]>).map(([fam, bucket]) => `${fam}, ${bucket}`);
 
-/** Font dropdown options for the current value. Determined value first (so a
-  * named instance like "Montserrat Thin, sans-serif" is always visible/kept),
-  * then system buckets, then the allow-listed families. */
+/** Font dropdown options. Order: the applied font (always kept/visible), then
+  * the advertiser's own brand/LP fonts, then system buckets, then the small
+  * generic fallback set. Deduped, so a brand font that's also a generic isn't
+  * listed twice. */
 function fontOptions(current: string | undefined): string[] {
-  const opts = [...SYSTEM_FONTS, ...GOOGLE_FONT_STACKS];
-  const cur = (current ?? "").trim();
-  if (cur && !opts.includes(cur)) opts.unshift(cur);
+  const brand = loadBrandKit(window.__DESIGNER__?.campaignId).fonts ?? [];
+  const opts: string[] = [];
+  const push = (f: string): void => {
+    const t = (f ?? "").trim();
+    if (t && !opts.includes(t)) opts.push(t);
+  };
+  push((current ?? "").trim()); // determined instance stays kept/visible
+  brand.forEach(push); // the LP-extracted / brand-kit families (Google + opt-in)
+  SYSTEM_FONTS.forEach(push);
+  GOOGLE_FONT_STACKS.forEach(push);
   return opts;
 }
 

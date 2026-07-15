@@ -1,0 +1,51 @@
+apiVersion: kustomize.config.k8s.io/v1beta1
+kind: Kustomization
+
+# Local dev overlay over the k8s base: run the stack against LOCALLY-BUILT
+# `:local` images instead of the digest-pinned Docker Hub `:dev` images —
+# the fast inner loop, no push/pull. imagePullPolicy is forced to IfNotPresent
+# so kubelet uses the images already in the node.
+#
+# IMPORTANT: Docker Desktop's Kubernetes is kind-based — the node
+# (`desktop-control-plane`) has its OWN containerd, so a host `docker build` is
+# NOT visible to the cluster (and the "containerd image store" setting does not
+# bridge them). The images must be SIDE-LOADED into the node first. Use the
+# helper, which builds (optional), side-loads, applies, and rolls:
+#
+#   k8s-local/up.sh --build     # rebuild + reload + apply + restart
+#   k8s-local/up.sh             # side-load if missing + apply
+#
+# See k8s-local/README.md for the manual steps and caveats. The
+# --load-restrictor LoadRestrictionsNone flag (used by up.sh) is required
+# because the base's db-initdb configMap single-sources ../docker/init-db.sql.
+
+resources:
+  - ../k8s
+
+# Retag the base's images to a neutral, LOCAL-ONLY name. Deliberately not a
+# Docker Hub namespace (not the maintainer's, not yours): with side-load +
+# IfNotPresent nothing is ever pushed or pulled, so the tag is purely local.
+# `localhost/` makes that explicit and avoids docker.io/library normalization.
+images:
+  - name: docker.io/hanishi/promovolve-api
+    newName: localhost/promovolve-api
+    newTag: local
+  - name: docker.io/hanishi/promovolve-platform
+    newName: localhost/promovolve-platform
+    newTag: local
+
+patches:
+  - target:
+      kind: StatefulSet
+      name: promovolve-api
+    patch: |-
+      - op: replace
+        path: /spec/template/spec/containers/0/imagePullPolicy
+        value: IfNotPresent
+  - target:
+      kind: Deployment
+      name: promovolve-platform
+    patch: |-
+      - op: replace
+        path: /spec/template/spec/containers/0/imagePullPolicy
+        value: IfNotPresent

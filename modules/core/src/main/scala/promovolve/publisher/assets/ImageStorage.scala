@@ -24,6 +24,15 @@ trait ImageStorage {
   def exists(hash: String): Future[Boolean]
 
   /**
+   * Delete a stored object by its s3 key — best-effort orphan cleanup when
+   * a creative is deleted and no other live creative references the same
+   * content-hash asset (a broken banner render should not linger in R2).
+   * Default is a no-op: non-R2 dev backends don't accumulate cloud storage
+   * worth reclaiming, and callers treat cleanup failures as non-fatal.
+   */
+  def deleteObject(s3Key: String): Future[Unit] = Future.unit
+
+  /**
    * Generate a short-lived presigned URL the browser can PUT to
    * directly. The bucket key is derived from the hash + mimeType, so a
    * later `register` call only needs the metadata, not the bytes.
@@ -137,6 +146,12 @@ final class R2ImageStorage(
 
   def exists(hash: String): Future[Boolean] =
     fetch(hash).map(_.isDefined)
+
+  override def deleteObject(s3Key: String): Future[Unit] =
+    S3.deleteObject(bucket, s3Key)
+      .withAttributes(s3Attributes)
+      .runWith(Sink.ignore)
+      .map(_ => ())
 
   // ── Self-hosted web fonts ──────────────────────────────────────────
   // Fonts use a stable human key (fonts/<slug>-<variant>.woff2) rather than

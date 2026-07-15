@@ -869,6 +869,33 @@ final class LPAnalyzer(
           // re-render with the swapped face + gradients.
           page.waitForTimeout(250)
 
+          // 4b. Hide any image that failed to load (dead/blocked src) so a
+          // broken render degrades to blank-where-the-image-was instead of
+          // baking Chromium's broken-image glyph into the PNG. Without this
+          // the glyph becomes a permanent, dedup-cached broken creative —
+          // delete + regenerate for the same landing page reproduces the
+          // identical broken banner (same bytes → same hash). A dead image
+          // has completed loading with naturalWidth === 0. Best-effort.
+          val hiddenBroken: Int =
+            try
+              page.evaluate(
+                """() => {
+                  |  const el = document.querySelector('expandable-magazine-banner');
+                  |  if (!el || !el.shadowRoot) return 0;
+                  |  const broken = Array.from(el.shadowRoot.querySelectorAll('img'))
+                  |    .filter(i => i.complete && i.naturalWidth === 0);
+                  |  broken.forEach(i => { i.style.visibility = 'hidden'; });
+                  |  return broken.length;
+                  |}""".stripMargin
+              ) match {
+                case n: java.lang.Number => n.intValue
+                case _                   => 0
+              }
+            catch { case _: Exception => 0 }
+          if (hiddenBroken > 0)
+            log.warn("renderBanner: hid {} broken image(s) (dead src) before screenshot",
+              hiddenBroken: java.lang.Integer)
+
           // 5. Screenshot the page at banner coordinates
           page.screenshot(new com.microsoft.playwright.Page.ScreenshotOptions()
             .setType(com.microsoft.playwright.options.ScreenshotType.PNG)

@@ -20,6 +20,13 @@ final case class ImageAsset(
 trait ImageAssetRepo {
   def put(asset: ImageAsset): Future[Unit]
   def get(hash: String): Future[Option[ImageAsset]]
+
+  /**
+   * Remove the metadata row for a hash. Only safe once NO creative
+   * references it (creative.image_hash is a FK to image_asset.hash), so
+   * callers guard on that. Default no-op for non-Slick dev backends.
+   */
+  def delete(hash: String): Future[Unit] = Future.unit
 }
 
 /** PostgreSQL-backed implementation using Slick. */
@@ -54,6 +61,9 @@ final class SlickImageAssetRepo(db: slick.jdbc.JdbcBackend#Database)(using ec: E
     val query = assets.filter(_.hash === hash).result.headOption
     db.run(query)
   }
+
+  override def delete(hash: String): Future[Unit] =
+    db.run(assets.filter(_.hash === hash).delete).map(_ => ())
 
   private class ImageAssetTable(tag: Tag) extends Table[ImageAsset](tag, "image_asset") {
     def hash = column[String]("hash", O.PrimaryKey)

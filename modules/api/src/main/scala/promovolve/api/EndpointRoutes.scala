@@ -178,6 +178,38 @@ class EndpointRoutes(
   import org.apache.pekko.http.scaladsl.server.Directives.*
   import org.apache.pekko.http.scaladsl.marshallers.sprayjson.SprayJsonSupport.*
 
+  /**
+   * Reclaim a creative's rendered banner from R2 once no LIVE creative
+   * references its content-hash asset — a broken render (or any deleted
+   * creative's asset) should not linger. Assets are content-addressed and
+   * shared by dedup, so we only remove the object when no non-Deleted
+   * creative still points at the hash; the image_asset metadata row (a FK
+   * target of creative.image_hash) is dropped only when NO creative at all
+   * references it, i.e. after the last hard delete. Best-effort: a cleanup
+   * failure is logged and swallowed so it can never fail the delete.
+   */
+  private def cleanupOrphanCreativeAsset(imageHash: String): Future[Unit] =
+    (creativeRepo, imageAssetRepo, imageStorage) match {
+      case (Some(cRepo), Some(aRepo), Some(store)) =>
+        cRepo.getByImageHash(imageHash).flatMap { refs =>
+          val liveRefs = refs.count(_.status != promovolve.publisher.CreativeStatus.Deleted)
+          if (liveRefs > 0) Future.unit // still shown by another creative — keep it
+          else aRepo.get(imageHash).flatMap {
+            case None        => Future.unit
+            case Some(asset) =>
+              store.deleteObject(asset.s3Key).flatMap { _ =>
+                system.log.info("Reclaimed orphan creative asset {} (hash {})", asset.s3Key, imageHash)
+                // FK: drop the metadata row only when nothing references it.
+                if (refs.isEmpty) aRepo.delete(imageHash) else Future.unit
+              }
+          }
+        }.recover { case e =>
+          system.log.warn("Orphan asset cleanup for hash {} failed (non-fatal): {}", imageHash, e.getMessage)
+          ()
+        }
+      case _ => Future.unit
+    }
+
   private def deleteCreativeRoute: Route =
     pathPrefix("v1" / "advertisers" / Segment / "campaigns" / Segment / "creatives" / Segment) {
       (advertiserId, campaignId, creativeId) =>
@@ -186,26 +218,23 @@ class EndpointRoutes(
 
           // IDOR guard: the delete below removes the creative row by
           // creative_id alone. Without this ownership check any advertiser
-          // could delete another's creative. Verify the creative actually
-          // belongs to this advertiser+campaign first (mirrors the same check
+          // could delete another's creative. Fetch the creative first and
+          // verify it belongs to this advertiser+campaign (mirrors the check
           // updateCreativeStatusLogic already enforces); 404 otherwise so we
-          // don't disclose foreign creative ids.
-          val ownedF: Future[Boolean] = creativeRepo match {
-            case Some(repo) => repo.get(creativeId).map {
-                case Some(cr) => cr.advertiserId == advertiserId && cr.campaignId == campaignId
-                case None     => false
-              }
-            case None => Future.successful(false)
+          // don't disclose foreign creative ids. We also keep the row so its
+          // image_hash drives the R2 orphan cleanup below.
+          val creativeF: Future[Option[promovolve.publisher.Creative]] = creativeRepo match {
+            case Some(repo) => repo.get(creativeId)
+            case None       => Future.successful(None)
           }
 
           // IMPORTANT: build the mutating Futures *inside* the owned branch.
           // A `val xF = …Future…` starts running the moment it is defined, so
-          // creating them before `ownedF` resolves would unassign/delete even
+          // creating them before ownership resolves would unassign/delete even
           // for a non-owner — exactly the IDOR this guard exists to prevent.
           val deleteType = "async" // determined at runtime
-          val resultF: Future[Either[Unit, Unit]] = ownedF.flatMap {
-            case false => Future.successful(Left(()))
-            case true  =>
+          val resultF: Future[Either[Unit, Unit]] = creativeF.flatMap {
+            case Some(cr) if cr.advertiserId == advertiserId && cr.campaignId == campaignId =>
               // Unassign from campaign entity
               val unassignF = campaignRef(advertiserId, campaignId)
                 .ask(CampaignEntity.UnassignCreatives(Set(cid), _))(using Timeout(5.seconds))
@@ -240,7 +269,16 @@ class EndpointRoutes(
                 }
               }
 
-              unassignF.zip(deleteF).map(_ => Right(()))
+              // After the delete lands, reclaim the rendered banner from R2 if
+              // no OTHER live creative shares the same content-hash asset — so
+              // a broken render doesn't linger. Runs after deleteF so this
+              // creative's own row is already gone (hard) or marked Deleted
+              // (soft) and doesn't count as a reference. Never fails the delete.
+              val cleanupF = deleteF.flatMap(_ => cleanupOrphanCreativeAsset(cr.imageHash))
+
+              unassignF.zip(cleanupF).map(_ => Right(()))
+
+            case _ => Future.successful(Left(()))
           }
           onComplete(resultF) {
             case scala.util.Success(Left(_)) =>

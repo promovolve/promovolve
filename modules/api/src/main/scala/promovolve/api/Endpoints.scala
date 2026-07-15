@@ -532,36 +532,6 @@ object Endpoints extends ApiJsonFormats {
   // BILLING.md). Gated by INTERNAL_API_KEY when set (X-Internal-Key header);
   // when unset they rely on network isolation like the other escape hatches.
 
-  val getMeteringDaily
-      : PublicEndpoint[(String, Option[Boolean], Option[String]), ErrorResponse, MeteringDailyResponse, Any] =
-    endpoint
-      .tag("Internal")
-      .summary("Billable metering aggregate for one UTC day")
-      .description(
-        "Per (advertiser, campaign, site) impression count and gross dollars from tracking_events for the given UTC day, with publisherId joined from publisher_sites. Dog-eared impressions are excluded — they never debit campaign budget, so they are not billable. Must be called within the tracking_events 30-day retention window; the settlement job runs daily and catches up on startup.")
-      .get
-      .in(v1 / "internal" / "metering" / "daily")
-      .in(query[String]("date").description("UTC day in YYYY-MM-DD format"))
-      .in(query[Option[Boolean]]("allowPartial").description(
-        "Operator/test only: settle an in-progress (non-final) UTC day. Still requires the internal key. The scheduled job never sets this."))
-      .in(header[Option[String]]("X-Internal-Key"))
-      .out(jsonBody[MeteringDailyResponse])
-      .errorOut(jsonBody[ErrorResponse])
-
-  val getMeteringIntraday: PublicEndpoint[(String, Option[String]), ErrorResponse, MeteringIntradayResponse, Any] =
-    endpoint
-      .tag("Internal")
-      .summary("Unsettled gross per advertiser since a UTC date")
-      .description(
-        "Per-advertiser billable gross from tracking_events between the given UTC date's midnight and now — spend not yet booked to the platform ledger. The settlement job uses this to project wallet balances between daily settlements and suspend unfunded advertisers early. Same billing rules as /metering/daily: impressions only, dog-eared excluded.")
-      .get
-      .in(v1 / "internal" / "metering" / "intraday")
-      .in(query[String]("since").description(
-        "start of the unsettled window (UTC day, YYYY-MM-DD), typically the day after the last settled day"))
-      .in(header[Option[String]]("X-Internal-Key"))
-      .out(jsonBody[MeteringIntradayResponse])
-      .errorOut(jsonBody[ErrorResponse])
-
   val getMeteringRange: PublicEndpoint[(String, String, Option[String], Option[String], Option[Boolean],
         Option[String]), ErrorResponse, MeteringRangeResponse, Any] =
     endpoint

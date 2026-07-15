@@ -66,10 +66,6 @@ object ApiSchemas {
   given Schema[AdvertiserSpendTodayResponse] = Schema.derived
 
   // Internal (billing settlement)
-  given Schema[MeteringDailyRow] = Schema.derived
-  given Schema[MeteringDailyResponse] = Schema.derived
-  given Schema[MeteringIntradayRow] = Schema.derived
-  given Schema[MeteringIntradayResponse] = Schema.derived
   given Schema[MeteringRangeRow] = Schema.derived
   given Schema[MeteringRangeResponse] = Schema.derived
   given Schema[MeteringUnsettledSince] = Schema.derived

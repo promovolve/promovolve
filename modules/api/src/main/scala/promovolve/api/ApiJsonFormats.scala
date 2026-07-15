@@ -102,10 +102,6 @@ trait ApiJsonFormats extends DefaultJsonProtocol {
   given RootJsonFormat[AdvertiserSpendTodayResponse] = jsonFormat5(AdvertiserSpendTodayResponse.apply)
 
   // Internal (billing settlement)
-  given RootJsonFormat[MeteringDailyRow] = jsonFormat6(MeteringDailyRow.apply)
-  given RootJsonFormat[MeteringDailyResponse] = jsonFormat2(MeteringDailyResponse.apply)
-  given RootJsonFormat[MeteringIntradayRow] = jsonFormat2(MeteringIntradayRow.apply)
-  given RootJsonFormat[MeteringIntradayResponse] = jsonFormat2(MeteringIntradayResponse.apply)
   given RootJsonFormat[MeteringRangeRow] = jsonFormat6(MeteringRangeRow.apply)
   given RootJsonFormat[MeteringRangeResponse] = jsonFormat3(MeteringRangeResponse.apply)
   given RootJsonFormat[MeteringUnsettledSince] = jsonFormat2(MeteringUnsettledSince.apply)

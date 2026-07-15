@@ -433,44 +433,6 @@ object ApiModels {
   )
 
   /**
-   * One billable metering cell for the platform's settlement job
-   * (docs/design/BILLING.md): everything the ledger needs to charge the
-   * advertiser and credit the publisher for one UTC day on one site.
-   * Dog-eared impressions are excluded — they never debit campaign
-   * budget, so they are not billable.
-   */
-  case class MeteringDailyRow(
-      advertiserId: String,
-      campaignId: String,
-      siteId: String,
-      publisherId: String, // empty when the site has no publisher_sites row
-      impressions: Long,
-      gross: String // dollars, %.6f — micro-dollar precision
-  )
-
-  case class MeteringDailyResponse(
-      date: String, // the aggregated UTC day, YYYY-MM-DD
-      rows: Vector[MeteringDailyRow]
-  )
-
-  /**
-   * Per-advertiser unsettled gross since a date — the settlement job's
-   * intraday wallet check. Spend that exists in tracking_events but has
-   * not been booked to the ledger yet, so the platform can suspend an
-   * advertiser BEFORE the daily settlement would drive their wallet
-   * negative (bounds the prepaid overdraft to hours, not a day).
-   */
-  case class MeteringIntradayRow(
-      advertiserId: String,
-      gross: String // dollars, %.6f
-  )
-
-  case class MeteringIntradayResponse(
-      since: String, // start of the unsettled window, YYYY-MM-DD
-      rows: Vector[MeteringIntradayRow]
-  )
-
-  /**
    * One billable metering cell for an arbitrary instant range — the
    * local-day settlement job's data source. Amounts are integer
    * micro-dollars summed PER EVENT (SUM(ROUND(cpm*1000))), so any

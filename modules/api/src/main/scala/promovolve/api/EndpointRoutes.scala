@@ -4748,124 +4748,6 @@ class EndpointRoutes(
       case None => Right(())
     }
 
-  private val getMeteringDailyLogic
-      : ((String, Option[Boolean], Option[String])) => Future[Either[ErrorResponse, MeteringDailyResponse]] = {
-    case (dateStr, allowPartial, key) =>
-      requireInternalKey(key) match {
-        case Left(err) => Future.successful(Left(err))
-        case Right(()) =>
-          scala.util.Try(java.time.LocalDate.parse(dateStr)).toOption match {
-            case None =>
-              Future.successful(Left(ErrorResponse("bad_date", s"date must be YYYY-MM-DD, got '$dateStr'")))
-            case Some(day)
-                if !day.isBefore(java.time.LocalDate.now(java.time.ZoneOffset.UTC)) && !allowPartial.contains(true) =>
-              // Settling a partial day locks its short numbers in forever
-              // (the settlement keys already exist) — refuse, even if the
-              // caller's clock is wrong. The internal-key-gated allowPartial
-              // opt-in bypasses this for operator/test settles (settle-day
-              // CLI) where the caller accepts partial-day numbers.
-              Future.successful(Left(ErrorResponse("day_not_final", s"$dateStr is not a completed UTC day")))
-            case Some(day) =>
-              dashboardDb match {
-                case None =>
-                  // Zero rows here would read as "no spend" and the day
-                  // would be marked settled — a misconfigured pod must be
-                  // an error the settlement job retries, never a silent $0.
-                  Future.successful(Left(ErrorResponse("metering_unavailable",
-                    "dashboard DB not configured on this pod")))
-                case Some(db) =>
-                  import slick.jdbc.PostgresProfile.api.*
-                  import slick.jdbc.GetResult
-                  given GetResult[(String, String, String, Option[String], Long, Double)] =
-                    GetResult(using r =>
-                      (r.nextString(), r.nextString(), r.nextString(), r.nextStringOption(), r.nextLong(),
-                        r.nextDouble())
-                    )
-                  val dayStr = day.toString
-                  // Half-open UTC-day range keeps the predicate sargable
-                  // against the hypertable's event_time partitioning.
-                  // Dog-eared impressions never debit campaign budget
-                  // (LearningEventLog skips RecordSpend for them), so they
-                  // are excluded from billing even though the display
-                  // endpoints above count them.
-                  val q = sql"""
-                    SELECT te.advertiser_id, te.campaign_id, te.site_id, ps.publisher_id,
-                           COUNT(*)::bigint,
-                           COALESCE(SUM(te.cpm) / 1000.0, 0.0)::double precision
-                    FROM tracking_events te
-                    LEFT JOIN publisher_sites ps ON ps.site_id = te.site_id
-                    WHERE te.event_type = 'impression'
-                      AND NOT te.dogeared
-                      AND te.advertiser_id IS NOT NULL
-                      AND te.campaign_id IS NOT NULL
-                      AND te.event_time >= ($dayStr::date)::timestamp AT TIME ZONE 'UTC'
-                      AND te.event_time <  ($dayStr::date + INTERVAL '1 day') AT TIME ZONE 'UTC'
-                    GROUP BY te.advertiser_id, te.campaign_id, te.site_id, ps.publisher_id
-                    ORDER BY te.advertiser_id, te.campaign_id, te.site_id
-                  """.as[(String, String, String, Option[String], Long, Double)]
-                  db.run(q).map { rows =>
-                    Right(MeteringDailyResponse(
-                      date = dayStr,
-                      rows = rows.toVector.map { case (adv, camp, site, pub, imps, gross) =>
-                        MeteringDailyRow(adv, camp, site, pub.getOrElse(""), imps, f"$gross%.6f")
-                      }
-                    ))
-                  }.recover { case ex =>
-                    Left(ErrorResponse("metering_daily_failed", ex.getMessage))
-                  }
-              }
-          }
-      }
-  }
-
-  private val getMeteringIntradayLogic
-      : ((String, Option[String])) => Future[Either[ErrorResponse, MeteringIntradayResponse]] = {
-    case (sinceStr, key) =>
-      requireInternalKey(key) match {
-        case Left(err) => Future.successful(Left(err))
-        case Right(()) =>
-          scala.util.Try(java.time.LocalDate.parse(sinceStr)).toOption match {
-            case None =>
-              Future.successful(Left(ErrorResponse("bad_date", s"since must be YYYY-MM-DD, got '$sinceStr'")))
-            case Some(since) =>
-              dashboardDb match {
-                case None =>
-                  Future.successful(Left(ErrorResponse("metering_unavailable",
-                    "dashboard DB not configured on this pod")))
-                case Some(db) =>
-                  import slick.jdbc.PostgresProfile.api.*
-                  import slick.jdbc.GetResult
-                  given GetResult[(String, Double)] =
-                    GetResult(using r => (r.nextString(), r.nextDouble()))
-                  val sinceDay = since.toString
-                  // Same billing predicate as /metering/daily, open-ended to
-                  // now: this is the not-yet-settled tail of spend.
-                  val q = sql"""
-                    SELECT te.advertiser_id,
-                           COALESCE(SUM(te.cpm) / 1000.0, 0.0)::double precision
-                    FROM tracking_events te
-                    WHERE te.event_type = 'impression'
-                      AND NOT te.dogeared
-                      AND te.advertiser_id IS NOT NULL
-                      AND te.campaign_id IS NOT NULL
-                      AND te.event_time >= ($sinceDay::date)::timestamp AT TIME ZONE 'UTC'
-                    GROUP BY te.advertiser_id
-                  """.as[(String, Double)]
-                  db.run(q).map { rows =>
-                    Right(MeteringIntradayResponse(
-                      since = sinceDay,
-                      rows = rows.toVector.map { case (adv, gross) =>
-                        MeteringIntradayRow(adv, f"$gross%.6f")
-                      }
-                    ))
-                  }.recover { case ex =>
-                    Left(ErrorResponse("metering_intraday_failed", ex.getMessage))
-                  }
-              }
-          }
-      }
-  }
-
   // Shared billing-micros expression: integer micro-dollars summed PER EVENT
   // so any window partition of the same events totals identically (cpm is
   // DECIMAL(10,4) dollars per 1000 impressions → cpm*1000 = micro-dollars per
@@ -5239,8 +5121,6 @@ class EndpointRoutes(
   }
 
   private val internalRoutes: List[Route] = List(
-    PekkoHttpServerInterpreter().toRoute(Endpoints.getMeteringDaily.serverLogic(getMeteringDailyLogic)),
-    PekkoHttpServerInterpreter().toRoute(Endpoints.getMeteringIntraday.serverLogic(getMeteringIntradayLogic)),
     PekkoHttpServerInterpreter().toRoute(Endpoints.getMeteringRange.serverLogic(getMeteringRangeLogic)),
     PekkoHttpServerInterpreter().toRoute(Endpoints.postMeteringUnsettled.serverLogic(postMeteringUnsettledLogic)),
     PekkoHttpServerInterpreter().toRoute(Endpoints.getMeteringEntities.serverLogic(getMeteringEntitiesLogic)),

@@ -45,11 +45,6 @@ type adminUserRow struct {
 	// user row's requested-at-signup role in the display for org users.
 	OrgAdvertiser bool
 	OrgPublisher  bool
-	// CanViewAs marks accounts the operator may open a read-only view-as
-	// session for: active ORG ADMINS only. An org admin's view is a superset
-	// of every member's, so nothing is lost — and no plain member gets an
-	// operator wearing their identity.
-	CanViewAs bool
 	// IsSelf hides the delete button on the signed-in operator's own row.
 	IsSelf bool
 }
@@ -264,7 +259,7 @@ func (h *Handler) renderAdminUsers(w http.ResponseWriter, r *http.Request, errMs
 	rows := make([]adminUserRow, 0, end-start)
 	for _, u := range users[start:end] {
 		count, _ := h.passkeySvc.Repo().CountByUser(r.Context(), u.ID)
-		m, inOrg := memberships[u.ID]
+		m := memberships[u.ID]
 		rows = append(rows, adminUserRow{
 			ID:      u.ID,
 			Email:   u.Email,
@@ -281,7 +276,6 @@ func (h *Handler) renderAdminUsers(w http.ResponseWriter, r *http.Request, errMs
 			OrgRole:       string(m.OrgRole),
 			OrgAdvertiser: m.HasAdvertiser,
 			OrgPublisher:  m.HasPublisher,
-			CanViewAs:     inOrg && u.Status == model.StatusActive && m.OrgRole == model.OrgRoleAdmin,
 			IsSelf:        u.ID == user.ID,
 		})
 	}
@@ -460,11 +454,12 @@ func (h *Handler) AdminResumeOrg(w http.ResponseWriter, r *http.Request) {
 	http.Redirect(w, r, "/admin/users", http.StatusSeeOther)
 }
 
-// AdminSetOrgTimezone sets the org's advertiser-account timezone (IANA;
-// "" = UTC): budget rollover and pacing follow the advertiser's day on the
-// core, and both sides' local billing days on the settler. Operator-only.
-// The core cascade
-// log-and-continues like suspend — re-saving is the retry.
+// AdminSetOrgTimezone sets the org's timezone (IANA; "" = UTC), the control
+// for every org (advertiser, publisher, or both): it drives both sides'
+// local billing/earnings days on the settler, and — for advertiser orgs —
+// budget rollover and pacing on the core. Operator-only. The advertiser
+// cascade is skipped for publisher-only orgs and log-and-continues like
+// suspend otherwise — re-saving is the retry.
 func (h *Handler) AdminSetOrgTimezone(w http.ResponseWriter, r *http.Request) {
 	admin, _, ok := h.requireRole(w, r, model.RoleAdmin)
 	if !ok {

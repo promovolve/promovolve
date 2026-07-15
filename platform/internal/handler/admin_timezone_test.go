@@ -33,11 +33,12 @@ func TestAdminUsersTemplateRenders(t *testing.T) {
 		Title: "Users", Nav: "admin-users", User: admin, Error: "an error banner",
 		Timezones: preferenceTimezones,
 		AdminOrgs: []orgAdminRow{
-			// Advertiser side present → the timezone select renders, with the
-			// org's (exotic) zone selected. Active admin → View-as button.
+			// Advertiser side present, exotic zone selected, active admin →
+			// View-as button.
 			{ID: "org-1", Domain: "adv.example.com", Name: "Adv Co",
 				HasAdvertiser: true, Timezone: "Asia/Tokyo", ViewAsUserID: "u1"},
-			// Publisher-only → static zone text ("UTC" when unset).
+			// Publisher-only orgs now also get the editable timezone select
+			// (the zone drives their earnings/billing day post-settlement).
 			{ID: "org-2", Domain: "pub.example.com", Name: "Pub Co", HasPublisher: true},
 			{ID: "org-3", Domain: "gone.example.com", Suspended: true,
 				SuspendReason: "invoices unpaid", SuspendedBy: "admin@test", SuspendedAt: "2026-07-14"},
@@ -45,7 +46,7 @@ func TestAdminUsersTemplateRenders(t *testing.T) {
 		AdminUsers: []adminUserRow{{
 			ID: "u1", Email: "adv@adv.example.com", Display: "Adv Admin", Role: "user",
 			Status: "active", OrgDomain: "adv.example.com", OrgRole: "admin",
-			OrgAdvertiser: true, CanViewAs: true,
+			OrgAdvertiser: true,
 		}},
 	}
 	if err := getPage("admin/users.html").ExecuteTemplate(io.Discard, "layout", data); err != nil {

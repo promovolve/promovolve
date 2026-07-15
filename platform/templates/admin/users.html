@@ -50,9 +50,8 @@
             {{if .HasPublisher}}<span class="badge bg-purple-100 text-purple-700">publisher</span>{{end}}
           </td>
           <td class="px-4 py-2 whitespace-nowrap">
-            {{if .HasAdvertiser}}
             <form method="POST" action="/admin/orgs/timezone" class="flex items-center gap-2"
-                  onsubmit="return confirm('Change the budget timezone for {{.Domain}}? The budget day shifts; the change day gets a shortened or extended budget window.')">
+                  onsubmit="return confirm('Change the timezone for {{.Domain}}? Budget, billing and earnings days roll at the new zone midnight from now on; the change day is one shortened or extended window, booked once.')">
               <input type="hidden" name="orgId" value="{{.ID}}">
               {{$tz := .Timezone}}
               <select name="timezone" class="form-input text-xs">
@@ -61,9 +60,6 @@
               </select>
               <button type="submit" class="btn btn-secondary btn-sm">Save</button>
             </form>
-            {{else}}
-            <span class="text-gray-400">{{if .Timezone}}{{.Timezone}}{{else}}UTC{{end}}</span>
-            {{end}}
           </td>
           <td class="px-4 py-2">
             {{if .Suspended}}
@@ -166,12 +162,6 @@
           <td class="px-4 py-3">{{.Passkeys}}</td>
           <td class="px-4 py-3 text-gray-400">{{.CreatedAt}}</td>
           <td class="px-4 py-3 text-right whitespace-nowrap">
-            {{if .CanViewAs}}
-            <form method="POST" action="/admin/view-as" class="inline">
-              <input type="hidden" name="userId" value="{{.ID}}">
-              <button type="submit" class="btn btn-secondary btn-sm" title="Open a read-only session as this user">View as</button>
-            </form>
-            {{end}}
             {{if eq .Status "active"}}
             <form method="POST" action="/admin/users/recovery-link" class="inline"
               onsubmit="return confirm('Issue a one-time passkey recovery link for {{.Email}}?')">

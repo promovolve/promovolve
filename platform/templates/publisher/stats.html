@@ -1,7 +1,10 @@
 {{define "content"}}
 <!-- Header -->
 <div class="flex items-center justify-between mb-6">
-  <h1 class="page-title">Site Statistics</h1>
+  <div>
+    <h1 class="page-title">Site Statistics</h1>
+    <p class="page-sub">"Today" is the UTC day (resets 00:00 UTC), matching settlement and your payout statements</p>
+  </div>
   {{if .Sites}}
   <form method="GET" action="/publisher/stats">
     <select name="siteId" onchange="this.form.submit()" class="px-3 py-2 border rounded-md text-sm">

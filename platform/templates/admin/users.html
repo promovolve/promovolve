@@ -17,11 +17,7 @@
   {{if or .AdminOrgs .AdminOrgsQ}}
   <div class="card mt-6">
     <div class="flex items-end justify-between gap-4">
-      <div>
-        <h2 class="font-semibold text-lg">Organizations</h2>
-        <p class="text-xs text-gray-400 mt-1">Suspending a company keeps logins working but replaces the dashboard with a notice showing your reason, and freezes serving and billing on both sides. Reversible.</p>
-        <p class="text-xs text-gray-400 mt-1">Timezone sets the org's budget day AND both sides' billing/earnings days. Changing it shifts those days; the change day gets one shortened or extended window, booked exactly once.</p>
-      </div>
+      <h2 class="font-semibold text-lg">Organizations</h2>
       <form method="GET" action="/admin/users" class="flex items-center gap-2 shrink-0">
         <input name="orgQ" value="{{.AdminOrgsQ}}" class="form-input w-56 text-sm" placeholder="domain, name, or reason">
         <button type="submit" class="btn btn-secondary btn-sm">Search</button>

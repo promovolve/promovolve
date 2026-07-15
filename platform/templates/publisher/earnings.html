@@ -1,7 +1,7 @@
 {{define "content"}}
 <div class="max-w-4xl">
   <h1 class="page-title">Earnings</h1>
-  <p class="page-sub">Settled earnings and payouts — all days are UTC, matching your payout statements. The Stats page shows today's live revenue; the balance here is what has been settled and is owed to you.</p>
+  <p class="page-sub">Settled earnings and payouts — days and payout periods follow your organization's timezone{{with .Earnings}}{{if .Timezone}} ({{.Timezone}}){{end}}{{end}}. The Stats page shows today's live revenue; the balance here is what has been settled and is owed to you.</p>
 
   {{with .Earnings}}
 

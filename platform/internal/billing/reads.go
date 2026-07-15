@@ -12,35 +12,80 @@ import (
 	"github.com/jackc/pgx/v5"
 )
 
-// SettlementDay is one row of the settlement health journal.
-type SettlementDay struct {
-	Day         time.Time
+// SettlementCursorHealth is one entity's settlement cursor as shown on the
+// admin health panel. Behind means the entity's next window has been final
+// for a while (past the lag plus a grace tick) yet remains unsettled — the
+// job is stuck or erroring for this entity.
+type SettlementCursorHealth struct {
+	OwnerType    OwnerType
+	OwnerID      string
+	SettledUntil time.Time
+	Timezone     string
+	UpdatedAt    time.Time
+	Behind       bool
+}
+
+// SettlementWindowRow is one row of the settled-window journal.
+type SettlementWindowRow struct {
+	OwnerType   OwnerType
+	OwnerID     string
+	WindowFrom  time.Time
+	WindowTo    time.Time
+	LocalDate   time.Time
+	Timezone    string
 	RowsSettled int
 	RowsSkipped int
 	GrossMicros int64
 	SettledAt   time.Time
 }
 
-// SettlementHealth returns the most recent settled days, newest first —
-// the admin dashboard's settlement-health panel. Empty means the job has
-// never completed a day (fresh install).
-func (s *Service) SettlementHealth(ctx context.Context, limit int) ([]SettlementDay, error) {
+// SettlementCursors returns every entity's settlement cursor with its
+// freshness flag — the admin dashboard's settlement-health panel. Empty
+// means the job has never seen billable traffic (fresh install).
+func (s *Service) SettlementCursors(ctx context.Context) ([]SettlementCursorHealth, error) {
 	rows, err := s.pool.Query(ctx, `
-		SELECT day, rows_settled, rows_skipped, gross_micros, settled_at
-		FROM billing_settlement_days ORDER BY day DESC LIMIT $1`,
+		SELECT owner_type, owner_id, settled_until, timezone, updated_at
+		FROM settlement_cursors ORDER BY settled_until ASC, owner_type, owner_id`,
+	)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	now := time.Now()
+	var out []SettlementCursorHealth
+	for rows.Next() {
+		var c SettlementCursorHealth
+		if err := rows.Scan(&c.OwnerType, &c.OwnerID, &c.SettledUntil, &c.Timezone, &c.UpdatedAt); err != nil {
+			return nil, err
+		}
+		due := nextMidnightAfter(c.SettledUntil, loadZone(c.Timezone)).Add(settleFinalityLag + 2*time.Hour)
+		c.Behind = due.Before(now)
+		out = append(out, c)
+	}
+	return out, rows.Err()
+}
+
+// RecentSettlementWindows returns the latest settled windows, newest
+// first — the journal half of the health panel.
+func (s *Service) RecentSettlementWindows(ctx context.Context, limit int) ([]SettlementWindowRow, error) {
+	rows, err := s.pool.Query(ctx, `
+		SELECT owner_type, owner_id, window_from, window_to, local_date, timezone,
+		       rows_settled, rows_skipped, gross_micros, settled_at
+		FROM settlement_windows ORDER BY settled_at DESC, window_from DESC LIMIT $1`,
 		limit,
 	)
 	if err != nil {
 		return nil, err
 	}
 	defer rows.Close()
-	var out []SettlementDay
+	var out []SettlementWindowRow
 	for rows.Next() {
-		var d SettlementDay
-		if err := rows.Scan(&d.Day, &d.RowsSettled, &d.RowsSkipped, &d.GrossMicros, &d.SettledAt); err != nil {
+		var w SettlementWindowRow
+		if err := rows.Scan(&w.OwnerType, &w.OwnerID, &w.WindowFrom, &w.WindowTo, &w.LocalDate,
+			&w.Timezone, &w.RowsSettled, &w.RowsSkipped, &w.GrossMicros, &w.SettledAt); err != nil {
 			return nil, err
 		}
-		out = append(out, d)
+		out = append(out, w)
 	}
 	return out, rows.Err()
 }
@@ -203,26 +248,32 @@ type MonthlySpendRow struct {
 	NetMicros   int64
 }
 
-// MonthlySettled returns per-month totals from daily_settlements for either
-// side (advertiser: what they were charged; publisher: what they earned).
+// MonthlySettled returns per-month totals for either side, grouped by the
+// entity's LOCAL months (local_date is the settlement window's local-day
+// label, so calendar months nest cleanly in the entity's own zone).
+// Advertiser months carry gross only — the margin split happens on the
+// publisher side under local-day settlement.
 func (s *Service) MonthlySettled(ctx context.Context, ownerType OwnerType, ownerID string, months int) ([]MonthlySpendRow, error) {
-	var col string
+	var q string
 	switch ownerType {
 	case OwnerAdvertiser:
-		col = "advertiser_id"
+		q = `
+			SELECT to_char(local_date, 'YYYY-MM') AS month,
+			       COALESCE(SUM(impressions), 0), COALESCE(SUM(gross_micros), 0),
+			       0::bigint, 0::bigint
+			FROM advertiser_settlements WHERE advertiser_id = $1
+			GROUP BY month ORDER BY month DESC LIMIT $2`
 	case OwnerPublisher:
-		col = "publisher_id"
+		q = `
+			SELECT to_char(local_date, 'YYYY-MM') AS month,
+			       COALESCE(SUM(impressions), 0), COALESCE(SUM(gross_micros), 0),
+			       COALESCE(SUM(fee_micros), 0), COALESCE(SUM(net_micros), 0)
+			FROM publisher_settlements WHERE publisher_id = $1
+			GROUP BY month ORDER BY month DESC LIMIT $2`
 	default:
 		return nil, errors.New("billing: monthly totals are per advertiser or publisher")
 	}
-	rows, err := s.pool.Query(ctx, `
-		SELECT to_char(day, 'YYYY-MM') AS month,
-		       COALESCE(SUM(impressions), 0), COALESCE(SUM(gross_micros), 0),
-		       COALESCE(SUM(fee_micros), 0), COALESCE(SUM(net_micros), 0)
-		FROM daily_settlements WHERE `+col+` = $1
-		GROUP BY month ORDER BY month DESC LIMIT $2`,
-		ownerID, months,
-	)
+	rows, err := s.pool.Query(ctx, q, ownerID, months)
 	if err != nil {
 		return nil, err
 	}
@@ -290,7 +341,8 @@ func (s *Service) UpsertPayoutMethod(ctx context.Context, m PayoutMethod) error 
 
 // PayoutPeriodStart picks the informational period_start for a new payout:
 // the day after the last non-cancelled payout's period_end, else the
-// publisher's earliest settled day. ok is false when neither exists.
+// publisher's earliest settled local day. ok is false when neither exists.
+// Periods are publisher-local days, matching the earnings statement.
 func (s *Service) PayoutPeriodStart(ctx context.Context, publisherID string) (time.Time, bool, error) {
 	var last *time.Time
 	err := s.pool.QueryRow(ctx, `
@@ -306,7 +358,7 @@ func (s *Service) PayoutPeriodStart(ctx context.Context, publisherID string) (ti
 	}
 	var first *time.Time
 	err = s.pool.QueryRow(ctx,
-		`SELECT MIN(day) FROM daily_settlements WHERE publisher_id = $1`,
+		`SELECT MIN(local_date) FROM publisher_settlements WHERE publisher_id = $1`,
 		publisherID,
 	).Scan(&first)
 	if err != nil {

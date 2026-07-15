@@ -452,10 +452,10 @@ func (h *Handler) PublisherStats(w http.ResponseWriter, r *http.Request) {
 		}
 		if json.Unmarshal(statsBody, &s) == nil {
 			// Both Impressions and Revenue come from the /revenue-today
-			// endpoint (tracking_events, since UTC midnight). This keeps
-			// the two tiles consistent — same source, same window, same
-			// reset boundary — so the publisher dashboard matches what
-			// the advertiser dashboard's Today's Spend shows.
+			// endpoint (tracking_events, since the publisher org's local
+			// midnight — matching the local-day earnings statements). This
+			// keeps the two tiles consistent — same source, same window,
+			// same reset boundary.
 			//
 			// Requests counter stays from in-memory serveStats because
 			// `tracking_events` doesn't log no-candidate batches. Fill
@@ -465,7 +465,11 @@ func (h *Handler) PublisherStats(w http.ResponseWriter, r *http.Request) {
 			// scope-mismatch is honest.
 			impressions := s.Selected
 			gross := s.TotalSpend
-			revBody, _ := h.coreGet(fmt.Sprintf("/v1/publishers/me/sites/%s/revenue-today", siteID), claims)
+			revURL := fmt.Sprintf("/v1/publishers/me/sites/%s/revenue-today", siteID)
+			if tz, err := h.orgRepo.TimezoneByEntity(r.Context(), claims.PublisherID); err == nil && tz != "" {
+				revURL += "?tz=" + url.QueryEscape(tz)
+			}
+			revBody, _ := h.coreGet(revURL, claims)
 			var revResp struct {
 				Revenue     string `json:"revenue"`
 				Impressions int64  `json:"impressions"`

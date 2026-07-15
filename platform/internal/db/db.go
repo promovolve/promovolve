@@ -149,10 +149,12 @@ func Migrate(pool *pgxpool.Pool) error {
 		-- Billing & settlement (docs/design/BILLING.md). Amounts are BIGINT
 		-- micro-dollars (1000000 = $1) so ledger arithmetic stays exact.
 
-		-- One account per advertiser wallet / publisher payable, plus the two
-		-- platform singletons ('cash', 'revenue'). balance_micros is
-		-- materialized from ledger_entries inside the same transaction; the
-		-- entries are authoritative (see billing.Reconcile).
+		-- One account per advertiser wallet / publisher payable, plus the three
+		-- platform singletons ('cash', 'revenue', 'clearing' — settlement gross
+		-- in transit between the advertiser's local billing day and the
+		-- publisher's). balance_micros is materialized from ledger_entries
+		-- inside the same transaction; the entries are authoritative (see
+		-- billing.Reconcile).
 		CREATE TABLE IF NOT EXISTS billing_accounts (
 			id             UUID PRIMARY KEY DEFAULT gen_random_uuid(),
 			owner_type     TEXT NOT NULL CHECK (owner_type IN ('advertiser', 'publisher', 'platform')),
@@ -185,17 +187,94 @@ func Migrate(pool *pgxpool.Pool) error {
 		CREATE INDEX IF NOT EXISTS idx_ledger_entries_txn ON ledger_entries(txn_id);
 		CREATE INDEX IF NOT EXISTS idx_ledger_entries_account ON ledger_entries(account_id);
 
-		-- Durable per-day billable record, populated by the settlement job from
-		-- the core metering endpoint before tracking_events' 30-day retention
-		-- can drop the data. margin_bps snapshots the rate applied that day so
-		-- later margin changes never reprice settled history.
-		CREATE TABLE IF NOT EXISTS daily_settlements (
+		-- Local-day settlement (docs/design/BILLING.md): every entity settles
+		-- on ITS OWN local days via instant-chained windows, so the old single
+		-- 3-leg settlement transaction splits into two independent one-sided
+		-- settlements meeting at the platform 'clearing' account. The UTC-day
+		-- predecessors (daily_settlements, billing_settlement_days) were
+		-- dropped 2026-07 with the ledger reset — historical demo data was
+		-- declared disposable, so there is no dual-format migration.
+		DROP TABLE IF EXISTS daily_settlements;
+		DROP TABLE IF EXISTS billing_settlement_days;
+
+		-- Per-entity settlement cursor: everything before settled_until is
+		-- booked. Windows chain on instants ([settled_until, next local
+		-- midnight)), so coverage is gapless and overlap-free by construction;
+		-- a timezone change moves only future boundaries (one short/long
+		-- window, booked exactly once) and DST needs no special-casing.
+		CREATE TABLE IF NOT EXISTS settlement_cursors (
+			owner_type    TEXT NOT NULL CHECK (owner_type IN ('advertiser', 'publisher')),
+			owner_id      TEXT NOT NULL,
+			settled_until TIMESTAMPTZ NOT NULL,
+			timezone      TEXT NOT NULL DEFAULT '',
+			updated_at    TIMESTAMPTZ NOT NULL DEFAULT NOW(),
+			PRIMARY KEY (owner_type, owner_id)
+		);
+
+		-- Settled-window journal: health panel + the retro re-settle list.
+		-- Retro passes MUST replay these recorded windows (never recompute
+		-- boundaries from the current zone — after a zone change that would
+		-- book the same events twice under different idempotency keys). A row
+		-- is written only after every cell of the window posted, so a crash
+		-- mid-window retries and dedupes. Empty windows are recorded too.
+		-- rows_skipped counts metering cells with no publisher mapping
+		-- (alerted, unbilled on BOTH sides until the mapping exists).
+		CREATE TABLE IF NOT EXISTS settlement_windows (
+			id           UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+			owner_type   TEXT NOT NULL CHECK (owner_type IN ('advertiser', 'publisher')),
+			owner_id     TEXT NOT NULL,
+			window_from  TIMESTAMPTZ NOT NULL,
+			window_to    TIMESTAMPTZ NOT NULL,
+			local_date   DATE NOT NULL,
+			timezone     TEXT NOT NULL DEFAULT '',
+			rows_settled INTEGER NOT NULL,
+			rows_skipped INTEGER NOT NULL DEFAULT 0,
+			gross_micros BIGINT NOT NULL,
+			settled_at   TIMESTAMPTZ NOT NULL DEFAULT NOW(),
+			UNIQUE (owner_type, owner_id, window_from)
+		);
+		CREATE INDEX IF NOT EXISTS idx_settlement_windows_recent
+			ON settlement_windows(owner_type, owner_id, window_to DESC);
+
+		-- Advertiser-side settlement cells: the wallet is debited gross for
+		-- the advertiser's local-day window; the gross parks in 'clearing'
+		-- until the publisher's own window books it. local_date is a LABEL
+		-- (the window's local day in the timezone column) — uniqueness rides
+		-- on window_from, because a zone change can give two windows the same
+		-- label. publisher_id is carried for lineage/alerting only.
+		CREATE TABLE IF NOT EXISTS advertiser_settlements (
 			id            UUID PRIMARY KEY DEFAULT gen_random_uuid(),
-			day           DATE NOT NULL,
 			advertiser_id TEXT NOT NULL,
 			campaign_id   TEXT NOT NULL,
 			site_id       TEXT NOT NULL,
+			publisher_id  TEXT NOT NULL DEFAULT '',
+			window_from   TIMESTAMPTZ NOT NULL,
+			window_to     TIMESTAMPTZ NOT NULL,
+			local_date    DATE NOT NULL,
+			timezone      TEXT NOT NULL DEFAULT '',
+			impressions   BIGINT NOT NULL,
+			gross_micros  BIGINT NOT NULL,
+			txn_id        UUID REFERENCES ledger_transactions(id),
+			created_at    TIMESTAMPTZ NOT NULL DEFAULT NOW(),
+			UNIQUE (advertiser_id, window_from, campaign_id, site_id)
+		);
+		CREATE INDEX IF NOT EXISTS idx_advertiser_settlements_day
+			ON advertiser_settlements(advertiser_id, local_date DESC);
+
+		-- Publisher-side settlement cells: 'clearing' drains gross; the
+		-- publisher is credited net and the platform books the fee.
+		-- margin_bps snapshots the rate applied (effective at window end) so
+		-- later margin changes never reprice settled history.
+		CREATE TABLE IF NOT EXISTS publisher_settlements (
+			id            UUID PRIMARY KEY DEFAULT gen_random_uuid(),
 			publisher_id  TEXT NOT NULL,
+			site_id       TEXT NOT NULL,
+			campaign_id   TEXT NOT NULL,
+			advertiser_id TEXT NOT NULL,
+			window_from   TIMESTAMPTZ NOT NULL,
+			window_to     TIMESTAMPTZ NOT NULL,
+			local_date    DATE NOT NULL,
+			timezone      TEXT NOT NULL DEFAULT '',
 			impressions   BIGINT NOT NULL,
 			gross_micros  BIGINT NOT NULL,
 			margin_bps    INTEGER NOT NULL,
@@ -203,10 +282,10 @@ func Migrate(pool *pgxpool.Pool) error {
 			net_micros    BIGINT NOT NULL,
 			txn_id        UUID REFERENCES ledger_transactions(id),
 			created_at    TIMESTAMPTZ NOT NULL DEFAULT NOW(),
-			UNIQUE (day, advertiser_id, campaign_id, site_id)
+			UNIQUE (publisher_id, window_from, site_id, campaign_id, advertiser_id)
 		);
-		CREATE INDEX IF NOT EXISTS idx_daily_settlements_advertiser ON daily_settlements(advertiser_id, day DESC);
-		CREATE INDEX IF NOT EXISTS idx_daily_settlements_publisher ON daily_settlements(publisher_id, day DESC);
+		CREATE INDEX IF NOT EXISTS idx_publisher_settlements_day
+			ON publisher_settlements(publisher_id, local_date DESC);
 
 		-- Payout lifecycle: created (ledger already moved payable -> cash),
 		-- then paid once the operator sends the transfer, or cancelled via a
@@ -234,17 +313,6 @@ func Migrate(pool *pgxpool.Pool) error {
 			value      TEXT NOT NULL,
 			updated_by UUID REFERENCES platform_users(id),
 			updated_at TIMESTAMPTZ NOT NULL DEFAULT NOW()
-		);
-
-		-- Settlement job checkpoint + health journal: one row per fully
-		-- settled UTC day. MAX(day) is the catch-up cursor; rows_skipped
-		-- counts metering rows with no publisher mapping (alerted, unbilled).
-		CREATE TABLE IF NOT EXISTS billing_settlement_days (
-			day          DATE PRIMARY KEY,
-			rows_settled INTEGER NOT NULL,
-			rows_skipped INTEGER NOT NULL,
-			gross_micros BIGINT NOT NULL,
-			settled_at   TIMESTAMPTZ NOT NULL DEFAULT NOW()
 		);
 
 		-- Free-form per-operator payout details (bank fields differ per
@@ -308,9 +376,10 @@ func Migrate(pool *pgxpool.Pool) error {
 		ALTER TABLE orgs ADD COLUMN IF NOT EXISTS suspend_reason TEXT NOT NULL DEFAULT '';
 		ALTER TABLE orgs ADD COLUMN IF NOT EXISTS suspended_at TIMESTAMPTZ;
 		ALTER TABLE orgs ADD COLUMN IF NOT EXISTS suspended_by TEXT NOT NULL DEFAULT '';
-		-- Advertiser account timezone (IANA); '' = UTC. Drives budget rollover
-		-- + pacing day on the core, NOT billing (settlement stays UTC).
-		-- Operator-changeable only.
+		-- Org timezone (IANA); '' = UTC. Drives budget rollover + pacing day
+		-- on the core AND both sides' local billing days (the settler reads it
+		-- for advertiser and publisher settlement windows alike — budget day
+		-- == billing day). Operator-changeable only.
 		ALTER TABLE orgs ADD COLUMN IF NOT EXISTS timezone TEXT NOT NULL DEFAULT '';
 
 		-- Org membership: each user belongs to at most one org. org_role is the

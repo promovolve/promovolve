@@ -3,7 +3,7 @@
 <div class="flex items-center justify-between mb-6">
   <div>
     <h1 class="page-title">Site Statistics</h1>
-    <p class="page-sub">"Today" is the UTC day (resets 00:00 UTC), matching settlement and your payout statements</p>
+    <p class="page-sub">"Today" is your organization's local day, matching settlement and your payout statements</p>
   </div>
   {{if .Sites}}
   <form method="GET" action="/publisher/stats">
@@ -22,10 +22,10 @@
   <p class="text-sm mt-2">Stats will appear once ads start serving on your site</p>
 </div>
 {{else}}
-<!-- Headline metrics — all three share the same persistent, UTC-midnight
+<!-- Headline metrics — all three share the same persistent local-midnight
      window (tracking_events), so they always reconcile with each other. -->
 <div class="grid grid-cols-3 gap-6 mb-4">
-  <div class="bg-white p-6 rounded-lg border" title="Impressions served on this site since UTC midnight today. Sourced from tracking_events.">
+  <div class="bg-white p-6 rounded-lg border" title="Impressions served on this site since midnight of your organization's timezone. Sourced from tracking_events.">
     <p class="text-sm text-gray-500">Impressions Today</p>
     <p class="text-3xl font-semibold mt-2">{{.Stats.Impressions}}</p>
   </div>
@@ -33,7 +33,7 @@
     <p class="text-sm text-gray-500">eCPM</p>
     <p class="text-3xl font-semibold mt-2">{{if .Stats.ECPM}}${{.Stats.ECPM}}{{else}}&mdash;{{end}}</p>
   </div>
-  <div class="bg-white p-6 rounded-lg border" title="Your net earnings today after the platform fee. Sourced from tracking_events. Resets at UTC midnight. Advertiser-side Today's Spend shows the gross amount.">
+  <div class="bg-white p-6 rounded-lg border" title="Your net earnings today after the platform fee. Sourced from tracking_events. Resets at midnight of your organization's timezone. Advertiser-side Today's Spend shows the gross amount.">
     <p class="text-sm text-gray-500">Revenue Today</p>
     <p class="text-3xl font-semibold mt-2">${{.Stats.Revenue}}</p>
     {{if .Stats.FeePct}}

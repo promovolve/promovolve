@@ -1,7 +1,7 @@
 {{define "content"}}
 <div class="max-w-4xl">
   <h1 class="page-title">Wallet</h1>
-  <p class="page-sub">Your prepaid balance. Campaigns spend from it as impressions are settled each day (UTC).</p>
+  <p class="page-sub">Your prepaid balance. Campaigns spend from it as impressions are settled at the end of each day in your account's timezone{{with .Wallet}}{{if .Timezone}} ({{.Timezone}}){{end}}{{end}} — the same day your budgets roll on.</p>
 
   {{with .Wallet}}
 
@@ -21,7 +21,7 @@
     <div class="bg-white p-6 rounded-lg border">
       <p class="text-sm text-gray-500">Balance</p>
       <p class="text-3xl font-semibold mt-2 {{if .Suspended}}text-red-600{{end}}">{{.Balance}}</p>
-      <p class="text-xs text-gray-400 mt-1">settled through yesterday — today's delivery is not yet charged</p>
+      <p class="text-xs text-gray-400 mt-1">settled through your last completed day — today's delivery is not yet charged</p>
     </div>
   </div>
 
@@ -80,7 +80,7 @@
   <!-- Daily statement -->
   <div class="card mt-6 p-0 overflow-x-auto">
     <h2 class="font-semibold text-lg px-6 pt-6">Recent daily charges</h2>
-    <p class="text-sm text-gray-500 px-6 mt-1">One line per campaign per site per UTC day, settled the following morning.</p>
+    <p class="text-sm text-gray-500 px-6 mt-1">One line per campaign per site per day{{if .Timezone}} in your account's timezone ({{.Timezone}}){{end}}, settled shortly after your local midnight.</p>
     <table class="w-full text-sm mt-3">
       <thead>
         <tr class="border-b text-left text-gray-400">

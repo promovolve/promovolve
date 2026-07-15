@@ -247,16 +247,43 @@ func (s *Service) RecordTopup(ctx context.Context, p TopupParams) (TopupResult, 
 
 // ---------------------------------------------------------------------------
 // Settlements
+//
+// Every entity settles on its own local days, so the advertiser and
+// publisher sides of the same events book at different times into different
+// windows. The two one-sided postings below meet at the platform clearing
+// account; because metering returns per-event integer micros, the two
+// sides' totals over any range settled by both are identical and clearing
+// nets to exactly zero.
 
-type SettlementParams struct {
-	Day          time.Time // UTC day being settled
+// SettlementWindow identifies one entity-local settlement window. LocalDate
+// is the display label (the window's local day in Timezone); From is the
+// idempotency anchor.
+type SettlementWindow struct {
+	From      time.Time
+	To        time.Time
+	LocalDate time.Time
+	Timezone  string
+}
+
+type AdvSettlementParams struct {
+	Window       SettlementWindow
 	AdvertiserID string
 	CampaignID   string
 	SiteID       string
-	PublisherID  string
+	PublisherID  string // lineage/alerting only; may be empty (unmapped site cells are the CALLER's skip decision)
 	Impressions  int64
 	GrossMicros  int64
-	MarginBps    int // snapshot of the rate effective on Day
+}
+
+type PubSettlementParams struct {
+	Window       SettlementWindow
+	PublisherID  string
+	SiteID       string
+	CampaignID   string
+	AdvertiserID string
+	Impressions  int64
+	GrossMicros  int64
+	MarginBps    int // snapshot of the rate effective at window end
 }
 
 type SettlementResult struct {
@@ -267,11 +294,64 @@ type SettlementResult struct {
 	Wallet    Account
 }
 
-// RecordSettlement books one metered (day, advertiser, campaign, site) cell:
-// wallet is charged gross, the publisher accrues net, the platform captures
-// the fee, and the durable daily_settlements row snapshots the applied
-// margin. Idempotent per cell — the settlement job can re-run a day freely.
-func (s *Service) RecordSettlement(ctx context.Context, p SettlementParams) (SettlementResult, error) {
+// RecordAdvertiserSettlement books the advertiser side of one metered
+// (campaign, site) cell for the advertiser's local-day window: the wallet
+// is charged gross and the gross parks in clearing until the publisher's
+// own window drains it. Idempotent per (advertiser, window start, cell).
+func (s *Service) RecordAdvertiserSettlement(ctx context.Context, p AdvSettlementParams) (SettlementResult, error) {
+	if p.GrossMicros <= 0 {
+		return SettlementResult{}, errors.New("billing: settlement gross must be positive (skip zero cells)")
+	}
+	tx, err := s.pool.Begin(ctx)
+	if err != nil {
+		return SettlementResult{}, err
+	}
+	defer tx.Rollback(ctx)
+
+	legs := []Leg{
+		{OwnerType: OwnerAdvertiser, OwnerID: p.AdvertiserID, AmountMicros: p.GrossMicros},
+		{OwnerType: OwnerPlatform, OwnerID: PlatformClearing, AmountMicros: -p.GrossMicros},
+	}
+	memo := fmt.Sprintf("settlement %s campaign %s on site %s",
+		p.Window.LocalDate.Format("2006-01-02"), p.CampaignID, p.SiteID)
+	key := AdvSettlementKey(p.AdvertiserID, p.Window.From, p.CampaignID, p.SiteID)
+	res, err := post(ctx, tx, TxnSettlement, key, memo, nil, legs)
+	if err != nil {
+		return SettlementResult{}, err
+	}
+	if res.Duplicate {
+		return SettlementResult{TxnID: res.TxnID, Duplicate: true}, nil
+	}
+
+	if _, err := tx.Exec(ctx, `
+		INSERT INTO advertiser_settlements
+			(advertiser_id, campaign_id, site_id, publisher_id,
+			 window_from, window_to, local_date, timezone,
+			 impressions, gross_micros, txn_id)
+		VALUES ($1, $2, $3, $4, $5, $6, $7::date, $8, $9, $10, $11)`,
+		p.AdvertiserID, p.CampaignID, p.SiteID, p.PublisherID,
+		p.Window.From, p.Window.To, p.Window.LocalDate.Format("2006-01-02"), p.Window.Timezone,
+		p.Impressions, p.GrossMicros, res.TxnID,
+	); err != nil {
+		return SettlementResult{}, err
+	}
+
+	out := SettlementResult{
+		TxnID:  res.TxnID,
+		Wallet: res.Accounts[accountKey(OwnerAdvertiser, p.AdvertiserID)],
+	}
+	return out, tx.Commit(ctx)
+}
+
+// RecordPublisherSettlement books the publisher side of one metered
+// (site, campaign, advertiser) cell for the publisher's local-day window:
+// clearing drains gross, the publisher accrues net, the platform captures
+// the fee, and the durable publisher_settlements row snapshots the applied
+// margin. Idempotent per (publisher, window start, cell). Zero legs are
+// dropped — at extreme margins net or fee can round to zero, and a zero
+// leg would fail validation (the old combined RecordSettlement had this
+// latent net==0 bug).
+func (s *Service) RecordPublisherSettlement(ctx context.Context, p PubSettlementParams) (SettlementResult, error) {
 	if p.GrossMicros <= 0 {
 		return SettlementResult{}, errors.New("billing: settlement gross must be positive (skip zero cells)")
 	}
@@ -279,7 +359,7 @@ func (s *Service) RecordSettlement(ctx context.Context, p SettlementParams) (Set
 		return SettlementResult{}, errors.New("billing: margin out of range")
 	}
 	if p.PublisherID == "" {
-		return SettlementResult{}, errors.New("billing: settlement requires a publisher id")
+		return SettlementResult{}, errors.New("billing: publisher settlement requires a publisher id")
 	}
 	net, fee := SplitFee(p.GrossMicros, p.MarginBps)
 
@@ -290,16 +370,18 @@ func (s *Service) RecordSettlement(ctx context.Context, p SettlementParams) (Set
 	defer tx.Rollback(ctx)
 
 	legs := []Leg{
-		{OwnerType: OwnerAdvertiser, OwnerID: p.AdvertiserID, AmountMicros: p.GrossMicros},
-		{OwnerType: OwnerPublisher, OwnerID: p.PublisherID, AmountMicros: -net},
+		{OwnerType: OwnerPlatform, OwnerID: PlatformClearing, AmountMicros: p.GrossMicros},
 	}
-	// A zero margin produces no fee leg (legs must be non-zero).
+	if net > 0 {
+		legs = append(legs, Leg{OwnerType: OwnerPublisher, OwnerID: p.PublisherID, AmountMicros: -net})
+	}
 	if fee > 0 {
 		legs = append(legs, Leg{OwnerType: OwnerPlatform, OwnerID: PlatformRevenue, AmountMicros: -fee})
 	}
-	day := p.Day.UTC().Format("2006-01-02")
-	memo := fmt.Sprintf("settlement %s campaign %s on site %s", day, p.CampaignID, p.SiteID)
-	res, err := post(ctx, tx, TxnSettlement, SettlementKey(p.Day, p.AdvertiserID, p.CampaignID, p.SiteID), memo, nil, legs)
+	memo := fmt.Sprintf("earnings %s campaign %s on site %s",
+		p.Window.LocalDate.Format("2006-01-02"), p.CampaignID, p.SiteID)
+	key := PubSettlementKey(p.PublisherID, p.Window.From, p.SiteID, p.CampaignID, p.AdvertiserID)
+	res, err := post(ctx, tx, TxnSettlement, key, memo, nil, legs)
 	if err != nil {
 		return SettlementResult{}, err
 	}
@@ -308,23 +390,19 @@ func (s *Service) RecordSettlement(ctx context.Context, p SettlementParams) (Set
 	}
 
 	if _, err := tx.Exec(ctx, `
-		INSERT INTO daily_settlements
-			(day, advertiser_id, campaign_id, site_id, publisher_id,
+		INSERT INTO publisher_settlements
+			(publisher_id, site_id, campaign_id, advertiser_id,
+			 window_from, window_to, local_date, timezone,
 			 impressions, gross_micros, margin_bps, fee_micros, net_micros, txn_id)
-		VALUES ($1::date, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11)`,
-		day, p.AdvertiserID, p.CampaignID, p.SiteID, p.PublisherID,
+		VALUES ($1, $2, $3, $4, $5, $6, $7::date, $8, $9, $10, $11, $12, $13, $14)`,
+		p.PublisherID, p.SiteID, p.CampaignID, p.AdvertiserID,
+		p.Window.From, p.Window.To, p.Window.LocalDate.Format("2006-01-02"), p.Window.Timezone,
 		p.Impressions, p.GrossMicros, p.MarginBps, fee, net, res.TxnID,
 	); err != nil {
 		return SettlementResult{}, err
 	}
 
-	out := SettlementResult{
-		TxnID:     res.TxnID,
-		FeeMicros: fee,
-		NetMicros: net,
-		Wallet:    res.Accounts[accountKey(OwnerAdvertiser, p.AdvertiserID)],
-	}
-	return out, tx.Commit(ctx)
+	return SettlementResult{TxnID: res.TxnID, FeeMicros: fee, NetMicros: net}, tx.Commit(ctx)
 }
 
 // ---------------------------------------------------------------------------
@@ -541,6 +619,11 @@ type Reconciliation struct {
 	WalletsMicros int64 // Σ advertiser wallet balances
 	PayableMicros int64 // Σ publisher payables
 	RevenueMicros int64
+	// ClearingMicros is settlement gross in transit between advertiser and
+	// publisher local billing days. Nonzero is normal while windows are out
+	// of phase; a balance that never drains means unmapped traffic awaiting
+	// an operator fix.
+	ClearingMicros int64
 	// EntrySumMicros is the raw sum of every ledger entry; double-entry
 	// means it must be zero.
 	EntrySumMicros int64
@@ -559,8 +642,9 @@ type AccountDrift struct {
 
 // Reconcile verifies the books: entries sum to zero, every materialized
 // balance matches its entries, and returns the totals behind the identity
-// cash = wallets + payables + revenue (which zero-sum entries guarantee
-// whenever OK is true). This is the admin dashboard's green/red check.
+// cash = wallets + payables + revenue + clearing (which zero-sum entries
+// guarantee whenever OK is true). This is the admin dashboard's green/red
+// check.
 func (s *Service) Reconcile(ctx context.Context) (Reconciliation, error) {
 	var r Reconciliation
 	if err := s.pool.QueryRow(ctx,
@@ -602,6 +686,8 @@ func (s *Service) Reconcile(ctx context.Context) (Reconciliation, error) {
 			r.CashMicros = materialized
 		case ownerType == OwnerPlatform && ownerID == PlatformRevenue:
 			r.RevenueMicros = materialized
+		case ownerType == OwnerPlatform && ownerID == PlatformClearing:
+			r.ClearingMicros = materialized
 		}
 	}
 	if err := rows.Err(); err != nil {
@@ -691,35 +777,56 @@ func (s *Service) ListTransactions(ctx context.Context, limit, offset int, kinds
 	return txns, erows.Err()
 }
 
-// ListSettlements returns settlement rows for an owner (either side), newest
-// first — the raw material for advertiser statements and publisher earnings.
-func (s *Service) ListSettlements(ctx context.Context, ownerType OwnerType, ownerID string, limit int) ([]Settlement, error) {
-	var col string
-	switch ownerType {
-	case OwnerAdvertiser:
-		col = "advertiser_id"
-	case OwnerPublisher:
-		col = "publisher_id"
-	default:
-		return nil, errors.New("billing: settlements are listed by advertiser or publisher")
-	}
+// ListAdvertiserSettlements returns advertiser-side settlement cells, newest
+// local day first — the raw material for the advertiser statement.
+func (s *Service) ListAdvertiserSettlements(ctx context.Context, advertiserID string, limit int) ([]AdvertiserSettlement, error) {
 	rows, err := s.pool.Query(ctx, `
-		SELECT id::text, day, advertiser_id, campaign_id, site_id, publisher_id,
-		       impressions, gross_micros, margin_bps, fee_micros, net_micros,
-		       txn_id::text, created_at
-		FROM daily_settlements WHERE `+col+` = $1
-		ORDER BY day DESC, created_at DESC LIMIT $2`,
-		ownerID, limit,
+		SELECT id::text, advertiser_id, campaign_id, site_id, publisher_id,
+		       window_from, window_to, local_date, timezone,
+		       impressions, gross_micros, txn_id::text, created_at
+		FROM advertiser_settlements WHERE advertiser_id = $1
+		ORDER BY local_date DESC, window_from DESC, created_at DESC LIMIT $2`,
+		advertiserID, limit,
 	)
 	if err != nil {
 		return nil, err
 	}
 	defer rows.Close()
-	var out []Settlement
+	var out []AdvertiserSettlement
 	for rows.Next() {
-		var st Settlement
-		if err := rows.Scan(&st.ID, &st.Day, &st.AdvertiserID, &st.CampaignID, &st.SiteID,
-			&st.PublisherID, &st.Impressions, &st.GrossMicros, &st.MarginBps,
+		var st AdvertiserSettlement
+		if err := rows.Scan(&st.ID, &st.AdvertiserID, &st.CampaignID, &st.SiteID, &st.PublisherID,
+			&st.WindowFrom, &st.WindowTo, &st.LocalDate, &st.Timezone,
+			&st.Impressions, &st.GrossMicros, &st.TxnID, &st.CreatedAt); err != nil {
+			return nil, err
+		}
+		out = append(out, st)
+	}
+	return out, rows.Err()
+}
+
+// ListPublisherSettlements returns publisher-side settlement cells, newest
+// local day first — the raw material for publisher earnings statements.
+func (s *Service) ListPublisherSettlements(ctx context.Context, publisherID string, limit int) ([]PublisherSettlement, error) {
+	rows, err := s.pool.Query(ctx, `
+		SELECT id::text, publisher_id, site_id, campaign_id, advertiser_id,
+		       window_from, window_to, local_date, timezone,
+		       impressions, gross_micros, margin_bps, fee_micros, net_micros,
+		       txn_id::text, created_at
+		FROM publisher_settlements WHERE publisher_id = $1
+		ORDER BY local_date DESC, window_from DESC, created_at DESC LIMIT $2`,
+		publisherID, limit,
+	)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	var out []PublisherSettlement
+	for rows.Next() {
+		var st PublisherSettlement
+		if err := rows.Scan(&st.ID, &st.PublisherID, &st.SiteID, &st.CampaignID, &st.AdvertiserID,
+			&st.WindowFrom, &st.WindowTo, &st.LocalDate, &st.Timezone,
+			&st.Impressions, &st.GrossMicros, &st.MarginBps,
 			&st.FeeMicros, &st.NetMicros, &st.TxnID, &st.CreatedAt); err != nil {
 			return nil, err
 		}

@@ -50,17 +50,27 @@ func TestDollarsToMicros(t *testing.T) {
 	}
 }
 
-func TestSettlementKey(t *testing.T) {
-	day := time.Date(2026, 7, 3, 23, 59, 0, 0, time.UTC)
-	got := SettlementKey(day, "advA", "campB", "siteC")
-	want := "settle:2026-07-03:advA:campB:siteC"
+func TestSettlementKeys(t *testing.T) {
+	from := time.Date(2026, 7, 3, 15, 0, 0, 0, time.UTC) // Tokyo midnight 07-04
+	got := AdvSettlementKey("advA", from, "campB", "siteC")
+	want := "settle:adv:advA:2026-07-03T15:00:00Z:campB:siteC"
 	if got != want {
-		t.Errorf("SettlementKey = %q, want %q", got, want)
+		t.Errorf("AdvSettlementKey = %q, want %q", got, want)
 	}
-	// A non-UTC time for the same instant must produce the same key.
+	// A non-UTC time for the same instant must produce the same key —
+	// the retro replay may load the window in a different representation.
 	jst := time.FixedZone("JST", 9*3600)
-	if k := SettlementKey(day.In(jst), "advA", "campB", "siteC"); k != want {
-		t.Errorf("SettlementKey in JST = %q, want %q", k, want)
+	if k := AdvSettlementKey("advA", from.In(jst), "campB", "siteC"); k != want {
+		t.Errorf("AdvSettlementKey in JST = %q, want %q", k, want)
+	}
+	pgot := PubSettlementKey("pubP", from, "siteC", "campB", "advA")
+	pwant := "settle:pub:pubP:2026-07-03T15:00:00Z:siteC:campB:advA"
+	if pgot != pwant {
+		t.Errorf("PubSettlementKey = %q, want %q", pgot, pwant)
+	}
+	// The two sides of the same window must never collide.
+	if got == pgot {
+		t.Error("advertiser and publisher settlement keys collided")
 	}
 }
 

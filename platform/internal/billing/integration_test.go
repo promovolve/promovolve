@@ -92,37 +92,67 @@ func TestLedgerFullCycle(t *testing.T) {
 		t.Fatalf("wallet after duplicate topup = %d, want 100000000", w.BalanceMicros)
 	}
 
-	// --- Settlement: $24.86 gross at 15% margin -------------------------
+	// --- Settlement: $24.86 gross at 15% margin, two-sided ----------------
+	// The advertiser's local-day window and the publisher's differ (Tokyo vs
+	// New York); the gross meets at clearing and drains to zero once both
+	// sides have booked the same events.
 	day := time.Date(2026, 7, 3, 0, 0, 0, 0, time.UTC)
-	st, err := svc.RecordSettlement(ctx, SettlementParams{
-		Day: day, AdvertiserID: "advA", CampaignID: "campX", SiteID: "site1",
-		PublisherID: "pubP", Impressions: 12431, GrossMicros: 24_860_000, MarginBps: 1500,
+	advWindow := SettlementWindow{
+		From: day.Add(-9 * time.Hour), To: day.Add(15 * time.Hour), // Tokyo 07-03
+		LocalDate: day, Timezone: "Asia/Tokyo",
+	}
+	pubWindow := SettlementWindow{
+		From: day.Add(4 * time.Hour), To: day.Add(28 * time.Hour), // New York 07-03
+		LocalDate: day, Timezone: "America/New_York",
+	}
+	st, err := svc.RecordAdvertiserSettlement(ctx, AdvSettlementParams{
+		Window: advWindow, AdvertiserID: "advA", CampaignID: "campX", SiteID: "site1",
+		PublisherID: "pubP", Impressions: 12431, GrossMicros: 24_860_000,
 	})
 	if err != nil {
-		t.Fatalf("settlement: %v", err)
-	}
-	if st.FeeMicros != 3_729_000 || st.NetMicros != 21_131_000 {
-		t.Fatalf("settlement split fee=%d net=%d", st.FeeMicros, st.NetMicros)
+		t.Fatalf("advertiser settlement: %v", err)
 	}
 	if st.Wallet.BalanceMicros != 100_000_000-24_860_000 {
 		t.Fatalf("wallet after settlement = %d", st.Wallet.BalanceMicros)
 	}
+	if c, _ := svc.GetAccount(ctx, OwnerPlatform, PlatformClearing); c.BalanceMicros != 24_860_000 {
+		t.Fatalf("clearing after advertiser side = %d, want 24860000 in transit", c.BalanceMicros)
+	}
 
 	// Re-running the same cell is a no-op.
-	again, err := svc.RecordSettlement(ctx, SettlementParams{
-		Day: day, AdvertiserID: "advA", CampaignID: "campX", SiteID: "site1",
-		PublisherID: "pubP", Impressions: 12431, GrossMicros: 24_860_000, MarginBps: 1500,
+	again, err := svc.RecordAdvertiserSettlement(ctx, AdvSettlementParams{
+		Window: advWindow, AdvertiserID: "advA", CampaignID: "campX", SiteID: "site1",
+		PublisherID: "pubP", Impressions: 12431, GrossMicros: 24_860_000,
 	})
 	if err != nil || !again.Duplicate {
 		t.Fatalf("settlement rerun: dup=%v err=%v", again.Duplicate, err)
+	}
+
+	pst, err := svc.RecordPublisherSettlement(ctx, PubSettlementParams{
+		Window: pubWindow, PublisherID: "pubP", SiteID: "site1", CampaignID: "campX",
+		AdvertiserID: "advA", Impressions: 12431, GrossMicros: 24_860_000, MarginBps: 1500,
+	})
+	if err != nil {
+		t.Fatalf("publisher settlement: %v", err)
+	}
+	if pst.FeeMicros != 3_729_000 || pst.NetMicros != 21_131_000 {
+		t.Fatalf("settlement split fee=%d net=%d", pst.FeeMicros, pst.NetMicros)
+	}
+	if c, _ := svc.GetAccount(ctx, OwnerPlatform, PlatformClearing); c.BalanceMicros != 0 {
+		t.Fatalf("clearing after both sides = %d, want 0", c.BalanceMicros)
 	}
 
 	payable, err := svc.GetAccount(ctx, OwnerPublisher, "pubP")
 	if err != nil || payable.BalanceMicros != 21_131_000 {
 		t.Fatalf("payable = %+v err=%v", payable, err)
 	}
-	if sts, _ := svc.ListSettlements(ctx, OwnerPublisher, "pubP", 10); len(sts) != 1 || sts[0].MarginBps != 1500 {
-		t.Fatalf("settlement rows = %+v", sts)
+	if sts, _ := svc.ListPublisherSettlements(ctx, "pubP", 10); len(sts) != 1 ||
+		sts[0].MarginBps != 1500 || sts[0].Timezone != "America/New_York" {
+		t.Fatalf("publisher settlement rows = %+v", sts)
+	}
+	if sts, _ := svc.ListAdvertiserSettlements(ctx, "advA", 10); len(sts) != 1 ||
+		sts[0].GrossMicros != 24_860_000 || sts[0].Timezone != "Asia/Tokyo" {
+		t.Fatalf("advertiser settlement rows = %+v", sts)
 	}
 
 	// --- Payout: full payable to pubP ------------------------------------
@@ -152,9 +182,21 @@ func TestLedgerFullCycle(t *testing.T) {
 	}
 
 	// --- Cancel path: second settlement, payout, then cancel -------------
-	st2, err := svc.RecordSettlement(ctx, SettlementParams{
-		Day: day.AddDate(0, 0, 1), AdvertiserID: "advA", CampaignID: "campX", SiteID: "site1",
-		PublisherID: "pubP", Impressions: 100, GrossMicros: 1_000_000, MarginBps: 1500,
+	pubWindow2 := SettlementWindow{
+		From: pubWindow.To, To: pubWindow.To.Add(24 * time.Hour),
+		LocalDate: day.AddDate(0, 0, 1), Timezone: "America/New_York",
+	}
+	if _, err := svc.RecordAdvertiserSettlement(ctx, AdvSettlementParams{
+		Window: SettlementWindow{From: advWindow.To, To: advWindow.To.Add(24 * time.Hour),
+			LocalDate: day.AddDate(0, 0, 1), Timezone: "Asia/Tokyo"},
+		AdvertiserID: "advA", CampaignID: "campX", SiteID: "site1",
+		PublisherID: "pubP", Impressions: 100, GrossMicros: 1_000_000,
+	}); err != nil {
+		t.Fatalf("advertiser settlement 2: %v", err)
+	}
+	st2, err := svc.RecordPublisherSettlement(ctx, PubSettlementParams{
+		Window: pubWindow2, PublisherID: "pubP", SiteID: "site1", CampaignID: "campX",
+		AdvertiserID: "advA", Impressions: 100, GrossMicros: 1_000_000, MarginBps: 1500,
 	})
 	if err != nil {
 		t.Fatalf("settlement 2: %v", err)
@@ -191,13 +233,16 @@ func TestLedgerFullCycle(t *testing.T) {
 	if !rec.OK {
 		t.Fatalf("reconcile not OK: %+v", rec)
 	}
-	// Identity: cash = wallets + payables + revenue.
-	if rec.CashMicros != rec.WalletsMicros+rec.PayableMicros+rec.RevenueMicros {
+	// Identity: cash = wallets + payables + revenue + clearing.
+	if rec.CashMicros != rec.WalletsMicros+rec.PayableMicros+rec.RevenueMicros+rec.ClearingMicros {
 		t.Fatalf("identity broken: %+v", rec)
 	}
+	if rec.ClearingMicros != 0 {
+		t.Fatalf("clearing = %d, want 0 (both sides fully settled)", rec.ClearingMicros)
+	}
 	// Revenue captured = both settlement fees.
-	if rec.RevenueMicros != st.FeeMicros+st2.FeeMicros {
-		t.Fatalf("revenue = %d, want %d", rec.RevenueMicros, st.FeeMicros+st2.FeeMicros)
+	if rec.RevenueMicros != pst.FeeMicros+st2.FeeMicros {
+		t.Fatalf("revenue = %d, want %d", rec.RevenueMicros, pst.FeeMicros+st2.FeeMicros)
 	}
 
 	// --- Journal ----------------------------------------------------------
@@ -205,9 +250,9 @@ func TestLedgerFullCycle(t *testing.T) {
 	if err != nil {
 		t.Fatalf("journal: %v", err)
 	}
-	// topup, settlement x2, payout x2, cancel adjustment, refund = 7
-	if len(txns) != 7 {
-		t.Fatalf("journal has %d transactions, want 7", len(txns))
+	// topup, settlement x2 sides x2 days, payout x2, cancel adjustment, refund = 9
+	if len(txns) != 9 {
+		t.Fatalf("journal has %d transactions, want 9", len(txns))
 	}
 	for _, txn := range txns {
 		var sum int64

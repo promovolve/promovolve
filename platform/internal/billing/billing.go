@@ -25,13 +25,21 @@ const (
 	OwnerPlatform   OwnerType = "platform"
 )
 
-// The two singleton platform accounts (owner_type = 'platform').
+// The three singleton platform accounts (owner_type = 'platform').
 const (
 	// PlatformCash is the operator's asset account: external money received
 	// (top-ups) minus money sent (payouts, refunds).
 	PlatformCash = "cash"
 	// PlatformRevenue is the income account margin fees accumulate into.
 	PlatformRevenue = "revenue"
+	// PlatformClearing holds settlement gross in transit between the
+	// advertiser's local billing day and the publisher's: the advertiser
+	// side credits it when the advertiser's window books, the publisher
+	// side debits it when the publisher's window books the same events.
+	// It nets to zero over any event range settled on both sides, so a
+	// persistent balance means windows out of phase (benign) or unmapped
+	// traffic awaiting an operator fix.
+	PlatformClearing = "clearing"
 )
 
 type TxnKind string
@@ -104,13 +112,39 @@ type Transaction struct {
 	Entries        []Entry
 }
 
-type Settlement struct {
+// AdvertiserSettlement is one advertiser-side settlement cell: the wallet
+// was debited gross for this (campaign, site) over the advertiser's
+// local-day window [WindowFrom, WindowTo). LocalDate is a display label
+// (the window's local day in Timezone); the window instants are the record.
+type AdvertiserSettlement struct {
 	ID           string
-	Day          time.Time
 	AdvertiserID string
 	CampaignID   string
 	SiteID       string
 	PublisherID  string
+	WindowFrom   time.Time
+	WindowTo     time.Time
+	LocalDate    time.Time
+	Timezone     string
+	Impressions  int64
+	GrossMicros  int64
+	TxnID        string
+	CreatedAt    time.Time
+}
+
+// PublisherSettlement is one publisher-side settlement cell: clearing was
+// drained gross for this (site, campaign, advertiser) over the publisher's
+// local-day window, the publisher credited net and the platform the fee.
+type PublisherSettlement struct {
+	ID           string
+	PublisherID  string
+	SiteID       string
+	CampaignID   string
+	AdvertiserID string
+	WindowFrom   time.Time
+	WindowTo     time.Time
+	LocalDate    time.Time
+	Timezone     string
 	Impressions  int64
 	GrossMicros  int64
 	MarginBps    int
@@ -171,10 +205,19 @@ func Dollars(micros int64) float64 {
 	return float64(micros) / 1e6
 }
 
-// SettlementKey is the idempotency key for one settlement cell; re-running a
-// settlement day is a no-op because these collide.
-func SettlementKey(day time.Time, advertiserID, campaignID, siteID string) string {
-	return fmt.Sprintf("settle:%s:%s:%s:%s", day.UTC().Format("2006-01-02"), advertiserID, campaignID, siteID)
+// AdvSettlementKey is the idempotency key for one advertiser-side settlement
+// cell. Keyed on the window START instant (RFC3339 UTC, zone-insensitive):
+// chained windows never share a start, so replaying a recorded window is a
+// no-op because these collide.
+func AdvSettlementKey(advertiserID string, windowFrom time.Time, campaignID, siteID string) string {
+	return fmt.Sprintf("settle:adv:%s:%s:%s:%s",
+		advertiserID, windowFrom.UTC().Format(time.RFC3339), campaignID, siteID)
+}
+
+// PubSettlementKey is the publisher-side analog of AdvSettlementKey.
+func PubSettlementKey(publisherID string, windowFrom time.Time, siteID, campaignID, advertiserID string) string {
+	return fmt.Sprintf("settle:pub:%s:%s:%s:%s:%s",
+		publisherID, windowFrom.UTC().Format(time.RFC3339), siteID, campaignID, advertiserID)
 }
 
 func validateLegs(legs []Leg) error {

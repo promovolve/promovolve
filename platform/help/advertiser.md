@@ -103,8 +103,10 @@ when you do win.
 Your daily budget is paced: serving is throttled through the day so the
 budget lasts rather than exhausting in the first hour. Budgets reset at
 midnight in your account's timezone (set by the platform operator; UTC by
-default — ask the operator to change it). Billing and settlement always
-use UTC days regardless of your account timezone.
+default — ask the operator to change it). Billing uses the same day: your
+wallet statement's daily charges roll at the same local midnight your
+budget does. (Historical delivery reports are the one exception — their
+day buckets are UTC, and the report page says so.)
 
 ## 7. Reading your metrics
 

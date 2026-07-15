@@ -35,11 +35,25 @@ import (
 
 type adminBillingData struct {
 	Cash, Wallets, Payables, Revenue string
-	ReconOK                          bool
-	DriftCount                       int
-	Health                           []settlementHealthRow
-	LastSettled                      string // empty when the job never completed a day
-	HealthBehind                     bool   // last settled day is older than yesterday
+	// Clearing is settlement gross in transit between advertiser and
+	// publisher local billing days — normally near zero; a balance that
+	// never drains means unmapped traffic awaiting an operator fix.
+	Clearing     string
+	ReconOK      bool
+	DriftCount   int
+	Cursors      []settlementCursorRow
+	Windows      []settlementHealthRow
+	HealthBehind bool // some entity's next window is overdue
+}
+
+// settlementCursorRow is one entity's settled-until cursor on the health
+// panel.
+type settlementCursorRow struct {
+	Owner        string // "advertiser" | "publisher"
+	Label        string // org email/label, falls back to the raw id
+	Timezone     string // "UTC" when unset
+	SettledUntil string
+	Behind       bool
 }
 
 type adminTopupsData struct {
@@ -121,14 +135,19 @@ type journalLeg struct {
 	Negative bool
 }
 
+// settlementHealthRow is one settled window in the health journal.
 type settlementHealthRow struct {
-	Day           string
+	Owner         string
+	Label         string
+	LocalDay      string // the window's local-day label + zone
+	Window        string // instant range, for auditing
 	Rows, Skipped int
 	Gross         string
 }
 
 type walletPageData struct {
 	Balance, Status       string
+	Timezone              string // billing/budget day zone; "" hides the mention (UTC default)
 	Suspended, LowBalance bool
 	Activity              []walletActivityRow
 	Statement             []statementRow
@@ -151,6 +170,7 @@ type monthlyRow struct {
 
 type earningsPageData struct {
 	Accrued, LifetimePaid            string
+	Timezone                         string // earnings-day zone; "" hides the mention (UTC default)
 	Payouts                          []payoutRow
 	Months                           []monthlyRow
 	Method, MethodDetails, MinPayout string
@@ -292,23 +312,44 @@ func (h *Handler) renderAdminBilling(w http.ResponseWriter, r *http.Request, err
 		data.Wallets = usdTile(rec.WalletsMicros)
 		data.Payables = usdTile(rec.PayableMicros)
 		data.Revenue = usdTile(rec.RevenueMicros)
+		data.Clearing = usdTile(rec.ClearingMicros)
 		data.ReconOK = rec.OK
 		data.DriftCount = len(rec.Drift)
 	}
 
-	if health, err := h.billingSvc.SettlementHealth(ctx, 14); err == nil {
-		for _, d := range health {
-			data.Health = append(data.Health, settlementHealthRow{
-				Day:     d.Day.Format("2006-01-02"),
-				Rows:    d.RowsSettled,
-				Skipped: d.RowsSkipped,
-				Gross:   usd(d.GrossMicros),
+	labels := h.ownerLabels(ctx)
+	if cursors, err := h.billingSvc.SettlementCursors(ctx); err == nil {
+		for _, c := range cursors {
+			tz := c.Timezone
+			if tz == "" {
+				tz = "UTC"
+			}
+			data.Cursors = append(data.Cursors, settlementCursorRow{
+				Owner:        string(c.OwnerType),
+				Label:        labelOr(labels, c.OwnerID),
+				Timezone:     tz,
+				SettledUntil: c.SettledUntil.In(user.Location()).Format("2006-01-02 15:04"),
+				Behind:       c.Behind,
 			})
+			data.HealthBehind = data.HealthBehind || c.Behind
 		}
-		if len(health) > 0 {
-			data.LastSettled = health[0].Day.Format("2006-01-02")
-			yesterday := time.Now().UTC().Truncate(24*time.Hour).AddDate(0, 0, -1)
-			data.HealthBehind = health[0].Day.Before(yesterday)
+	}
+	if windows, err := h.billingSvc.RecentSettlementWindows(ctx, 20); err == nil {
+		for _, wd := range windows {
+			tz := wd.Timezone
+			if tz == "" {
+				tz = "UTC"
+			}
+			data.Windows = append(data.Windows, settlementHealthRow{
+				Owner:    string(wd.OwnerType),
+				Label:    labelOr(labels, wd.OwnerID),
+				LocalDay: wd.LocalDate.Format("2006-01-02") + " " + tz,
+				Window: wd.WindowFrom.UTC().Format("01-02 15:04") + "Z → " +
+					wd.WindowTo.UTC().Format("01-02 15:04") + "Z",
+				Rows:    wd.RowsSettled,
+				Skipped: wd.RowsSkipped,
+				Gross:   usd(wd.GrossMicros),
+			})
 		}
 	}
 
@@ -647,24 +688,33 @@ func (h *Handler) AdminBillingAccount(w http.ResponseWriter, r *http.Request) {
 			})
 		}
 	}
-	if settlements, err := h.billingSvc.ListSettlements(ctx, ownerType, ownerID, 30); err == nil {
-		var names map[string]string
-		if ownerType == billing.OwnerAdvertiser {
-			names = h.campaignNames("/v1/advertisers/"+ownerID+"/campaigns?limit=100", nil)
-		}
-		for _, st := range settlements {
-			amount := st.GrossMicros // advertisers pay gross
-			if ownerType == billing.OwnerPublisher {
-				amount = st.NetMicros // publishers earn net
+	switch ownerType {
+	case billing.OwnerAdvertiser:
+		if settlements, err := h.billingSvc.ListAdvertiserSettlements(ctx, ownerID, 30); err == nil {
+			names := h.campaignNames("/v1/advertisers/"+ownerID+"/campaigns?limit=100", nil)
+			for _, st := range settlements {
+				data.Statement = append(data.Statement, statementRow{
+					Day:         st.LocalDate.Format("2006-01-02"),
+					CampaignID:  st.CampaignID,
+					Campaign:    labelOr(names, st.CampaignID),
+					SiteID:      st.SiteID,
+					Impressions: st.Impressions,
+					Amount:      usd(st.GrossMicros), // advertisers pay gross
+				})
 			}
-			data.Statement = append(data.Statement, statementRow{
-				Day:         st.Day.Format("2006-01-02"),
-				CampaignID:  st.CampaignID,
-				Campaign:    labelOr(names, st.CampaignID),
-				SiteID:      st.SiteID,
-				Impressions: st.Impressions,
-				Amount:      usd(amount),
-			})
+		}
+	case billing.OwnerPublisher:
+		if settlements, err := h.billingSvc.ListPublisherSettlements(ctx, ownerID, 30); err == nil {
+			for _, st := range settlements {
+				data.Statement = append(data.Statement, statementRow{
+					Day:         st.LocalDate.Format("2006-01-02"),
+					CampaignID:  st.CampaignID,
+					Campaign:    st.CampaignID,
+					SiteID:      st.SiteID,
+					Impressions: st.Impressions,
+					Amount:      usd(st.NetMicros), // publishers earn net
+				})
+			}
 		}
 	}
 	if months, err := h.billingSvc.MonthlySettled(ctx, ownerType, ownerID, 12); err == nil {
@@ -777,7 +827,16 @@ func (h *Handler) AdminCreatePayout(w http.ResponseWriter, r *http.Request) {
 		h.renderAdminPayouts(w, r, msg)
 		return
 	}
-	end := time.Now().UTC().Truncate(24*time.Hour).AddDate(0, 0, -1)
+	// Payout periods are publisher-local days, matching the earnings
+	// statement; "yesterday" is computed in the publisher org's zone.
+	loc := time.UTC
+	if tz, err := h.orgRepo.TimezoneByEntity(r.Context(), publisherID); err == nil && tz != "" {
+		if l, lerr := time.LoadLocation(tz); lerr == nil {
+			loc = l
+		}
+	}
+	y, m, d := time.Now().In(loc).Date()
+	end := time.Date(y, m, d, 0, 0, 0, 0, time.UTC).AddDate(0, 0, -1)
 	start, found, err := h.billingSvc.PayoutPeriodStart(r.Context(), publisherID)
 	if err != nil || !found || start.After(end) {
 		start = end
@@ -1087,6 +1146,9 @@ func (h *Handler) AdvertiserWallet(w http.ResponseWriter, r *http.Request) {
 	ctx := r.Context()
 	advertiserID := claims.AdvertiserID
 	data := &walletPageData{Balance: "$0.00", Status: string(billing.StatusActive)}
+	if tz, err := h.orgRepo.TimezoneByEntity(ctx, advertiserID); err == nil {
+		data.Timezone = tz
+	}
 
 	if acc, err := h.billingSvc.GetAccount(ctx, billing.OwnerAdvertiser, advertiserID); err == nil {
 		data.Balance = usdTile(acc.BalanceMicros)
@@ -1105,11 +1167,11 @@ func (h *Handler) AdvertiserWallet(w http.ResponseWriter, r *http.Request) {
 			})
 		}
 	}
-	if settlements, err := h.billingSvc.ListSettlements(ctx, billing.OwnerAdvertiser, advertiserID, 30); err == nil {
+	if settlements, err := h.billingSvc.ListAdvertiserSettlements(ctx, advertiserID, 30); err == nil {
 		names := h.campaignNames("/v1/advertisers/me/campaigns?limit=100", claims)
 		for _, st := range settlements {
 			data.Statement = append(data.Statement, statementRow{
-				Day:         st.Day.Format("2006-01-02"),
+				Day:         st.LocalDate.Format("2006-01-02"),
 				CampaignID:  st.CampaignID,
 				Campaign:    labelOr(names, st.CampaignID),
 				SiteID:      st.SiteID,
@@ -1142,6 +1204,9 @@ func (h *Handler) PublisherEarnings(w http.ResponseWriter, r *http.Request) {
 	ctx := r.Context()
 	publisherID := claims.PublisherID
 	data := &earningsPageData{Accrued: "0.00", LifetimePaid: "0.00"}
+	if tz, err := h.orgRepo.TimezoneByEntity(ctx, publisherID); err == nil {
+		data.Timezone = tz
+	}
 
 	if acc, err := h.billingSvc.GetAccount(ctx, billing.OwnerPublisher, publisherID); err == nil {
 		data.Accrued = usd(acc.BalanceMicros)

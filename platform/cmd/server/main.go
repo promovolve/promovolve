@@ -46,12 +46,13 @@ func main() {
 	if len(os.Args) > 1 && os.Args[1] == "mint-session" {
 		os.Exit(runMintSession(cfg, os.Args[2:]))
 	}
-	// Force-settle a single UTC day on demand (the scheduled tick only
-	// settles up to yesterday). For operator re-settles and testing the
-	// billing loop before a day naturally closes. Run inside the pod:
-	//   kubectl exec deploy/promovolve-platform -- /server settle-day [--date YYYY-MM-DD]
-	if len(os.Args) > 1 && os.Args[1] == "settle-day" {
-		os.Exit(runSettleDay(cfg, os.Args[2:]))
+	// Force-settle one entity on demand (the scheduled tick only settles
+	// windows past their local midnight + finality lag). For operator
+	// re-settles and testing the billing loop before a window naturally
+	// closes. Run inside the pod:
+	//   kubectl exec deploy/promovolve-platform -- /server settle-entity --type advertiser --id <id> [--now]
+	if len(os.Args) > 1 && os.Args[1] == "settle-entity" {
+		os.Exit(runSettleEntity(cfg, os.Args[2:]))
 	}
 
 	logger := slog.New(slog.NewJSONHandler(os.Stdout, &slog.HandlerOptions{
@@ -92,9 +93,10 @@ func main() {
 	siteReqRepo := siterequest.NewRepository(pool)
 	siteReqSvc := siterequest.NewService(siteReqRepo, cfg.CoreAPIURL)
 
-	// Billing settlement job: books yesterday's metering into the ledger and
-	// enforces the prepaid-wallet policy (docs/design/BILLING.md). Idempotent
-	// per day, catches up after downtime, single-pod by design.
+	// Billing settlement job: books each entity's closed local-day windows
+	// into the ledger and enforces the prepaid-wallet policy
+	// (docs/design/BILLING.md). Idempotent per window, catches up after
+	// downtime, single-pod by design.
 	billingSvc := billing.NewService(pool)
 	coreInternal := billing.NewHTTPCoreClient(cfg.CoreAPIURL, cfg.InternalAPIKey)
 	settler := billing.NewSettler(
@@ -105,6 +107,9 @@ func main() {
 	// Operator org suspension outranks wallet health: the settler consults
 	// the org flag before any auto-resume.
 	settler.SetEntitySuspendedLookup(orgRepo.IsEntitySuspended)
+	// Both sides' local billing days come from the owning org's timezone —
+	// the same zone that drives budget rollover (budget day == billing day).
+	settler.SetEntityTimezoneLookup(orgRepo.TimezoneByEntity)
 	settleCtx, stopSettler := context.WithCancel(context.Background())
 	defer stopSettler()
 	go settler.Run(settleCtx)
@@ -504,27 +509,29 @@ func runMintSession(cfg config.Config, args []string) int {
 	return 0
 }
 
-// runSettleDay force-settles one UTC day through the same code path the
-// scheduled job uses (metering → ledger → daily_settlements + wallet
-// debit/publisher credit), bypassing the up-to-yesterday finality window so
-// the billing loop can be exercised before a day naturally closes.
-// Idempotent — re-running a day is a no-op via the settlement idempotency
-// keys. Defaults to today (UTC).
-func runSettleDay(cfg config.Config, args []string) int {
-	fs := flag.NewFlagSet("settle-day", flag.ContinueOnError)
-	dateStr := fs.String("date", "", "UTC day to settle, YYYY-MM-DD (default: today)")
+// runSettleEntity force-settles one entity through the same code path the
+// scheduled job uses (metering range → ledger → per-side settlement rows +
+// window journal + cursor advance). --now additionally settles the
+// in-progress partial window up to this instant (allowPartial on the
+// metering side) so the billing loop can be exercised before a local day
+// naturally closes. Idempotent — re-running is a no-op via the settlement
+// idempotency keys.
+func runSettleEntity(cfg config.Config, args []string) int {
+	fs := flag.NewFlagSet("settle-entity", flag.ContinueOnError)
+	typeStr := fs.String("type", "", "entity side: advertiser | publisher")
+	id := fs.String("id", "", "core entity id")
+	throughNow := fs.Bool("now", false, "also settle the in-progress partial window up to now")
 	if err := fs.Parse(args); err != nil {
 		return 2
 	}
-
-	day := time.Now().UTC()
-	if *dateStr != "" {
-		d, err := time.Parse("2006-01-02", *dateStr)
-		if err != nil {
-			fmt.Fprintf(os.Stderr, "invalid --date %q (want YYYY-MM-DD): %v\n", *dateStr, err)
-			return 2
-		}
-		day = d.UTC()
+	ownerType := billing.OwnerType(*typeStr)
+	if ownerType != billing.OwnerAdvertiser && ownerType != billing.OwnerPublisher {
+		fmt.Fprintln(os.Stderr, "--type must be advertiser or publisher")
+		return 2
+	}
+	if *id == "" {
+		fmt.Fprintln(os.Stderr, "--id is required")
+		return 2
 	}
 
 	pool, err := db.Connect(cfg.DatabaseURL)
@@ -541,18 +548,23 @@ func runSettleDay(cfg config.Config, args []string) int {
 		billing.NewHTTPCoreClient(cfg.CoreAPIURL, cfg.InternalAPIKey),
 		settingsSvc.MarginBpsAt,
 	)
+	orgRepo := org.NewRepository(pool)
+	settler.SetEntitySuspendedLookup(orgRepo.IsEntitySuspended)
+	settler.SetEntityTimezoneLookup(orgRepo.TimezoneByEntity)
 
 	ctx := context.Background()
-	if err := settler.SettleDay(ctx, day); err != nil {
-		fmt.Fprintf(os.Stderr, "settle %s failed: %v\n", day.Format("2006-01-02"), err)
+	if err := settler.SettleEntity(ctx, ownerType, *id, *throughNow); err != nil {
+		fmt.Fprintf(os.Stderr, "settle %s %s failed: %v\n", ownerType, *id, err)
 		return 1
 	}
 
-	var rows, skipped int
+	var windows, rows, skipped int
 	var grossMicros int64
-	pool.QueryRow(ctx, `SELECT rows_settled, rows_skipped, gross_micros FROM billing_settlement_days WHERE day = $1::date`,
-		day.Format("2006-01-02")).Scan(&rows, &skipped, &grossMicros)
-	fmt.Printf("Settled %s: %d rows booked, %d skipped (no publisher mapping), gross $%.2f\n",
-		day.Format("2006-01-02"), rows, skipped, float64(grossMicros)/1e6)
+	pool.QueryRow(ctx, `
+		SELECT COUNT(*), COALESCE(SUM(rows_settled), 0), COALESCE(SUM(rows_skipped), 0), COALESCE(SUM(gross_micros), 0)
+		FROM settlement_windows WHERE owner_type = $1 AND owner_id = $2`,
+		ownerType, *id).Scan(&windows, &rows, &skipped, &grossMicros)
+	fmt.Printf("Settled %s %s: %d windows on record, %d cells booked, %d skipped (no publisher mapping), gross $%.2f\n",
+		ownerType, *id, windows, rows, skipped, float64(grossMicros)/1e6)
 	return 0
 }

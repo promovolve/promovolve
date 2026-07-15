@@ -5,7 +5,10 @@ package handler
 // table, and site/category/publisher breakdown tabs with CSV export.
 // Data comes from the core report endpoints (campaign_daily_stats +
 // campaign_dim_daily_stats).
-// All days are UTC buckets, matching settlement and billing statements.
+// All days are UTC buckets (day_bucket is computed at projection-write
+// time). Billing statements use the account's LOCAL days, so report days
+// and statement days can differ near midnight — the report page labels
+// its UTC bucketing.
 
 import (
 	"encoding/csv"
@@ -39,26 +42,26 @@ type reportRow struct {
 	Unfolds           int64
 	DogearedClicks    int64
 	DogearedCTAClicks int64
-	Spend        float64
-	SpendDisp    string // "X.XX" — "$" added by the template
-	CTR          string
-	ECPM         string
+	Spend             float64
+	SpendDisp         string // "X.XX" — "$" added by the template
+	CTR               string
+	ECPM              string
 }
 
 type reportTotals struct {
-	Impressions  int64
-	Clicks       int64
-	CTAClicks    int64
-	DogearedImps int64
+	Impressions       int64
+	Clicks            int64
+	CTAClicks         int64
+	DogearedImps      int64
 	Folds             int64
 	Unfolds           int64
 	DogearedClicks    int64
 	DogearedCTAClicks int64
 	FoldRate          string // folds per fresh impression, "" below 1 imp
-	Spend        float64
-	SpendDisp    string
-	CTR          string
-	ECPM         string
+	Spend             float64
+	SpendDisp         string
+	CTR               string
+	ECPM              string
 }
 
 type reportDayGroup struct {

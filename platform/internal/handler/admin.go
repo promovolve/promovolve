@@ -453,7 +453,8 @@ func (h *Handler) AdminResumeOrg(w http.ResponseWriter, r *http.Request) {
 
 // AdminSetOrgTimezone sets the org's advertiser-account timezone (IANA;
 // "" = UTC): budget rollover and pacing follow the advertiser's day on the
-// core, while settlement stays UTC. Operator-only. The core cascade
+// core, and both sides' local billing days on the settler. Operator-only.
+// The core cascade
 // log-and-continues like suspend — re-saving is the retry.
 func (h *Handler) AdminSetOrgTimezone(w http.ResponseWriter, r *http.Request) {
 	admin, _, ok := h.requireRole(w, r, model.RoleAdmin)

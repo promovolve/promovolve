@@ -212,6 +212,20 @@ func (r *Repository) IsEntitySuspended(ctx context.Context, entityID string) (bo
 	return suspended, err
 }
 
+// TimezoneByEntity returns the IANA timezone of the org owning a core entity
+// id (either side); "" (= UTC) for org-less legacy entities. The settler
+// reads this for both sides' local billing days — the same zone drives
+// budget rollover on the core, so budget day == billing day.
+func (r *Repository) TimezoneByEntity(ctx context.Context, entityID string) (string, error) {
+	var tz string
+	err := r.pool.QueryRow(ctx, `
+		SELECT timezone FROM orgs WHERE advertiser_id = $1 OR publisher_id = $1`, entityID).Scan(&tz)
+	if errors.Is(err, pgx.ErrNoRows) {
+		return "", nil
+	}
+	return tz, err
+}
+
 // ForUser resolves a user's org and membership in one query; ErrNotFound for
 // users outside any org (the platform operator).
 func (r *Repository) ForUser(ctx context.Context, userID string) (*model.Org, *model.OrgMembership, error) {

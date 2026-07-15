@@ -7,14 +7,16 @@ import (
 	"fmt"
 	"io"
 	"net/http"
-	"strconv"
+	"net/url"
 	"time"
 )
 
-// MeteringRow is one billable cell from the core metering endpoint:
-// (advertiser, campaign, site) for one UTC day. PublisherID is empty when
-// the site has no publisher_sites mapping — such rows must be skipped and
-// alerted, never silently credited.
+// MeteringRow is one billable cell from the core metering range endpoint:
+// (advertiser, campaign, site) over an instant window, in integer
+// micro-dollars summed per event (partition-invariant — see
+// /v1/internal/metering/range). PublisherID is empty when the site has no
+// publisher_sites mapping — such cells must be skipped and alerted on BOTH
+// sides, never silently billed.
 type MeteringRow struct {
 	AdvertiserID string
 	CampaignID   string
@@ -27,20 +29,30 @@ type MeteringRow struct {
 // CoreClient is the settlement job's view of the core API's internal
 // endpoints. An interface so tests can fake the core.
 type CoreClient interface {
-	// MeteringDaily pulls one UTC day's billable aggregate. allowPartial
-	// asks core to skip its day_not_final guard so an in-progress day can
-	// be settled — for the settle-day operator/test path only; the
-	// scheduled job always passes false.
-	MeteringDaily(ctx context.Context, day time.Time, allowPartial bool) ([]MeteringRow, error)
-	// MeteringIntraday returns per-advertiser billable gross that exists in
-	// core metering but has not been settled yet (from `since` UTC midnight
-	// to now) — the basis for projected wallet balances.
-	MeteringIntraday(ctx context.Context, since time.Time) (map[string]int64, error)
+	// MeteringRange pulls one entity's billable cells for the half-open
+	// instant window [from, to). Exactly one of the owner types
+	// advertiser/publisher selects the filter. allowPartial asks core to
+	// skip its window_not_final guard so a window ending near now can be
+	// read — for the settle-entity operator/test path only; the scheduled
+	// job always passes false.
+	MeteringRange(ctx context.Context, owner OwnerType, ownerID string, from, to time.Time, allowPartial bool) ([]MeteringRow, error)
+	// MeteringUnsettled returns per-advertiser billable gross micros that
+	// exist in core metering but are not settled yet — each advertiser
+	// counted from its OWN cursor instant — the basis for projected wallet
+	// balances.
+	MeteringUnsettled(ctx context.Context, since map[string]time.Time) (map[string]int64, error)
+	// MeteringEntities returns advertiser and publisher ids with billable
+	// impressions since the instant, each mapped to its earliest billable
+	// event time in the span — settlement-cursor discovery. Genesis cursors
+	// anchor at the local midnight before that earliest event so no traffic
+	// falls outside every window.
+	MeteringEntities(ctx context.Context, since time.Time) (advertisers, publishers map[string]time.Time, err error)
 	SuspendAdvertiser(ctx context.Context, advertiserID string) error
 	ResumeAdvertiser(ctx context.Context, advertiserID string) error
 	// SetAdvertiserTimezone pushes the advertiser account's IANA timezone
-	// ("" = UTC) — budget rollover + pacing follow it on the core;
-	// settlement stays UTC.
+	// ("" = UTC) so the core's budget rollover + pacing follow it. The
+	// settler reads the same zone from orgs.timezone directly (budget day
+	// == billing day); this call only informs the core entities.
 	SetAdvertiserTimezone(ctx context.Context, advertiserID, timezone string) error
 }
 
@@ -61,77 +73,138 @@ func NewHTTPCoreClient(baseURL, internalKey string) *HTTPCoreClient {
 	}
 }
 
-// meteringResponse mirrors the core's MeteringDailyResponse JSON.
-type meteringResponse struct {
-	Date string `json:"date"`
+// meteringRangeResponse mirrors the core's MeteringRangeResponse JSON.
+// GrossMicros is an integer straight from core — no float parsing, the
+// partition-invariance guarantee rides on never round-tripping through
+// floating point.
+type meteringRangeResponse struct {
+	From string `json:"from"`
+	To   string `json:"to"`
 	Rows []struct {
 		AdvertiserID string `json:"advertiserId"`
 		CampaignID   string `json:"campaignId"`
 		SiteID       string `json:"siteId"`
 		PublisherID  string `json:"publisherId"`
 		Impressions  int64  `json:"impressions"`
-		Gross        string `json:"gross"` // dollars, %.6f
+		GrossMicros  int64  `json:"grossMicros"`
 	} `json:"rows"`
 }
 
-func (c *HTTPCoreClient) MeteringDaily(ctx context.Context, day time.Time, allowPartial bool) ([]MeteringRow, error) {
-	url := fmt.Sprintf("%s/v1/internal/metering/daily?date=%s", c.BaseURL, day.UTC().Format("2006-01-02"))
-	if allowPartial {
-		url += "&allowPartial=true"
+func (c *HTTPCoreClient) MeteringRange(ctx context.Context, owner OwnerType, ownerID string, from, to time.Time, allowPartial bool) ([]MeteringRow, error) {
+	q := url.Values{}
+	q.Set("from", from.UTC().Format(time.RFC3339))
+	q.Set("to", to.UTC().Format(time.RFC3339))
+	switch owner {
+	case OwnerAdvertiser:
+		q.Set("advertiserId", ownerID)
+	case OwnerPublisher:
+		q.Set("publisherId", ownerID)
+	default:
+		return nil, fmt.Errorf("metering range: owner must be advertiser or publisher, got %q", owner)
 	}
-	body, err := c.do(ctx, http.MethodGet, url)
+	if allowPartial {
+		q.Set("allowPartial", "true")
+	}
+	body, err := c.do(ctx, http.MethodGet, c.BaseURL+"/v1/internal/metering/range?"+q.Encode())
 	if err != nil {
 		return nil, err
 	}
-	var resp meteringResponse
+	var resp meteringRangeResponse
 	if err := json.Unmarshal(body, &resp); err != nil {
-		return nil, fmt.Errorf("metering response: %w", err)
+		return nil, fmt.Errorf("metering range response: %w", err)
 	}
 	rows := make([]MeteringRow, 0, len(resp.Rows))
 	for _, r := range resp.Rows {
-		gross, err := strconv.ParseFloat(r.Gross, 64)
-		if err != nil {
-			return nil, fmt.Errorf("metering row gross %q: %w", r.Gross, err)
-		}
 		rows = append(rows, MeteringRow{
 			AdvertiserID: r.AdvertiserID,
 			CampaignID:   r.CampaignID,
 			SiteID:       r.SiteID,
 			PublisherID:  r.PublisherID,
 			Impressions:  r.Impressions,
-			GrossMicros:  DollarsToMicros(gross),
+			GrossMicros:  r.GrossMicros,
 		})
 	}
 	return rows, nil
 }
 
-type intradayResponse struct {
-	Since string `json:"since"`
-	Rows  []struct {
+type unsettledResponse struct {
+	Rows []struct {
 		AdvertiserID string `json:"advertiserId"`
-		Gross        string `json:"gross"`
+		GrossMicros  int64  `json:"grossMicros"`
 	} `json:"rows"`
 }
 
-func (c *HTTPCoreClient) MeteringIntraday(ctx context.Context, since time.Time) (map[string]int64, error) {
-	url := fmt.Sprintf("%s/v1/internal/metering/intraday?since=%s", c.BaseURL, since.UTC().Format("2006-01-02"))
-	body, err := c.do(ctx, http.MethodGet, url)
+func (c *HTTPCoreClient) MeteringUnsettled(ctx context.Context, since map[string]time.Time) (map[string]int64, error) {
+	if len(since) == 0 {
+		return map[string]int64{}, nil
+	}
+	type sinceRow struct {
+		AdvertiserID string `json:"advertiserId"`
+		Since        string `json:"since"`
+	}
+	rows := make([]sinceRow, 0, len(since))
+	for id, t := range since {
+		rows = append(rows, sinceRow{AdvertiserID: id, Since: t.UTC().Format(time.RFC3339)})
+	}
+	payload, err := json.Marshal(map[string]any{"rows": rows})
 	if err != nil {
 		return nil, err
 	}
-	var resp intradayResponse
+	body, err := c.doJSON(ctx, http.MethodPost, c.BaseURL+"/v1/internal/metering/unsettled", payload)
+	if err != nil {
+		return nil, err
+	}
+	var resp unsettledResponse
 	if err := json.Unmarshal(body, &resp); err != nil {
-		return nil, fmt.Errorf("intraday response: %w", err)
+		return nil, fmt.Errorf("unsettled response: %w", err)
 	}
 	out := make(map[string]int64, len(resp.Rows))
 	for _, r := range resp.Rows {
-		gross, err := strconv.ParseFloat(r.Gross, 64)
-		if err != nil {
-			return nil, fmt.Errorf("intraday row gross %q: %w", r.Gross, err)
-		}
-		out[r.AdvertiserID] = DollarsToMicros(gross)
+		out[r.AdvertiserID] = r.GrossMicros
 	}
 	return out, nil
+}
+
+type entityRow struct {
+	ID       string `json:"id"`
+	Earliest string `json:"earliest"`
+}
+
+type entitiesResponse struct {
+	Advertisers []entityRow `json:"advertisers"`
+	Publishers  []entityRow `json:"publishers"`
+}
+
+func (c *HTTPCoreClient) MeteringEntities(ctx context.Context, since time.Time) (map[string]time.Time, map[string]time.Time, error) {
+	body, err := c.do(ctx, http.MethodGet,
+		c.BaseURL+"/v1/internal/metering/entities?since="+url.QueryEscape(since.UTC().Format(time.RFC3339)))
+	if err != nil {
+		return nil, nil, err
+	}
+	var resp entitiesResponse
+	if err := json.Unmarshal(body, &resp); err != nil {
+		return nil, nil, fmt.Errorf("entities response: %w", err)
+	}
+	parse := func(rows []entityRow) (map[string]time.Time, error) {
+		out := make(map[string]time.Time, len(rows))
+		for _, r := range rows {
+			t, err := time.Parse(time.RFC3339Nano, r.Earliest)
+			if err != nil {
+				return nil, fmt.Errorf("entity %s earliest %q: %w", r.ID, r.Earliest, err)
+			}
+			out[r.ID] = t
+		}
+		return out, nil
+	}
+	advs, err := parse(resp.Advertisers)
+	if err != nil {
+		return nil, nil, err
+	}
+	pubs, err := parse(resp.Publishers)
+	if err != nil {
+		return nil, nil, err
+	}
+	return advs, pubs, nil
 }
 
 func (c *HTTPCoreClient) SuspendAdvertiser(ctx context.Context, advertiserID string) error {
@@ -145,8 +218,9 @@ func (c *HTTPCoreClient) ResumeAdvertiser(ctx context.Context, advertiserID stri
 }
 
 // SetAdvertiserTimezone pushes the advertiser account's timezone (IANA name;
-// "" = UTC) so budget rollover and pacing follow the advertiser's day.
-// Settlement deliberately stays UTC.
+// "" = UTC) so budget rollover and pacing follow the advertiser's day. The
+// settler reads the same zone from orgs.timezone directly for the billing
+// day (budget day == billing day).
 func (c *HTTPCoreClient) SetAdvertiserTimezone(ctx context.Context, advertiserID, timezone string) error {
 	payload, err := json.Marshal(map[string]string{"timezone": timezone})
 	if err != nil {

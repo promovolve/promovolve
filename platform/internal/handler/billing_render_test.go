@@ -28,9 +28,17 @@ func TestBillingTemplatesRender(t *testing.T) {
 			Title: "Billing", Nav: "admin-billing", Tab: "overview", User: admin,
 			AdminBilling: &adminBillingData{
 				Cash: "1.00", Wallets: "1.00", Payables: "0.00", Revenue: "0.00",
-				ReconOK:     true,
-				Health:      []settlementHealthRow{{Day: "2026-07-04", Rows: 1, Skipped: 1, Gross: "0.23"}},
-				LastSettled: "2026-07-04",
+				Clearing: "0.00",
+				ReconOK:  true,
+				Cursors: []settlementCursorRow{{
+					Owner: "advertiser", Label: "Acme (@acme.com)", Timezone: "Asia/Tokyo",
+					SettledUntil: "2026-07-04 09:00", Behind: true,
+				}},
+				Windows: []settlementHealthRow{{
+					Owner: "advertiser", Label: "Acme (@acme.com)", LocalDay: "2026-07-04 Asia/Tokyo",
+					Window: "07-03 15:00Z → 07-04 15:00Z", Rows: 1, Skipped: 1, Gross: "0.23",
+				}},
+				HealthBehind: true,
 			},
 		}},
 		{"admin/billing-topups.html", pageData{
@@ -92,7 +100,7 @@ func TestBillingTemplatesRender(t *testing.T) {
 		{"advertiser/wallet.html", pageData{
 			Title: "Wallet", Nav: "wallet", User: adv,
 			Wallet: &walletPageData{
-				Balance: "4.77", Status: "low_balance", LowBalance: true,
+				Balance: "4.77", Status: "low_balance", LowBalance: true, Timezone: "Asia/Tokyo",
 				Activity:  []walletActivityRow{{Date: "d", Kind: "topup", KindBadge: "badge-success", Memo: "m", Amount: "+$5.00"}},
 				Statement: []statementRow{{Day: "d", CampaignID: "c", SiteID: "s", Impressions: 1, Amount: "0.01"}},
 				Months:    []monthlyRow{{Month: "2026-07", Impressions: 1, Gross: "0.01", Fee: "0.00", Net: "0.01"}},
@@ -101,7 +109,7 @@ func TestBillingTemplatesRender(t *testing.T) {
 		{"publisher/earnings.html", pageData{
 			Title: "Earnings", Nav: "earnings", User: pub,
 			Earnings: &earningsPageData{
-				Accrued: "0.20", LifetimePaid: "0.00",
+				Accrued: "0.20", LifetimePaid: "0.00", Timezone: "Asia/Tokyo",
 				Payouts: []payoutRow{},
 				Months:  []monthlyRow{{Month: "2026-07", Impressions: 1, Gross: "0.23", Fee: "0.03", Net: "0.20"}},
 				Method:  "bank", MethodDetails: "details", MinPayout: "50.00", PayoutFloor: "50.00",

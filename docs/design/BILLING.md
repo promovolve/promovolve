@@ -1,9 +1,12 @@
 # Billing & Settlement
 
-**Status: DESIGNED 2026-07-04. ALL PHASES (1-5) BUILT as of 2026-07-05:
-ledger core, core metering + suspend/resume, settlement job, dashboards,
-intraday projected-balance enforcement. Live end-to-end on the public GKE
-cluster (2026-07).**
+**Status: DESIGNED 2026-07-04, ALL PHASES (1-5) BUILT 2026-07-05, live
+end-to-end on the public GKE cluster. REDESIGNED 2026-07-15 to LOCAL-DAY
+settlement: every entity settles on its own local days via per-entity
+instant-chained windows (see "Daily settlement" below); the UTC billing
+day is gone, and with it the budget-day ≠ billing-day split. The ledger
+was reset with the rollout (`scripts/reset-billing.sh`) — historical demo
+data was declared disposable, so there is no dual-format migration.**
 
 How the platform operator collects money from advertisers, pays publishers, and
 captures the platform margin. Promovolve is self-hostable, so the design is
@@ -45,7 +48,11 @@ each operator picks their own PSP.
                  top-up (recorded by admin)
  Advertiser ────────────────────────────────► advertiser wallet (liability)
                                                      │
-                                    daily settlement │ gross spend for day D
+              advertiser-side settlement             │ gross, per ADVERTISER-local day
+                                                     ▼
+                                            platform clearing (in transit)
+                                                     │
+              publisher-side settlement              │ gross, per PUBLISHER-local day
                                                      ▼
                                      ┌───────────────┴───────────────┐
                                      │                               │
@@ -58,16 +65,21 @@ each operator picks their own PSP.
  Publisher ◄─────────────────────────┘
 ```
 
-Double-entry over four account types: `cash` (asset — external money the
+Double-entry over five account types: `cash` (asset — external money the
 operator has received/sent), `advertiser_wallet` (liability — unspent
 advertiser funds), `publisher_payable` (liability — earned, unpaid publisher
-revenue), `platform_revenue` (income — captured margin). At all times:
+revenue), `platform_revenue` (income — captured margin), and `clearing`
+(settlement gross in transit between the advertiser's local billing day and
+the publisher's — the two sides of the same events book at different times,
+so this account holds the difference and nets to exactly zero over any
+event range settled on both sides). At all times:
 
 ```
-cash = Σ advertiser_wallet + Σ publisher_payable + platform_revenue − Σ payouts already sent
+cash = Σ advertiser_wallet + Σ publisher_payable + platform_revenue + clearing − Σ payouts already sent
 ```
 
-That identity is the reconciliation check the admin dashboard displays.
+That identity is the reconciliation check the admin dashboard displays;
+the clearing tile is labeled "In transit" and is normally near zero.
 
 ## Schema (platform DB)
 
@@ -117,25 +129,79 @@ CREATE TABLE ledger_entries (
     amount_micros BIGINT NOT NULL CHECK (amount_micros <> 0)  -- +debit / −credit
 );
 
--- Durable per-day billable record — replaces reliance on the 30-day
--- tracking_events hypertable. One row per (day, advertiser, campaign, site);
--- publisher_id is denormalized here because the platform DB has no
--- site→publisher mapping (the metering endpoint supplies it).
-CREATE TABLE daily_settlements (
+-- Per-entity settlement cursor: everything before settled_until is booked.
+-- Windows chain on instants ([settled_until, next local midnight)), so
+-- coverage is gapless and overlap-free by construction; a timezone change
+-- moves only future boundaries (one short/long window, booked exactly
+-- once) and DST needs no special-casing.
+CREATE TABLE settlement_cursors (
+    owner_type    TEXT NOT NULL CHECK (owner_type IN ('advertiser','publisher')),
+    owner_id      TEXT NOT NULL,
+    settled_until TIMESTAMPTZ NOT NULL,
+    timezone      TEXT NOT NULL DEFAULT '',
+    updated_at    TIMESTAMPTZ NOT NULL DEFAULT NOW(),
+    PRIMARY KEY (owner_type, owner_id)
+);
+
+-- Settled-window journal: health panel + the retro re-settle list. Retro
+-- passes MUST replay these recorded windows (never recompute boundaries
+-- from the current zone — after a zone change that would book the same
+-- events twice under different idempotency keys). A row is written only
+-- after every cell of the window posted. Empty windows are recorded too.
+CREATE TABLE settlement_windows (
+    id           UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+    owner_type   TEXT NOT NULL,
+    owner_id     TEXT NOT NULL,
+    window_from  TIMESTAMPTZ NOT NULL,
+    window_to    TIMESTAMPTZ NOT NULL,
+    local_date   DATE NOT NULL,               -- display label (window's local day)
+    timezone     TEXT NOT NULL DEFAULT '',
+    rows_settled INTEGER NOT NULL,
+    rows_skipped INTEGER NOT NULL DEFAULT 0,  -- unmapped-site cells (alerted, unbilled)
+    gross_micros BIGINT NOT NULL,
+    settled_at   TIMESTAMPTZ NOT NULL DEFAULT NOW(),
+    UNIQUE (owner_type, owner_id, window_from)
+);
+
+-- Durable billable record, one table per settlement side — replaces
+-- reliance on the 30-day tracking_events hypertable (and the old
+-- daily_settlements). local_date is a LABEL; uniqueness rides on
+-- window_from, because a zone change can give two windows the same label.
+CREATE TABLE advertiser_settlements (
     id            UUID PRIMARY KEY DEFAULT gen_random_uuid(),
-    day           DATE NOT NULL,              -- UTC day (matches budget reset)
     advertiser_id TEXT NOT NULL,
     campaign_id   TEXT NOT NULL,
     site_id       TEXT NOT NULL,
-    publisher_id  TEXT NOT NULL,
+    publisher_id  TEXT NOT NULL DEFAULT '',   -- lineage/alerting only
+    window_from   TIMESTAMPTZ NOT NULL,
+    window_to     TIMESTAMPTZ NOT NULL,
+    local_date    DATE NOT NULL,
+    timezone      TEXT NOT NULL DEFAULT '',
     impressions   BIGINT NOT NULL,
     gross_micros  BIGINT NOT NULL,
-    margin_bps    INTEGER NOT NULL,           -- SNAPSHOT of rate applied
+    txn_id        UUID REFERENCES ledger_transactions(id),
+    created_at    TIMESTAMPTZ NOT NULL DEFAULT NOW(),
+    UNIQUE (advertiser_id, window_from, campaign_id, site_id)
+);
+
+CREATE TABLE publisher_settlements (
+    id            UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+    publisher_id  TEXT NOT NULL,
+    site_id       TEXT NOT NULL,
+    campaign_id   TEXT NOT NULL,
+    advertiser_id TEXT NOT NULL,
+    window_from   TIMESTAMPTZ NOT NULL,
+    window_to     TIMESTAMPTZ NOT NULL,
+    local_date    DATE NOT NULL,
+    timezone      TEXT NOT NULL DEFAULT '',
+    impressions   BIGINT NOT NULL,
+    gross_micros  BIGINT NOT NULL,
+    margin_bps    INTEGER NOT NULL,           -- SNAPSHOT of rate applied (at window end)
     fee_micros    BIGINT NOT NULL,
     net_micros    BIGINT NOT NULL,            -- fee + net = gross exactly
     txn_id        UUID REFERENCES ledger_transactions(id),
     created_at    TIMESTAMPTZ NOT NULL DEFAULT NOW(),
-    UNIQUE (day, advertiser_id, campaign_id, site_id)
+    UNIQUE (publisher_id, window_from, site_id, campaign_id, advertiser_id)
 );
 
 -- Payout runs: accrual → admin sends money → records reference.
@@ -185,52 +251,68 @@ Later PSP step: a Stripe webhook calls the exact same internal
 `RecordTopup(advertiser, amount, idempotencyKey=stripe_event_id)` function.
 The manual path *is* the API; the PSP is just another caller.
 
-### 2. Daily settlement (automatic, the core of the design)
+### 2. Local-day settlement (automatic, the core of the design)
 
-A Go-side job (ticker in the platform process; no new deployable) settles
-day D−1 shortly after each UTC midnight (UTC days match the existing
-campaign budget-reset boundary). As built, it ticks every 30 minutes and
-re-checks rather than firing at exactly 00:30 — every pass is idempotent
-(settled days are checkpointed in `billing_settlement_days`, ledger rows
-dedupe on their settlement key), so the tick just bounds how soon after
-midnight yesterday gets booked, and a restart at any time self-heals:
+Every entity — advertiser account and publisher alike — settles on **its
+own local days**. The zone is the owning org's `orgs.timezone` (the same
+zone that rolls the advertiser's budget, so budget day == billing day;
+`''`/org-less = UTC). Each entity carries a `settled_until` instant cursor;
+a Go-side job (30-minute ticker in the platform process; no new deployable)
+books the window `[settled_until, next local midnight)` once that midnight
+plus a one-hour finality lag has passed, then advances the cursor. Windows
+chain on instants — gapless, overlap-free, DST-proof; an operator timezone
+change moves only future boundaries, giving the change day one shortened or
+extended window, booked exactly once. Every pass is idempotent (settled
+windows are journaled in `settlement_windows`, ledger rows dedupe on their
+settlement key), so a restart at any time self-heals.
 
-1. Calls the **internal metering endpoint** on the Scala API —
-   `GET /v1/internal/metering/daily?date=D` → rows of
-   `(advertiserId, campaignId, siteId, publisherId, impressions, gross)`
-   summed from `tracking_events` (`SUM(cpm)/1000` where
-   `event_type='impression' AND NOT dogeared` — dog-eared impressions
-   never debit campaign budget, so they are not billable, even though the
-   display endpoints count them). `publisherId` rides along (joined from
-   `publisher_sites`) because the platform DB has no site→publisher
-   mapping of its own; rows with an empty `publisherId` (unmapped site)
-   must be skipped and alerted, never silently credited.
-   Auth: the core API had no auth at all, so Phase 2 introduced an
-   optional shared secret — when `INTERNAL_API_KEY` is set in the core
-   environment, `/v1/internal/*` requires it as an `X-Internal-Key`
-   header; when unset the endpoints rely on network isolation like the
-   rest of the core API (the Go platform is the auth boundary).
-2. Looks up the margin rate effective **on day D** from
-   `platform_margin_history` and snapshots `margin_bps` into each row.
-3. For each row, inserts a `daily_settlements` row and one `settlement`
-   transaction with three legs:
-   `advertiser_wallet −gross`, `publisher_payable +net`,
-   `platform_revenue +fee`.
-   Idempotency key `settle:{day}:{advertiserId}:{campaignId}:{siteId}` — the
-   job can re-run safely; already-settled rows are skipped via the UNIQUE
-   constraints.
-4. Records the last fully settled day; on startup it **catches up** any missed
-   days (up to the 30-day retention window; beyond that it alerts — data
-   would be lost, which is exactly why settlement runs daily, not monthly).
-5. After settling, evaluates each advertiser's wallet (below) and each
-   publisher's payable vs threshold.
+Because the advertiser's and the publisher's local days close at different
+times, the two sides of the same events book **independently** and meet at
+the platform `clearing` account:
 
-Why per-day pull-based settlement rather than streaming per-impression into
-the ledger: the metering side already dedupes per-impression via `requestId`;
-a daily aggregate keeps the ledger small, human-auditable, and immune to the
-firehose, and one day is the natural unit given UTC budget resets. The
-statement line an advertiser sees ("July 3 · campaign X on site Y · 12,431
-impressions · $24.86") is one settlement row.
+- **Advertiser side**, per (campaign, site) cell of the advertiser's
+  window: `advertiser_wallet −gross`, `clearing +gross`. Key
+  `settle:adv:{advertiserId}:{windowFromRFC3339}:{campaignId}:{siteId}`.
+- **Publisher side**, per (site, campaign, advertiser) cell of the
+  publisher's window: margin split happens here — `clearing −gross`,
+  `publisher_payable +net`, `platform_revenue +fee` (zero legs dropped at
+  extreme margins). `margin_bps` is the rate effective at window END,
+  snapshotted on each row. Key
+  `settle:pub:{publisherId}:{windowFrom}:{siteId}:{campaignId}:{advertiserId}`.
+
+Mechanics per pass:
+
+1. **Entity discovery** — `GET /v1/internal/metering/entities?since=` returns
+   advertiser/publisher ids with billable impressions (72h lookback), each
+   with its earliest event time; entities without a cursor get a **genesis
+   cursor at the local midnight before that earliest event** (nothing
+   pre-genesis is ever billed — billing starts at install/reset).
+2. **Window booking** — for each due window, pull
+   `GET /v1/internal/metering/range?from=&to=&advertiserId=|publisherId=`:
+   cells summed from `tracking_events` in **integer micro-dollars per
+   event** (`SUM(ROUND(cpm*1000))` — partition-invariant, so both sides'
+   totals over any commonly settled range are identical and clearing nets
+   to exactly zero; `NOT dogeared`, impressions only). Cells with an empty
+   `publisherId` (unmapped site) are skipped + alerted on the advertiser
+   side too — **nobody is billed until the mapping exists** — and counted
+   into `settlement_windows.rows_skipped`.
+   Auth: `INTERNAL_API_KEY` as `X-Internal-Key` when set, as before.
+3. **Retro replay** — recorded windows ending within 72h are re-settled
+   using their **recorded** boundaries (never recomputed from the current
+   zone — that would double-book after a zone change). Late cells and
+   fixed publisher mappings get billed; everything else dedupes.
+4. **Retention clamp** — a cursor stalled past the 30-day tracking_events
+   retention jumps forward with an alert: that metering is gone and cannot
+   be billed.
+5. After settling, evaluates each advertiser's wallet (below).
+
+Why per-window pull-based settlement rather than streaming per-impression
+into the ledger: the metering side already dedupes per-impression via
+`requestId`; a local-day aggregate keeps the ledger small, human-auditable,
+and immune to the firehose, and the entity's own day is the unit users
+think in. The statement line an advertiser sees ("July 3 · campaign X on
+site Y · 12,431 impressions · $24.86") is one settlement row in their own
+timezone.
 
 ### 3. Wallet enforcement (prepaid means prepaid)
 
@@ -243,10 +325,13 @@ After each settlement run (and on any top-up/adjustment):
 - `balance < lowWatermark` (default: 2 × trailing-7-day average daily spend)
   → mark `low_balance`, show a warning banner on the advertiser dashboard.
 - Wallet evaluation runs every settlement tick using the **projected
-  balance**: settled balance minus unsettled spend from the intraday
-  metering endpoint. All transitions (suspend / resume / low-balance) key
-  off the projection, with no ledger writes — money is only booked by the
-  daily settlement.
+  balance**: settled balance minus unsettled spend from
+  `POST /v1/internal/metering/unsettled`, which takes **one since-instant
+  per advertiser** (each advertiser's own `settled_until` cursor — a
+  shared since would double-count spend already settled for advertisers
+  with newer cursors). All transitions (suspend / resume / low-balance)
+  key off the projection, with no ledger writes — money is only booked by
+  window settlement.
 
 **Bounded overdraft, by design:** an advertiser can overspend by at most
 one evaluation tick's worth of delivery (~30 minutes) before the projected
@@ -273,7 +358,10 @@ default $0) lets an operator offer trial spend without faking a top-up.
 
 ### 4. Publisher payout (manual, accrual-based)
 
-`publisher_payable` accrues from settlements. **Admin → Billing → Payouts**
+`publisher_payable` accrues from settlements. Payout periods are
+**publisher-local days** (the same days as the earnings statement, so a
+period is a clean sum of statement days); "yesterday" for a new payout is
+computed in the publisher org's zone. **Admin → Billing → Payouts**
 lists every publisher whose payable ≥ their effective payout floor — the
 greater of their per-publisher `min_payout_micros` and the global operator
 floor (`platform_settings` key `payout_floor_micros`) — with a "Create
@@ -319,7 +407,9 @@ adjustments through this same door.)
   reconciliation identity with a green/red check.
 - Record top-up form; payout queue (publishers over threshold); adjustment
   form; full journal browser.
-- Settlement health: last settled day, rows settled, catch-up/alert state.
+- Settlement health: per-entity "settled through" cursors with a behind
+  flag, plus the recent settled-window journal (local day, exact instant
+  range, rows, skips, gross).
 
 The existing display-time `settings.Net()` call sites stay as-is for live
 (unsettled) numbers — they're a preview; the ledger is the record.
@@ -383,7 +473,20 @@ The existing display-time `settings.Net()` call sites stay as-is for live
    degrades to settled balances rather than skipping. Low-balance /
    suspended banners also appear on the advertiser Account and Stats pages
    (not just Wallet), linking to the Wallet page.
-6. *(Later, separate)* PSP integration (Stripe top-ups via the same
+6. **Local-day redesign (2026-07-15)** — ✅ BUILT, superseding the UTC-day
+   mechanics in phases 2/3/5 above (kept for history): `RecordSettlement`
+   split into `RecordAdvertiserSettlement`/`RecordPublisherSettlement`
+   through the new `clearing` account; `daily_settlements` +
+   `billing_settlement_days` replaced by `settlement_cursors` +
+   `settlement_windows` + per-side settlement tables; `/metering/daily` +
+   `/metering/intraday` replaced by instant-based `/metering/range`,
+   `POST /metering/unsettled` (per-advertiser since), and
+   `/metering/entities` (genesis discovery, all integer micros);
+   `settle-day` CLI replaced by `settle-entity --type --id [--now]`;
+   publisher Revenue-Today takes a `tz` param from the platform proxy.
+   Rollout used `scripts/reset-billing.sh` (books wiped, world kept —
+   users/orgs/passkeys/sites/campaigns/creatives survive).
+7. *(Later, separate)* PSP integration (Stripe top-ups via the same
    `RecordTopup` API), CPF/dog-ear pricing (currently unmonetized — any
    cost-per-fold charge plugs in as additional metering rows), taxes/VAT,
    multi-currency.

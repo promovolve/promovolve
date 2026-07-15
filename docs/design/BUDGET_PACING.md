@@ -2,9 +2,9 @@
 
 Budget pacing spreads ad spend evenly throughout the day instead of exhausting the budget early. This prevents campaigns from going dark in the afternoon after burning through their budget in the morning.
 
-## Which day? The three-clock split
+## Which day? Local days everywhere (almost)
 
-The system deliberately runs on three different day definitions:
+Users think in their own local day, and the system follows:
 
 - **Budget day — advertiser account timezone.** Campaign and account daily
   budgets roll at the midnight of the advertiser's IANA timezone
@@ -14,17 +14,24 @@ The system deliberately runs on three different day definitions:
   inherited by all campaigns. Changing it mid-stream gives the change day one
   shortened or extended budget window — set at provisioning, operator-change
   only.
+- **Billing day — the entity's own local day.** Settlement chains
+  per-entity instant windows on the platform side (docs/design/BILLING.md):
+  each advertiser and each publisher carries a `settled_until` cursor and
+  settles `[settled_until, next local midnight)` once that midnight (plus a
+  finality lag) has passed. The advertiser's billing day therefore equals
+  its budget day; publisher earnings days and payout periods follow the
+  publisher org's zone. The two sides of the same events book into
+  different local days and meet at a platform clearing account.
 - **Traffic-shape day — UTC (site-local).** The learned hourly volume curve
   belongs to the publisher site; a global-audience site has no single zone.
   When the zone-aware pacing flag (`promovolve.pacing.zone-aware`) is on,
   expected spend integrates this UTC curve over each campaign's
   advertiser-zone budget window (`PacingLogic.expectedWindowFraction` handles
   the UTC-midnight wrap).
-- **Billing day — UTC, always.** Settlement, metering, and the ledger book
-  UTC days (`/v1/internal/metering/*`, the Go settler). Billing day ≠ account
-  day is intentional — the shared ledger needs one canonical day, and Google
-  keeps the same split. Historical daily reports likewise stay UTC-bucketed
-  (`campaign_daily_stats.day_bucket` is computed at projection-write time).
+- **Historical report day — UTC.** Daily delivery reports stay UTC-bucketed
+  (`campaign_daily_stats.day_bucket` is computed at projection-write time);
+  the report pages label this. Near midnight a report day and a billing
+  statement day can differ — the statement is the money record.
 
 ## Overview
 

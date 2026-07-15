@@ -75,7 +75,13 @@ final case class Creative(
     // (text is denser signal and avoids base64-image payload bloat).
     lpTextSnapshot: Option[String] = None,
     // Status
-    status: CreativeStatus = CreativeStatus.Active
+    status: CreativeStatus = CreativeStatus.Active,
+    // Number of images that failed to load at the last render (dead or
+    // IP-blocked src — e.g. a hotlink-protected CDN the render browser
+    // can't reach). >0 means the banner shipped with those images hidden;
+    // surfaced in the dashboard so the advertiser can swap the source
+    // image. Includes the brand logo if it failed to load.
+    brokenImages: Int = 0
 ) {
 
   /** True if creative has been verified */
@@ -196,9 +202,13 @@ final class SlickCreativeRepo(db: slick.jdbc.JdbcBackend#Database)(using ec: Exe
       ALTER TABLE creative ADD COLUMN IF NOT EXISTS banner_config_json TEXT
     """.asUpdate
 
+    val addBrokenImagesCol = sql"""
+      ALTER TABLE creative ADD COLUMN IF NOT EXISTS broken_images INT NOT NULL DEFAULT 0
+    """.asUpdate
+
     Await.result(
       db.run(createTableSql >> createHashIndexSql >> createCampaignIndexSql >> addSuggestedCategoriesCol >>
-        addPagesJsonCol >> addLpTextSnapshotCol >> addBannerConfigJsonCol), 10.seconds)
+        addPagesJsonCol >> addLpTextSnapshotCol >> addBannerConfigJsonCol >> addBrokenImagesCol), 10.seconds)
   }
 
   override def put(creative: Creative): Future[Unit] = {
@@ -296,26 +306,28 @@ final class SlickCreativeRepo(db: slick.jdbc.JdbcBackend#Database)(using ec: Exe
     def lpTextSnapshot = column[Option[String]]("lp_text_snapshot")
     // Status
     def status = column[CreativeStatus]("status", O.Default(CreativeStatus.Active))
+    // Failed-to-load image count at last render (see Creative.brokenImages)
+    def brokenImages = column[Int]("broken_images", O.Default(0))
 
     // Index on image_hash for dedup lookups
     def hashIdx = index("idx_creative_image_hash", imageHash)
     // Index on campaign_id for campaign lookups
     def campaignIdx = index("idx_creative_campaign", campaignId)
 
-    // Nested tuple projection — Creative has 24 fields, past Tuple22,
+    // Nested tuple projection — Creative has 25 fields, past Tuple22,
     // so we split into two tuples and map manually via <>.
     def * =
       (
         (creativeId, imageHash, advertiserId, campaignId, name, landingUrl, landingDomain, createdAt, s3Key, mime,
           width),
         (height, pagesJson, bannerConfigJson, matchConfidence, verificationReason, declaredCategory, adultContent,
-          violence, hateSpeech, safetyScore, suggestedContentCategories, lpTextSnapshot, status)
+          violence, hateSpeech, safetyScore, suggestedContentCategories, lpTextSnapshot, status, brokenImages)
       ) <> (
         {
           case ((cid, ih, aid, cid2, nm, lu, ld, ca, sk, mm, w),
-                (h, pj, bcj, mc, vr, dc, ac, vi, hs, ss, scc, lts, st)) =>
+                (h, pj, bcj, mc, vr, dc, ac, vi, hs, ss, scc, lts, st, bi)) =>
             Creative(cid, ih, aid, cid2, nm, lu, ld, ca, sk, mm, w, h, pj, bcj, mc, vr, dc, ac, vi, hs, ss, scc, lts,
-              st)
+              st, bi)
         },
         (c: Creative) =>
           Some((
@@ -323,7 +335,7 @@ final class SlickCreativeRepo(db: slick.jdbc.JdbcBackend#Database)(using ec: Exe
               c.createdAt, c.s3Key, c.mime, c.width),
             (c.height, c.pagesJson, c.bannerConfigJson, c.matchConfidence, c.verificationReason, c.declaredCategory,
               c.adultContent, c.violence, c.hateSpeech, c.safetyScore, c.suggestedContentCategories, c.lpTextSnapshot,
-              c.status)
+              c.status, c.brokenImages)
           ))
       )
   }

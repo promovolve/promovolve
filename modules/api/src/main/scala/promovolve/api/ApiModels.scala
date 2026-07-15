@@ -203,7 +203,11 @@ object ApiModels {
       createdAt: String,
       updatedAt: String,
       matchConfidence: Option[Double] = None, // 0.0-1.0 category match score
-      verificationReason: Option[String] = None // Gemini's explanation
+      verificationReason: Option[String] = None, // Gemini's explanation
+      // Images that failed to load at the last render (dead/IP-blocked src,
+      // logo included) and were hidden. >0 = the banner shipped degraded;
+      // the dashboard surfaces it so the advertiser can swap the image.
+      brokenImages: Int = 0
   )
 
   case class CreativeList(

@@ -2300,6 +2300,10 @@ type creativeData struct {
 	DogearedClicks      int64
 	DogearedCTAClicks   int64
 	PinCTR              string
+	// >0 = images (page image and/or logo) failed to load at the last
+	// render and were hidden; the card surfaces a warning so the advertiser
+	// can swap the source image.
+	BrokenImages int
 }
 
 func (h *Handler) AdvertiserCreatives(w http.ResponseWriter, r *http.Request) {
@@ -2354,6 +2358,7 @@ func (h *Handler) AdvertiserCreatives(w http.ResponseWriter, r *http.Request) {
 					URL  string `json:"url"`
 				} `json:"asset"`
 				MatchConfidence *float64 `json:"matchConfidence"`
+				BrokenImages    int      `json:"brokenImages"`
 			} `json:"data"`
 		}
 		json.Unmarshal(crBody, &crResp)
@@ -2398,7 +2403,7 @@ func (h *Handler) AdvertiserCreatives(w http.ResponseWriter, r *http.Request) {
 		}
 
 		for _, c := range crResp.Data {
-			cd := creativeData{ID: c.ID, Name: c.Name, Status: c.Status, ActiveStatus: c.ActiveStatus}
+			cd := creativeData{ID: c.ID, Name: c.Name, Status: c.Status, ActiveStatus: c.ActiveStatus, BrokenImages: c.BrokenImages}
 			if c.Asset != nil {
 				cd.AssetURL = c.Asset.URL
 			}

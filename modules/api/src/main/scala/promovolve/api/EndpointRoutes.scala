@@ -1870,7 +1870,8 @@ class EndpointRoutes(
                   createdAt = c.createdAt.toString,
                   updatedAt = c.createdAt.toString,
                   matchConfidence = c.matchConfidence,
-                  verificationReason = c.verificationReason
+                  verificationReason = c.verificationReason,
+                  brokenImages = c.brokenImages
                 )
               }
             }.map { allCreatives =>

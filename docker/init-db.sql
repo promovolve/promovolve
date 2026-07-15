@@ -385,7 +385,10 @@ CREATE TABLE IF NOT EXISTS creative (
     -- LP text snapshot (full extracted text, fed to Gemini verify)
     lp_text_snapshot             TEXT,
     -- Status
-    status                       VARCHAR(16) NOT NULL DEFAULT 'Active'
+    status                       VARCHAR(16) NOT NULL DEFAULT 'Active',
+    -- Images that failed to load at the last render (dead/IP-blocked src,
+    -- logo included) and were hidden; surfaced in the dashboard.
+    broken_images                INT NOT NULL DEFAULT 0
 );
 
 CREATE INDEX IF NOT EXISTS idx_creative_image_hash ON creative(image_hash);

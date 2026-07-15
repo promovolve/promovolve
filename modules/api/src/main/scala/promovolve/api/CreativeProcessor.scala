@@ -101,7 +101,8 @@ object CreativeProcessor {
       bannerHash: String, bannerS3Key: String,
       imageBytes: Array[Byte], mime: String,
       width: Int, height: Int,
-      skipVerify: Boolean
+      skipVerify: Boolean,
+      brokenImages: Int
   ) extends Command
 
   /** Internal: banner render skipped or failed. */
@@ -348,7 +349,7 @@ object CreativeProcessor {
             val provisionF: Future[Unit] = provisionFonts(updatedPagesJson)
             val renderF = activateF.zip(provisionF).flatMap(_ =>
               analyzer.renderBanner(updatedPagesJson, width, height)
-            ).flatMap { pngBytes =>
+            ).flatMap { case (pngBytes, brokenImages) =>
               // Re-encode PNG → WebP. Playwright only outputs PNG/JPEG
               // but WebP saves ~25–35% at visually-identical quality.
               // Encode is fail-soft (returns None) so a broken cwebp
@@ -372,13 +373,13 @@ object CreativeProcessor {
               for {
                 key <- imageStorage.store(imgHash, bytes, mime)
                 _ <- imageAssetRepo.put(ImageAsset(imgHash, key, mime, width, height, Instant.now()))
-              } yield (imgHash, key, bytes, mime)
+              } yield (imgHash, key, bytes, mime, brokenImages)
             }
 
             ctx.pipeToSelf(renderF) {
-              case Success((hash, key, bytes, mime)) =>
+              case Success((hash, key, bytes, mime, broken)) =>
                 BannerRendered(creativeId, advertiserId, campaignId, name, landingUrl, updatedPagesJson, hash, key,
-                  bytes, mime, width, height, skipVerify)
+                  bytes, mime, width, height, skipVerify, broken)
               case Failure(e) =>
                 ctx.log.warn("Banner render failed for {}: {}", creativeId, e.getMessage)
                 BannerSkipped(creativeId, advertiserId, campaignId, name, landingUrl, updatedPagesJson, originalHash,
@@ -394,9 +395,9 @@ object CreativeProcessor {
 
       // Step 3a: Banner rendered — update creative + run verification
       case BannerRendered(creativeId, advertiserId, campaignId, name, landingUrl, updatedPagesJson, bannerHash,
-            bannerS3Key, bannerImageBytes, bannerMime, width, height, skipVerify) =>
-        ctx.log.info("CreativeProcessor: banner rendered for {}, s3Key={} mime={} skipVerify={}", creativeId,
-          bannerS3Key, bannerMime, skipVerify)
+            bannerS3Key, bannerImageBytes, bannerMime, width, height, skipVerify, brokenImages) =>
+        ctx.log.info("CreativeProcessor: banner rendered for {}, s3Key={} mime={} skipVerify={} brokenImages={}",
+          creativeId, bannerS3Key, bannerMime, skipVerify: java.lang.Boolean, brokenImages: java.lang.Integer)
 
         // Fetch existing to preserve lp_text_snapshot + Draft status
         // + bannerConfigJson — CreativeProcessor rewrites the row
@@ -418,7 +419,8 @@ object CreativeProcessor {
             pagesJson = Some(updatedPagesJson),
             bannerConfigJson = existing.flatMap(_.bannerConfigJson),
             lpTextSnapshot = existing.flatMap(_.lpTextSnapshot),
-            status = existing.map(_.status).getOrElse(promovolve.publisher.CreativeStatus.Active)
+            status = existing.map(_.status).getOrElse(promovolve.publisher.CreativeStatus.Active),
+            brokenImages = brokenImages
           )).map(_ => existing.flatMap(_.lpTextSnapshot))
         }
 

@@ -30,7 +30,7 @@ trait ApiJsonFormats extends DefaultJsonProtocol {
   // Creative
   given RootJsonFormat[CreativeAsset] = jsonFormat2(CreativeAsset.apply)
   given RootJsonFormat[CreativeContent] = jsonFormat5(CreativeContent.apply)
-  given RootJsonFormat[Creative] = jsonFormat12(Creative.apply)
+  given RootJsonFormat[Creative] = jsonFormat13(Creative.apply)
   given RootJsonFormat[CreativeList] = jsonFormat2(CreativeList.apply)
 
   // Publisher

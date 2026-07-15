@@ -757,7 +757,7 @@ final class LPAnalyzer(
    * @param height    banner height (default 250)
    * @return PNG image bytes
    */
-  def renderBanner(pagesJson: String, width: Int = 300, height: Int = 250): Future[Array[Byte]] =
+  def renderBanner(pagesJson: String, width: Int = 300, height: Int = 250): Future[(Array[Byte], Int)] =
     BrowserSessionPool.submit(browserPool) { browser =>
       val context = browser.newContext(
         new Browser.NewContextOptions()
@@ -896,10 +896,13 @@ final class LPAnalyzer(
             log.warn("renderBanner: hid {} broken image(s) (dead src) before screenshot",
               hiddenBroken: java.lang.Integer)
 
-          // 5. Screenshot the page at banner coordinates
-          page.screenshot(new com.microsoft.playwright.Page.ScreenshotOptions()
+          // 5. Screenshot the page at banner coordinates. Return the count
+          // of images that failed to load (and were hidden) alongside the
+          // bytes so the pipeline can flag the creative.
+          val shot = page.screenshot(new com.microsoft.playwright.Page.ScreenshotOptions()
             .setType(com.microsoft.playwright.options.ScreenshotType.PNG)
             .setClip(0, 0, width.toDouble, height.toDouble))
+          (shot, hiddenBroken)
         } finally {
           page.close()
         }

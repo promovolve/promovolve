@@ -122,6 +122,13 @@
         <span class="badge badge-info">{{.Confidence}} match</span>
         {{end}}
       </div>
+      {{if .BrokenImages}}
+      <div class="flex items-center gap-1.5 mt-2 text-xs text-amber-700"
+           title="These images couldn't be loaded when the banner was rendered — a dead or hotlink-protected source URL the render can't reach — so they were hidden. Replace the image on the landing page, or edit the creative in the designer.">
+        <svg class="w-3.5 h-3.5 shrink-0" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" d="M12 9v4m0 4h.01M10.29 3.86 1.82 18a2 2 0 0 0 1.71 3h16.94a2 2 0 0 0 1.71-3L13.71 3.86a2 2 0 0 0-3.42 0z"/></svg>
+        <span>{{.BrokenImages}} image{{if gt .BrokenImages 1}}s{{end}} couldn&rsquo;t load</span>
+      </div>
+      {{end}}
       {{if or .Impressions .Clicks .CTAClicks}}
       <div class="flex items-center gap-3 mt-2 text-xs text-gray-500">
         <span title="Impressions">{{.Impressions}} imp</span>

@@ -4507,21 +4507,19 @@ class EndpointRoutes(
   }
 
   private val getSiteRevenueTodayLogic
-      : ((String, String)) => Future[Either[ErrorResponse, SiteRevenueTodayResponse]] = {
-    case (_publisherId, siteId) =>
+      : ((String, String, Option[String])) => Future[Either[ErrorResponse, SiteRevenueTodayResponse]] = {
+    case (_publisherId, siteId, tz) =>
       // Aggregate impression revenue from the `tracking_events` projection
-      // since UTC midnight. This is the same source the advertiser dashboard
-      // uses for "Today's Spend" — so publisher Revenue and advertiser Spend
-      // will reconcile when both refer to "today".
+      // since midnight of the caller-supplied zone (the publisher's local
+      // day; unset/invalid = UTC). This is the same source the advertiser
+      // dashboard uses for "Today's Spend".
       //
       // Falls back to zeros if the dashboard DB isn't configured (e.g. in a
       // dev cluster without the projection). Doesn't error — the publisher
       // page should render even when the projection is offline.
-      // "Today" boundary computed server-side by postgres (date_trunc on
-      // NOW() AT TIME ZONE 'UTC'), so we avoid needing a custom Slick
-      // SetParameter[Instant] in this file.
-      val sinceUtcLabel = java.time.OffsetDateTime.now(java.time.ZoneOffset.UTC)
-        .toLocalDate.atStartOfDay().toString + "Z"
+      val zone = promovolve.common.Timezones.zoneOf(tz.getOrElse(""))
+      val dayStart = java.time.LocalDate.now(zone).atStartOfDay(zone).toInstant
+      val sinceUtcLabel = dayStart.toString
       val zero = SiteRevenueTodayResponse(
         siteId = siteId,
         sinceUtc = sinceUtcLabel,
@@ -4535,12 +4533,13 @@ class EndpointRoutes(
           import slick.jdbc.PostgresProfile.api.*
           import slick.jdbc.GetResult
           given GetResult[(Long, Double)] = GetResult(using r => (r.nextLong(), r.nextDouble()))
+          val dayStartStr = dayStart.toString
           val q = sql"""
             SELECT COUNT(*)::bigint, COALESCE(SUM(cpm) / 1000.0, 0.0)::double precision
             FROM tracking_events
             WHERE site_id = $siteId
               AND event_type = 'impression'
-              AND event_time >= date_trunc('day', NOW() AT TIME ZONE 'UTC')
+              AND event_time >= $dayStartStr::timestamptz
           """.as[(Long, Double)].headOption
           db.run(q).map { opt =>
             val (imps, rev) = opt.getOrElse((0L, 0.0))
@@ -4867,6 +4866,247 @@ class EndpointRoutes(
       }
   }
 
+  // Shared billing-micros expression: integer micro-dollars summed PER EVENT
+  // so any window partition of the same events totals identically (cpm is
+  // DECIMAL(10,4) dollars per 1000 impressions → cpm*1000 = micro-dollars per
+  // impression; ROUND kills the sub-micro residue deterministically per row).
+  // The advertiser and publisher settlement sides slice the same events into
+  // DIFFERENT local-day windows; per-row rounding of float sums would leave
+  // permanent micro-drift at the clearing account.
+  //
+  // How final is final: the range endpoints refuse windows ending within
+  // this lag of now unless the internal-key-gated allowPartial opts in —
+  // reading a still-moving window locks short numbers into the ledger
+  // forever (the settlement keys already exist).
+  private val meteringFinalityLag = java.time.Duration.ofHours(1)
+
+  private def parseInstant(s: String): Option[java.time.Instant] =
+    scala.util.Try(java.time.Instant.parse(s)).toOption
+
+  private val getMeteringRangeLogic: (
+      (String, String, Option[String], Option[String], Option[Boolean],
+          Option[String])) => Future[Either[ErrorResponse, MeteringRangeResponse]] = {
+    case (fromStr, toStr, advertiserId, publisherId, allowPartial, key) =>
+      requireInternalKey(key) match {
+        case Left(err) => Future.successful(Left(err))
+        case Right(()) =>
+          (parseInstant(fromStr), parseInstant(toStr)) match {
+            case (None, _) | (_, None) =>
+              Future.successful(Left(ErrorResponse("bad_instant",
+                s"from/to must be ISO-8601 instants, got '$fromStr'/'$toStr'")))
+            case (Some(from), Some(to)) if !to.isAfter(from) =>
+              Future.successful(Left(ErrorResponse("bad_range", s"to ($toStr) must be after from ($fromStr)")))
+            case (Some(_), Some(to))
+                if to.isAfter(java.time.Instant.now().minus(meteringFinalityLag)) && !allowPartial.contains(true) =>
+              Future.successful(Left(ErrorResponse("window_not_final",
+                s"window end $toStr is within the finality lag of now")))
+            case (Some(from), Some(to)) =>
+              val entityFilter = (advertiserId.filter(_.nonEmpty), publisherId.filter(_.nonEmpty))
+              entityFilter match {
+                case (Some(_), Some(_)) | (None, None) =>
+                  Future.successful(Left(ErrorResponse("bad_entity_filter",
+                    "exactly one of advertiserId or publisherId is required")))
+                case _ =>
+                  dashboardDb match {
+                    case None =>
+                      // Zero rows here would read as "no spend" and the
+                      // window would be marked settled — a misconfigured pod
+                      // must be an error the settlement job retries, never a
+                      // silent $0.
+                      Future.successful(Left(ErrorResponse("metering_unavailable",
+                        "dashboard DB not configured on this pod")))
+                    case Some(db) =>
+                      import slick.jdbc.PostgresProfile.api.*
+                      import slick.jdbc.GetResult
+                      given GetResult[(String, String, String, Option[String], Long, Long)] =
+                        GetResult(using r =>
+                          (r.nextString(), r.nextString(), r.nextString(), r.nextStringOption(), r.nextLong(),
+                            r.nextLong())
+                        )
+                      val fromB = from.toString
+                      val toB = to.toString
+                      // Half-open [from, to) keeps the predicate sargable
+                      // against the hypertable's event_time partitioning.
+                      // Dog-eared impressions never debit campaign budget
+                      // (LearningEventLog skips RecordSpend for them), so
+                      // they are excluded from billing even though the
+                      // display endpoints count them.
+                      val q = entityFilter match {
+                        case (Some(adv), None) =>
+                          // publisher_id rides along so the settler can
+                          // count/alert unmapped-site cells (skipped, not
+                          // billed — nobody pays until the mapping exists).
+                          sql"""
+                            SELECT te.advertiser_id, te.campaign_id, te.site_id, ps.publisher_id,
+                                   COUNT(*)::bigint,
+                                   COALESCE(SUM(ROUND(te.cpm * 1000)), 0)::bigint
+                            FROM tracking_events te
+                            LEFT JOIN publisher_sites ps ON ps.site_id = te.site_id
+                            WHERE te.event_type = 'impression'
+                              AND NOT te.dogeared
+                              AND te.advertiser_id = $adv
+                              AND te.campaign_id IS NOT NULL
+                              AND te.event_time >= $fromB::timestamptz
+                              AND te.event_time <  $toB::timestamptz
+                            GROUP BY te.advertiser_id, te.campaign_id, te.site_id, ps.publisher_id
+                            ORDER BY te.campaign_id, te.site_id
+                          """.as[(String, String, String, Option[String], Long, Long)]
+                        case _ =>
+                          val pub = entityFilter._2.get
+                          sql"""
+                            SELECT te.advertiser_id, te.campaign_id, te.site_id, ps.publisher_id,
+                                   COUNT(*)::bigint,
+                                   COALESCE(SUM(ROUND(te.cpm * 1000)), 0)::bigint
+                            FROM tracking_events te
+                            JOIN publisher_sites ps ON ps.site_id = te.site_id
+                            WHERE te.event_type = 'impression'
+                              AND NOT te.dogeared
+                              AND te.advertiser_id IS NOT NULL
+                              AND te.campaign_id IS NOT NULL
+                              AND ps.publisher_id = $pub
+                              AND te.event_time >= $fromB::timestamptz
+                              AND te.event_time <  $toB::timestamptz
+                            GROUP BY te.advertiser_id, te.campaign_id, te.site_id, ps.publisher_id
+                            ORDER BY te.site_id, te.campaign_id, te.advertiser_id
+                          """.as[(String, String, String, Option[String], Long, Long)]
+                      }
+                      db.run(q).map { rows =>
+                        Right(MeteringRangeResponse(
+                          from = fromB,
+                          to = toB,
+                          rows = rows.toVector.map { case (adv, camp, site, pub, imps, micros) =>
+                            MeteringRangeRow(adv, camp, site, pub.getOrElse(""), imps, micros)
+                          }
+                        ))
+                      }.recover { case ex =>
+                        Left(ErrorResponse("metering_range_failed", ex.getMessage))
+                      }
+                  }
+              }
+          }
+      }
+  }
+
+  private val postMeteringUnsettledLogic: (
+      (MeteringUnsettledRequest, Option[String])) => Future[Either[ErrorResponse, MeteringUnsettledResponse]] = {
+    case (req, key) =>
+      requireInternalKey(key) match {
+        case Left(err) => Future.successful(Left(err))
+        case Right(()) =>
+          if (req.rows.isEmpty) Future.successful(Right(MeteringUnsettledResponse(Vector.empty)))
+          else {
+            val parsed = req.rows.map(r => (r.advertiserId, parseInstant(r.since)))
+            // Ids are inlined into the VALUES list (Slick plain-SQL can't
+            // parametrize a dynamic-arity VALUES), so both columns are
+            // strictly validated first: instants re-render via
+            // Instant.toString and ids must be simple tokens.
+            val idOk = "^[A-Za-z0-9_-]+$".r
+            parsed.collectFirst {
+              case (id, None)                   => s"bad since instant for advertiser '$id'"
+              case (id, _) if !idOk.matches(id) => s"bad advertiserId '$id'"
+            } match {
+              case Some(msg) => Future.successful(Left(ErrorResponse("bad_request", msg)))
+              case None      =>
+                dashboardDb match {
+                  case None =>
+                    Future.successful(Left(ErrorResponse("metering_unavailable",
+                      "dashboard DB not configured on this pod")))
+                  case Some(db) =>
+                    import slick.jdbc.PostgresProfile.api.*
+                    import slick.jdbc.GetResult
+                    given GetResult[(String, Long)] = GetResult(using r => (r.nextString(), r.nextLong()))
+                    val values = parsed
+                      .map { case (id, since) => s"('$id', '${since.get.toString}'::timestamptz)" }
+                      .mkString(", ")
+                    // One round trip for all advertisers, each since its own
+                    // cursor. Same billing predicate + micros expression as
+                    // /metering/range.
+                    val q = sql"""
+                      SELECT v.advertiser_id,
+                             COALESCE(SUM(ROUND(te.cpm * 1000)), 0)::bigint
+                      FROM (VALUES #$values) AS v(advertiser_id, since)
+                      LEFT JOIN tracking_events te
+                        ON te.advertiser_id = v.advertiser_id
+                       AND te.event_type = 'impression'
+                       AND NOT te.dogeared
+                       AND te.campaign_id IS NOT NULL
+                       AND te.event_time >= v.since
+                      GROUP BY v.advertiser_id
+                    """.as[(String, Long)]
+                    db.run(q).map { rows =>
+                      Right(MeteringUnsettledResponse(
+                        rows = rows.toVector.map { case (adv, micros) => MeteringUnsettledRow(adv, micros) }
+                      ))
+                    }.recover { case ex =>
+                      Left(ErrorResponse("metering_unsettled_failed", ex.getMessage))
+                    }
+                }
+            }
+          }
+      }
+  }
+
+  private val getMeteringEntitiesLogic
+      : ((String, Option[String])) => Future[Either[ErrorResponse, MeteringEntitiesResponse]] = {
+    case (sinceStr, key) =>
+      requireInternalKey(key) match {
+        case Left(err) => Future.successful(Left(err))
+        case Right(()) =>
+          parseInstant(sinceStr) match {
+            case None =>
+              Future.successful(Left(ErrorResponse("bad_instant",
+                s"since must be an ISO-8601 instant, got '$sinceStr'")))
+            case Some(since) =>
+              dashboardDb match {
+                case None =>
+                  Future.successful(Left(ErrorResponse("metering_unavailable",
+                    "dashboard DB not configured on this pod")))
+                case Some(db) =>
+                  import slick.jdbc.PostgresProfile.api.*
+                  import slick.jdbc.GetResult
+                  given GetResult[(String, java.sql.Timestamp)] =
+                    GetResult(using r => (r.nextString(), r.nextTimestamp()))
+                  val sinceB = since.toString
+                  // MIN(event_time) rides along so the platform can anchor a
+                  // new entity's genesis cursor at the local midnight BEFORE
+                  // its first billable event — events between first
+                  // impression and discovery must never fall outside every
+                  // settlement window.
+                  val advQ = sql"""
+                    SELECT te.advertiser_id, MIN(te.event_time)
+                    FROM tracking_events te
+                    WHERE te.event_type = 'impression'
+                      AND NOT te.dogeared
+                      AND te.advertiser_id IS NOT NULL
+                      AND te.campaign_id IS NOT NULL
+                      AND te.event_time >= $sinceB::timestamptz
+                    GROUP BY te.advertiser_id
+                  """.as[(String, java.sql.Timestamp)]
+                  val pubQ = sql"""
+                    SELECT ps.publisher_id, MIN(te.event_time)
+                    FROM tracking_events te
+                    JOIN publisher_sites ps ON ps.site_id = te.site_id
+                    WHERE te.event_type = 'impression'
+                      AND NOT te.dogeared
+                      AND te.advertiser_id IS NOT NULL
+                      AND te.campaign_id IS NOT NULL
+                      AND te.event_time >= $sinceB::timestamptz
+                    GROUP BY ps.publisher_id
+                  """.as[(String, java.sql.Timestamp)]
+                  def toRows(pairs: Seq[(String, java.sql.Timestamp)]): Vector[MeteringEntityRow] =
+                    pairs.toVector.sortBy(_._1).map { case (id, ts) =>
+                      MeteringEntityRow(id, ts.toInstant.toString)
+                    }
+                  db.run(advQ).zip(db.run(pubQ)).map { case (advs, pubs) =>
+                    Right(MeteringEntitiesResponse(toRows(advs), toRows(pubs)))
+                  }.recover { case ex =>
+                    Left(ErrorResponse("metering_entities_failed", ex.getMessage))
+                  }
+              }
+          }
+      }
+  }
+
   // A never-provisioned advertiser entity recovers as empty state (status
   // Active, no name, no campaigns) — asking it UpdateStatus would persist a
   // phantom entity and return success for a typo'd id. Both internal
@@ -5001,6 +5241,9 @@ class EndpointRoutes(
   private val internalRoutes: List[Route] = List(
     PekkoHttpServerInterpreter().toRoute(Endpoints.getMeteringDaily.serverLogic(getMeteringDailyLogic)),
     PekkoHttpServerInterpreter().toRoute(Endpoints.getMeteringIntraday.serverLogic(getMeteringIntradayLogic)),
+    PekkoHttpServerInterpreter().toRoute(Endpoints.getMeteringRange.serverLogic(getMeteringRangeLogic)),
+    PekkoHttpServerInterpreter().toRoute(Endpoints.postMeteringUnsettled.serverLogic(postMeteringUnsettledLogic)),
+    PekkoHttpServerInterpreter().toRoute(Endpoints.getMeteringEntities.serverLogic(getMeteringEntitiesLogic)),
     PekkoHttpServerInterpreter().toRoute(Endpoints.suspendAdvertiser.serverLogic(suspendAdvertiserLogic)),
     PekkoHttpServerInterpreter().toRoute(Endpoints.resumeAdvertiser.serverLogic(resumeAdvertiserLogic)),
     PekkoHttpServerInterpreter().toRoute(Endpoints.setAdvertiserTimezone.serverLogic(setAdvertiserTimezoneLogic)),
@@ -5024,7 +5267,7 @@ class EndpointRoutes(
       Endpoints.getFloorSweepHistory.serverLogic(gateSite4(getFloorSweepHistoryLogic))),
     PekkoHttpServerInterpreter().toRoute(Endpoints.getCategoryDemand.serverLogic(gateSite2(getCategoryDemandLogic))),
     PekkoHttpServerInterpreter().toRoute(
-      Endpoints.getSiteRevenueToday.serverLogic(gateSite2(getSiteRevenueTodayLogic))),
+      Endpoints.getSiteRevenueToday.serverLogic(gateSite3(getSiteRevenueTodayLogic))),
     PekkoHttpServerInterpreter().toRoute(Endpoints.getAdvertiserSpendToday.serverLogic(getAdvertiserSpendTodayLogic)),
     PekkoHttpServerInterpreter().toRoute(Endpoints.getAdvertiserWinRates.serverLogic(getAdvertiserWinRatesLogic)),
     PekkoHttpServerInterpreter().toRoute(

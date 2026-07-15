@@ -106,6 +106,14 @@ trait ApiJsonFormats extends DefaultJsonProtocol {
   given RootJsonFormat[MeteringDailyResponse] = jsonFormat2(MeteringDailyResponse.apply)
   given RootJsonFormat[MeteringIntradayRow] = jsonFormat2(MeteringIntradayRow.apply)
   given RootJsonFormat[MeteringIntradayResponse] = jsonFormat2(MeteringIntradayResponse.apply)
+  given RootJsonFormat[MeteringRangeRow] = jsonFormat6(MeteringRangeRow.apply)
+  given RootJsonFormat[MeteringRangeResponse] = jsonFormat3(MeteringRangeResponse.apply)
+  given RootJsonFormat[MeteringUnsettledSince] = jsonFormat2(MeteringUnsettledSince.apply)
+  given RootJsonFormat[MeteringUnsettledRequest] = jsonFormat1(MeteringUnsettledRequest.apply)
+  given RootJsonFormat[MeteringUnsettledRow] = jsonFormat2(MeteringUnsettledRow.apply)
+  given RootJsonFormat[MeteringUnsettledResponse] = jsonFormat1(MeteringUnsettledResponse.apply)
+  given RootJsonFormat[MeteringEntityRow] = jsonFormat2(MeteringEntityRow.apply)
+  given RootJsonFormat[MeteringEntitiesResponse] = jsonFormat2(MeteringEntitiesResponse.apply)
 
   // Taxonomy
   given RootJsonFormat[TaxonomyCategory] = jsonFormat3(TaxonomyCategory.apply)

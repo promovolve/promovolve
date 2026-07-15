@@ -70,6 +70,14 @@ object ApiSchemas {
   given Schema[MeteringDailyResponse] = Schema.derived
   given Schema[MeteringIntradayRow] = Schema.derived
   given Schema[MeteringIntradayResponse] = Schema.derived
+  given Schema[MeteringRangeRow] = Schema.derived
+  given Schema[MeteringRangeResponse] = Schema.derived
+  given Schema[MeteringUnsettledSince] = Schema.derived
+  given Schema[MeteringUnsettledRequest] = Schema.derived
+  given Schema[MeteringUnsettledRow] = Schema.derived
+  given Schema[MeteringUnsettledResponse] = Schema.derived
+  given Schema[MeteringEntityRow] = Schema.derived
+  given Schema[MeteringEntitiesResponse] = Schema.derived
 
   // Taxonomy
   given Schema[TaxonomyCategory] = Schema.derived

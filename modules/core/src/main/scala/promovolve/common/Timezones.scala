@@ -12,8 +12,9 @@ import scala.util.Try
  * point of use via these total helpers: an empty or unknown id silently
  * resolves to UTC (the legacy behavior), never throws.
  *
- * Budget windows and pacing day-windows use the advertiser zone; traffic-shape
- * learning, settlement, and metering deliberately stay UTC.
+ * Budget windows, pacing day-windows, and billing settlement windows use the
+ * account zone (settlement chains instant windows per entity on the platform
+ * side); traffic-shape learning deliberately stays UTC.
  */
 object Timezones {
 

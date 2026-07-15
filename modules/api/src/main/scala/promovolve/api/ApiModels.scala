@@ -471,6 +471,76 @@ object ApiModels {
   )
 
   /**
+   * One billable metering cell for an arbitrary instant range — the
+   * local-day settlement job's data source. Amounts are integer
+   * micro-dollars summed PER EVENT (SUM(ROUND(cpm*1000))), so any
+   * partition of the same events into windows sums to the identical
+   * total; the advertiser and publisher sides settle the same events
+   * over different local-day windows and their books must meet exactly
+   * at the clearing account. Dog-eared impressions are excluded — they
+   * never debit campaign budget, so they are not billable.
+   */
+  case class MeteringRangeRow(
+      advertiserId: String,
+      campaignId: String,
+      siteId: String,
+      publisherId: String, // empty when the site has no publisher_sites row
+      impressions: Long,
+      grossMicros: Long
+  )
+
+  case class MeteringRangeResponse(
+      from: String, // ISO-8601 instant, inclusive
+      to: String, // ISO-8601 instant, exclusive
+      rows: Vector[MeteringRangeRow]
+  )
+
+  /**
+   * Per-advertiser unsettled gross since each advertiser's OWN
+   * settlement cursor — the wallet-projection input. A single global
+   * "since" would double-count spend already settled for advertisers
+   * with newer cursors, so the platform sends one instant per
+   * advertiser and gets one gross back per advertiser.
+   */
+  case class MeteringUnsettledSince(
+      advertiserId: String,
+      since: String // ISO-8601 instant
+  )
+
+  case class MeteringUnsettledRequest(
+      rows: Vector[MeteringUnsettledSince]
+  )
+
+  case class MeteringUnsettledRow(
+      advertiserId: String,
+      grossMicros: Long
+  )
+
+  case class MeteringUnsettledResponse(
+      rows: Vector[MeteringUnsettledRow]
+  )
+
+  /**
+   * Entities with billable impressions since an instant — how the
+   * settlement job discovers advertisers/publishers that have traffic
+   * but no settlement cursor yet (publishers are joined from
+   * publisher_sites; unmapped sites surface no publisher here).
+   * earliest = MIN(event_time) within the queried span, so the platform
+   * can anchor a new entity's genesis cursor at the local midnight
+   * BEFORE its first billable event — events between first impression
+   * and discovery must not fall outside every settlement window.
+   */
+  case class MeteringEntityRow(
+      id: String,
+      earliest: String // ISO-8601 instant of the entity's first billable event since `since`
+  )
+
+  case class MeteringEntitiesResponse(
+      advertisers: Vector[MeteringEntityRow],
+      publishers: Vector[MeteringEntityRow]
+  )
+
+  /**
    * Sweep optimizer snapshot exposed to the dashboard. All optional
    * fields are None/empty only in the brief window before the entity
    * has finished recovery and installed its optimizer.

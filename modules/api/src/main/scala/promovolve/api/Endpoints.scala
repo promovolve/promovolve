@@ -371,14 +371,16 @@ object Endpoints extends ApiJsonFormats {
       .out(jsonBody[CategoryDemandResponse])
       .errorOut(jsonBody[ErrorResponse])
 
-  val getSiteRevenueToday: PublicEndpoint[(String, String), ErrorResponse, SiteRevenueTodayResponse, Any] =
+  val getSiteRevenueToday: PublicEndpoint[(String, String, Option[String]), ErrorResponse, SiteRevenueTodayResponse,
+    Any] =
     endpoint
       .tag("Sites")
       .summary("Today's revenue for a site, sourced from tracking_events")
       .description(
-        "Aggregates impression revenue from the tracking_events table since UTC midnight. Used by the publisher dashboard's Revenue tile so it aligns with the advertiser-side spend numbers (both query the same projection). Returns zeros if the projection DB isn't configured.")
+        "Aggregates impression revenue from the tracking_events table since midnight of the given IANA timezone (the publisher's local day; unset/invalid = UTC). Used by the publisher dashboard's Revenue tile; with the publisher's zone it matches their local-day earnings statements. Returns zeros if the projection DB isn't configured.")
       .get
       .in(sitesBase / path[String]("siteId") / "revenue-today")
+      .in(query[Option[String]]("tz").description("IANA timezone for the 'today' boundary; unset = UTC"))
       .out(jsonBody[SiteRevenueTodayResponse])
       .errorOut(jsonBody[ErrorResponse])
 
@@ -560,6 +562,52 @@ object Endpoints extends ApiJsonFormats {
       .out(jsonBody[MeteringIntradayResponse])
       .errorOut(jsonBody[ErrorResponse])
 
+  val getMeteringRange: PublicEndpoint[(String, String, Option[String], Option[String], Option[Boolean],
+        Option[String]), ErrorResponse, MeteringRangeResponse, Any] =
+    endpoint
+      .tag("Internal")
+      .summary("Billable metering cells for one entity over an instant range")
+      .description(
+        "Per (advertiser, campaign, site) impression count and gross INTEGER MICRO-dollars from tracking_events for the half-open instant range [from, to), filtered to exactly one advertiser or one publisher. Micros are summed per event (SUM(ROUND(cpm*1000))), so any partition of the same events into windows totals identically — the local-day settlement job books the advertiser and publisher sides of the same events over different local-day windows and the two sides must meet exactly at the clearing account. Dog-eared impressions are excluded. Must be called within the tracking_events 30-day retention window.")
+      .get
+      .in(v1 / "internal" / "metering" / "range")
+      .in(query[String]("from").description("ISO-8601 instant, inclusive"))
+      .in(query[String]("to").description("ISO-8601 instant, exclusive"))
+      .in(query[Option[String]]("advertiserId").description("settle this advertiser's cells (exactly one filter)"))
+      .in(query[Option[String]]("publisherId").description("settle this publisher's cells (exactly one filter)"))
+      .in(query[Option[Boolean]]("allowPartial").description(
+        "Operator/test only: read a window whose end is not yet final (within the finality lag of now). The scheduled job never sets this."))
+      .in(header[Option[String]]("X-Internal-Key"))
+      .out(jsonBody[MeteringRangeResponse])
+      .errorOut(jsonBody[ErrorResponse])
+
+  val postMeteringUnsettled
+      : PublicEndpoint[(MeteringUnsettledRequest, Option[String]), ErrorResponse, MeteringUnsettledResponse, Any] =
+    endpoint
+      .tag("Internal")
+      .summary("Unsettled gross per advertiser, each since its own settlement cursor")
+      .description(
+        "Per-advertiser billable gross micro-dollars from tracking_events between each advertiser's OWN cursor instant and now — spend not yet booked to the platform ledger. Under per-entity local-day settlement every advertiser has its own settled-until instant, so a single global since would double-count already-settled spend. Same billing rules and micros expression as /metering/range.")
+      .post
+      .in(v1 / "internal" / "metering" / "unsettled")
+      .in(jsonBody[MeteringUnsettledRequest])
+      .in(header[Option[String]]("X-Internal-Key"))
+      .out(jsonBody[MeteringUnsettledResponse])
+      .errorOut(jsonBody[ErrorResponse])
+
+  val getMeteringEntities: PublicEndpoint[(String, Option[String]), ErrorResponse, MeteringEntitiesResponse, Any] =
+    endpoint
+      .tag("Internal")
+      .summary("Entities with billable impressions since an instant")
+      .description(
+        "Distinct advertiser ids and publisher ids (via publisher_sites) with billable impressions since the given instant, each with its earliest billable event time in the span. The settlement job calls this each pass to discover entities that have traffic but no settlement cursor yet, and anchors their genesis cursor at the local midnight before that earliest event.")
+      .get
+      .in(v1 / "internal" / "metering" / "entities")
+      .in(query[String]("since").description("ISO-8601 instant"))
+      .in(header[Option[String]]("X-Internal-Key"))
+      .out(jsonBody[MeteringEntitiesResponse])
+      .errorOut(jsonBody[ErrorResponse])
+
   val suspendAdvertiser: PublicEndpoint[(String, Option[String]), ErrorResponse, Unit, Any] =
     endpoint
       .tag("Internal")
@@ -588,7 +636,7 @@ object Endpoints extends ApiJsonFormats {
       .tag("Internal")
       .summary("Set an advertiser's account timezone (budget-day boundary)")
       .description(
-        "Sets the IANA timezone that defines the advertiser's budget day: campaign and account daily budgets roll at this zone's midnight, and pacing paces toward it. Empty string = UTC. Settlement and metering deliberately stay UTC (billing day ≠ account day). Called by the platform at provisioning and on operator change — changing it mid-stream gives the change day one shortened or extended budget window.")
+        "Sets the IANA timezone that defines the advertiser's budget day: campaign and account daily budgets roll at this zone's midnight, and pacing paces toward it. Empty string = UTC. The platform's settlement job uses the same zone for the advertiser's billing day (budget day == billing day), reading it from its own DB — this endpoint only informs the core entities. Called by the platform at provisioning and on operator change — changing it mid-stream gives the change day one shortened or extended budget window.")
       .post
       .in(v1 / "internal" / "advertisers" / path[String]("advertiserId") / "timezone")
       .in(jsonBody[SetTimezoneRequest])

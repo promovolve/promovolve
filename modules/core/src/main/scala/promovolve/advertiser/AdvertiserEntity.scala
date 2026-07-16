@@ -376,6 +376,24 @@ object AdvertiserEntity {
         Effect.none.thenReply(replyTo)(state =>
           CampaignSpendRecorded(state.advertiserId, campaignId, state.spendToday, state.remaining)
         )
+      } else if (Timezones.localEpochDay(ts, state.timezone) < state.windowEpochDay) {
+        // Monotonic-roll guard: a report from a PRIOR budget day (a campaign
+        // re-driving its pendingReports after a restart, with the original
+        // ts). needsRoll is an inequality, so processing this would roll the
+        // window BACKWARD — zeroing today's spendToday, rewinding the day
+        // anchor, and clearing processedFlushIds (the post-restart "frozen
+        // spend report"). That day's pacing counter is already gone; ack as
+        // a no-op so the campaign clears its pendingReports entry, and don't
+        // burn a dedup slot on an id that can never legitimately recur.
+        ctx.log.info(
+          "Stale prior-day spend report ignored: flush {} (report day {}, current window day {})",
+          flushId,
+          Long.box(Timezones.localEpochDay(ts, state.timezone)),
+          Long.box(state.windowEpochDay)
+        )
+        Effect.none.thenReply(replyTo)(state =>
+          CampaignSpendRecorded(state.advertiserId, campaignId, state.spendToday, state.remaining)
+        )
       } else {
         // Check if daily window needs rolling (day boundary = advertiser-zone midnight)
         val today = Timezones.localEpochDay(ts, state.timezone)
@@ -1029,6 +1047,18 @@ object AdvertiserEntity {
         Timezones.localEpochDay(lastResetAt, timezone) != Timezones.localEpochDay(now, timezone)
       else
         lastResetEpochDay != Timezones.localEpochDay(now, timezone)
+
+    /**
+     * Epoch day (account zone) of the CURRENT budget window — the same
+     * anchor needsRoll compares against. Used to reject stale prior-day
+     * spend reports: needsRoll is an inequality, so without a monotonic
+     * guard a report re-driven after a restart with yesterday's timestamp
+     * would roll the window BACKWARD (zeroing spendToday and wiping the
+     * flushId dedup set).
+     */
+    def windowEpochDay: Long =
+      if (lastResetAt != Instant.EPOCH) Timezones.localEpochDay(lastResetAt, timezone)
+      else lastResetEpochDay
 
     /**
      * Adopt a new account timezone. Never touches spend; a legacy state

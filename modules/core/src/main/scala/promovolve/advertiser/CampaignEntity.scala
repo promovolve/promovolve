@@ -72,7 +72,12 @@ object CampaignEntity {
       budgetEventTopic: ActorRef[Topic.Command[BudgetEvent]],
       flushInterval: FiniteDuration = 500.millis, // Very tight: flush every 500ms
       maxBatchSize: Int = 20, // Very tight: flush every 20 events
-      simDayDurationSeconds: Double = 86400.0 // Simulated day length (compresses budget days for scenario testing; 86400 = real day)
+      simDayDurationSeconds: Double = 86400.0, // Simulated day length (compresses budget days for scenario testing; 86400 = real day)
+      // Cadence for re-driving a spend report whose fast retries are exhausted
+      // (advertiser entity unavailable > ~5.5s, e.g. a rolling restart). Slow
+      // on purpose: at-least-once must survive long outages without hammering,
+      // and the maxPendingAge drop below bounds the total lifetime.
+      reportReconcileInterval: FiniteDuration = 2.minutes
   )(using system: ActorSystem[?], ec: ExecutionContext): Behavior[Command] =
     Behaviors.setup { ctx =>
       Behaviors.withTimers { timers =>
@@ -790,11 +795,25 @@ object CampaignEntity {
                   )
                 }
             } else {
+              // Fast retries exhausted (~5.5s of unavailability — a rolling
+              // restart is exactly this). Do NOT orphan the entry: before this
+              // reconcile existed, Effect.none left the flushId in persisted
+              // pendingReports with no scheduled retry, and the maxPendingAge
+              // drop only runs inside SpendReportRetry — so the entry leaked
+              // until the next entity restart re-drove it. Keep at-least-once
+              // alive on a slow cadence instead; the retry handler's age check
+              // still bounds total lifetime at maxPendingAge.
               ctx.log.error(
-                "SPEND_TRACKING_FAILURE: Failed to report spend after {} retries for flush {}. Amount: {}",
-                maxRetries,
+                "SPEND_TRACKING_FAILURE: spend report for flush {} unacknowledged after {} attempts (amount {}); reconciling every {} until it lands or ages out",
                 flushId,
-                amount
+                maxRetries,
+                amount,
+                reportReconcileInterval
+              )
+              ctx.scheduleOnce(
+                reportReconcileInterval,
+                ctx.self,
+                SpendReportRetry(flushId, amount, ts, maxRetries)
               )
               Effect.none
             }
@@ -818,11 +837,21 @@ object CampaignEntity {
               initiateSpendReport(flushId, amount, ts, retryCount)
               Effect.none
             } else {
+              // Defensive: a retry carrying retryCount > maxRetries (shouldn't
+              // be scheduled, but recovery re-drives persisted counts). Same
+              // no-orphan rule as the failure branch — fall back to the slow
+              // reconcile cadence rather than abandoning the entry.
               ctx.log.error(
-                "SPEND_TRACKING_FAILURE: Failed to report spend after {} retries for flush {}. Amount: {}",
-                maxRetries,
+                "SPEND_TRACKING_FAILURE: spend report for flush {} unacknowledged after {} attempts (amount {}); reconciling every {} until it lands or ages out",
                 flushId,
-                amount
+                maxRetries,
+                amount,
+                reportReconcileInterval
+              )
+              ctx.scheduleOnce(
+                reportReconcileInterval,
+                ctx.self,
+                SpendReportRetry(flushId, amount, ts, maxRetries)
               )
               Effect.none
             }

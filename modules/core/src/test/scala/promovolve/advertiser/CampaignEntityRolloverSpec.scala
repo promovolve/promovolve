@@ -80,6 +80,14 @@ class CampaignEntityRolloverSpec extends AnyWordSpec with Matchers with BeforeAn
   /** Account zones served by the advertiser stub; absent = GetTimezone times out (no-op self-heal). */
   private val advertiserZones = new java.util.concurrent.ConcurrentHashMap[String, String]()
 
+  /** Per-advertiser RecordCampaignSpend attempt counter (only counted when registered). */
+  private val spendAttempts =
+    new java.util.concurrent.ConcurrentHashMap[String, java.util.concurrent.atomic.AtomicInteger]()
+
+  /** Advertisers whose spend reports are swallowed (ask times out) — drives the exhaustion path. */
+  private val silentSpend: java.util.Set[String] =
+    java.util.concurrent.ConcurrentHashMap.newKeySet[String]()
+
   sharding.init(Entity(AdvertiserEntity.TypeKey)(entityCtx =>
     Behaviors.receiveMessage[AdvertiserEntity.Command | AdvertiserEntity.DDataUpdateResponse] {
       case AdvertiserEntity.GetTimezone(replyTo) =>
@@ -88,10 +96,15 @@ class CampaignEntityRolloverSpec extends AnyWordSpec with Matchers with BeforeAn
         }
         Behaviors.same
       case AdvertiserEntity.RecordCampaignSpend(_, campaignId, amount, _, replyTo) =>
-        // Ack flush reports so at-least-once delivery settles quietly.
-        replyTo ! AdvertiserEntity.CampaignSpendRecorded(
-          AdvertiserId(entityCtx.entityId), campaignId, amount, Budget(1000.0)
-        )
+        Option(spendAttempts.get(entityCtx.entityId)).foreach(_.incrementAndGet())
+        // Ack flush reports so at-least-once delivery settles quietly —
+        // unless the test silenced this advertiser to exercise retries.
+        if (!silentSpend.contains(entityCtx.entityId)) {
+          replyTo ! AdvertiserEntity.CampaignSpendRecorded(
+            AdvertiserId(entityCtx.entityId), campaignId, amount,
+            Budget(1000.0)
+          )
+        }
         Behaviors.same
       case _ =>
         Behaviors.same
@@ -305,6 +318,50 @@ class CampaignEntityRolloverSpec extends AnyWordSpec with Matchers with BeforeAn
           probe.receiveMessage(1.second).timezone shouldBe JST
         },
         5.seconds
+      )
+    }
+  }
+
+  "CampaignEntity spend-report delivery" should {
+
+    "keep reconciling an unacknowledged report past maxRetries, and stop once acked" in {
+      val advId = "adv-reconcile-1"
+      val attempts = new java.util.concurrent.atomic.AtomicInteger(0)
+      spendAttempts.put(advId, attempts)
+      silentSpend.add(advId)
+
+      // Tight reconcile cadence so the slow loop is observable in-test.
+      val c = testKit.spawn(
+        CampaignEntity(
+          campaignId = CampaignId("camp-reconcile"),
+          advertiserId = AdvertiserId(advId),
+          directory = directory,
+          sharding = sharding,
+          categoryDemandRepo = NoopDemandRepo,
+          budgetEventTopic = budgetTopic,
+          reportReconcileInterval = 700.millis
+        )
+      )
+
+      // One spend → flush tick reports it; the silent advertiser times out
+      // every ask. maxRetries = 5 fast attempts burn out in ~5.5s — pre-fix
+      // the pendingReports entry was then ORPHANED (no retry, no age-out)
+      // and the counter froze at 5 forever. The reconcile keeps trying:
+      recordSpend(c, 3.0, Instant.now())
+      val probe = testKit.createTestProbe[Any]()
+      probe.awaitAssert({ attempts.get() should be > 5 }, 25.seconds)
+
+      // Un-silence: the next reconcile attempt is acked, the pending entry
+      // drains, and delivery goes quiet (a few in-flight attempts may still
+      // land; the count must stabilize rather than keep growing).
+      silentSpend.remove(advId)
+      probe.awaitAssert(
+        {
+          val before = attempts.get()
+          probe.expectNoMessage(2100.millis) // ~3 reconcile intervals
+          attempts.get() shouldBe before
+        },
+        20.seconds
       )
     }
   }

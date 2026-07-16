@@ -236,5 +236,30 @@ class AdvertiserEntityTimezoneSpec extends AnyWordSpec with Matchers with Before
       val nextJstMidnight = Timezones.nextMidnightAfter(um, JST)
       recordSpend(a, "g3", 2.0, nextJstMidnight.plusSeconds(60)).totalSpendToday.toDouble shouldBe 2.0
     }
+
+    "never roll BACKWARD on a stale prior-day report (restart re-drive)" in {
+      val a = spawnAdvertiser("adv-monotonic-roll")
+      setTimezone(a, JST)
+
+      val m = futureJstMidnight() // 15:00Z day D = 00:00 JST day F
+      // Anchor budget day F, then roll onto day F+1.
+      recordSpend(a, "m0", 10.0, m.plusSeconds(3600)).totalSpendToday.toDouble shouldBe 10.0
+      recordSpend(a, "m1", 7.0, m.plusSeconds(24 * 3600 + 600)).totalSpendToday.toDouble shouldBe 7.0
+
+      // A campaign re-driving pendingReports after a restart delivers a
+      // report with day-F's ORIGINAL ts under a fresh flushId (restarts mint
+      // a new incarnation nonce, so dedup can't catch it). needsRoll is an
+      // inequality, so without the monotonic guard this rolled the window
+      // BACKWARD — zeroing spendToday and wiping processedFlushIds. Now it
+      // must be a no-op ack: spend unchanged.
+      recordSpend(a, "m2-stale", 5.0, m.plusSeconds(2 * 3600)).totalSpendToday.toDouble shouldBe 7.0
+
+      // Window still day F+1: same-day spend accumulates on top...
+      recordSpend(a, "m3", 2.0, m.plusSeconds(24 * 3600 + 1200)).totalSpendToday.toDouble shouldBe 9.0
+      // ...and the dedup set survived the stale report — replaying m1 is
+      // still recognized as a duplicate (pre-guard the backward roll cleared
+      // processedFlushIds, so this would double-count to 16.0).
+      recordSpend(a, "m1", 7.0, m.plusSeconds(24 * 3600 + 1800)).totalSpendToday.toDouble shouldBe 9.0
+    }
   }
 }

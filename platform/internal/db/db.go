@@ -287,6 +287,28 @@ func Migrate(pool *pgxpool.Pool) error {
 		CREATE INDEX IF NOT EXISTS idx_publisher_settlements_day
 			ON publisher_settlements(publisher_id, local_date DESC);
 
+		-- Advertiser-self-reported conversions → CPA/ROAS on the report page.
+		-- Aggregate counts the advertiser attributes to a campaign on a day;
+		-- Promovolve never tracks users across sites, so this is the finest
+		-- granularity that stays in-policy (campaign-level, not per-site). Not
+		-- billed on — display only. UNIQUE (advertiser, campaign, day) → the
+		-- form upserts, so restating a day's number overwrites it.
+		CREATE TABLE IF NOT EXISTS campaign_conversions (
+			id            UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+			advertiser_id TEXT NOT NULL,
+			campaign_id   TEXT NOT NULL,
+			conv_date     DATE NOT NULL,
+			conversions   BIGINT NOT NULL,
+			value_micros  BIGINT NOT NULL DEFAULT 0,
+			source        TEXT NOT NULL DEFAULT 'manual',
+			note          TEXT NOT NULL DEFAULT '',
+			updated_at    TIMESTAMPTZ NOT NULL DEFAULT NOW(),
+			created_at    TIMESTAMPTZ NOT NULL DEFAULT NOW(),
+			UNIQUE (advertiser_id, campaign_id, conv_date)
+		);
+		CREATE INDEX IF NOT EXISTS idx_campaign_conversions_range
+			ON campaign_conversions(advertiser_id, conv_date DESC);
+
 		-- Payout lifecycle: created (ledger already moved payable -> cash),
 		-- then paid once the operator sends the transfer, or cancelled via a
 		-- reversing adjustment.

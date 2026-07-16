@@ -15,10 +15,13 @@ import (
 	"encoding/json"
 	"fmt"
 	"html/template"
+	"log/slog"
+	"math"
 	"net/http"
 	"net/url"
 	"sort"
 	"strconv"
+	"strings"
 	"time"
 
 	"github.com/hanishi/promovolve/platform/internal/model"
@@ -62,6 +65,11 @@ type reportTotals struct {
 	SpendDisp         string
 	CTR               string
 	ECPM              string
+	// Self-reported conversions rolled up over the whole range (Tier 0).
+	Conversions int64
+	ConvValue   float64
+	CPA         string
+	ROAS        string
 }
 
 type reportDayGroup struct {
@@ -87,6 +95,14 @@ type reportBreakdownRow struct {
 	SpendDisp    string
 	CTR          string
 	ECPM         string
+	// Self-reported conversions (Tier 0). Populated only for the Campaigns
+	// tab and Totals — per-site/creative attribution would require the
+	// cross-site tracking Promovolve doesn't do. CPA/ROAS are "—" when
+	// there's nothing to divide.
+	Conversions int64
+	ConvValue   float64
+	CPA         string
+	ROAS        string
 }
 
 type reportPresetLink struct {
@@ -185,6 +201,28 @@ func (h *Handler) AdvertiserReport(w http.ResponseWriter, r *http.Request) {
 	rep.ChartLabels, rep.ChartSpend, rep.ChartImps = reportChartSeries(from, to, rows)
 	var campPts []seriesDayPoint
 	rep.Campaigns, campPts = campaignBreakdown(rows)
+	// Self-reported conversions → CPA/ROAS (Tier 0). Campaign-level and
+	// Totals only; in-policy (no cross-site tracking). Non-fatal — the page
+	// renders without them if the service is absent or the query fails.
+	if h.billingSvc != nil && claims != nil && claims.AdvertiserID != "" {
+		if conv, err := h.billingSvc.ByCampaign(r.Context(), claims.AdvertiserID, from, to); err == nil && len(conv) > 0 {
+			var totC, totV int64
+			for i := range rep.Campaigns {
+				c := conv[rep.Campaigns[i].Key]
+				rep.Campaigns[i].Conversions = c.Count
+				rep.Campaigns[i].ConvValue = float64(c.ValueMicros) / 1e6
+				rep.Campaigns[i].CPA, rep.Campaigns[i].ROAS =
+					cpaRoas(rep.Campaigns[i].Spend, c.Count, c.ValueMicros)
+			}
+			for _, c := range conv {
+				totC += c.Count
+				totV += c.ValueMicros
+			}
+			rep.Totals.Conversions = totC
+			rep.Totals.ConvValue = float64(totV) / 1e6
+			rep.Totals.CPA, rep.Totals.ROAS = cpaRoas(rep.Totals.Spend, totC, totV)
+		}
+	}
 	rep.CampaignSeries = buildReportSeriesChart(from, to, campPts)
 	rep.SiteSeries = buildReportSeriesChart(from, to,
 		h.fetchBreakdownDayPoints(rangeQS, "site", taxonomy, claims))
@@ -204,6 +242,57 @@ func (h *Handler) AdvertiserReport(w http.ResponseWriter, r *http.Request) {
 		User:   user,
 		Report: rep,
 	})
+}
+
+// cpaRoas renders CPA (spend per conversion) and ROAS (value / spend) for the
+// report. Both are "—" when there's nothing to divide, so the columns read
+// cleanly before any conversions are reported.
+func cpaRoas(spend float64, conv, valueMicros int64) (cpa, roas string) {
+	cpa, roas = "—", "—"
+	if conv > 0 {
+		cpa = fmt.Sprintf("$%.2f", spend/float64(conv))
+	}
+	if spend > 0 && valueMicros > 0 {
+		roas = fmt.Sprintf("%.1fx", (float64(valueMicros)/1e6)/spend)
+	}
+	return
+}
+
+// AdvertiserReportConversions records self-reported conversions for one
+// campaign+day (Tier 0). It's the advertiser's own aggregate number — never
+// billed on, never a tracking signal — so validation is light and any bad
+// input just bounces back to the report without an error page.
+func (h *Handler) AdvertiserReportConversions(w http.ResponseWriter, r *http.Request) {
+	_, claims := h.sessionUser(r)
+	if claims == nil || claims.AdvertiserID == "" {
+		http.Redirect(w, r, "/login", http.StatusSeeOther)
+		return
+	}
+	r.ParseForm()
+	campID := r.FormValue("campaignId")
+	date := r.FormValue("date")
+	back := "/advertiser/report"
+	if from, to := r.FormValue("from"), r.FormValue("to"); from != "" && to != "" {
+		back += "?from=" + url.QueryEscape(from) + "&to=" + url.QueryEscape(to)
+	}
+	conv, err := strconv.ParseInt(strings.TrimSpace(r.FormValue("conversions")), 10, 64)
+	if campID == "" || date == "" || err != nil || conv < 0 {
+		http.Redirect(w, r, back, http.StatusSeeOther)
+		return
+	}
+	var valueMicros int64
+	if v := strings.TrimSpace(r.FormValue("value")); v != "" {
+		if f, perr := strconv.ParseFloat(v, 64); perr == nil && f >= 0 {
+			valueMicros = int64(math.Round(f * 1e6))
+		}
+	}
+	if h.billingSvc != nil {
+		if err := h.billingSvc.UpsertConversions(r.Context(), claims.AdvertiserID, campID, date,
+			conv, valueMicros, strings.TrimSpace(r.FormValue("note"))); err != nil {
+			slog.Error("upsert conversions failed", "advertiser", claims.AdvertiserID, "campaign", campID, "error", err)
+		}
+	}
+	http.Redirect(w, r, back, http.StatusSeeOther)
 }
 
 // reportRange resolves ?from/?to with the same semantics as the core

@@ -42,6 +42,62 @@
   </div>
 </div>
 
+{{/* Conversions → CPA/ROAS. Self-reported aggregate — Promovolve never
+     tracks users across sites, so these are campaign-level and display-only
+     (never billed on). Tiles show once any conversion is reported; the form
+     is always available. */}}
+<div x-data="{convOpen: false}" class="mb-6">
+  <div class="flex flex-wrap items-center gap-3">
+    {{if $r.Totals.Conversions}}
+    <div class="card card-tight">
+      <p class="text-xs text-gray-500">Conversions</p>
+      <p class="text-xl font-semibold mt-1">{{$r.Totals.Conversions}}</p>
+    </div>
+    <div class="card card-tight">
+      <p class="text-xs text-gray-500">CPA</p>
+      <p class="text-xl font-semibold mt-1">{{$r.Totals.CPA}}</p>
+    </div>
+    <div class="card card-tight">
+      <p class="text-xs text-gray-500">ROAS</p>
+      <p class="text-xl font-semibold mt-1">{{$r.Totals.ROAS}}</p>
+    </div>
+    {{else}}
+    <p class="text-sm text-gray-500">No conversions reported for this range — add them to see CPA/ROAS.</p>
+    {{end}}
+    <button type="button" @click="convOpen = !convOpen" class="btn btn-sm btn-secondary ml-auto">Report conversions</button>
+  </div>
+  <div x-show="convOpen" x-cloak class="card card-tight mt-3">
+    <form method="post" action="/advertiser/report/conversions" class="flex flex-wrap items-end gap-3">
+      <input type="hidden" name="from" value="{{$r.From}}">
+      <input type="hidden" name="to" value="{{$r.To}}">
+      <div>
+        <label class="form-label">Campaign</label>
+        <select name="campaignId" class="form-input" required>
+          {{range $r.Campaigns}}<option value="{{.Key}}">{{.Label}}</option>{{end}}
+        </select>
+      </div>
+      <div>
+        <label class="form-label">Date (UTC)</label>
+        <input type="date" name="date" value="{{$r.To}}" class="form-input" required>
+      </div>
+      <div>
+        <label class="form-label">Conversions</label>
+        <input type="number" name="conversions" min="0" step="1" class="form-input w-28" required>
+      </div>
+      <div>
+        <label class="form-label">Value ($, optional)</label>
+        <input type="number" name="value" min="0" step="0.01" class="form-input w-32" placeholder="for ROAS">
+      </div>
+      <div class="grow">
+        <label class="form-label">Note (optional)</label>
+        <input type="text" name="note" class="form-input" placeholder="e.g. Shopify orders, 7-day last-click">
+      </div>
+      <button type="submit" class="btn btn-primary">Save</button>
+    </form>
+    <p class="text-xs text-gray-400 mt-2">You report your own aggregate conversions; Promovolve never tracks users across sites, so CPA/ROAS are campaign-level by design. Re-reporting a campaign+day overwrites the previous number.</p>
+  </div>
+</div>
+
 {{/* Dog-ear engagement — folds are free reader bookmarks; each one pins
      the creative to that reader's slot for 7 days, and the re-encounters
      (impressions/clicks/CTAs below) cost $0 and are excluded from the
@@ -137,7 +193,7 @@
     </table>
   </div>
 
-  {{template "report-breakdown" dict "Rows" $r.Campaigns "Head" "Campaign" "Noun" "campaign" "Tab" "campaign" "CanBlock" false}}
+  {{template "report-breakdown" dict "Rows" $r.Campaigns "Head" "Campaign" "Noun" "campaign" "Tab" "campaign" "CanBlock" false "ShowConv" true}}
   {{template "report-breakdown-grouped" dict "Groups" $r.SiteGroups "Head" "Site" "Noun" "site" "Tab" "site" "CanBlock" true}}
   {{template "report-breakdown-grouped" dict "Groups" $r.CategoryGroups "Head" "Category" "Noun" "category" "Tab" "category" "CanBlock" false}}
   {{template "report-breakdown" dict "Rows" $r.Publishers "Head" "Publisher (sites)" "Noun" "publisher" "Tab" "publisher" "CanBlock" false}}
@@ -312,6 +368,7 @@
     </tbody>
   </table>
   {{end}}
+  <p class="text-xs text-gray-400 mt-2 px-1">CPA is campaign-level — per-site attribution would need the cross-site tracking Promovolve doesn't do.</p>
 </div>
 </div>
 {{end}}
@@ -342,7 +399,12 @@
         <th class="py-2 pr-4 text-right">CTR</th>
         <th class="py-2 pr-4 text-right">CTA</th>
         <th class="py-2 pr-4 text-right">Spend</th>
-        <th class="py-2 text-right">eCPM</th>
+        <th class="py-2 {{if .ShowConv}}pr-4 {{end}}text-right">eCPM</th>
+        {{if .ShowConv}}
+        <th class="py-2 pr-4 text-right">Conv.</th>
+        <th class="py-2 pr-4 text-right" title="Spend per conversion">CPA</th>
+        <th class="py-2 text-right" title="Reported value ÷ spend">ROAS</th>
+        {{end}}
         {{if .CanBlock}}<th class="py-2 pl-4"></th>{{end}}
       </tr>
     </thead>
@@ -355,7 +417,12 @@
         <td class="py-2 pr-4 text-right">{{.CTR}}</td>
         <td class="py-2 pr-4 text-right">{{.CTAClicks}}</td>
         <td class="py-2 pr-4 text-right">${{.SpendDisp}}</td>
-        <td class="py-2 text-right">${{.ECPM}}</td>
+        <td class="py-2 {{if $.ShowConv}}pr-4 {{end}}text-right">${{.ECPM}}</td>
+        {{if $.ShowConv}}
+        <td class="py-2 pr-4 text-right">{{if .Conversions}}{{.Conversions}}{{else}}<span class="text-gray-300">—</span>{{end}}</td>
+        <td class="py-2 pr-4 text-right">{{.CPA}}</td>
+        <td class="py-2 text-right">{{.ROAS}}</td>
+        {{end}}
         {{if $.CanBlock}}
         <td class="py-2 pl-4 text-right">
           {{if .BlockDomain}}
@@ -371,6 +438,7 @@
     </tbody>
   </table>
   {{end}}
+  {{if not .ShowConv}}<p class="text-xs text-gray-400 mt-2 px-1">CPA is campaign-level — per-site attribution would need the cross-site tracking Promovolve doesn't do.</p>{{end}}
 </div>
 </div>
 {{end}}

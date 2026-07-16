@@ -322,6 +322,7 @@ func main() {
 	// linked in the nav) — the page was unreachable dead code.
 	mux.HandleFunc("GET /advertiser/stats", adv(h.AdvertiserStats))
 	mux.HandleFunc("GET /advertiser/report", adv(h.AdvertiserReport))
+	mux.HandleFunc("POST /advertiser/report/conversions", adv(h.AdvertiserReportConversions))
 	mux.HandleFunc("GET /advertiser/wallet", adv(h.AdvertiserWallet))
 	mux.HandleFunc("GET /advertiser/help", adv(h.HelpPage(model.RoleAdvertiser)))
 	mux.HandleFunc("POST /advertiser/budget", adv(h.SetAdvertiserBudget))

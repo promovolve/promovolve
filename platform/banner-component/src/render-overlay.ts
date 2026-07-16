@@ -10,6 +10,7 @@
 // Object.assign blocks.
 
 import type { BannerConfig, ExpandAnimation } from "./types";
+import { PAPER_FEEL } from "./types";
 import { EXPAND_EFFECT_CSS } from "./expand-effects";
 import { PAPER_CSS } from "./paper";
 
@@ -107,6 +108,17 @@ export function buildExpandWrapper(opts: {
   if (typeof cfg.expandDurationMs === "number" && cfg.expandDurationMs > 0) {
     wrapper.style.setProperty("--expand-duration", `${cfg.expandDurationMs}ms`);
   }
+  // Paper mass drives the deal tempo: heavy stock enters (and leaves)
+  // the pile slower; light snaps. Same multiplier the close flight uses.
+  const tempo = PAPER_FEEL[cfg.paperWeight ?? "medium"].tempo;
+  // Last sheet lands at 360·tempo + 2·90·tempo; the wrapper animation
+  // (which owns the completion event) must outlast it: 540·tempo + 80.
+  const stackTotalMs = Math.round(540 * tempo) + 80;
+  wrapper.style.setProperty("--deal-ms", `${Math.round(360 * tempo)}ms`);
+  wrapper.style.setProperty("--deal-stagger", `${Math.round(90 * tempo)}ms`);
+  if (appliedEffect === "stack" && !(typeof cfg.expandDurationMs === "number" && cfg.expandDurationMs > 0)) {
+    wrapper.style.setProperty("--expand-duration", `${stackTotalMs}ms`);
+  }
   let settled = false;
   const settle = (): void => {
     if (settled) return;
@@ -129,7 +141,10 @@ export function buildExpandWrapper(opts: {
   // effect should be done, force the resting visual state so neither a
   // half-applied transform nor a lingering composite layer can break
   // scroll. No-ops when animationend already settled it.
-  const cssDefaultMs = appliedEffect === "crt-power-on" ? 650 : 400;
+  const cssDefaultMs =
+    appliedEffect === "crt-power-on" ? 650
+    : appliedEffect === "stack" ? stackTotalMs
+    : 400;
   const durMs =
     typeof cfg.expandDurationMs === "number" && cfg.expandDurationMs > 0
       ? cfg.expandDurationMs
@@ -159,6 +174,7 @@ export function buildCloseButton(opts: {
   const { ui, onClick, label, onLight } = opts;
   const ink = onLight ? "0,0,0" : "255,255,255";
   const close = document.createElement("button");
+  close.className = "close-pill";
   Object.assign(close.style, {
     position: "absolute",
     // Straddle the creative's bottom edge — ~1/3 of the 36px pill on the

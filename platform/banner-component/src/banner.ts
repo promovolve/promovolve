@@ -43,7 +43,7 @@ const DEFAULT_CONFIG: BannerConfig = {
   // "slide-up" literal was inert (no code path consumed it), so
   // moving the default to "fade" matches what users have been
   // shipping while the new effect registry stays opt-in.
-  expandAnimation: "fade",
+  expandAnimation: "stack",
   paperWeight: "medium",
 };
 
@@ -541,7 +541,10 @@ export class ExpandableMagazineBanner extends HTMLElement {
       const cfg = this.configData;
       const animMs = typeof cfg.expandDurationMs === "number" && cfg.expandDurationMs > 0
         ? cfg.expandDurationMs
-        : (resolveExpandEffect(cfg.expandAnimation) === "crt-power-on" ? 650 : 400);
+        : (resolveExpandEffect(cfg.expandAnimation) === "crt-power-on" ? 650
+          // stack: last sheet lands at (360 + 2·90)·tempo; +80 buffer.
+          : resolveExpandEffect(cfg.expandAnimation) === "stack"
+            ? Math.round(540 * this.paperFeel().tempo) + 80 : 400);
       if (this._collapseHideTimer) window.clearTimeout(this._collapseHideTimer);
       this._collapseHideTimer = window.setTimeout(() => {
         this._collapseHideTimer = null;
@@ -693,7 +696,7 @@ export class ExpandableMagazineBanner extends HTMLElement {
           // it doesn't ghost on top of the page forever. Match the
           // CSS default for the chosen effect (650ms for CRT, 400ms
           // for fade) plus a small buffer.
-          const cssDefaultMs = effectName === "crt-power-on" ? 650 : 400;
+          const cssDefaultMs = effectName === "crt-power-on" ? 650 : effectName === "stack" ? 300 : 400;
           const safetyMs = (cfg.expandDurationMs ?? cssDefaultMs) + 100;
           setTimeout(finish, safetyMs);
         } else {
@@ -747,10 +750,91 @@ export class ExpandableMagazineBanner extends HTMLElement {
       this.dispatchPageChanged();
     } else {
       // Already on the last page — a "next" gesture (arrow/swipe/key)
-      // means the user has read through; auto-collapse so they return
-      // to the page they came from without hunting for the × button.
-      this._collapse();
+      // means the user has read through. The last sheet flies off the
+      // pile like every other one, then the reader closes.
+      this.flyOffLastAndCollapse();
     }
+  }
+
+  /** Close request from the CLOSE pill: the WHOLE remaining pile flies
+    * away from wherever the reader is — top sheet first, the rest
+    * following in a quick stagger — and then the stand closes. The
+    * same lift-and-slide direction every sheet uses; closing is just
+    * all of them leaving at once. */
+  private closeViaFlight(): void {
+    if (this._reducedMotion || this._peel) { this._collapse(); return; }
+    const overlay = this.shadowRoot?.querySelector<HTMLElement>(".overlay");
+    if (!overlay) { this._collapse(); return; }
+    // Settle any in-flight turn so its frame loop can't fight the exits.
+    this._finishTurn?.();
+    this._finishTurn = null;
+    // Chrome out instantly — the clicked pill must not linger.
+    overlay.classList.add("last-flight");
+    const pages = this.pagesData;
+    const rtl = resolveReadingRtl(this.configData, pages);
+    const flyers: HTMLElement[] = [];
+    for (let i = this.currentPage; i < pages.length; i++) {
+      const el = overlay.querySelector<HTMLElement>(`.page-${i}`);
+      if (el) flyers.push(el);
+    }
+    if (flyers.length === 0) { this._collapse(); return; }
+    const tempo = this.paperFeel().tempo;
+    const flyMs = Math.round(360 * tempo);
+    const flyStagger = Math.round(90 * tempo);
+    flyers.forEach((el, k) => {
+      el.animate(
+        [
+          { transform: "none", opacity: 1 },
+          {
+            transform: `translate(${rtl ? "85%" : "-85%"}, -30%) rotate(${rtl ? 6 : -6}deg)`,
+            opacity: 0,
+          },
+        ],
+        // Same tempo as the deal-in, scaled by paper mass — the pile
+        // leaves at the speed it arrived, and heavy stock moves slower.
+        { duration: flyMs, delay: k * flyStagger, easing: "cubic-bezier(0.5, 0, 0.8, 0.4)", fill: "forwards" },
+      );
+    });
+    setTimeout(() => this._collapse(), flyMs + (flyers.length - 1) * flyStagger + 40);
+  }
+
+  /** Send the last sheet away with the same lift-and-slide the drag
+    * uses (a committed release from rest), then collapse. Falls back to
+    * an immediate collapse when the flight can't run. */
+  private flyOffLastAndCollapse(): void {
+    if (this._reducedMotion) { this._collapse(); return; }
+    if (this._peel) return; // a drag is already in charge
+    // Settle any still-running page turn NOW (spam-clicking next lands
+    // here inside the previous turn's 850ms window; its frame loop and
+    // settle would fight the flight's transforms — the ghost sheet).
+    this._finishTurn?.();
+    this._finishTurn = null;
+    const overlay = this.shadowRoot?.querySelector<HTMLElement>(".overlay");
+    const turning = overlay?.querySelector<HTMLElement>(`.page-${this.currentPage}`);
+    if (!overlay || !turning) { this._collapse(); return; }
+    const feel = this.paperFeel();
+    const peel = createInteractivePeel({
+      turning,
+      under: null,
+      rtl: resolveReadingRtl(this.configData, this.pagesData),
+      springK: feel.springK,
+      springC: feel.springC,
+      onCommit: () => {
+        this._peel = null;
+        // Teardown restored the sheet — re-hide it or it ghosts back
+        // at center for the collapse fade.
+        turning.style.opacity = "0";
+        this._collapse();
+      },
+      onCancel: () => { this._peel = null; },
+    });
+    if (!peel) { this._collapse(); return; }
+    // Chrome out the instant the flight is committed (a clicked CLOSE
+    // pill must vanish immediately, not linger over the flying sheet).
+    overlay.classList.add("last-flight");
+    this._peel = peel;
+    peel.scrubTo(0.05);
+    peel.release(true, 2.2); // thrown with momentum, like a flick
   }
 
   private prev(): void {
@@ -799,13 +883,18 @@ export class ExpandableMagazineBanner extends HTMLElement {
   private beginPeel(clientX: number, clientY: number): boolean {
     if (this._peel || this._finishTurn || this._reducedMotion) return false;
     const pages = this.pagesData;
-    if (this.currentPage >= pages.length - 1) return false; // last page → no forward peel
     const overlay = this.shadowRoot?.querySelector<HTMLElement>(".overlay");
     if (!overlay) return false;
     const turning = overlay.querySelector<HTMLElement>(`.page-${this.currentPage}`);
-    const under = overlay.querySelector<HTMLElement>(`.page-${this.currentPage + 1}`);
+    // The LAST sheet has nothing beneath — it flies off over the
+    // backdrop and the reader closes. Same lift-and-slide as every
+    // other sheet: the pile empties, the kawaraban is read.
+    const isLast = this.currentPage >= pages.length - 1;
+    const under = isLast
+      ? null
+      : overlay.querySelector<HTMLElement>(`.page-${this.currentPage + 1}`);
     const sheet = turning?.querySelector<HTMLElement>(".paper-sheet");
-    if (!turning || !under || !sheet) return false;
+    if (!turning || (!isLast && !under) || !sheet) return false;
 
     const rect = sheet.getBoundingClientRect();
     // Grab zone: bottom half of the sheet only.
@@ -820,10 +909,18 @@ export class ExpandableMagazineBanner extends HTMLElement {
       springK: feel.springK,
       springC: feel.springC,
       onCommit: () => {
+        this._peel = null;
+        if (isLast) {
+          // The pile is empty — the last sheet sailed away; close.
+          // (Teardown just restored the sheet's transform: re-hide it
+          // or it ghosts back at center for the collapse fade.)
+          turning.style.opacity = "0";
+          this._collapse();
+          return;
+        }
         // The peel already played the turn to t=1; advance and re-lay
         // the stack instantly (no second clock turn).
         this.currentPage += 1;
-        this._peel = null;
         this.updatePages(false);
         this.dispatchPageChanged();
       },
@@ -831,10 +928,14 @@ export class ExpandableMagazineBanner extends HTMLElement {
         // Nothing turned — restore the resting stack (z/offsets the peel
         // overrode) WITHOUT replaying the current page's item anims.
         this._peel = null;
+        overlay.classList.remove("last-flight");
         this.applyStackLayout(overlay, pages.length, this.currentPage, new Set());
       },
     });
     if (!peel) return false;
+    // Last sheet in hand: the reader is ending — chrome bows out now,
+    // and returns only if the drag cancels.
+    if (isLast) overlay.classList.add("last-flight");
 
     this._peel = peel;
     this._peelStartX = clientX;
@@ -1363,7 +1464,7 @@ export class ExpandableMagazineBanner extends HTMLElement {
         WebkitBackdropFilter: "blur(6px)",
       } as Partial<CSSStyleDeclaration>);
       closeX.textContent = closeLabel;
-      closeX.addEventListener("click", () => this._collapse());
+      closeX.addEventListener("click", () => this.closeViaFlight());
       overlay.appendChild(closeX);
       // The original reader's rhythm: hidden while the user interacts,
       // fading in when they pause — a clean beat on expand, then the
@@ -1478,7 +1579,7 @@ export class ExpandableMagazineBanner extends HTMLElement {
       };
       this.addEventListener("magazine-page-changed", onTurn);
     } else {
-      chromeParent.appendChild(buildCloseButton({ ui, onClick: () => this._collapse(), label: closeLabel, onLight: marginOnLight }));
+      chromeParent.appendChild(buildCloseButton({ ui, onClick: () => this.closeViaFlight(), label: closeLabel, onLight: marginOnLight }));
     }
     chromeParent.appendChild(buildPageCounter({ ui, onLight: readerOnLight, rtl: readingRtl }));
 

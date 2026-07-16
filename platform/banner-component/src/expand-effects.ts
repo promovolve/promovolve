@@ -74,6 +74,49 @@ export const EXPAND_EFFECT_CSS = `
     100%    { opacity: 0; }
   }
 
+  /* ── stack: the kawaraban deal ─────────────────────────────────
+   * The reader is a pile of loose sheets; opening it DEALS them in —
+   * each sheet flies in from up-left (the reverse of the lift-and-
+   * slide fly-away) and lands on the pile, bottom sheet first, top
+   * sheet last. Closing reverses: top sheet leaves first. Per-page
+   * keyframe names deliberately do NOT start with "expand-effect-" —
+   * they bubble to the wrapper's animationend filter, and only the
+   * wrapper-level animation may signal open/close completion. */
+  @keyframes stack-deal-in-anim {
+    from { transform: translate(-85%, -30%) rotate(-6deg); opacity: 0; }
+    30%  { opacity: 1; }
+    to   { transform: none; opacity: 1; }
+  }
+  /* Wrapper animation exists to own the completion event; its duration
+   * covers the full stagger so teardown never truncates a sheet. */
+  @keyframes expand-effect-stack-anim {
+    from { opacity: 0; }
+    20%  { opacity: 1; }
+    to   { opacity: 1; }
+  }
+  @keyframes expand-effect-stack-close-anim {
+    from { opacity: 1; }
+    to   { opacity: 0; }
+  }
+  .expand-wrapper.expand-effect-stack {
+    animation: expand-effect-stack-anim var(--expand-duration, 620ms) ease both;
+  }
+  .expand-wrapper.expand-effect-stack [class^="page-"],
+  .expand-wrapper.expand-effect-stack [class*=" page-"] {
+    /* --deal-ms / --deal-stagger come from the paperWeight tempo (set
+     * inline by renderOverlay): heavy stock arrives slower. */
+    animation: stack-deal-in-anim var(--deal-ms, 360ms) cubic-bezier(0.22, 0.9, 0.3, 1) backwards;
+  }
+  /* Deal order: bottom sheet first, top (page-0, the current) last. */
+  .expand-wrapper.expand-effect-stack .page-2 { animation-delay: 0ms; }
+  .expand-wrapper.expand-effect-stack .page-1 { animation-delay: var(--deal-stagger, 90ms); }
+  .expand-wrapper.expand-effect-stack .page-0 { animation-delay: calc(var(--deal-stagger, 90ms) * 2); }
+  /* Close: a plain quick fade — dealing the sheets OUT read as
+   * ceremony; leaving should just get out of the reader's way. */
+  .expand-wrapper.expand-effect-stack-closing {
+    animation: expand-effect-stack-close-anim var(--expand-duration, 300ms) ease both;
+  }
+
   .expand-wrapper.expand-effect-fade {
     animation: expand-effect-fade-anim var(--expand-duration, 400ms) ease both;
   }

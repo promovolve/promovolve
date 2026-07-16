@@ -277,7 +277,7 @@ export interface Page {
 // and the designer reads this same list to populate its dropdown,
 // so there's no drift between "what the engine accepts" and
 // "what the user can pick."
-export const EXPAND_EFFECTS = ["fade", "crt-power-on"] as const;
+export const EXPAND_EFFECTS = ["fade", "crt-power-on", "stack"] as const;
 export type ExpandAnimation = typeof EXPAND_EFFECTS[number];
 
 // Paper weight for the interactive page-peel — the "stock" the magazine
@@ -295,6 +295,8 @@ export interface PaperFeel {
   flickVel: number; // release velocity (progress/sec) that throws it over
   springK: number;  // settle-spring stiffness
   springC: number;  // settle-spring damping (lower = more flop / overshoot)
+  tempo: number;    // deal-in/out speed multiplier: heavy paper enters and
+                    // leaves the pile SLOWER (more mass), light snaps
 }
 
 // light  = onionskin: pulls easily, commits early, flicks readily, and the
@@ -303,9 +305,9 @@ export interface PaperFeel {
 // heavy  = card stock: stiff to pull, needs a firmer commit, and settles
 //          with more damping (a weighty, deliberate turn).
 export const PAPER_FEEL: Record<PaperWeight, PaperFeel> = {
-  light:  { travel: 1.4, commitAt: 0.33, flickVel: 1.85, springK: 158, springC: 15 },
-  medium: { travel: 1.5, commitAt: 0.35, flickVel: 2.0, springK: 150, springC: 17 },
-  heavy:  { travel: 1.9, commitAt: 0.42, flickVel: 2.6, springK: 130, springC: 24 },
+  light:  { travel: 1.4, commitAt: 0.33, flickVel: 1.85, springK: 158, springC: 15, tempo: 0.8 },
+  medium: { travel: 1.5, commitAt: 0.35, flickVel: 2.0, springK: 150, springC: 17, tempo: 1.0 },
+  heavy:  { travel: 1.9, commitAt: 0.42, flickVel: 2.6, springK: 130, springC: 24, tempo: 1.3 },
 };
 
 export interface BannerConfig {

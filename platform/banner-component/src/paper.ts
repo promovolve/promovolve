@@ -150,6 +150,20 @@ export const PAPER_CSS = `
     display: none;
   }
 
+  /* While the LAST sheet is lifted / in flight, the chrome gets out
+   * of the way — the reader is ending; buttons must not hover over a
+   * departing sheet. Applied by banner.ts (.last-flight on .overlay)
+   * the moment the 3rd sheet is grabbed or the close pill is clicked;
+   * removed if the drag cancels and the sheet lands back. */
+  .overlay.last-flight .close-pill,
+  .overlay.last-flight .nav-prev,
+  .overlay.last-flight .nav-next,
+  .overlay.last-flight .page-counter {
+    opacity: 0 !important;
+    pointer-events: none !important;
+    transition: opacity 160ms ease;
+  }
+
   /* Fine grain over the whole composition. mix-blend-mode:overlay
    * reads as texture on both light and dark authored backgrounds;
    * opacity is low enough to never fight the creative. */
@@ -807,7 +821,8 @@ const PEEL_SPRING_C = 17;
   * layout placeholder (no sheet to fold) — the caller should just swap. */
 export function createInteractivePeel(opts: {
   turning: HTMLElement; // current top page — peels away from its bottom corner
-  under: HTMLElement;   // the next page, already resting beneath
+  under: HTMLElement | null; // the next page beneath — null on the LAST
+                             // sheet, which flies off over the backdrop
   rtl?: boolean;
   springK?: number;     // settle-spring stiffness (paper weight)
   springC?: number;     // settle-spring damping (paper weight)
@@ -826,14 +841,15 @@ export function createInteractivePeel(opts: {
   const w = rect.width || 1;
   const h = rect.height || 1;
 
-  const priorTransition = { turning: turning.style.transition, under: under.style.transition };
+  const priorTransition = { turning: turning.style.transition, under: under?.style.transition ?? "" };
   for (const el of [turning, under]) {
+    if (!el) continue;
     el.style.transition = "none";
     el.style.opacity = "1";
     el.style.pointerEvents = "none";
   }
   turning.style.zIndex = "30";
-  under.style.zIndex = "20";
+  if (under) under.style.zIndex = "20";
 
   // Punch-clip handoff (dog-eared page): move the notch clip onto the
   // traveling stage so it folds WITH the curl instead of biting it at a
@@ -946,7 +962,7 @@ export function createInteractivePeel(opts: {
     turning.style.transform = "";
     turning.style.filter = "";
     turning.style.zIndex = "";
-    under.style.zIndex = "";
+    if (under) under.style.zIndex = "";
   };
 
   const finish = (commit: boolean): void => {
@@ -961,7 +977,7 @@ export function createInteractivePeel(opts: {
     (commit ? onCommit : onCancel)();
     requestAnimationFrame(() => requestAnimationFrame(() => {
       turning.style.transition = priorTransition.turning;
-      under.style.transition = priorTransition.under;
+      if (under) under.style.transition = priorTransition.under;
     }));
   };
 

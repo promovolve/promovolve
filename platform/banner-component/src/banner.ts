@@ -52,7 +52,7 @@ export class ExpandableMagazineBanner extends HTMLElement {
   private currentPage = 0;
   // Interactive corner-peel (thumb-driven forward turn). Non-null only
   // while a peel gesture is live.
-  private _peel: { scrubTo: (t: number, corner?: { x: number; y: number }) => void; release: (commit: boolean, v0?: number) => void } | null = null;
+  private _peel: { scrubTo: (t: number) => void; release: (commit: boolean, v0?: number) => void } | null = null;
   private _peelStartX = 0;
   private _peelWidth = 1;
   // Release momentum: smoothed fold-progress velocity (units/sec) and the
@@ -847,13 +847,9 @@ export class ExpandableMagazineBanner extends HTMLElement {
   }
 
   /** Feed a live pointer position to the peel in progress, tracking a
-    * smoothed progress velocity for the release throw. The fold follows
-    * the tuned deterministic arc (aspect-corrected in cornerAt) — live
-    * thumb-Y steering was tried and read as jitter, not control; the
-    * scrubTo corner override stays available for a damped version. */
-  private movePeel(clientX: number, clientY: number): void {
+    * smoothed progress velocity for the release throw. */
+  private movePeel(clientX: number): void {
     if (!this._peel) return;
-    void clientY;
     const p = this.peelProgress(clientX);
     const now = performance.now();
     const dt = (now - this._peelLastMs) / 1000;
@@ -1256,7 +1252,7 @@ export class ExpandableMagazineBanner extends HTMLElement {
     });
     overlay.addEventListener("pointermove", (e) => {
       if (this._peel) {
-        this.movePeel(e.clientX, e.clientY);
+        this.movePeel(e.clientX);
         e.preventDefault();
         return;
       }
@@ -1270,7 +1266,7 @@ export class ExpandableMagazineBanner extends HTMLElement {
       if (this.beginPeel(armX, armY)) {
         try { overlay.setPointerCapture(e.pointerId); } catch { /* older engines */ }
         e.preventDefault();
-        this.movePeel(e.clientX, e.clientY);
+        this.movePeel(e.clientX);
       }
     });
     const endPointer = (e: PointerEvent): void => {

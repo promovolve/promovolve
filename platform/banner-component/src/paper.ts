@@ -256,7 +256,11 @@ const toClip = (poly: Pt[]): string | null =>
   * band and shadow must be sized to the same radius). */
 export function curlRadius(t: number, w: number, h: number): number {
   const base = Math.max(22, Math.min(72, Math.min(w, h) * 0.16));
-  return base * (0.6 + 0.4 * Math.sin(Math.PI * t));
+  // CONSTANT through the turn (the shader-breakdown approach): breathing
+  // with lift modulated the sail rotation and tube fatness mid-sweep,
+  // which read as the sheet changing SIZE in motion. Only the first few
+  // percent ramp in, so the curl doesn't pop into existence.
+  return base * Math.min(1, t * 12);
 }
 
 
@@ -279,72 +283,26 @@ export interface FoldFrame {
 }
 
 
-/** Intersections of the fold line (through `mid`, normal `n`) with the
-  * page rectangle — at most two for a line crossing a convex rect. */
-function foldJunctions(mid: Pt, n: Pt, w: number, h: number): Pt[] {
-  const pts: Pt[] = [];
-  const push = (p: Pt): void => {
-    if (p.x >= -0.5 && p.x <= w + 0.5 && p.y >= -0.5 && p.y <= h + 0.5 &&
-        !pts.some(q => Math.hypot(q.x - p.x, q.y - p.y) < 0.5)) pts.push(p);
-  };
-  // n·(p - mid) = 0 along each edge.
-  if (Math.abs(n.x) > 1e-6) {
-    push({ x: mid.x - (n.y * (0 - mid.y)) / n.x, y: 0 });
-    push({ x: mid.x - (n.y * (h - mid.y)) / n.x, y: h });
-  }
-  if (Math.abs(n.y) > 1e-6) {
-    push({ x: 0, y: mid.y - (n.x * (0 - mid.x)) / n.y });
-    push({ x: w, y: mid.y - (n.x * (w - mid.x)) / n.y });
-  }
-  return pts;
-}
+interface PeelBasis { P: Pt; mid: Pt; n: Pt }
 
-interface PeelBasis { P: Pt; mid: Pt; n: Pt; apex: Pt | null; phiSail: number }
-
-/** Fold basis for the cone curl, APEX-COMPENSATED. The cone consumes
-  * π·r of sheet, which in flat terms rotates the folded-over part about
-  * the cone's APEX by θ ≈ π·r_base/span — an ISOMETRY (this is what
-  * keeps the sheet's real edges straight; the earlier per-point pull-in
-  * bent them, and left a page-2-colored band where the paper's back
-  * belonged). To keep the drawn corner ON the thumb, the virtual corner
-  * is pre-rotated the other way about the apex, and the sail transform
-  * rotates it back (phiSail = exact angle mapping the mirrored corner
-  * onto the thumb). curl<=0 → plain mirror basis, θ=0. */
+/** Fold basis: perpendicular bisector of (home corner -> corner). The
+  * earlier apex-compensated variant (pre-rotate the corner, rotate the
+  * sail back) caused two real bugs for one subtle nicety: it bent the
+  * sail's straight edges once, and at deep turn it swung the whole sail
+  * across the fold where the fold-clip erased it mid-drag. A pure
+  * mirror sail is stable at every t, keeps edges straight by
+  * construction, and lands the corner exactly on the thumb; the cone
+  * TUBE carries the curl. (The mirror shows ~π·r of sheet the roll has
+  * physically consumed — invisible to the eye at these radii.) */
 function peelBasis(t: number, w: number, h: number, rtl: boolean, curl: number, corner?: Pt): PeelBasis {
+  void curl;
   const C0: Pt = { x: rtl ? 0 : w, y: h };
-  const P0 = corner ?? cornerAt(t, w, h, rtl);
-  const basisOf = (P: Pt): { mid: Pt; n: Pt } => {
-    const mid: Pt = { x: (C0.x + P.x) / 2, y: (C0.y + P.y) / 2 };
-    const nx = P.x - C0.x, ny = P.y - C0.y;
-    const len = Math.hypot(nx, ny) || 1;
-    return { mid, n: { x: nx / len, y: ny / len } };
-  };
-  const b0 = basisOf(P0);
-  if (curl <= 0) return { P: P0, mid: b0.mid, n: b0.n, apex: null, phiSail: 0 };
-  const js = foldJunctions(b0.mid, b0.n, w, h);
-  if (js.length < 2) return { P: P0, mid: b0.mid, n: b0.n, apex: null, phiSail: 0 };
-  const apex = js[0].y <= js[1].y ? js[0] : js[1];
-  const span = Math.hypot(js[0].x - js[1].x, js[0].y - js[1].y) || 1;
-  const theta = Math.min(0.5, (Math.PI * curl) / span);
-  const rot = (p: Pt, c: Pt, a: Pt, phi: number): Pt => {
-    void c;
-    const ca = Math.cos(phi), sa = Math.sin(phi);
-    const dx = p.x - a.x, dy = p.y - a.y;
-    return { x: a.x + dx * ca - dy * sa, y: a.y + dx * sa + dy * ca };
-  };
-  // Pre-rotate the virtual corner: pick the direction that DEEPENS the
-  // fold (larger corner travel) — the cone eats sheet, so the real fold
-  // sits deeper than the mirror of the thumb.
-  const pa = rot(P0, C0, apex, theta);
-  const pb = rot(P0, C0, apex, -theta);
-  const P = Math.hypot(pa.x - C0.x, pa.y - C0.y) >= Math.hypot(pb.x - C0.x, pb.y - C0.y) ? pa : pb;
-  const b1 = basisOf(P);
-  // Exact sail rotation: maps the (new) mirrored corner P back onto the
-  // thumb P0, about the apex.
-  const va = { x: P.x - apex.x, y: P.y - apex.y };
-  const vb = { x: P0.x - apex.x, y: P0.y - apex.y };
-  const phiSail = Math.atan2(va.x * vb.y - va.y * vb.x, va.x * vb.x + va.y * vb.y);
-  return { P, mid: b1.mid, n: b1.n, apex, phiSail };
+  const P = corner ?? cornerAt(t, w, h, rtl);
+  const mid: Pt = { x: (C0.x + P.x) / 2, y: (C0.y + P.y) / 2 };
+  let nx = P.x - C0.x, ny = P.y - C0.y;
+  const len = Math.hypot(nx, ny) || 1;
+  nx /= len; ny /= len;
+  return { P, mid, n: { x: nx, y: ny } };
 }
 
 /** Compute one frame of the peel for a w×h sheet at progress t∈[0,1].
@@ -412,10 +370,17 @@ export function foldFrame(
     for (let i = 0; i < cut.length; i++) if (onFold[i]) jIdx.push(i);
     if (jIdx.length >= 2) {
       const uOf = (p: Pt): number => (p.x - mid.x) * fold.x + (p.y - mid.y) * fold.y;
-      // Apex = the higher junction (top of the horn); base = the other.
-      const [ja, jb] = cut[jIdx[0]].y <= cut[jIdx[jIdx.length - 1]].y
-        ? [jIdx[0], jIdx[jIdx.length - 1]]
-        : [jIdx[jIdx.length - 1], jIdx[0]];
+      // Extreme fold-vertices along the fold axis: at deep turn the
+      // reach constraint parks the fold exactly THROUGH page corners,
+      // adding a third on-fold vertex — picking first/last in ring
+      // order then collapses the walk to a sliver (the sheet blinked
+      // out at the end of a slow drag). Apex = the higher extreme.
+      let ja = jIdx[0], jb = jIdx[0];
+      for (const i of jIdx) {
+        if (uOf(cut[i]) < uOf(cut[ja])) ja = i;
+        if (uOf(cut[i]) > uOf(cut[jb])) jb = i;
+      }
+      if (cut[ja].y > cut[jb].y) { const tmp = ja; ja = jb; jb = tmp; }
       const uApex = uOf(cut[ja]), uBase = uOf(cut[jb]);
       const span = Math.abs(uBase - uApex) || 1;
       const rBase = curl; // tube radius at the base, px
@@ -439,39 +404,33 @@ export function foldFrame(
         const d = -sideOf(p), u = uOf(p), r = rOf(u);
         return at(u, d < Math.PI * r ? r * Math.sin(Math.min(d / r, Math.PI)) : 0);
       };
-      // The sail is FLAT sheet: its mapping must be an ISOMETRY or the
-      // page's real (straight) edges render curved. Mirror across the
-      // fold, then rotate about the cone's apex by the consumed-arc
-      // angle (phiSail maps the mirrored corner exactly onto the thumb).
-      const ca = Math.cos(basis.phiSail), sa = Math.sin(basis.phiSail);
-      const apex = basis.apex ?? cut[ja];
+      // The sail is FLAT sheet: a pure mirror (an isometry — straight
+      // edges stay straight, the corner lands exactly on the thumb, and
+      // the image lies on the kept side at every t).
       const warpSail = (p: Pt): Pt => {
         const s = sideOf(p);
-        const mx = p.x - 2 * s * nx, my = p.y - 2 * s * ny; // mirror
-        const dx = mx - apex.x, dy = my - apex.y;
-        return { x: apex.x + dx * ca - dy * sa, y: apex.y + dx * sa + dy * ca };
+        return { x: p.x - 2 * s * nx, y: p.y - 2 * s * ny };
       };
-      // Walk the ring from apex junction to base junction the long way
-      // (through the page edges + corner), sampling densely so the tube
-      // and horn come out as smooth curves.
-      const ring: Pt[] = [];
-      for (let i = ja; ; i = (i + 1) % cut.length) {
-        ring.push(cut[i]);
-        if (i === jb && ring.length > 1) break;
-        if (ring.length > cut.length + 1) break; // safety
-      }
-      const pathHitsFoldOnly = ring.slice(1, -1).every((_, k) => !onFold[(ja + 1 + k) % cut.length]);
-      const walk = pathHitsFoldOnly
-        ? ring
-        : (() => { // walked the fold edge — go the other way round
-            const alt: Pt[] = [];
-            for (let i = ja; ; i = (i - 1 + cut.length) % cut.length) {
-              alt.push(cut[i]);
-              if (i === jb && alt.length > 1) break;
-              if (alt.length > cut.length + 1) break;
-            }
-            return alt;
-          })();
+      // Walk the ring from apex to base junction the LONG way (through
+      // the page edges + corner). Direction chosen by path length — the
+      // old on-fold-vertex test broke when a page corner sat exactly on
+      // the fold (guaranteed at deep turn by the reach constraint).
+      const ringDir = (step: number): Pt[] => {
+        const r: Pt[] = [];
+        for (let i = ja; ; i = (i + step + cut.length) % cut.length) {
+          r.push(cut[i]);
+          if (i === jb && r.length > 1) break;
+          if (r.length > cut.length + 1) break; // safety
+        }
+        return r;
+      };
+      const pathLen = (r: Pt[]): number => {
+        let s = 0;
+        for (let i = 1; i < r.length; i++) s += Math.hypot(r[i].x - r[i - 1].x, r[i].y - r[i - 1].y);
+        return s;
+      };
+      const fwd = ringDir(1), bwd = ringDir(-1);
+      const walk = pathLen(fwd) >= pathLen(bwd) ? fwd : bwd;
       const sampled: Pt[] = [walk[0]];
       for (let i = 1; i < walk.length; i++) {
         const a = walk[i - 1], b = walk[i];
@@ -880,34 +839,38 @@ export function animatePageTurn(opts: {
       sheet.style.clipPath = ff.keptClip ?? "";
       sheet.style.opacity = String(ff.fade);
       const sh = foldShading(t, w, h, rtl);
+      // Independent per-layer gating — see the same block in
+      // createInteractivePeel.
       if (flap) {
-        if (ff.cutClip && sh) {
+        if (sh && ff.cutClip) {
           flap.style.display = "block";
           flap.style.clipPath = ff.cutClip;
           flap.style.transform = ff.flapTransform;
           flap.style.opacity = String(ff.fade);
           flap.style.background = sh.flapBackground;
           flap.style.filter = sh.flapFilter;
-          if (tube) {
-            if (ff.tubeClip) {
-              tube.style.display = "block";
-              tube.style.clipPath = ff.tubeClip;
-              tube.style.opacity = String(ff.fade);
-              tube.style.background = sh.tubeBackground;
-              tube.style.filter = sh.tubeFilter;
-            } else {
-              tube.style.display = "none";
-            }
-          }
-          if (shade) {
-            shade.style.display = "block";
-            shade.style.background = sh.creaseShade;
-            shade.style.opacity = String(ff.fade);
-          }
         } else {
           flap.style.display = "none";
-          if (tube) tube.style.display = "none";
-          if (shade) shade.style.display = "none";
+        }
+      }
+      if (tube) {
+        if (sh && ff.tubeClip) {
+          tube.style.display = "block";
+          tube.style.clipPath = ff.tubeClip;
+          tube.style.opacity = String(ff.fade);
+          tube.style.background = sh.tubeBackground;
+          tube.style.filter = sh.tubeFilter;
+        } else {
+          tube.style.display = "none";
+        }
+      }
+      if (shade) {
+        if (sh && (ff.cutClip || ff.tubeClip)) {
+          shade.style.display = "block";
+          shade.style.background = sh.creaseShade;
+          shade.style.opacity = String(ff.fade);
+        } else {
+          shade.style.display = "none";
         }
       }
       if (u < 1) rafId = requestAnimationFrame(frame);
@@ -1013,33 +976,43 @@ export function createInteractivePeel(opts: {
   let rafId: number | null = null;
   let done = false;
 
-  const paint = (t: number, corner?: { x: number; y: number }): void => {
+  const paint = (t: number, corner?: { x: number; y: number }, melt = false): void => {
     const ff = foldFrame(t, w, h, notch, rtl, curlRadius(t, w, h), corner);
+    // The melt-out (fade past t=0.8) exists for the CLOCK-driven turn,
+    // where speed masks it. A held thumb must never watch the sheet
+    // evaporate mid-air — while scrubbing, the paper stays fully there;
+    // only the release flight melts.
+    const fade = melt ? ff.fade : 1;
     sheet.style.clipPath = ff.keptClip ?? "";
-    sheet.style.opacity = String(ff.fade);
+    sheet.style.opacity = String(fade);
     const sh = foldShading(t, w, h, rtl, corner);
-    if (ff.cutClip && sh) {
+    // Each layer renders on its own clip: gating everything on the
+    // sail's clip once hid the tube+shade whenever the sail vanished —
+    // the folded sheet blinked out mid-drag.
+    if (sh && ff.cutClip) {
       flap.style.display = "block";
       flap.style.clipPath = ff.cutClip;
       flap.style.transform = ff.flapTransform;
-      flap.style.opacity = String(ff.fade);
+      flap.style.opacity = String(fade);
       flap.style.background = sh.flapBackground;
       flap.style.filter = sh.flapFilter;
-      if (ff.tubeClip) {
-        tube.style.display = "block";
-        tube.style.clipPath = ff.tubeClip;
-        tube.style.opacity = String(ff.fade);
-        tube.style.background = sh.tubeBackground;
-        tube.style.filter = sh.tubeFilter;
-      } else {
-        tube.style.display = "none";
-      }
-      shade.style.display = "block";
-      shade.style.background = sh.creaseShade;
-      shade.style.opacity = String(ff.fade);
     } else {
       flap.style.display = "none";
+    }
+    if (sh && ff.tubeClip) {
+      tube.style.display = "block";
+      tube.style.clipPath = ff.tubeClip;
+      tube.style.opacity = String(fade);
+      tube.style.background = sh.tubeBackground;
+      tube.style.filter = sh.tubeFilter;
+    } else {
       tube.style.display = "none";
+    }
+    if (sh && (ff.cutClip || ff.tubeClip)) {
+      shade.style.display = "block";
+      shade.style.background = sh.creaseShade;
+      shade.style.opacity = String(fade);
+    } else {
       shade.style.display = "none";
     }
   };
@@ -1123,11 +1096,11 @@ export function createInteractivePeel(opts: {
         // Reaching the far edge (commit) or flat (cancel) ends it — past
         // t=1 the flap has already faded out, so there's nothing to settle.
         if (commit && t >= 1) { finish(true); return; }
-        if (!commit && t <= 0) { paint(0); finish(false); return; }
+        if (!commit && t <= 0) { paint(0, undefined, true); finish(false); return; }
         // Asymptotic approach with no crossing (heavily damped): stop once
         // it's effectively there and barely moving.
         if (Math.abs(target - t) < 0.004 && Math.abs(v) < 0.06) { finish(commit); return; }
-        paint(clamp01(t), cornerOv);
+        paint(clamp01(t), cornerOv, true);
         rafId = requestAnimationFrame(step);
       };
       rafId = requestAnimationFrame(step);

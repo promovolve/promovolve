@@ -79,7 +79,18 @@ cash = Σ advertiser_wallet + Σ publisher_payable + platform_revenue + clearing
 ```
 
 That identity is the reconciliation check the admin dashboard displays;
-the clearing tile is labeled "In transit" and is normally near zero.
+the clearing tile is labeled "In transit." It nets to exactly zero over any
+event range **both** sides have closed — but under continuous traffic it is
+normally **non-zero**, and legitimately **negative**. The two local days
+close at different moments, so whichever side's day rolls first books its
+slice before the other side has; clearing carries that float and *leapfrogs*
+around zero as the zones settle in turn, resting at zero only when traffic
+quiesces and both sides catch up. (Verified live: a Tokyo-advertiser /
+UTC-publisher pair drove clearing to −$0.71 between its two closes — the
+publisher's UTC day ran ~9h past the advertiser's JST close, settling a slice
+the advertiser hadn't yet — and it self-corrected on the advertiser's next
+roll.) The anomaly to watch for is a persistent, *growing* imbalance; a
+bounded oscillation, including negative, is expected behaviour.
 
 ## Schema (platform DB)
 
@@ -257,8 +268,9 @@ Every entity — advertiser account and publisher alike — settles on **its
 own local days**. The zone is the owning org's `orgs.timezone` (the same
 zone that rolls the advertiser's budget, so budget day == billing day;
 `''`/org-less = UTC). Each entity carries a `settled_until` instant cursor;
-a Go-side job (30-minute ticker in the platform process; no new deployable)
-books the window `[settled_until, next local midnight)` once that midnight
+a Go-side job (30-minute ticker in the platform process, single replica with
+no leader election; no new deployable) books the window
+`[settled_until, next local midnight)` once that midnight
 plus a one-hour finality lag has passed, then advances the cursor. Windows
 chain on instants — gapless, overlap-free, DST-proof; an operator timezone
 change moves only future boundaries, giving the change day one shortened or

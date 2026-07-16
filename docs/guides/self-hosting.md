@@ -26,6 +26,25 @@ And **three public domains** you must own and route:
 3. **CDN origin** — your R2 bucket's public URL or a custom domain in
    front of it.
 
+## Not included — you provide these
+
+Two external integrations are deliberately left out so you can wire your own.
+The app runs fully without them; both are single, well-marked seams.
+
+- **Payments.** There is no payment-gateway integration. Advertiser top-ups
+  and publisher payouts are **ledger-first**: an admin records them in the
+  billing dashboard (e.g. after a bank transfer clears). That manual path
+  *is* the API — to add self-service, point a Stripe (or other PSP) webhook
+  at the same `RecordTopup` / payout call, idempotency-keyed on the
+  provider's event id. Nothing in settlement or serving depends on a PSP
+  existing. See [BILLING.md](../design/BILLING.md).
+- **Email / SMTP.** The platform **never sends email**. Passkey-recovery and
+  org-invite links are *minted, not mailed* — surfaced via the break-glass
+  CLI (`mint-recovery`, [below](#break-glass-cli-run-inside-the-platform-pod))
+  or the admin UI and handed to the user out of band. To deliver them by
+  email, wrap your own mailer around those link-minting calls; the auth flow
+  itself is unchanged.
+
 ## Prerequisites
 
 - A Kubernetes cluster (or Docker for the local path) and a container

@@ -268,7 +268,6 @@ object PublisherEntity {
             val freeze = status match {
               case Status.Suspended | Status.Closed => Some(true)
               case Status.Active                    => Some(false)
-              case null                             => None
             }
             freeze.foreach { s =>
               if (state.siteIds.nonEmpty) {

@@ -44,6 +44,9 @@ type adminBillingData struct {
 	Cursors      []settlementCursorRow
 	Windows      []settlementHealthRow
 	HealthBehind bool // some entity's next window is overdue
+	// Pagination for the per-entity cursors table — one row per billing
+	// entity, so it grows unbounded with account count.
+	ListNav *listNav
 }
 
 // settlementCursorRow is one entity's settled-until cursor on the health
@@ -319,20 +322,27 @@ func (h *Handler) renderAdminBilling(w http.ResponseWriter, r *http.Request, err
 
 	labels := h.ownerLabels(ctx)
 	if cursors, err := h.billingSvc.SettlementCursors(ctx); err == nil {
+		all := make([]settlementCursorRow, 0, len(cursors))
 		for _, c := range cursors {
 			tz := c.Timezone
 			if tz == "" {
 				tz = "UTC"
 			}
-			data.Cursors = append(data.Cursors, settlementCursorRow{
+			all = append(all, settlementCursorRow{
 				Owner:        string(c.OwnerType),
 				Label:        labelOr(labels, c.OwnerID),
 				Timezone:     tz,
 				SettledUntil: c.SettledUntil.In(user.Location()).Format("2006-01-02 15:04"),
 				Behind:       c.Behind,
 			})
+			// The health badge reflects ALL entities, not just the page shown.
 			data.HealthBehind = data.HealthBehind || c.Behind
 		}
+		// Own page param ("cpage") so it never collides with another list on
+		// the page; buildListNavParam clamps out-of-range pages.
+		offset, end, nav := buildListNavParam(r, len(all), billingPageSize, "cpage")
+		data.Cursors = all[offset:end]
+		data.ListNav = nav
 	}
 	if windows, err := h.billingSvc.RecentSettlementWindows(ctx, 20); err == nil {
 		for _, wd := range windows {
@@ -619,6 +629,7 @@ func (h *Handler) AdminBillingAccounts(w http.ResponseWriter, r *http.Request) {
 	q := strings.ToLower(strings.TrimSpace(r.URL.Query().Get("q")))
 	data := &adminAccountsData{Query: r.URL.Query().Get("q")}
 
+	var rows []accountIndexRow
 	if accounts, err := h.billingSvc.ListAccounts(ctx); err == nil {
 		for _, a := range accounts {
 			label := labelOr(labels, a.OwnerID)
@@ -626,7 +637,7 @@ func (h *Handler) AdminBillingAccounts(w http.ResponseWriter, r *http.Request) {
 				!strings.Contains(strings.ToLower(a.OwnerID), q) {
 				continue
 			}
-			data.Rows = append(data.Rows, accountIndexRow{
+			rows = append(rows, accountIndexRow{
 				Type:        string(a.OwnerType),
 				ID:          a.OwnerID,
 				Label:       label,
@@ -637,6 +648,10 @@ func (h *Handler) AdminBillingAccounts(w http.ResponseWriter, r *http.Request) {
 			})
 		}
 	}
+	// Paginate the search-filtered set. buildListNav preserves the ?q= term in
+	// the prev/next links, so paging within a search keeps the filter.
+	offset, end, nav := buildListNav(r, len(rows), billingPageSize)
+	data.Rows = rows[offset:end]
 
 	h.render(w, "admin/billing-accounts.html", pageData{
 		Title:         "Billing · Accounts",
@@ -644,6 +659,7 @@ func (h *Handler) AdminBillingAccounts(w http.ResponseWriter, r *http.Request) {
 		Tab:           "accounts",
 		User:          user,
 		AdminAccounts: data,
+		ListNav:       nav,
 	})
 }
 

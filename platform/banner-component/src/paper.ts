@@ -121,6 +121,34 @@ export const PAPER_CSS = `
     will-change: transform, clip-path, opacity;
   }
 
+  /* The cone curl's ROLL strip (the tube hugging the fold), drawn as
+   * its own element beneath the sail (.paper-flap) so the horn's union
+   * silhouette can never self-intersect. Same paper stock; its crown
+   * gradient comes from foldShading per frame. */
+  .paper-tube {
+    position: absolute;
+    inset: 0;
+    z-index: 6;
+    pointer-events: none;
+    display: none;
+    background: ${paperBackBackground("linear-gradient(0deg, rgba(0,0,0,0.06), rgba(0,0,0,0.06))")};
+    background-blend-mode: ${PAPER_BACK_BLEND};
+    will-change: clip-path, opacity;
+  }
+
+  /* Per-frame crease shading on the un-peeled sheet: a fold-following
+   * gradient (set from foldShading) that darkens the page toward the
+   * lift line — the lifted paper shading the page it's still attached
+   * to. Without it the fold reads as a printed line, not a bend.
+   * Lives inside .paper-sheet so the kept clip crops it for free. */
+  .paper-crease-shade {
+    position: absolute;
+    inset: 0;
+    z-index: 6;
+    pointer-events: none;
+    display: none;
+  }
+
   /* Fine grain over the whole composition. mix-blend-mode:overlay
    * reads as texture on both light and dark authored backgrounds;
    * opacity is low enough to never fight the creative. */
@@ -165,7 +193,11 @@ interface Pt { x: number; y: number }
   * travels right) for Arabic / Japanese-vertical reading. */
 export function cornerAt(t: number, w: number, h: number, rtl = false): Pt {
   const x = rtl ? 2 * w * t : w - 2 * w * t;
-  return { x, y: h - Math.sin(Math.PI * t) * h * 0.28 };
+  // Lift rides the SHORT side: a height-proportional arc over-rotated
+  // the fold on tall sheets (a 9:16 portrait got a too-acute diagonal
+  // crease — the fold should sit more obtuse there, per the classic
+  // curl reference).
+  return { x, y: h - Math.sin(Math.PI * t) * Math.min(w, h) * 0.28 };
 }
 
 // Sutherland–Hodgman: clip `poly` to the half-plane where
@@ -190,6 +222,18 @@ const toClip = (poly: Pt[]): string | null =>
     ? null
     : "polygon(" + poly.map(p => `${p.x.toFixed(2)}px ${p.y.toFixed(2)}px`).join(",") + ")";
 
+/** Cone-curl tube radius (px) at the base junction for a w×h sheet at
+  * progress t. Scales with the sheet (the reference look — the classic
+  * iOS page-curl — runs a tube of roughly a tenth of the short side),
+  * and breathes with the lift so the roll relaxes as the page settles.
+  * Shared by foldFrame (silhouette) and foldShading (the roll's light
+  * band and shadow must be sized to the same radius). */
+export function curlRadius(t: number, w: number, h: number): number {
+  const base = Math.max(22, Math.min(72, Math.min(w, h) * 0.16));
+  return base * (0.6 + 0.4 * Math.sin(Math.PI * t));
+}
+
+
 export interface FoldFrame {
   /** clip-path for the front sheet (null = leave unclipped). */
   keptClip: string | null;
@@ -202,6 +246,10 @@ export interface FoldFrame {
     * turned sheet (single-sheet magazine, not a book spread), so it
     * dissolves as it sweeps past the spine. */
   fade: number;
+  /** Cone-curl only: clip for the roll strip hugging the fold (the
+    * tube), rendered as its own element under the sail so the horn's
+    * union can't self-intersect into holes. Absent on the mirror path. */
+  tubeClip?: string | null;
 }
 
 /** Compute one frame of the peel for a w×h sheet at progress t∈[0,1].
@@ -214,13 +262,20 @@ export interface FoldFrame {
   * front's fold is consumed in place — geometrically wrong, and it
   * reads as such. One extra half-plane clip on the cut region (in
   * local coords, pre-mirror) fixes it. */
-export function foldFrame(t: number, w: number, h: number, notch?: number, rtl = false): FoldFrame {
+export function foldFrame(
+  t: number, w: number, h: number, notch?: number, rtl = false, curl = 0,
+  corner?: Pt,
+): FoldFrame {
   const fade = t < 0.8 ? 1 : Math.max(0, (1 - t) / 0.2);
   if (t <= 0.0001) {
     return { keptClip: null, cutClip: null, flapTransform: "", fade: 1 };
   }
   const C0: Pt = { x: rtl ? 0 : w, y: h };
-  const P = cornerAt(t, w, h, rtl);
+  // The corner override is the live THUMB position (interactive peel):
+  // the fold is the perpendicular bisector of C0->corner, so tracking
+  // the thumb in 2D lets the reader set the fold ANGLE, not just its
+  // progress — the canned arc only drives auto-turns and the release.
+  const P = corner ?? cornerAt(t, w, h, rtl);
   const mid: Pt = { x: (C0.x + P.x) / 2, y: (C0.y + P.y) / 2 };
   let nx = P.x - C0.x, ny = P.y - C0.y;
   const len = Math.hypot(nx, ny) || 1;
@@ -241,6 +296,101 @@ export function foldFrame(t: number, w: number, h: number, notch?: number, rtl =
     cut = rtl
       ? clipPoly(cut, { x: notch, y: 0 }, { x: 1, y: 1 }, +1)
       : clipPoly(cut, { x: w - notch, y: 0 }, { x: -1, y: 1 }, +1);
+  }
+  if (curl > 0 && cut.length >= 3) {
+    // CONE CURL (the iOS page-curl look, from the user's reference):
+    // instead of mirroring the cut region, wrap it around a cone lying
+    // along the fold — radius near zero at the apex junction, growing
+    // toward the base junction. Every boundary point at perpendicular
+    // distance d from the fold projects to
+    //     proj(d, r) = r·sin(d/r)          (on the roll, overhang ≤ r)
+    //     proj(d, r) = −(d − π·r)          (past the roll, flat on top)
+    // toward the cut side. That single mapping produces everything the
+    // mirror couldn't: the fat rounded tube at the bottom, the concave
+    // horn edges (the roll consumes sheet — foreshortening), and the
+    // tight tip at the apex. The flap is blank paper, so the shape is
+    // drawn DIRECTLY in visual space: cutClip below is final geometry
+    // and flapTransform is identity.
+    const e: Pt = { x: -nx, y: -ny }; // unit toward the cut side
+    const fold: Pt = { x: -ny, y: nx }; // unit along the fold line
+    // Fold-lying vertices of the cut region = the two junctions.
+    const sideOf = (p: Pt): number => (p.x - mid.x) * nx + (p.y - mid.y) * ny;
+    const onFold = cut.map(p => Math.abs(sideOf(p)) < 0.01);
+    const jIdx: number[] = [];
+    for (let i = 0; i < cut.length; i++) if (onFold[i]) jIdx.push(i);
+    if (jIdx.length >= 2) {
+      const uOf = (p: Pt): number => (p.x - mid.x) * fold.x + (p.y - mid.y) * fold.y;
+      // Apex = the higher junction (top of the horn); base = the other.
+      const [ja, jb] = cut[jIdx[0]].y <= cut[jIdx[jIdx.length - 1]].y
+        ? [jIdx[0], jIdx[jIdx.length - 1]]
+        : [jIdx[jIdx.length - 1], jIdx[0]];
+      const uApex = uOf(cut[ja]), uBase = uOf(cut[jb]);
+      const span = Math.abs(uBase - uApex) || 1;
+      const rBase = curl; // tube radius at the base, px
+      // Nonlinear taper (the reference look): the horn stays needle-thin
+      // for the top half and fattens late into the tube — a linear cone
+      // reads as a wide flat sash.
+      const rOf = (u: number): number =>
+        Math.max(0.5, rBase * Math.pow(Math.min(1, Math.abs(u - uApex) / span), 1.6));
+      // Two projections, TWO shapes: drawing the whole warped boundary
+      // as one polygon lets the roll's return path loop under the sail
+      // and the winding cancels — a visible hole where tube meets sail.
+      // So the curl renders as its two physical parts, each a simple
+      // single-valued outline: the TUBE (the roll strip hugging the
+      // fold, overhang 0→r→0) and the SAIL (the flat folded-over part,
+      // pulled in by the π·r the roll consumed). Union = the horn.
+      const at = (u: number, proj: number): Pt => ({
+        x: mid.x + fold.x * u + e.x * proj,
+        y: mid.y + fold.y * u + e.y * proj,
+      });
+      const warpTube = (p: Pt): Pt => {
+        const d = -sideOf(p), u = uOf(p), r = rOf(u);
+        return at(u, d < Math.PI * r ? r * Math.sin(Math.min(d / r, Math.PI)) : 0);
+      };
+      const warpSail = (p: Pt): Pt => {
+        const d = -sideOf(p), u = uOf(p), r = rOf(u);
+        // +1px onto the tube side so the two shapes overlap instead of
+        // meeting in an antialiased hairline seam at the fold.
+        return at(u, d < Math.PI * r ? 1 : Math.min(1, -(d - Math.PI * r)));
+      };
+      // Walk the ring from apex junction to base junction the long way
+      // (through the page edges + corner), sampling densely so the tube
+      // and horn come out as smooth curves.
+      const ring: Pt[] = [];
+      for (let i = ja; ; i = (i + 1) % cut.length) {
+        ring.push(cut[i]);
+        if (i === jb && ring.length > 1) break;
+        if (ring.length > cut.length + 1) break; // safety
+      }
+      const pathHitsFoldOnly = ring.slice(1, -1).every((_, k) => !onFold[(ja + 1 + k) % cut.length]);
+      const walk = pathHitsFoldOnly
+        ? ring
+        : (() => { // walked the fold edge — go the other way round
+            const alt: Pt[] = [];
+            for (let i = ja; ; i = (i - 1 + cut.length) % cut.length) {
+              alt.push(cut[i]);
+              if (i === jb && alt.length > 1) break;
+              if (alt.length > cut.length + 1) break;
+            }
+            return alt;
+          })();
+      const sampled: Pt[] = [walk[0]];
+      for (let i = 1; i < walk.length; i++) {
+        const a = walk[i - 1], b = walk[i];
+        const len = Math.hypot(b.x - a.x, b.y - a.y);
+        const steps = Math.max(1, Math.min(18, Math.ceil(len / 14)));
+        for (let k = 1; k <= steps; k++) {
+          sampled.push({ x: a.x + ((b.x - a.x) * k) / steps, y: a.y + ((b.y - a.y) * k) / steps });
+        }
+      }
+      return {
+        keptClip: toClip(kept) ?? "polygon(0px 0px, 0px 0px, 0px 0px)",
+        cutClip: toClip(sampled.map(warpSail)),
+        tubeClip: toClip(sampled.map(warpTube)),
+        flapTransform: "", // geometry is already in visual space
+        fade,
+      };
+    }
   }
 
   // Reflection across the fold line: A = I - 2nnᵀ, b = 2(M·n)n.
@@ -292,6 +442,132 @@ export function dogEarPeelFrame(t: number, w: number, h: number, rtl = false): F
     cutClip: toClip(cut),
     flapTransform: `matrix(${a},${b},${c},${dd},${e},${f})`,
     fade: 1,
+  };
+}
+
+// ── Curl shading ─────────────────────────────────────────────────────
+//
+// The mirror fold is geometrically right but shades like cloth: the
+// flap's lighting gradient was a fixed 315° and its drop-shadow a
+// constant halo, and the front sheet got nothing at all. Real paper
+// bends — the light follows the BEND, not the screen. These are the
+// per-frame, fold-anchored replacements: a cylinder profile across the
+// crease on the flap's back, an attached-shadow ramp on the front
+// sheet fading away from the lift line, and a shadow that grows and
+// falls away from the crease as the page lifts.
+
+export interface FoldShading {
+  /** Full background stack for the flap (fold-following sheen). */
+  flapBackground: string;
+  /** drop-shadow filter for the flap, scaled/directed by lift. */
+  flapFilter: string;
+  /** Gradient for the .paper-crease-shade overlay on the front sheet. */
+  creaseShade: string;
+  /** Background stack for the roll strip (.paper-tube): lit crown just
+    * past the fold turning under into the dark outer silhouette. */
+  tubeBackground: string;
+}
+
+/** Compute the fold-anchored shading for a w×h sheet at progress t.
+  * Pure — same inputs as [[foldFrame]]; returns null when flat. */
+export function foldShading(
+  t: number, w: number, h: number, rtl = false, corner?: Pt,
+): FoldShading | null {
+  if (t <= 0.0001) return null;
+  const C0: Pt = { x: rtl ? 0 : w, y: h };
+  const P = corner ?? cornerAt(t, w, h, rtl);
+  const mid: Pt = { x: (C0.x + P.x) / 2, y: (C0.y + P.y) / 2 };
+  let nx = P.x - C0.x, ny = P.y - C0.y;
+  const len = Math.hypot(nx, ny) || 1;
+  nx /= len; ny /= len;
+  const lift = Math.sin(Math.PI * t); // page height off the stack, 0→1→0
+
+  // A linear-gradient along unit direction u, with stops positioned in
+  // px from the gradient's own start edge: CSS angle 0deg points up and
+  // the axis runs through the box center, so a point's stop position is
+  // its projection onto u plus half the axis length.
+  const grad = (u: Pt): { deg: number; L: number; sMid: number } => {
+    const th = Math.atan2(u.x, -u.y);
+    const L = Math.abs(w * Math.sin(th)) + Math.abs(h * Math.cos(th));
+    const sMid = (mid.x - w / 2) * u.x + (mid.y - h / 2) * u.y + L / 2;
+    return { deg: (th * 180) / Math.PI, L, sMid };
+  };
+
+  // Shading intensity rides the CORNER'S TRAVEL (turn.js's far/width
+  // ramp), not the lift arc: the lift fades in the back half of the
+  // sweep and took the shadows with it — a page mid-flight went
+  // weightless. Travel keeps them strong until the melt-out.
+  const travel = Math.hypot(P.x - C0.x, P.y - C0.y);
+  const k = 0.30 + 0.70 * Math.min(1, travel / w);
+
+  // The shadow band is GEOMETRIC (turn.js: gradientSize = side·sin α):
+  // it spans a fraction of the distance from the fold to the farthest
+  // still-flat corner, so mid-turn the penumbra sweeps hundreds of px
+  // across the page — the single biggest "real paper" cue in both
+  // turn.js and the iOS reference. A fixed-width band reads as a line.
+  const dKept = Math.max(
+    0,
+    -mid.x * nx + -mid.y * ny,
+    (w - mid.x) * nx + -mid.y * ny,
+    (w - mid.x) * nx + (h - mid.y) * ny,
+    -mid.x * nx + (h - mid.y) * ny,
+  );
+  const band = Math.min(340, Math.max(48, dKept * 0.45));
+
+  // The curl body is drawn in VISUAL space (see the cone path in
+  // foldFrame — flapTransform is identity), so this gradient shades the
+  // roll where it actually is: axis from the fold toward the cut side.
+  // Reading along it: the flat folded-over part (kept side, plain paper
+  // with a soft curvature shade approaching the fold), then the roll's
+  // lit crown just past the fold (the tube catching light), turning
+  // under into the dark outer silhouette at ~r.
+  const r = curlRadius(t, w, h);
+  const gF = grad({ x: -nx, y: -ny });
+  // The SAIL (flat folded-over part, kept side of the fold): turn.js's
+  // flap profile — plain paper far out, a dark band HUGGING the crease
+  // (the roll's self-shadow on the underside), snapping to the lit
+  // line at the fold. Band width geometric, like the front shadow.
+  const flapSheen =
+    `linear-gradient(${gF.deg.toFixed(2)}deg,` +
+    ` rgba(0,0,0,0.0) ${(gF.sMid - band * 0.7).toFixed(1)}px,` +
+    ` rgba(0,0,0,${(0.18 * k).toFixed(3)}) ${(gF.sMid - Math.max(6, r * 0.4)).toFixed(1)}px,` +
+    ` rgba(255,255,255,${(0.20 * k).toFixed(3)}) ${gF.sMid.toFixed(1)}px)`;
+  // The TUBE (roll strip past the fold): lit crown turning under into
+  // the dark outer silhouette at ~r.
+  const tubeSheen =
+    `linear-gradient(${gF.deg.toFixed(2)}deg,` +
+    ` rgba(255,255,255,${(0.20 * k).toFixed(3)}) ${gF.sMid.toFixed(1)}px,` +
+    ` rgba(255,255,255,${(0.32 * k).toFixed(3)}) ${(gF.sMid + r * 0.35).toFixed(1)}px,` +
+    ` rgba(255,255,255,0.02) ${(gF.sMid + r * 0.7).toFixed(1)}px,` +
+    ` rgba(0,0,0,${(0.40 * k).toFixed(3)}) ${(gF.sMid + r).toFixed(1)}px)`;
+
+  // Front sheet: the classic two-part crease treatment (turn.js's
+  // signature) — a LIT HAIRLINE right at the fold (the bend catching
+  // light, seen from the front) snapping into the attached shadow,
+  // which fades into the kept side. Width is GEOMETRIC: it follows the
+  // fold's depth (∝ corner travel), not the lift arc, so the penumbra
+  // breathes with the fold shape like a real cast shadow.
+  const gS = grad({ x: nx, y: ny });
+  const creaseShade =
+    `linear-gradient(${gS.deg.toFixed(2)}deg,` +
+    ` rgba(255,255,255,${(0.20 * k).toFixed(3)}) ${(gS.sMid - 1).toFixed(1)}px,` +
+    ` rgba(255,255,255,${(0.20 * k).toFixed(3)}) ${(gS.sMid + 1).toFixed(1)}px,` +
+    ` rgba(0,0,0,${(0.30 * k).toFixed(3)}) ${(gS.sMid + 6).toFixed(1)}px,` +
+    ` rgba(0,0,0,${(0.10 * k).toFixed(3)}) ${(gS.sMid + band * 0.45).toFixed(1)}px,` +
+    ` rgba(0,0,0,0) ${(gS.sMid + band).toFixed(1)}px)`;
+
+  // Cast shadow: falls ahead of the curl (toward the kept side), and
+  // grows/softens as the page lifts — a constant halo reads as flat.
+  const off = 3 + 15 * lift;
+  const flapFilter =
+    `drop-shadow(${(nx * off).toFixed(1)}px ${(ny * off).toFixed(1)}px ` +
+    `${(8 + 24 * lift).toFixed(0)}px rgba(0,0,0,${(0.22 + 0.26 * lift).toFixed(2)}))`;
+
+  return {
+    flapBackground: paperBackBackground(flapSheen),
+    flapFilter,
+    creaseShade,
+    tubeBackground: paperBackBackground(tubeSheen),
   };
 }
 
@@ -368,6 +644,8 @@ export function animatePageTurn(opts: {
   }
 
   let flap: HTMLElement | null = null;
+  let tube: HTMLElement | null = null;
+  let shade: HTMLElement | null = null;
   let rafId: number | null = null;
   let settled = false;
   // Fold-state restore is separate from settle so a REVERSE turn can
@@ -395,6 +673,8 @@ export function animatePageTurn(opts: {
     clearTimeout(failsafe);
     if (rafId !== null) cancelAnimationFrame(rafId);
     flap?.remove();
+    tube?.remove();
+    shade?.remove();
     if (sheet) {
       sheet.style.clipPath = "";
       sheet.style.opacity = "";
@@ -432,6 +712,15 @@ export function animatePageTurn(opts: {
     // Texture on the paper back — inherits the flap's clip+transform.
     flap.appendChild(buildGrainOverlay());
     stack.appendChild(flap);
+    // The cone curl's roll strip — rendered beneath the sail.
+    tube = document.createElement("div");
+    tube.className = "paper-tube";
+    tube.appendChild(buildGrainOverlay());
+    stack.appendChild(tube);
+    // Fold-anchored crease shading on the front sheet (see foldShading).
+    shade = document.createElement("div");
+    shade.className = "paper-crease-shade";
+    sheet.appendChild(shade);
     turning.classList.add("page-peeling");
 
     const start = performance.now();
@@ -442,17 +731,37 @@ export function animatePageTurn(opts: {
       // Un-peel landing: hand the fold back while still in motion so
       // the flap drop + notch switch are masked (see restoreFoldState).
       if (direction === "prev" && t <= 0.12) restoreFoldState();
-      const ff = foldFrame(t, w, h, notch, rtl);
+      const ff = foldFrame(t, w, h, notch, rtl, curlRadius(t, w, h));
       sheet.style.clipPath = ff.keptClip ?? "";
       sheet.style.opacity = String(ff.fade);
+      const sh = foldShading(t, w, h, rtl);
       if (flap) {
-        if (ff.cutClip) {
+        if (ff.cutClip && sh) {
           flap.style.display = "block";
           flap.style.clipPath = ff.cutClip;
           flap.style.transform = ff.flapTransform;
           flap.style.opacity = String(ff.fade);
+          flap.style.background = sh.flapBackground;
+          flap.style.filter = sh.flapFilter;
+          if (tube) {
+            if (ff.tubeClip) {
+              tube.style.display = "block";
+              tube.style.clipPath = ff.tubeClip;
+              tube.style.opacity = String(ff.fade);
+              tube.style.background = sh.tubeBackground;
+            } else {
+              tube.style.display = "none";
+            }
+          }
+          if (shade) {
+            shade.style.display = "block";
+            shade.style.background = sh.creaseShade;
+            shade.style.opacity = String(ff.fade);
+          }
         } else {
           flap.style.display = "none";
+          if (tube) tube.style.display = "none";
+          if (shade) shade.style.display = "none";
         }
       }
       if (u < 1) rafId = requestAnimationFrame(frame);
@@ -499,7 +808,7 @@ export function createInteractivePeel(opts: {
   springC?: number;     // settle-spring damping (paper weight)
   onCommit: () => void; // reached t=1: swap in the next page (instant)
   onCancel: () => void; // returned to t=0: nothing turned, restore resting
-}): { scrubTo: (t: number) => void; release: (commit: boolean, v0?: number) => void } | null {
+}): { scrubTo: (t: number, corner?: { x: number; y: number }) => void; release: (commit: boolean, v0?: number) => void } | null {
   const { turning, under, onCommit, onCancel } = opts;
   const rtl = opts.rtl ?? false;
   const springK = opts.springK ?? PEEL_SPRING_K;
@@ -541,28 +850,57 @@ export function createInteractivePeel(opts: {
   flap.className = "paper-flap";
   flap.appendChild(buildGrainOverlay());
   stack.appendChild(flap);
+  // The cone curl's roll strip — rendered beneath the sail.
+  const tube = document.createElement("div");
+  tube.className = "paper-tube";
+  tube.appendChild(buildGrainOverlay());
+  stack.appendChild(tube);
+  // Fold-anchored crease shading on the front sheet (see foldShading) —
+  // clipped by the sheet's kept clip for free.
+  const shade = document.createElement("div");
+  shade.className = "paper-crease-shade";
+  sheet.appendChild(shade);
   turning.classList.add("page-peeling");
 
   let lastT = 0;
+  let lastCorner: { x: number; y: number } | undefined;
   let rafId: number | null = null;
   let done = false;
 
-  const paint = (t: number): void => {
-    const ff = foldFrame(t, w, h, notch, rtl);
+  const paint = (t: number, corner?: { x: number; y: number }): void => {
+    const ff = foldFrame(t, w, h, notch, rtl, curlRadius(t, w, h), corner);
     sheet.style.clipPath = ff.keptClip ?? "";
     sheet.style.opacity = String(ff.fade);
-    if (ff.cutClip) {
+    const sh = foldShading(t, w, h, rtl, corner);
+    if (ff.cutClip && sh) {
       flap.style.display = "block";
       flap.style.clipPath = ff.cutClip;
       flap.style.transform = ff.flapTransform;
       flap.style.opacity = String(ff.fade);
+      flap.style.background = sh.flapBackground;
+      flap.style.filter = sh.flapFilter;
+      if (ff.tubeClip) {
+        tube.style.display = "block";
+        tube.style.clipPath = ff.tubeClip;
+        tube.style.opacity = String(ff.fade);
+        tube.style.background = sh.tubeBackground;
+      } else {
+        tube.style.display = "none";
+      }
+      shade.style.display = "block";
+      shade.style.background = sh.creaseShade;
+      shade.style.opacity = String(ff.fade);
     } else {
       flap.style.display = "none";
+      tube.style.display = "none";
+      shade.style.display = "none";
     }
   };
 
   const teardown = (): void => {
     flap.remove();
+    tube.remove();
+    shade.remove();
     sheet.style.clipPath = "";
     sheet.style.opacity = "";
     if (stage && punchClip) {
@@ -594,10 +932,16 @@ export function createInteractivePeel(opts: {
   };
 
   return {
-    scrubTo: (t: number): void => {
+    // corner = the live thumb position in sheet coords: the fold is the
+    // perpendicular bisector of (home corner -> thumb), so tracking the
+    // thumb in 2D lets the reader set the fold's ANGLE with their hand
+    // (a 9:16 portrait sheet especially wants a more obtuse fold than
+    // the canned arc gives).
+    scrubTo: (t: number, corner?: { x: number; y: number }): void => {
       if (done) return;
       lastT = clamp01(t);
-      paint(lastT);
+      lastCorner = corner;
+      paint(lastT, corner);
     },
     // Hand the remaining travel to a velocity-seeded spring: the page
     // leaves the thumb at the speed it was moving (v0, progress/sec) and
@@ -610,6 +954,7 @@ export function createInteractivePeel(opts: {
       let t = lastT;
       let v = v0;
       let prev = performance.now();
+      let cornerOv = lastCorner;
       const step = (now: number): void => {
         if (done) return;
         const dt = Math.min(0.032, Math.max(0, (now - prev) / 1000));
@@ -617,6 +962,17 @@ export function createInteractivePeel(opts: {
         const accel = (target - t) * springK - v * springC;
         v += accel * dt;
         t += v * dt;
+        // The thumb's fold-angle override decays back onto the canned
+        // arc as the spring carries the page, so the release lands on
+        // the same path the auto-turn uses.
+        if (cornerOv) {
+          const cAt = cornerAt(clamp01(t), w, h, rtl);
+          cornerOv = {
+            x: cAt.x + (cornerOv.x - cAt.x) * 0.85,
+            y: cAt.y + (cornerOv.y - cAt.y) * 0.85,
+          };
+          if (Math.hypot(cornerOv.x - cAt.x, cornerOv.y - cAt.y) < 2) cornerOv = undefined;
+        }
         // Reaching the far edge (commit) or flat (cancel) ends it — past
         // t=1 the flap has already faded out, so there's nothing to settle.
         if (commit && t >= 1) { finish(true); return; }
@@ -624,7 +980,7 @@ export function createInteractivePeel(opts: {
         // Asymptotic approach with no crossing (heavily damped): stop once
         // it's effectively there and barely moving.
         if (Math.abs(target - t) < 0.004 && Math.abs(v) < 0.06) { finish(commit); return; }
-        paint(clamp01(t));
+        paint(clamp01(t), cornerOv);
         rafId = requestAnimationFrame(step);
       };
       rafId = requestAnimationFrame(step);

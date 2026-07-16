@@ -197,7 +197,33 @@ export function cornerAt(t: number, w: number, h: number, rtl = false): Pt {
   // the fold on tall sheets (a 9:16 portrait got a too-acute diagonal
   // crease — the fold should sit more obtuse there, per the classic
   // curl reference).
-  return { x, y: h - Math.sin(Math.PI * t) * Math.min(w, h) * 0.28 };
+  let p: Pt = { x, y: h - Math.sin(Math.PI * t) * Math.min(w, h) * 0.28 };
+  // INEXTENSIBILITY (turn.js's folding secret — its compute() recurses
+  // with a corrected drag point whenever the fold would stretch the
+  // sheet): the mirrored corner can never sit farther from any anchored
+  // page corner than the paper between them. The unconstrained line
+  // violated this past mid-turn (22% stretch at t=0.75 on a 9:16 sheet
+  // — the "wrong diagonal"); clamping makes the corner RIDE the reach
+  // circles, which is the elegant terminal sweep of a real page turn.
+  const anchors = rtl
+    ? [
+        { kx: 0, ky: 0, r: h },
+        { kx: w, ky: h, r: w },
+        { kx: w, ky: 0, r: Math.hypot(w, h) },
+      ]
+    : [
+        { kx: w, ky: 0, r: h },
+        { kx: 0, ky: h, r: w },
+        { kx: 0, ky: 0, r: Math.hypot(w, h) },
+      ];
+  for (let pass = 0; pass < 2; pass++) {
+    for (const a of anchors) {
+      const dx = p.x - a.kx, dy = p.y - a.ky;
+      const d = Math.hypot(dx, dy);
+      if (d > a.r) p = { x: a.kx + (dx * a.r) / d, y: a.ky + (dy * a.r) / d };
+    }
+  }
+  return p;
 }
 
 // Sutherland–Hodgman: clip `poly` to the half-plane where
@@ -455,9 +481,33 @@ export function foldFrame(
           sampled.push({ x: a.x + ((b.x - a.x) * k) / steps, y: a.y + ((b.y - a.y) * k) / steps });
         }
       }
+      // ENDCAP: the roll runs off the page edge at full diameter — it
+      // does not pinch to a point at the base junction (that gap showed
+      // a sliver of the front page between tube and sail). Continue the
+      // walk past the junction along its page edge; the warp sweeps
+      // these into the roll's rounded end, closing the junction.
+      {
+        const last = walk[walk.length - 1];
+        const prev = walk[walk.length - 2] ?? last;
+        const el = Math.hypot(last.x - prev.x, last.y - prev.y) || 1;
+        const dirX = (last.x - prev.x) / el, dirY = (last.y - prev.y) / el;
+        const capLen = rBase * 1.3;
+        const CAP = 8;
+        for (let k2 = 1; k2 <= CAP; k2++) {
+          sampled.push({
+            x: last.x + dirX * (capLen * k2) / CAP,
+            y: last.y + dirY * (capLen * k2) / CAP,
+          });
+        }
+      }
       return {
         keptClip: toClip(kept) ?? "polygon(0px 0px, 0px 0px, 0px 0px)",
-        cutClip: toClip(sampled.map(warpSail)),
+        // Flat material physically ENDS at the fold (the tangent line
+        // where the sheet leaves the roll) — the sail's isometry image
+        // is clipped there, or its rotated closure juts past the fold
+        // at the fat end and the visible crease kinks between sail edge
+        // and tube crown. Beyond the fold only the roll (tube) shows.
+        cutClip: toClip(clipPoly(sampled.map(warpSail), mid, n, +1)),
         tubeClip: toClip(sampled.map(warpTube)),
         flapTransform: "", // geometry is already in visual space
         fade,
@@ -538,6 +588,9 @@ export interface FoldShading {
   /** Background stack for the roll strip (.paper-tube): lit crown just
     * past the fold turning under into the dark outer silhouette. */
   tubeBackground: string;
+  /** drop-shadow for the tube — the roll overhang shading the page it
+    * is about to lift, tight and dark. */
+  tubeFilter: string;
 }
 
 /** Compute the fold-anchored shading for a w×h sheet at progress t.
@@ -596,14 +649,21 @@ export function foldShading(
   // under into the dark outer silhouette at ~r.
   const r = curlRadius(t, w, h);
   const gF = grad({ x: -nx, y: -ny });
-  // The SAIL (flat folded-over part, kept side of the fold): turn.js's
-  // flap profile — plain paper far out, a dark band HUGGING the crease
-  // (the roll's self-shadow on the underside), snapping to the lit
-  // line at the fold. Band width geometric, like the front shadow.
+  // The SAIL (flat folded-over part, kept side of the fold). A sheet
+  // mid-air is never OPTICALLY flat even when geometrically flat — a
+  // uniform fill reads as a sticker (user: "the flatness of the fold
+  // doesn't look right"). Full-surface profile, far edge → fold: gentle
+  // falloff at the free edge, a broad soft sheen across the middle
+  // (the sheet bowing toward the light), neutral, then turn.js's crease
+  // treatment — the roll's self-shadow hugging the fold, snapping to
+  // the lit fold line. Extent is the sail's actual reach (fold→corner).
+  const ext = Math.max(48, travel / 2);
   const flapSheen =
     `linear-gradient(${gF.deg.toFixed(2)}deg,` +
-    ` rgba(0,0,0,0.0) ${(gF.sMid - band * 0.7).toFixed(1)}px,` +
-    ` rgba(0,0,0,${(0.18 * k).toFixed(3)}) ${(gF.sMid - Math.max(6, r * 0.4)).toFixed(1)}px,` +
+    ` rgba(0,0,0,${(0.15 * k).toFixed(3)}) ${(gF.sMid - ext).toFixed(1)}px,` +
+    ` rgba(255,255,255,${(0.12 * k).toFixed(3)}) ${(gF.sMid - ext * 0.55).toFixed(1)}px,` +
+    ` rgba(0,0,0,0.02) ${(gF.sMid - ext * 0.25).toFixed(1)}px,` +
+    ` rgba(0,0,0,${(0.20 * k).toFixed(3)}) ${(gF.sMid - Math.max(6, r * 0.4)).toFixed(1)}px,` +
     ` rgba(255,255,255,${(0.20 * k).toFixed(3)}) ${gF.sMid.toFixed(1)}px)`;
   // The TUBE (roll strip past the fold): lit crown turning under into
   // the dark outer silhouette at ~r.
@@ -629,18 +689,30 @@ export function foldShading(
     ` rgba(0,0,0,${(0.10 * k).toFixed(3)}) ${(gS.sMid + band * 0.45).toFixed(1)}px,` +
     ` rgba(0,0,0,0) ${(gS.sMid + band).toFixed(1)}px)`;
 
-  // Cast shadow: falls ahead of the curl (toward the kept side), and
-  // grows/softens as the page lifts — a constant halo reads as flat.
-  const off = 3 + 15 * lift;
+  // Cast shadow, LAYERED (the reference's broad penumbra hugging the
+  // horn): a tight contact shadow plus a wide soft halo, both falling
+  // toward the kept side and sized by the roll radius — the sheet rides
+  // the roll, so the bigger the tube, the higher it floats. Without the
+  // halo the sail reads as appliqued onto the page, not above it.
+  const off = 3 + 10 * lift;
+  const off2 = r * 0.7;
   const flapFilter =
     `drop-shadow(${(nx * off).toFixed(1)}px ${(ny * off).toFixed(1)}px ` +
-    `${(8 + 24 * lift).toFixed(0)}px rgba(0,0,0,${(0.22 + 0.26 * lift).toFixed(2)}))`;
+    `${(6 + 12 * lift).toFixed(0)}px rgba(0,0,0,${(0.22 + 0.16 * lift).toFixed(2)}))` +
+    ` drop-shadow(${(nx * off2).toFixed(1)}px ${(Math.abs(ny * off2) + r * 0.3).toFixed(1)}px ` +
+    `${(r * 1.5).toFixed(0)}px rgba(0,0,0,${(0.42 * k).toFixed(2)}))`;
+  // The roll's own shadow onto the page it is about to lift (the
+  // reveal side) — tight, hugging the tube's outer silhouette.
+  const tubeFilter =
+    `drop-shadow(${(-nx * r * 0.25).toFixed(1)}px ${(Math.abs(ny) * r * 0.25 + 2).toFixed(1)}px ` +
+    `${(r * 0.7).toFixed(0)}px rgba(0,0,0,${(0.32 * k).toFixed(2)}))`;
 
   return {
     flapBackground: paperBackBackground(flapSheen),
     flapFilter,
     creaseShade,
     tubeBackground: paperBackBackground(tubeSheen),
+    tubeFilter,
   };
 }
 
@@ -822,6 +894,7 @@ export function animatePageTurn(opts: {
               tube.style.clipPath = ff.tubeClip;
               tube.style.opacity = String(ff.fade);
               tube.style.background = sh.tubeBackground;
+              tube.style.filter = sh.tubeFilter;
             } else {
               tube.style.display = "none";
             }
@@ -957,6 +1030,7 @@ export function createInteractivePeel(opts: {
         tube.style.clipPath = ff.tubeClip;
         tube.style.opacity = String(ff.fade);
         tube.style.background = sh.tubeBackground;
+        tube.style.filter = sh.tubeFilter;
       } else {
         tube.style.display = "none";
       }

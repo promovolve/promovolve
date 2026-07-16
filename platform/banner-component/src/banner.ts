@@ -738,6 +738,24 @@ export class ExpandableMagazineBanner extends HTMLElement {
     }
   }
 
+  /** keep-frame hosts hide the collapsed 300x250 once the reader covers
+    * it (_expand's deferred hide). _collapse un-hides it — but the fly-
+    * away flights run BEFORE _collapse, so the sheets would peel back to
+    * an EMPTY slot and the ad would pop in at the end (the blink). Call
+    * this the moment a closing flight starts: the ad is already resting
+    * in the slot as the sheets leave, and the close reads as sheets
+    * flying off a page that was there all along. */
+  private revealCollapsedForClose(): void {
+    if (this.getAttribute("preview-frame") !== "1") return;
+    if (this.getAttribute("keep-frame") !== "1") return;
+    if (this._collapseHideTimer) {
+      window.clearTimeout(this._collapseHideTimer);
+      this._collapseHideTimer = null;
+    }
+    const collapsed = this.shadowRoot?.querySelector<HTMLElement>(".banner");
+    if (collapsed) collapsed.style.visibility = "";
+  }
+
   /** Close request from the CLOSE pill: the WHOLE remaining pile flies
     * away from wherever the reader is — top sheet first, the rest
     * following in a quick stagger — and then the stand closes. The
@@ -752,6 +770,7 @@ export class ExpandableMagazineBanner extends HTMLElement {
     this._finishTurn = null;
     // Chrome out instantly — the clicked pill must not linger.
     overlay.classList.add("last-flight");
+    this.revealCollapsedForClose();
     const pages = this.pagesData;
     const rtl = resolveReadingRtl(this.configData, pages);
     const flyers: HTMLElement[] = [];
@@ -814,6 +833,7 @@ export class ExpandableMagazineBanner extends HTMLElement {
     // Chrome out the instant the flight is committed (a clicked CLOSE
     // pill must vanish immediately, not linger over the flying sheet).
     overlay.classList.add("last-flight");
+    this.revealCollapsedForClose();
     this._peel = peel;
     peel.scrubTo(0.05);
     peel.release(true, 2.2); // thrown with momentum, like a flick
@@ -917,7 +937,14 @@ export class ExpandableMagazineBanner extends HTMLElement {
     if (!peel) return false;
     // Last sheet in hand: the reader is ending — chrome bows out now,
     // and returns only if the drag cancels.
-    if (isLast) overlay.classList.add("last-flight");
+    if (isLast) {
+      overlay.classList.add("last-flight");
+      // Grabbing the last sheet may end in a committed flight; put the
+      // ad back in the slot now so the flight reveals it, not a hole.
+      // (Harmless on cancel: the overlay covers the page anyway, same
+      // as delivery where the in-page ad is never hidden.)
+      this.revealCollapsedForClose();
+    }
 
     this._peel = peel;
     this._peelStartX = clientX;

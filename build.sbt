@@ -50,7 +50,7 @@ lazy val core = (project in file("modules/core"))
     // TRANSPORT messages move to schema-defined protos (persistence stays
     // Jackson). Protos live in modules/core/src/main/protobuf/.
     Compile / PB.targets := Seq(
-      scalapb.gen() -> (Compile / sourceManaged).value / "scalapb"
+      scalapb.gen(scala3Sources = true) -> (Compile / sourceManaged).value / "scalapb"
     ),
     libraryDependencies ++= Seq(
       "com.thesamet.scalapb" %% "scalapb-runtime" % scalapb.compiler.Version.scalapbVersion % "protobuf",

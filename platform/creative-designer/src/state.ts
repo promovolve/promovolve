@@ -19,7 +19,6 @@ const DEFAULT_BANNER_CONFIG: BannerConfig = {
   font: "sans",
   showTag: true,
   showSub: true,
-  expandAnimation: "fade",
 };
 
 export function initialState(

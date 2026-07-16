@@ -579,11 +579,11 @@ export class MagazinePreview extends HTMLElement {
     });
   }
 
-  /** Replay the active frame's configured open effect as an entrance
+  /** Replay the open effect (the kawaraban deal-in) as an entrance
    *  animation. The host (designer preview modal) calls this the moment
-   *  it fades the pre-expanded preview in, so the creative's chosen
-   *  effect (fade / slide-up / CRT) plays on the already-rendered
-   *  magazine — a real entrance, with no collapsed-creative two-stage. */
+   *  it fades the pre-expanded preview in, so the deal plays on the
+   *  already-rendered magazine — a real entrance, with no
+   *  collapsed-creative two-stage. */
   replayEntrance(): void {
     const banner = this.mode === "mobile" ? this.mbBanner : this.pcBanner;
     banner._replayExpandEffect?.();

@@ -94,10 +94,10 @@ export function buildExpandWrapper(opts: {
   const { cfg, reducedMotion } = opts;
   const wrapper = document.createElement("div");
   wrapper.className = "expand-wrapper";
-  const effectName: ExpandAnimation = cfg.expandAnimation ?? "fade";
-  // prefers-reduced-motion overrides the chosen effect with a flat
-  // fade so visually-sensitive users don't get the CRT flash.
-  const appliedEffect = reducedMotion ? "fade" : effectName;
+  // The open effect is always the kawaraban deal; reduced-motion
+  // gets a flat fade instead (cfg.expandAnimation is a legacy field
+  // the engine no longer reads — see EXPAND_EFFECTS in types.ts).
+  const appliedEffect: ExpandAnimation = reducedMotion ? "fade" : "stack";
   wrapper.classList.add(`expand-effect-${appliedEffect}`);
   wrapper.style.cssText = [
     "position: absolute",
@@ -141,10 +141,7 @@ export function buildExpandWrapper(opts: {
   // effect should be done, force the resting visual state so neither a
   // half-applied transform nor a lingering composite layer can break
   // scroll. No-ops when animationend already settled it.
-  const cssDefaultMs =
-    appliedEffect === "crt-power-on" ? 650
-    : appliedEffect === "stack" ? stackTotalMs
-    : 400;
+  const cssDefaultMs = appliedEffect === "stack" ? stackTotalMs : 400;
   const durMs =
     typeof cfg.expandDurationMs === "number" && cfg.expandDurationMs > 0
       ? cfg.expandDurationMs

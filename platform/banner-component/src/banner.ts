@@ -1,5 +1,5 @@
 import type { BannerConfig, ExpandAnimation, LayoutItem, MotionTarget, Page, PaperFeel, TextureBg, VideoBg } from "./types";
-import { EXPAND_EFFECTS, PAPER_FEEL } from "./types";
+import { PAPER_FEEL } from "./types";
 import { fontMain, fontUI } from "./fonts";
 import { layoutItemToNode } from "./layout-item";
 import { applyTargetState, autoFitText, harmonizeAutofit, transitionFor } from "./motion";
@@ -15,16 +15,13 @@ import { collectExpandedImageUrls, parseJSON, pickCollapsedLayout, pickExpandedL
 import { resolveExpandedFonts } from "./font-catalog";
 import { animatePageTurn, createInteractivePeel, buildGrainOverlay, dogEarPeelFrame, DOGEAR_PEEL_TRAVEL, PAPER_CSS, PAPER_BACK_BLEND, paperBackBackground } from "./paper";
 
-// EXPAND_EFFECTS is the public contract for which `expand-effect-${name}`
-// classes the wrapper accepts. Coerce a possibly-legacy value to a known
-// effect: the picker once exposed effects since removed (e.g. "slide-up"),
-// a persisted creative may still carry one, and the wrapper applies the
-// class blindly — an unknown name has no CSS and so plays no animation at
-// all. Fall back to "fade" so such creatives still animate.
-function resolveExpandEffect(name: string | undefined): ExpandAnimation {
-  return (EXPAND_EFFECTS as readonly string[]).includes(name ?? "")
-    ? (name as ExpandAnimation)
-    : "fade";
+// The expand effect is no longer a per-creative choice: the reader is a
+// pile of loose sheets and opening it always DEALS them in (the kawaraban
+// lifecycle). Persisted creatives may still carry "fade"/"crt-power-on"
+// from when the designer offered a dropdown — those values are ignored.
+// (Reduced-motion overrides to a flat fade at the call sites.)
+function resolveExpandEffect(_name: string | undefined): ExpandAnimation {
+  return "stack";
 }
 
 // Effect CSS, motion helpers, and pure utilities live in their own
@@ -39,11 +36,6 @@ const DEFAULT_CONFIG: BannerConfig = {
   font: "sans",
   showTag: true,
   showSub: true,
-  // Today's actual behavior — a 400ms opacity fade. The previous
-  // "slide-up" literal was inert (no code path consumed it), so
-  // moving the default to "fade" matches what users have been
-  // shipping while the new effect registry stays opt-in.
-  expandAnimation: "stack",
   paperWeight: "medium",
 };
 
@@ -541,10 +533,8 @@ export class ExpandableMagazineBanner extends HTMLElement {
       const cfg = this.configData;
       const animMs = typeof cfg.expandDurationMs === "number" && cfg.expandDurationMs > 0
         ? cfg.expandDurationMs
-        : (resolveExpandEffect(cfg.expandAnimation) === "crt-power-on" ? 650
-          // stack: last sheet lands at (360 + 2·90)·tempo; +80 buffer.
-          : resolveExpandEffect(cfg.expandAnimation) === "stack"
-            ? Math.round(540 * this.paperFeel().tempo) + 80 : 400);
+        // stack: last sheet lands at (360 + 2·90)·tempo; +80 buffer.
+        : Math.round(540 * this.paperFeel().tempo) + 80;
       if (this._collapseHideTimer) window.clearTimeout(this._collapseHideTimer);
       this._collapseHideTimer = window.setTimeout(() => {
         this._collapseHideTimer = null;
@@ -683,20 +673,12 @@ export class ExpandableMagazineBanner extends HTMLElement {
             if (!e.animationName.startsWith("expand-effect-")) return;
             finish();
           };
-          // animationend is reliable for fade but mobile Safari
-          // sometimes never fires it for CRT — the wrapper ends at
-          // scaleY(0) off-screen after the user scrolled to end, and
-          // Safari elides the final animation event. CRT relies solely
-          // on the safety timeout below.
-          if (effectName !== "crt-power-on") {
-            animTarget.addEventListener("animationend", onEnd);
-          }
+          animTarget.addEventListener("animationend", onEnd);
           // Safety net: if animationend doesn't fire (tab hidden,
           // the page navigated, etc.) remove the overlay anyway so
           // it doesn't ghost on top of the page forever. Match the
-          // CSS default for the chosen effect (650ms for CRT, 400ms
-          // for fade) plus a small buffer.
-          const cssDefaultMs = effectName === "crt-power-on" ? 650 : effectName === "stack" ? 300 : 400;
+          // CSS default for the effect plus a small buffer.
+          const cssDefaultMs = effectName === "stack" ? 300 : 400;
           const safetyMs = (cfg.expandDurationMs ?? cssDefaultMs) + 100;
           setTimeout(finish, safetyMs);
         } else {
@@ -720,7 +702,7 @@ export class ExpandableMagazineBanner extends HTMLElement {
     }
   }
 
-  /** Replay the configured open effect (fade / CRT) on the
+  /** Replay the open effect (the deal-in) on the
    *  ALREADY-expanded overlay. Used by the designer preview: the magazine
    *  is pre-expanded behind opacity:0 (no two-stage flash), so opening it
    *  re-runs the effect's keyframes on the rendered content for a real

@@ -272,12 +272,11 @@ export interface Page {
   [key: string]: unknown;
 }
 
-// Single source of truth for which expand-time transitions exist.
-// The banner applies `expand-effect-${name}` to the wrapper element
-// and the designer reads this same list to populate its dropdown,
-// so there's no drift between "what the engine accepts" and
-// "what the user can pick."
-export const EXPAND_EFFECTS = ["fade", "crt-power-on", "stack"] as const;
+// Expand-time transitions the wrapper has CSS for. Not a user choice
+// anymore: the reader always deals its sheets in ("stack" — the
+// kawaraban lifecycle). "fade" survives only as the prefers-reduced-
+// motion fallback and as the wrapper's post-flight close envelope.
+export const EXPAND_EFFECTS = ["fade", "stack"] as const;
 export type ExpandAnimation = typeof EXPAND_EFFECTS[number];
 
 // Paper weight for the interactive page-peel — the "stock" the magazine
@@ -315,7 +314,10 @@ export interface BannerConfig {
   font: "sans" | "serif";
   showTag: boolean;
   showSub: boolean;
-  expandAnimation: ExpandAnimation;
+  // Legacy field: persisted creatives may still carry "fade" or
+  // "crt-power-on" from when the designer offered a choice. The engine
+  // ignores it — every reader deals its sheets in (see EXPAND_EFFECTS).
+  expandAnimation?: string;
   // Paper stock for the interactive page-peel (see PAPER_FEEL). Defaults
   // to "medium" when unset. Purely a hand-feel preset — no visual change.
   paperWeight?: PaperWeight;
@@ -330,12 +332,9 @@ export interface BannerConfig {
    * the design box; always object-fit:contain (logos never crop).
    */
   logo?: { src: string; left: number; top: number; width: number; height: number };
-  // Optional override of the expand-effect duration in milliseconds.
-  // When unset (undefined), each effect uses its own keyframe-natural
-  // default (fade=400ms, crt-power-on=650ms). When
-  // set, the wrapper gets `--expand-duration: ${ms}ms` and the value
-  // cascades into all of that effect's animations (including the
-  // CRT pseudoelement keyframes) so timing stays in sync.
+  // Legacy override of the expand-effect duration in milliseconds.
+  // No designer UI sets it anymore (tempo comes from paperWeight); a
+  // stored value still lands as `--expand-duration` on the wrapper.
   expandDurationMs?: number;
   designAspect?: string;
   // Reading direction for the page-turn / dog-ear / nav. "auto"

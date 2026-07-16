@@ -472,7 +472,7 @@ type pendingCreative struct {
 	// click-expand into the magazine view the reader would see.
 	// When empty the UI falls back to the static AssetURL thumbnail.
 	PagesJSON string
-	// Banner-level config blob (expandAnimation, duration, reading dir).
+	// Banner-level config blob (paper weight/back colour, reading dir).
 	// Passed to the preview's <magazine-preview> as the `config` attr so
 	// the creative's chosen expand effect (e.g. CRT) plays. Empty → the
 	// banner uses its default config (fade).

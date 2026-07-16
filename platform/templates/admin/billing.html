@@ -29,7 +29,7 @@
       <p class="text-sm text-gray-500">Margin captured</p>
       <p class="text-3xl font-semibold mt-2">{{.Revenue}}</p>
     </div>
-    <div class="bg-white p-6 rounded-lg border" title="Settlement gross charged to advertisers but not yet credited to publishers — their local billing days close at different times. Normally near zero; a balance that never drains means traffic from a site with no publisher mapping.">
+    <div class="bg-white p-6 rounded-lg border" title="Settlement gross charged to advertisers but not yet credited to publishers — the two local billing days close at different times, so this is normally NON-zero and can be negative as the zones settle in turn. It nets to zero over any range both sides have closed; the thing to watch is a persistent, growing imbalance (not a bounded one), which means traffic from a site with no publisher mapping.">
       <p class="text-sm text-gray-500">In transit</p>
       <p class="text-3xl font-semibold mt-2">{{.Clearing}}</p>
     </div>

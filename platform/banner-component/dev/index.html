@@ -90,7 +90,7 @@
             { type: "text", text: "one portrait master could serve both devices.", left: 12, top: 48, width: 76, fontSize: 3.4, color: "#c2e8dd", textAlign: "center" },
         ] } },
       ];
-      const CONFIG = { layout: "auto", font: "sans", showTag: false, showSub: true, expandAnimation: "fade" };
+      const CONFIG = { layout: "auto", font: "sans", showTag: false, showSub: true, expandAnimation: "fade", paperWeight: "medium" };
       let legacy169 = false; // mount without portrait masters → 16:9 fallback
 
       const SIZES = {
@@ -148,6 +148,34 @@
         mount();
       };
       document.querySelector(".bar").insertBefore(pBtn, document.querySelector(".bar .hint"));
+
+      // Paper weight — the peel hand-feel preset (pull gain, commit line,
+      // flick throw, settle spring). Expand the reader and drag a page up
+      // from its bottom half to feel each stock.
+      const hint = document.querySelector(".bar .hint");
+      for (const w of ["light", "medium", "heavy"]) {
+        const b = document.createElement("button");
+        b.textContent = w;
+        b.title = `paperWeight: ${w}`;
+        b.className = CONFIG.paperWeight === w ? "active" : "";
+        b.onclick = () => {
+          CONFIG.paperWeight = w;
+          for (const c of bar.parentElement.querySelectorAll("button"))
+            if (["light", "medium", "heavy"].includes(c.textContent)) c.className = c.textContent === w ? "active" : "";
+          mount();
+        };
+        document.querySelector(".bar").insertBefore(b, hint);
+      }
+
+      // Paper back colour — the stock revealed as a page peels. Texture
+      // (fiber + mottle + sheen) rides on top of whatever base tone you pick.
+      const color = document.createElement("input");
+      color.type = "color";
+      color.value = "#f0e9d9"; // the default warm paper tone
+      color.title = "paperBackColor — the peeled page's back";
+      color.style.cssText = "width:30px;height:26px;padding:0;border:1px solid #34343f;border-radius:6px;background:#23232c;cursor:pointer;";
+      color.oninput = () => { CONFIG.paperBackColor = color.value; mount(); };
+      document.querySelector(".bar").insertBefore(color, hint);
 
       await customElements.whenDefined("expandable-magazine-banner");
       mount();

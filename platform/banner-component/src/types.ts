@@ -280,12 +280,48 @@ export interface Page {
 export const EXPAND_EFFECTS = ["fade", "crt-power-on"] as const;
 export type ExpandAnimation = typeof EXPAND_EFFECTS[number];
 
+// Paper weight for the interactive page-peel — the "stock" the magazine
+// is printed on. Purely a FEEL preset: it tunes how the peel responds to
+// the thumb (how far you pull per fold, how easily it commits, how hard a
+// flick throws it) and how the released page settles (spring stiffness /
+// damping). Listed as a const tuple so the designer can enumerate the
+// choices with no drift from what the engine accepts.
+export const PAPER_WEIGHTS = ["light", "medium", "heavy"] as const;
+export type PaperWeight = typeof PAPER_WEIGHTS[number];
+
+export interface PaperFeel {
+  travel: number;   // thumb-distance per fold: t = dx / (width · travel)
+  commitAt: number; // fold fraction at release that commits the turn
+  flickVel: number; // release velocity (progress/sec) that throws it over
+  springK: number;  // settle-spring stiffness
+  springC: number;  // settle-spring damping (lower = more flop / overshoot)
+}
+
+// light  = onionskin: pulls easily, commits early, flicks readily, and the
+//          released page flops over with a lively low-damped spring.
+// medium = the default hand-feel.
+// heavy  = card stock: stiff to pull, needs a firmer commit, and settles
+//          with more damping (a weighty, deliberate turn).
+export const PAPER_FEEL: Record<PaperWeight, PaperFeel> = {
+  light:  { travel: 1.4, commitAt: 0.33, flickVel: 1.85, springK: 158, springC: 15 },
+  medium: { travel: 1.5, commitAt: 0.35, flickVel: 2.0, springK: 150, springC: 17 },
+  heavy:  { travel: 1.9, commitAt: 0.42, flickVel: 2.6, springK: 130, springC: 24 },
+};
+
 export interface BannerConfig {
   layout: "auto";
   font: "sans" | "serif";
   showTag: boolean;
   showSub: boolean;
   expandAnimation: ExpandAnimation;
+  // Paper stock for the interactive page-peel (see PAPER_FEEL). Defaults
+  // to "medium" when unset. Purely a hand-feel preset — no visual change.
+  paperWeight?: PaperWeight;
+  // Base tone of the paper BACK revealed as a page peels (the flap, the
+  // dog-ear tease, the folded corner — all one stock). A CSS color; the
+  // fiber + mottle texture and lighting gradient still ride on top. Unset
+  // → the default warm paper tone (#f0e9d9).
+  paperBackColor?: string;
   /**
    * Brand logo overlay, rendered on EVERY page + size at the same
    * position (a single creative-wide logo). Position/size in percent of

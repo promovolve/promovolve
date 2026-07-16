@@ -1,5 +1,5 @@
-import type { BannerConfig, ExpandAnimation, LayoutItem, MotionTarget, Page, TextureBg, VideoBg } from "./types";
-import { EXPAND_EFFECTS } from "./types";
+import type { BannerConfig, ExpandAnimation, LayoutItem, MotionTarget, Page, PaperFeel, TextureBg, VideoBg } from "./types";
+import { EXPAND_EFFECTS, PAPER_FEEL } from "./types";
 import { fontMain, fontUI } from "./fonts";
 import { layoutItemToNode } from "./layout-item";
 import { applyTargetState, autoFitText, harmonizeAutofit, transitionFor } from "./motion";
@@ -13,7 +13,7 @@ import {
 } from "./render-overlay";
 import { collectExpandedImageUrls, parseJSON, pickCollapsedLayout, pickExpandedLayout, sheetFitPct, sheetSizeFor } from "./utils";
 import { resolveExpandedFonts } from "./font-catalog";
-import { animatePageTurn, buildGrainOverlay, dogEarPeelFrame, DOGEAR_PEEL_TRAVEL, PAPER_CSS, PAPER_BACK_BLEND, paperBackBackground } from "./paper";
+import { animatePageTurn, createInteractivePeel, buildGrainOverlay, dogEarPeelFrame, DOGEAR_PEEL_TRAVEL, PAPER_CSS, PAPER_BACK_BLEND, paperBackBackground } from "./paper";
 
 // EXPAND_EFFECTS is the public contract for which `expand-effect-${name}`
 // classes the wrapper accepts. Coerce a possibly-legacy value to a known
@@ -44,12 +44,23 @@ const DEFAULT_CONFIG: BannerConfig = {
   // moving the default to "fade" matches what users have been
   // shipping while the new effect registry stays opt-in.
   expandAnimation: "fade",
+  paperWeight: "medium",
 };
 
 export class ExpandableMagazineBanner extends HTMLElement {
   private _expanded = false;
   private currentPage = 0;
-  private touchStartX: number | null = null;
+  // Interactive corner-peel (thumb-driven forward turn). Non-null only
+  // while a peel gesture is live.
+  private _peel: { scrubTo: (t: number) => void; release: (commit: boolean, v0?: number) => void } | null = null;
+  private _peelStartX = 0;
+  private _peelWidth = 1;
+  // Release momentum: smoothed fold-progress velocity (units/sec) and the
+  // last sample, so endPeel can throw the page at the speed the thumb was
+  // moving and let a fast flick commit even short of the distance line.
+  private _peelVel = 0;
+  private _peelLastP = 0;
+  private _peelLastMs = 0;
   private readonly handleKeyDown: (e: KeyboardEvent) => void;
   // Guards against double-firing the preload when the banner is
   // scrolled out and back in, or when attributes thrash.
@@ -750,18 +761,6 @@ export class ExpandableMagazineBanner extends HTMLElement {
     }
   }
 
-  private onTouchStart(e: TouchEvent): void {
-    this.touchStartX = e.touches[0]?.clientX ?? null;
-  }
-
-  private onTouchEnd(e: TouchEvent): void {
-    if (this.touchStartX === null) return;
-    const endX = e.changedTouches[0]?.clientX ?? this.touchStartX;
-    const diff = this.touchStartX - endX;
-    if (Math.abs(diff) > 50) this.swipeNavigate(diff > 0);
-    this.touchStartX = null;
-  }
-
   // Shared by the touch swipe and the mouse drag. `swipedLeft` is the
   // physical gesture; which page that reaches depends on reading
   // direction — an RTL magazine's NEXT page is on the LEFT, so you
@@ -770,6 +769,112 @@ export class ExpandableMagazineBanner extends HTMLElement {
     const rtl = resolveReadingRtl(this.configData, this.pagesData);
     if (swipedLeft !== rtl) this.next();
     else this.prev();
+  }
+
+  // ── Interactive corner-peel (thumb-driven forward turn) ──────────────
+  // A peel only starts from the BOTTOM HALF of the sheet — the natural
+  // "grab a lower corner" affordance — but the fold itself always peels
+  // from the bottom peel-side corner regardless of where the thumb is.
+  // Structural (not a feel knob), so it stays a constant.
+  private static readonly PEEL_GRAB_ZONE = 0.5;
+
+  /** The resolved paper-weight feel preset for this creative — the source
+    * of every peel tuning value (pull gain, commit line, flick, spring). */
+  private paperFeel(): PaperFeel {
+    return PAPER_FEEL[this.configData.paperWeight ?? "medium"];
+  }
+
+  /** Fold progress for the current thumb position (0 at grab, 1 fully
+    * peeled). Forward peel: LTR pulls the corner LEFT, RTL pulls RIGHT.
+    * The gain (thumb-distance per fold) comes from the paper weight. */
+  private peelProgress(clientX: number): number {
+    const rtl = resolveReadingRtl(this.configData, this.pagesData);
+    const dx = rtl ? clientX - this._peelStartX : this._peelStartX - clientX;
+    return dx / (this._peelWidth * this.paperFeel().travel);
+  }
+
+  /** Try to start a thumb-driven peel of the current page. Returns true
+    * if a peel engaged (pointerdown landed in the bottom-half grab zone
+    * of the top sheet, a next page exists, and no turn is in flight). */
+  private beginPeel(clientX: number, clientY: number): boolean {
+    if (this._peel || this._finishTurn || this._reducedMotion) return false;
+    const pages = this.pagesData;
+    if (this.currentPage >= pages.length - 1) return false; // last page → no forward peel
+    const overlay = this.shadowRoot?.querySelector<HTMLElement>(".overlay");
+    if (!overlay) return false;
+    const turning = overlay.querySelector<HTMLElement>(`.page-${this.currentPage}`);
+    const under = overlay.querySelector<HTMLElement>(`.page-${this.currentPage + 1}`);
+    const sheet = turning?.querySelector<HTMLElement>(".paper-sheet");
+    if (!turning || !under || !sheet) return false;
+
+    const rect = sheet.getBoundingClientRect();
+    // Grab zone: bottom half of the sheet only.
+    if (clientY < rect.top + rect.height * (1 - ExpandableMagazineBanner.PEEL_GRAB_ZONE)) return false;
+
+    const rtl = resolveReadingRtl(this.configData, pages);
+    const feel = this.paperFeel();
+    const peel = createInteractivePeel({
+      turning,
+      under,
+      rtl,
+      springK: feel.springK,
+      springC: feel.springC,
+      onCommit: () => {
+        // The peel already played the turn to t=1; advance and re-lay
+        // the stack instantly (no second clock turn).
+        this.currentPage += 1;
+        this._peel = null;
+        this.updatePages(false);
+        this.dispatchPageChanged();
+      },
+      onCancel: () => {
+        // Nothing turned — restore the resting stack (z/offsets the peel
+        // overrode) WITHOUT replaying the current page's item anims.
+        this._peel = null;
+        this.applyStackLayout(overlay, pages.length, this.currentPage, new Set());
+      },
+    });
+    if (!peel) return false;
+
+    this._peel = peel;
+    this._peelStartX = clientX;
+    this._peelWidth = rect.width || 1;
+    this._peelVel = 0;
+    this._peelLastP = 0;
+    this._peelLastMs = performance.now();
+    peel.scrubTo(0);
+    return true;
+  }
+
+  /** Feed a live pointer position to the peel in progress, tracking a
+    * smoothed progress velocity for the release throw. */
+  private movePeel(clientX: number): void {
+    if (!this._peel) return;
+    const p = this.peelProgress(clientX);
+    const now = performance.now();
+    const dt = (now - this._peelLastMs) / 1000;
+    if (dt > 0) {
+      const inst = (p - this._peelLastP) / dt; // progress units / sec
+      // EMA — smooth out per-frame jitter while staying responsive to a flick.
+      this._peelVel = this._peelVel * 0.6 + inst * 0.4;
+    }
+    this._peelLastP = p;
+    this._peelLastMs = now;
+    this._peel.scrubTo(p);
+  }
+
+  /** End the peel. Commit if pulled past the distance line OR flicked fast
+    * forward; otherwise spring back to flat. Either way the page leaves at
+    * the thumb's release speed (momentum). */
+  private endPeel(clientX: number): void {
+    if (!this._peel) return;
+    const feel = this.paperFeel();
+    const p = this.peelProgress(clientX);
+    const v = this._peelVel;
+    const commit = p >= feel.commitAt || v >= feel.flickVel;
+    // Clamp the seed so a wild flick can't fling the spring unstable.
+    const v0 = Math.max(-12, Math.min(12, v));
+    this._peel.release(commit, v0);
   }
 
   // ═══════════════════════════════════════════════════════════════
@@ -1111,37 +1216,81 @@ export class ExpandableMagazineBanner extends HTMLElement {
     // (Japanese content → 「閉じる」, otherwise "Close"). JA/EN for now.
     const closeLabel = pickCloseLabel(pages);
     const overlay = buildOverlay({ font, framed, background: overlayBg });
-    // Swipe navigation on every device: the reader is the same floating
-    // sheet with page turns everywhere, and a horizontal swipe drives
-    // next/prev (50px threshold in onTouchEnd). next() past the last
-    // page auto-collapses — the read-and-return the mobile scroll
-    // sentinel used to provide.
-    overlay.addEventListener("touchstart", (e) => this.onTouchStart(e));
-    overlay.addEventListener("touchend", (e) => this.onTouchEnd(e));
-    // Scroll lock: the overlay owns every touch gesture while the
-    // reader is open. touch-action:none (buildOverlay) handles engines
-    // with pointer-event gestures; this non-passive preventDefault
-    // covers the rest — without it, swiping the reader scrolls the
-    // publisher page BEHIND the modal.
-    overlay.addEventListener("touchmove", (e) => e.preventDefault(), { passive: false });
-    // Mouse swipe — the same gesture, same threshold, for pointer
-    // devices: desktop delivery and the framed MOBILE preview on a PC,
-    // where the phone bezel has no touchscreen to swipe. Touch keeps
-    // the dedicated touch path (pointerType gate stops double-fires;
-    // touch pointerdown also fires as a pointer event). The sheet CTA
-    // is safe: its click handler has a 12px movement gate, so a ≥50px
-    // drag never navigates to the LP.
-    let mouseDragX: number | null = null;
+    // Paper-back stock colour: one CSS var recolours every peeled surface
+    // (flap, dog-ear tease, folded corner) while their fiber/mottle/sheen
+    // texture layers ride on top unchanged. Unset → the default warm tone.
+    if (cfg.paperBackColor) overlay.style.setProperty("--paper-back-color", cfg.paperBackColor);
+    // Navigation gestures, unified across touch AND mouse via pointer
+    // events (touch fires pointer* with pointerType "touch"; desktop and
+    // the framed mobile-preview on a PC use mouse). Two gestures share
+    // one pointerdown→up path:
+    //
+    //   • Interactive peel — a drag starting in the BOTTOM HALF of the
+    //     sheet grabs the page; the fold sticks to the thumb (movePeel)
+    //     and release commits past the threshold or springs back.
+    //   • Threshold swipe — any other horizontal drag drives next/prev
+    //     on release (50px). next() past the last page auto-collapses.
+    //
+    // Peel engagement is DEFERRED until the pointer actually moves past a
+    // small slop: a tap (no movement) falls straight through to whatever
+    // control is under it — the close pill straddles the sheet's bottom
+    // edge (in the grab zone), and a tap on the page navigates to the LP.
+    // Capturing the pointer on pointerdown would swallow both. We also
+    // never arm on a press that lands directly on a control.
+    const PEEL_SLOP = 8;
+    let dragStartX: number | null = null;
+    let armX = 0, armY = 0;
+    let armed = false; // pointerdown was a peel candidate, awaiting slop
     overlay.addEventListener("pointerdown", (e) => {
-      if (e.pointerType === "touch") return;
-      mouseDragX = e.clientX;
+      dragStartX = e.clientX;
+      armX = e.clientX;
+      armY = e.clientY;
+      const tgt = e.target as HTMLElement | null;
+      // A press ON a control (close pill, nav arrows, CTA link) is that
+      // control's — never a peel.
+      armed = !tgt?.closest("a, button, input, select, textarea");
     });
-    overlay.addEventListener("pointerup", (e) => {
-      if (e.pointerType === "touch" || mouseDragX === null) return;
-      const diff = mouseDragX - e.clientX;
-      mouseDragX = null;
+    overlay.addEventListener("pointermove", (e) => {
+      if (this._peel) {
+        this.movePeel(e.clientX);
+        e.preventDefault();
+        return;
+      }
+      if (!armed) return;
+      const rtl = resolveReadingRtl(this.configData, this.pagesData);
+      const dx = rtl ? e.clientX - armX : armX - e.clientX;
+      if (dx <= PEEL_SLOP) return;
+      // Slop crossed in the forward direction — try to grab the page from
+      // where the press began. One-shot: disarm regardless of outcome.
+      armed = false;
+      if (this.beginPeel(armX, armY)) {
+        try { overlay.setPointerCapture(e.pointerId); } catch { /* older engines */ }
+        e.preventDefault();
+        this.movePeel(e.clientX);
+      }
+    });
+    const endPointer = (e: PointerEvent): void => {
+      armed = false;
+      if (this._peel) {
+        // The peel owned this gesture — commit-or-spring, no swipe.
+        this.endPeel(e.clientX);
+        try { overlay.releasePointerCapture(e.pointerId); } catch { /* ignore */ }
+        dragStartX = null;
+        return;
+      }
+      if (dragStartX === null) return;
+      const diff = dragStartX - e.clientX;
+      dragStartX = null;
       if (Math.abs(diff) > 50) this.swipeNavigate(diff > 0);
-    });
+    };
+    overlay.addEventListener("pointerup", endPointer);
+    overlay.addEventListener("pointercancel", endPointer);
+    // Scroll lock: the overlay owns every touch gesture while the reader
+    // is open. touch-action:none (buildOverlay) handles engines with
+    // pointer-event gestures; this non-passive preventDefault covers the
+    // rest — without it, dragging the reader scrolls the publisher page
+    // BEHIND the modal.
+    overlay.addEventListener("touchmove", (e) => e.preventDefault(), { passive: false });
     // A drag shouldn't smear a text selection across the creative.
     overlay.style.userSelect = "none";
     (overlay.style as CSSStyleDeclaration & { webkitUserSelect?: string }).webkitUserSelect = "none";
@@ -1682,7 +1831,10 @@ export class ExpandableMagazineBanner extends HTMLElement {
     }, delay * 1000);
   }
 
-  private updatePages(): void {
+  // `animate=false` forces an instant swap (no clock page-turn) — used
+  // when an interactive peel has ALREADY played the turn visually and
+  // just needs the bookkeeping (stack shift, item anims, counter, nav).
+  private updatePages(animate = true): void {
     const overlay = this.shadowRoot?.querySelector<HTMLElement>(".overlay");
     if (!overlay) return;
 
@@ -1699,7 +1851,7 @@ export class ExpandableMagazineBanner extends HTMLElement {
     this._displayedPage = current;
     if (this._finishTurn) this._finishTurn();
     const turnFrom =
-      prevIdx !== null && prevIdx !== current && !this._reducedMotion
+      animate && prevIdx !== null && prevIdx !== current && !this._reducedMotion
         ? prevIdx
         : null;
 

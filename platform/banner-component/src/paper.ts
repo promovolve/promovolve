@@ -38,14 +38,19 @@ const MOTTLE_TILE =
   "%3CfeColorMatrix type='saturate' values='0'/%3E%3C/filter%3E" +
   "%3Crect width='100%25' height='100%25' filter='url(%23m)' opacity='0.2'/%3E%3C/svg%3E";
 // Base is a touch lighter than the old flat #ece4d3 — the multiply
-// mottle settles it back to roughly the same perceived tone.
+// mottle settles it back to roughly the same perceived tone. It's the
+// FALLBACK for --paper-back-color, which a creative can override to print
+// on a different stock; the fiber/mottle/sheen layers ride on top either
+// way (soft-light + multiply modulate whatever base tone shows through).
 const PAPER_BASE = "#f0e9d9";
 
 /** Background list for a paper-back surface: caller's lighting/sheen
-  * gradient on top, then the two texture tiles, then the base tone.
+  * gradient on top, then the two texture tiles, then the base tone. The
+  * base is a CSS var so a creative can recolor the stock (banner.ts sets
+  * --paper-back-color from config); the texture layers are unchanged.
   * Pair with PAPER_BACK_BLEND on background-blend-mode. */
 export function paperBackBackground(sheen: string): string {
-  return `${sheen}, url("${FIBER_TILE}"), url("${MOTTLE_TILE}"), ${PAPER_BASE}`;
+  return `${sheen}, url("${FIBER_TILE}"), url("${MOTTLE_TILE}"), var(--paper-back-color, ${PAPER_BASE})`;
 }
 export const PAPER_BACK_BLEND = "normal, soft-light, multiply, normal";
 
@@ -456,4 +461,173 @@ export function animatePageTurn(opts: {
     rafId = requestAnimationFrame(frame);
   }
   return settle;
+}
+
+const clamp01 = (t: number): number => (t < 0 ? 0 : t > 1 ? 1 : t);
+
+// Spring that carries the released peel to its resting end. Lightly
+// underdamped (ζ≈0.7) so a committed page flops over with a touch of
+// follow-through instead of easing to a dead stop — the "weight" of real
+// paper. Units: progress per second; K stiffness, C damping.
+const PEEL_SPRING_K = 150;
+const PEEL_SPRING_C = 17;
+
+/** Interactive corner-peel driver for a FORWARD (next) page turn.
+  *
+  * Unlike [[animatePageTurn]] — which is clock-driven and fire-and-forget —
+  * this hands the fold `progress` to the CALLER: `scrubTo(t)` paints one
+  * live frame (drive it from the thumb, linearly, so the corner sticks to
+  * the finger), and `release(commit)` hands the rest to a short clock that
+  * either finishes the turn (commit) or springs the page back to flat
+  * (cancel — the reader let go before the commit threshold).
+  *
+  * Deliberately NOT a refactor of animatePageTurn: the auto turn (arrows,
+  * keyboard) is load-bearing and proven, so the manual driver shares only
+  * the pure fold geometry ([[foldFrame]]) and sets its own stage up. The
+  * two can be unified once the interactive feel is settled.
+  *
+  * Setup mirrors animatePageTurn's forward branch: the turning sheet lifts
+  * above the next (already-resting) sheet, a paper-backed flap carries the
+  * curl, and a dog-eared page's punch clip is handed to the traveling
+  * stage so the notch folds WITH the curl. Returns null for a missing-
+  * layout placeholder (no sheet to fold) — the caller should just swap. */
+export function createInteractivePeel(opts: {
+  turning: HTMLElement; // current top page — peels away from its bottom corner
+  under: HTMLElement;   // the next page, already resting beneath
+  rtl?: boolean;
+  springK?: number;     // settle-spring stiffness (paper weight)
+  springC?: number;     // settle-spring damping (paper weight)
+  onCommit: () => void; // reached t=1: swap in the next page (instant)
+  onCancel: () => void; // returned to t=0: nothing turned, restore resting
+}): { scrubTo: (t: number) => void; release: (commit: boolean, v0?: number) => void } | null {
+  const { turning, under, onCommit, onCancel } = opts;
+  const rtl = opts.rtl ?? false;
+  const springK = opts.springK ?? PEEL_SPRING_K;
+  const springC = opts.springC ?? PEEL_SPRING_C;
+  const stack = turning.querySelector<HTMLElement>(".paper-stack");
+  const sheet = turning.querySelector<HTMLElement>(".paper-sheet");
+  if (!sheet || !stack) return null;
+
+  const rect = sheet.getBoundingClientRect();
+  const w = rect.width || 1;
+  const h = rect.height || 1;
+
+  const priorTransition = { turning: turning.style.transition, under: under.style.transition };
+  for (const el of [turning, under]) {
+    el.style.transition = "none";
+    el.style.opacity = "1";
+    el.style.pointerEvents = "none";
+  }
+  turning.style.zIndex = "30";
+  under.style.zIndex = "20";
+
+  // Punch-clip handoff (dog-eared page): move the notch clip onto the
+  // traveling stage so it folds WITH the curl instead of biting it at a
+  // fixed frame position — see the same dance in animatePageTurn.
+  const stage = sheet.querySelector<HTMLElement>(".paper-stage") ?? null;
+  const punchClip = stack.style.clipPath ?? "";
+  if (stage && punchClip) {
+    stack.style.clipPath = "";
+    stack.style.removeProperty("-webkit-clip-path");
+    stage.style.clipPath = punchClip;
+    stage.style.setProperty("-webkit-clip-path", punchClip);
+    sheet.style.background = "transparent";
+  }
+  const notch = punchClip
+    ? sheet.querySelector<HTMLElement>(".dogear-corner")?.getBoundingClientRect().width ?? 0
+    : 0;
+
+  const flap = document.createElement("div");
+  flap.className = "paper-flap";
+  flap.appendChild(buildGrainOverlay());
+  stack.appendChild(flap);
+  turning.classList.add("page-peeling");
+
+  let lastT = 0;
+  let rafId: number | null = null;
+  let done = false;
+
+  const paint = (t: number): void => {
+    const ff = foldFrame(t, w, h, notch, rtl);
+    sheet.style.clipPath = ff.keptClip ?? "";
+    sheet.style.opacity = String(ff.fade);
+    if (ff.cutClip) {
+      flap.style.display = "block";
+      flap.style.clipPath = ff.cutClip;
+      flap.style.transform = ff.flapTransform;
+      flap.style.opacity = String(ff.fade);
+    } else {
+      flap.style.display = "none";
+    }
+  };
+
+  const teardown = (): void => {
+    flap.remove();
+    sheet.style.clipPath = "";
+    sheet.style.opacity = "";
+    if (stage && punchClip) {
+      stage.style.clipPath = "";
+      stage.style.removeProperty("-webkit-clip-path");
+      stack.style.clipPath = punchClip;
+      stack.style.setProperty("-webkit-clip-path", punchClip);
+      sheet.style.background = "";
+    }
+    turning.classList.remove("page-peeling");
+    turning.style.zIndex = "";
+    under.style.zIndex = "";
+  };
+
+  const finish = (commit: boolean): void => {
+    if (done) return;
+    done = true;
+    if (rafId !== null) cancelAnimationFrame(rafId);
+    teardown();
+    // Commit/cancel re-lays the resting state with transitions still off
+    // (onCommit swaps the page, onCancel restores the stack z/offsets we
+    // overrode); restore the inline transitions a frame later so that
+    // relayout can't animate — mirrors animatePageTurn.settle.
+    (commit ? onCommit : onCancel)();
+    requestAnimationFrame(() => requestAnimationFrame(() => {
+      turning.style.transition = priorTransition.turning;
+      under.style.transition = priorTransition.under;
+    }));
+  };
+
+  return {
+    scrubTo: (t: number): void => {
+      if (done) return;
+      lastT = clamp01(t);
+      paint(lastT);
+    },
+    // Hand the remaining travel to a velocity-seeded spring: the page
+    // leaves the thumb at the speed it was moving (v0, progress/sec) and
+    // the spring carries it to its end — forward to t=1 (commit) or back
+    // to t=0 (cancel) — with a little follow-through so it reads as a
+    // sheet with weight rather than a canned tween.
+    release: (commit: boolean, v0 = 0): void => {
+      if (done) return;
+      const target = commit ? 1 : 0;
+      let t = lastT;
+      let v = v0;
+      let prev = performance.now();
+      const step = (now: number): void => {
+        if (done) return;
+        const dt = Math.min(0.032, Math.max(0, (now - prev) / 1000));
+        prev = now;
+        const accel = (target - t) * springK - v * springC;
+        v += accel * dt;
+        t += v * dt;
+        // Reaching the far edge (commit) or flat (cancel) ends it — past
+        // t=1 the flap has already faded out, so there's nothing to settle.
+        if (commit && t >= 1) { finish(true); return; }
+        if (!commit && t <= 0) { paint(0); finish(false); return; }
+        // Asymptotic approach with no crossing (heavily damped): stop once
+        // it's effectively there and barely moving.
+        if (Math.abs(target - t) < 0.004 && Math.abs(v) < 0.06) { finish(commit); return; }
+        paint(clamp01(t));
+        rafId = requestAnimationFrame(step);
+      };
+      rafId = requestAnimationFrame(step);
+    },
+  };
 }

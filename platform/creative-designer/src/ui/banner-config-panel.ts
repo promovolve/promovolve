@@ -9,10 +9,20 @@
 // supports" — adding a new effect is one CSS edit in banner.ts plus
 // one entry in EXPAND_EFFECTS, no panel change needed.
 
-import { EXPAND_EFFECTS, type ExpandAnimation } from "@banner/types";
+import { EXPAND_EFFECTS, PAPER_WEIGHTS, type ExpandAnimation, type PaperWeight } from "@banner/types";
 import type { Store } from "../store";
 import type { DesignerState } from "../types";
 import { tokens } from "./tokens";
+
+// Fallback for paperBackColor — keep in sync with PAPER_BASE in
+// @banner paper.ts (the peeled page's default warm stock).
+const DEFAULT_BACK_COLOR = "#f0e9d9";
+
+const WEIGHT_LABELS: Record<PaperWeight, string> = {
+  light:  "Light",
+  medium: "Medium (default)",
+  heavy:  "Heavy",
+};
 
 export interface BannerConfigPanelHandle {
   update(state: DesignerState): void;
@@ -204,6 +214,76 @@ export function mountBannerConfigPanel(
   dirRow.appendChild(dirSelect);
   panel.appendChild(dirRow);
 
+  // Shared control chrome so the two paper rows match the selects above.
+  const controlCss = [
+    "flex: 1 1 auto",
+    "min-width: 0",
+    `background: ${tokens.ink900}`,
+    `color: ${tokens.ink100}`,
+    `border: 1px solid ${tokens.ink500}`,
+    "border-radius: 4px",
+    "padding: 4px 6px",
+    "font: inherit",
+    "font-size: 11px",
+  ].join(";");
+
+  // Paper weight: the page-peel hand-feel preset (how the reader pulls a
+  // page over — pull resistance, commit point, flick, settle spring). No
+  // visual change; it only affects the interactive turn in the reader.
+  const weightRow = document.createElement("div");
+  weightRow.style.cssText = "display:flex;align-items:center;gap:8px;margin-top:8px;";
+  const weightLabel = document.createElement("label");
+  weightLabel.textContent = "Paper";
+  weightLabel.style.cssText = `flex:0 0 auto;font-size:11px;color:${tokens.ink300};`;
+  weightRow.appendChild(weightLabel);
+  const weightSelect = document.createElement("select");
+  weightSelect.style.cssText = controlCss;
+  for (const w of PAPER_WEIGHTS) {
+    const opt = document.createElement("option");
+    opt.value = w;
+    opt.textContent = WEIGHT_LABELS[w];
+    weightSelect.appendChild(opt);
+  }
+  weightSelect.addEventListener("change", () => {
+    const next = weightSelect.value as PaperWeight;
+    const current = store.state.bannerConfig;
+    store.commit({ ...store.state, bannerConfig: { ...current, paperWeight: next } });
+  });
+  weightRow.appendChild(weightSelect);
+  panel.appendChild(weightRow);
+
+  // Paper back colour: the stock revealed as a page peels (flap, dog-ear
+  // tease, folded corner — one magazine, one paper). The fiber/mottle/
+  // sheen texture rides on top of whatever base tone is picked. The reset
+  // clears it back to the default warm stock (paperBackColor unset).
+  const backRow = document.createElement("div");
+  backRow.style.cssText = "display:flex;align-items:center;gap:8px;margin-top:8px;";
+  const backLabel = document.createElement("label");
+  backLabel.textContent = "Back";
+  backLabel.style.cssText = `flex:0 0 auto;font-size:11px;color:${tokens.ink300};`;
+  backRow.appendChild(backLabel);
+  const backColor = document.createElement("input");
+  backColor.type = "color";
+  backColor.title = "Back of the peeled page";
+  backColor.style.cssText = `flex:1 1 auto;min-width:0;height:26px;padding:0;background:${tokens.ink900};border:1px solid ${tokens.ink500};border-radius:4px;cursor:pointer;`;
+  backColor.addEventListener("input", () => {
+    const current = store.state.bannerConfig;
+    store.commit({ ...store.state, bannerConfig: { ...current, paperBackColor: backColor.value } });
+  });
+  backRow.appendChild(backColor);
+  const backReset = document.createElement("button");
+  backReset.type = "button";
+  backReset.textContent = "Reset";
+  backReset.title = "Back to the default warm paper stock";
+  backReset.style.cssText = `flex:0 0 auto;font-size:11px;color:${tokens.ink300};background:${tokens.ink900};border:1px solid ${tokens.ink500};border-radius:4px;padding:4px 6px;cursor:pointer;`;
+  backReset.addEventListener("click", () => {
+    const current = store.state.bannerConfig;
+    if (current.paperBackColor === undefined) return;
+    store.commit({ ...store.state, bannerConfig: { ...current, paperBackColor: undefined } });
+  });
+  backRow.appendChild(backReset);
+  panel.appendChild(backRow);
+
   return {
     update(state) {
       const current = state.bannerConfig.expandAnimation;
@@ -221,6 +301,12 @@ export function mountBannerConfigPanel(
       durInput.placeholder = `${NATURAL_DURATION[current]} (default)`;
       const dir = state.bannerConfig.readingDirection ?? "auto";
       if (dirSelect.value !== dir) dirSelect.value = dir;
+      const weight = state.bannerConfig.paperWeight ?? "medium";
+      if (weightSelect.value !== weight) weightSelect.value = weight;
+      // Unset back colour → show the default warm tone in the picker (it
+      // can't represent "unset", so the swatch mirrors the effective look).
+      const back = state.bannerConfig.paperBackColor ?? DEFAULT_BACK_COLOR;
+      if (backColor.value !== back) backColor.value = back;
     },
   };
 }

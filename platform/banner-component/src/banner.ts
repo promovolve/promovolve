@@ -13,7 +13,7 @@ import {
 } from "./render-overlay";
 import { collectExpandedImageUrls, parseJSON, pickCollapsedLayout, pickExpandedLayout, sheetFitPct, sheetSizeFor } from "./utils";
 import { resolveExpandedFonts } from "./font-catalog";
-import { animatePageTurn, cornerAt, createInteractivePeel, buildGrainOverlay, dogEarPeelFrame, DOGEAR_PEEL_TRAVEL, PAPER_CSS, PAPER_BACK_BLEND, paperBackBackground } from "./paper";
+import { animatePageTurn, createInteractivePeel, buildGrainOverlay, dogEarPeelFrame, DOGEAR_PEEL_TRAVEL, PAPER_CSS, PAPER_BACK_BLEND, paperBackBackground } from "./paper";
 
 // EXPAND_EFFECTS is the public contract for which `expand-effect-${name}`
 // classes the wrapper accepts. Coerce a possibly-legacy value to a known
@@ -55,9 +55,6 @@ export class ExpandableMagazineBanner extends HTMLElement {
   private _peel: { scrubTo: (t: number, corner?: { x: number; y: number }) => void; release: (commit: boolean, v0?: number) => void } | null = null;
   private _peelStartX = 0;
   private _peelWidth = 1;
-  private _peelHeight = 1;
-  private _peelTop = 0;
-  private _peelRtl = false;
   // Release momentum: smoothed fold-progress velocity (units/sec) and the
   // last sample, so endPeel can throw the page at the speed the thumb was
   // moving and let a fast flick commit even short of the distance line.
@@ -842,9 +839,6 @@ export class ExpandableMagazineBanner extends HTMLElement {
     this._peel = peel;
     this._peelStartX = clientX;
     this._peelWidth = rect.width || 1;
-    this._peelHeight = rect.height || 1;
-    this._peelTop = rect.top;
-    this._peelRtl = rtl;
     this._peelVel = 0;
     this._peelLastP = 0;
     this._peelLastMs = performance.now();
@@ -853,12 +847,13 @@ export class ExpandableMagazineBanner extends HTMLElement {
   }
 
   /** Feed a live pointer position to the peel in progress, tracking a
-    * smoothed progress velocity for the release throw. The corner's x
-    * keeps the tuned pull-gain feel (progress-mapped); its Y follows the
-    * THUMB, so the hand sets the fold's angle — dragging upward steepens
-    * the fold exactly like lifting a real corner higher. */
+    * smoothed progress velocity for the release throw. The fold follows
+    * the tuned deterministic arc (aspect-corrected in cornerAt) — live
+    * thumb-Y steering was tried and read as jitter, not control; the
+    * scrubTo corner override stays available for a damped version. */
   private movePeel(clientX: number, clientY: number): void {
     if (!this._peel) return;
+    void clientY;
     const p = this.peelProgress(clientX);
     const now = performance.now();
     const dt = (now - this._peelLastMs) / 1000;
@@ -869,13 +864,7 @@ export class ExpandableMagazineBanner extends HTMLElement {
     }
     this._peelLastP = p;
     this._peelLastMs = now;
-    const pc = Math.max(0, Math.min(1, p));
-    const canned = cornerAt(pc, this._peelWidth, this._peelHeight, this._peelRtl);
-    const y = Math.max(
-      this._peelHeight * 0.12,
-      Math.min(this._peelHeight * 1.02, clientY - this._peelTop),
-    );
-    this._peel.scrubTo(p, { x: canned.x, y });
+    this._peel.scrubTo(p);
   }
 
   /** End the peel. Commit if pulled past the distance line OR flicked fast

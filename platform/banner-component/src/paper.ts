@@ -289,7 +289,7 @@ function peelBasis(t: number, w: number, h: number, rtl: boolean, curl: number, 
   const P0 = corner ?? cornerAt(t, w, h, rtl);
   const basisOf = (P: Pt): { mid: Pt; n: Pt } => {
     const mid: Pt = { x: (C0.x + P.x) / 2, y: (C0.y + P.y) / 2 };
-    let nx = P.x - C0.x, ny = P.y - C0.y;
+    const nx = P.x - C0.x, ny = P.y - C0.y;
     const len = Math.hypot(nx, ny) || 1;
     return { mid, n: { x: nx / len, y: ny / len } };
   };

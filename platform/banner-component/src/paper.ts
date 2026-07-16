@@ -121,6 +121,35 @@ export const PAPER_CSS = `
     will-change: transform, clip-path, opacity;
   }
 
+  /* The roll strip just past the fold — the curl's ROUNDNESS. The
+   * production flap is a flat mirror ending at the fold; this band is
+   * the bending paper between the two, painted with the roll's lit
+   * crown turning under into its dark silhouette (foldRoundness).
+   * Same paper stock as the flap; sits beneath it. */
+  .paper-tube {
+    position: absolute;
+    inset: 0;
+    z-index: 6;
+    pointer-events: none;
+    display: none;
+    background: ${paperBackBackground("linear-gradient(0deg, rgba(0,0,0,0.05), rgba(0,0,0,0.05))")};
+    background-blend-mode: ${PAPER_BACK_BLEND};
+    will-change: clip-path, opacity;
+  }
+
+  /* Per-frame fold shadow on the un-peeled sheet: a fold-anchored
+   * gradient (foldShadow) — the lit line at the crease snapping into
+   * the attached shadow that fades into the page. The one addition on
+   * top of the production fold: without it the fold reads as a printed
+   * line, not a bend. Inside .paper-sheet so the kept clip crops it. */
+  .paper-crease-shade {
+    position: absolute;
+    inset: 0;
+    z-index: 6;
+    pointer-events: none;
+    display: none;
+  }
+
   /* Fine grain over the whole composition. mix-blend-mode:overlay
    * reads as texture on both light and dark authored backgrounds;
    * opacity is low enough to never fight the creative. */
@@ -249,10 +278,28 @@ export function foldFrame(t: number, w: number, h: number, notch?: number, rtl =
         c = -2 * nx * ny,    d = 1 - 2 * ny * ny,
         e = 2 * Mn * nx,     f = 2 * Mn * ny;
 
+  // The exit: this is a STACK OF SHEETS, not a book — there is no left
+  // page for the turned sheet to land on. So over the same window the
+  // melt-fade runs (t > 0.8), the sheet also FLIES off the pile: the
+  // flap picks up an accelerating translation up-and-away while it
+  // dissolves. (The fly-away was discovered by accident in the slide-
+  // curl experiment — its geometry carried the page off-screen — and
+  // kept on purpose: paper leaves, it doesn't just evaporate in place.)
+  let flapTransform = `matrix(${a},${b},${c},${d},${e},${f})`;
+  if (t > 0.8) {
+    const exit = (t - 0.8) / 0.2;
+    const ease = exit * exit; // accelerating, like a tossed sheet
+    // ~45° up-and-away (equal screen-space x/y) — a flatter exit read
+    // as sliding, not being tossed off the pile.
+    const fx = (rtl ? 1 : -1) * w * 1.0 * ease;
+    const fy = -w * 1.0 * ease;
+    flapTransform = `translate(${fx.toFixed(1)}px, ${fy.toFixed(1)}px) ` + flapTransform;
+  }
+
   return {
     keptClip: toClip(kept) ?? "polygon(0px 0px, 0px 0px, 0px 0px)",
     cutClip: toClip(cut),
-    flapTransform: `matrix(${a},${b},${c},${d},${e},${f})`,
+    flapTransform,
     fade,
   };
 }
@@ -295,7 +342,210 @@ export function dogEarPeelFrame(t: number, w: number, h: number, rtl = false): F
   };
 }
 
+/** The fold's shadow on the still-flat sheet — the one lighting cue
+  * layered onto the production fold (geometry untouched). Anatomy from
+  * studying turn.js: a lit hairline exactly AT the crease (the bend
+  * catching light) snapping into an attached shadow that ramps out
+  * into the page. Two geometric properties matter: the band's WIDTH
+  * follows the fold's depth (a fixed-width band reads as a drawn
+  * line), and its INTENSITY rides the corner's travel (riding the lift
+  * arc made the shadow fade mid-flight, a weightless page). Returns a
+  * background-image for .paper-crease-shade, or null when flat. */
+export function foldShadow(t: number, w: number, h: number, rtl = false): string | null {
+  if (t <= 0.0001) return null;
+  const C0: Pt = { x: rtl ? 0 : w, y: h };
+  const P = cornerAt(t, w, h, rtl);
+  const mid: Pt = { x: (C0.x + P.x) / 2, y: (C0.y + P.y) / 2 };
+  let nx = P.x - C0.x, ny = P.y - C0.y;
+  const len = Math.hypot(nx, ny) || 1;
+  nx /= len; ny /= len;
+  const travel = Math.hypot(P.x - C0.x, P.y - C0.y);
+  const k = 0.30 + 0.70 * Math.min(1, travel / w);
+  // Band width: a fraction of the distance from the fold to the
+  // farthest still-flat corner (turn.js: gradientSize = side·sin α).
+  const dKept = Math.max(
+    0,
+    (0 - mid.x) * nx + (0 - mid.y) * ny,
+    (w - mid.x) * nx + (0 - mid.y) * ny,
+    (w - mid.x) * nx + (h - mid.y) * ny,
+    (0 - mid.x) * nx + (h - mid.y) * ny,
+  );
+  const band = Math.min(320, Math.max(42, dKept * 0.45));
+  // CSS gradient along +n (from the fold into the kept side): angle for
+  // direction u is atan2(u.x, -u.y); the axis runs through the box
+  // center, so a point's stop position is its projection plus half the
+  // axis length.
+  const th = Math.atan2(nx, -ny);
+  const L = Math.abs(w * Math.sin(th)) + Math.abs(h * Math.cos(th));
+  const sMid = (mid.x - w / 2) * nx + (mid.y - h / 2) * ny + L / 2;
+  return (
+    `linear-gradient(${((th * 180) / Math.PI).toFixed(2)}deg,` +
+    ` rgba(255,255,255,${(0.18 * k).toFixed(3)}) ${(sMid - 1).toFixed(1)}px,` +
+    ` rgba(255,255,255,${(0.18 * k).toFixed(3)}) ${(sMid + 1).toFixed(1)}px,` +
+    ` rgba(0,0,0,${(0.28 * k).toFixed(3)}) ${(sMid + 6).toFixed(1)}px,` +
+    ` rgba(0,0,0,${(0.10 * k).toFixed(3)}) ${(sMid + band * 0.45).toFixed(1)}px,` +
+    ` rgba(0,0,0,0) ${(sMid + band).toFixed(1)}px)`
+  );
+}
+
+/** RETIRED — returns null. Every layer-based roll (cone or strip, on
+  * either fold model) read as a band, never as bending paper: the
+  * roll's signature is nonlinear foreshortening, which CSS transforms
+  * cannot express. The one sound future route is a small <canvas>
+  * drawing the band strip-by-strip (classic JS page-flip technique).
+  * Kept as the call-site seam for that experiment. */
+export function foldRoundness(
+  t: number, w: number, h: number, rtl = false,
+): { clip: string; background: string } | null {
+  void t; void w; void h; void rtl;
+  return null;
+}
+
+// ── Slide-curl model (gl_SimplePageCurl, scriptituk/xfade-easing) ────
+//
+// The classic transition's structural secret: the crease's ANGLE is
+// CONSTANT — progress only SLIDES the axis across the page. Everything
+// derives from one signed distance to that axis, so every clip is a
+// straight line at a fixed angle, the flap's reflection has a constant
+// linear part, and the roll is a constant-width strip. All of the hard
+// geometry of the rotating-crease model (junction walks, cone tapers,
+// reach constraints) simply doesn't exist here.
+
+/** Which curl the reader uses. "corner" = the production rotating
+  * mirror fold; "slide" = the fixed-angle sweeping curl. */
+export const CURL_MODEL: "corner" | "slide" = "corner";
+
+/** Crease tilt from vertical (radians). The xfade default (angle 80°)
+  * is a 10° tilt; the classic iOS look sits nearer 30°. */
+const SLIDE_TILT = (30 * Math.PI) / 180;
+
+interface SlideBasis { e: Pt; A: Pt; r: number; s: number; smax: number }
+
+function slideBasis(t: number, w: number, h: number, rtl: boolean): SlideBasis {
+  // e: unit normal of the crease, pointing toward the grabbed corner.
+  const e: Pt = { x: Math.cos(SLIDE_TILT) * (rtl ? -1 : 1), y: Math.sin(SLIDE_TILT) };
+  const C0: Pt = { x: rtl ? 0 : w, y: h };
+  // r = 0: the tube is retired. Rendering a believable roll from
+  // silhouette layers was attempted exhaustively (two geometric models,
+  // five variants) and always read as a band, never as bending paper —
+  // the roll needs per-pixel foreshortening a DOM layer can't do.
+  // turn.js's answer, adopted here: a FLAT fold whose roundness lives
+  // entirely in the crease lighting (slideShadow). With r=0 the whole
+  // model collapses gracefully: back meets front exactly at the crease.
+  const r = 0;
+  let far = 0;
+  for (const K of [{ x: 0, y: 0 }, { x: w, y: 0 }, { x: w, y: h }, { x: 0, y: h }]) {
+    far = Math.max(far, (C0.x - K.x) * e.x + (C0.y - K.y) * e.y);
+  }
+  // Sweep until the whole sheet AND its roll are past the far corner —
+  // the turn completes geometrically, no melt-fade needed.
+  const smax = far + Math.PI * r + 24;
+  const s = t * smax;
+  return { e, A: { x: C0.x - e.x * s, y: C0.y - e.y * s }, r, s, smax };
+}
+
+/** One frame of the slide curl, in the same shape foldFrame returns:
+  * keptClip clips the front sheet to the un-swept side of the axis;
+  * cutClip/flapTransform render the folded-over back — a reflection
+  * about the line HALF the roll's arc behind the axis (the sheet the
+  * roll consumed), clipped to source points at least π·r from the
+  * axis (nearer ones are ON the roll, drawn by slideRoundness). */
+export function slideFrame(t: number, w: number, h: number, notch?: number, rtl = false): FoldFrame {
+  if (t <= 0.0001) {
+    return { keptClip: null, cutClip: null, flapTransform: "", fade: 1 };
+  }
+  const { e, A, r } = slideBasis(t, w, h, rtl);
+  const rect: Pt[] = [{ x: 0, y: 0 }, { x: w, y: 0 }, { x: w, y: h }, { x: 0, y: h }];
+  const kept = clipPoly(rect, A, e, -1);
+  const srcLine: Pt = { x: A.x + e.x * Math.PI * r, y: A.y + e.y * Math.PI * r };
+  let cut = clipPoly(rect, srcLine, e, +1);
+  if (notch && notch > 0 && cut.length >= 3) {
+    cut = rtl
+      ? clipPoly(cut, { x: notch, y: 0 }, { x: 1, y: 1 }, +1)
+      : clipPoly(cut, { x: w - notch, y: 0 }, { x: -1, y: 1 }, +1);
+  }
+  // Reflection about the line through M = A + e·(π·r/2), normal e.
+  const M: Pt = { x: A.x + (e.x * Math.PI * r) / 2, y: A.y + (e.y * Math.PI * r) / 2 };
+  const nx = e.x, ny = e.y;
+  const Mn = M.x * nx + M.y * ny;
+  const a = 1 - 2 * nx * nx, b = -2 * nx * ny,
+        c = -2 * nx * ny,    d = 1 - 2 * ny * ny,
+        e0 = 2 * Mn * nx,    f0 = 2 * Mn * ny;
+  return {
+    keptClip: toClip(kept) ?? "polygon(0px 0px, 0px 0px, 0px 0px)",
+    cutClip: toClip(cut),
+    flapTransform: `matrix(${a},${b},${c},${d},${e0},${f0})`,
+    fade: 1, // the sweep completes geometrically — nothing to melt
+  };
+}
+
+/** The roll: a constant-width strip along the axis (d ∈ [0, r]) with
+  * the crown lighting. The strip meeting the page edges obliquely IS
+  * the classic bottom wave — no endcap machinery needed. */
+export function slideRoundness(
+  t: number, w: number, h: number, rtl = false,
+): { clip: string; background: string } | null {
+  if (t <= 0.0001) return null;
+  const { e, A, r, s } = slideBasis(t, w, h, rtl);
+  if (r < 1 || s <= 0) return null;
+  const rect: Pt[] = [{ x: 0, y: 0 }, { x: w, y: 0 }, { x: w, y: h }, { x: 0, y: h }];
+  let strip = clipPoly(rect, A, e, +1);
+  strip = clipPoly(strip, { x: A.x + e.x * r, y: A.y + e.y * r }, e, -1);
+  const clip = toClip(strip);
+  if (!clip) return null;
+  const k = 0.35 + 0.65 * Math.min(1, t * 4);
+  const th = Math.atan2(e.x, -e.y);
+  const L = Math.abs(w * Math.sin(th)) + Math.abs(h * Math.cos(th));
+  const sA = (A.x - w / 2) * e.x + (A.y - h / 2) * e.y + L / 2;
+  const sheen =
+    `linear-gradient(${((th * 180) / Math.PI).toFixed(2)}deg,` +
+    ` rgba(0,0,0,${(0.10 * k).toFixed(3)}) ${sA.toFixed(1)}px,` +
+    ` rgba(255,255,255,${(0.30 * k).toFixed(3)}) ${(sA + r * 0.45).toFixed(1)}px,` +
+    ` rgba(255,255,255,0.02) ${(sA + r * 0.75).toFixed(1)}px,` +
+    ` rgba(0,0,0,${(0.38 * k).toFixed(3)}) ${(sA + r).toFixed(1)}px)`;
+  return { clip, background: paperBackBackground(sheen) };
+}
+
+/** The fold's shadow on the still-flat sheet: lit contact line at the
+  * axis snapping into an attached shadow that ramps backward over the
+  * un-swept page (geometric width, travel-scaled intensity). */
+export function slideShadow(t: number, w: number, h: number, rtl = false): string | null {
+  if (t <= 0.0001) return null;
+  const { e, A } = slideBasis(t, w, h, rtl);
+  const k = 0.30 + 0.70 * Math.min(1, t * 4);
+  // Axis direction REVERSED so gradient stops increase into the
+  // un-swept side (CSS stops must ascend).
+  const u: Pt = { x: -e.x, y: -e.y };
+  const th = Math.atan2(u.x, -u.y);
+  const L = Math.abs(w * Math.sin(th)) + Math.abs(h * Math.cos(th));
+  const sA = (A.x - w / 2) * u.x + (A.y - h / 2) * u.y + L / 2;
+  // Band: fraction of how much un-swept page remains.
+  let dKept = 0;
+  for (const K of [{ x: 0, y: 0 }, { x: w, y: 0 }, { x: w, y: h }, { x: 0, y: h }]) {
+    dKept = Math.max(dKept, (K.x - A.x) * u.x + (K.y - A.y) * u.y);
+  }
+  const band = Math.min(320, Math.max(42, dKept * 0.45));
+  return (
+    `linear-gradient(${((th * 180) / Math.PI).toFixed(2)}deg,` +
+    ` rgba(255,255,255,${(0.18 * k).toFixed(3)}) ${(sA - 1).toFixed(1)}px,` +
+    ` rgba(255,255,255,${(0.18 * k).toFixed(3)}) ${(sA + 1).toFixed(1)}px,` +
+    ` rgba(0,0,0,${(0.28 * k).toFixed(3)}) ${(sA + 6).toFixed(1)}px,` +
+    ` rgba(0,0,0,${(0.10 * k).toFixed(3)}) ${(sA + band * 0.45).toFixed(1)}px,` +
+    ` rgba(0,0,0,0) ${(sA + band).toFixed(1)}px)`
+  );
+}
+
 // ── Turn driver ──────────────────────────────────────────────────────
+
+/** The page turn does not PEEL. This reader is a stack of loose
+  * sheets (a kawaraban pile, not a bound book): the natural gesture is
+  * to slide the top sheet off — it follows the thumb from the first
+  * pixel, picks up a little rotation, and sails away. Folding belongs
+  * to the DOG-EAR (a deliberate crease you make to keep something).
+  * The grip cue is a LIFT, not a fold: at first touch the sheet is
+  * picked up off the pile — a slight scale-up and a blooming cast
+  * shadow — and then it slides. No crease, no paper back, ever. */
+export const SHEET_RELEASE_T = 0;
 
 const easeInOutCubic = (t: number): number =>
   t < 0.5 ? 4 * t * t * t : 1 - Math.pow(-2 * t + 2, 3) / 2;
@@ -368,6 +618,8 @@ export function animatePageTurn(opts: {
   }
 
   let flap: HTMLElement | null = null;
+  let tube: HTMLElement | null = null;
+  let shade: HTMLElement | null = null;
   let rafId: number | null = null;
   let settled = false;
   // Fold-state restore is separate from settle so a REVERSE turn can
@@ -395,11 +647,15 @@ export function animatePageTurn(opts: {
     clearTimeout(failsafe);
     if (rafId !== null) cancelAnimationFrame(rafId);
     flap?.remove();
+    tube?.remove();
+    shade?.remove();
     if (sheet) {
       sheet.style.clipPath = "";
       sheet.style.opacity = "";
     }
     restoreFoldState();
+    turning.style.transform = "";
+    turning.style.filter = "";
     turning.style.zIndex = "";
     under.style.zIndex = "";
     // Resting state first (onDone sets the final opacities while the
@@ -432,6 +688,15 @@ export function animatePageTurn(opts: {
     // Texture on the paper back — inherits the flap's clip+transform.
     flap.appendChild(buildGrainOverlay());
     stack.appendChild(flap);
+    // The roll strip past the fold — the curl's roundness.
+    tube = document.createElement("div");
+    tube.className = "paper-tube";
+    tube.appendChild(buildGrainOverlay());
+    stack.appendChild(tube);
+    // The fold's shadow on the still-flat sheet (see foldShadow).
+    shade = document.createElement("div");
+    shade.className = "paper-crease-shade";
+    sheet.appendChild(shade);
     turning.classList.add("page-peeling");
 
     const start = performance.now();
@@ -442,7 +707,35 @@ export function animatePageTurn(opts: {
       // Un-peel landing: hand the fold back while still in motion so
       // the flap drop + notch switch are masked (see restoreFoldState).
       if (direction === "prev" && t <= 0.12) restoreFoldState();
-      const ff = foldFrame(t, w, h, notch, rtl);
+      // Grip until SHEET_RELEASE_T, then the bend freezes and the whole
+      // sheet departs (release-and-slide — a loose sheet lifts off the
+      // pile; it never folds over a crease like a bound page).
+      // The corner lift RELAXES once the sheet comes free — slightly
+      // bent paper springs back flat; it doesn't stay creased.
+      const relRaw = t <= SHEET_RELEASE_T ? 0 : (t - SHEET_RELEASE_T) / (1 - SHEET_RELEASE_T);
+      const tBend = t <= SHEET_RELEASE_T ? t : SHEET_RELEASE_T * Math.max(0, 1 - relRaw * 2.5);
+      const ff = CURL_MODEL === "slide" ? slideFrame(t, w, h, notch, rtl) : foldFrame(tBend, w, h, notch, rtl);
+      const rel = CURL_MODEL === "slide" || t <= SHEET_RELEASE_T
+        ? 0 : (t - SHEET_RELEASE_T) / (1 - SHEET_RELEASE_T);
+      if (rel > 0) {
+        // LIFT: picked up off the pile in the first sliver of drag —
+        // slight scale, blooming cast shadow. Then the SLIDE: x follows
+        // the drag linearly (the sheet moves WITH the thumb); the
+        // upward arc and spin build later.
+        const lift = Math.min(1, rel / 0.08);
+        const fx = -w * 1.05 * rel * (rtl ? -1 : 1);
+        const fy = -w * 0.55 * rel * rel;
+        const rot = -6 * rel * (rtl ? -1 : 1);
+        turning.style.transform =
+          `translate(${fx.toFixed(1)}px, ${fy.toFixed(1)}px) rotate(${rot.toFixed(2)}deg) scale(${(1 + 0.018 * lift).toFixed(4)})`;
+        turning.style.filter =
+          `drop-shadow(0 ${(12 * lift).toFixed(1)}px ${(22 * lift).toFixed(1)}px rgba(0,0,0,${(0.32 * lift).toFixed(2)}))`;
+        turning.style.opacity = String(rel < 0.75 ? 1 : Math.max(0, 1 - (rel - 0.75) / 0.25));
+      } else {
+        turning.style.transform = "";
+        turning.style.filter = "";
+        turning.style.opacity = "1";
+      }
       sheet.style.clipPath = ff.keptClip ?? "";
       sheet.style.opacity = String(ff.fade);
       if (flap) {
@@ -453,6 +746,27 @@ export function animatePageTurn(opts: {
           flap.style.opacity = String(ff.fade);
         } else {
           flap.style.display = "none";
+        }
+      }
+      if (tube) {
+        const ro = CURL_MODEL === "slide" ? slideRoundness(t, w, h, rtl) : foldRoundness(t, w, h, rtl);
+        if (ro) {
+          tube.style.display = "block";
+          tube.style.clipPath = ro.clip;
+          tube.style.background = ro.background;
+          tube.style.opacity = String(ff.fade);
+        } else {
+          tube.style.display = "none";
+        }
+      }
+      if (shade) {
+        const sh = CURL_MODEL === "slide" ? slideShadow(t, w, h, rtl) : foldShadow(tBend, w, h, rtl);
+        if (sh) {
+          shade.style.display = "block";
+          shade.style.backgroundImage = sh;
+          shade.style.opacity = String(ff.fade);
+        } else {
+          shade.style.display = "none";
         }
       }
       if (u < 1) rafId = requestAnimationFrame(frame);
@@ -541,6 +855,15 @@ export function createInteractivePeel(opts: {
   flap.className = "paper-flap";
   flap.appendChild(buildGrainOverlay());
   stack.appendChild(flap);
+  // The roll strip past the fold — the curl's roundness.
+  const tube = document.createElement("div");
+  tube.className = "paper-tube";
+  tube.appendChild(buildGrainOverlay());
+  stack.appendChild(tube);
+  // The fold's shadow on the still-flat sheet (see foldShadow).
+  const shade = document.createElement("div");
+  shade.className = "paper-crease-shade";
+  sheet.appendChild(shade);
   turning.classList.add("page-peeling");
 
   let lastT = 0;
@@ -548,7 +871,35 @@ export function createInteractivePeel(opts: {
   let done = false;
 
   const paint = (t: number): void => {
-    const ff = foldFrame(t, w, h, notch, rtl);
+    // Grip until SHEET_RELEASE_T, then the bend freezes and the whole
+    // sheet departs (release-and-slide — a loose sheet lifts off the
+    // pile; it never folds over a crease like a bound page).
+    // The corner lift RELAXES once the sheet comes free — slightly
+    // bent paper springs back flat; it doesn't stay creased.
+    const relRaw = t <= SHEET_RELEASE_T ? 0 : (t - SHEET_RELEASE_T) / (1 - SHEET_RELEASE_T);
+    const tBend = t <= SHEET_RELEASE_T ? t : SHEET_RELEASE_T * Math.max(0, 1 - relRaw * 2.5);
+    const ff = CURL_MODEL === "slide" ? slideFrame(t, w, h, notch, rtl) : foldFrame(tBend, w, h, notch, rtl);
+    const rel = CURL_MODEL === "slide" || t <= SHEET_RELEASE_T
+      ? 0 : (t - SHEET_RELEASE_T) / (1 - SHEET_RELEASE_T);
+    if (rel > 0) {
+      // LIFT: picked up off the pile in the first sliver of drag —
+      // slight scale, blooming cast shadow. Then the SLIDE: x follows
+      // the drag linearly (the sheet moves WITH the thumb); the
+      // upward arc and spin build later.
+      const lift = Math.min(1, rel / 0.08);
+      const fx = -w * 1.05 * rel * (rtl ? -1 : 1);
+      const fy = -w * 0.55 * rel * rel;
+      const rot = -6 * rel * (rtl ? -1 : 1);
+      turning.style.transform =
+        `translate(${fx.toFixed(1)}px, ${fy.toFixed(1)}px) rotate(${rot.toFixed(2)}deg) scale(${(1 + 0.018 * lift).toFixed(4)})`;
+      turning.style.filter =
+        `drop-shadow(0 ${(12 * lift).toFixed(1)}px ${(22 * lift).toFixed(1)}px rgba(0,0,0,${(0.32 * lift).toFixed(2)}))`;
+      turning.style.opacity = String(rel < 0.75 ? 1 : Math.max(0, 1 - (rel - 0.75) / 0.25));
+    } else {
+      turning.style.transform = "";
+      turning.style.filter = "";
+      turning.style.opacity = "1";
+    }
     sheet.style.clipPath = ff.keptClip ?? "";
     sheet.style.opacity = String(ff.fade);
     if (ff.cutClip) {
@@ -559,10 +910,29 @@ export function createInteractivePeel(opts: {
     } else {
       flap.style.display = "none";
     }
+    const ro = CURL_MODEL === "slide" ? slideRoundness(t, w, h, rtl) : foldRoundness(t, w, h, rtl);
+    if (ro) {
+      tube.style.display = "block";
+      tube.style.clipPath = ro.clip;
+      tube.style.background = ro.background;
+      tube.style.opacity = String(ff.fade);
+    } else {
+      tube.style.display = "none";
+    }
+    const sh = CURL_MODEL === "slide" ? slideShadow(t, w, h, rtl) : foldShadow(tBend, w, h, rtl);
+    if (sh) {
+      shade.style.display = "block";
+      shade.style.backgroundImage = sh;
+      shade.style.opacity = String(ff.fade);
+    } else {
+      shade.style.display = "none";
+    }
   };
 
   const teardown = (): void => {
     flap.remove();
+    tube.remove();
+    shade.remove();
     sheet.style.clipPath = "";
     sheet.style.opacity = "";
     if (stage && punchClip) {
@@ -573,6 +943,8 @@ export function createInteractivePeel(opts: {
       sheet.style.background = "";
     }
     turning.classList.remove("page-peeling");
+    turning.style.transform = "";
+    turning.style.filter = "";
     turning.style.zIndex = "";
     under.style.zIndex = "";
   };

@@ -85,6 +85,7 @@ jobs:
     outputs:
       api: ${{ steps.filter.outputs.api == 'true' || (github.event_name == 'workflow_dispatch' && inputs.rebuild != 'platform') }}
       platform: ${{ steps.filter.outputs.platform == 'true' || (github.event_name == 'workflow_dispatch' && inputs.rebuild != 'api') }}
+      banner: ${{ steps.filter.outputs.banner == 'true' }}
     steps:
       - uses: actions/checkout@v4
       - uses: dorny/paths-filter@v3
@@ -105,6 +106,13 @@ jobs:
               - 'Dockerfile.api'
             platform:
               - 'platform/**'
+            # The delivered banner runtime. It lives UNDER platform/, so a
+            # banner-only change also matches 'platform/**' and rebuilds the
+            # platform image (a harmless no-op re-roll — its committed static
+            # is unchanged); a '!'-exclusion here would re-introduce the
+            # 2026-07-13 match-everything footgun, so we accept the overlap.
+            banner:
+              - 'platform/banner-component/**'
 
   build-api:
     name: Build api (arm64)
@@ -204,3 +212,79 @@ jobs:
           if [ "${{ needs.build-platform.result }}" = "success" ]; then
             kubectl -n promovolve rollout status deployment/promovolve-platform --timeout=300s
           fi
+
+  # Publish the delivered banner runtime to R2 and point the cluster at the
+  # new immutable URL. This is the piece CI historically did NOT do — the
+  # "R2 blind spot": a banner-component change never reached visitors without
+  # a manual `npm run publish:r2` + hand-edited BANNER_SCRIPT_URL.
+  #
+  # Runs AFTER `deploy` so its rollout never races the image roll (the api
+  # and platform both read BANNER_SCRIPT_URL, and this re-rolls them). The
+  # URL is content-hashed + immutable, so the swap is safe: old impressions
+  # keep serving the old bundle until their pods cycle.
+  #
+  # Config path: BANNER_SCRIPT_URL lives in the api-config configMap, which
+  # the api (envFrom) and platform (configMapKeyRef) read. We do NOT kustomize
+  # -apply it (that re-renders the whole configMap and cascade-rolls every
+  # tier — see infra_apiconfig_cascade_deadlock); a targeted `set env` per
+  # workload rolls only those three. k8s/kustomization.yaml stays the manual
+  # dev-cluster source of truth, exactly like the image digest pins.
+  #
+  # Requires repo secrets: R2_ACCOUNT_ID, R2_ACCESS_KEY_ID,
+  # R2_SECRET_ACCESS_KEY, R2_BUCKET, CDN_BASE_URL.
+  publish-banner:
+    name: Publish banner → R2 + point cluster at it
+    needs: [changes, ci-gate, deploy]
+    if: >-
+      !cancelled()
+      && needs.ci-gate.result == 'success'
+      && needs.changes.outputs.banner == 'true'
+      && needs.deploy.result != 'failure'
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+      - name: Build + publish banner bundle to R2
+        id: publish
+        working-directory: platform/banner-component
+        env:
+          R2_ACCOUNT_ID: ${{ secrets.R2_ACCOUNT_ID }}
+          R2_ACCESS_KEY_ID: ${{ secrets.R2_ACCESS_KEY_ID }}
+          R2_SECRET_ACCESS_KEY: ${{ secrets.R2_SECRET_ACCESS_KEY }}
+          R2_BUCKET: ${{ secrets.R2_BUCKET }}
+          CDN_BASE_URL: ${{ secrets.CDN_BASE_URL }}
+        run: |
+          npm ci
+          npm run build
+          # publish-to-r2.mjs uploads the content-hashed bundle and writes
+          # url=… to $GITHUB_OUTPUT for the set-env step below.
+          npm run publish:r2
+
+      # Same WIF auth the deploy job uses — no key material in GitHub.
+      - uses: google-github-actions/auth@v2
+        with:
+          workload_identity_provider: projects/138573052500/locations/global/workloadIdentityPools/github/providers/github-oidc
+          service_account: github-deployer@promovolve.iam.gserviceaccount.com
+      - uses: google-github-actions/get-gke-credentials@v2
+        with:
+          cluster_name: promovolve
+          location: asia-northeast1-b
+          project_id: promovolve
+
+      - name: Point cluster BANNER_SCRIPT_URL at the new bundle
+        env:
+          URL: ${{ steps.publish.outputs.url }}
+        run: |
+          set -euo pipefail
+          test -n "$URL"  # empty => CDN_BASE_URL secret missing; fail loudly
+          echo "Pointing api / singleton / platform at $URL"
+          # set env overrides the configMap-sourced value with a literal and
+          # triggers a rollout of each workload. Singleton is parked at 0 —
+          # its spec is kept current (like the image) but we don't wait on it.
+          for wl in statefulset/promovolve-api statefulset/promovolve-singleton deployment/promovolve-platform; do
+            kubectl -n promovolve set env "$wl" BANNER_SCRIPT_URL="$URL"
+          done
+          kubectl -n promovolve rollout status statefulset/promovolve-api --timeout=600s
+          kubectl -n promovolve rollout status deployment/promovolve-platform --timeout=300s

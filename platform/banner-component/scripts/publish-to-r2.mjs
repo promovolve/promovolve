@@ -12,7 +12,7 @@
 // (R2_ACCOUNT_ID, R2_ACCESS_KEY_ID, R2_SECRET_ACCESS_KEY, R2_BUCKET).
 // Run AFTER `npm run build`.
 
-import { readFileSync, existsSync, writeFileSync } from "node:fs";
+import { readFileSync, existsSync, writeFileSync, appendFileSync } from "node:fs";
 import { dirname, resolve } from "node:path";
 import { fileURLToPath } from "node:url";
 import { createHash } from "node:crypto";
@@ -69,6 +69,13 @@ await client.send(
 
 const url = CDN_BASE_URL ? `${CDN_BASE_URL}/${key}` : `<CDN_BASE_URL>/${key}`;
 console.log(`Published: ${url}`);
+
+// In CI (deploy.yml's publish-banner job) expose the fresh URL so the
+// next step can point the cluster's BANNER_SCRIPT_URL at it. Harmless
+// locally where GITHUB_OUTPUT is unset.
+if (process.env.GITHUB_OUTPUT) {
+  appendFileSync(process.env.GITHUB_OUTPUT, `url=${url}\nkey=${key}\n`);
+}
 
 // Update scripts/.env so `run-dev.sh` and `run-dashboard.sh` pick up
 // the new URL on restart. Replaces any existing BANNER_SCRIPT_URL

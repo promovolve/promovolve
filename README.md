@@ -1,5 +1,5 @@
 <h1 align="center">
-  <img alt="Promovolve" src="docs/assets/logo.svg" width="330">
+  <img alt="Promovolve" src="docs/assets/logo.png" width="330">
 </h1>
 
 <p align="center">An open-source ad network that targets <strong>content, not people</strong>.</p>

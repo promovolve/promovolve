@@ -252,6 +252,75 @@ export interface FoldFrame {
   tubeClip?: string | null;
 }
 
+
+/** Intersections of the fold line (through `mid`, normal `n`) with the
+  * page rectangle — at most two for a line crossing a convex rect. */
+function foldJunctions(mid: Pt, n: Pt, w: number, h: number): Pt[] {
+  const pts: Pt[] = [];
+  const push = (p: Pt): void => {
+    if (p.x >= -0.5 && p.x <= w + 0.5 && p.y >= -0.5 && p.y <= h + 0.5 &&
+        !pts.some(q => Math.hypot(q.x - p.x, q.y - p.y) < 0.5)) pts.push(p);
+  };
+  // n·(p - mid) = 0 along each edge.
+  if (Math.abs(n.x) > 1e-6) {
+    push({ x: mid.x - (n.y * (0 - mid.y)) / n.x, y: 0 });
+    push({ x: mid.x - (n.y * (h - mid.y)) / n.x, y: h });
+  }
+  if (Math.abs(n.y) > 1e-6) {
+    push({ x: 0, y: mid.y - (n.x * (0 - mid.x)) / n.y });
+    push({ x: w, y: mid.y - (n.x * (w - mid.x)) / n.y });
+  }
+  return pts;
+}
+
+interface PeelBasis { P: Pt; mid: Pt; n: Pt; apex: Pt | null; phiSail: number }
+
+/** Fold basis for the cone curl, APEX-COMPENSATED. The cone consumes
+  * π·r of sheet, which in flat terms rotates the folded-over part about
+  * the cone's APEX by θ ≈ π·r_base/span — an ISOMETRY (this is what
+  * keeps the sheet's real edges straight; the earlier per-point pull-in
+  * bent them, and left a page-2-colored band where the paper's back
+  * belonged). To keep the drawn corner ON the thumb, the virtual corner
+  * is pre-rotated the other way about the apex, and the sail transform
+  * rotates it back (phiSail = exact angle mapping the mirrored corner
+  * onto the thumb). curl<=0 → plain mirror basis, θ=0. */
+function peelBasis(t: number, w: number, h: number, rtl: boolean, curl: number, corner?: Pt): PeelBasis {
+  const C0: Pt = { x: rtl ? 0 : w, y: h };
+  const P0 = corner ?? cornerAt(t, w, h, rtl);
+  const basisOf = (P: Pt): { mid: Pt; n: Pt } => {
+    const mid: Pt = { x: (C0.x + P.x) / 2, y: (C0.y + P.y) / 2 };
+    let nx = P.x - C0.x, ny = P.y - C0.y;
+    const len = Math.hypot(nx, ny) || 1;
+    return { mid, n: { x: nx / len, y: ny / len } };
+  };
+  const b0 = basisOf(P0);
+  if (curl <= 0) return { P: P0, mid: b0.mid, n: b0.n, apex: null, phiSail: 0 };
+  const js = foldJunctions(b0.mid, b0.n, w, h);
+  if (js.length < 2) return { P: P0, mid: b0.mid, n: b0.n, apex: null, phiSail: 0 };
+  const apex = js[0].y <= js[1].y ? js[0] : js[1];
+  const span = Math.hypot(js[0].x - js[1].x, js[0].y - js[1].y) || 1;
+  const theta = Math.min(0.5, (Math.PI * curl) / span);
+  const rot = (p: Pt, c: Pt, a: Pt, phi: number): Pt => {
+    void c;
+    const ca = Math.cos(phi), sa = Math.sin(phi);
+    const dx = p.x - a.x, dy = p.y - a.y;
+    return { x: a.x + dx * ca - dy * sa, y: a.y + dx * sa + dy * ca };
+  };
+  // Pre-rotate the virtual corner: pick the direction that DEEPENS the
+  // fold (larger corner travel) — the cone eats sheet, so the real fold
+  // sits deeper than the mirror of the thumb.
+  const pa = rot(P0, C0, apex, theta);
+  const pb = rot(P0, C0, apex, -theta);
+  const P = Math.hypot(pa.x - C0.x, pa.y - C0.y) >= Math.hypot(pb.x - C0.x, pb.y - C0.y) ? pa : pb;
+  const b1 = basisOf(P);
+  // Exact sail rotation: maps the (new) mirrored corner P back onto the
+  // thumb P0, about the apex.
+  const va = { x: P.x - apex.x, y: P.y - apex.y };
+  const vb = { x: P0.x - apex.x, y: P0.y - apex.y };
+  const phiSail = Math.atan2(va.x * vb.y - va.y * vb.x, va.x * vb.x + va.y * vb.y);
+  return { P, mid: b1.mid, n: b1.n, apex, phiSail };
+}
+
 /** Compute one frame of the peel for a w×h sheet at progress t∈[0,1].
   *
   * `notch` (px) is the dog-ear's corner size when the page is folded:
@@ -270,17 +339,14 @@ export function foldFrame(
   if (t <= 0.0001) {
     return { keptClip: null, cutClip: null, flapTransform: "", fade: 1 };
   }
-  const C0: Pt = { x: rtl ? 0 : w, y: h };
   // The corner override is the live THUMB position (interactive peel):
   // the fold is the perpendicular bisector of C0->corner, so tracking
   // the thumb in 2D lets the reader set the fold ANGLE, not just its
   // progress — the canned arc only drives auto-turns and the release.
-  const P = corner ?? cornerAt(t, w, h, rtl);
-  const mid: Pt = { x: (C0.x + P.x) / 2, y: (C0.y + P.y) / 2 };
-  let nx = P.x - C0.x, ny = P.y - C0.y;
-  const len = Math.hypot(nx, ny) || 1;
-  nx /= len; ny /= len;
-  const n: Pt = { x: nx, y: ny };
+  // With curl the basis is apex-compensated (see peelBasis).
+  const basis = peelBasis(t, w, h, rtl, curl, corner);
+  const { mid, n } = basis;
+  const nx = n.x, ny = n.y;
 
   // The fold-over region is the side CONTAINING the original corner:
   // side(C0) = (C0-mid)·n = -|C0P|/2 < 0 → cut = negative side.
@@ -347,11 +413,17 @@ export function foldFrame(
         const d = -sideOf(p), u = uOf(p), r = rOf(u);
         return at(u, d < Math.PI * r ? r * Math.sin(Math.min(d / r, Math.PI)) : 0);
       };
+      // The sail is FLAT sheet: its mapping must be an ISOMETRY or the
+      // page's real (straight) edges render curved. Mirror across the
+      // fold, then rotate about the cone's apex by the consumed-arc
+      // angle (phiSail maps the mirrored corner exactly onto the thumb).
+      const ca = Math.cos(basis.phiSail), sa = Math.sin(basis.phiSail);
+      const apex = basis.apex ?? cut[ja];
       const warpSail = (p: Pt): Pt => {
-        const d = -sideOf(p), u = uOf(p), r = rOf(u);
-        // +1px onto the tube side so the two shapes overlap instead of
-        // meeting in an antialiased hairline seam at the fold.
-        return at(u, d < Math.PI * r ? 1 : Math.min(1, -(d - Math.PI * r)));
+        const s = sideOf(p);
+        const mx = p.x - 2 * s * nx, my = p.y - 2 * s * ny; // mirror
+        const dx = mx - apex.x, dy = my - apex.y;
+        return { x: apex.x + dx * ca - dy * sa, y: apex.y + dx * sa + dy * ca };
       };
       // Walk the ring from apex junction to base junction the long way
       // (through the page edges + corner), sampling densely so the tube
@@ -475,11 +547,12 @@ export function foldShading(
 ): FoldShading | null {
   if (t <= 0.0001) return null;
   const C0: Pt = { x: rtl ? 0 : w, y: h };
-  const P = corner ?? cornerAt(t, w, h, rtl);
-  const mid: Pt = { x: (C0.x + P.x) / 2, y: (C0.y + P.y) / 2 };
-  let nx = P.x - C0.x, ny = P.y - C0.y;
-  const len = Math.hypot(nx, ny) || 1;
-  nx /= len; ny /= len;
+  // Same apex-compensated basis as foldFrame, so every gradient stays
+  // anchored on the fold that is actually drawn.
+  const basis = peelBasis(t, w, h, rtl, curlRadius(t, w, h), corner);
+  const P = basis.P;
+  const mid = basis.mid;
+  const nx = basis.n.x, ny = basis.n.y;
   const lift = Math.sin(Math.PI * t); // page height off the stack, 0→1→0
 
   // A linear-gradient along unit direction u, with stops positioned in

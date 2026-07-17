@@ -164,13 +164,17 @@ function mountColorRow(store: Store): ColorRowHandle {
     const m = /^#[0-9a-fA-F]{6}([0-9a-fA-F]{2})$/.exec(v.trim());
     return m ? Math.round((parseInt(m[1], 16) / 255) * 100) : 100;
   };
-  const composeBg = (): string => {
-    const rgb = hexRgb(text.value) ?? swatch.value;
+  // rgb: the base colour to compose with the slider's alpha. The swatch
+  // handlers pass their OWN fresh value — deriving it from the text
+  // field here made a swatch pick recompose from the stale old colour
+  // (a base-colour change silently no-oped until Reset).
+  const composeBg = (rgb: string): string => {
     const a = Number(alpha.value);
     if (a >= 100) return rgb;
     const aa = Math.round((a / 100) * 255).toString(16).padStart(2, "0");
     return rgb + aa;
   };
+  const currentRgb = (): string => hexRgb(text.value) ?? swatch.value;
 
   const clear = document.createElement("button");
   clear.type = "button";
@@ -197,21 +201,21 @@ function mountColorRow(store: Store): ColorRowHandle {
   // every drag tick — replace state for live preview, commit on close.
   // Text input commits on blur via "change".
   swatch.addEventListener("input", () => {
-    const v = composeBg();
+    const v = composeBg(swatch.value);
     text.value = v;
     store.replace(setPageBg(store.state, v));
   });
   swatch.addEventListener("change", () => {
-    store.commit(setPageBg(store.state, composeBg()));
+    store.commit(setPageBg(store.state, composeBg(swatch.value)));
   });
   alpha.addEventListener("input", () => {
     alphaVal.textContent = alpha.value + "%";
-    const v = composeBg();
+    const v = composeBg(currentRgb());
     text.value = v;
     store.replace(setPageBg(store.state, v));
   });
   alpha.addEventListener("change", () => {
-    store.commit(setPageBg(store.state, composeBg()));
+    store.commit(setPageBg(store.state, composeBg(currentRgb())));
   });
   text.addEventListener("change", () => {
     const v = text.value.trim();

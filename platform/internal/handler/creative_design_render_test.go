@@ -1,6 +1,7 @@
 package handler
 
 import (
+	"github.com/hanishi/promovolve/platform/internal/i18n"
 	"io"
 	"testing"
 
@@ -39,7 +40,7 @@ func TestCreativeDesignTemplateRenders(t *testing.T) {
 		},
 	}
 	for name, data := range cases {
-		if err := getPageStandalone("advertiser/creative-design.html").
+		if err := getPageStandalone(i18n.LangEN, "advertiser/creative-design.html").
 			ExecuteTemplate(io.Discard, "creative-design.html", data); err != nil {
 			t.Errorf("%s: creative-design.html failed to render: %v", name, err)
 		}

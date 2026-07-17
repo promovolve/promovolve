@@ -34,7 +34,7 @@ func (h *Handler) SetupPage(w http.ResponseWriter, r *http.Request) {
 		http.Redirect(w, r, "/login", http.StatusSeeOther)
 		return
 	}
-	h.render(w, "setup.html", pageData{
+	h.render(w, r, "setup.html", pageData{
 		Title:     "Set up PromoVolve",
 		DevAuth:   h.devAuth,
 		Timezones: preferenceTimezones,
@@ -94,12 +94,12 @@ func parseMarginPercent(s string) (int, error) {
 
 func (h *Handler) SetupBegin(w http.ResponseWriter, r *http.Request) {
 	if h.setupSvc.Initialized(r.Context()) {
-		writeJSONError(w, http.StatusConflict, "platform is already initialized")
+		h.jsonErrorT(w, r, http.StatusConflict, "platform is already initialized")
 		return
 	}
 	var req setupBeginRequest
 	if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
-		writeJSONError(w, http.StatusBadRequest, "invalid request body")
+		h.jsonErrorT(w, r, http.StatusBadRequest, "invalid request body")
 		return
 	}
 	admin, bps, floor, tz, err := req.validate()
@@ -112,7 +112,7 @@ func (h *Handler) SetupBegin(w http.ResponseWriter, r *http.Request) {
 		setupPayload{User: admin, MarginBps: bps, PayoutFloorMicros: floor, DefaultTimezone: tz})
 	if err != nil {
 		slog.Error("setup begin failed", "error", err)
-		writeJSONError(w, http.StatusInternalServerError, "could not start passkey registration")
+		h.jsonErrorT(w, r, http.StatusInternalServerError, "could not start passkey registration")
 		return
 	}
 	writeJSONResp(w, http.StatusOK, map[string]any{"sessionToken": token, "options": creation})
@@ -121,40 +121,40 @@ func (h *Handler) SetupBegin(w http.ResponseWriter, r *http.Request) {
 func (h *Handler) SetupFinish(w http.ResponseWriter, r *http.Request) {
 	env, err := decodeEnvelope(r)
 	if err != nil {
-		writeJSONError(w, http.StatusBadRequest, "invalid request body")
+		h.jsonErrorT(w, r, http.StatusBadRequest, "invalid request body")
 		return
 	}
 	session, payload, err := h.passkeySvc.TakeSession(env.SessionToken)
 	if err != nil {
-		writeJSONError(w, http.StatusBadRequest, "setup session expired — try again")
+		h.jsonErrorT(w, r, http.StatusBadRequest, "setup session expired — try again")
 		return
 	}
 	sp, ok := payload.(setupPayload)
 	if !ok {
-		writeJSONError(w, http.StatusBadRequest, "invalid setup session")
+		h.jsonErrorT(w, r, http.StatusBadRequest, "invalid setup session")
 		return
 	}
 
 	cred, err := h.passkeySvc.FinishRegistration(sp.User, session, bytes.NewReader(env.Credential))
 	if err != nil {
 		slog.Warn("setup passkey verification failed", "error", err)
-		writeJSONError(w, http.StatusBadRequest, "passkey registration failed")
+		h.jsonErrorT(w, r, http.StatusBadRequest, "passkey registration failed")
 		return
 	}
 
 	if err := h.setupSvc.CreateAdmin(r.Context(), sp.User, cred, "Setup passkey", sp.MarginBps, sp.PayoutFloorMicros, sp.DefaultTimezone); err != nil {
 		if errors.Is(err, setup.ErrAlreadyInitialized) {
-			writeJSONError(w, http.StatusConflict, "platform is already initialized")
+			h.jsonErrorT(w, r, http.StatusConflict, "platform is already initialized")
 			return
 		}
 		slog.Error("setup failed", "error", err)
-		writeJSONError(w, http.StatusInternalServerError, "could not create the admin account")
+		h.jsonErrorT(w, r, http.StatusInternalServerError, "could not create the admin account")
 		return
 	}
 
 	token, err := h.jwtSvc.Issue(sp.User)
 	if err != nil {
-		writeJSONError(w, http.StatusInternalServerError, "failed to issue token")
+		h.jsonErrorT(w, r, http.StatusInternalServerError, "failed to issue token")
 		return
 	}
 	h.setSessionCookie(w, token)
@@ -177,7 +177,7 @@ func (h *Handler) SetupDev(w http.ResponseWriter, r *http.Request) {
 		Timezone:      r.FormValue("timezone"),
 	}
 	renderErr := func(msg string) {
-		h.render(w, "setup.html", pageData{Title: "Set up PromoVolve", DevAuth: h.devAuth, Error: msg, Timezones: preferenceTimezones})
+		h.render(w, r, "setup.html", pageData{Title: "Set up PromoVolve", DevAuth: h.devAuth, Error: msg, Timezones: preferenceTimezones})
 	}
 
 	admin, bps, floor, tz, err := req.validate()

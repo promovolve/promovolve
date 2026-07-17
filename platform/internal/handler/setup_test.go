@@ -7,6 +7,7 @@ package handler
 // gated integration setups instead.
 
 import (
+	"github.com/hanishi/promovolve/platform/internal/i18n"
 	"io"
 	"testing"
 
@@ -54,7 +55,7 @@ func TestSetupTemplateRenders(t *testing.T) {
 		Error:     "an error banner",
 		Timezones: preferenceTimezones,
 	}
-	if err := getPage("setup.html").ExecuteTemplate(io.Discard, "layout", data); err != nil {
+	if err := getPage(i18n.LangEN, "setup.html").ExecuteTemplate(io.Discard, "layout", data); err != nil {
 		t.Errorf("setup.html failed to render: %v", err)
 	}
 }

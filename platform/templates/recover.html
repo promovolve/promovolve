@@ -2,29 +2,28 @@
 <div class="flex items-center justify-center min-h-screen bg-gray-50">
   <div class="w-full max-w-md p-8">
     <h1 class="text-3xl font-semibold text-center mb-2">Promovolve</h1>
-    <p class="text-gray-500 text-center mb-10">Account recovery</p>
+    <p class="text-gray-500 text-center mb-10">{{t "Account recovery"}}</p>
 
     {{if .Error}}
     <div class="bg-white rounded-lg shadow-sm border p-8 text-center">
       <p class="text-red-600 text-sm">{{.Error}}</p>
-      <a href="/login" class="btn btn-secondary mt-6">Back to sign in</a>
+      <a href="/login" class="btn btn-secondary mt-6">{{t "Back to sign in"}}</a>
     </div>
     {{else}}
     <div id="recover-card" class="bg-white rounded-lg shadow-sm border p-8">
-      <h2 class="text-2xl font-semibold mb-1">Register a new passkey</h2>
+      <h2 class="text-2xl font-semibold mb-1">{{t "Register a new passkey"}}</h2>
       <p class="text-sm text-gray-500 mb-6">
-        This one-time link lets you add a new passkey to your account. Do this
-        on the device you'll sign in from. Your existing passkeys keep working.
+        {{t "This one-time link lets you add a new passkey to your account. Do this on the device you will sign in from. Your existing passkeys keep working."}}
       </p>
       <div id="recover-error" class="hidden bg-red-50 border border-red-200 text-red-700 rounded-lg p-3 mb-4 text-sm"></div>
-      <button id="recover-btn" class="btn btn-primary w-full">Create new passkey</button>
+      <button id="recover-btn" class="btn btn-primary w-full">{{t "Create new passkey"}}</button>
     </div>
 
     <div id="recover-done" class="hidden bg-white rounded-lg shadow-sm border p-8 text-center">
       <div class="text-4xl mb-4">&#10003;</div>
-      <h2 class="text-2xl font-semibold mb-2">Passkey registered</h2>
-      <p class="text-sm text-gray-500 mb-6">You can sign in with it right away.</p>
-      <a href="/login" class="btn btn-primary">Go to sign in</a>
+      <h2 class="text-2xl font-semibold mb-2">{{t "Passkey registered"}}</h2>
+      <p class="text-sm text-gray-500 mb-6">{{t "You can sign in with it right away."}}</p>
+      <a href="/login" class="btn btn-primary">{{t "Go to sign in"}}</a>
     </div>
 
     <script src="{{asset "passkey.js"}}"></script>
@@ -46,9 +45,9 @@
             // already holds a working passkey for the account, so recovery
             // isn't needed here.
             if (e.name === 'InvalidStateError') {
-              errBox.textContent = 'This device already has a passkey for this account — you can sign in with it directly. Use this link on the new device you want to add.';
+              errBox.textContent = '{{t "This device already has a passkey for this account — you can sign in with it directly. Use this link on the new device you want to add."}}';
             } else {
-              errBox.textContent = e.message || 'Recovery failed';
+              errBox.textContent = e.message || '{{t "Recovery failed"}}';
             }
             errBox.classList.remove('hidden');
             btn.disabled = false;

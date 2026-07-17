@@ -113,7 +113,7 @@ func (h *Handler) PublisherReport(w http.ResponseWriter, r *http.Request) {
 		rep.CoverageNote = coverageFrom
 	}
 
-	h.render(w, "publisher/report.html", pageData{
+	h.render(w, r, "publisher/report.html", pageData{
 		Title:     "Report",
 		Nav:       "report",
 		User:      user,

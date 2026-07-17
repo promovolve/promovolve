@@ -35,6 +35,8 @@ type User struct {
 	// IANA zone for rendering timestamps ("" = UTC). A per-user preference;
 	// stored data stays UTC, only display converts.
 	Timezone string `json:"timezone,omitempty"`
+	// Dashboard language ("en"/"ja"; "" = auto, follow Accept-Language).
+	Locale string `json:"locale,omitempty"`
 	AdvertiserID *string `json:"advertiserId,omitempty"`
 	PublisherID  *string `json:"publisherId,omitempty"`
 	// RequestedSide is the side a pending account request asked for — the

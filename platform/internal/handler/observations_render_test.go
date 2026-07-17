@@ -5,6 +5,7 @@ package handler
 // and a still-learning shape so template/data mismatches fail in CI.
 
 import (
+	"github.com/hanishi/promovolve/platform/internal/i18n"
 	"strings"
 	"testing"
 
@@ -42,7 +43,7 @@ func TestObservationsTrafficShapeRenders(t *testing.T) {
 			FloorObservations: &floorObservationsData{SiteID: "site-1", TrafficShape: tc.shape},
 		}
 		var sb strings.Builder
-		if err := getPage("publisher/site-observations.html").ExecuteTemplate(&sb, "layout", data); err != nil {
+		if err := getPage(i18n.LangEN, "publisher/site-observations.html").ExecuteTemplate(&sb, "layout", data); err != nil {
 			t.Fatalf("%s: render failed: %v", tc.name, err)
 		}
 		out := sb.String()

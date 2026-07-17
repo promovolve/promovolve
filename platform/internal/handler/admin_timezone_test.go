@@ -5,6 +5,7 @@ package handler
 // Postgres and is exercised via the gated integration setups instead.
 
 import (
+	"github.com/hanishi/promovolve/platform/internal/i18n"
 	"io"
 	"testing"
 
@@ -49,7 +50,7 @@ func TestAdminUsersTemplateRenders(t *testing.T) {
 			OrgAdvertiser: true,
 		}},
 	}
-	if err := getPage("admin/users.html").ExecuteTemplate(io.Discard, "layout", data); err != nil {
+	if err := getPage(i18n.LangEN, "admin/users.html").ExecuteTemplate(io.Discard, "layout", data); err != nil {
 		t.Errorf("admin/users.html failed to render: %v", err)
 	}
 }
@@ -69,7 +70,7 @@ func TestAdminSettingsTemplateRenders(t *testing.T) {
 			{Percent: "15", EffectiveFrom: "2026-07-14 12:00", By: "admin@test"},
 		},
 	}
-	if err := getPage("admin/settings.html").ExecuteTemplate(io.Discard, "layout", data); err != nil {
+	if err := getPage(i18n.LangEN, "admin/settings.html").ExecuteTemplate(io.Discard, "layout", data); err != nil {
 		t.Errorf("admin/settings.html failed to render: %v", err)
 	}
 }

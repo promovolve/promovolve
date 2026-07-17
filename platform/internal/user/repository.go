@@ -22,13 +22,13 @@ func NewRepository(pool *pgxpool.Pool) *Repository {
 	return &Repository{pool: pool}
 }
 
-const userColumns = `id, email, COALESCE(password_hash, ''), role, display_name, timezone, advertiser_id, publisher_id,
+const userColumns = `id, email, COALESCE(password_hash, ''), role, display_name, timezone, locale, advertiser_id, publisher_id,
 	COALESCE(requested_side, ''), status, company_name, website_url, contact_name, request_message,
 	reviewed_by, reviewed_at, created_at, updated_at`
 
 func scanUser(row pgx.Row) (*model.User, error) {
 	u := &model.User{}
-	err := row.Scan(&u.ID, &u.Email, &u.PasswordHash, &u.Role, &u.DisplayName, &u.Timezone, &u.AdvertiserID,
+	err := row.Scan(&u.ID, &u.Email, &u.PasswordHash, &u.Role, &u.DisplayName, &u.Timezone, &u.Locale, &u.AdvertiserID,
 		&u.PublisherID,
 		&u.RequestedSide, &u.Status, &u.CompanyName, &u.WebsiteURL, &u.ContactName, &u.RequestMessage,
 		&u.ReviewedBy, &u.ReviewedAt, &u.CreatedAt, &u.UpdatedAt)
@@ -154,8 +154,8 @@ func (r *Repository) Delete(ctx context.Context, id string) error {
 
 func (r *Repository) Update(ctx context.Context, u *model.User) error {
 	_, err := r.pool.Exec(ctx, `
-		UPDATE platform_users SET display_name = $2, timezone = $3, updated_at = NOW() WHERE id = $1`,
-		u.ID, u.DisplayName, u.Timezone,
+		UPDATE platform_users SET display_name = $2, timezone = $3, locale = $4, updated_at = NOW() WHERE id = $1`,
+		u.ID, u.DisplayName, u.Timezone, u.Locale,
 	)
 	return err
 }

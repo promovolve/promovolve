@@ -236,7 +236,7 @@ func (h *Handler) AdvertiserReport(w http.ResponseWriter, r *http.Request) {
 		rep.CoverageNote = coverageFrom
 	}
 
-	h.render(w, "advertiser/report.html", pageData{
+	h.render(w, r, "advertiser/report.html", pageData{
 		Title:  "Report",
 		Nav:    "report",
 		User:   user,

@@ -1,6 +1,7 @@
 package handler
 
 import (
+	"github.com/hanishi/promovolve/platform/internal/i18n"
 	"io"
 	"testing"
 
@@ -73,13 +74,13 @@ func TestReportTemplateRenders(t *testing.T) {
 		HasData: true,
 	}
 	data := pageData{Title: "Report", Nav: "report", User: &model.User{Email: "a@b.c", Role: "advertiser"}, Report: rep}
-	if err := getPage("advertiser/report.html").ExecuteTemplate(io.Discard, "layout", data); err != nil {
+	if err := getPage(i18n.LangEN, "advertiser/report.html").ExecuteTemplate(io.Discard, "layout", data); err != nil {
 		t.Fatalf("report template failed to render: %v", err)
 	}
 
 	// Empty state renders too (HasData=false skips the tables + chart).
 	data.Report = &reportPageData{From: "2026-06-30", To: "2026-07-06", Preset: "custom", Presets: reportPresets("/advertiser/report")}
-	if err := getPage("advertiser/report.html").ExecuteTemplate(io.Discard, "layout", data); err != nil {
+	if err := getPage(i18n.LangEN, "advertiser/report.html").ExecuteTemplate(io.Discard, "layout", data); err != nil {
 		t.Fatalf("report empty state failed to render: %v", err)
 	}
 }

@@ -363,7 +363,7 @@ func (h *Handler) renderAdminBilling(w http.ResponseWriter, r *http.Request, err
 		}
 	}
 
-	h.render(w, "admin/billing.html", pageData{
+	h.render(w, r, "admin/billing.html", pageData{
 		Title:        "Billing",
 		Nav:          "admin-billing",
 		Tab:          "overview",
@@ -516,7 +516,7 @@ func (h *Handler) renderAdminTopups(w http.ResponseWriter, r *http.Request, errM
 		}
 	}
 
-	h.render(w, "admin/billing-topups.html", pageData{
+	h.render(w, r, "admin/billing-topups.html", pageData{
 		Title:       "Billing · Top-ups",
 		Nav:         "admin-billing",
 		Tab:         "topups",
@@ -565,7 +565,7 @@ func (h *Handler) renderAdminPayouts(w http.ResponseWriter, r *http.Request, err
 		}
 	}
 
-	h.render(w, "admin/billing-payouts.html", pageData{
+	h.render(w, r, "admin/billing-payouts.html", pageData{
 		Title:        "Billing · Payouts",
 		Nav:          "admin-billing",
 		Tab:          "payouts",
@@ -606,7 +606,7 @@ func (h *Handler) renderAdminJournal(w http.ResponseWriter, r *http.Request, err
 		data.Journal = toJournalRows(txns, labels, user.Location())
 	}
 
-	h.render(w, "admin/billing-journal.html", pageData{
+	h.render(w, r, "admin/billing-journal.html", pageData{
 		Title:        "Billing · Journal",
 		Nav:          "admin-billing",
 		Tab:          "journal",
@@ -653,7 +653,7 @@ func (h *Handler) AdminBillingAccounts(w http.ResponseWriter, r *http.Request) {
 	offset, end, nav := buildListNav(r, len(rows), billingPageSize)
 	data.Rows = rows[offset:end]
 
-	h.render(w, "admin/billing-accounts.html", pageData{
+	h.render(w, r, "admin/billing-accounts.html", pageData{
 		Title:         "Billing · Accounts",
 		Nav:           "admin-billing",
 		Tab:           "accounts",
@@ -748,7 +748,7 @@ func (h *Handler) AdminBillingAccount(w http.ResponseWriter, r *http.Request) {
 		}
 	}
 
-	h.render(w, "admin/billing-account.html", pageData{
+	h.render(w, r, "admin/billing-account.html", pageData{
 		Title:        "Billing · " + data.Label,
 		Nav:          "admin-billing",
 		Tab:          "accounts",
@@ -1200,7 +1200,7 @@ func (h *Handler) AdvertiserWallet(w http.ResponseWriter, r *http.Request) {
 		data.Months = toMonthlyRows(months)
 	}
 
-	h.render(w, "advertiser/wallet.html", pageData{
+	h.render(w, r, "advertiser/wallet.html", pageData{
 		Title:  "Wallet",
 		Nav:    "wallet",
 		User:   user,
@@ -1249,7 +1249,7 @@ func (h *Handler) PublisherEarnings(w http.ResponseWriter, r *http.Request) {
 		data.MinPayout = usd(max(method.MinPayoutMicros, floor))
 	}
 
-	h.render(w, "publisher/earnings.html", pageData{
+	h.render(w, r, "publisher/earnings.html", pageData{
 		Title:    "Earnings",
 		Nav:      "earnings",
 		User:     user,

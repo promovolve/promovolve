@@ -377,6 +377,8 @@ func Migrate(pool *pgxpool.Pool) error {
 		-- Per-user preferences (v1: timezone; display_name predates this).
 		-- '' = unset, timestamps render in UTC as before.
 		ALTER TABLE platform_users ADD COLUMN IF NOT EXISTS timezone TEXT NOT NULL DEFAULT '';
+		-- Dashboard language ('en'/'ja'; '' = auto — follow the browser).
+		ALTER TABLE platform_users ADD COLUMN IF NOT EXISTS locale TEXT NOT NULL DEFAULT '';
 
 		-- Organizations: exactly one per email domain. The org — not the
 		-- individual user — owns the core advertiser/publisher entities; members

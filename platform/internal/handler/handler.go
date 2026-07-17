@@ -15,6 +15,7 @@ import (
 	"net/url"
 	"strconv"
 	"strings"
+	"sync"
 	"time"
 
 	"github.com/jackc/pgx/v5"
@@ -22,6 +23,7 @@ import (
 	"github.com/hanishi/promovolve/platform/internal/audit"
 	"github.com/hanishi/promovolve/platform/internal/auth"
 	"github.com/hanishi/promovolve/platform/internal/billing"
+	"github.com/hanishi/promovolve/platform/internal/i18n"
 	"github.com/hanishi/promovolve/platform/internal/model"
 	"github.com/hanishi/promovolve/platform/internal/org"
 	"github.com/hanishi/promovolve/platform/internal/passkey"
@@ -216,10 +218,26 @@ func New(d Deps) *Handler {
 	}
 }
 
-// parsePage parses the layout + a specific page template
-func parsePage(page string) *template.Template {
+// funcMapFor returns the shared funcMap plus the language-bound helpers:
+// "t" translates (i18n.T with lang curried in) and "lang" reports the
+// language for <html lang="{{lang}}">. Binding at parse time is what lets
+// templates be cached per (page, lang) while {{t "..."}} works under any
+// dot — inside dict-fed partials and the standalone editor's non-pageData
+// data alike.
+func funcMapFor(lang string) template.FuncMap {
+	m := make(template.FuncMap, len(funcMap)+2)
+	for k, v := range funcMap {
+		m[k] = v
+	}
+	m["t"] = func(key string, args ...any) string { return i18n.T(lang, key, args...) }
+	m["lang"] = func() string { return lang }
+	return m
+}
+
+// parsePage parses the layout + a specific page template for one language.
+func parsePage(lang, page string) *template.Template {
 	return template.Must(
-		template.New("").Funcs(funcMap).ParseFS(
+		template.New("").Funcs(funcMapFor(lang)).ParseFS(
 			templateFSVar,
 			"templates/layout.html",
 			"templates/"+page,
@@ -227,29 +245,60 @@ func parsePage(page string) *template.Template {
 	)
 }
 
-// Pre-parsed page templates (each has its own "content" block)
-var pages = map[string]*template.Template{}
+// Parsed page templates, keyed lang+":"+name (each has its own "content"
+// block). Lazy-filled under pagesMu — the map was previously written from
+// request goroutines with no lock, a latent data race that adding the
+// language dimension would have widened.
+var (
+	pagesMu sync.Mutex
+	pages   = map[string]*template.Template{}
+)
 
-func getPage(name string) *template.Template {
-	if t, ok := pages[name]; ok {
+func getPage(lang, name string) *template.Template {
+	key := lang + ":" + name
+	pagesMu.Lock()
+	defer pagesMu.Unlock()
+	if t, ok := pages[key]; ok {
 		return t
 	}
-	t := parsePage(name)
-	pages[name] = t
+	t := parsePage(lang, name)
+	pages[key] = t
 	return t
 }
 
 // getPageStandalone returns a template parsed WITHOUT layout.html, for pages
 // that render their own full HTML document (e.g. the isolated Fabric editor).
-func getPageStandalone(name string) *template.Template {
-	if t, ok := pages["standalone:"+name]; ok {
+func getPageStandalone(lang, name string) *template.Template {
+	key := lang + ":standalone:" + name
+	pagesMu.Lock()
+	defer pagesMu.Unlock()
+	if t, ok := pages[key]; ok {
 		return t
 	}
 	t := template.Must(
-		template.New("").Funcs(funcMap).ParseFS(templateFSVar, "templates/"+name),
+		template.New("").Funcs(funcMapFor(lang)).ParseFS(templateFSVar, "templates/"+name),
 	)
-	pages["standalone:"+name] = t
+	pages[key] = t
 	return t
+}
+
+// jsonErrorT is writeJSONError through the catalog. JSON error toasts
+// mostly surface on the pre-login pages (sign-in, request-account,
+// recovery, setup), where there is no user preference yet — so the
+// language follows the browser (Accept-Language), deliberately.
+func (h *Handler) jsonErrorT(w http.ResponseWriter, r *http.Request, status int, key string, args ...any) {
+	writeJSONError(w, status, i18n.T(h.lang(r, nil), key, args...))
+}
+
+// lang resolves the request language: the signed-in user's preference
+// (platform_users.locale, "" = auto) falling back to Accept-Language.
+// Unauthenticated pages pass u == nil and get pure browser negotiation.
+func (h *Handler) lang(r *http.Request, u *model.User) string {
+	pref := ""
+	if u != nil {
+		pref = u.Locale
+	}
+	return i18n.Resolve(pref, r.Header.Get("Accept-Language"))
 }
 
 type pageData struct {
@@ -573,17 +622,17 @@ type flaggedCreative struct {
 	LandingURL       string
 }
 
-func (h *Handler) render(w http.ResponseWriter, name string, data pageData) {
-	h.renderStatus(w, http.StatusOK, name, data)
+func (h *Handler) render(w http.ResponseWriter, r *http.Request, name string, data pageData) {
+	h.renderStatus(w, r, http.StatusOK, name, data)
 }
 
-func (h *Handler) renderStatus(w http.ResponseWriter, status int, name string, data pageData) {
+func (h *Handler) renderStatus(w http.ResponseWriter, r *http.Request, status int, name string, data pageData) {
 	w.Header().Set("Content-Type", "text/html; charset=utf-8")
 	w.Header().Set("Cache-Control", "no-cache, no-store, must-revalidate")
 	if status != http.StatusOK {
 		w.WriteHeader(status)
 	}
-	t := getPage(name)
+	t := getPage(h.lang(r, data.User), name)
 	if err := t.ExecuteTemplate(w, "layout", data); err != nil {
 		slog.Error("template render failed", "error", err, "template", name)
 		http.Error(w, "render error: "+err.Error(), http.StatusInternalServerError)
@@ -828,7 +877,7 @@ func (h *Handler) LoginPage(w http.ResponseWriter, r *http.Request) {
 	if role == "advertiser" {
 		roleLabel = "Advertiser"
 	}
-	h.render(w, "login.html", pageData{
+	h.render(w, r, "login.html", pageData{
 		Title:     "Login",
 		Mode:      mode,
 		Role:      role,
@@ -865,7 +914,7 @@ func (h *Handler) handleLoginPost(w http.ResponseWriter, r *http.Request) {
 		if role == "advertiser" {
 			roleLabel = "Advertiser"
 		}
-		h.render(w, "login.html", pageData{
+		h.render(w, r, "login.html", pageData{
 			Title:     "Login",
 			Mode:      mode,
 			Role:      role,
@@ -1454,11 +1503,11 @@ func (h *Handler) PublisherApproval(w http.ResponseWriter, r *http.Request) {
 			`{"updateCounts": {"pending": %d, "serving": %d, "flagged": %d}}`,
 			len(allPending), len(allServing), len(allFlagged),
 		))
-		getPage("publisher/approval.html").ExecuteTemplate(w, "approval-tab", data)
+		getPage(h.lang(r, user), "publisher/approval.html").ExecuteTemplate(w, "approval-tab", data)
 		return
 	}
 
-	h.render(w, "publisher/approval.html", data)
+	h.render(w, r, "publisher/approval.html", data)
 }
 
 // One trust-anchor row from the core, with the source creative's advertiser
@@ -1597,7 +1646,7 @@ func (h *Handler) PublisherTrusted(w http.ResponseWriter, r *http.Request) {
 	}
 
 	start, end, nav := buildListNav(r, len(rows), 25)
-	h.render(w, "publisher/trusted.html", pageData{
+	h.render(w, r, "publisher/trusted.html", pageData{
 		Title:          "Trusted Advertisers",
 		Nav:            "trusted",
 		User:           user,

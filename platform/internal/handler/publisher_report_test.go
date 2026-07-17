@@ -1,6 +1,7 @@
 package handler
 
 import (
+	"github.com/hanishi/promovolve/platform/internal/i18n"
 	"io"
 	"strings"
 	"testing"
@@ -32,7 +33,7 @@ func TestPublisherReportTemplateRenders(t *testing.T) {
 	}
 	data := pageData{Title: "Report", Nav: "report", User: &model.User{Email: "p@b.c", Role: "publisher"}, PubReport: rep}
 	var sb strings.Builder
-	if err := getPage("publisher/report.html").ExecuteTemplate(&sb, "layout", data); err != nil {
+	if err := getPage(i18n.LangEN, "publisher/report.html").ExecuteTemplate(&sb, "layout", data); err != nil {
 		t.Fatalf("publisher report template failed to render: %v", err)
 	}
 	// The CSV href must survive URL-context escaping intact: a query
@@ -48,7 +49,7 @@ func TestPublisherReportTemplateRenders(t *testing.T) {
 
 	// Empty state renders too.
 	data.PubReport = &publisherReportPageData{From: "2026-06-30", To: "2026-07-06", Preset: "custom", Presets: reportPresets("/publisher/report")}
-	if err := getPage("publisher/report.html").ExecuteTemplate(io.Discard, "layout", data); err != nil {
+	if err := getPage(i18n.LangEN, "publisher/report.html").ExecuteTemplate(io.Discard, "layout", data); err != nil {
 		t.Fatalf("publisher report empty state failed to render: %v", err)
 	}
 }

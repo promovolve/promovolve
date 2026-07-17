@@ -2,7 +2,7 @@
 <div class="flex items-center justify-center min-h-screen bg-gray-50">
   <div class="w-full max-w-lg p-8">
     <h1 class="text-3xl font-semibold text-center mb-2">Promovolve</h1>
-    <p class="text-gray-500 text-center mb-10">Content-based ad serving platform</p>
+    <p class="text-gray-500 text-center mb-10">{{t "Content-based ad serving platform"}}</p>
 
     {{if .Error}}
     <div class="bg-red-50 border border-red-200 text-red-700 rounded-lg p-3 mb-6 text-sm">{{.Error}}</div>
@@ -10,27 +10,27 @@
 
     {{if eq .Mode "choose"}}
     <div class="w-full max-w-md mx-auto bg-white rounded-lg shadow-sm border p-8">
-      <h2 class="text-2xl font-semibold mb-1">Sign in</h2>
-      <p class="text-sm text-gray-500 mb-6">Use the passkey you registered for this dashboard.</p>
+      <h2 class="text-2xl font-semibold mb-1">{{t "Sign in"}}</h2>
+      <p class="text-sm text-gray-500 mb-6">{{t "Use the passkey you registered for this dashboard."}}</p>
 
       <div id="passkey-error" class="hidden bg-red-50 border border-red-200 text-red-700 rounded-lg p-3 mb-4 text-sm"></div>
 
       <div id="pending-panel" class="hidden bg-amber-50 border border-amber-200 text-amber-800 rounded-lg p-4 mb-4 text-sm">
-        <p class="font-medium mb-1">Your account request is pending review.</p>
-        <p>You'll be able to sign in once an administrator approves it.</p>
+        <p class="font-medium mb-1">{{t "Your account request is pending review."}}</p>
+        <p>{{t "You will be able to sign in once an administrator approves it."}}</p>
       </div>
 
       <form id="passkey-form" class="space-y-4" onsubmit="return false">
         <div>
-          <label class="form-label">Email</label>
+          <label class="form-label">{{t "Email"}}</label>
           <input type="email" id="passkey-email" autocomplete="username webauthn"
             placeholder="you@company.com" class="form-input">
         </div>
-        <button type="submit" id="passkey-signin" class="btn btn-primary w-full">Sign in with passkey</button>
+        <button type="submit" id="passkey-signin" class="btn btn-primary w-full">{{t "Sign in with passkey"}}</button>
       </form>
 
       <p class="mt-6 text-center text-sm text-gray-500">
-        Need an account? <a href="/request-account" class="text-brand hover:underline">Request access</a>
+        {{t "Need an account?"}} <a href="/request-account" class="text-brand hover:underline">{{t "Request access"}}</a>
       </p>
     </div>
 
@@ -38,7 +38,7 @@
     <div class="w-full max-w-md mx-auto mt-8">
       <div class="flex items-center gap-3 mb-4">
         <div class="h-px bg-gray-200 flex-1"></div>
-        <span class="text-xs uppercase tracking-wide text-gray-400">Development only</span>
+        <span class="text-xs uppercase tracking-wide text-gray-400">{{t "Development only"}}</span>
         <div class="h-px bg-gray-200 flex-1"></div>
       </div>
       <div class="grid grid-cols-2 gap-4">
@@ -101,7 +101,7 @@
 
         form.addEventListener('submit', () => {
           if (conditionalAbort) { conditionalAbort.abort(); conditionalAbort = null; }
-          signIn().catch((e) => showError(e.message || 'Sign-in failed'));
+          signIn().catch((e) => showError(e.message || '{{t "Sign-in failed"}}'));
         });
       })();
     </script>

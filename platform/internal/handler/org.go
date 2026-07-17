@@ -17,6 +17,7 @@ import (
 	"github.com/google/uuid"
 
 	"github.com/hanishi/promovolve/platform/internal/auth"
+	"github.com/hanishi/promovolve/platform/internal/i18n"
 	"github.com/hanishi/promovolve/platform/internal/model"
 	"github.com/hanishi/promovolve/platform/internal/org"
 	"github.com/hanishi/promovolve/platform/internal/user"
@@ -86,9 +87,10 @@ func (h *Handler) SessionGuard(next http.Handler) http.Handler {
 				next.ServeHTTP(w, r)
 				return
 			}
+			glang := h.lang(r, actor)
 			h.renderGuardError(w, r, pageData{
-				Title:     "Read-only session",
-				Error:     "You're viewing this account as " + actor.Email + " — changes are disabled so every action stays attributable to the account's own members. Exit the view to act as yourself.",
+				Title:     i18n.T(glang, "Read-only session"),
+				Error:     i18n.T(glang, "You are viewing this account as %s — changes are disabled so every action stays attributable to the account members themselves. Exit the view to act as yourself.", actor.Email),
 				GuardExit: true,
 			})
 			return
@@ -112,22 +114,26 @@ func (h *Handler) SessionGuard(next http.Handler) http.Handler {
 			// assets stay reachable. Operators are org-less and view-as
 			// sessions (an operator investigating) never reach this branch.
 			if err == nil && o.Suspended && !suspensionExemptPath(r.URL.Path) {
+				gu, _ := h.userSvc.GetByID(r.Context(), claims.UserID)
+				glang := h.lang(r, gu)
 				reason := strings.TrimSpace(o.SuspendReason)
 				if reason == "" {
-					reason = "no reason was recorded"
+					reason = i18n.T(glang, "no reason was recorded")
 				}
 				h.renderGuardError(w, r, pageData{
-					Title:      "Account suspended",
-					Error:      "Your organization's account is suspended: " + reason + ". Serving and billing are paused. Contact the platform operator to resolve this.",
+					Title:      i18n.T(glang, "Account suspended"),
+					Error:      i18n.T(glang, "The account of your organization is suspended: %s. Serving and billing are paused. Contact the platform operator to resolve this.", reason),
 					LogoutOnly: true,
 				})
 				return
 			}
 
 			if moneyPages[r.URL.Path] && (err != nil || m.OrgRole != model.OrgRoleAdmin) {
+				gu, _ := h.userSvc.GetByID(r.Context(), claims.UserID)
+				glang := h.lang(r, gu)
 				h.renderGuardError(w, r, pageData{
-					Title: "Org admins only",
-					Error: "Billing pages — the wallet and earnings — are managed by your organization's admins. Ask one of them if you need something changed there.",
+					Title: i18n.T(glang, "Org admins only"),
+					Error: i18n.T(glang, "Billing pages — the wallet and earnings — are managed by the admins of your organization. Ask one of them if you need something changed there."),
 				})
 				return
 			}
@@ -161,7 +167,7 @@ func (h *Handler) renderGuardError(w http.ResponseWriter, r *http.Request, data 
 		http.Error(w, data.Title+": "+data.Error, http.StatusForbidden)
 		return
 	}
-	h.renderStatus(w, http.StatusForbidden, "guard-error.html", data)
+	h.renderStatus(w, r, http.StatusForbidden, "guard-error.html", data)
 }
 
 // clearDeadSessionCookie expires the token cookie when its users no longer
@@ -313,7 +319,7 @@ func (h *Handler) renderOrgMembers(w http.ResponseWriter, r *http.Request, errMs
 			data.SidePending = pending
 		}
 	}
-	h.render(w, "org/members.html", pageData{
+	h.render(w, r, "org/members.html", pageData{
 		Title:   "Team",
 		Nav:     "team",
 		User:    u,

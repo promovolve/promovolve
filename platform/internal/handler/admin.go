@@ -94,7 +94,7 @@ func (h *Handler) renderAdminRequests(w http.ResponseWriter, r *http.Request, er
 	if err != nil {
 		slog.Error("list org side requests failed", "error", err)
 	}
-	h.render(w, "admin/requests.html", pageData{
+	h.render(w, r, "admin/requests.html", pageData{
 		Title:                "Account Requests",
 		Nav:                  "admin-requests",
 		User:                 user,
@@ -182,7 +182,7 @@ func (h *Handler) renderAdminSiteRequests(w http.ResponseWriter, r *http.Request
 			RequestedAt: p.CreatedAt.In(user.Location()).Format("2006-01-02 15:04"),
 		})
 	}
-	h.render(w, "admin/sites.html", pageData{
+	h.render(w, r, "admin/sites.html", pageData{
 		Title:             "Site Requests",
 		Nav:               "admin-sites",
 		User:              user,
@@ -333,7 +333,7 @@ func (h *Handler) renderAdminUsers(w http.ResponseWriter, r *http.Request, errMs
 		}
 	}
 
-	h.render(w, "admin/users.html", pageData{
+	h.render(w, r, "admin/users.html", pageData{
 		Title:         "Users",
 		Nav:           "admin-users",
 		User:          user,
@@ -708,7 +708,7 @@ func (h *Handler) renderAdminSettings(w http.ResponseWriter, r *http.Request, er
 		}
 	}
 
-	h.render(w, "admin/settings.html", pageData{
+	h.render(w, r, "admin/settings.html", pageData{
 		Title:              "Platform Settings",
 		Nav:                "admin-settings",
 		User:               user,

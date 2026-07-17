@@ -258,7 +258,7 @@ func (h *Handler) renderPublisherSites(w http.ResponseWriter, r *http.Request, e
 		})
 	}
 
-	h.render(w, "publisher/sites.html", pageData{
+	h.render(w, r, "publisher/sites.html", pageData{
 		Title:                    "Sites",
 		Nav:                      "sites",
 		User:                     user,
@@ -548,7 +548,7 @@ func (h *Handler) PublisherStats(w http.ResponseWriter, r *http.Request) {
 		}
 	}
 
-	h.render(w, "publisher/stats.html", pageData{
+	h.render(w, r, "publisher/stats.html", pageData{
 		Title:  "Stats",
 		Nav:    "stats",
 		User:   user,
@@ -953,7 +953,7 @@ func (h *Handler) AdvertiserCampaigns(w http.ResponseWriter, r *http.Request) {
 	start, end, nav := buildListNav(r, len(campaigns), 10)
 	campaigns = campaigns[start:end]
 
-	h.render(w, "advertiser/campaigns.html", pageData{
+	h.render(w, r, "advertiser/campaigns.html", pageData{
 		Title:          "Campaigns",
 		Nav:            "campaigns",
 		User:           user,
@@ -1017,7 +1017,7 @@ func (h *Handler) AdvertiserAccount(w http.ResponseWriter, r *http.Request) {
 	if user.CanBilling() {
 		walletBalance, walletUnfunded = h.walletSummary(r.Context(), claims.AdvertiserID)
 	}
-	h.render(w, "advertiser/account.html", pageData{
+	h.render(w, r, "advertiser/account.html", pageData{
 		Title:          "Account",
 		Nav:            "account",
 		User:           user,
@@ -1898,7 +1898,7 @@ func (h *Handler) FloorObservations(w http.ResponseWriter, r *http.Request) {
 		HistoricalCategories: historicalCats,
 		TrafficShape:         h.fetchTrafficShape(siteID, claims),
 	}
-	h.render(w, "publisher/site-observations.html", pageData{
+	h.render(w, r, "publisher/site-observations.html", pageData{
 		Title:             "Floor Decisions · " + siteID,
 		Nav:               "sites",
 		User:              user,
@@ -2450,7 +2450,7 @@ func (h *Handler) AdvertiserCreatives(w http.ResponseWriter, r *http.Request) {
 	// cached HTML with the old thumbnail after Save Draft → redirect, and
 	// the auto-reload poll never fires because the DOM has no placeholder.
 	w.Header().Set("Cache-Control", "no-cache, no-store, must-revalidate")
-	h.render(w, "advertiser/creatives.html", pageData{
+	h.render(w, r, "advertiser/creatives.html", pageData{
 		Title:            "Creatives",
 		Nav:              "creatives",
 		User:             user,
@@ -2696,7 +2696,7 @@ func (h *Handler) AdvertiserStats(w http.ResponseWriter, r *http.Request) {
 	start, end, nav := buildListNav(r, len(campaigns), 8)
 	campaigns = campaigns[start:end]
 
-	h.render(w, "advertiser/stats.html", pageData{
+	h.render(w, r, "advertiser/stats.html", pageData{
 		Title:          "Stats",
 		Nav:            "stats",
 		User:           user,
@@ -3173,7 +3173,7 @@ func (h *Handler) CreativeEditor(w http.ResponseWriter, r *http.Request) {
 		landingUrl = detail.LandingUrl
 	}
 
-	h.render(w, "advertiser/creative-editor.html", pageData{
+	h.render(w, r, "advertiser/creative-editor.html", pageData{
 		Title:      "Creative Editor",
 		Nav:        "creatives",
 		User:       user,
@@ -3738,7 +3738,7 @@ func (h *Handler) CreativeDesign(w http.ResponseWriter, r *http.Request) {
 
 	w.Header().Set("Content-Type", "text/html; charset=utf-8")
 	w.Header().Set("Cache-Control", "no-cache, no-store, must-revalidate")
-	t := getPageStandalone("advertiser/creative-design.html")
+	t := getPageStandalone(h.lang(r, user), "advertiser/creative-design.html")
 	if err := t.ExecuteTemplate(w, "creative-design.html", data); err != nil {
 		slog.Error("creative-design render failed", "error", err)
 		http.Error(w, "render error: "+err.Error(), http.StatusInternalServerError)
@@ -3870,7 +3870,7 @@ func (h *Handler) SaveCreative(w http.ResponseWriter, r *http.Request) {
 // is carried through so subsequent Save Draft / Publish overwrite the
 // same row instead of minting new ULIDs.
 func (h *Handler) ResumeDraft(w http.ResponseWriter, r *http.Request) {
-	_, claims := h.sessionUser(r)
+	user, claims := h.sessionUser(r)
 	if claims == nil {
 		http.Redirect(w, r, "/login", http.StatusSeeOther)
 		return
@@ -3926,7 +3926,7 @@ func (h *Handler) ResumeDraft(w http.ResponseWriter, r *http.Request) {
 
 	w.Header().Set("Content-Type", "text/html; charset=utf-8")
 	w.Header().Set("Cache-Control", "no-cache, no-store, must-revalidate")
-	t := getPageStandalone("advertiser/creative-design.html")
+	t := getPageStandalone(h.lang(r, user), "advertiser/creative-design.html")
 	if err := t.ExecuteTemplate(w, "creative-design.html", data); err != nil {
 		slog.Error("ResumeDraft: render failed", "err", err)
 		http.Error(w, "render error: "+err.Error(), http.StatusInternalServerError)

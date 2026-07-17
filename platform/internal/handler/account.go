@@ -8,6 +8,7 @@ import (
 	"strings"
 	"time"
 
+	"github.com/hanishi/promovolve/platform/internal/i18n"
 	"github.com/hanishi/promovolve/platform/internal/model"
 )
 
@@ -71,8 +72,8 @@ func (h *Handler) renderPreferences(w http.ResponseWriter, r *http.Request, errM
 		}
 	}
 
-	h.render(w, "account-preferences.html", pageData{
-		Title:        "Preferences",
+	h.render(w, r, "account-preferences.html", pageData{
+		Title:        i18n.T(h.lang(r, user), "Preferences"),
 		Nav:          "preferences",
 		User:         user,
 		Error:        errMsg,
@@ -93,25 +94,36 @@ func (h *Handler) SavePreferences(w http.ResponseWriter, r *http.Request) {
 	}
 	r.ParseForm()
 
+	lang := h.lang(r, user)
 	displayName := strings.TrimSpace(r.FormValue("displayName"))
 	if len(displayName) > 80 {
-		h.renderPreferences(w, r, "display name is limited to 80 characters", false)
+		h.renderPreferences(w, r, i18n.T(lang, "display name is limited to 80 characters"), false)
 		return
 	}
 
 	tz := strings.TrimSpace(r.FormValue("timezone"))
 	if tz != "" {
 		if _, err := time.LoadLocation(tz); err != nil {
-			h.renderPreferences(w, r, "unknown timezone: "+tz, false)
+			h.renderPreferences(w, r, i18n.T(lang, "unknown timezone: %s", tz), false)
 			return
 		}
 	}
 
+	// Dashboard language: "" = auto (follow the browser). Anything else
+	// must be a language we actually have.
+	locale := r.FormValue("locale")
+	switch locale {
+	case "", i18n.LangEN, i18n.LangJA:
+	default:
+		locale = ""
+	}
+
 	user.DisplayName = displayName
 	user.Timezone = tz
+	user.Locale = locale
 	if err := h.userSvc.Update(r.Context(), user); err != nil {
 		slog.Error("save preferences failed", "user", user.ID, "error", err)
-		h.renderPreferences(w, r, "could not save preferences — try again", false)
+		h.renderPreferences(w, r, i18n.T(lang, "could not save preferences — try again"), false)
 		return
 	}
 
@@ -139,10 +151,11 @@ type recoverPayload struct {
 func (h *Handler) RecoverPage(w http.ResponseWriter, r *http.Request) {
 	token := r.PathValue("token")
 	if _, err := h.passkeySvc.Repo().UserIDForRecoveryToken(r.Context(), token); err != nil {
-		h.render(w, "recover.html", pageData{Title: "Account recovery", Error: "This recovery link is invalid, expired, or already used."})
+		lang := h.lang(r, nil)
+		h.render(w, r, "recover.html", pageData{Title: i18n.T(lang, "Account recovery"), Error: i18n.T(lang, "This recovery link is invalid, expired, or already used.")})
 		return
 	}
-	h.render(w, "recover.html", pageData{Title: "Account recovery", RecoveryToken: token})
+	h.render(w, r, "recover.html", pageData{Title: i18n.T(h.lang(r, nil), "Account recovery"), RecoveryToken: token})
 }
 
 type recoverBeginRequest struct {
@@ -152,24 +165,24 @@ type recoverBeginRequest struct {
 func (h *Handler) RecoverBegin(w http.ResponseWriter, r *http.Request) {
 	var req recoverBeginRequest
 	if err := decodeJSON(r, &req); err != nil {
-		writeJSONError(w, http.StatusBadRequest, "invalid request body")
+		h.jsonErrorT(w, r, http.StatusBadRequest, "invalid request body")
 		return
 	}
 	userID, err := h.passkeySvc.Repo().UserIDForRecoveryToken(r.Context(), req.Token)
 	if err != nil {
-		writeJSONError(w, http.StatusBadRequest, "recovery link is invalid, expired, or already used")
+		h.jsonErrorT(w, r, http.StatusBadRequest, "recovery link is invalid, expired, or already used")
 		return
 	}
 	user, err := h.userSvc.GetByID(r.Context(), userID)
 	if err != nil {
-		writeJSONError(w, http.StatusBadRequest, "recovery link is invalid, expired, or already used")
+		h.jsonErrorT(w, r, http.StatusBadRequest, "recovery link is invalid, expired, or already used")
 		return
 	}
 
 	creation, token, err := h.passkeySvc.BeginRegistration(r.Context(), user, recoverPayload{User: user, Token: req.Token})
 	if err != nil {
 		slog.Error("recover begin failed", "error", err)
-		writeJSONError(w, http.StatusInternalServerError, "could not start passkey registration")
+		h.jsonErrorT(w, r, http.StatusInternalServerError, "could not start passkey registration")
 		return
 	}
 	writeJSONResp(w, http.StatusOK, map[string]any{"sessionToken": token, "options": creation})
@@ -178,24 +191,24 @@ func (h *Handler) RecoverBegin(w http.ResponseWriter, r *http.Request) {
 func (h *Handler) RecoverFinish(w http.ResponseWriter, r *http.Request) {
 	env, err := decodeEnvelope(r)
 	if err != nil {
-		writeJSONError(w, http.StatusBadRequest, "invalid request body")
+		h.jsonErrorT(w, r, http.StatusBadRequest, "invalid request body")
 		return
 	}
 	session, payload, err := h.passkeySvc.TakeSession(env.SessionToken)
 	if err != nil {
-		writeJSONError(w, http.StatusBadRequest, "session expired — try again")
+		h.jsonErrorT(w, r, http.StatusBadRequest, "session expired — try again")
 		return
 	}
 	rp, ok := payload.(recoverPayload)
 	if !ok {
-		writeJSONError(w, http.StatusBadRequest, "invalid session")
+		h.jsonErrorT(w, r, http.StatusBadRequest, "invalid session")
 		return
 	}
 
 	cred, err := h.passkeySvc.FinishRegistration(rp.User, session, bytes.NewReader(env.Credential))
 	if err != nil {
 		slog.Warn("recover passkey verification failed", "error", err)
-		writeJSONError(w, http.StatusBadRequest, "passkey registration failed")
+		h.jsonErrorT(w, r, http.StatusBadRequest, "passkey registration failed")
 		return
 	}
 
@@ -205,21 +218,21 @@ func (h *Handler) RecoverFinish(w http.ResponseWriter, r *http.Request) {
 	repo := h.passkeySvc.Repo()
 	tx, err := repo.BeginTx(r.Context())
 	if err != nil {
-		writeJSONError(w, http.StatusInternalServerError, "could not complete recovery")
+		h.jsonErrorT(w, r, http.StatusInternalServerError, "could not complete recovery")
 		return
 	}
 	defer tx.Rollback(r.Context())
 	if err := repo.ConsumeRecoveryTokenTx(r.Context(), tx, rp.Token); err != nil {
-		writeJSONError(w, http.StatusBadRequest, "recovery link is invalid, expired, or already used")
+		h.jsonErrorT(w, r, http.StatusBadRequest, "recovery link is invalid, expired, or already used")
 		return
 	}
 	if err := repo.CreateCredentialTx(r.Context(), tx, rp.User.ID, "Recovery passkey", cred); err != nil {
 		slog.Error("recover credential insert failed", "error", err)
-		writeJSONError(w, http.StatusInternalServerError, "could not complete recovery")
+		h.jsonErrorT(w, r, http.StatusInternalServerError, "could not complete recovery")
 		return
 	}
 	if err := tx.Commit(r.Context()); err != nil {
-		writeJSONError(w, http.StatusInternalServerError, "could not complete recovery")
+		h.jsonErrorT(w, r, http.StatusInternalServerError, "could not complete recovery")
 		return
 	}
 	writeJSONResp(w, http.StatusOK, map[string]string{"redirect": "/login"})
@@ -250,7 +263,7 @@ func (h *Handler) AccountPasskeysPage(w http.ResponseWriter, r *http.Request) {
 		}
 		rows = append(rows, row)
 	}
-	h.render(w, "account-passkeys.html", pageData{
+	h.render(w, r, "account-passkeys.html", pageData{
 		Title:    "Your passkeys",
 		Nav:      "passkeys",
 		User:     user,
@@ -261,13 +274,13 @@ func (h *Handler) AccountPasskeysPage(w http.ResponseWriter, r *http.Request) {
 func (h *Handler) AddPasskeyBegin(w http.ResponseWriter, r *http.Request) {
 	user, _ := h.sessionUser(r)
 	if user == nil {
-		writeJSONError(w, http.StatusUnauthorized, "sign in first")
+		h.jsonErrorT(w, r, http.StatusUnauthorized, "sign in first")
 		return
 	}
 	creation, token, err := h.passkeySvc.BeginRegistration(r.Context(), user, addPasskeyPayload{User: user})
 	if err != nil {
 		slog.Error("add-passkey begin failed", "error", err)
-		writeJSONError(w, http.StatusInternalServerError, "could not start passkey registration")
+		h.jsonErrorT(w, r, http.StatusInternalServerError, "could not start passkey registration")
 		return
 	}
 	writeJSONResp(w, http.StatusOK, map[string]any{"sessionToken": token, "options": creation})
@@ -276,34 +289,34 @@ func (h *Handler) AddPasskeyBegin(w http.ResponseWriter, r *http.Request) {
 func (h *Handler) AddPasskeyFinish(w http.ResponseWriter, r *http.Request) {
 	user, _ := h.sessionUser(r)
 	if user == nil {
-		writeJSONError(w, http.StatusUnauthorized, "sign in first")
+		h.jsonErrorT(w, r, http.StatusUnauthorized, "sign in first")
 		return
 	}
 	env, err := decodeEnvelope(r)
 	if err != nil {
-		writeJSONError(w, http.StatusBadRequest, "invalid request body")
+		h.jsonErrorT(w, r, http.StatusBadRequest, "invalid request body")
 		return
 	}
 	session, payload, err := h.passkeySvc.TakeSession(env.SessionToken)
 	if err != nil {
-		writeJSONError(w, http.StatusBadRequest, "session expired — try again")
+		h.jsonErrorT(w, r, http.StatusBadRequest, "session expired — try again")
 		return
 	}
 	ap, ok := payload.(addPasskeyPayload)
 	if !ok || ap.User.ID != user.ID {
-		writeJSONError(w, http.StatusBadRequest, "invalid session")
+		h.jsonErrorT(w, r, http.StatusBadRequest, "invalid session")
 		return
 	}
 
 	cred, err := h.passkeySvc.FinishRegistration(user, session, bytes.NewReader(env.Credential))
 	if err != nil {
 		slog.Warn("add-passkey verification failed", "error", err)
-		writeJSONError(w, http.StatusBadRequest, "passkey registration failed")
+		h.jsonErrorT(w, r, http.StatusBadRequest, "passkey registration failed")
 		return
 	}
 	if err := h.passkeySvc.Repo().CreateCredential(r.Context(), user.ID, "Added passkey", cred); err != nil {
 		slog.Error("add-passkey insert failed", "error", err)
-		writeJSONError(w, http.StatusInternalServerError, "could not save the passkey")
+		h.jsonErrorT(w, r, http.StatusInternalServerError, "could not save the passkey")
 		return
 	}
 	writeJSONResp(w, http.StatusOK, map[string]string{"status": "ok"})

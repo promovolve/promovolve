@@ -1,6 +1,6 @@
 {{define "layout"}}
 <!DOCTYPE html>
-<html lang="en">
+<html lang="{{lang}}">
 <head>
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
@@ -55,9 +55,9 @@
     }
   </style>
   <div class="sticky top-0 z-50 bg-amber-400 text-gray-950 text-sm px-4 py-2 flex items-center justify-between gap-4">
-    <span>👁 Viewing as <strong>{{.User.Email}}</strong> — read-only admin session ({{.User.ViewAsBy}})</span>
+    <span>👁 {{t "Viewing as"}} <strong>{{.User.Email}}</strong> — {{t "read-only admin session"}} ({{.User.ViewAsBy}})</span>
     <form method="POST" action="/view-as/exit" data-viewas-allowed>
-      <button type="submit" class="font-semibold underline hover:no-underline">Exit view</button>
+      <button type="submit" class="font-semibold underline hover:no-underline">{{t "Exit view"}}</button>
     </form>
   </div>
   {{end}}
@@ -73,49 +73,49 @@
       <div class="mb-8">
         <h2 class="text-lg font-semibold">Promovolve</h2>
         <p class="text-xs text-gray-400 mt-1">
-          {{if eq .User.Role "publisher"}}Publisher{{else if eq .User.Role "advertiser"}}Advertiser{{else}}Admin{{end}} Dashboard
+          {{if eq .User.Role "publisher"}}{{t "Publisher Dashboard"}}{{else if eq .User.Role "advertiser"}}{{t "Advertiser Dashboard"}}{{else}}{{t "Admin Dashboard"}}{{end}}
         </p>
         {{if .User.HasBothSides}}
         {{/* Side switcher: the org holds both accounts; one login, pick a hat. */}}
         <div class="mt-3 grid grid-cols-2 gap-1 bg-gray-800 rounded-md p-1 text-xs">
           <form method="POST" action="/account/switch-side" data-viewas-allowed>
             <input type="hidden" name="side" value="advertiser">
-            <button type="submit" class="w-full px-2 py-1 rounded {{if eq .User.Role "advertiser"}}bg-brand text-gray-950 font-semibold{{else}}text-gray-300 hover:bg-gray-700{{end}}">Advertiser</button>
+            <button type="submit" class="w-full px-2 py-1 rounded {{if eq .User.Role "advertiser"}}bg-brand text-gray-950 font-semibold{{else}}text-gray-300 hover:bg-gray-700{{end}}">{{t "Advertiser"}}</button>
           </form>
           <form method="POST" action="/account/switch-side" data-viewas-allowed>
             <input type="hidden" name="side" value="publisher">
-            <button type="submit" class="w-full px-2 py-1 rounded {{if eq .User.Role "publisher"}}bg-brand text-gray-950 font-semibold{{else}}text-gray-300 hover:bg-gray-700{{end}}">Publisher</button>
+            <button type="submit" class="w-full px-2 py-1 rounded {{if eq .User.Role "publisher"}}bg-brand text-gray-950 font-semibold{{else}}text-gray-300 hover:bg-gray-700{{end}}">{{t "Publisher"}}</button>
           </form>
         </div>
         {{end}}
       </div>
       <nav class="flex-1 space-y-1">
         {{if eq .User.Role "publisher"}}
-        <a href="/publisher/approval" class="block px-3 py-2 rounded text-sm {{if eq .Nav "approval"}}bg-gray-700 text-white{{else}}text-gray-300 hover:bg-gray-800{{end}}">Approval Queue</a>
-        <a href="/publisher/trusted" class="block px-3 py-2 rounded text-sm {{if eq .Nav "trusted"}}bg-gray-700 text-white{{else}}text-gray-300 hover:bg-gray-800{{end}}">Trusted Advertisers</a>
-        <a href="/publisher/sites" class="block px-3 py-2 rounded text-sm {{if eq .Nav "sites"}}bg-gray-700 text-white{{else}}text-gray-300 hover:bg-gray-800{{end}}">Sites</a>
-        <a href="/publisher/stats" class="block px-3 py-2 rounded text-sm {{if eq .Nav "stats"}}bg-gray-700 text-white{{else}}text-gray-300 hover:bg-gray-800{{end}}">Stats</a>
+        <a href="/publisher/approval" class="block px-3 py-2 rounded text-sm {{if eq .Nav "approval"}}bg-gray-700 text-white{{else}}text-gray-300 hover:bg-gray-800{{end}}">{{t "Approval Queue"}}</a>
+        <a href="/publisher/trusted" class="block px-3 py-2 rounded text-sm {{if eq .Nav "trusted"}}bg-gray-700 text-white{{else}}text-gray-300 hover:bg-gray-800{{end}}">{{t "Trusted Advertisers"}}</a>
+        <a href="/publisher/sites" class="block px-3 py-2 rounded text-sm {{if eq .Nav "sites"}}bg-gray-700 text-white{{else}}text-gray-300 hover:bg-gray-800{{end}}">{{t "Sites"}}</a>
+        <a href="/publisher/stats" class="block px-3 py-2 rounded text-sm {{if eq .Nav "stats"}}bg-gray-700 text-white{{else}}text-gray-300 hover:bg-gray-800{{end}}">{{t "Stats"}}</a>
         {{if .User.CanBilling}}
-        <a href="/publisher/earnings" class="block px-3 py-2 rounded text-sm {{if eq .Nav "earnings"}}bg-gray-700 text-white{{else}}text-gray-300 hover:bg-gray-800{{end}}">Earnings</a>
+        <a href="/publisher/earnings" class="block px-3 py-2 rounded text-sm {{if eq .Nav "earnings"}}bg-gray-700 text-white{{else}}text-gray-300 hover:bg-gray-800{{end}}">{{t "Earnings"}}</a>
         {{end}}
-        <a href="/publisher/report" class="block px-3 py-2 rounded text-sm {{if eq .Nav "report"}}bg-gray-700 text-white{{else}}text-gray-300 hover:bg-gray-800{{end}}">Report</a>
-        <a href="/publisher/help" class="block px-3 py-2 rounded text-sm {{if eq .Nav "help"}}bg-gray-700 text-white{{else}}text-gray-300 hover:bg-gray-800{{end}}">Help</a>
+        <a href="/publisher/report" class="block px-3 py-2 rounded text-sm {{if eq .Nav "report"}}bg-gray-700 text-white{{else}}text-gray-300 hover:bg-gray-800{{end}}">{{t "Report"}}</a>
+        <a href="/publisher/help" class="block px-3 py-2 rounded text-sm {{if eq .Nav "help"}}bg-gray-700 text-white{{else}}text-gray-300 hover:bg-gray-800{{end}}">{{t "Help"}}</a>
         {{else if eq .User.Role "advertiser"}}
-        <a href="/advertiser/account" class="block px-3 py-2 rounded text-sm {{if eq .Nav "account"}}bg-gray-700 text-white{{else}}text-gray-300 hover:bg-gray-800{{end}}">Account</a>
-        <a href="/advertiser/campaigns" class="block px-3 py-2 rounded text-sm {{if eq .Nav "campaigns"}}bg-gray-700 text-white{{else}}text-gray-300 hover:bg-gray-800{{end}}">Campaigns</a>
-        <a href="/advertiser/creatives" class="block px-3 py-2 rounded text-sm {{if eq .Nav "creatives"}}bg-gray-700 text-white{{else}}text-gray-300 hover:bg-gray-800{{end}}">Creatives</a>
-        <a href="/advertiser/stats" class="block px-3 py-2 rounded text-sm {{if eq .Nav "stats"}}bg-gray-700 text-white{{else}}text-gray-300 hover:bg-gray-800{{end}}">Stats</a>
-        <a href="/advertiser/report" class="block px-3 py-2 rounded text-sm {{if eq .Nav "report"}}bg-gray-700 text-white{{else}}text-gray-300 hover:bg-gray-800{{end}}">Report</a>
+        <a href="/advertiser/account" class="block px-3 py-2 rounded text-sm {{if eq .Nav "account"}}bg-gray-700 text-white{{else}}text-gray-300 hover:bg-gray-800{{end}}">{{t "Account"}}</a>
+        <a href="/advertiser/campaigns" class="block px-3 py-2 rounded text-sm {{if eq .Nav "campaigns"}}bg-gray-700 text-white{{else}}text-gray-300 hover:bg-gray-800{{end}}">{{t "Campaigns"}}</a>
+        <a href="/advertiser/creatives" class="block px-3 py-2 rounded text-sm {{if eq .Nav "creatives"}}bg-gray-700 text-white{{else}}text-gray-300 hover:bg-gray-800{{end}}">{{t "Creatives"}}</a>
+        <a href="/advertiser/stats" class="block px-3 py-2 rounded text-sm {{if eq .Nav "stats"}}bg-gray-700 text-white{{else}}text-gray-300 hover:bg-gray-800{{end}}">{{t "Stats"}}</a>
+        <a href="/advertiser/report" class="block px-3 py-2 rounded text-sm {{if eq .Nav "report"}}bg-gray-700 text-white{{else}}text-gray-300 hover:bg-gray-800{{end}}">{{t "Report"}}</a>
         {{if .User.CanBilling}}
-        <a href="/advertiser/wallet" class="block px-3 py-2 rounded text-sm {{if eq .Nav "wallet"}}bg-gray-700 text-white{{else}}text-gray-300 hover:bg-gray-800{{end}}">Wallet</a>
+        <a href="/advertiser/wallet" class="block px-3 py-2 rounded text-sm {{if eq .Nav "wallet"}}bg-gray-700 text-white{{else}}text-gray-300 hover:bg-gray-800{{end}}">{{t "Wallet"}}</a>
         {{end}}
-        <a href="/advertiser/help" class="block px-3 py-2 rounded text-sm {{if eq .Nav "help"}}bg-gray-700 text-white{{else}}text-gray-300 hover:bg-gray-800{{end}}">Help</a>
+        <a href="/advertiser/help" class="block px-3 py-2 rounded text-sm {{if eq .Nav "help"}}bg-gray-700 text-white{{else}}text-gray-300 hover:bg-gray-800{{end}}">{{t "Help"}}</a>
         {{else if eq .User.Role "admin"}}
-        <a href="/admin/requests" class="block px-3 py-2 rounded text-sm {{if eq .Nav "admin-requests"}}bg-gray-700 text-white{{else}}text-gray-300 hover:bg-gray-800{{end}}">Requests</a>
-        <a href="/admin/sites" class="block px-3 py-2 rounded text-sm {{if eq .Nav "admin-sites"}}bg-gray-700 text-white{{else}}text-gray-300 hover:bg-gray-800{{end}}">Site Requests</a>
-        <a href="/admin/users" class="block px-3 py-2 rounded text-sm {{if eq .Nav "admin-users"}}bg-gray-700 text-white{{else}}text-gray-300 hover:bg-gray-800{{end}}">Users</a>
-        <a href="/admin/settings" class="block px-3 py-2 rounded text-sm {{if eq .Nav "admin-settings"}}bg-gray-700 text-white{{else}}text-gray-300 hover:bg-gray-800{{end}}">Settings</a>
-        <a href="/admin/billing" class="block px-3 py-2 rounded text-sm {{if eq .Nav "admin-billing"}}bg-gray-700 text-white{{else}}text-gray-300 hover:bg-gray-800{{end}}">Billing</a>
+        <a href="/admin/requests" class="block px-3 py-2 rounded text-sm {{if eq .Nav "admin-requests"}}bg-gray-700 text-white{{else}}text-gray-300 hover:bg-gray-800{{end}}">{{t "Requests"}}</a>
+        <a href="/admin/sites" class="block px-3 py-2 rounded text-sm {{if eq .Nav "admin-sites"}}bg-gray-700 text-white{{else}}text-gray-300 hover:bg-gray-800{{end}}">{{t "Site Requests"}}</a>
+        <a href="/admin/users" class="block px-3 py-2 rounded text-sm {{if eq .Nav "admin-users"}}bg-gray-700 text-white{{else}}text-gray-300 hover:bg-gray-800{{end}}">{{t "Users"}}</a>
+        <a href="/admin/settings" class="block px-3 py-2 rounded text-sm {{if eq .Nav "admin-settings"}}bg-gray-700 text-white{{else}}text-gray-300 hover:bg-gray-800{{end}}">{{t "Settings"}}</a>
+        <a href="/admin/billing" class="block px-3 py-2 rounded text-sm {{if eq .Nav "admin-billing"}}bg-gray-700 text-white{{else}}text-gray-300 hover:bg-gray-800{{end}}">{{t "Billing"}}</a>
         {{end}}
       </nav>
       {{/* The account footer (email, theme, Team/Preferences/Passkeys/Sign
@@ -130,7 +130,7 @@
              space — the tooltip carries the current mode. */}}
         <div class="flex items-center justify-between gap-2 mb-2">
           <p class="text-xs text-gray-400 truncate">{{.User.Email}}</p>
-          <button type="button" id="theme-cycle" title="Theme"
+          <button type="button" id="theme-cycle" title="{{t "Theme"}}"
                   class="shrink-0 text-base leading-none text-gray-400 hover:text-white">
             <span data-icon aria-hidden="true">◐</span>
           </button>
@@ -139,11 +139,11 @@
              the next line WHOLE, never breaking mid-phrase. */}}
         <div class="flex flex-wrap items-center gap-x-3 gap-y-1">
           {{if .User.Org}}
-          <a href="/org/members" class="text-sm whitespace-nowrap {{if eq .Nav "team"}}text-white{{else}}text-gray-400 hover:text-white{{end}}">Team</a>
+          <a href="/org/members" class="text-sm whitespace-nowrap {{if eq .Nav "team"}}text-white{{else}}text-gray-400 hover:text-white{{end}}">{{t "Team"}}</a>
           {{end}}
-          <a href="/account/preferences" class="text-sm whitespace-nowrap {{if eq .Nav "preferences"}}text-white{{else}}text-gray-400 hover:text-white{{end}}">Preferences</a>
-          <a href="/account/passkeys" class="text-sm whitespace-nowrap {{if eq .Nav "passkeys"}}text-white{{else}}text-gray-400 hover:text-white{{end}}">Passkeys</a>
-          <a href="/logout" class="text-sm whitespace-nowrap text-gray-400 hover:text-white">Sign out</a>
+          <a href="/account/preferences" class="text-sm whitespace-nowrap {{if eq .Nav "preferences"}}text-white{{else}}text-gray-400 hover:text-white{{end}}">{{t "Preferences"}}</a>
+          <a href="/account/passkeys" class="text-sm whitespace-nowrap {{if eq .Nav "passkeys"}}text-white{{else}}text-gray-400 hover:text-white{{end}}">{{t "Passkeys"}}</a>
+          <a href="/logout" class="text-sm whitespace-nowrap text-gray-400 hover:text-white">{{t "Sign out"}}</a>
         </div>
       </div>
       {{end}}
@@ -162,6 +162,11 @@
     (function () {
       var KEY = 'promovolve.dashboard.theme';
       var ICON = { auto: '◐', light: '☀', dark: '☾' };
+      var TITLE = {
+        auto: '{{t "Theme: auto (follows your OS) — click to cycle"}}',
+        light: '{{t "Theme: light — click to cycle"}}',
+        dark: '{{t "Theme: dark — click to cycle"}}'
+      };
       var NEXT = { auto: 'light', light: 'dark', dark: 'auto' };
       var mq = matchMedia('(prefers-color-scheme: dark)');
       function mode() { try { return localStorage.getItem(KEY) || 'auto'; } catch (e) { return 'auto'; } }
@@ -171,7 +176,7 @@
         var b = document.getElementById('theme-cycle');
         if (b) {
           b.querySelector('[data-icon]').textContent = ICON[m];
-          b.title = 'Theme: ' + m + (m === 'auto' ? ' (follows your OS)' : '') + ' — click to cycle';
+          b.title = TITLE[m];
         }
       }
       var btn = document.getElementById('theme-cycle');
@@ -197,7 +202,7 @@
   <code x-ref="val" class="flex-1 min-w-0 bg-white border border-gray-200 rounded-md px-3 py-2 font-mono text-xs break-all">{{.}}</code>
   <button type="button" class="btn btn-secondary btn-sm shrink-0"
     @click.stop="navigator.clipboard.writeText($refs.val.textContent.trim()).then(() => { copied = true; setTimeout(() => copied = false, 1500) })"
-    x-text="copied ? 'Copied ✓' : 'Copy'">Copy</button>
+    x-text="copied ? '{{t "Copied ✓"}}' : '{{t "Copy"}}'">{{t "Copy"}}</button>
 </div>
 {{end}}
 
@@ -207,12 +212,12 @@
 {{define "list-sort"}}
 <div class="flex items-center justify-end mb-2">
   <form method="GET" class="flex items-center gap-2">
-    <label class="text-xs text-gray-500">Sort:</label>
+    <label class="text-xs text-gray-500">{{t "Sort:"}}</label>
     <select name="sort" onchange="this.form.submit()" class="px-2 py-1 border rounded text-sm bg-white">
-      <option value="newest" {{if or (not .ListNav.Sort) (eq .ListNav.Sort "newest")}}selected{{end}}>Newest first</option>
-      <option value="name" {{if eq .ListNav.Sort "name"}}selected{{end}}>Name A&ndash;Z</option>
-      <option value="spend" {{if eq .ListNav.Sort "spend"}}selected{{end}}>Spend today</option>
-      <option value="impressions" {{if eq .ListNav.Sort "impressions"}}selected{{end}}>Impressions</option>
+      <option value="newest" {{if or (not .ListNav.Sort) (eq .ListNav.Sort "newest")}}selected{{end}}>{{t "Newest first"}}</option>
+      <option value="name" {{if eq .ListNav.Sort "name"}}selected{{end}}>{{t "Name A–Z"}}</option>
+      <option value="spend" {{if eq .ListNav.Sort "spend"}}selected{{end}}>{{t "Spend today"}}</option>
+      <option value="impressions" {{if eq .ListNav.Sort "impressions"}}selected{{end}}>{{t "Impressions"}}</option>
     </select>
   </form>
 </div>
@@ -222,11 +227,11 @@
      pagination and bookmarks work per tab; .Tab picks the active one. */}}
 {{define "billing-tabs"}}
 <div class="flex items-center gap-1 border-b mt-6">
-  <a href="/admin/billing" class="px-4 py-2 text-sm rounded-t {{if eq .Tab "overview"}}border border-b-0 bg-white font-medium{{else}}text-gray-500 hover:text-gray-900{{end}}">Overview</a>
-  <a href="/admin/billing/topups" class="px-4 py-2 text-sm rounded-t {{if eq .Tab "topups"}}border border-b-0 bg-white font-medium{{else}}text-gray-500 hover:text-gray-900{{end}}">Top-ups</a>
-  <a href="/admin/billing/payouts" class="px-4 py-2 text-sm rounded-t {{if eq .Tab "payouts"}}border border-b-0 bg-white font-medium{{else}}text-gray-500 hover:text-gray-900{{end}}">Payouts</a>
-  <a href="/admin/billing/journal" class="px-4 py-2 text-sm rounded-t {{if eq .Tab "journal"}}border border-b-0 bg-white font-medium{{else}}text-gray-500 hover:text-gray-900{{end}}">Journal</a>
-  <a href="/admin/billing/accounts" class="px-4 py-2 text-sm rounded-t {{if eq .Tab "accounts"}}border border-b-0 bg-white font-medium{{else}}text-gray-500 hover:text-gray-900{{end}}">Accounts</a>
+  <a href="/admin/billing" class="px-4 py-2 text-sm rounded-t {{if eq .Tab "overview"}}border border-b-0 bg-white font-medium{{else}}text-gray-500 hover:text-gray-900{{end}}">{{t "Overview"}}</a>
+  <a href="/admin/billing/topups" class="px-4 py-2 text-sm rounded-t {{if eq .Tab "topups"}}border border-b-0 bg-white font-medium{{else}}text-gray-500 hover:text-gray-900{{end}}">{{t "Top-ups"}}</a>
+  <a href="/admin/billing/payouts" class="px-4 py-2 text-sm rounded-t {{if eq .Tab "payouts"}}border border-b-0 bg-white font-medium{{else}}text-gray-500 hover:text-gray-900{{end}}">{{t "Payouts"}}</a>
+  <a href="/admin/billing/journal" class="px-4 py-2 text-sm rounded-t {{if eq .Tab "journal"}}border border-b-0 bg-white font-medium{{else}}text-gray-500 hover:text-gray-900{{end}}">{{t "Journal"}}</a>
+  <a href="/admin/billing/accounts" class="px-4 py-2 text-sm rounded-t {{if eq .Tab "accounts"}}border border-b-0 bg-white font-medium{{else}}text-gray-500 hover:text-gray-900{{end}}">{{t "Accounts"}}</a>
 </div>
 {{end}}
 
@@ -234,11 +239,11 @@
 {{define "list-pagination"}}
 {{if and .ListNav (gt .ListNav.TotalPages 1)}}
 <div class="flex items-center justify-between mt-4 text-sm text-gray-500">
-  <span>{{.ListNav.From}}&ndash;{{.ListNav.To}} of {{.ListNav.Total}}</span>
+  <span>{{t "%d–%d of %d" .ListNav.From .ListNav.To .ListNav.Total}}</span>
   <div class="flex items-center gap-3">
-    {{if .ListNav.PrevURL}}<a href="{{.ListNav.PrevURL}}" class="text-brand hover:underline">&larr; Prev</a>{{else}}<span class="text-gray-300">&larr; Prev</span>{{end}}
-    <span>Page {{.ListNav.Page}} / {{.ListNav.TotalPages}}</span>
-    {{if .ListNav.NextURL}}<a href="{{.ListNav.NextURL}}" class="text-brand hover:underline">Next &rarr;</a>{{else}}<span class="text-gray-300">Next &rarr;</span>{{end}}
+    {{if .ListNav.PrevURL}}<a href="{{.ListNav.PrevURL}}" class="text-brand hover:underline">&larr; {{t "Prev"}}</a>{{else}}<span class="text-gray-300">&larr; {{t "Prev"}}</span>{{end}}
+    <span>{{t "Page %d / %d" .ListNav.Page .ListNav.TotalPages}}</span>
+    {{if .ListNav.NextURL}}<a href="{{.ListNav.NextURL}}" class="text-brand hover:underline">{{t "Next"}} &rarr;</a>{{else}}<span class="text-gray-300">{{t "Next"}} &rarr;</span>{{end}}
   </div>
 </div>
 {{end}}
@@ -260,35 +265,35 @@
     <input type="hidden" name="from" :value="from">
     <input type="hidden" name="to" :value="to">
     <div class="relative">
-      <label class="form-label">Range (UTC)</label>
+      <label class="form-label">{{t "Range (UTC)"}}</label>
       <button type="button" @click="toggle()" class="form-input inline-flex items-center gap-2 whitespace-nowrap cursor-pointer bg-white hover:bg-gray-50" style="width:auto">
         <svg class="w-4 h-4 text-gray-500" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24"><rect x="3" y="5" width="18" height="16" rx="2"/><path d="M8 3v4M16 3v4M3 11h18"/></svg>
         <span x-text="from + ' → ' + to">{{.From}} → {{.To}}</span>
       </button>
       <div x-show="open" x-cloak @click.outside="open=false" class="absolute z-50 mt-1 bg-white border border-gray-200 rounded-lg shadow-lg p-3 w-72">
         <div class="flex items-center justify-between mb-2">
-          <button type="button" @click="nav(-1)" aria-label="Previous month" class="w-7 h-7 rounded-md hover:bg-gray-100 text-gray-600">&lsaquo;</button>
+          <button type="button" @click="nav(-1)" aria-label="{{t "Previous month"}}" class="w-7 h-7 rounded-md hover:bg-gray-100 text-gray-600">&lsaquo;</button>
           <span class="text-sm font-medium" x-text="monthLabel()"></span>
-          <button type="button" @click="nav(1)" aria-label="Next month" class="w-7 h-7 rounded-md hover:bg-gray-100 text-gray-600">&rsaquo;</button>
+          <button type="button" @click="nav(1)" aria-label="{{t "Next month"}}" class="w-7 h-7 rounded-md hover:bg-gray-100 text-gray-600">&rsaquo;</button>
         </div>
         <div class="grid grid-cols-7 text-center text-xs text-gray-400 mb-1">
-          <span>Su</span><span>Mo</span><span>Tu</span><span>We</span><span>Th</span><span>Fr</span><span>Sa</span>
+          <span>{{t "Su"}}</span><span>{{t "Mo"}}</span><span>{{t "Tu"}}</span><span>{{t "We"}}</span><span>{{t "Th"}}</span><span>{{t "Fr"}}</span><span>{{t "Sa"}}</span>
         </div>
         <div class="grid grid-cols-7 gap-y-0.5 text-center text-sm">
           <template x-for="d in grid()" :key="d.k">
             <button type="button" x-text="d.n" :disabled="!d.iso || d.dis" @click="pick(d.iso)" :class="cls(d)"></button>
           </template>
         </div>
-        <p class="text-xs text-gray-400 mt-2" x-text="sel === 'from' ? 'Pick a start day' : 'Pick an end day'"></p>
+        <p class="text-xs text-gray-400 mt-2" x-text="sel === 'from' ? '{{t "Pick a start day"}}' : '{{t "Pick an end day"}}'"></p>
       </div>
     </div>
-    <button type="submit" class="btn btn-primary">Apply</button>
+    <button type="submit" class="btn btn-primary">{{t "Apply"}}</button>
     <div class="flex items-center gap-2 ml-auto">
       {{range .Presets}}
       <a href="{{.URL}}" class="btn btn-sm {{if eq $.Preset .Key}}btn-primary{{else}}btn-secondary{{end}}">{{.Label}}</a>
       {{end}}
       {{if .CSVURL}}
-      <a href="{{.CSVURL}}" class="btn btn-sm btn-secondary">Download CSV</a>
+      <a href="{{.CSVURL}}" class="btn btn-sm btn-secondary">{{t "Download CSV"}}</a>
       {{end}}
     </div>
   </form>
@@ -310,7 +315,7 @@ function reportRangeCal(from, to) {
     },
     monthLabel() {
       return new Date(Date.UTC(this.vy, this.vm, 1))
-        .toLocaleDateString('en', { month: 'long', year: 'numeric', timeZone: 'UTC' });
+        .toLocaleDateString(document.documentElement.lang || 'en', { month: 'long', year: 'numeric', timeZone: 'UTC' });
     },
     grid() {
       const lead = new Date(Date.UTC(this.vy, this.vm, 1)).getUTCDay();

@@ -86,7 +86,7 @@ func (h *Handler) HelpPage(side model.Role) http.HandlerFunc {
 		}
 		helpOnce.Do(loadHelpPages)
 		page := helpPages[string(side)]
-		h.render(w, "help.html", pageData{
+		h.render(w, r, "help.html", pageData{
 			Title:    "Help",
 			Nav:      "help",
 			User:     user,

@@ -9,13 +9,13 @@
       {{/* Suspension notice: there is nowhere to "go back" to — the whole
            dashboard is gated. Log out is the only exit. Plain anchor: the
            logout route is GET (matches the layout's Sign out link). */}}
-      <a href="/logout" class="btn btn-secondary">Log out</a>
+      <a href="/logout" class="btn btn-secondary">{{t "Log out"}}</a>
       {{else}}
-      <a href="javascript:history.back()" class="btn btn-secondary">Go back</a>
+      <a href="javascript:history.back()" class="btn btn-secondary">{{t "Go back"}}</a>
       {{end}}
       {{if .GuardExit}}
       <form method="POST" action="/view-as/exit" data-viewas-allowed>
-        <button type="submit" class="btn btn-primary">Exit view</button>
+        <button type="submit" class="btn btn-primary">{{t "Exit view"}}</button>
       </form>
       {{end}}
     </div>

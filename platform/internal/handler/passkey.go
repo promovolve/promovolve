@@ -67,7 +67,7 @@ func (h *Handler) PasskeyLoginBegin(w http.ResponseWriter, r *http.Request) {
 	assertion, token, err := h.passkeySvc.BeginLogin()
 	if err != nil {
 		slog.Error("passkey login begin failed", "error", err)
-		writeJSONError(w, http.StatusInternalServerError, "could not start sign-in")
+		h.jsonErrorT(w, r, http.StatusInternalServerError, "could not start sign-in")
 		return
 	}
 	writeJSONResp(w, http.StatusOK, map[string]any{"sessionToken": token, "options": assertion})
@@ -76,14 +76,14 @@ func (h *Handler) PasskeyLoginBegin(w http.ResponseWriter, r *http.Request) {
 func (h *Handler) PasskeyLoginFinish(w http.ResponseWriter, r *http.Request) {
 	env, err := decodeEnvelope(r)
 	if err != nil {
-		writeJSONError(w, http.StatusBadRequest, "invalid request body")
+		h.jsonErrorT(w, r, http.StatusBadRequest, "invalid request body")
 		return
 	}
 
 	user, err := h.passkeySvc.FinishLogin(r.Context(), env.SessionToken, bytes.NewReader(env.Credential))
 	if err != nil {
 		slog.Warn("passkey login failed", "error", err)
-		writeJSONError(w, http.StatusUnauthorized, "sign-in failed")
+		h.jsonErrorT(w, r, http.StatusUnauthorized, "sign-in failed")
 		return
 	}
 
@@ -96,13 +96,13 @@ func (h *Handler) PasskeyLoginFinish(w http.ResponseWriter, r *http.Request) {
 	default:
 		// Rejected (or unknown) — indistinguishable from a failed assertion
 		// on purpose.
-		writeJSONError(w, http.StatusUnauthorized, "sign-in failed")
+		h.jsonErrorT(w, r, http.StatusUnauthorized, "sign-in failed")
 		return
 	}
 
 	token, redirect, err := h.issueSessionFor(r.Context(), user)
 	if err != nil {
-		writeJSONError(w, http.StatusInternalServerError, "failed to issue token")
+		h.jsonErrorT(w, r, http.StatusInternalServerError, "failed to issue token")
 		return
 	}
 	h.setSessionCookie(w, token)
@@ -135,7 +135,7 @@ type requestPayload struct {
 }
 
 func (h *Handler) RequestAccountPage(w http.ResponseWriter, r *http.Request) {
-	h.render(w, "request-account.html", pageData{Title: "Request access"})
+	h.render(w, r, "request-account.html", pageData{Title: "Request access"})
 }
 
 type requestAccountRequest struct {
@@ -150,25 +150,25 @@ type requestAccountRequest struct {
 func (h *Handler) RequestAccountBegin(w http.ResponseWriter, r *http.Request) {
 	var req requestAccountRequest
 	if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
-		writeJSONError(w, http.StatusBadRequest, "invalid request body")
+		h.jsonErrorT(w, r, http.StatusBadRequest, "invalid request body")
 		return
 	}
 
 	role := model.Role(req.Role)
 	if role != model.RoleAdvertiser && role != model.RolePublisher {
-		writeJSONError(w, http.StatusBadRequest, "choose publisher or advertiser")
+		h.jsonErrorT(w, r, http.StatusBadRequest, "choose publisher or advertiser")
 		return
 	}
 	email := strings.TrimSpace(strings.ToLower(req.Email))
 	if _, err := mail.ParseAddress(email); err != nil {
-		writeJSONError(w, http.StatusBadRequest, "a valid email address is required")
+		h.jsonErrorT(w, r, http.StatusBadRequest, "a valid email address is required")
 		return
 	}
 	company := strings.TrimSpace(req.CompanyName)
 	contact := strings.TrimSpace(req.ContactName)
 	website := strings.TrimSpace(req.WebsiteURL)
 	if company == "" || contact == "" || website == "" {
-		writeJSONError(w, http.StatusBadRequest, "company name, website, and contact name are required")
+		h.jsonErrorT(w, r, http.StatusBadRequest, "company name, website, and contact name are required")
 		return
 	}
 
@@ -177,18 +177,18 @@ func (h *Handler) RequestAccountBegin(w http.ResponseWriter, r *http.Request) {
 	// the operator never sees duplicate requests for one company.
 	domain := org.DomainOf(email)
 	if org.IsFreemailDomain(domain) {
-		writeJSONError(w, http.StatusBadRequest, "please use your company email address — accounts can't be created with free email providers")
+		h.jsonErrorT(w, r, http.StatusBadRequest, "please use your company email address — accounts can't be created with free email providers")
 		return
 	}
 	if _, err := h.orgRepo.GetByDomain(r.Context(), domain); err == nil {
-		writeJSONError(w, http.StatusConflict, "this email domain is already registered with an organization — ask your organization's admin for an invite")
+		h.jsonErrorT(w, r, http.StatusConflict, "this email domain is already registered with an organization — ask your organization's admin for an invite")
 		return
 	}
 
 	// Pre-check the email before the passkey ceremony so the applicant isn't
 	// left with a dangling passkey when the insert would fail anyway.
 	if _, err := h.userSvc.GetByEmail(r.Context(), email); err == nil {
-		writeJSONError(w, http.StatusConflict, "this email is already registered or has a pending request")
+		h.jsonErrorT(w, r, http.StatusConflict, "this email is already registered or has a pending request")
 		return
 	}
 
@@ -208,7 +208,7 @@ func (h *Handler) RequestAccountBegin(w http.ResponseWriter, r *http.Request) {
 	creation, token, err := h.passkeySvc.BeginRegistration(r.Context(), pending, requestPayload{User: pending})
 	if err != nil {
 		slog.Error("request-account begin failed", "error", err)
-		writeJSONError(w, http.StatusInternalServerError, "could not start passkey registration")
+		h.jsonErrorT(w, r, http.StatusInternalServerError, "could not start passkey registration")
 		return
 	}
 	writeJSONResp(w, http.StatusOK, map[string]any{"sessionToken": token, "options": creation})
@@ -217,24 +217,24 @@ func (h *Handler) RequestAccountBegin(w http.ResponseWriter, r *http.Request) {
 func (h *Handler) RequestAccountFinish(w http.ResponseWriter, r *http.Request) {
 	env, err := decodeEnvelope(r)
 	if err != nil {
-		writeJSONError(w, http.StatusBadRequest, "invalid request body")
+		h.jsonErrorT(w, r, http.StatusBadRequest, "invalid request body")
 		return
 	}
 	session, payload, err := h.passkeySvc.TakeSession(env.SessionToken)
 	if err != nil {
-		writeJSONError(w, http.StatusBadRequest, "session expired — try again")
+		h.jsonErrorT(w, r, http.StatusBadRequest, "session expired — try again")
 		return
 	}
 	rp, ok := payload.(requestPayload)
 	if !ok {
-		writeJSONError(w, http.StatusBadRequest, "invalid session")
+		h.jsonErrorT(w, r, http.StatusBadRequest, "invalid session")
 		return
 	}
 
 	cred, err := h.passkeySvc.FinishRegistration(rp.User, session, bytes.NewReader(env.Credential))
 	if err != nil {
 		slog.Warn("request-account passkey verification failed", "error", err)
-		writeJSONError(w, http.StatusBadRequest, "passkey registration failed")
+		h.jsonErrorT(w, r, http.StatusBadRequest, "passkey registration failed")
 		return
 	}
 
@@ -243,11 +243,11 @@ func (h *Handler) RequestAccountFinish(w http.ResponseWriter, r *http.Request) {
 	})
 	if err != nil {
 		if errors.Is(err, user.ErrDuplicateEmail) {
-			writeJSONError(w, http.StatusConflict, "this email is already registered or has a pending request")
+			h.jsonErrorT(w, r, http.StatusConflict, "this email is already registered or has a pending request")
 			return
 		}
 		slog.Error("request-account create failed", "error", err)
-		writeJSONError(w, http.StatusInternalServerError, "could not submit your request")
+		h.jsonErrorT(w, r, http.StatusInternalServerError, "could not submit your request")
 		return
 	}
 	writeJSONResp(w, http.StatusOK, map[string]string{"status": "pending"})

@@ -5,6 +5,7 @@ package handler
 // template/data mismatches fail in CI instead of at first click.
 
 import (
+	"github.com/hanishi/promovolve/platform/internal/i18n"
 	"io"
 	"testing"
 
@@ -67,7 +68,7 @@ func TestSitesAndCreativesTemplatesRender(t *testing.T) {
 	}
 
 	for _, c := range cases {
-		if err := getPage(c.name).ExecuteTemplate(io.Discard, "layout", c.data); err != nil {
+		if err := getPage(i18n.LangEN, c.name).ExecuteTemplate(io.Discard, "layout", c.data); err != nil {
 			t.Errorf("%s failed to render: %v", c.name, err)
 		}
 	}

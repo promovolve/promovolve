@@ -1360,7 +1360,15 @@ export class ExpandableMagazineBanner extends HTMLElement {
     let dragStartX: number | null = null;
     let armX = 0, armY = 0;
     let armed = false; // pointerdown was a peel candidate, awaiting slop
+    // Swipe/drag turns hold off while a dog-ear tease is mid-tween (the
+    // one-per-open demonstration right after the banner is clicked, or a
+    // hover tease): both the tease and the interactive peel drive the
+    // sheet's clip-path, and a grab mid-tease tears the corner visual.
+    // Taps still fall through (controls stay live); only page-turn
+    // gestures wait the ~1.2s out.
+    const teasing = (): boolean => this._dogEars.some((de) => de.isTeasing());
     overlay.addEventListener("pointerdown", (e) => {
+      if (teasing()) { dragStartX = null; armed = false; return; }
       dragStartX = e.clientX;
       armX = e.clientX;
       armY = e.clientY;
@@ -1400,6 +1408,9 @@ export class ExpandableMagazineBanner extends HTMLElement {
       if (dragStartX === null) return;
       const diff = dragStartX - e.clientX;
       dragStartX = null;
+      // A swipe that began just before the tease started still lands
+      // here — drop it rather than turning the page under the tween.
+      if (teasing()) return;
       if (Math.abs(diff) > 50) this.swipeNavigate(diff > 0);
     };
     overlay.addEventListener("pointerup", endPointer);
@@ -2106,7 +2117,12 @@ export class ExpandableMagazineBanner extends HTMLElement {
       // to one per magazine-open (flapping on every swipe was too much).
       if (touchTease && isTop && !folded && !de.teasePlayed) {
         de.teasePlayed = true;
-        window.setTimeout(() => de.peelTease(), 350);
+        // Fire-time guard: if the reader is already mid-drag when the
+        // 350ms delay elapses, the invitation is moot (they are already
+        // turning pages) — and playing it would fight the drag for the
+        // sheet clip. Skipping does not refund the per-open budget:
+        // an engaged reader needs no tease.
+        window.setTimeout(() => { if (!this._peel) de.peelTease(); }, 350);
       }
     }
   }
@@ -2167,6 +2183,11 @@ interface DogEarHandle {
     * unified reader, where every sheet occupies the same box. */
   peelTease: () => void;
   teasePlayed: boolean;
+  /** True while a tease tween is running — the open-tease on the first
+    * page (and hover teases) animate the sheet's clip, and a swipe or
+    * drag starting mid-tease would fight it for the same geometry.
+    * Gestures wait it out (see the overlay pointer handlers). */
+  isTeasing: () => boolean;
 }
 
 // ─── Reader-chrome contrast + locale helpers ──────────────────────
@@ -2663,7 +2684,7 @@ function buildDogEar(
     }));
   });
 
-  return { wrap, pageIndex, applyFolded, applyUnfolded, peelTease, teasePlayed: false };
+  return { wrap, pageIndex, applyFolded, applyUnfolded, peelTease, teasePlayed: false, isTeasing: () => peeling };
 }
 
 // ─── Brand logo overlay ────────────────────────────────────────────

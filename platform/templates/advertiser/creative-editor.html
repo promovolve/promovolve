@@ -679,8 +679,13 @@ function creativeEditor() {
       (Array.isArray(data.palette) ? data.palette : []).forEach(add);
       const uniq = [...new Set(cand)].slice(0, 6);
       if (uniq.length === 0) return;  // nothing extractable — leave existing kit
-      const names = ['{{t "Background"}}', '{{t "Text"}}', '{{t "Accent"}}', '{{t "Brand"}}', '{{t "Color 5"}}', '{{t "Color 6"}}'];
-      this.brandKitColors = uniq.map((v, i) => ({ name: names[i] || '{{t "Color %d"}}'.replace('%d', i + 1), value: v }));
+      {{/* These names are ROLE KEYS, not labels: the designer resolves
+           colours by name (kitColor(kit, "Background") in brand-kit.ts →
+           color-contrast/normalize/template-apply derive the page bg from
+           them). Translating them broke the lookup and page backgrounds
+           went transparent in Japanese sessions. They stay English. */}}
+      const names = ['Background', 'Text', 'Accent', 'Brand', 'Color 5', 'Color 6'];
+      this.brandKitColors = uniq.map((v, i) => ({ name: names[i] || 'Color ' + (i + 1), value: v }));
       // Snap each extracted face to a renderable family, dedupe (keeping
       // heading-first order). The designer applies fonts[0] to headlines
       // and fonts[1] to body via template-apply's role→font mapping.

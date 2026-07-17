@@ -75,7 +75,20 @@ export function kitFont(kit: BrandKit | null, index: number, fallback: string): 
 export function kitColor(kit: BrandKit | null, name: string): string | null {
   if (!kit || !Array.isArray(kit.colors)) return null;
   const lower = name.toLowerCase();
-  const hit = kit.colors.find((c) => typeof c?.name === "string" && c.name.toLowerCase() === lower);
+  // Alias map: sessions on the 2026-07-17 i18n build saved kits with
+  // translated role names; heal them transparently so those kits keep
+  // resolving (the wizard writes English names again since the fix).
+  const JA_ROLES: Record<string, string> = {
+    "背景": "background",
+    "テキスト": "text",
+    "アクセント": "accent",
+    "ブランド": "brand",
+  };
+  const roleOf = (n: string): string => {
+    const t = n.trim();
+    return (JA_ROLES[t] ?? t).toLowerCase();
+  };
+  const hit = kit.colors.find((c) => typeof c?.name === "string" && roleOf(c.name) === lower);
   return hit && typeof hit.value === "string" ? hit.value : null;
 }
 

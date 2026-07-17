@@ -522,11 +522,25 @@ class EndpointRoutes(
             val urlToCdn = pairs.flatten.toMap
             lpStoreLog.info("LP analysis: stored {}/{} referenced images for {} → CDN-rewritten srcs",
               Integer.valueOf(urlToCdn.size), Integer.valueOf(toStore.size), result.url)
-            if (urlToCdn.isEmpty) result
-            else result.copy(sections = result.sections.map { sec =>
+            // ALL creative images must come from R2 (or be self-contained
+            // data: URIs): a src still pointing at the origin after the
+            // rewrite becomes a hotlink baked into the creative — served
+            // to every visitor at the origin's mercy, and unfetchable by
+            // the datacenter-side banner renderer when the origin runs a
+            // bot manager (the "1 image could not load" badge). Drop what
+            // we could not rehost; the author can upload a copy instead.
+            val rewritten = result.copy(sections = result.sections.map { sec =>
               sec.copy(images = sec.images.map { im =>
                 urlToCdn.get(im.src).fold(im)(cdn => im.copy(src = cdn))
               })
+            })
+            val isHosted = (src: String) => src.startsWith(cdnBaseUrl) || src.startsWith("data:")
+            val dropped = rewritten.sections.flatMap(_.images.map(_.src)).filterNot(isHosted)
+            if (dropped.nonEmpty)
+              lpStoreLog.warn("LP analysis: dropping {} un-rehosted image(s) for {}: {}",
+                Integer.valueOf(dropped.size), result.url, dropped.map(_.take(160)).mkString(" | "))
+            rewritten.copy(sections = rewritten.sections.map { sec =>
+              sec.copy(images = sec.images.filter(im => isHosted(im.src)))
             })
           }
       }

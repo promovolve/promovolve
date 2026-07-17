@@ -876,25 +876,28 @@ final class LPAnalyzer(
           // delete + regenerate for the same landing page reproduces the
           // identical broken banner (same bytes → same hash). A dead image
           // has completed loading with naturalWidth === 0. Best-effort.
-          val hiddenBroken: Int =
+          val brokenSrcs: List[String] =
             try
               page.evaluate(
                 """() => {
                   |  const el = document.querySelector('expandable-magazine-banner');
-                  |  if (!el || !el.shadowRoot) return 0;
+                  |  if (!el || !el.shadowRoot) return [];
                   |  const broken = Array.from(el.shadowRoot.querySelectorAll('img'))
                   |    .filter(i => i.complete && i.naturalWidth === 0);
                   |  broken.forEach(i => { i.style.visibility = 'hidden'; });
-                  |  return broken.length;
+                  |  return broken.map(i => i.src || i.currentSrc || '(no src)');
                   |}""".stripMargin
               ) match {
-                case n: java.lang.Number => n.intValue
-                case _                   => 0
+                case l: java.util.List[_] => l.asScala.toList.map(v => String.valueOf(v).take(200))
+                case _                    => Nil
               }
-            catch { case _: Exception => 0 }
+            catch { case _: Exception => Nil }
+          val hiddenBroken = brokenSrcs.size
           if (hiddenBroken > 0)
-            log.warn("renderBanner: hid {} broken image(s) (dead src) before screenshot",
-              hiddenBroken: java.lang.Integer)
+            // The COUNT alone made the dashboard badge undiagnosable — the
+            // author needs to know WHICH url died to replace the image.
+            log.warn("renderBanner: hid {} broken image(s) (dead src) before screenshot: {}",
+              hiddenBroken: java.lang.Integer, brokenSrcs.mkString(" | "))
 
           // 5. Screenshot the page at banner coordinates. Return the count
           // of images that failed to load (and were hidden) alongside the

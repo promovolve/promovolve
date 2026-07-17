@@ -356,8 +356,13 @@ window.extractSections = function (strategy) {
       }
 
       var entry = boundaryMap.get(boundary);
-      if (!entry.images.some(function(e) { return e.src === img.src; })) {
-        entry.images.push({ src: img.src, width: img.width, height: img.height, alt: img.alt });
+      // currentSrc, NOT src: the srcset variant the browser actually
+      // loaded is what the response capture keyed for the R2 rewrite —
+      // recording the src attribute here left this path's images
+      // hotlinked to the origin (the fourseasons broken-image case).
+      var chosen = img.currentSrc || img.src;
+      if (!entry.images.some(function(e) { return e.src === chosen; })) {
+        entry.images.push({ src: chosen, width: img.width, height: img.height, alt: img.alt });
       }
     });
 

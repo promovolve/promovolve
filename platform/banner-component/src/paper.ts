@@ -627,8 +627,10 @@ export function animatePageTurn(opts: {
     stage.style.clipPath = punchClip;
     stage.style.setProperty("-webkit-clip-path", punchClip);
     // The sheet's own background would fill the traveling notch and
-    // block the see-through to the page beneath.
-    if (sheet) sheet.style.background = "transparent";
+    // block the see-through to the page beneath — and its rectangular
+    // contact shadow, no longer clipped by the stack, would trace a
+    // dark contour around the transparent notch. Both off in flight.
+    if (sheet) { sheet.style.background = "transparent"; sheet.style.boxShadow = "none"; }
   }
 
   let flap: HTMLElement | null = null;
@@ -651,7 +653,7 @@ export function animatePageTurn(opts: {
       stage.style.removeProperty("-webkit-clip-path");
       stack.style.clipPath = punchClip;
       stack.style.setProperty("-webkit-clip-path", punchClip);
-      if (sheet) sheet.style.background = "";
+      if (sheet) { sheet.style.background = ""; sheet.style.boxShadow = ""; }
     }
     turning.classList.remove("page-peeling");
   };
@@ -861,7 +863,10 @@ export function createInteractivePeel(opts: {
     stack.style.removeProperty("-webkit-clip-path");
     stage.style.clipPath = punchClip;
     stage.style.setProperty("-webkit-clip-path", punchClip);
+    // Background AND contact shadow off — the unclipped box-shadow
+    // otherwise traces a dark contour around the traveling notch.
     sheet.style.background = "transparent";
+    sheet.style.boxShadow = "none";
   }
   const notch = punchClip
     ? sheet.querySelector<HTMLElement>(".dogear-corner")?.getBoundingClientRect().width ?? 0
@@ -957,6 +962,7 @@ export function createInteractivePeel(opts: {
       stack.style.clipPath = punchClip;
       stack.style.setProperty("-webkit-clip-path", punchClip);
       sheet.style.background = "";
+      sheet.style.boxShadow = "";
     }
     turning.classList.remove("page-peeling");
     turning.style.transform = "";

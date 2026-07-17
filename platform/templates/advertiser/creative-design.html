@@ -1,8 +1,8 @@
 {{define "creative-design.html"}}<!DOCTYPE html>
-<html lang="en">
+<html lang="{{lang}}">
 <head>
 <meta charset="utf-8">
-<title>Design — {{.CreativeName}}</title>
+<title>{{t "Design — %s" .CreativeName}}</title>
 <script src="{{.BannerScriptURL}}"></script>
 <script>
   // Context for the TypeScript designer (platform/creative-designer).

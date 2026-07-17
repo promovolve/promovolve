@@ -34,12 +34,29 @@ import (
 var dynamicKeys = map[string]string{
 	"advertiser": "account-preferences.html landing-side radios ({{t .}})",
 	"publisher":  "account-preferences.html landing-side radios ({{t .}})",
+	"7d":         "report-range-picker preset labels ({{t .Label}}, report.go reportPresets)",
+	"30d":        "report-range-picker preset labels ({{t .Label}}, report.go reportPresets)",
+	"This month": "report-range-picker preset labels ({{t .Label}}, report.go reportPresets)",
+	"Active":     "creatives.html {{t .ActiveStatus}}",
+	"Paused":     "creatives.html {{t .ActiveStatus}}",
+	"Draft":      "creatives.html {{t .ActiveStatus}}",
+	"active":     "creatives.html {{t .Status}} legacy fallback (core enum)",
+	"paused":     "creatives.html {{t .Status}} legacy fallback (core enum)",
+	"topup":      "wallet.html {{t .Kind}} (billing.TxnKind)",
+	"settlement": "wallet.html {{t .Kind}} (billing.TxnKind)",
+	"payout":     "wallet.html {{t .Kind}} (billing.TxnKind)",
+	"adjustment": "wallet.html {{t .Kind}} (billing.TxnKind)",
+	"refund":     "wallet.html {{t .Kind}} (billing.TxnKind)",
 }
 
 var (
-	tmplKeyRe = regexp.MustCompile(`\{\{\s*t\s+"((?:[^"\\]|\\.)*)"`)
-	goKeyRe   = regexp.MustCompile(`(?:i18n\.T\([^,\n]+|jsonErrorT\(w, r, http\.Status\w+), "((?:[^"\\]|\\.)*)"`)
-	verbRe    = regexp.MustCompile(`%(?:\[\d+\])?[sdvfq%]`)
+	// Matches both action form {{t "..."}} and pipeline form (t "...").
+	tmplKeyRe = regexp.MustCompile(`[({]\s*t\s+"((?:[^"\\]|\\.)*)"`)
+	goKeyRe   = regexp.MustCompile(`(?:i18n\.T|jsonErrorT)\([^"\n]+"((?:[^"\\]|\\.)*)"`)
+	// Page titles are plain literals at the call sites; renderStatus
+	// translates them centrally, so they count as used keys.
+	titleKeyRe = regexp.MustCompile(`Title:\s*"((?:[^"\\]|\\.)*)"\s*,`)
+	verbRe     = regexp.MustCompile(`%(?:\[\d+\])?[sdvfq%]`)
 )
 
 func scanUsedKeys(t *testing.T) map[string]bool {
@@ -69,6 +86,7 @@ func scanUsedKeys(t *testing.T) map[string]bool {
 	}
 	scan("templates", ".html", tmplKeyRe)
 	scan("internal", ".go", goKeyRe)
+	scan("internal", ".go", titleKeyRe)
 	return used
 }
 

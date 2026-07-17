@@ -29,36 +29,36 @@
         <circle class="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" stroke-width="4"></circle>
         <path class="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8v4a4 4 0 00-4 4H4z"></path>
       </svg>
-      <p class="text-sm font-medium text-gray-700">Generating creative…</p>
-      <p class="text-xs text-gray-500">This can take up to a minute.</p>
+      <p class="text-sm font-medium text-gray-700">{{t "Generating creative…"}}</p>
+      <p class="text-xs text-gray-500">{{t "This can take up to a minute."}}</p>
     </div>
   </div>
 
   <!-- Header -->
   <div class="flex items-center justify-between mb-6">
     <div>
-      <h1 class="text-2xl font-semibold">Creative Editor</h1>
-      <p class="text-sm text-gray-500 mt-1">Build an expandable banner from your landing page</p>
+      <h1 class="text-2xl font-semibold">{{t "Creative Editor"}}</h1>
+      <p class="text-sm text-gray-500 mt-1">{{t "Build an expandable banner from your landing page"}}</p>
     </div>
     <a href="/advertiser/creatives?campaignId={{.CampaignID}}"
-       class="px-4 py-2 border rounded-md text-sm hover:bg-gray-50">Back to Creatives</a>
+       class="px-4 py-2 border rounded-md text-sm hover:bg-gray-50">{{t "Back to Creatives"}}</a>
   </div>
 
   <!-- ============ Landing page URL — pinned at the top ============ -->
   <div>
     <div class="bg-white p-4 rounded-lg border mb-6">
       <div class="flex gap-3">
-        <input type="text" x-model="extractUrl" placeholder="Enter landing page URL"
+        <input type="text" x-model="extractUrl" placeholder="{{t "Enter landing page URL"}}"
                {{if .LandingURL}}readonly{{end}}
                class="flex-1 px-3 py-2 border rounded-md text-sm focus:outline-none focus:ring-2 focus:ring-orange-500 bg-gray-50{{if .LandingURL}} text-gray-500 cursor-not-allowed{{end}}"
                @keydown.enter.prevent="(!$event.isComposing && !analyzing && extractUrl) && analyzeLP()">
         <button @click="analyzeLP()" :disabled="analyzing || !extractUrl"
                 class="btn btn-primary whitespace-nowrap">
-          <span x-show="!analyzing">Analyze</span>
-          <span x-show="analyzing">Analyzing...</span>
+          <span x-show="!analyzing">{{t "Analyze"}}</span>
+          <span x-show="analyzing">{{t "Analyzing..."}}</span>
         </button>
       </div>
-      {{if .LandingURL}}<p class="mt-2 text-xs text-gray-400">The landing page is set by the campaign and can't be changed here.</p>{{end}}
+      {{if .LandingURL}}<p class="mt-2 text-xs text-gray-400">{{t "The landing page is set by the campaign and can't be changed here."}}</p>{{end}}
       <p x-show="analyzeError" x-text="analyzeError" class="mt-2 text-sm text-red-600"></p>
     </div>
   </div>
@@ -89,8 +89,8 @@
         <path class="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4z"></path>
       </svg>
       <p class="text-sm font-medium" :class="lpScreenshotUrl ? 'text-white' : 'text-gray-600'"
-         x-text="lpScreenshotUrl ? 'Reading your landing page…' : 'Opening your landing page…'"></p>
-      <p class="text-xs" :class="lpScreenshotUrl ? 'text-white/75' : 'text-gray-400'">Extracting text, images and brand colours</p>
+         x-text="lpScreenshotUrl ? '{{t "Reading your landing page…"}}' : '{{t "Opening your landing page…"}}'"></p>
+      <p class="text-xs" :class="lpScreenshotUrl ? 'text-white/75' : 'text-gray-400'">{{t "Extracting text, images and brand colours"}}</p>
     </div>
   </div>
 
@@ -103,7 +103,7 @@
        x-transition:enter-start="opacity-0 translate-y-3"
        x-transition:enter-end="opacity-100 translate-y-0">
     <div class="mb-4">
-      <span class="text-sm text-gray-400">Pick the story arc, add anything to emphasize, then generate the 3 pages. Pick an image for each.</span>
+      <span class="text-sm text-gray-400">{{t "Pick the story arc, add anything to emphasize, then generate the 3 pages. Pick an image for each."}}</span>
     </div>
 
     <!-- Persuasion arc picker. On first generate the AI curates which arcs FIT
@@ -111,14 +111,14 @@
          those + why; "show all" reveals the rest. Picking one re-synthesizes. -->
     <div class="mb-4">
       <div class="flex items-center justify-between mb-2">
-        <h3 class="text-sm font-medium text-gray-700">Story arc
-          <span class="font-normal text-gray-400">— how the 3 pages persuade</span></h3>
+        <h3 class="text-sm font-medium text-gray-700">{{t "Story arc"}}
+          <span class="font-normal text-gray-400">{{t "— how the 3 pages persuade"}}</span></h3>
         <button type="button" x-show="fitArcIds.length > 0 && fitArcIds.length < arcs.length"
                 @click="showAllArcs = !showAllArcs"
                 class="text-[11px] text-gray-400 hover:text-gray-600"
-                x-text="showAllArcs ? 'show recommended only' : 'show all arcs'"></button>
+                x-text="showAllArcs ? '{{t "show recommended only"}}' : '{{t "show all arcs"}}'"></button>
       </div>
-      <p x-show="arcReason" x-cloak class="text-[11px] text-orange-600 mb-2">✓ Recommended: <span x-text="arcReason"></span></p>
+      <p x-show="arcReason" x-cloak class="text-[11px] text-orange-600 mb-2">{{t "✓ Recommended:"}} <span x-text="arcReason"></span></p>
       <div class="grid grid-cols-2 sm:grid-cols-4 gap-2">
         <template x-for="a in arcs.filter(a => showAllArcs || fitArcIds.length === 0 || fitArcIds.includes(a.id))" :key="a.id">
           <button type="button" @click="selectedArcId = a.id" :disabled="generating"
@@ -134,21 +134,21 @@
     <!-- Optional advertiser brief — just an input; it is applied together with
          the chosen arc by the single Generate action below (no per-field apply). -->
     <div class="mb-4">
-      <label class="block text-sm font-medium text-gray-700 mb-1">Anything to emphasize?
-        <span class="font-normal text-gray-400">(optional)</span></label>
+      <label class="block text-sm font-medium text-gray-700 mb-1">{{t "Anything to emphasize?"}}
+        <span class="font-normal text-gray-400">{{t "(optional)"}}</span></label>
       <input type="text" x-model="brief" maxlength="300"
              @keydown.enter.prevent="(!$event.isComposing && !generating && !recommending && allTexts.length) && synthesize(selectedArcId)"
-             placeholder="e.g. push the limited edition; warm, playful tone; mention free shipping"
+             placeholder="{{t "e.g. push the limited edition; warm, playful tone; mention free shipping"}}"
              class="w-full px-3 py-2 border rounded-md text-sm focus:outline-none focus:ring-2 focus:ring-orange-500">
-      <p class="text-[11px] text-gray-400 mt-1">Steers the copy. Facts you add are trusted; the AI still won’t invent beyond your landing page + this note.</p>
+      <p class="text-[11px] text-gray-400 mt-1">{{t "Steers the copy. Facts you add are trusted; the AI still won’t invent beyond your landing page + this note."}}</p>
     </div>
 
     <!-- ONE generate action: applies the selected arc + the brief together. -->
     <button type="button" @click="synthesize(selectedArcId)" :disabled="generating || recommending || allTexts.length === 0"
             class="btn btn-primary w-full mb-5">
-      <span x-show="!generating && !recommending" x-text="synthesizedPages.length ? '↻ Regenerate copy' : 'Generate copy'"></span>
-      <span x-show="recommending && !generating">Waiting for AI recommendation…</span>
-      <span x-show="generating">Writing copy…</span>
+      <span x-show="!generating && !recommending" x-text="synthesizedPages.length ? '{{t "↻ Regenerate copy"}}' : '{{t "Generate copy"}}'"></span>
+      <span x-show="recommending && !generating">{{t "Waiting for AI recommendation…"}}</span>
+      <span x-show="generating">{{t "Writing copy…"}}</span>
     </button>
 
     <!-- Pre-generation choices that used to live here (brand-kit colour
@@ -166,13 +166,11 @@
       <label class="flex items-start gap-2 cursor-pointer">
         <input type="checkbox" x-model="useOriginalFonts" class="mt-0.5 accent-orange-600">
         <span class="text-sm text-gray-700">
-          Use my site’s own fonts
+          {{t "Use my site’s own fonts"}}
           (<span class="font-medium" x-text="[...new Set(originalFonts.map(f => f.family))].join(', ')"></span>)
-          in this ad.
+          {{t "in this ad."}}
           <span class="block text-[11px] text-gray-400 mt-0.5">
-            I confirm I hold a license permitting these font files to be embedded
-            in ads served from Promovolve’s CDN. Left unticked, the ad uses the
-            closest free (Google Fonts) or system face instead.
+            {{t "I confirm I hold a license permitting these font files to be embedded in ads served from Promovolve’s CDN. Left unticked, the ad uses the closest free (Google Fonts) or system face instead."}}
           </span>
         </span>
       </label>
@@ -182,16 +180,14 @@
          can still proceed by uploading images and typing text. -->
     <div x-show="manualMode" x-cloak
          class="mb-4 p-3 rounded-md border border-amber-300 bg-amber-50 text-sm text-amber-800">
-      <p class="mb-2">We couldn't read this landing page automatically (likely a
-      bot block). Paste your landing-page copy (or a product description) below
-      and we'll write the booklet from it; upload images on the right.</p>
-      <textarea x-model="manualText" rows="4" placeholder="Paste your landing-page copy or product description…"
+      <p class="mb-2">{{t "We couldn't read this landing page automatically (likely a bot block). Paste your landing-page copy (or a product description) below and we'll write the booklet from it; upload images on the right."}}</p>
+      <textarea x-model="manualText" rows="4" placeholder="{{t "Paste your landing-page copy or product description…"}}"
                 class="w-full px-2 py-1.5 border rounded text-sm text-gray-800 focus:outline-none focus:ring-1 focus:ring-orange-500 resize-y"></textarea>
       <button type="button" @click="allTexts = manualText.trim() ? [{ heading: '', text: manualText.trim() }] : []; synthesize()"
               :disabled="generating || manualText.trim().length < 30"
               class="btn btn-primary btn-sm mt-2">
-        <span x-show="!generating">Write copy from this</span>
-        <span x-show="generating">Writing…</span>
+        <span x-show="!generating">{{t "Write copy from this"}}</span>
+        <span x-show="generating">{{t "Writing…"}}</span>
       </button>
     </div>
 
@@ -211,7 +207,7 @@
                  (Remove-page button likewise retired — pages locked at 3.) -->
             <div class="flex items-center justify-between mb-3">
               <h3 class="text-sm font-semibold" :class="activePageIdx === idx ? 'text-orange-700' : 'text-gray-700'"
-                  x-text="'Page ' + (idx + 1)"></h3>
+                  x-text="'{{t "Page %d"}}'.replace('%d', idx + 1)"></h3>
             </div>
 
             <div class="flex gap-4">
@@ -223,7 +219,7 @@
                   <img :src="allImages[page.imageIdx].src" class="w-full h-full object-cover rounded">
                 </template>
                 <template x-if="page.imageIdx === null">
-                  <span class="text-xs text-gray-400 text-center px-2">Click to pick image</span>
+                  <span class="text-xs text-gray-400 text-center px-2">{{t "Click to pick image"}}</span>
                 </template>
               </div>
 
@@ -241,7 +237,7 @@
                 </template>
                 <template x-if="!synthesizedPages[idx]">
                   <div class="h-full flex items-center">
-                    <span class="text-xs text-gray-400" x-text="generating ? 'Writing copy…' : 'Copy will appear here'"></span>
+                    <span class="text-xs text-gray-400" x-text="generating ? '{{t "Writing copy…"}}' : '{{t "Copy will appear here"}}'"></span>
                   </div>
                 </template>
               </div>
@@ -267,12 +263,12 @@
              @drop.prevent="onImageDrop($event)">
           <div class="flex items-center justify-between mb-2">
             <h3 class="text-sm font-semibold text-gray-700">
-              Images <span class="font-normal text-gray-400" x-text="'(' + allImages.length + ')'"></span>
+              {{t "Images"}} <span class="font-normal text-gray-400" x-text="'(' + allImages.length + ')'"></span>
             </h3>
             <label class="text-xs text-orange-600 hover:text-orange-800 cursor-pointer"
                    :class="uploadingImage ? 'opacity-50 pointer-events-none' : ''">
-              <span x-show="!uploadingImage">+ Upload</span>
-              <span x-show="uploadingImage">Uploading…</span>
+              <span x-show="!uploadingImage">{{t "+ Upload"}}</span>
+              <span x-show="uploadingImage">{{t "Uploading…"}}</span>
               <input type="file" accept="image/*" class="hidden" @change="uploadImage($event)">
             </label>
           </div>
@@ -289,10 +285,10 @@
             </template>
           </div>
           <p x-show="allImages.length === 0" class="text-xs text-gray-400 py-4 text-center">
-            <span x-show="!imageDragActive">No images yet — drag &amp; drop or use Upload.</span>
-            <span x-show="imageDragActive" class="text-orange-600 font-medium">Drop to upload</span>
+            <span x-show="!imageDragActive">{{t "No images yet — drag & drop or use Upload."}}</span>
+            <span x-show="imageDragActive" class="text-orange-600 font-medium">{{t "Drop to upload"}}</span>
           </p>
-          <p x-show="uploadError" x-cloak x-text="'Upload error: ' + uploadError" class="mt-2 text-xs text-red-600"></p>
+          <p x-show="uploadError" x-cloak x-text="'{{t "Upload error:"}} ' + uploadError" class="mt-2 text-xs text-red-600"></p>
         </div>
 
         <!-- Text Blocks pool removed: copy is auto-synthesized from the whole
@@ -307,8 +303,8 @@
     <!-- Layout template — picking ONE named template is REQUIRED (gates Continue
          via selectedTemplateId), so the creative is never silently defaulted. -->
     <div class="bg-white rounded-lg border p-4 mt-6">
-      <h3 class="text-sm font-medium text-gray-700 mb-1">Layout template</h3>
-      <p class="text-xs text-gray-400 mb-3">Pick a layout. Colours are set later in the designer.</p>
+      <h3 class="text-sm font-medium text-gray-700 mb-1">{{t "Layout template"}}</h3>
+      <p class="text-xs text-gray-400 mb-3">{{t "Pick a layout. Colours are set later in the designer."}}</p>
       <div class="grid grid-cols-2 sm:grid-cols-4 gap-3">
         <template x-for="t in templates" :key="t.id">
           <button type="button" @click="selectedTemplateId = t.id"
@@ -328,20 +324,20 @@
 
     <!-- Creative name -->
     <div class="bg-white rounded-lg border p-4 mt-4">
-      <label class="block text-sm font-medium text-gray-700 mb-1">Creative name</label>
+      <label class="block text-sm font-medium text-gray-700 mb-1">{{t "Creative name"}}</label>
       <input type="text" x-model="creativeName" required maxlength="120"
-             placeholder="e.g. Summer sale — hero v1"
+             placeholder="{{t "e.g. Summer sale — hero v1"}}"
              class="w-full px-3 py-2 border rounded-md text-sm focus:outline-none focus:ring-2 focus:ring-orange-500">
-      <p class="text-xs text-gray-400 mt-1">Shown on your creatives list and in reports.</p>
+      <p class="text-xs text-gray-400 mt-1">{{t "Shown on your creatives list and in reports."}}</p>
     </div>
     <button @click="generateCopy()" :disabled="generating || !canGenerate()"
             class="btn btn-primary w-full mt-3">
-      <span x-show="!generating">Continue to Designer</span>
-      <span x-show="generating">Writing copy…</span>
+      <span x-show="!generating">{{t "Continue to Designer"}}</span>
+      <span x-show="generating">{{t "Writing copy…"}}</span>
     </button>
     <p x-show="!canGenerate() && !generating"
        class="mt-2 text-sm text-gray-500"
-       x-text="synthesizedPages.length < 3 ? 'Waiting for the copy to finish generating.' : (creativeName.trim() === '' ? 'Name the creative to continue.' : 'Pick a layout template to continue.')"></p>
+       x-text="synthesizedPages.length < 3 ? '{{t "Waiting for the copy to finish generating."}}' : (creativeName.trim() === '' ? '{{t "Name the creative to continue."}}' : '{{t "Pick a layout template to continue."}}')"></p>
     <p x-show="generateError" x-text="generateError" class="mt-2 text-sm text-red-600"></p>
   </div>
 
@@ -384,10 +380,10 @@ function creativeEditor() {
     // purposeful (not 3 arbitrary blurbs). ids mirror core CreativeArc.
     selectedArcId: 'hook-proof-call',
     arcs: [
-      { id: 'hook-proof-call',        label: 'Hook → Proof → Call',        desc: 'Grab attention → prove it → drive the click' },
-      { id: 'problem-solution-offer', label: 'Problem → Solution → Offer',  desc: 'Name the pain → how it’s solved → the deal' },
-      { id: 'feature-story-plan',     label: 'Feature → Story → Plan',      desc: 'The product → the experience → pricing & CTA' },
-      { id: 'tease-reveal-invite',    label: 'Tease → Reveal → Invite',     desc: 'Curiosity → the reveal → come see more' },
+      { id: 'hook-proof-call',        label: '{{t "Hook → Proof → Call"}}',        desc: '{{t "Grab attention → prove it → drive the click"}}' },
+      { id: 'problem-solution-offer', label: '{{t "Problem → Solution → Offer"}}',  desc: '{{t "Name the pain → how it’s solved → the deal"}}' },
+      { id: 'feature-story-plan',     label: '{{t "Feature → Story → Plan"}}',      desc: '{{t "The product → the experience → pricing & CTA"}}' },
+      { id: 'tease-reveal-invite',    label: '{{t "Tease → Reveal → Invite"}}',     desc: '{{t "Curiosity → the reveal → come see more"}}' },
     ],
     fitArcIds: [],      // AI-curated subset (ids that fit this product); empty = show all
     arcReason: '',      // one line on why the recommended arc fits
@@ -683,15 +679,15 @@ function creativeEditor() {
       (Array.isArray(data.palette) ? data.palette : []).forEach(add);
       const uniq = [...new Set(cand)].slice(0, 6);
       if (uniq.length === 0) return;  // nothing extractable — leave existing kit
-      const names = ['Background', 'Text', 'Accent', 'Brand', 'Color 5', 'Color 6'];
-      this.brandKitColors = uniq.map((v, i) => ({ name: names[i] || ('Color ' + (i + 1)), value: v }));
+      const names = ['{{t "Background"}}', '{{t "Text"}}', '{{t "Accent"}}', '{{t "Brand"}}', '{{t "Color 5"}}', '{{t "Color 6"}}'];
+      this.brandKitColors = uniq.map((v, i) => ({ name: names[i] || '{{t "Color %d"}}'.replace('%d', i + 1), value: v }));
       // Snap each extracted face to a renderable family, dedupe (keeping
       // heading-first order). The designer applies fonts[0] to headlines
       // and fonts[1] to body via template-apply's role→font mapping.
       const rawFonts = (Array.isArray(data.fonts) ? data.fonts : []).filter(Boolean);
       const snapped = [...new Set(rawFonts.map(f => this._snapFont(f)).filter(Boolean))];
       if (snapped.length) this.brandKitFonts = snapped.slice(0, 6);
-      if (!this.brandKitName) this.brandKitName = 'From landing page';
+      if (!this.brandKitName) this.brandKitName = '{{t "From landing page"}}';
       this.useBrandKit = true;
       this.saveBrandKitToStorage();
     },
@@ -725,7 +721,7 @@ function creativeEditor() {
         // confusing — the Analyze button is the retry path.
         const toManual = () => {
           if (auto) {
-            this.analyzeError = 'Automatic analysis failed — click Analyze to retry.';
+            this.analyzeError = '{{t "Automatic analysis failed — click Analyze to retry."}}';
             return;
           }
           this.manualMode = true;
@@ -825,8 +821,8 @@ function creativeEditor() {
     // URL into allImages, auto-assigns to active page if empty.
     async uploadImageFile(file) {
       this.uploadError = '';
-      if (!file) { this.uploadError = 'No file'; return; }
-      if (!file.type.startsWith('image/')) { this.uploadError = 'Not an image: ' + file.type; return; }
+      if (!file) { this.uploadError = '{{t "No file"}}'; return; }
+      if (!file.type.startsWith('image/')) { this.uploadError = '{{t "Not an image:"}} ' + file.type; return; }
       this.uploadingImage = true;
       try {
         const fd = new FormData();
@@ -911,7 +907,7 @@ function creativeEditor() {
     seedCreativeName() {
       if (this.creativeName.trim()) return;
       try {
-        this.creativeName = 'Creative - ' + new URL(this.extractUrl).hostname;
+        this.creativeName = '{{t "Creative - %s"}}'.replace('%s', new URL(this.extractUrl).hostname);
       } catch (e) { /* unparseable URL — leave blank, input is required */ }
     },
 
@@ -968,7 +964,7 @@ function creativeEditor() {
           body: JSON.stringify(payload),
           signal: ctrl.signal
         });
-        if (!resp.ok) throw new Error('Copy generation failed (HTTP ' + resp.status + ')');
+        if (!resp.ok) throw new Error('{{t "Copy generation failed (HTTP %d)"}}'.replace('%d', resp.status));
         const data = await resp.json();
         if (data.error) throw new Error(data.error);
         this.synthesizedPages = (data.pages || []).slice(0, 3);
@@ -977,7 +973,7 @@ function creativeEditor() {
         if (data.arcReason !== undefined) this.arcReason = data.arcReason || '';
       } catch (e) {
         this.generateError = ctrl.signal.aborted
-          ? 'Copy generation timed out — click Regenerate to retry.'
+          ? '{{t "Copy generation timed out — click Regenerate to retry."}}'
           : e.message;
       } finally {
         clearTimeout(t);

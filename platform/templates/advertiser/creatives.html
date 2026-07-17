@@ -8,8 +8,8 @@
 <!-- Header -->
 <div class="flex items-center justify-between mb-6">
   <div>
-    <h1 class="page-title">Creatives</h1>
-    <p class="page-sub">{{if .ListNav}}{{.ListNav.Total}} creative{{if ne .ListNav.Total 1}}s{{end}}{{else}}{{len .Creatives}} creatives{{end}}</p>
+    <h1 class="page-title">{{t "Creatives"}}</h1>
+    <p class="page-sub">{{if .ListNav}}{{t "%d creatives" .ListNav.Total}}{{else}}{{t "%d creatives" (len .Creatives)}}{{end}}</p>
   </div>
   <div class="flex items-center gap-3">
     {{if .Campaigns}}
@@ -25,7 +25,7 @@
          read-only view-as session, so block the door, not just the save. */}}
     <a href="/advertiser/creatives/editor?campaignId={{.CampaignID}}"
        class="btn btn-primary" data-viewas-block>
-      Create Creative
+      {{t "Create Creative"}}
     </a>
   </div>
 </div>
@@ -49,12 +49,12 @@
      hx-swap="outerHTML">
 {{if not .CampaignID}}
 <div class="text-center py-20 text-gray-400">
-  <p class="text-lg">Create a campaign first</p>
+  <p class="text-lg">{{t "Create a campaign first"}}</p>
 </div>
 {{else if not .Creatives}}
 <div class="text-center py-20 text-gray-400">
-  <p class="text-lg">No creatives yet</p>
-  <p class="text-sm mt-2">Create your first ad from a landing page</p>
+  <p class="text-lg">{{t "No creatives yet"}}</p>
+  <p class="text-sm mt-2">{{t "Create your first ad from a landing page"}}</p>
 </div>
 {{else}}
 {{/* Sort pulldown — creatives flavor (CTR instead of spend); keeps the
@@ -62,12 +62,12 @@
 <div class="flex items-center justify-end mb-2">
   <form method="GET" class="flex items-center gap-2">
     <input type="hidden" name="campaignId" value="{{.CampaignID}}">
-    <label class="text-xs text-gray-500">Sort:</label>
+    <label class="text-xs text-gray-500">{{t "Sort:"}}</label>
     <select name="sort" onchange="this.form.submit()" class="px-2 py-1 border rounded text-sm bg-white">
-      <option value="newest" {{if or (not .ListNav.Sort) (eq .ListNav.Sort "newest")}}selected{{end}}>Newest first</option>
-      <option value="name" {{if eq .ListNav.Sort "name"}}selected{{end}}>Name A&ndash;Z</option>
-      <option value="impressions" {{if eq .ListNav.Sort "impressions"}}selected{{end}}>Impressions</option>
-      <option value="ctr" {{if eq .ListNav.Sort "ctr"}}selected{{end}}>CTR</option>
+      <option value="newest" {{if or (not .ListNav.Sort) (eq .ListNav.Sort "newest")}}selected{{end}}>{{t "Newest first"}}</option>
+      <option value="name" {{if eq .ListNav.Sort "name"}}selected{{end}}>{{t "Name A–Z"}}</option>
+      <option value="impressions" {{if eq .ListNav.Sort "impressions"}}selected{{end}}>{{t "Impressions"}}</option>
+      <option value="ctr" {{if eq .ListNav.Sort "ctr"}}selected{{end}}>{{t "CTR"}}</option>
     </select>
   </form>
 </div>
@@ -92,11 +92,11 @@
       {{if .AssetURL}}
       <button type="button" onclick="openCreativePreview('{{.ID}}', '{{$.CampaignID}}', '{{.AssetURL}}')"
               class="relative w-full h-full flex items-center justify-center cursor-zoom-in"
-              title="Preview creative">
+              title="{{t "Preview creative"}}">
         <img src="{{.AssetURL}}" alt="{{.Name}}" class="max-w-full max-h-full object-contain">
         <span class="absolute bottom-1.5 left-1.5 inline-flex items-center gap-1.5 px-2 py-1 rounded bg-black/60 text-white text-xs font-medium opacity-0 group-hover:opacity-90 transition">
           <svg class="w-3.5 h-3.5" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" d="M4 8V4m0 0h4M4 4l5 5m11-1V4m0 0h-4m4 0l-5 5M4 16v4m0 0h4m-4 0l5-5m11 5l-5-5m5 5v-4m0 4h-4"/></svg>
-          Preview
+          {{t "Preview"}}
         </span>
       </button>
       {{else}}
@@ -105,7 +105,7 @@
           <circle class="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" stroke-width="4"></circle>
           <path class="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8v4a4 4 0 00-4 4H4z"></path>
         </svg>
-        <span class="text-xs text-gray-400">Rendering…</span>
+        <span class="text-xs text-gray-400">{{t "Rendering…"}}</span>
       </div>
       {{end}}
     </div>
@@ -114,35 +114,35 @@
       <div class="flex items-center justify-between mb-1">
         <p class="text-sm font-medium truncate">{{if .Name}}{{.Name}}{{else}}{{slice .ID 0 12}}{{end}}</p>
         <span class="badge {{if eq .ActiveStatus "Active"}}badge-success{{else if eq .ActiveStatus "Draft"}}badge-info{{else}}badge-neutral{{end}}">
-          {{if .ActiveStatus}}{{.ActiveStatus}}{{else}}{{.Status}}{{end}}
+          {{if .ActiveStatus}}{{t .ActiveStatus}}{{else}}{{t .Status}}{{end}}
         </span>
       </div>
       <div class="flex items-center gap-2 text-xs text-gray-500">
         {{if .Confidence}}
-        <span class="badge badge-info">{{.Confidence}} match</span>
+        <span class="badge badge-info">{{t "%s match" .Confidence}}</span>
         {{end}}
       </div>
       {{if .BrokenImages}}
       <div class="flex items-center gap-1.5 mt-2 text-xs text-amber-700"
-           title="These images couldn't be loaded when the banner was rendered — a dead or hotlink-protected source URL the render can't reach — so they were hidden. Replace the image on the landing page, or edit the creative in the designer.">
+           title="{{t "These images couldn't be loaded when the banner was rendered — a dead or hotlink-protected source URL the render can't reach — so they were hidden. Replace the image on the landing page, or edit the creative in the designer."}}">
         <svg class="w-3.5 h-3.5 shrink-0" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" d="M12 9v4m0 4h.01M10.29 3.86 1.82 18a2 2 0 0 0 1.71 3h16.94a2 2 0 0 0 1.71-3L13.71 3.86a2 2 0 0 0-3.42 0z"/></svg>
-        <span>{{.BrokenImages}} image{{if gt .BrokenImages 1}}s{{end}} couldn&rsquo;t load</span>
+        <span>{{t "%d images couldn’t load" .BrokenImages}}</span>
       </div>
       {{end}}
       {{if or .Impressions .Clicks .CTAClicks}}
       <div class="flex items-center gap-3 mt-2 text-xs text-gray-500">
-        <span title="Impressions">{{.Impressions}} imp</span>
-        <span title="Clicks (expand)">{{.Clicks}} clicks</span>
-        {{if .CTAClicks}}<span title="CTA clicks (navigate to LP)">{{.CTAClicks}} CTA</span>{{end}}
-        {{if .CTR}}<span title="Click-through rate on fresh impressions">{{.CTR}} CTR</span>{{end}}
+        <span title="{{t "Impressions"}}">{{t "%d imp" .Impressions}}</span>
+        <span title="{{t "Clicks (expand)"}}">{{t "%d clicks" .Clicks}}</span>
+        {{if .CTAClicks}}<span title="{{t "CTA clicks (navigate to LP)"}}">{{t "%d CTA" .CTAClicks}}</span>{{end}}
+        {{if .CTR}}<span title="{{t "Click-through rate on fresh impressions"}}">{{t "%s CTR" .CTR}}</span>{{end}}
       </div>
       {{end}}
       {{if .DogearedImpressions}}
-      <div class="flex items-center gap-3 mt-1 text-xs text-amber-700" title="Re-encounters via honored pin (bookmark fulfillment — not billed)">
-        <span>📌 {{.DogearedImpressions}} pin re-views</span>
-        {{if .DogearedClicks}}<span>{{.DogearedClicks}} clicks</span>{{end}}
-        {{if .DogearedCTAClicks}}<span>{{.DogearedCTAClicks}} CTA</span>{{end}}
-        {{if .PinCTR}}<span title="Re-engagement click-through rate">{{.PinCTR}} pin CTR</span>{{end}}
+      <div class="flex items-center gap-3 mt-1 text-xs text-amber-700" title="{{t "Re-encounters via honored pin (bookmark fulfillment — not billed)"}}">
+        <span>📌 {{t "%d pin re-views" .DogearedImpressions}}</span>
+        {{if .DogearedClicks}}<span>{{t "%d clicks" .DogearedClicks}}</span>{{end}}
+        {{if .DogearedCTAClicks}}<span>{{t "%d CTA" .DogearedCTAClicks}}</span>{{end}}
+        {{if .PinCTR}}<span title="{{t "Re-engagement click-through rate"}}">{{t "%s pin CTR" .PinCTR}}</span>{{end}}
       </div>
       {{end}}
       <div class="mt-2 pt-2 border-t flex items-center justify-between">
@@ -150,7 +150,7 @@
         <form method="POST" action="/advertiser/creatives/resume-draft">
           <input type="hidden" name="campaignId" value="{{$.CampaignID}}">
           <input type="hidden" name="creativeId" value="{{.ID}}">
-          <button type="submit" class="text-xs text-brand hover:underline">Continue editing</button>
+          <button type="submit" class="text-xs text-brand hover:underline">{{t "Continue editing"}}</button>
         </form>
         {{else}}
         <form method="POST" action="/advertiser/creatives/toggle">
@@ -158,23 +158,23 @@
           <input type="hidden" name="creativeId" value="{{.ID}}">
           {{if eq .ActiveStatus "Active"}}
           <input type="hidden" name="status" value="Paused">
-          <button type="submit" class="text-xs text-red-600 hover:underline">Pause</button>
+          <button type="submit" class="text-xs text-red-600 hover:underline">{{t "Pause"}}</button>
           {{else}}
           <input type="hidden" name="status" value="Active">
-          <button type="submit" class="text-xs text-green-600 hover:underline">Activate</button>
+          <button type="submit" class="text-xs text-green-600 hover:underline">{{t "Activate"}}</button>
           {{end}}
         </form>
         {{end}}
         {{if ne .ActiveStatus "Active"}}
         <form method="POST" action="/advertiser/creatives/delete"
-              onsubmit="return confirm('Delete this creative? It is removed from the campaign; reports are kept.')">
+              onsubmit="return confirm('{{t "Delete this creative? It is removed from the campaign; reports are kept."}}')">
           <input type="hidden" name="campaignId" value="{{$.CampaignID}}">
           <input type="hidden" name="creativeId" value="{{.ID}}">
-          <button type="submit" class="px-2.5 py-1 text-xs border border-red-300 rounded-md text-red-600 hover:bg-red-50">Delete</button>
+          <button type="submit" class="px-2.5 py-1 text-xs border border-red-300 rounded-md text-red-600 hover:bg-red-50">{{t "Delete"}}</button>
         </form>
         {{else}}
-        <button type="button" disabled title="Pause this creative before deleting it"
-                class="px-2.5 py-1 text-xs border border-gray-200 rounded-md text-gray-300 cursor-not-allowed">Delete</button>
+        <button type="button" disabled title="{{t "Pause this creative before deleting it"}}"
+                class="px-2.5 py-1 text-xs border border-gray-200 rounded-md text-gray-300 cursor-not-allowed">{{t "Delete"}}</button>
         {{end}}
       </div>
     </div>
@@ -197,9 +197,9 @@
 <dialog id="previewDialog" class="rounded-2xl p-0 shadow-2xl backdrop:bg-black/60" style="width:min(1100px,95vw); max-height:96vh;">
   <div class="p-3">
     <div class="flex items-center justify-between mb-2">
-      <h3 class="text-sm font-semibold text-gray-700">Creative preview</h3>
+      <h3 class="text-sm font-semibold text-gray-700">{{t "Creative preview"}}</h3>
       <button type="button" onclick="document.getElementById('previewDialog').close()"
-              class="p-1.5 rounded-md text-gray-400 hover:text-gray-700 hover:bg-gray-100" title="Close">
+              class="p-1.5 rounded-md text-gray-400 hover:text-gray-700 hover:bg-gray-100" title="{{t "Close"}}">
         <svg class="w-4 h-4" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" d="M6 18L18 6M6 6l12 12"/></svg>
       </button>
     </div>
@@ -207,10 +207,14 @@
   </div>
 </dialog>
 <script>
+const I18N = {
+  loadingPreview: '{{t "Loading preview…"}}',
+  noPreview: '{{t "No preview available"}}'
+};
 async function openCreativePreview(creativeId, campaignId, assetUrl) {
   const dlg = document.getElementById('previewDialog');
   const body = document.getElementById('previewDialogBody');
-  body.innerHTML = '<p class="text-sm text-gray-400">Loading preview…</p>';
+  body.innerHTML = '<p class="text-sm text-gray-400">' + I18N.loadingPreview + '</p>';
   dlg.showModal();
   try {
     const r = await fetch(`/advertiser/creatives/${encodeURIComponent(creativeId)}/pages?campaignId=${encodeURIComponent(campaignId)}`);
@@ -238,7 +242,7 @@ async function openCreativePreview(creativeId, campaignId, assetUrl) {
     img.style.maxHeight = '70vh';
     body.replaceChildren(img);
   } else {
-    body.innerHTML = '<p class="text-sm text-gray-400">No preview available</p>';
+    body.innerHTML = '<p class="text-sm text-gray-400">' + I18N.noPreview + '</p>';
   }
 }
 document.getElementById('previewDialog').addEventListener('close', () => {

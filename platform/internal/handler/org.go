@@ -89,7 +89,7 @@ func (h *Handler) SessionGuard(next http.Handler) http.Handler {
 			}
 			glang := h.lang(r, actor)
 			h.renderGuardError(w, r, pageData{
-				Title:     i18n.T(glang, "Read-only session"),
+				Title:     "Read-only session",
 				Error:     i18n.T(glang, "You are viewing this account as %s — changes are disabled so every action stays attributable to the account members themselves. Exit the view to act as yourself.", actor.Email),
 				GuardExit: true,
 			})
@@ -121,7 +121,7 @@ func (h *Handler) SessionGuard(next http.Handler) http.Handler {
 					reason = i18n.T(glang, "no reason was recorded")
 				}
 				h.renderGuardError(w, r, pageData{
-					Title:      i18n.T(glang, "Account suspended"),
+					Title:      "Account suspended",
 					Error:      i18n.T(glang, "The account of your organization is suspended: %s. Serving and billing are paused. Contact the platform operator to resolve this.", reason),
 					LogoutOnly: true,
 				})
@@ -132,7 +132,7 @@ func (h *Handler) SessionGuard(next http.Handler) http.Handler {
 				gu, _ := h.userSvc.GetByID(r.Context(), claims.UserID)
 				glang := h.lang(r, gu)
 				h.renderGuardError(w, r, pageData{
-					Title: i18n.T(glang, "Org admins only"),
+					Title: "Org admins only",
 					Error: i18n.T(glang, "Billing pages — the wallet and earnings — are managed by the admins of your organization. Ask one of them if you need something changed there."),
 				})
 				return

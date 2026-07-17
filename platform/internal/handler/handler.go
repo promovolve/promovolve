@@ -632,7 +632,13 @@ func (h *Handler) renderStatus(w http.ResponseWriter, r *http.Request, status in
 	if status != http.StatusOK {
 		w.WriteHeader(status)
 	}
-	t := getPage(h.lang(r, data.User), name)
+	lang := h.lang(r, data.User)
+	// Page titles are set as plain English at ~40 call sites; translate
+	// centrally so handlers never think about language. English keys fall
+	// through untouched; already-translated strings miss the catalog and
+	// pass through unchanged, so this is safe to layer.
+	data.Title = i18n.T(lang, data.Title)
+	t := getPage(lang, name)
 	if err := t.ExecuteTemplate(w, "layout", data); err != nil {
 		slog.Error("template render failed", "error", err, "template", name)
 		http.Error(w, "render error: "+err.Error(), http.StatusInternalServerError)

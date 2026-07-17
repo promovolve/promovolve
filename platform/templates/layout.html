@@ -290,7 +290,7 @@
     <button type="submit" class="btn btn-primary">{{t "Apply"}}</button>
     <div class="flex items-center gap-2 ml-auto">
       {{range .Presets}}
-      <a href="{{.URL}}" class="btn btn-sm {{if eq $.Preset .Key}}btn-primary{{else}}btn-secondary{{end}}">{{.Label}}</a>
+      <a href="{{.URL}}" class="btn btn-sm {{if eq $.Preset .Key}}btn-primary{{else}}btn-secondary{{end}}">{{t .Label}}</a>
       {{end}}
       {{if .CSVURL}}
       <a href="{{.CSVURL}}" class="btn btn-sm btn-secondary">{{t "Download CSV"}}</a>

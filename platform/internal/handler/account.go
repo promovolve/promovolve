@@ -73,7 +73,7 @@ func (h *Handler) renderPreferences(w http.ResponseWriter, r *http.Request, errM
 	}
 
 	h.render(w, r, "account-preferences.html", pageData{
-		Title:        i18n.T(h.lang(r, user), "Preferences"),
+		Title:        "Preferences",
 		Nav:          "preferences",
 		User:         user,
 		Error:        errMsg,
@@ -151,11 +151,10 @@ type recoverPayload struct {
 func (h *Handler) RecoverPage(w http.ResponseWriter, r *http.Request) {
 	token := r.PathValue("token")
 	if _, err := h.passkeySvc.Repo().UserIDForRecoveryToken(r.Context(), token); err != nil {
-		lang := h.lang(r, nil)
-		h.render(w, r, "recover.html", pageData{Title: i18n.T(lang, "Account recovery"), Error: i18n.T(lang, "This recovery link is invalid, expired, or already used.")})
+		h.render(w, r, "recover.html", pageData{Title: "Account recovery", Error: i18n.T(h.lang(r, nil), "This recovery link is invalid, expired, or already used.")})
 		return
 	}
-	h.render(w, r, "recover.html", pageData{Title: i18n.T(h.lang(r, nil), "Account recovery"), RecoveryToken: token})
+	h.render(w, r, "recover.html", pageData{Title: "Account recovery", RecoveryToken: token})
 }
 
 type recoverBeginRequest struct {

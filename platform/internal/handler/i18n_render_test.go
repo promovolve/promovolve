@@ -26,6 +26,13 @@ func TestI18nSweptPagesRenderBothLangs(t *testing.T) {
 		{"setup.html", pageData{Title: "Setup", Timezones: []string{"UTC", "Asia/Tokyo"}}},
 		{"guard-error.html", pageData{Title: "Read-only session", Error: "nope", GuardExit: true}},
 		{"help.html", pageData{Title: "Help", User: user}},
+		{"advertiser/campaigns.html", pageData{Title: "Campaigns", User: user}},
+		{"advertiser/creatives.html", pageData{Title: "Creatives", User: user}},
+		{"advertiser/stats.html", pageData{Title: "Stats", User: user}},
+		{"advertiser/wallet.html", pageData{Title: "Wallet", User: user}},
+		{"advertiser/account.html", pageData{Title: "Account", User: user}},
+		{"advertiser/report.html", pageData{Title: "Report", User: user,
+			Report: &reportPageData{From: "2026-06-30", To: "2026-07-06", Preset: "custom", Presets: reportPresets("/advertiser/report")}}},
 		{"account-preferences.html", pageData{
 			Title: "Preferences", User: user,
 			Timezones: []string{"UTC", "Asia/Tokyo"}, Saved: true,

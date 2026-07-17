@@ -1,52 +1,53 @@
 {{define "content"}}
 <div class="max-w-4xl">
-  <h1 class="page-title">Wallet</h1>
-  <p class="page-sub">Your prepaid balance. Campaigns spend from it as impressions are settled at the end of each day in your account's timezone{{with .Wallet}}{{if .Timezone}} ({{.Timezone}}){{end}}{{end}} — the same day your budgets roll on.</p>
+  <h1 class="page-title">{{t "Wallet"}}</h1>
+  {{$tz := ""}}{{with .Wallet}}{{$tz = .Timezone}}{{end}}
+  <p class="page-sub">{{if $tz}}{{t "Your prepaid balance. Campaigns spend from it as impressions are settled at the end of each day in your account's timezone (%s) — the same day your budgets roll on." $tz}}{{else}}{{t "Your prepaid balance. Campaigns spend from it as impressions are settled at the end of each day in your account's timezone — the same day your budgets roll on."}}{{end}}</p>
 
   {{with .Wallet}}
 
   {{if .Suspended}}
   <div class="bg-red-50 border border-red-200 rounded-lg p-4 mt-6">
-    <p class="font-medium text-red-800">Serving is paused — your wallet is out of funds.</p>
-    <p class="text-sm text-red-600 mt-1">Contact the platform operator to top up. Serving resumes automatically once the top-up is recorded.</p>
+    <p class="font-medium text-red-800">{{t "Serving is paused — your wallet is out of funds."}}</p>
+    <p class="text-sm text-red-600 mt-1">{{t "Contact the platform operator to top up. Serving resumes automatically once the top-up is recorded."}}</p>
   </div>
   {{else if .LowBalance}}
   <div class="bg-amber-50 border border-amber-200 rounded-lg p-4 mt-6">
-    <p class="font-medium text-amber-800">Your balance is running low.</p>
-    <p class="text-sm text-amber-600 mt-1">At your recent spend rate the wallet will empty soon, and serving pauses at zero. Arrange a top-up with the platform operator.</p>
+    <p class="font-medium text-amber-800">{{t "Your balance is running low."}}</p>
+    <p class="text-sm text-amber-600 mt-1">{{t "At your recent spend rate the wallet will empty soon, and serving pauses at zero. Arrange a top-up with the platform operator."}}</p>
   </div>
   {{end}}
 
   <div class="grid grid-cols-3 gap-6 mt-6">
     <div class="bg-white p-6 rounded-lg border">
-      <p class="text-sm text-gray-500">Balance</p>
+      <p class="text-sm text-gray-500">{{t "Balance"}}</p>
       <p class="text-3xl font-semibold mt-2 {{if .Suspended}}text-red-600{{end}}">{{.Balance}}</p>
-      <p class="text-xs text-gray-400 mt-1">settled through your last completed day — today's delivery is not yet charged</p>
+      <p class="text-xs text-gray-400 mt-1">{{t "settled through your last completed day — today's delivery is not yet charged"}}</p>
     </div>
   </div>
 
   <!-- Top-ups and adjustments -->
   <div class="card mt-6 p-0 overflow-x-auto">
-    <h2 class="font-semibold text-lg px-6 pt-6">Top-ups &amp; adjustments</h2>
+    <h2 class="font-semibold text-lg px-6 pt-6">{{t "Top-ups & adjustments"}}</h2>
     <table class="w-full text-sm mt-3">
       <thead>
         <tr class="border-b text-left text-gray-400">
-          <th class="px-6 py-2 font-medium">When</th>
-          <th class="px-6 py-2 font-medium">Type</th>
-          <th class="px-6 py-2 font-medium">Reference</th>
-          <th class="px-6 py-2 font-medium text-right">Amount</th>
+          <th class="px-6 py-2 font-medium">{{t "When"}}</th>
+          <th class="px-6 py-2 font-medium">{{t "Type"}}</th>
+          <th class="px-6 py-2 font-medium">{{t "Reference"}}</th>
+          <th class="px-6 py-2 font-medium text-right">{{t "Amount"}}</th>
         </tr>
       </thead>
       <tbody>
         {{range .Activity}}
         <tr class="border-b last:border-0">
           <td class="px-6 py-2 text-gray-500 whitespace-nowrap">{{.Date}}</td>
-          <td class="px-6 py-2"><span class="badge {{.KindBadge}}">{{.Kind}}</span></td>
+          <td class="px-6 py-2"><span class="badge {{.KindBadge}}">{{t .Kind}}</span></td>
           <td class="px-6 py-2 text-gray-500">{{.Memo}}</td>
           <td class="px-6 py-2 text-right font-medium">{{.Amount}}</td>
         </tr>
         {{else}}
-        <tr><td class="px-6 py-4 text-gray-400" colspan="4">No top-ups yet. Contact the platform operator to fund your wallet.</td></tr>
+        <tr><td class="px-6 py-4 text-gray-400" colspan="4">{{t "No top-ups yet. Contact the platform operator to fund your wallet."}}</td></tr>
         {{end}}
       </tbody>
     </table>
@@ -54,13 +55,13 @@
 
   <!-- Monthly totals -->
   <div class="card mt-6 p-0 overflow-x-auto">
-    <h2 class="font-semibold text-lg px-6 pt-6">Monthly spend</h2>
+    <h2 class="font-semibold text-lg px-6 pt-6">{{t "Monthly spend"}}</h2>
     <table class="w-full text-sm mt-3">
       <thead>
         <tr class="border-b text-left text-gray-400">
-          <th class="px-6 py-2 font-medium">Month</th>
-          <th class="px-6 py-2 font-medium">Impressions</th>
-          <th class="px-6 py-2 font-medium text-right">Spend</th>
+          <th class="px-6 py-2 font-medium">{{t "Month"}}</th>
+          <th class="px-6 py-2 font-medium">{{t "Impressions"}}</th>
+          <th class="px-6 py-2 font-medium text-right">{{t "Spend"}}</th>
         </tr>
       </thead>
       <tbody>
@@ -71,7 +72,7 @@
           <td class="px-6 py-2 text-right">${{.Gross}}</td>
         </tr>
         {{else}}
-        <tr><td class="px-6 py-4 text-gray-400" colspan="3">Nothing settled yet.</td></tr>
+        <tr><td class="px-6 py-4 text-gray-400" colspan="3">{{t "Nothing settled yet."}}</td></tr>
         {{end}}
       </tbody>
     </table>
@@ -79,16 +80,16 @@
 
   <!-- Daily statement -->
   <div class="card mt-6 p-0 overflow-x-auto">
-    <h2 class="font-semibold text-lg px-6 pt-6">Recent daily charges</h2>
-    <p class="text-sm text-gray-500 px-6 mt-1">One line per campaign per site per day{{if .Timezone}} in your account's timezone ({{.Timezone}}){{end}}, settled shortly after your local midnight.</p>
+    <h2 class="font-semibold text-lg px-6 pt-6">{{t "Recent daily charges"}}</h2>
+    <p class="text-sm text-gray-500 px-6 mt-1">{{if .Timezone}}{{t "One line per campaign per site per day in your account's timezone (%s), settled shortly after your local midnight." .Timezone}}{{else}}{{t "One line per campaign per site per day, settled shortly after your local midnight."}}{{end}}</p>
     <table class="w-full text-sm mt-3">
       <thead>
         <tr class="border-b text-left text-gray-400">
-          <th class="px-6 py-2 font-medium">Day</th>
-          <th class="px-6 py-2 font-medium">Campaign</th>
-          <th class="px-6 py-2 font-medium">Site</th>
-          <th class="px-6 py-2 font-medium">Impressions</th>
-          <th class="px-6 py-2 font-medium text-right">Charged</th>
+          <th class="px-6 py-2 font-medium">{{t "Day"}}</th>
+          <th class="px-6 py-2 font-medium">{{t "Campaign"}}</th>
+          <th class="px-6 py-2 font-medium">{{t "Site"}}</th>
+          <th class="px-6 py-2 font-medium">{{t "Impressions"}}</th>
+          <th class="px-6 py-2 font-medium text-right">{{t "Charged"}}</th>
         </tr>
       </thead>
       <tbody>
@@ -101,7 +102,7 @@
           <td class="px-6 py-2 text-right">${{.Amount}}</td>
         </tr>
         {{else}}
-        <tr><td class="px-6 py-4 text-gray-400" colspan="5">No settled charges yet.</td></tr>
+        <tr><td class="px-6 py-4 text-gray-400" colspan="5">{{t "No settled charges yet."}}</td></tr>
         {{end}}
       </tbody>
     </table>

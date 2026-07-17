@@ -137,7 +137,18 @@ export function renderCollapsedItemHtml(
     const fill = item.fill ?? "transparent";
     const stroke = item.stroke ? `border:0.2cqmin solid ${item.stroke};` : "";
     const br = item.borderRadius ? `border-radius:${item.borderRadius}cqmin;` : "";
-    return `<div ${idxAttr} style="${baseStyle}width:${item.width ?? 20}%;height:${item.height ?? 10}%;background:${fill};${stroke}${br}"></div>`;
+    // Edge-anchored rects (scrims): %-positioning rounds to device
+    // pixels independently, and a hand-dragged scrim can sit at
+    // top+height = 99.8 — either way a sub-pixel sliver of the page
+    // background shows along the bottom (glaring for a dark scrim on a
+    // white creative). A rect meant to touch an edge (within 0.5%) gets
+    // its size SNAPPED to overshoot that edge by 1px; the design box's
+    // overflow:hidden clips the excess.
+    const rw = item.width ?? 20;
+    const rh = item.height ?? 10;
+    const wCss = (item.left ?? 0) + rw >= 99.5 ? `calc(${100 - (item.left ?? 0)}% + 1px)` : `${rw}%`;
+    const hCss = (item.top ?? 0) + rh >= 99.5 ? `calc(${100 - (item.top ?? 0)}% + 1px)` : `${rh}%`;
+    return `<div ${idxAttr} style="${baseStyle}width:${wCss};height:${hCss};background:${fill};${stroke}${br}"></div>`;
   }
 
   if (item.type === "circle") {

@@ -184,9 +184,20 @@ export function layoutItemToNode(
     }
   } else if (item.type === "rect") {
     const div = document.createElement("div");
+    const rw = item.width ?? 20;
+    const rh = item.height ?? 10;
+    // Edge-anchored rects (scrims above all): top% and height% round to
+    // device pixels INDEPENDENTLY, so a bottom-anchored rect
+    // (top + height = 100) can come up a fraction short and leave a 1px
+    // sliver of page background along the bottom — invisible on dark
+    // pages, a glaring light line under a dark scrim on a white page.
+    // Overdraw edge-anchored rects by 1px; the design box's
+    // overflow:hidden clips the excess. Same for the right edge.
+    const bottomAnchored = (item.top ?? 0) + rh >= 99.5;
+    const rightAnchored = (item.left ?? 0) + rw >= 99.5;
     Object.assign(div.style, {
-      width: `${item.width ?? 20}%`,
-      height: `${item.height ?? 10}%`,
+      width: rightAnchored ? `calc(${100 - (item.left ?? 0)}% + 1px)` : `${rw}%`,
+      height: bottomAnchored ? `calc(${100 - (item.top ?? 0)}% + 1px)` : `${rh}%`,
       background: item.fill ?? "transparent",
     });
     if (item.stroke) div.style.border = `0.2cqmin solid ${item.stroke}`;

@@ -90,6 +90,12 @@ func TestI18nResolve(t *testing.T) {
 		{"en", "ja", "en"},
 		{"ja", "en-US", "ja"},
 		{"de", "ja", "ja"}, // bogus pref → auto
+		// q-value ordering: the browser's weights decide, not list order.
+		{"", "en;q=0.5,ja;q=0.9", "ja"},
+		{"", "ja;q=0.3,en;q=0.8", "en"},
+		{"", "ja;q=0,en;q=0.1", "en"},   // q=0 = explicitly excluded
+		{"", "fr;q=1.0,ja;q=0.2", "ja"}, // unsupported ignored regardless of weight
+		{"", "ja-JP;q=0.9,en-GB;q=1.0", "en"},
 	}
 	for _, c := range cases {
 		if got := i18n.Resolve(c.pref, c.accept); got != c.want {

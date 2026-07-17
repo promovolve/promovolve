@@ -20,6 +20,7 @@ package i18n
 
 import (
 	"fmt"
+	"strconv"
 	"strings"
 )
 
@@ -47,25 +48,47 @@ func T(lang, key string, args ...any) string {
 }
 
 // Resolve picks the request language: an explicit user preference wins;
-// "" (auto) falls back to the browser's Accept-Language header, scanned
-// in listed order for a primary subtag we support; default English.
-// Deliberately minimal — no q-value sorting, no golang.org/x/text.
+// "" (auto) falls back to the browser's Accept-Language header with
+// proper q-value ordering (RFC 9110 §12.4.2 semantics at the fidelity
+// we need — primary subtags, quality weights, q=0 exclusion); default
+// English. Still no golang.org/x/text: the full matcher earns its keep
+// only when the language list grows past what a switch can carry.
 func Resolve(pref, acceptLanguage string) string {
 	switch pref {
 	case LangEN, LangJA:
 		return pref
 	}
+	best, bestQ := "", -1.0
 	for _, part := range strings.Split(acceptLanguage, ",") {
 		tag := strings.TrimSpace(part)
-		if i := strings.IndexAny(tag, ";-"); i >= 0 {
-			tag = tag[:i]
+		if tag == "" {
+			continue
 		}
-		switch strings.ToLower(tag) {
-		case LangJA:
-			return LangJA
-		case LangEN:
-			return LangEN
+		q := 1.0
+		if i := strings.Index(tag, ";"); i >= 0 {
+			for _, p := range strings.Split(tag[i+1:], ";") {
+				p = strings.TrimSpace(p)
+				if v, ok := strings.CutPrefix(p, "q="); ok {
+					if f, err := strconv.ParseFloat(v, 64); err == nil {
+						q = f
+					}
+				}
+			}
+			tag = strings.TrimSpace(tag[:i])
 		}
+		if i := strings.IndexByte(tag, '-'); i >= 0 {
+			tag = tag[:i] // ja-JP → ja
+		}
+		lang := strings.ToLower(tag)
+		if (lang != LangEN && lang != LangJA) || q <= 0 {
+			continue // unsupported, or explicitly excluded (q=0)
+		}
+		if q > bestQ {
+			best, bestQ = lang, q
+		}
+	}
+	if best != "" {
+		return best
 	}
 	return LangEN
 }

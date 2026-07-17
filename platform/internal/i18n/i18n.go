@@ -1,6 +1,9 @@
 // Package i18n is the dashboard's message catalog: English-text-as-key,
 // with Japanese as the one translated locale. Zero dependencies.
 //
+// Developer guide (adding strings, the hard rules, the drift guard):
+// dev_docs/I18N.md.
+//
 // Design (see the dashboard-i18n plan):
 //   - The English string IS the key. English needs no catalog; a missing
 //     key falls through to itself, so partially translated builds degrade

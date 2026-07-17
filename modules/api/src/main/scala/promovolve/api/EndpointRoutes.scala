@@ -3218,7 +3218,13 @@ class EndpointRoutes(
           lpTextSnapshot = req.lpTextSnapshot.filter(_.nonEmpty),
           status = if (isDraft) CreativeStatus.Draft else CreativeStatus.Active
         )
-        val creativeF = creativeRepo.map(_.put(creative)).getOrElse(Future.successful(()))
+        // DEFERRED, not a val: a val Future starts executing immediately,
+        // racing imgAssetF — when the creative INSERT reached Postgres
+        // before the image_asset row committed, creative_image_hash_fkey
+        // rejected the save (the intermittent create_failed 400). The
+        // for-comprehensions below only sequence the WAIT, so the insert
+        // must not start until the FK target exists.
+        def creativeF: Future[Unit] = creativeRepo.map(_.put(creative).map(_ => ())).getOrElse(Future.successful(()))
 
         if (isDraft) {
           // Drafts get a thumbnail render so the advertiser can spot

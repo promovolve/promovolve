@@ -316,8 +316,15 @@ export interface BannerConfig {
   showSub: boolean;
   // Legacy field: persisted creatives may still carry "fade" or
   // "crt-power-on" from when the designer offered a choice. The engine
-  // ignores it — every reader deals its sheets in (see EXPAND_EFFECTS).
+  // ignores it — it MUST NOT be honored, because every creative saved
+  // before 2026-07-17 has "fade" pinned from the old default and would
+  // silently lose the deal. The advertiser's real choice is `entrance`.
   expandAnimation?: string;
+  // The reader's entrance/exit. "deal" (default) = the kawaraban
+  // lifecycle: sheets deal in on open, fly away on finish, scatter on
+  // close. "fade" = a plain fade in and out for advertisers who don't
+  // want the theatre; page turns inside the reader are unaffected.
+  entrance?: "deal" | "fade";
   // Paper stock for the interactive page-peel (see PAPER_FEEL). Defaults
   // to "medium" when unset. Purely a hand-feel preset — no visual change.
   paperWeight?: PaperWeight;

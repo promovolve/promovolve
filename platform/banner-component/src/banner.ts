@@ -15,13 +15,14 @@ import { collectExpandedImageUrls, parseJSON, pickCollapsedLayout, pickExpandedL
 import { resolveExpandedFonts } from "./font-catalog";
 import { animatePageTurn, createInteractivePeel, buildGrainOverlay, dogEarPeelFrame, DOGEAR_PEEL_TRAVEL, PAPER_CSS, PAPER_BACK_BLEND, paperBackBackground } from "./paper";
 
-// The expand effect is no longer a per-creative choice: the reader is a
-// pile of loose sheets and opening it always DEALS them in (the kawaraban
-// lifecycle). Persisted creatives may still carry "fade"/"crt-power-on"
-// from when the designer offered a dropdown — those values are ignored.
-// (Reduced-motion overrides to a flat fade at the call sites.)
-function resolveExpandEffect(_name: string | undefined): ExpandAnimation {
-  return "stack";
+// The reader deals its sheets in by default (the kawaraban lifecycle);
+// an advertiser can opt out via cfg.entrance = "fade" for a plain fade
+// in and out. The legacy expandAnimation field is deliberately ignored:
+// creatives saved before 2026-07-17 all carry "fade" from the old
+// default and must not be robbed of the deal by it. (Reduced-motion
+// overrides to a flat fade at the call sites.)
+function resolveExpandEffect(cfg: BannerConfig): ExpandAnimation {
+  return cfg.entrance === "fade" ? "fade" : "stack";
 }
 
 // Effect CSS, motion helpers, and pure utilities live in their own
@@ -534,7 +535,8 @@ export class ExpandableMagazineBanner extends HTMLElement {
       const animMs = typeof cfg.expandDurationMs === "number" && cfg.expandDurationMs > 0
         ? cfg.expandDurationMs
         // stack: last sheet lands at (360 + 2·90)·tempo; +80 buffer.
-        : Math.round(540 * this.paperFeel().tempo) + 80;
+        : resolveExpandEffect(cfg) === "stack"
+          ? Math.round(540 * this.paperFeel().tempo) + 80 : 400;
       if (this._collapseHideTimer) window.clearTimeout(this._collapseHideTimer);
       this._collapseHideTimer = window.setTimeout(() => {
         this._collapseHideTimer = null;
@@ -638,7 +640,7 @@ export class ExpandableMagazineBanner extends HTMLElement {
         const wrapper = overlay.querySelector<HTMLElement>(".expand-wrapper");
         const cfg = this.configData;
         const reducedMotion = window.matchMedia("(prefers-reduced-motion: reduce)").matches;
-        const effectName = reducedMotion ? "fade" : resolveExpandEffect(cfg.expandAnimation);
+        const effectName = reducedMotion ? "fade" : resolveExpandEffect(cfg);
         if (wrapper) {
           // The close animation runs on the wrapper — pages are stacked
           // absolutely inside it on every device. Delivery pins it to
@@ -715,7 +717,7 @@ export class ExpandableMagazineBanner extends HTMLElement {
     if (!wrapper) return;
     const reducedMotion =
       window.matchMedia?.("(prefers-reduced-motion: reduce)").matches ?? false;
-    const effectName = reducedMotion ? "fade" : resolveExpandEffect(this.configData.expandAnimation);
+    const effectName = reducedMotion ? "fade" : resolveExpandEffect(this.configData);
     const cls = `expand-effect-${effectName}`;
     // Drop any close-state class + the open class, force a reflow, then
     // re-add — that restarts the CSS animation from its first keyframe.
@@ -763,6 +765,11 @@ export class ExpandableMagazineBanner extends HTMLElement {
     * all of them leaving at once. */
   private closeViaFlight(): void {
     if (this._reducedMotion || this._peel) { this._collapse(); return; }
+    // Fade entrance: the CLOSE button leaves the way we came in — a
+    // plain fade, no scatter. (Page-turn flights, including the last
+    // sheet flying off on next/drag, stay in both modes: moving a card
+    // out of view is the paper experience, not the entrance theatre.)
+    if (resolveExpandEffect(this.configData) === "fade") { this._collapse(); return; }
     const overlay = this.shadowRoot?.querySelector<HTMLElement>(".overlay");
     if (!overlay) { this._collapse(); return; }
     // Settle any in-flight turn so its frame loop can't fight the exits.
@@ -890,7 +897,9 @@ export class ExpandableMagazineBanner extends HTMLElement {
     const turning = overlay.querySelector<HTMLElement>(`.page-${this.currentPage}`);
     // The LAST sheet has nothing beneath — it flies off over the
     // backdrop and the reader closes. Same lift-and-slide as every
-    // other sheet: the pile empties, the kawaraban is read.
+    // other sheet: the pile empties, the kawaraban is read. This stays
+    // even with the "fade" entrance: page turns are the paper
+    // experience, not the entrance theatre.
     const isLast = this.currentPage >= pages.length - 1;
     const under = isLast
       ? null

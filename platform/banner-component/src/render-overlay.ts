@@ -97,10 +97,12 @@ export function buildExpandWrapper(opts: {
   const { cfg, reducedMotion, rtl } = opts;
   const wrapper = document.createElement("div");
   wrapper.className = "expand-wrapper";
-  // The open effect is always the kawaraban deal; reduced-motion
-  // gets a flat fade instead (cfg.expandAnimation is a legacy field
-  // the engine no longer reads — see EXPAND_EFFECTS in types.ts).
-  const appliedEffect: ExpandAnimation = reducedMotion ? "fade" : "stack";
+  // The kawaraban deal by default; a plain fade when the advertiser
+  // opted out (cfg.entrance) or the reader prefers reduced motion.
+  // (cfg.expandAnimation is a legacy field the engine never reads —
+  // see the note in types.ts.)
+  const appliedEffect: ExpandAnimation =
+    reducedMotion || cfg.entrance === "fade" ? "fade" : "stack";
   wrapper.classList.add(`expand-effect-${appliedEffect}`);
   wrapper.style.cssText = [
     "position: absolute",

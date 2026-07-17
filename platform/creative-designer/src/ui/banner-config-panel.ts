@@ -1,9 +1,9 @@
 // Banner Config panel. Lives at the top of the Properties tab, above
 // the per-page background controls. Holds creative-wide settings that
-// apply to every page and every size: reading direction and the paper
-// stock (weight + back colour). There is no animation picker — the
-// reader always deals its sheets in and flies them away (the kawaraban
-// lifecycle), with tempo derived from the paper weight.
+// apply to every page and every size: the entrance (the kawaraban deal
+// by default, or a plain fade for advertisers who don't want the
+// theatre), reading direction, and the paper stock (weight + back
+// colour). Deal tempo derives from the paper weight.
 
 import { PAPER_WEIGHTS, type PaperWeight } from "@banner/types";
 import type { Store } from "../store";
@@ -36,11 +36,55 @@ export function mountBannerConfigPanel(
   // (Section title "Banner" is provided by the sidebar's collapsible
   // section header — see makeSection in ui/sidebar.ts.)
 
+  // Entrance: how the reader arrives and leaves. "deal" (default) =
+  // sheets fly in on open and fly away on close; "fade" = a plain
+  // cross-fade both ways. Page turns inside the reader are unaffected.
+  const entRow = document.createElement("div");
+  entRow.style.cssText = "display:flex;align-items:center;gap:8px;";
+  const entLabel = document.createElement("label");
+  entLabel.textContent = "Entrance";
+  entLabel.style.cssText = `flex:0 0 auto;font-size:11px;color:${tokens.ink300};`;
+  entRow.appendChild(entLabel);
+  const entSelect = document.createElement("select");
+  entSelect.style.cssText = [
+    "flex: 1 1 auto",
+    "min-width: 0",
+    `background: ${tokens.ink900}`,
+    `color: ${tokens.ink100}`,
+    `border: 1px solid ${tokens.ink500}`,
+    "border-radius: 4px",
+    "padding: 4px 6px",
+    "font: inherit",
+    "font-size: 11px",
+  ].join(";");
+  const ENT_LABELS: Record<string, string> = {
+    deal: "Sheets fly in / out (default)",
+    fade: "Fade in / out",
+  };
+  for (const v of ["deal", "fade"]) {
+    const opt = document.createElement("option");
+    opt.value = v;
+    opt.textContent = ENT_LABELS[v];
+    entSelect.appendChild(opt);
+  }
+  entSelect.addEventListener("change", () => {
+    const v = entSelect.value as "deal" | "fade";
+    const current = store.state.bannerConfig;
+    store.commit({
+      ...store.state,
+      // "deal" is the engine default — store it as absence so configs
+      // stay minimal and the default can evolve without stale pins.
+      bannerConfig: { ...current, entrance: v === "deal" ? undefined : v },
+    });
+  });
+  entRow.appendChild(entSelect);
+  panel.appendChild(entRow);
+
   // Reading direction: drives the page-turn peel corner, the dog-ear
   // corner, and the nav arrows. Auto resolves to RTL for Arabic /
   // vertical-rl content; LTR/RTL force it.
   const dirRow = document.createElement("div");
-  dirRow.style.cssText = "display:flex;align-items:center;gap:8px;";
+  dirRow.style.cssText = "display:flex;align-items:center;gap:8px;margin-top:8px;";
 
   const dirLabel = document.createElement("label");
   dirLabel.textContent = "Reading";
@@ -153,6 +197,8 @@ export function mountBannerConfigPanel(
 
   return {
     update(state) {
+      const ent = state.bannerConfig.entrance ?? "deal";
+      if (entSelect.value !== ent) entSelect.value = ent;
       const dir = state.bannerConfig.readingDirection ?? "auto";
       if (dirSelect.value !== dir) dirSelect.value = dir;
       const weight = state.bannerConfig.paperWeight ?? "medium";

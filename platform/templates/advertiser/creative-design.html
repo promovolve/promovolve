@@ -28,7 +28,13 @@
     // confirmed in the wizard). Serialized [{family,weight,hash}] or
     // empty; the designer passes it through verbatim on save so the
     // core copies the quarantined files live at publish.
-    lpFontsJson: {{.LPFontsJSON}}
+    lpFontsJson: {{.LPFontsJSON}},
+    // Saved creative-wide config (logo, paper, reading direction,
+    // entrance) — serialized BannerConfig JSON or empty for a fresh
+    // creative. The designer seeds its state from this; without it a
+    // resumed draft reverts to defaults and the next save erases the
+    // stored config (the vanishing-logo bug).
+    bannerConfigJson: {{.BannerConfigJSON}}
   };
 </script>
 <script src="{{asset "creative-designer.js"}}" defer></script>

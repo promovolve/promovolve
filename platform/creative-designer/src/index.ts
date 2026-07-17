@@ -1,7 +1,7 @@
 // Entry point. Boots the designer from window.__DESIGNER__ and
 // mounts a #designer-root div into <body>.
 
-import type { DesignerContext, LayoutItem, Page } from "./types";
+import type {BannerConfig, DesignerContext, LayoutItem, Page } from "./types";
 import { applyBrandKitFontsToText, inheritBannerColors, initialState, setZoom, syncTypographyFromPage1 } from "./state";
 import { looksLikePercentLayout, normalizePages } from "./normalize";
 import { loadBrandKit, subscribeBrandKit } from "./brand-kit";
@@ -191,7 +191,18 @@ function boot(ctx: DesignerContext): void {
   // Boot into the portrait reader — the surface delivery renders on
   // every device; the 16:9 tab is now the wide-collapsed/legacy layout
   // (see modes.ts).
-  const store = new Store(initialState(colourReconciled, "mobile"));
+  // A resumed creative carries its saved banner-level config (logo,
+  // paper stock, reading direction, entrance); seed the store with it
+  // so Save/Publish round-trips the blob instead of resetting it to
+  // defaults — the silent reset is what kept eating the brand logo.
+  let savedBannerConfig: BannerConfig | undefined;
+  if (ctx.bannerConfigJson) {
+    try {
+      const parsed = JSON.parse(ctx.bannerConfigJson) as BannerConfig;
+      if (parsed && typeof parsed === "object") savedBannerConfig = parsed;
+    } catch { /* malformed blob → fresh defaults */ }
+  }
+  const store = new Store(initialState(colourReconciled, "mobile", savedBannerConfig));
   // Dev-server-only hook so the vite fixture can be driven by Playwright
   // (state injection + assertions). import.meta.hot exists only under
   // `vite serve` — the committed static bundle is a --mode development

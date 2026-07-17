@@ -3767,6 +3767,11 @@ type creativeDesignData struct {
 	BrandKitJSON    string
 	TemplateID      string
 	LPFontsJSON     string
+	// Saved banner-level config (logo, paper stock, reading direction,
+	// entrance). Resume MUST carry it back into the designer or the next
+	// save silently overwrites the stored blob with defaults — the bug
+	// that kept eating the author-placed brand logo.
+	BannerConfigJSON string
 }
 
 // SaveCreative saves an expandable magazine banner creative
@@ -3893,11 +3898,12 @@ func (h *Handler) ResumeDraft(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	var draft struct {
-		CreativeID     string `json:"creativeId"`
-		Name           string `json:"name"`
-		LandingURL     string `json:"landingUrl"`
-		PagesJSON      string `json:"pagesJson"`
-		LPTextSnapshot string `json:"lpTextSnapshot"`
+		CreativeID       string `json:"creativeId"`
+		Name             string `json:"name"`
+		LandingURL       string `json:"landingUrl"`
+		PagesJSON        string `json:"pagesJson"`
+		LPTextSnapshot   string `json:"lpTextSnapshot"`
+		BannerConfigJSON string `json:"bannerConfigJson"`
 	}
 	if err := json.Unmarshal(body, &draft); err != nil {
 		slog.Error("ResumeDraft: bad JSON", "err", err)
@@ -3924,6 +3930,9 @@ func (h *Handler) ResumeDraft(w http.ResponseWriter, r *http.Request) {
 		BrandKitJSON: "",
 		TemplateID:   "",
 		LPFontsJSON:  "",
+		// The saved creative-wide config rides back in — see the struct
+		// comment. Empty when the row predates bannerConfigJson.
+		BannerConfigJSON: draft.BannerConfigJSON,
 	}
 
 	w.Header().Set("Content-Type", "text/html; charset=utf-8")

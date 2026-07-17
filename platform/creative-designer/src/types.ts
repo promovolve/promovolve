@@ -31,6 +31,11 @@ export interface DesignerContext {
   bannerSize: string;
   pages: unknown;         // JSON-parsed Page[]; validated on boot
   bannerScriptUrl: string;
+  // Saved creative-wide BannerConfig JSON (logo, paper stock, reading
+  // direction, entrance). Set on resume; empty/absent on first-time
+  // authoring. MUST seed the store or the next save wipes the stored
+  // config back to defaults.
+  bannerConfigJson?: string;
   // Set when reopening a draft so Save Draft / Publish overwrite the
   // same row rather than creating a new creative per save. Empty on
   // first-time authoring from the editor.

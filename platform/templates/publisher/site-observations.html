@@ -2,13 +2,13 @@
 {{$fo := .FloorObservations}}
 <div class="flex items-center justify-between mb-6">
   <div>
-    <h1 class="text-2xl font-semibold">Floor Decisions</h1>
+    <h1 class="text-2xl font-semibold">{{t "Floor Decisions"}}</h1>
     <p class="text-sm text-gray-500">
-      Site <span class="font-mono">{{$fo.SiteID}}</span>
+      {{t "Site"}} <span class="font-mono">{{$fo.SiteID}}</span>
     </p>
   </div>
   <div class="flex items-center gap-3">
-    <a href="/publisher/sites" class="text-sm text-brand hover:underline">← Back to sites</a>
+    <a href="/publisher/sites" class="text-sm text-brand hover:underline">← {{t "Back to sites"}}</a>
   </div>
 </div>
 
@@ -16,15 +16,15 @@
 {{/* ----- Learned traffic shape — the curve pacing decisions run against ----- */}}
 <div class="bg-white border rounded-lg mb-6 px-5 py-4">
   <div class="flex items-baseline justify-between">
-    <h2 class="text-sm font-semibold">Traffic shape (learned)</h2>
-    <p class="text-xs text-gray-400">relative request volume per UTC hour · amber = current hour</p>
+    <h2 class="text-sm font-semibold">{{t "Traffic shape (learned)"}}</h2>
+    <p class="text-xs text-gray-400">{{t "relative request volume per UTC hour · amber = current hour"}}</p>
   </div>
   {{if $fo.TrafficShape.Learning}}
-  <p class="text-xs text-gray-500 mt-1">Still learning — the shape is uniform, so budget pacing behaves linearly. It converges over ~5 days of traffic.</p>
+  <p class="text-xs text-gray-500 mt-1">{{t "Still learning — the shape is uniform, so budget pacing behaves linearly. It converges over ~5 days of traffic."}}</p>
   {{end}}
   <div class="mt-4 space-y-4">
     <div>
-      <p class="text-xs text-gray-500 mb-1">Weekdays</p>
+      <p class="text-xs text-gray-500 mb-1">{{t "Weekdays"}}</p>
       <div class="flex items-end gap-px h-16">
         {{range $fo.TrafficShape.Weekday}}
         <div class="flex-1 rounded-t {{if .IsNow}}bg-amber-400{{else}}bg-gray-300{{end}}" style="height: {{.HeightPct}}%" title="{{.Title}}"></div>
@@ -32,7 +32,7 @@
       </div>
     </div>
     <div>
-      <p class="text-xs text-gray-500 mb-1">Weekends</p>
+      <p class="text-xs text-gray-500 mb-1">{{t "Weekends"}}</p>
       <div class="flex items-end gap-px h-16">
         {{range $fo.TrafficShape.Weekend}}
         <div class="flex-1 rounded-t {{if .IsNow}}bg-amber-400{{else}}bg-gray-300{{end}}" style="height: {{.HeightPct}}%" title="{{.Title}}"></div>
@@ -56,44 +56,37 @@
 {{/* ----- Headline: the range of per-category floors ----- */}}
 <div class="bg-white border rounded-lg overflow-hidden mb-6">
   <div class="px-5 py-4 border-b bg-gray-50">
-    <p class="text-xs text-gray-500 uppercase tracking-wider">Per-category floors (live demand)</p>
+    <p class="text-xs text-gray-500 uppercase tracking-wider">{{t "Per-category floors (live demand)"}}</p>
     <p class="text-3xl font-semibold text-gray-900 mt-1">{{$fo.FloorRange}}</p>
     <p class="text-sm text-gray-500 mt-1">
       {{if $fo.ActiveCategories}}
-      across {{$fo.ActiveCategories}} categor{{if eq $fo.ActiveCategories 1}}y{{else}}ies{{end}} with current bidders
-      {{if $fo.HistoricalCategories}} · {{$fo.HistoricalCategories}} historical floor{{if ne $fo.HistoricalCategories 1}}s{{end}} (no bidders) dimmed in the table{{end}}
+      {{if eq $fo.ActiveCategories 1}}{{t "across 1 category with current bidders"}}{{else}}{{t "across %d categories with current bidders" $fo.ActiveCategories}}{{end}}
+      {{if $fo.HistoricalCategories}} · {{if eq $fo.HistoricalCategories 1}}{{t "1 historical floor (no bidders) dimmed in the table"}}{{else}}{{t "%d historical floors (no bidders) dimmed in the table" $fo.HistoricalCategories}}{{end}}{{end}}
       {{else}}
-      no categories currently have bidders — the floors below are historical
+      {{t "no categories currently have bidders — the floors below are historical"}}
       {{end}}
     </p>
   </div>
   <div class="px-5 py-3 bg-gray-50 text-xs text-gray-600">
-    These are what your targeted advertisers actually pay against. The
-    site-wide sweep at the bottom is only a fallback for categories that
-    don't have their own floor yet.
+    {{t "These are what your targeted advertisers actually pay against. The site-wide sweep at the bottom is only a fallback for categories that don't have their own floor yet."}}
   </div>
 </div>
 
 {{/* ----- How each floor is set (the honest hybrid) ----- */}}
 <div class="bg-white border rounded-lg mb-6 px-5 py-4">
-  <h2 class="text-sm font-semibold mb-3">How each floor is set</h2>
+  <h2 class="text-sm font-semibold mb-3">{{t "How each floor is set"}}</h2>
   <ul class="text-sm text-gray-600 space-y-2.5 list-disc pl-5">
     <li>
-      <strong class="text-gray-800">One bidder in a category</strong> →
-      the floor is set straight to that bid. With a single advertiser, their
-      bid <em>is</em> the revenue-optimal reserve, so there's nothing to
-      measure — they pay full value, and the floor follows a bid change
-      instantly.
+      <strong class="text-gray-800">{{t "One bidder in a category"}}</strong> →
+      {{t "the floor is set straight to that bid. With a single advertiser, their bid is the revenue-optimal reserve, so there's nothing to measure — they pay full value, and the floor follows a bid change instantly."}}
     </li>
     <li>
-      <strong class="text-gray-800">Two or more bidders</strong> →
-      a sweep tries candidate floors against real revenue and keeps the one
-      that earns most. (The site-wide sweep below shows this mechanism in
-      action.)
+      <strong class="text-gray-800">{{t "Two or more bidders"}}</strong> →
+      {{t "a sweep tries candidate floors against real revenue and keeps the one that earns most. (The site-wide sweep below shows this mechanism in action.)"}}
     </li>
     <li>
-      <strong class="text-gray-800">Too little traffic</strong> →
-      the floor holds at your minimum rather than drift up on noise.
+      <strong class="text-gray-800">{{t "Too little traffic"}}</strong> →
+      {{t "the floor holds at your minimum rather than drift up on noise."}}
     </li>
   </ul>
 </div>
@@ -101,22 +94,22 @@
 {{/* ----- Floor by category table ----- */}}
 <div class="bg-white border rounded-lg overflow-hidden mb-6">
   <div class="px-5 py-3 border-b bg-gray-50">
-    <h2 class="text-sm font-semibold">Floor by category</h2>
+    <h2 class="text-sm font-semibold">{{t "Floor by category"}}</h2>
   </div>
   <table class="w-full text-sm">
     <thead>
       <tr class="text-left text-xs text-gray-500 border-b">
-        <th class="px-5 py-2 font-medium">Category</th>
-        <th class="px-5 py-2 font-medium text-right">Floor</th>
-        <th class="px-5 py-2 font-medium">Demand now</th>
-        <th class="px-5 py-2 font-medium text-right">Last decision</th>
+        <th class="px-5 py-2 font-medium">{{t "Category"}}</th>
+        <th class="px-5 py-2 font-medium text-right">{{t "Floor"}}</th>
+        <th class="px-5 py-2 font-medium">{{t "Demand now"}}</th>
+        <th class="px-5 py-2 font-medium text-right">{{t "Last decision"}}</th>
       </tr>
     </thead>
     <tbody>
       {{range $fo.CategoryFloors}}
       <tr class="border-b last:border-0{{if .Historical}} opacity-40{{end}}">
         <td class="px-5 py-2" title="{{.Category}}">
-          {{if and .CategoryName (ne .CategoryName .Category)}}{{.CategoryName}} <span class="text-gray-400 font-mono text-xs">{{.Category}}</span>{{else}}<span class="font-mono text-xs">{{.Category}}</span>{{end}}
+          {{if and .CategoryName (ne .CategoryName .Category)}}{{t .CategoryName}} <span class="text-gray-400 font-mono text-xs">{{.Category}}</span>{{else}}<span class="font-mono text-xs">{{.Category}}</span>{{end}}
         </td>
         <td class="px-5 py-2 text-right font-semibold {{if .Historical}}text-gray-400 line-through{{else}}text-gray-900{{end}}">{{.Floor}}</td>
         <td class="px-5 py-2">
@@ -133,18 +126,15 @@
     </tbody>
   </table>
   <div class="px-5 py-3 bg-gray-50 text-xs text-gray-500 border-t">
-    <strong>Demand now</strong> is live (from the latest auction rounds; resets on restart until traffic flows).
-    A dimmed row's floor was learned from bidders that no longer target this category — it prices nothing
-    until demand returns. One bidder → the floor pegs to their bid; two or more → the sweep measures
-    candidate floors against real revenue.
+    <strong>{{t "Demand now"}}</strong> {{t "is live (from the latest auction rounds; resets on restart until traffic flows). A dimmed row's floor was learned from bidders that no longer target this category — it prices nothing until demand returns. One bidder → the floor pegs to their bid; two or more → the sweep measures candidate floors against real revenue."}}
   </div>
 </div>
 
 {{/* ----- Site-wide sweep, demoted to a collapsible fallback ----- */}}
 <details class="mb-6">
   <summary class="cursor-pointer text-sm font-medium text-gray-600 hover:text-gray-900 select-none py-2">
-    Site-wide fallback floor &amp; sweep evidence
-    <span class="text-xs text-gray-400 font-normal">— used only for categories without their own floor; not what your targeted advertisers pay</span>
+    {{t "Site-wide fallback floor & sweep evidence"}}
+    <span class="text-xs text-gray-400 font-normal">{{t "— used only for categories without their own floor; not what your targeted advertisers pay"}}</span>
   </summary>
   <div class="mt-4">
     {{template "sweepAndChart" $fo}}
@@ -177,7 +167,7 @@
   <div class="px-5 py-4 border-b bg-gray-50">
     <div class="flex items-baseline justify-between">
       <div>
-        <p class="text-xs text-gray-500 uppercase tracking-wider">Site-wide sweep floor</p>
+        <p class="text-xs text-gray-500 uppercase tracking-wider">{{t "Site-wide sweep floor"}}</p>
         <p class="text-3xl font-semibold text-gray-900 mt-1">
           {{$sw.BestFloor}}
           {{if ne $sw.BestFloorDelta "—"}}
@@ -186,47 +176,43 @@
               {{if eq $sw.BestFloorTrendArrow "▼"}}text-red-600{{end}}
               {{if eq $sw.BestFloorTrendArrow "="}}text-gray-500{{end}}">
               {{$sw.BestFloorTrendArrow}} {{$sw.BestFloorDelta}}
-              <span class="text-xs text-gray-400">vs last cycle ({{$sw.PreviousBestFloor}})</span>
+              <span class="text-xs text-gray-400">{{t "vs last cycle (%s)" $sw.PreviousBestFloor}}</span>
             </span>
           {{else}}
-            <span class="ml-3 text-sm text-gray-400">first cycle in progress…</span>
+            <span class="ml-3 text-sm text-gray-400">{{t "first cycle in progress…"}}</span>
           {{end}}
         </p>
       </div>
       <div class="text-right text-xs text-gray-500">
         {{if eq $sw.Phase "sweep"}}
-          measuring candidate {{$sw.CursorDisplay}}{{if $sw.CandidateCount}}/{{$sw.CandidateCount}}{{end}}<br>
-          {{if $sw.HoldMins}}~{{$sw.HoldMins}}m per candidate{{else}}tick {{$sw.TicksThisCandidate}}{{end}}
+          {{t "measuring candidate %d" $sw.CursorDisplay}}{{if $sw.CandidateCount}}/{{$sw.CandidateCount}}{{end}}<br>
+          {{if $sw.HoldMins}}{{t "~%dm per candidate" $sw.HoldMins}}{{else}}{{t "tick %d" $sw.TicksThisCandidate}}{{end}}
         {{else if eq $sw.Phase "exploit"}}
-          holding fallback floor<br>
-          next re-evaluation in {{if $sw.ExploitMins}}~{{$sw.ExploitMins}}m{{else}}{{$sw.ExploitTicksRemaining}} ticks{{end}}
+          {{t "holding fallback floor"}}<br>
+          {{if $sw.ExploitMins}}{{t "next re-evaluation in ~%dm" $sw.ExploitMins}}{{else}}{{t "next re-evaluation in %d ticks" $sw.ExploitTicksRemaining}}{{end}}
         {{else}}
-          (initializing)
+          {{t "(initializing)"}}
         {{end}}
       </div>
     </div>
   </div>
 
   <div class="px-5 py-3 bg-gray-50 border-b text-xs text-gray-600">
-    <strong>What this is:</strong> the site-wide sweep tries each candidate
-    floor for {{if $sw.HoldMins}}~{{$sw.HoldMins}} minute{{if ne $sw.HoldMins 1}}s{{end}}{{else}}a few observation ticks{{end}},
-    counts realized net revenue, and keeps the one that earned most. It's the
-    <strong>fallback</strong> floor — applied to
-    categories that don't have their own learned floor (and to the whole
-    site when per-category mode is off). Single-bidder categories don't use
-    it: they price straight off the bid.
+    <strong>{{t "What this is:"}}</strong>
+    {{if $sw.HoldMins}}{{if eq $sw.HoldMins 1}}{{t "the site-wide sweep tries each candidate floor for ~1 minute,"}}{{else}}{{t "the site-wide sweep tries each candidate floor for ~%d minutes," $sw.HoldMins}}{{end}}{{else}}{{t "the site-wide sweep tries each candidate floor for a few observation ticks,"}}{{end}}
+    {{t "counts realized net revenue, and keeps the one that earned most. It's the fallback floor — applied to categories that don't have their own learned floor (and to the whole site when per-category mode is off). Single-bidder categories don't use it: they price straight off the bid."}}
   </div>
 
   {{/* ----- Evidence table ----- */}}
   <table class="w-full text-sm">
     <thead class="bg-gray-50 text-xs text-gray-600 uppercase">
       <tr>
-        <th class="text-left px-4 py-2 font-medium">Floor</th>
-        <th class="text-right px-4 py-2 font-medium" title="Net revenue (after platform fee) measured at this floor during this cycle">This cycle (net)</th>
-        <th class="text-right px-4 py-2 font-medium" title="Impressions served while measuring this floor">Imps</th>
-        <th class="text-right px-4 py-2 font-medium" title="Net revenue (after platform fee) measured at this same floor during the previous cycle">Last cycle (net)</th>
-        <th class="text-right px-4 py-2 font-medium" title="Change from last cycle to this cycle">Δ</th>
-        <th class="text-left px-4 py-2 font-medium w-1/3">Relative</th>
+        <th class="text-left px-4 py-2 font-medium">{{t "Floor"}}</th>
+        <th class="text-right px-4 py-2 font-medium" title="{{t "Net revenue (after platform fee) measured at this floor during this cycle"}}">{{t "This cycle (net)"}}</th>
+        <th class="text-right px-4 py-2 font-medium" title="{{t "Impressions served while measuring this floor"}}">{{t "Imps"}}</th>
+        <th class="text-right px-4 py-2 font-medium" title="{{t "Net revenue (after platform fee) measured at this same floor during the previous cycle"}}">{{t "Last cycle (net)"}}</th>
+        <th class="text-right px-4 py-2 font-medium" title="{{t "Change from last cycle to this cycle"}}">Δ</th>
+        <th class="text-left px-4 py-2 font-medium w-1/3">{{t "Relative"}}</th>
       </tr>
     </thead>
     <tbody>
@@ -235,7 +221,7 @@
         <td class="px-4 py-2 font-mono whitespace-nowrap">
           {{.Floor}}
           {{if .IsBest}}<span class="ml-1 text-green-700 text-xs">★</span>{{end}}
-          {{if .WasBest}}<span class="ml-1 text-gray-400 text-xs" title="was the argmax last cycle">★</span>{{end}}
+          {{if .WasBest}}<span class="ml-1 text-gray-400 text-xs" title="{{t "was the argmax last cycle"}}">★</span>{{end}}
         </td>
         <td class="px-4 py-2 text-right font-mono">{{.Revenue}}</td>
         <td class="px-4 py-2 text-right text-gray-500">{{.Impressions}}</td>
@@ -254,16 +240,16 @@
       </tr>
       {{else}}
       <tr><td colspan="6" class="px-4 py-6 text-center text-gray-400">
-        No measurements yet — sweep optimizer is initializing. Refresh in a moment.
+        {{t "No measurements yet — sweep optimizer is initializing. Refresh in a moment."}}
       </td></tr>
       {{end}}
     </tbody>
   </table>
 
   <div class="px-5 py-2 bg-gray-50 border-t text-xs text-gray-400">
-    <span class="text-green-700">★</span> = argmax this cycle ·
-    <span class="text-gray-400">★</span> = was argmax last cycle ·
-    Δ shows revenue change vs last cycle's measurement of that same floor
+    <span class="text-green-700">★</span> {{t "= argmax this cycle"}} ·
+    <span class="text-gray-400">★</span> {{t "= was argmax last cycle"}} ·
+    {{t "Δ shows revenue change vs last cycle's measurement of that same floor"}}
   </div>
 </div>
 {{end}}
@@ -272,10 +258,10 @@
 <div class="bg-white border rounded-lg overflow-hidden mb-6">
   <div class="px-5 py-3 border-b bg-gray-50">
     <div class="flex items-baseline justify-between">
-      <h2 class="text-sm font-semibold">Site-wide sweep floor over time</h2>
+      <h2 class="text-sm font-semibold">{{t "Site-wide sweep floor over time"}}</h2>
       {{if $fo.ArgmaxStability}}
       <span class="badge {{$fo.ArgmaxStability.StatusColor}}">
-        {{$fo.ArgmaxStability.Status}}
+        {{t $fo.ArgmaxStability.Status}}
       </span>
       {{end}}
     </div>
@@ -283,10 +269,7 @@
     <p class="text-xs text-gray-600 mt-1">{{$fo.ArgmaxStability.Summary}}</p>
     {{end}}
     <p class="text-xs text-gray-400 mt-1">
-      Each dot = one completed cycle's pick.
-      Flat line → optimizer converged.
-      Zig-zag → flat-revenue zone (picks vary but revenue is similar).
-      Trend → bidder market is shifting.
+      {{t "Each dot = one completed cycle's pick. Flat line → optimizer converged. Zig-zag → flat-revenue zone (picks vary but revenue is similar). Trend → bidder market is shifting."}}
     </p>
   </div>
   {{if $fo.ArgmaxHistory}}
@@ -328,31 +311,31 @@
         {{$nav := $fo.ArgmaxNav}}
         <a href="?date={{$nav.PrevDate}}" class="text-brand hover:underline whitespace-nowrap">← {{$nav.PrevDate}}</a>
         <form method="GET" class="flex items-center gap-2">
-          <label class="text-xs text-gray-500">Date:</label>
+          <label class="text-xs text-gray-500">{{t "Date:"}}</label>
           <input type="date" name="date" value="{{if $nav.SelectedDate}}{{$nav.SelectedDate}}{{else}}{{$nav.Today}}{{end}}" max="{{$nav.Today}}"
                  onchange="this.form.submit()"
                  class="px-2 py-1 border rounded-md text-xs focus:outline-none focus:ring-2 focus:ring-brand/20 focus:border-brand">
           {{if $nav.SelectedDate}}
-            <a href="?" class="text-brand hover:underline">recent →</a>
+            <a href="?" class="text-brand hover:underline">{{t "recent"}} →</a>
           {{end}}
-          <span class="text-gray-500"><strong class="text-gray-700">{{len $fo.ArgmaxHistory}}</strong> cycle(s){{if not $showLabels}} · hover dots for values{{end}}</span>
+          <span class="text-gray-500"><strong class="text-gray-700">{{len $fo.ArgmaxHistory}}</strong> {{t "cycle(s)"}}{{if not $showLabels}} · {{t "hover dots for values"}}{{end}}</span>
         </form>
         {{if $nav.NextDate}}
           <a href="?date={{$nav.NextDate}}" class="text-brand hover:underline whitespace-nowrap">{{$nav.NextDate}} →</a>
         {{else}}
-          <span class="text-gray-300 whitespace-nowrap">at today</span>
+          <span class="text-gray-300 whitespace-nowrap">{{t "at today"}}</span>
         {{end}}
       {{else}}
-        <span>← older cycles</span>
-        <span><strong class="text-gray-600">{{len $fo.ArgmaxHistory}}</strong> cycle(s)</span>
-        <span>newer cycles →</span>
+        <span>← {{t "older cycles"}}</span>
+        <span><strong class="text-gray-600">{{len $fo.ArgmaxHistory}}</strong> {{t "cycle(s)"}}</span>
+        <span>{{t "newer cycles"}} →</span>
       {{end}}
     </div>
   </div>
   {{else}}
   <div class="px-5 py-12 text-center">
-    <p class="text-sm text-gray-400">No completed cycles yet</p>
-    <p class="text-xs text-gray-300 mt-1">First dot appears after the optimizer finishes its first full probe cycle{{if $fo.Sweep}}{{if $fo.Sweep.HoldMins}}{{if $fo.Sweep.CandidateCount}} (~{{$fo.Sweep.HoldMins}}m × {{$fo.Sweep.CandidateCount}} candidates){{end}}{{end}}{{end}}</p>
+    <p class="text-sm text-gray-400">{{t "No completed cycles yet"}}</p>
+    <p class="text-xs text-gray-300 mt-1">{{t "First dot appears after the optimizer finishes its first full probe cycle"}}{{if $fo.Sweep}}{{if $fo.Sweep.HoldMins}}{{if $fo.Sweep.CandidateCount}} {{t "(~%dm × %d candidates)" $fo.Sweep.HoldMins $fo.Sweep.CandidateCount}}{{end}}{{end}}{{end}}</p>
   </div>
   {{end}}
 </div>

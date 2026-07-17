@@ -11,9 +11,9 @@
 <!-- Header -->
 <div class="flex items-center justify-between mb-6 shrink-0">
   <div>
-    <h1 class="page-title">Creative Inbox</h1>
+    <h1 class="page-title">{{t "Creative Inbox"}}</h1>
     <p class="page-sub">
-      {{len .Pending}} pending &middot; {{len .Serving}} serving &middot; {{len .Flagged}} flagged
+      {{t "%d pending" (len .Pending)}} &middot; {{t "%d serving" (len .Serving)}} &middot; {{t "%d flagged" (len .Flagged)}}
     </p>
   </div>
 </div>
@@ -21,10 +21,10 @@
 <!-- Text filter over the whole inbox (client-side; matches row text + state) -->
 <div class="mb-5 shrink-0">
   <input id="inbox-search" type="search" autocomplete="off"
-         placeholder="Filter by advertiser, campaign, landing domain, or state…"
+         placeholder="{{t "Filter by advertiser, campaign, landing domain, or state…"}}"
          oninput="applyInboxFilter()"
          class="form-input max-w-lg">
-  <p id="inbox-nomatch" class="text-sm text-gray-400 mt-2 hidden">No creatives match your filter.</p>
+  <p id="inbox-nomatch" class="text-sm text-gray-400 mt-2 hidden">{{t "No creatives match your filter."}}</p>
 </div>
 
 <!-- SSE: real-time updates via htmx SSE extension. Publisher-level stream:
@@ -298,8 +298,8 @@ document.body.addEventListener('inboxActed', function(){
 {{if not .SiteGroups}}
 <div class="flex flex-col items-center justify-center flex-1 min-h-0 text-gray-400">
   <div class="text-5xl mb-4">&#x2713;</div>
-  <p class="text-lg font-medium">Inbox zero</p>
-  <p class="text-sm mt-2">Creatives awaiting review, serving, and flagged ones all appear here</p>
+  <p class="text-lg font-medium">{{t "Inbox zero"}}</p>
+  <p class="text-sm mt-2">{{t "Creatives awaiting review, serving, and flagged ones all appear here"}}</p>
 </div>
 {{else}}
 <div class="flex gap-6 flex-1 min-h-0">
@@ -307,10 +307,10 @@ document.body.addEventListener('inboxActed', function(){
        All). The badge is the site's NEW (pending) count, so you can see at a
        glance which properties have creatives waiting. -->
   <div class="w-52 shrink-0 overflow-y-auto min-h-0 space-y-1 border-r border-gray-100 pr-3">
-    <div class="px-3 pt-1 pb-2 text-xs font-semibold text-gray-400 uppercase tracking-wide">Sites</div>
+    <div class="px-3 pt-1 pb-2 text-xs font-semibold text-gray-400 uppercase tracking-wide">{{t "Sites"}}</div>
     <button type="button" data-site-rail="all" onclick="selectSite('all')"
             class="w-full flex items-center justify-between gap-2 px-3 py-2 rounded-lg text-sm text-left hover:bg-gray-50">
-      <span class="font-medium">All sites</span>
+      <span class="font-medium">{{t "All sites"}}</span>
       {{if .Pending}}<span class="inline-flex items-center justify-center min-w-[1.25rem] h-5 px-1.5 rounded-full bg-yellow-400 text-yellow-950 text-xs font-semibold">{{len .Pending}}</span>{{end}}
     </button>
     {{range $g, $group := .SiteGroups}}
@@ -338,10 +338,10 @@ document.body.addEventListener('inboxActed', function(){
         <form method="POST" action="/publisher/approval/auto-approve" hx-post="/publisher/approval/auto-approve" hx-swap="none">
           <input type="hidden" name="siteId" value="{{$group.Site.ID}}">
           <label class="flex items-center gap-2 cursor-pointer select-none"
-                 title="Automatically approve new creatives from campaigns or landing domains you already approved on this site. Rejecting, flagging, or revoking a creative withdraws that trust.">
+                 title="{{t "Automatically approve new creatives from campaigns or landing domains you already approved on this site. Rejecting, flagging, or revoking a creative withdraws that trust."}}">
             <input type="checkbox" name="enabled" {{if $group.AutoApprove}}checked{{end}}
                    onchange="this.form.requestSubmit()" class="rounded border-gray-300">
-            <span class="text-xs font-medium text-gray-600">Auto-approve trusted advertisers</span>
+            <span class="text-xs font-medium text-gray-600">{{t "Auto-approve trusted advertisers"}}</span>
           </label>
         </form>
         {{/* The full trust list lives on its own page — it grows without
@@ -349,7 +349,7 @@ document.body.addEventListener('inboxActed', function(){
         {{$anchorCount := len $group.TrustedCampaigns | add (len $group.TrustedDomains)}}
         {{if or $group.TrustedCampaigns $group.TrustedDomains}}
         <a href="/publisher/trusted" class="mt-1.5 inline-block text-xs text-brand hover:underline">
-          {{$anchorCount}} trusted{{if not $group.AutoApprove}} <span class="text-gray-400">(paused)</span>{{end}} &rarr;
+          {{t "%d trusted" $anchorCount}}{{if not $group.AutoApprove}} <span class="text-gray-400">{{t "(paused)"}}</span>{{end}} &rarr;
         </a>
         {{end}}
       </div>
@@ -357,15 +357,15 @@ document.body.addEventListener('inboxActed', function(){
       {{/* WaitingFor is the honest queue age (survives the core's TTL
            purge/re-queue cycle) — surface it right in the row so stale
            items are visible without opening the detail pane. */}}
-      {{$sub := printf "Max bid $%s" $c.CPM}}{{if $c.WaitingFor}}{{$sub = printf "%s · waiting %s" $sub $c.WaitingFor}}{{end}}{{if $c.CreativeName}}{{$sub = printf "%s · %s" $c.CreativeName $sub}}{{end}}
+      {{$sub := t "Max bid $%s" $c.CPM}}{{if $c.WaitingFor}}{{$sub = t "%s · waiting %s" $sub $c.WaitingFor}}{{end}}{{if $c.CreativeName}}{{$sub = printf "%s · %s" $c.CreativeName $sub}}{{end}}
       {{template "inbox-row" dict "Key" (printf "pending-%s-%d" $group.Site.ID $i) "State" "pending" "Ts" $c.CreatedAt "Cid" $c.CreativeID "Label" (or $c.LandingDomain (slice $c.CreativeID 0 16)) "Sub" $sub "Asset" $c.AssetURL "Pages" $c.PagesJSON "Search" (printf "%s %s %s %s %s" $c.AdvertiserID $c.CampaignID $c.LandingDomain $c.AdvertiserName $c.CampaignName)}}
       {{end}}
       {{range $i, $c := $group.Serving}}
-      {{$servSub := printf "Max bid $%s" $c.CPM}}{{if $c.Benched}}{{$servSub = printf "%s · benched" $servSub}}{{end}}{{if $c.CreativeName}}{{$servSub = printf "%s · %s" $c.CreativeName $servSub}}{{end}}
+      {{$servSub := t "Max bid $%s" $c.CPM}}{{if $c.Benched}}{{$servSub = t "%s · benched" $servSub}}{{end}}{{if $c.CreativeName}}{{$servSub = printf "%s · %s" $c.CreativeName $servSub}}{{end}}
       {{template "inbox-row" dict "Key" (printf "serving-%s-%d" $group.Site.ID $i) "State" "serving" "Ts" "" "Cid" $c.CreativeID "Label" (or $c.LandingDomain (slice $c.CreativeID 0 16)) "Sub" $servSub "Asset" $c.AssetURL "Pages" $c.PagesJSON "Search" (printf "%s %s %s %s %s" $c.AdvertiserID $c.CampaignID $c.LandingDomain $c.AdvertiserName $c.CampaignName)}}
       {{end}}
       {{range $i, $c := $group.Flagged}}
-      {{template "inbox-row" dict "Key" (printf "flagged-%s-%d" $group.Site.ID $i) "State" "flagged" "Ts" "" "Cid" $c.CreativeID "Label" (or $c.LandingDomain (slice $c.CreativeID 0 16)) "Sub" (printf "Max bid $%s" $c.CPM) "Asset" $c.AssetURL "Pages" $c.PagesJSON "Search" (printf "%s %s %s %s %s" $c.AdvertiserID $c.CampaignID $c.LandingDomain $c.AdvertiserName $c.CampaignName)}}
+      {{template "inbox-row" dict "Key" (printf "flagged-%s-%d" $group.Site.ID $i) "State" "flagged" "Ts" "" "Cid" $c.CreativeID "Label" (or $c.LandingDomain (slice $c.CreativeID 0 16)) "Sub" (t "Max bid $%s" $c.CPM) "Asset" $c.AssetURL "Pages" $c.PagesJSON "Search" (printf "%s %s %s %s %s" $c.AdvertiserID $c.CampaignID $c.LandingDomain $c.AdvertiserName $c.CampaignName)}}
       {{end}}
     </div>
     {{end}}
@@ -383,26 +383,26 @@ document.body.addEventListener('inboxActed', function(){
       <div class="bg-white rounded-lg border p-6">
         {{template "preview-pane" dict "Pages" $c.PagesJSON "Config" $c.BannerConfigJSON "Landing" $c.LandingURL "Asset" $c.AssetURL "Width" $c.Width "Height" $c.Height "Site" $site "Badge" "Pending" "BadgeClass" "bg-amber-100 text-amber-700"}}
         <div class="grid grid-cols-2 gap-4 text-sm mb-6">
-          <div><p class="text-gray-500">Advertiser</p><p class="font-medium" title="{{$c.AdvertiserID}}">{{if $c.AdvertiserName}}{{$c.AdvertiserName}}{{else}}&mdash;{{end}}</p></div>
-          <div><p class="text-gray-500">Campaign</p><p class="font-medium" title="{{$c.CampaignID}}">{{if $c.CampaignName}}{{$c.CampaignName}}{{else}}&mdash;{{end}}</p></div>
-          <div><p class="text-gray-500">Max Bid</p><p class="font-medium">${{$c.CPM}}</p></div>
-          <div><p class="text-gray-500">Landing Domain</p><p class="font-medium">{{if $c.LandingDomain}}{{$c.LandingDomain}}{{else}}&mdash;{{end}}</p></div>
+          <div><p class="text-gray-500">{{t "Advertiser"}}</p><p class="font-medium" title="{{$c.AdvertiserID}}">{{if $c.AdvertiserName}}{{$c.AdvertiserName}}{{else}}&mdash;{{end}}</p></div>
+          <div><p class="text-gray-500">{{t "Campaign"}}</p><p class="font-medium" title="{{$c.CampaignID}}">{{if $c.CampaignName}}{{$c.CampaignName}}{{else}}&mdash;{{end}}</p></div>
+          <div><p class="text-gray-500">{{t "Max Bid"}}</p><p class="font-medium">${{$c.CPM}}</p></div>
+          <div><p class="text-gray-500">{{t "Landing Domain"}}</p><p class="font-medium">{{if $c.LandingDomain}}{{$c.LandingDomain}}{{else}}&mdash;{{end}}</p></div>
           {{/* Honest queue age — survives the pending row's TTL purge /
                re-queue churn on the core, unlike the row's created time.
                Re-queue wave count stays in the tooltip: telemetry, not a
                headline number. */}}
-          <div><p class="text-gray-500">In review queue</p><p class="font-medium"{{if $c.RequeueCount}} title="survived {{$c.RequeueCount}} re-queue wave{{if ne $c.RequeueCount 1}}s{{end}} unreviewed"{{end}}>{{if $c.WaitingFor}}{{$c.WaitingFor}}{{else}}&mdash;{{end}}</p></div>
+          <div><p class="text-gray-500">{{t "In review queue"}}</p><p class="font-medium"{{if $c.RequeueCount}} title="{{t "survived %d re-queue waves unreviewed" $c.RequeueCount}}"{{end}}>{{if $c.WaitingFor}}{{$c.WaitingFor}}{{else}}&mdash;{{end}}</p></div>
         </div>
         {{if $c.Placements}}
         <div class="mb-6">
-          <h3 class="text-sm font-medium text-gray-700 mb-2">Seen on {{len $c.Placements}} placement{{if ne (len $c.Placements) 1}}s{{end}}</h3>
+          <h3 class="text-sm font-medium text-gray-700 mb-2">{{t "Seen on %d placements" (len $c.Placements)}}</h3>
           <div class="bg-gray-50 rounded-lg divide-y divide-gray-200 max-h-40 overflow-y-auto">
             {{range $pi, $p := $c.Placements}}
             <div class="px-3 py-2 flex items-center gap-3 text-sm">
               <span class="text-gray-400 text-xs w-5 shrink-0">{{$pi}}.</span>
               <div class="min-w-0 flex-1">
                 <p class="truncate text-gray-700">{{$p.URL}}</p>
-                <p class="text-xs text-gray-400">{{$p.SlotID}} &middot; Max bid ${{$p.CPM}}{{if $p.Filler}} &middot; <span class="text-amber-700">Filler</span>{{else if $p.CategoryName}} &middot; <span class="text-gray-600">{{$p.CategoryName}}</span>{{end}}</p>
+                <p class="text-xs text-gray-400">{{$p.SlotID}} &middot; {{t "Max bid $%s" $p.CPM}}{{if $p.Filler}} &middot; <span class="text-amber-700">{{t "Filler"}}</span>{{else if $p.CategoryName}} &middot; <span class="text-gray-600">{{$p.CategoryName}}</span>{{end}}</p>
               </div>
             </div>
             {{end}}
@@ -418,40 +418,40 @@ document.body.addEventListener('inboxActed', function(){
              to unmatched traffic", not a topic classification. -->
         {{if $c.Filler}}
         <div class="bg-amber-50 rounded-lg p-3 mb-6 text-sm ring-1 ring-inset ring-amber-200">
-          <p class="font-medium text-amber-900 mb-1">Why this ad was matched</p>
+          <p class="font-medium text-amber-900 mb-1">{{t "Why this ad was matched"}}</p>
           <p class="text-amber-800">
             {{- $cats := $c.DistinctCategoryNames -}}
             {{- $n := len $c.Placements -}}
             {{if gt (len $cats) 0}}
-              {{if eq $n 1}}Your page had{{else}}Some of the {{$n}} pages had{{end}} no contextual match against the current advertiser pool. This advertiser has opted in to bid on
-              <strong>unmatched-context</strong> traffic — on pages where we did find a match, the classification was
+              {{if eq $n 1}}{{t "Your page had no contextual match against the current advertiser pool."}}{{else}}{{t "Some of the %d pages had no contextual match against the current advertiser pool." $n}}{{end}}
+              {{t "This advertiser has opted in to bid on unmatched-context traffic — on pages where we did find a match, the classification was"}}
               {{- range $i, $name := $cats -}}
                 {{if $i}},{{end}} <strong>{{$name}}</strong>
               {{- end}}.
             {{else}}
-              {{if eq $n 1}}Your page was{{else}}All {{$n}} pages were{{end}} classified as having
-              <strong>no contextual match</strong> against the current advertiser pool. This advertiser has explicitly opted in to bid on unmatched-context traffic.
+              {{if eq $n 1}}{{t "Your page was classified as having no contextual match against the current advertiser pool."}}{{else}}{{t "All %d pages were classified as having no contextual match against the current advertiser pool." $n}}{{end}}
+              {{t "This advertiser has explicitly opted in to bid on unmatched-context traffic."}}
             {{end}}
-            {{if $c.AdProductCategory}} Advertiser's product category: <strong>{{$c.AdProductName}}</strong> ({{$c.AdProductCategory}}).{{end}}
+            {{if $c.AdProductCategory}} {{t "Advertiser's product category:"}} <strong>{{$c.AdProductName}}</strong> ({{$c.AdProductCategory}}).{{end}}
           </p>
         </div>
         {{else}}
         <div class="bg-blue-50 rounded-lg p-3 mb-6 text-sm">
-          <p class="font-medium text-blue-800 mb-1">Why this ad was matched</p>
+          <p class="font-medium text-blue-800 mb-1">{{t "Why this ad was matched"}}</p>
           <p class="text-blue-700">
             {{- $cats := $c.DistinctCategoryNames -}}
             {{- $n := len $c.Placements -}}
             {{if gt (len $cats) 1}}
-              Your pages were classified as
+              {{t "Your pages were classified as"}}
               {{- range $i, $name := $cats -}}
                 {{if $i}},{{end}} <strong>{{$name}}</strong>
               {{- end}}.
             {{else if eq (len $cats) 1}}
-              {{if eq $n 1}}Your page was{{else}}All {{$n}} pages were{{end}} classified as <strong>{{index $cats 0}}</strong>.
+              {{if eq $n 1}}{{t "Your page was classified as"}}{{else}}{{t "All %d pages were classified as" $n}}{{end}} <strong>{{index $cats 0}}</strong>.
             {{else}}
-              Your page was classified as <strong>{{$c.CategoryName}}</strong> (ID: {{$c.Category}}).
+              {{t "Your page was classified as"}} <strong>{{$c.CategoryName}}</strong> ({{t "ID:"}} {{$c.Category}}).
             {{end}}
-            {{if $c.AdProductCategory}}Advertiser's product: <strong>{{$c.AdProductName}}</strong> ({{$c.AdProductCategory}}). Targeting is set from the creative's landing-page content, and matched against your page's classification (directly or via a shared ancestor in the IAB Content Taxonomy 3.0 tree).{{end}}
+            {{if $c.AdProductCategory}}{{t "Advertiser's product:"}} <strong>{{$c.AdProductName}}</strong> ({{$c.AdProductCategory}}). {{t "Targeting is set from the creative's landing-page content, and matched against your page's classification (directly or via a shared ancestor in the IAB Content Taxonomy 3.0 tree)."}}{{end}}
           </p>
         </div>
         {{end}}
@@ -461,14 +461,14 @@ document.body.addEventListener('inboxActed', function(){
             <input type="hidden" name="siteId" value="{{$c.SiteID}}">
             {{if $c.Placements}}<input type="hidden" name="url" value="{{(index $c.Placements 0).URL}}"><input type="hidden" name="slot" value="{{(index $c.Placements 0).SlotID}}">{{end}}
             <input type="hidden" name="creativeId" value="{{$c.CreativeID}}">
-            <button type="submit" class="btn btn-success w-full py-3">Approve</button>
+            <button type="submit" class="btn btn-success w-full py-3">{{t "Approve"}}</button>
           </form>
           <form method="POST" action="/publisher/approval/flag" hx-post="/publisher/approval/flag" hx-swap="none" class="flex-1">
             <input type="hidden" name="siteId" value="{{$c.SiteID}}">
             {{if $c.Placements}}<input type="hidden" name="url" value="{{(index $c.Placements 0).URL}}"><input type="hidden" name="slot" value="{{(index $c.Placements 0).SlotID}}">{{end}}
             <input type="hidden" name="creativeId" value="{{$c.CreativeID}}">
             <input type="hidden" name="reason" value="Not relevant to my content">
-            <button type="submit" class="btn btn-danger w-full py-3">Decline</button>
+            <button type="submit" class="btn btn-danger w-full py-3">{{t "Decline"}}</button>
           </form>
         </div>
       </div>
@@ -487,34 +487,34 @@ document.body.addEventListener('inboxActed', function(){
         {{$extraBadge := ""}}{{if $c.AutoApproved}}{{$extraBadge = "Auto-approved"}}{{end}}
         {{template "preview-pane" dict "Pages" $c.PagesJSON "Config" $c.BannerConfigJSON "Landing" $c.LandingURL "Asset" $c.AssetURL "Width" $c.Width "Height" $c.Height "Site" $site "Badge" $badge "BadgeClass" $badgeClass "ExtraBadge" $extraBadge "ExtraBadgeClass" "bg-sky-100 text-sky-700"}}
         <div class="grid grid-cols-2 gap-4 text-sm mb-6">
-          <div><p class="text-gray-500">Advertiser</p><p class="font-medium" title="{{$c.AdvertiserID}}">{{if $c.AdvertiserName}}{{$c.AdvertiserName}}{{else}}&mdash;{{end}}</p></div>
-          <div><p class="text-gray-500">Campaign</p><p class="font-medium" title="{{$c.CampaignID}}">{{if $c.CampaignName}}{{$c.CampaignName}}{{else}}&mdash;{{end}}</p></div>
-          <div><p class="text-gray-500">Max Bid</p><p class="font-medium">${{$c.CPM}}{{if $c.BelowFloor}} <span class="text-amber-600 text-xs">(floor ${{$c.FloorCPM}})</span>{{end}}</p></div>
-          <div><p class="text-gray-500">Landing Domain</p><p class="font-medium">{{if $c.LandingDomain}}{{$c.LandingDomain}}{{else}}&mdash;{{end}}</p></div>
+          <div><p class="text-gray-500">{{t "Advertiser"}}</p><p class="font-medium" title="{{$c.AdvertiserID}}">{{if $c.AdvertiserName}}{{$c.AdvertiserName}}{{else}}&mdash;{{end}}</p></div>
+          <div><p class="text-gray-500">{{t "Campaign"}}</p><p class="font-medium" title="{{$c.CampaignID}}">{{if $c.CampaignName}}{{$c.CampaignName}}{{else}}&mdash;{{end}}</p></div>
+          <div><p class="text-gray-500">{{t "Max Bid"}}</p><p class="font-medium">${{$c.CPM}}{{if $c.BelowFloor}} <span class="text-amber-600 text-xs">{{t "(floor $%s)" $c.FloorCPM}}</span>{{end}}</p></div>
+          <div><p class="text-gray-500">{{t "Landing Domain"}}</p><p class="font-medium">{{if $c.LandingDomain}}{{$c.LandingDomain}}{{else}}&mdash;{{end}}</p></div>
         </div>
         {{if $c.Placements}}
         <div class="mb-6">
-          <h3 class="text-sm font-medium text-gray-700 mb-2">Delivered to {{len $c.Placements}} placement{{if ne (len $c.Placements) 1}}s{{end}} <span class="text-gray-400 font-normal">(last 24h)</span></h3>
+          <h3 class="text-sm font-medium text-gray-700 mb-2">{{t "Delivered to %d placements" (len $c.Placements)}} <span class="text-gray-400 font-normal">{{t "(last 24h)"}}</span></h3>
           <div class="bg-gray-50 rounded-lg divide-y divide-gray-200 max-h-40 overflow-y-auto">
             {{range $pi, $p := $c.Placements}}
             <div class="px-3 py-2 flex items-center gap-3 text-sm">
               <span class="text-gray-400 text-xs w-5 shrink-0">{{$pi}}.</span>
               <div class="min-w-0 flex-1">
                 <p class="truncate text-gray-700">{{$p.URL}}</p>
-                <p class="text-xs text-gray-400">{{$p.SlotID}} &middot; {{$p.Impressions}} imp{{if ne $p.Impressions 1}}s{{end}}{{if $p.CategoryName}} &middot; <span class="text-gray-600">{{$p.CategoryName}}</span>{{end}}</p>
+                <p class="text-xs text-gray-400">{{$p.SlotID}} &middot; {{t "%d imps" $p.Impressions}}{{if $p.CategoryName}} &middot; <span class="text-gray-600">{{$p.CategoryName}}</span>{{end}}</p>
               </div>
             </div>
             {{end}}
           </div>
         </div>
         {{else}}
-        <p class="mb-6 text-xs text-gray-400">No deliveries recorded in the last 24h.</p>
+        <p class="mb-6 text-xs text-gray-400">{{t "No deliveries recorded in the last 24h."}}</p>
         {{end}}
         <div class="pt-4 border-t">
           <form method="POST" action="/publisher/approval/revoke" hx-post="/publisher/approval/revoke" hx-swap="none">
             <input type="hidden" name="siteId" value="{{$group.Site.ID}}">
             <input type="hidden" name="creativeId" value="{{$c.CreativeID}}">
-            <button type="submit" class="btn btn-danger w-full py-3">Revoke</button>
+            <button type="submit" class="btn btn-danger w-full py-3">{{t "Revoke"}}</button>
           </form>
         </div>
       </div>
@@ -526,22 +526,22 @@ document.body.addEventListener('inboxActed', function(){
       <div class="bg-white rounded-lg border p-6">
         {{template "preview-pane" dict "Pages" $c.PagesJSON "Config" $c.BannerConfigJSON "Landing" $c.LandingURL "Asset" $c.AssetURL "Width" $c.Width "Height" $c.Height "Site" $site "Badge" "Flagged" "BadgeClass" "bg-amber-100 text-amber-700"}}
         <div class="grid grid-cols-2 gap-4 text-sm mb-4">
-          <div><p class="text-gray-500">Advertiser</p><p class="font-medium" title="{{$c.AdvertiserID}}">{{if $c.AdvertiserName}}{{$c.AdvertiserName}}{{else}}&mdash;{{end}}</p></div>
-          <div><p class="text-gray-500">Campaign</p><p class="font-medium" title="{{$c.CampaignID}}">{{if $c.CampaignName}}{{$c.CampaignName}}{{else}}&mdash;{{end}}</p></div>
-          <div><p class="text-gray-500">Max Bid</p><p class="font-medium">${{$c.CPM}}</p></div>
-          <div><p class="text-gray-500">Landing Domain</p><p class="font-medium">{{if $c.LandingDomain}}{{$c.LandingDomain}}{{else}}&mdash;{{end}}</p></div>
+          <div><p class="text-gray-500">{{t "Advertiser"}}</p><p class="font-medium" title="{{$c.AdvertiserID}}">{{if $c.AdvertiserName}}{{$c.AdvertiserName}}{{else}}&mdash;{{end}}</p></div>
+          <div><p class="text-gray-500">{{t "Campaign"}}</p><p class="font-medium" title="{{$c.CampaignID}}">{{if $c.CampaignName}}{{$c.CampaignName}}{{else}}&mdash;{{end}}</p></div>
+          <div><p class="text-gray-500">{{t "Max Bid"}}</p><p class="font-medium">${{$c.CPM}}</p></div>
+          <div><p class="text-gray-500">{{t "Landing Domain"}}</p><p class="font-medium">{{if $c.LandingDomain}}{{$c.LandingDomain}}{{else}}&mdash;{{end}}</p></div>
         </div>
         {{if $c.Reason}}
         <div class="bg-amber-50 rounded-lg p-3 mb-6 text-sm ring-1 ring-inset ring-amber-200">
-          <p class="font-medium text-amber-900 mb-1">Flag reason</p>
-          <p class="text-amber-800">{{$c.Reason}}</p>
+          <p class="font-medium text-amber-900 mb-1">{{t "Flag reason"}}</p>
+          <p class="text-amber-800">{{t $c.Reason}}</p>
         </div>
         {{end}}
         <div class="pt-4 border-t">
           <form method="POST" action="/publisher/approval/unflag" hx-post="/publisher/approval/unflag" hx-swap="none">
             <input type="hidden" name="siteId" value="{{$group.Site.ID}}">
             <input type="hidden" name="creativeId" value="{{$c.CreativeID}}">
-            <button type="submit" class="btn btn-primary w-full py-3">Unflag</button>
+            <button type="submit" class="btn btn-primary w-full py-3">{{t "Unflag"}}</button>
           </form>
         </div>
       </div>
@@ -559,9 +559,9 @@ document.body.addEventListener('inboxActed', function(){
 <dialog id="previewDialog" class="rounded-2xl p-0 shadow-2xl backdrop:bg-black/60" style="width:min(1100px,95vw); max-height:96vh;">
   <div class="p-3">
     <div class="flex items-center justify-between mb-2">
-      <h3 class="text-sm font-semibold text-gray-700">Creative preview</h3>
+      <h3 class="text-sm font-semibold text-gray-700">{{t "Creative preview"}}</h3>
       <button type="button" onclick="document.getElementById('previewDialog').close()"
-              class="p-1.5 rounded-md text-gray-400 hover:text-gray-700 hover:bg-gray-100" title="Close">
+              class="p-1.5 rounded-md text-gray-400 hover:text-gray-700 hover:bg-gray-100" title="{{t "Close"}}">
         <svg class="w-4 h-4" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" d="M6 18L18 6M6 6l12 12"/></svg>
       </button>
     </div>
@@ -613,9 +613,9 @@ document.getElementById('previewDialog').addEventListener('close', () => {
       <p class="text-sm font-medium truncate">{{.Label}}</p>
       <p class="text-xs text-gray-500 mt-0.5 truncate">{{.Sub}}</p>
     </div>
-    {{if eq .State "pending"}}<span class="shrink-0 w-2 h-2 rounded-full bg-yellow-400" title="Pending"></span>
-    {{else if eq .State "serving"}}<span class="shrink-0 w-2 h-2 rounded-full bg-green-500" title="Serving"></span>
-    {{else}}<span class="shrink-0 w-2 h-2 rounded-full bg-red-500" title="Flagged"></span>{{end}}
+    {{if eq .State "pending"}}<span class="shrink-0 w-2 h-2 rounded-full bg-yellow-400" title="{{t "Pending"}}"></span>
+    {{else if eq .State "serving"}}<span class="shrink-0 w-2 h-2 rounded-full bg-green-500" title="{{t "Serving"}}"></span>
+    {{else}}<span class="shrink-0 w-2 h-2 rounded-full bg-red-500" title="{{t "Flagged"}}"></span>{{end}}
   </div>
 </button>
 {{end}}
@@ -625,8 +625,8 @@ document.getElementById('previewDialog').addEventListener('close', () => {
 {{define "preview-pane"}}
 <div class="mb-4 flex items-center gap-2">
   <span class="badge badge-neutral">{{.Site}}</span>
-  <span class="badge {{.BadgeClass}}">{{.Badge}}</span>
-  {{if .ExtraBadge}}<span class="badge {{.ExtraBadgeClass}}" title="Approved automatically via this site's trusted campaigns/domains">{{.ExtraBadge}}</span>{{end}}
+  <span class="badge {{.BadgeClass}}">{{t .Badge}}</span>
+  {{if .ExtraBadge}}<span class="badge {{.ExtraBadgeClass}}" title="{{t "Approved automatically via this site's trusted campaigns/domains"}}">{{t .ExtraBadge}}</span>{{end}}
 </div>
 {{if .Pages}}
 {{/* The detail pane is too narrow for the full simulated-page preview (two
@@ -648,13 +648,13 @@ document.getElementById('previewDialog').addEventListener('close', () => {
     </div>
     <span class="absolute bottom-1.5 left-1.5 inline-flex items-center gap-1.5 px-2 py-1 rounded bg-black/60 text-white text-xs font-medium opacity-80 group-hover:opacity-100">
       <svg class="w-3.5 h-3.5" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" d="M4 8V4m0 0h4M4 4l5 5m11-1V4m0 0h-4m4 0l-5 5M4 16v4m0 0h4m-4 0l5-5m11 5l-5-5m5 5v-4m0 4h-4"/></svg>
-      Preview creative
+      {{t "Preview creative"}}
     </span>
   </button>
 </div>
 {{else if .Asset}}
 <div class="bg-gray-50 rounded-lg p-4 flex items-center justify-center mb-6" style="min-height:250px;">
-  <img src="{{.Asset}}" alt="Creative preview" class="max-w-full max-h-[300px] object-contain rounded">
+  <img src="{{.Asset}}" alt="{{t "Creative preview"}}" class="max-w-full max-h-[300px] object-contain rounded">
 </div>
 {{else}}
 <div class="bg-gray-50 rounded-lg p-4 flex items-center justify-center mb-6" style="min-height:250px;">

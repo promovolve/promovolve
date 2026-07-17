@@ -1,82 +1,78 @@
 {{define "content"}}
 <div class="max-w-2xl">
-  <h1 class="page-title">Platform Settings</h1>
-  <p class="page-sub">Platform economics for this installation.</p>
+  <h1 class="page-title">{{t "Platform Settings"}}</h1>
+  <p class="page-sub">{{t "Platform economics for this installation."}}</p>
 
   {{if .Error}}
   <div class="bg-red-50 border border-red-200 text-red-700 rounded-lg p-3 mt-6 text-sm">{{.Error}}</div>
   {{end}}
 
   <div class="card mt-6">
-    <h2 class="font-semibold text-lg mb-1">Platform margin</h2>
+    <h2 class="font-semibold text-lg mb-1">{{t "Platform margin"}}</h2>
     <p class="text-sm text-gray-500 mb-4">
-      Deducted from publisher earnings as the platform fee. Publishers see net
-      revenue with this fee itemized. Changes apply from now on — past
-      earnings are never repriced.
+      {{t "Deducted from publisher earnings as the platform fee. Publishers see net revenue with this fee itemized. Changes apply from now on — past earnings are never repriced."}}
     </p>
     <form method="POST" action="/admin/settings/margin" class="flex items-end gap-3">
       <div>
-        <label class="form-label">Margin (%)</label>
+        <label class="form-label">{{t "Margin (%)"}}</label>
         <input type="number" name="marginPercent" min="0" max="99.99" step="0.01"
           value="{{.MarginPct}}" class="form-input w-32">
       </div>
-      <button type="submit" class="btn btn-primary">Update margin</button>
+      <button type="submit" class="btn btn-primary">{{t "Update margin"}}</button>
     </form>
   </div>
 
   <div class="card mt-6">
-    <h2 class="font-semibold text-lg mb-1">Minimum payout floor</h2>
+    <h2 class="font-semibold text-lg mb-1">{{t "Minimum payout floor"}}</h2>
     <p class="text-sm text-gray-500 mb-4">
-      The platform-wide minimum before a publisher payout is offered — each
-      transfer costs you a fee and manual work. Publishers can raise their
-      own threshold above this, never below.
+      {{t "The platform-wide minimum before a publisher payout is offered — each transfer costs you a fee and manual work. Publishers can raise their own threshold above this, never below."}}
     </p>
     <form method="POST" action="/admin/settings/payout-floor" class="flex items-end gap-3">
       <div>
-        <label class="form-label">Floor ($)</label>
+        <label class="form-label">{{t "Floor ($)"}}</label>
         <input type="number" name="payoutFloor" min="0.01" step="0.01"
           value="{{.PayoutFloor}}" class="form-input w-32">
       </div>
-      <button type="submit" class="btn btn-primary">Update floor</button>
+      <button type="submit" class="btn btn-primary">{{t "Update floor"}}</button>
     </form>
   </div>
 
   <div class="card mt-6">
-    <h2 class="font-semibold text-lg">Organization size</h2>
-    <p class="text-sm text-gray-500 mt-1 mb-4">Maximum members per organization (the first admin plus invitees). Existing larger orgs keep their members; the cap gates new invites and approvals.</p>
+    <h2 class="font-semibold text-lg">{{t "Organization size"}}</h2>
+    <p class="text-sm text-gray-500 mt-1 mb-4">{{t "Maximum members per organization (the first admin plus invitees). Existing larger orgs keep their members; the cap gates new invites and approvals."}}</p>
     <form method="POST" action="/admin/settings/org-max-members" class="flex items-end gap-3">
       <div>
-        <label class="form-label">Max members</label>
+        <label class="form-label">{{t "Max members"}}</label>
         <input type="number" name="orgMaxMembers" min="1" max="100" step="1"
           value="{{.OrgMaxMembers}}" class="form-input w-32">
       </div>
-      <button type="submit" class="btn btn-primary">Update cap</button>
+      <button type="submit" class="btn btn-primary">{{t "Update cap"}}</button>
     </form>
   </div>
 
   <div class="card mt-6">
-    <h2 class="font-semibold text-lg">Default advertiser timezone</h2>
-    <p class="text-sm text-gray-500 mt-1 mb-4">Budget days for new advertiser accounts roll at this zone's midnight. Applied to organizations at creation only — existing organizations keep their zone (per-org override on Users). Billing always uses UTC days.</p>
+    <h2 class="font-semibold text-lg">{{t "Default advertiser timezone"}}</h2>
+    <p class="text-sm text-gray-500 mt-1 mb-4">{{t "Budget days for new advertiser accounts roll at this zone's midnight. Applied to organizations at creation only — existing organizations keep their zone (per-org override on Users). Billing always uses UTC days."}}</p>
     <form method="POST" action="/admin/settings/default-timezone" class="flex items-end gap-3">
       <div>
-        <label class="form-label">Timezone</label>
+        <label class="form-label">{{t "Timezone"}}</label>
         <select name="timezone" class="form-input">
-          <option value="">UTC (default)</option>
+          <option value="">{{t "UTC (default)"}}</option>
           {{range .Timezones}}{{if ne . "UTC"}}<option value="{{.}}" {{if eq . $.DefaultOrgTimezone}}selected{{end}}>{{.}}</option>{{end}}{{end}}
         </select>
       </div>
-      <button type="submit" class="btn btn-primary">Update timezone</button>
+      <button type="submit" class="btn btn-primary">{{t "Update timezone"}}</button>
     </form>
   </div>
 
   <div class="card mt-6 p-0 overflow-x-auto">
-    <h2 class="font-semibold text-lg px-6 pt-6">History</h2>
+    <h2 class="font-semibold text-lg px-6 pt-6">{{t "History"}}</h2>
     <table class="w-full text-sm mt-3">
       <thead>
         <tr class="border-b text-left text-gray-400">
-          <th class="px-6 py-2 font-medium">Margin</th>
-          <th class="px-6 py-2 font-medium">Effective from</th>
-          <th class="px-6 py-2 font-medium">Set by</th>
+          <th class="px-6 py-2 font-medium">{{t "Margin"}}</th>
+          <th class="px-6 py-2 font-medium">{{t "Effective from"}}</th>
+          <th class="px-6 py-2 font-medium">{{t "Set by"}}</th>
         </tr>
       </thead>
       <tbody>

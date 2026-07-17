@@ -1,7 +1,7 @@
 {{define "content"}}
 <div class="max-w-4xl">
-  <h1 class="page-title">Site Requests</h1>
-  <p class="page-sub">Review publisher sites before they go live. Approval creates the site on the ad server; the publisher can then verify domain ownership.</p>
+  <h1 class="page-title">{{t "Site Requests"}}</h1>
+  <p class="page-sub">{{t "Review publisher sites before they go live. Approval creates the site on the ad server; the publisher can then verify domain ownership."}}</p>
 
   {{if .Error}}
   <div class="bg-red-50 border border-red-200 text-red-700 rounded-lg p-3 mt-6 text-sm">{{.Error}}</div>
@@ -10,7 +10,7 @@
   {{if not .AdminSiteRequests}}
   <div class="card mt-6 text-center text-gray-500">
     <p class="text-3xl mb-2">&#10003;</p>
-    <p>No pending site requests.</p>
+    <p>{{t "No pending site requests."}}</p>
   </div>
   {{end}}
 
@@ -21,7 +21,7 @@
         <div>
           <div class="flex items-center gap-2 mb-1">
             <h2 class="font-semibold text-lg">{{.Domain}}</h2>
-            <span class="badge badge-info">site</span>
+            <span class="badge badge-info">{{t "site"}}</span>
           </div>
           <p class="text-sm text-gray-500">
             <a href="{{.PageURL}}" target="_blank" rel="noopener noreferrer" class="text-brand hover:underline">{{.PageURL}}</a>
@@ -31,21 +31,21 @@
       </div>
 
       <dl class="grid grid-cols-2 gap-x-6 gap-y-2 mt-4 text-sm">
-        <div><dt class="text-gray-400">Site ID</dt><dd class="font-mono text-xs">{{.SiteID}}</dd></div>
-        <div><dt class="text-gray-400">Publisher</dt><dd>{{.Publisher}}{{if .Company}} · {{.Company}}{{end}}</dd></div>
+        <div><dt class="text-gray-400">{{t "Site ID"}}</dt><dd class="font-mono text-xs">{{.SiteID}}</dd></div>
+        <div><dt class="text-gray-400">{{t "Publisher"}}</dt><dd>{{.Publisher}}{{if .Company}} · {{.Company}}{{end}}</dd></div>
       </dl>
 
       <div class="flex flex-wrap items-end gap-3 mt-4">
         <form method="POST" action="/admin/sites/approve"
-          onsubmit="return confirm('Approve {{.Domain}}? This creates the site on the ad server.')">
+          onsubmit="return confirm('{{t "Approve %s? This creates the site on the ad server." .Domain}}')">
           <input type="hidden" name="requestId" value="{{.ID}}">
-          <button type="submit" class="btn btn-success">Approve</button>
+          <button type="submit" class="btn btn-success">{{t "Approve"}}</button>
         </form>
         <form method="POST" action="/admin/sites/reject" class="flex items-end gap-2"
-          onsubmit="return confirm('Deny {{.Domain}}? The publisher will only be able to delete the request.')">
+          onsubmit="return confirm('{{t "Deny %s? The publisher will only be able to delete the request." .Domain}}')">
           <input type="hidden" name="requestId" value="{{.ID}}">
-          <button type="submit" class="btn btn-danger">Deny</button>
-          <input type="text" name="reason" placeholder="Reason (optional, shown to the publisher)"
+          <button type="submit" class="btn btn-danger">{{t "Deny"}}</button>
+          <input type="text" name="reason" placeholder="{{t "Reason (optional, shown to the publisher)"}}"
             class="border rounded-md px-3 py-2 text-sm w-72">
         </form>
       </div>

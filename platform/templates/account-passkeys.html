@@ -1,7 +1,7 @@
 {{define "content"}}
 <div class="max-w-2xl">
-  <h1 class="page-title">Your passkeys</h1>
-  <p class="page-sub">Passkeys registered to {{.User.Email}}. Add one on every device you sign in from.</p>
+  <h1 class="page-title">{{t "Your passkeys"}}</h1>
+  <p class="page-sub">{{t "Passkeys registered to %s. Add one on every device you sign in from." .User.Email}}</p>
 
   <div id="passkey-error" class="hidden bg-red-50 border border-red-200 text-red-700 rounded-lg p-3 mt-6 text-sm"></div>
 
@@ -9,9 +9,9 @@
     <table class="w-full text-sm">
       <thead>
         <tr class="border-b text-left text-gray-400">
-          <th class="px-4 py-3 font-medium">Name</th>
-          <th class="px-4 py-3 font-medium">Added</th>
-          <th class="px-4 py-3 font-medium">Last used</th>
+          <th class="px-4 py-3 font-medium">{{t "Name"}}</th>
+          <th class="px-4 py-3 font-medium">{{t "Added"}}</th>
+          <th class="px-4 py-3 font-medium">{{t "Last used"}}</th>
           <th class="px-4 py-3"></th>
         </tr>
       </thead>
@@ -24,9 +24,9 @@
           <td class="px-4 py-3 text-right">
             {{if gt (len $.Passkeys) 1}}
             <form method="POST" action="/account/passkeys/delete" class="inline"
-              onsubmit="return confirm('Remove this passkey? Devices using it will no longer sign in.')">
+              onsubmit="return confirm('{{t "Remove this passkey? Devices using it will no longer sign in."}}')">
               <input type="hidden" name="credentialId" value="{{.ID}}">
-              <button type="submit" class="btn btn-secondary btn-sm">Remove</button>
+              <button type="submit" class="btn btn-secondary btn-sm">{{t "Remove"}}</button>
             </form>
             {{end}}
           </td>
@@ -39,11 +39,15 @@
   {{/* JS-fetch ceremony, not a POST form — needs the explicit view-as mark
        (a passkey minted in a view-as session would be the ADMIN's device
        holding the member's credential; the server 403s it regardless). */}}
-  <button id="add-passkey" class="btn btn-primary mt-6" data-viewas-block>Add a passkey to this device</button>
+  <button id="add-passkey" class="btn btn-primary mt-6" data-viewas-block>{{t "Add a passkey to this device"}}</button>
 
   <script src="{{asset "passkey.js"}}"></script>
   <script>
     (function () {
+      const I18N = {
+        alreadyRegistered: '{{t "This device already has a passkey for this account (passkeys sync across devices signed into the same Apple or Google account). Use this button on a device outside that circle — another computer, phone, or a hardware security key."}}',
+        addFailed: '{{t "Could not add a passkey"}}'
+      };
       const btn = document.getElementById('add-passkey');
       const errBox = document.getElementById('passkey-error');
       btn.addEventListener('click', async () => {
@@ -57,9 +61,9 @@
           // its sync circle, e.g. iCloud Keychain) already holds a passkey
           // for the account.
           if (e.name === 'InvalidStateError') {
-            errBox.textContent = 'This device already has a passkey for this account (passkeys sync across devices signed into the same Apple or Google account). Use this button on a device outside that circle — another computer, phone, or a hardware security key.';
+            errBox.textContent = I18N.alreadyRegistered;
           } else {
-            errBox.textContent = e.message || 'Could not add a passkey';
+            errBox.textContent = e.message || I18N.addFailed;
           }
           errBox.classList.remove('hidden');
           btn.disabled = false;

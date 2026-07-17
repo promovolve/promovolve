@@ -21,6 +21,7 @@ import (
 	"time"
 
 	"github.com/hanishi/promovolve/platform/internal/billing"
+	"github.com/hanishi/promovolve/platform/internal/i18n"
 	"github.com/hanishi/promovolve/platform/internal/model"
 )
 
@@ -373,7 +374,7 @@ func (h *Handler) renderAdminBilling(w http.ResponseWriter, r *http.Request, err
 	})
 }
 
-func toJournalRows(txns []billing.Transaction, labels map[string]string, loc *time.Location) []journalRow {
+func toJournalRows(lang string, txns []billing.Transaction, labels map[string]string, loc *time.Location) []journalRow {
 	rows := make([]journalRow, 0, len(txns))
 	for _, t := range txns {
 		// Customer legs first, platform legs last, so every row reads
@@ -386,7 +387,7 @@ func toJournalRows(txns []billing.Transaction, labels map[string]string, loc *ti
 		for _, e := range entries {
 			delta := billing.NaturalDelta(e.OwnerType, e.OwnerID, e.AmountMicros)
 			legs = append(legs, journalLeg{
-				Label:    legLabel(e, labels),
+				Label:    legLabel(lang, e, labels),
 				Amount:   signedUSD(delta),
 				Negative: delta < 0,
 			})
@@ -396,7 +397,7 @@ func toJournalRows(txns []billing.Transaction, labels map[string]string, loc *ti
 			Kind:      string(t.Kind),
 			KindBadge: kindBadge(t.Kind),
 			Memo:      t.Memo,
-			Summary:   summarizeTxn(t, labels),
+			Summary:   summarizeTxn(lang, t, labels),
 			Legs:      legs,
 		})
 	}
@@ -405,7 +406,7 @@ func toJournalRows(txns []billing.Transaction, labels map[string]string, loc *ti
 
 // summarizeTxn turns one transaction's legs into the sentence an operator
 // would say happened; the raw double-entry stays available on expand.
-func summarizeTxn(t billing.Transaction, labels map[string]string) string {
+func summarizeTxn(lang string, t billing.Transaction, labels map[string]string) string {
 	var advID, pubID string
 	var advDelta, pubDelta int64
 	for _, e := range t.Entries {
@@ -426,24 +427,24 @@ func summarizeTxn(t billing.Transaction, labels map[string]string) string {
 	switch t.Kind {
 	case billing.TxnTopup:
 		if advID != "" {
-			return fmt.Sprintf("Credited %s to %s's wallet", abs(advDelta), labelOr(labels, advID))
+			return i18n.T(lang, "Credited %s to the wallet of %s", abs(advDelta), labelOr(labels, advID))
 		}
 	case billing.TxnRefund:
 		if advID != "" {
-			return fmt.Sprintf("Refunded %s from %s's wallet", abs(advDelta), labelOr(labels, advID))
+			return i18n.T(lang, "Refunded %s from the wallet of %s", abs(advDelta), labelOr(labels, advID))
 		}
 	case billing.TxnSettlement:
 		if advID != "" && pubID != "" {
 			fee := -advDelta - pubDelta
-			return fmt.Sprintf("%s paid %s — %s to %s, %s platform fee",
+			return i18n.T(lang, "%s paid %s — %s to %s, %s platform fee",
 				labelOr(labels, advID), abs(advDelta), abs(pubDelta), labelOr(labels, pubID), abs(fee))
 		}
 	case billing.TxnPayout:
 		if pubID != "" && pubDelta < 0 {
-			return fmt.Sprintf("Paid out %s to %s", abs(pubDelta), labelOr(labels, pubID))
+			return i18n.T(lang, "Paid out %s to %s", abs(pubDelta), labelOr(labels, pubID))
 		}
 		if pubID != "" {
-			return fmt.Sprintf("Payout cancelled — %s back on %s's balance", abs(pubDelta), labelOr(labels, pubID))
+			return i18n.T(lang, "Payout cancelled — %s back on the balance of %s", abs(pubDelta), labelOr(labels, pubID))
 		}
 	case billing.TxnAdjustment:
 		id, delta := advID, advDelta
@@ -451,10 +452,10 @@ func summarizeTxn(t billing.Transaction, labels map[string]string) string {
 			id, delta = pubID, pubDelta
 		}
 		if id != "" && delta >= 0 {
-			return fmt.Sprintf("Credited %s to %s (from platform revenue)", abs(delta), labelOr(labels, id))
+			return i18n.T(lang, "Credited %s to %s (from platform revenue)", abs(delta), labelOr(labels, id))
 		}
 		if id != "" {
-			return fmt.Sprintf("Charged %s from %s (to platform revenue)", abs(delta), labelOr(labels, id))
+			return i18n.T(lang, "Charged %s from %s (to platform revenue)", abs(delta), labelOr(labels, id))
 		}
 	}
 	return string(t.Kind)
@@ -465,14 +466,14 @@ func summarizeTxn(t billing.Transaction, labels map[string]string) string {
 // once labels became org-based — the account type now reads as a possessive
 // ("X's advertiser wallet"), which also explains why both legs of a top-up
 // are positive: the customer's wallet AND the platform's cash both grew.
-func legLabel(e billing.Entry, labels map[string]string) string {
+func legLabel(lang string, e billing.Entry, labels map[string]string) string {
 	switch e.OwnerType {
 	case billing.OwnerPlatform:
-		return "platform " + e.OwnerID // the 'cash' / 'revenue' singletons
+		return i18n.T(lang, "platform %s", e.OwnerID) // the 'cash' / 'revenue' singletons
 	case billing.OwnerAdvertiser:
-		return labelOr(labels, e.OwnerID) + "'s advertiser wallet"
+		return i18n.T(lang, "advertiser wallet of %s", labelOr(labels, e.OwnerID))
 	default:
-		return labelOr(labels, e.OwnerID) + "'s publisher earnings"
+		return i18n.T(lang, "publisher earnings of %s", labelOr(labels, e.OwnerID))
 	}
 }
 
@@ -603,7 +604,7 @@ func (h *Handler) renderAdminJournal(w http.ResponseWriter, r *http.Request, err
 	}
 	offset, _, nav := buildListNav(r, total, billingPageSize)
 	if txns, err := h.billingSvc.ListTransactions(ctx, billingPageSize, offset, kinds...); err == nil {
-		data.Journal = toJournalRows(txns, labels, user.Location())
+		data.Journal = toJournalRows(h.lang(r, user), txns, labels, user.Location())
 	}
 
 	h.render(w, r, "admin/billing-journal.html", pageData{
@@ -749,7 +750,7 @@ func (h *Handler) AdminBillingAccount(w http.ResponseWriter, r *http.Request) {
 	}
 
 	h.render(w, r, "admin/billing-account.html", pageData{
-		Title:        "Billing · " + data.Label,
+		Title:        i18n.T(h.lang(r, user), "Billing · %s", data.Label),
 		Nav:          "admin-billing",
 		Tab:          "accounts",
 		User:         user,

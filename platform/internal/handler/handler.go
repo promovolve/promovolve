@@ -920,13 +920,21 @@ func (h *Handler) handleLoginPost(w http.ResponseWriter, r *http.Request) {
 		if role == "advertiser" {
 			roleLabel = "Advertiser"
 		}
+		// DEV_AUTH-only path. Map the two sentinel errors through the
+		// catalog (string match: the local user variable shadows the
+		// user package here); anything else surfaces raw, dev-facing.
+		msg := err.Error()
+		switch msg {
+		case "email already registered", "invalid credentials":
+			msg = i18n.T(h.lang(r, nil), msg)
+		}
 		h.render(w, r, "login.html", pageData{
 			Title:     "Login",
 			Mode:      mode,
 			Role:      role,
 			RoleLabel: roleLabel,
 			DevAuth:   h.devAuth,
-			Error:     err.Error(),
+			Error:     msg,
 		})
 		return
 	}

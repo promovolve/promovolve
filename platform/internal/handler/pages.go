@@ -21,6 +21,7 @@ import (
 	"strings"
 	"time"
 
+	"github.com/hanishi/promovolve/platform/internal/i18n"
 	"github.com/hanishi/promovolve/platform/internal/model"
 	"github.com/hanishi/promovolve/platform/internal/settings"
 	"github.com/hanishi/promovolve/platform/internal/siterequest"
@@ -244,7 +245,7 @@ func (h *Handler) renderPublisherSites(w http.ResponseWriter, r *http.Request, e
 	if err != nil {
 		slog.Error("list site requests failed", "error", err)
 		if errMsg == "" {
-			errMsg = "could not load pending site requests"
+			errMsg = i18n.T(h.lang(r, user), "could not load pending site requests")
 		}
 	}
 	for _, sr := range reqs {
@@ -270,7 +271,7 @@ func (h *Handler) renderPublisherSites(w http.ResponseWriter, r *http.Request, e
 }
 
 func (h *Handler) CreateSite(w http.ResponseWriter, r *http.Request) {
-	_, claims := h.sessionUser(r)
+	user, claims := h.sessionUser(r)
 	if claims == nil {
 		http.Redirect(w, r, "/login", http.StatusSeeOther)
 		return
@@ -303,14 +304,14 @@ func (h *Handler) CreateSite(w http.ResponseWriter, r *http.Request) {
 	json.Unmarshal(sitesBody, &owned)
 	for _, s := range owned.Data {
 		if s.ID == siteID {
-			h.renderPublisherSites(w, r, fmt.Sprintf("%s is already registered", domain))
+			h.renderPublisherSites(w, r, i18n.T(h.lang(r, user), "%s is already registered", domain))
 			return
 		}
 	}
 
 	err = h.siteReqSvc.Request(r.Context(), claims.PublisherID, claims.UserID, siteID, domain, pageURL)
 	if errors.Is(err, siterequest.ErrDuplicatePending) {
-		h.renderPublisherSites(w, r, fmt.Sprintf("a request for %s is already awaiting approval", domain))
+		h.renderPublisherSites(w, r, i18n.T(h.lang(r, user), "a request for %s is already awaiting approval", domain))
 		return
 	}
 	if err != nil {
@@ -326,7 +327,7 @@ func (h *Handler) CreateSite(w http.ResponseWriter, r *http.Request) {
 // the id is re-creatable through the approval flow. Delivery history and
 // settlements are keyed by site_id in their own tables and are untouched.
 func (h *Handler) DeleteSite(w http.ResponseWriter, r *http.Request) {
-	_, claims := h.sessionUser(r)
+	user, claims := h.sessionUser(r)
 	if claims == nil {
 		http.Redirect(w, r, "/login", http.StatusSeeOther)
 		return
@@ -334,7 +335,7 @@ func (h *Handler) DeleteSite(w http.ResponseWriter, r *http.Request) {
 	siteID := r.PathValue("siteId")
 	if _, err := h.coreDelete(fmt.Sprintf("/v1/publishers/me/sites/%s", siteID), claims, ""); err != nil {
 		slog.Error("delete site failed", "siteId", siteID, "error", err)
-		h.renderPublisherSites(w, r, "could not remove the site")
+		h.renderPublisherSites(w, r, i18n.T(h.lang(r, user), "could not remove the site"))
 		return
 	}
 	http.Redirect(w, r, "/publisher/sites", http.StatusSeeOther)
@@ -344,14 +345,14 @@ func (h *Handler) DeleteSite(w http.ResponseWriter, r *http.Request) {
 // Ownership and the pending/rejected-only rule are enforced in the delete
 // predicate; approved rows are audit history and stay.
 func (h *Handler) DeleteSiteRequest(w http.ResponseWriter, r *http.Request) {
-	_, claims := h.sessionUser(r)
+	user, claims := h.sessionUser(r)
 	if claims == nil {
 		http.Redirect(w, r, "/login", http.StatusSeeOther)
 		return
 	}
 	err := h.siteReqSvc.Delete(r.Context(), r.PathValue("id"), claims.PublisherID)
 	if errors.Is(err, siterequest.ErrNotFound) {
-		h.renderPublisherSites(w, r, "site request not found")
+		h.renderPublisherSites(w, r, i18n.T(h.lang(r, user), "site request not found"))
 		return
 	}
 	if err != nil {
@@ -1447,6 +1448,7 @@ func (h *Handler) FloorObservations(w http.ResponseWriter, r *http.Request) {
 		http.Redirect(w, r, "/login", http.StatusSeeOther)
 		return
 	}
+	obsLang := h.lang(r, user)
 	siteID := r.PathValue("siteId")
 
 	// Fetch the sweep optimizer's evidence table.
@@ -1708,12 +1710,12 @@ func (h *Handler) FloorObservations(w http.ResponseWriter, r *http.Request) {
 					ticksLeft = 0
 				}
 				mins := (ticksLeft*obsInterval + 59) / 60
-				return fmt.Sprintf("probing candidate %d/%d at $%.2f — decision in ~%dm", sw.Cursor+1, sw.CandidateCount, sw.CurrentFloor, mins)
+				return i18n.T(obsLang, "probing candidate %d/%d at $%.2f — decision in ~%dm", sw.Cursor+1, sw.CandidateCount, sw.CurrentFloor, mins)
 			case "exploit":
 				mins := (sw.ExploitTicksRemaining*obsInterval + 59) / 60
-				return fmt.Sprintf("holding at $%.2f — next probe cycle in ~%dm", sw.CurrentFloor, mins)
+				return i18n.T(obsLang, "holding at $%.2f — next probe cycle in ~%dm", sw.CurrentFloor, mins)
 			default:
-				return "sweep cycle starting"
+				return i18n.T(obsLang, "sweep cycle starting")
 			}
 		}
 
@@ -1732,9 +1734,9 @@ func (h *Handler) FloorObservations(w http.ResponseWriter, r *http.Request) {
 			if d, ok := demand[cat]; ok && d.Bidders > 0 {
 				row.Bidders = d.Bidders
 				if d.Bidders == 1 {
-					row.DemandNow = fmt.Sprintf("1 bidder — pegged to bid ($%.2f)", d.TopBid)
+					row.DemandNow = i18n.T(obsLang, "1 bidder — pegged to bid ($%.2f)", d.TopBid)
 				} else {
-					row.DemandNow = fmt.Sprintf("%d bidders — sweep-governed (top $%.2f)", d.Bidders, d.TopBid)
+					row.DemandNow = i18n.T(obsLang, "%d bidders — sweep-governed (top $%.2f)", d.Bidders, d.TopBid)
 				}
 				row.SweepStatus = sweepStatus(d)
 				// Prefer the LIVE enforced floor over the last journaled one
@@ -1743,7 +1745,7 @@ func (h *Handler) FloorObservations(w http.ResponseWriter, r *http.Request) {
 					row.Floor = fmt.Sprintf("$%.2f", *d.Floor)
 				}
 			} else {
-				row.DemandNow = "no current bidders — historical"
+				row.DemandNow = i18n.T(obsLang, "no current bidders — historical")
 				row.Historical = true
 			}
 			categoryFloors = append(categoryFloors, row)
@@ -1784,9 +1786,9 @@ func (h *Handler) FloorObservations(w http.ResponseWriter, r *http.Request) {
 			}
 			row.SweepStatus = sweepStatus(d)
 			if d.Bidders == 1 {
-				row.DemandNow = fmt.Sprintf("1 bidder — pegged to bid ($%.2f)", d.TopBid)
+				row.DemandNow = i18n.T(obsLang, "1 bidder — pegged to bid ($%.2f)", d.TopBid)
 			} else {
-				row.DemandNow = fmt.Sprintf("%d bidders — sweep-governed (top $%.2f)", d.Bidders, d.TopBid)
+				row.DemandNow = i18n.T(obsLang, "%d bidders — sweep-governed (top $%.2f)", d.Bidders, d.TopBid)
 			}
 			categoryFloors = append(categoryFloors, row)
 		}
@@ -1857,7 +1859,7 @@ func (h *Handler) FloorObservations(w http.ResponseWriter, r *http.Request) {
 	// having to interpret the chart shape — a horizontal line at one
 	// value can mean "stable convergence" or "no data," and the chart
 	// alone can't disambiguate.
-	stabilityPtr := computeArgmaxStability(argmaxHistory)
+	stabilityPtr := computeArgmaxStability(obsLang, argmaxHistory)
 
 	// X-axis time ticks: interpolate 5 timestamps evenly across the
 	// visible cycle range. With a date filter active, this naturally
@@ -1899,7 +1901,7 @@ func (h *Handler) FloorObservations(w http.ResponseWriter, r *http.Request) {
 		TrafficShape:         h.fetchTrafficShape(siteID, claims),
 	}
 	h.render(w, r, "publisher/site-observations.html", pageData{
-		Title:             "Floor Decisions · " + siteID,
+		Title:             i18n.T(h.lang(r, user), "Floor Decisions · %s", siteID),
 		Nav:               "sites",
 		User:              user,
 		FloorObservations: &data,
@@ -3945,7 +3947,7 @@ func (h *Handler) ResumeDraft(w http.ResponseWriter, r *http.Request) {
 //
 // The publisher's actual question this answers: "is the optimizer
 // converging on a real answer, or is it just guessing?"
-func computeArgmaxStability(history []argmaxHistoryPoint) *argmaxStability {
+func computeArgmaxStability(lang string, history []argmaxHistoryPoint) *argmaxStability {
 	n := len(history)
 	if n == 0 {
 		return nil
@@ -3954,7 +3956,7 @@ func computeArgmaxStability(history []argmaxHistoryPoint) *argmaxStability {
 		return &argmaxStability{
 			Status:      "Insufficient data",
 			StatusColor: "bg-gray-100 text-gray-600",
-			Summary:     fmt.Sprintf("Only one completed cycle so far (picked %s)", history[0].Label),
+			Summary:     i18n.T(lang, "Only one completed cycle so far (picked %s)", history[0].Label),
 			Recent:      history[0].Label,
 			N:           1,
 		}
@@ -4003,15 +4005,15 @@ func computeArgmaxStability(history []argmaxHistoryPoint) *argmaxStability {
 	case stddev < 0.50 && n >= 3:
 		status = "Stable optimum"
 		color = "bg-green-100 text-green-800"
-		summary = fmt.Sprintf("Last %d cycles all within $0.50 of $%.2f", agreed, latest)
+		summary = i18n.T(lang, "Last %d cycles all within $0.50 of $%.2f", agreed, latest)
 	case stddev < 2.00:
 		status = "Mildly variable"
 		color = "bg-yellow-100 text-yellow-800"
-		summary = fmt.Sprintf("Recent picks: %s (σ=$%.2f)", recent, stddev)
+		summary = i18n.T(lang, "Recent picks: %s (σ=$%.2f)", recent, stddev)
 	default:
 		status = "Highly variable"
 		color = "bg-red-100 text-red-700"
-		summary = fmt.Sprintf("Recent picks: %s (σ=$%.2f over %d cycles)", recent, stddev, n)
+		summary = i18n.T(lang, "Recent picks: %s (σ=$%.2f over %d cycles)", recent, stddev, n)
 	}
 
 	// Special-case n==2 with same value: very obviously stable but
@@ -4019,7 +4021,7 @@ func computeArgmaxStability(history []argmaxHistoryPoint) *argmaxStability {
 	if n == 2 && stddev < 0.50 {
 		status = "Converging"
 		color = "bg-blue-100 text-blue-800"
-		summary = fmt.Sprintf("2 consecutive cycles agree on %s (collect more cycles to confirm stability)", history[n-1].Label)
+		summary = i18n.T(lang, "2 consecutive cycles agree on %s (collect more cycles to confirm stability)", history[n-1].Label)
 	}
 
 	return &argmaxStability{

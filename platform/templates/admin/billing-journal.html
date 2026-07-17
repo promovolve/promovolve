@@ -1,7 +1,7 @@
 {{define "content"}}
 <div class="max-w-5xl">
-  <h1 class="page-title">Billing</h1>
-  <p class="page-sub">The append-only ledger: every money movement, and the manual adjustment door.</p>
+  <h1 class="page-title">{{t "Billing"}}</h1>
+  <p class="page-sub">{{t "The append-only ledger: every money movement, and the manual adjustment door."}}</p>
 
   {{template "billing-tabs" .}}
 
@@ -19,27 +19,27 @@
         .then(r => r.json())
         .then(d => { this.results = d.data || []; this.open = this.results.length > 0; });
     } }">
-    <h2 class="font-semibold text-lg">Adjustment</h2>
-    <p class="text-sm text-gray-500 mt-1">Manual corrections, posted straight to the ledger. Every adjustment needs a memo — it is the audit trail.</p>
+    <h2 class="font-semibold text-lg">{{t "Adjustment"}}</h2>
+    <p class="text-sm text-gray-500 mt-1">{{t "Manual corrections, posted straight to the ledger. Every adjustment needs a memo — it is the audit trail."}}</p>
     <form method="POST" action="/admin/billing/adjust" class="mt-4">
       <input type="hidden" name="nonce" value="{{.Nonce}}">
       <div class="flex items-end gap-3 flex-wrap">
         <div>
-          <label class="form-label">Type</label>
+          <label class="form-label">{{t "Type"}}</label>
           {{/* Switching to refund drops a publisher selection — refunds are
                advertiser-only (the server enforces it too): money owed to a
                publisher is a payout, never a refund. */}}
           <select name="action" x-model="action" class="form-input w-36"
             @change="if (action === 'refund' && side === 'publisher') { id = ''; q = ''; side = ''; }">
-            <option value="credit">Credit</option>
-            <option value="charge">Charge</option>
-            <option value="refund">Refund</option>
+            <option value="credit">{{t "Credit"}}</option>
+            <option value="charge">{{t "Charge"}}</option>
+            <option value="refund">{{t "Refund"}}</option>
           </select>
         </div>
         <div>
-          <label class="form-label">Account</label>
+          <label class="form-label">{{t "Account"}}</label>
           <div class="relative">
-            <input type="text" x-model="q" autocomplete="off" placeholder="Search org, domain, or email"
+            <input type="text" x-model="q" autocomplete="off" placeholder="{{t "Search org, domain, or email"}}"
               @input.debounce.150ms="id = ''; search()" @focus="search()" @click.outside="open = false"
               class="form-input w-64">
             <input type="hidden" name="owner" :value="id ? side + '|' + id : ''">
@@ -56,24 +56,24 @@
           </div>
         </div>
         <div>
-          <label class="form-label">Amount ($)</label>
+          <label class="form-label">{{t "Amount ($)"}}</label>
           <input name="amount" class="form-input w-28" placeholder="10.00">
         </div>
         <div class="flex-1 min-w-48">
-          <label class="form-label">Memo (required)</label>
-          <input name="memo" class="form-input" required placeholder="why this adjustment exists">
+          <label class="form-label">{{t "Memo (required)"}}</label>
+          <input name="memo" class="form-input" required placeholder="{{t "why this adjustment exists"}}">
         </div>
-        <button type="submit" class="btn btn-primary" :disabled="!id" onclick="return confirm('Post this adjustment to the ledger? It cannot be edited, only reversed.')">Post adjustment</button>
+        <button type="submit" class="btn btn-primary" :disabled="!id" onclick="return confirm('{{t "Post this adjustment to the ledger? It cannot be edited, only reversed."}}')">{{t "Post adjustment"}}</button>
       </div>
       {{/* What the selected type actually does — the double-entry in words. */}}
       <p class="text-xs text-gray-500 mt-3 bg-gray-50 border rounded-md px-3 py-2" x-show="action === 'credit'">
-        <strong>Credit</strong> — goodwill at the platform's expense: the account gains the amount, platform <em>revenue</em> gives it up. No real cash moves.
+        <strong>{{t "Credit"}}</strong> — {{t "goodwill at the platform's expense: the account gains the amount, platform revenue gives it up. No real cash moves."}}
       </p>
       <p class="text-xs text-gray-500 mt-3 bg-gray-50 border rounded-md px-3 py-2" x-show="action === 'charge'" x-cloak>
-        <strong>Charge</strong> — the mirror of a credit: the account loses the amount, platform <em>revenue</em> takes it back. For clawing back an over-credit.
+        <strong>{{t "Charge"}}</strong> — {{t "the mirror of a credit: the account loses the amount, platform revenue takes it back. For clawing back an over-credit."}}
       </p>
       <p class="text-xs text-gray-500 mt-3 bg-amber-50 border border-amber-200 rounded-md px-3 py-2" x-show="action === 'refund'" x-cloak>
-        <strong>Refund</strong> — advertisers only: their wallet and platform <em>cash</em> both go down — real money leaves the books, and you make the actual transfer back yourself.
+        <strong>{{t "Refund"}}</strong> — {{t "advertisers only: their wallet and platform cash both go down — real money leaves the books, and you make the actual transfer back yourself."}}
       </p>
     </form>
   </div>
@@ -82,24 +82,24 @@
   <div class="card mt-6 p-0 overflow-x-auto">
     <div class="px-6 pt-6 flex items-center justify-between gap-4 flex-wrap">
       <div>
-        <h2 class="font-semibold text-lg">Ledger journal</h2>
-        <p class="text-sm text-gray-500 mt-1">Append-only, newest first. Click a row for its double-entry legs.</p>
+        <h2 class="font-semibold text-lg">{{t "Ledger journal"}}</h2>
+        <p class="text-sm text-gray-500 mt-1">{{t "Append-only, newest first. Click a row for its double-entry legs."}}</p>
       </div>
       <div class="flex items-center gap-1">
-        <a href="/admin/billing/journal" class="btn btn-sm {{if not .KindFilter}}btn-primary{{else}}btn-secondary{{end}}">All</a>
-        <a href="/admin/billing/journal?kind=topup" class="btn btn-sm {{if eq .KindFilter "topup"}}btn-primary{{else}}btn-secondary{{end}}">Top-ups</a>
-        <a href="/admin/billing/journal?kind=settlement" class="btn btn-sm {{if eq .KindFilter "settlement"}}btn-primary{{else}}btn-secondary{{end}}">Settlements</a>
-        <a href="/admin/billing/journal?kind=payout" class="btn btn-sm {{if eq .KindFilter "payout"}}btn-primary{{else}}btn-secondary{{end}}">Payouts</a>
-        <a href="/admin/billing/journal?kind=adjustment" class="btn btn-sm {{if eq .KindFilter "adjustment"}}btn-primary{{else}}btn-secondary{{end}}">Adjustments</a>
-        <a href="/admin/billing/journal?kind=refund" class="btn btn-sm {{if eq .KindFilter "refund"}}btn-primary{{else}}btn-secondary{{end}}">Refunds</a>
+        <a href="/admin/billing/journal" class="btn btn-sm {{if not .KindFilter}}btn-primary{{else}}btn-secondary{{end}}">{{t "All"}}</a>
+        <a href="/admin/billing/journal?kind=topup" class="btn btn-sm {{if eq .KindFilter "topup"}}btn-primary{{else}}btn-secondary{{end}}">{{t "Top-ups"}}</a>
+        <a href="/admin/billing/journal?kind=settlement" class="btn btn-sm {{if eq .KindFilter "settlement"}}btn-primary{{else}}btn-secondary{{end}}">{{t "Settlements"}}</a>
+        <a href="/admin/billing/journal?kind=payout" class="btn btn-sm {{if eq .KindFilter "payout"}}btn-primary{{else}}btn-secondary{{end}}">{{t "Payouts"}}</a>
+        <a href="/admin/billing/journal?kind=adjustment" class="btn btn-sm {{if eq .KindFilter "adjustment"}}btn-primary{{else}}btn-secondary{{end}}">{{t "Adjustments"}}</a>
+        <a href="/admin/billing/journal?kind=refund" class="btn btn-sm {{if eq .KindFilter "refund"}}btn-primary{{else}}btn-secondary{{end}}">{{t "Refunds"}}</a>
       </div>
     </div>
     <table class="w-full text-sm mt-3">
       <thead>
         <tr class="border-b text-left text-gray-400">
-          <th class="px-6 py-2 font-medium">When</th>
-          <th class="px-6 py-2 font-medium">Kind</th>
-          <th class="px-6 py-2 font-medium">What happened</th>
+          <th class="px-6 py-2 font-medium">{{t "When"}}</th>
+          <th class="px-6 py-2 font-medium">{{t "Kind"}}</th>
+          <th class="px-6 py-2 font-medium">{{t "What happened"}}</th>
           <th class="px-6 py-2 w-8"></th>
         </tr>
       </thead>
@@ -107,7 +107,7 @@
       <tbody x-data="{ open: false }" class="border-b last:border-0">
         <tr class="cursor-pointer hover:bg-gray-50" @click="open = !open">
           <td class="px-6 py-2 text-gray-500 whitespace-nowrap align-top">{{.Created}}</td>
-          <td class="px-6 py-2 align-top"><span class="badge {{.KindBadge}}">{{.Kind}}</span></td>
+          <td class="px-6 py-2 align-top"><span class="badge {{.KindBadge}}">{{t .Kind}}</span></td>
           <td class="px-6 py-2">
             {{.Summary}}
             {{if .Memo}}<span class="block text-xs text-gray-400 mt-0.5">{{.Memo}}</span>{{end}}
@@ -130,7 +130,7 @@
         </tr>
       </tbody>
       {{else}}
-      <tbody><tr><td class="px-6 py-4 text-gray-400" colspan="4">No transactions{{if .KindFilter}} of this kind{{end}} yet.</td></tr></tbody>
+      <tbody><tr><td class="px-6 py-4 text-gray-400" colspan="4">{{if .KindFilter}}{{t "No transactions of this kind yet."}}{{else}}{{t "No transactions yet."}}{{end}}</td></tr></tbody>
       {{end}}
     </table>
   </div>

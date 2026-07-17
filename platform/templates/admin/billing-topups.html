@@ -1,7 +1,7 @@
 {{define "content"}}
 <div class="max-w-5xl">
-  <h1 class="page-title">Billing</h1>
-  <p class="page-sub">Money in: record advertiser top-ups as their transfers arrive, and the history of every top-up and refund.</p>
+  <h1 class="page-title">{{t "Billing"}}</h1>
+  <p class="page-sub">{{t "Money in: record advertiser top-ups as their transfers arrive, and the history of every top-up and refund."}}</p>
 
   {{template "billing-tabs" .}}
 
@@ -13,8 +13,8 @@
 
   <!-- Record top-up -->
   <div class="card mt-6">
-    <h2 class="font-semibold text-lg">Record a top-up</h2>
-    <p class="text-sm text-gray-500 mt-1">After receiving the advertiser's transfer, credit their wallet. A suspended advertiser resumes serving automatically once funded.</p>
+    <h2 class="font-semibold text-lg">{{t "Record a top-up"}}</h2>
+    <p class="text-sm text-gray-500 mt-1">{{t "After receiving the advertiser's transfer, credit their wallet. A suspended advertiser resumes serving automatically once funded."}}</p>
     {{/* Advertiser picker is a searchable combobox backed by a Postgres
          search (/api/billing/accounts) — a plain select doesn't scale past
          a handful of orgs. The hidden input only fills when a result is
@@ -28,9 +28,9 @@
         } }">
       <input type="hidden" name="nonce" value="{{.Nonce}}">
       <div>
-        <label class="form-label">Advertiser</label>
+        <label class="form-label">{{t "Advertiser"}}</label>
         <div class="relative">
-          <input type="text" x-model="q" autocomplete="off" placeholder="Search org, domain, or email"
+          <input type="text" x-model="q" autocomplete="off" placeholder="{{t "Search org, domain, or email"}}"
             @input.debounce.150ms="id = ''; search()" @focus="search()" @click.outside="open = false"
             class="form-input w-64">
           <input type="hidden" name="advertiserId" :value="id">
@@ -44,21 +44,21 @@
         </div>
       </div>
       <div>
-        <label class="form-label">Amount ($)</label>
+        <label class="form-label">{{t "Amount ($)"}}</label>
         <input name="amount" class="form-input w-32" placeholder="100.00">
       </div>
       <div class="flex-1">
-        <label class="form-label">Reference / memo</label>
-        <input name="memo" class="form-input" placeholder="bank transfer ref">
+        <label class="form-label">{{t "Reference / memo"}}</label>
+        <input name="memo" class="form-input" placeholder="{{t "bank transfer ref"}}">
       </div>
-      <button type="submit" class="btn btn-primary" :disabled="!id">Record top-up</button>
+      <button type="submit" class="btn btn-primary" :disabled="!id">{{t "Record top-up"}}</button>
     </form>
   </div>
 
   <!-- Money-in history -->
   <div class="card mt-6 p-0 overflow-x-auto">
-    <h2 class="font-semibold text-lg px-6 pt-6">Top-up history</h2>
-    <p class="text-sm text-gray-500 px-6 mt-1">Every top-up and refund, newest first. Settlements and payouts live in the Journal tab.</p>
+    <h2 class="font-semibold text-lg px-6 pt-6">{{t "Top-up history"}}</h2>
+    <p class="text-sm text-gray-500 px-6 mt-1">{{t "Every top-up and refund, newest first. Settlements and payouts live in the Journal tab."}}</p>
     {{/* Operator columns, not ledger legs: whose wallet, how much, signed.
          The balancing platform-cash leg lives on the Journal tab. No Kind
          column — on a top-up table the green +$ says it; only the rare
@@ -66,10 +66,10 @@
     <table class="w-full text-sm mt-3">
       <thead>
         <tr class="border-b text-left text-gray-400">
-          <th class="px-6 py-2 font-medium">When</th>
-          <th class="px-6 py-2 font-medium">Advertiser</th>
-          <th class="px-6 py-2 font-medium text-right">Amount</th>
-          <th class="px-6 py-2 font-medium">Reference</th>
+          <th class="px-6 py-2 font-medium">{{t "When"}}</th>
+          <th class="px-6 py-2 font-medium">{{t "Advertiser"}}</th>
+          <th class="px-6 py-2 font-medium text-right">{{t "Amount"}}</th>
+          <th class="px-6 py-2 font-medium">{{t "Reference"}}</th>
         </tr>
       </thead>
       <tbody>
@@ -77,11 +77,11 @@
         <tr class="border-b last:border-0">
           <td class="px-6 py-2 text-gray-500 whitespace-nowrap">{{.Created}}</td>
           <td class="px-6 py-2">{{.Wallet}}</td>
-          <td class="px-6 py-2 text-right font-medium whitespace-nowrap {{if .Negative}}text-red-600{{else}}text-green-700{{end}}">{{if .Negative}}<span class="badge badge-danger mr-2">{{.Kind}}</span>{{end}}{{.Amount}}</td>
+          <td class="px-6 py-2 text-right font-medium whitespace-nowrap {{if .Negative}}text-red-600{{else}}text-green-700{{end}}">{{if .Negative}}<span class="badge badge-danger mr-2">{{t .Kind}}</span>{{end}}{{.Amount}}</td>
           <td class="px-6 py-2 text-gray-500">{{if .Memo}}{{.Memo}}{{else}}<span class="text-gray-300">—</span>{{end}}</td>
         </tr>
         {{else}}
-        <tr><td class="px-6 py-4 text-gray-400" colspan="4">No top-ups yet.</td></tr>
+        <tr><td class="px-6 py-4 text-gray-400" colspan="4">{{t "No top-ups yet."}}</td></tr>
         {{end}}
       </tbody>
     </table>

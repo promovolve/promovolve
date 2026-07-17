@@ -1,7 +1,7 @@
 {{define "content"}}
 <div class="max-w-5xl">
-  <h1 class="page-title">Billing</h1>
-  <p class="page-sub">Advertiser wallets, publisher payouts, and the platform ledger. All money movement is recorded here; bank transfers happen outside and are recorded manually.</p>
+  <h1 class="page-title">{{t "Billing"}}</h1>
+  <p class="page-sub">{{t "Advertiser wallets, publisher payouts, and the platform ledger. All money movement is recorded here; bank transfers happen outside and are recorded manually."}}</p>
 
   {{template "billing-tabs" .}}
 
@@ -13,69 +13,69 @@
 
   <!-- Overview -->
   <div class="grid grid-cols-5 gap-6 mt-6">
-    <div class="bg-white p-6 rounded-lg border" title="External money received minus money sent (top-ups − payouts − refunds)">
-      <p class="text-sm text-gray-500">Cash position</p>
+    <div class="bg-white p-6 rounded-lg border" title="{{t "External money received minus money sent (top-ups − payouts − refunds)"}}">
+      <p class="text-sm text-gray-500">{{t "Cash position"}}</p>
       <p class="text-3xl font-semibold mt-2">{{.Cash}}</p>
     </div>
-    <div class="bg-white p-6 rounded-lg border" title="Unspent advertiser funds you are holding">
-      <p class="text-sm text-gray-500">Advertiser wallets</p>
+    <div class="bg-white p-6 rounded-lg border" title="{{t "Unspent advertiser funds you are holding"}}">
+      <p class="text-sm text-gray-500">{{t "Advertiser wallets"}}</p>
       <p class="text-3xl font-semibold mt-2">{{.Wallets}}</p>
     </div>
-    <div class="bg-white p-6 rounded-lg border" title="Earned, not-yet-paid publisher revenue">
-      <p class="text-sm text-gray-500">Publisher payables</p>
+    <div class="bg-white p-6 rounded-lg border" title="{{t "Earned, not-yet-paid publisher revenue"}}">
+      <p class="text-sm text-gray-500">{{t "Publisher payables"}}</p>
       <p class="text-3xl font-semibold mt-2">{{.Payables}}</p>
     </div>
-    <div class="bg-white p-6 rounded-lg border" title="Margin captured at settlement — the platform's earnings">
-      <p class="text-sm text-gray-500">Margin captured</p>
+    <div class="bg-white p-6 rounded-lg border" title="{{t "Margin captured at settlement — the platform's earnings"}}">
+      <p class="text-sm text-gray-500">{{t "Margin captured"}}</p>
       <p class="text-3xl font-semibold mt-2">{{.Revenue}}</p>
     </div>
-    <div class="bg-white p-6 rounded-lg border" title="Settlement gross charged to advertisers but not yet credited to publishers — the two local billing days close at different times, so this is normally NON-zero and can be negative as the zones settle in turn. It nets to zero over any range both sides have closed; the thing to watch is a persistent, growing imbalance (not a bounded one), which means traffic from a site with no publisher mapping.">
-      <p class="text-sm text-gray-500">In transit</p>
+    <div class="bg-white p-6 rounded-lg border" title="{{t "Settlement gross charged to advertisers but not yet credited to publishers — the two local billing days close at different times, so this is normally NON-zero and can be negative as the zones settle in turn. It nets to zero over any range both sides have closed; the thing to watch is a persistent, growing imbalance (not a bounded one), which means traffic from a site with no publisher mapping."}}">
+      <p class="text-sm text-gray-500">{{t "In transit"}}</p>
       <p class="text-3xl font-semibold mt-2">{{.Clearing}}</p>
     </div>
   </div>
   <p class="mt-3 text-sm">
     {{if .ReconOK}}
-    <span class="badge badge-success">books balanced</span>
-    <span class="text-gray-400 ml-2">cash = wallets + payables + margin + in-transit, and every ledger entry reconciles</span>
+    <span class="badge badge-success">{{t "books balanced"}}</span>
+    <span class="text-gray-400 ml-2">{{t "cash = wallets + payables + margin + in-transit, and every ledger entry reconciles"}}</span>
     {{else}}
-    <span class="badge badge-danger">reconciliation FAILED</span>
-    <span class="text-red-600 ml-2">{{.DriftCount}} account(s) drifted from their ledger entries — investigate before recording money</span>
+    <span class="badge badge-danger">{{t "reconciliation FAILED"}}</span>
+    <span class="text-red-600 ml-2">{{t "%d account(s) drifted from their ledger entries — investigate before recording money" .DriftCount}}</span>
     {{end}}
   </p>
 
   <!-- Settlement health -->
   <div class="card mt-6 p-0 overflow-x-auto">
     <div class="px-6 pt-6 flex items-center gap-3">
-      <h2 class="font-semibold text-lg">Settlement health</h2>
+      <h2 class="font-semibold text-lg">{{t "Settlement health"}}</h2>
       {{if not .Cursors}}
-      <span class="badge badge-neutral">no billable traffic yet</span>
+      <span class="badge badge-neutral">{{t "no billable traffic yet"}}</span>
       {{else if .HealthBehind}}
-      <span class="badge badge-warning">behind — some entities have overdue windows</span>
+      <span class="badge badge-warning">{{t "behind — some entities have overdue windows"}}</span>
       {{else}}
-      <span class="badge badge-success">up to date</span>
+      <span class="badge badge-success">{{t "up to date"}}</span>
       {{end}}
     </div>
-    <p class="px-6 mt-1 text-sm text-gray-500">Every advertiser and publisher settles on its own local days. "Settled through" is how far each entity's books are booked.</p>
+    <p class="px-6 mt-1 text-sm text-gray-500">{{t "Every advertiser and publisher settles on its own local days. \"Settled through\" is how far each entity's books are booked."}}</p>
     <table class="w-full text-sm mt-3">
       <thead>
         <tr class="border-b text-left text-gray-400">
-          <th class="px-6 py-2 font-medium">Entity</th>
-          <th class="px-6 py-2 font-medium">Side</th>
-          <th class="px-6 py-2 font-medium">Billing timezone</th>
-          <th class="px-6 py-2 font-medium">Settled through</th>
+          <th class="px-6 py-2 font-medium">{{t "Entity"}}</th>
+          <th class="px-6 py-2 font-medium">{{t "Side"}}</th>
+          <th class="px-6 py-2 font-medium">{{t "Billing timezone"}}</th>
+          <th class="px-6 py-2 font-medium">{{t "Settled through"}}</th>
         </tr>
       </thead>
       <tbody>
         {{range .Cursors}}
         <tr class="border-b last:border-0 {{if .Behind}}bg-amber-50{{end}}">
           <td class="px-6 py-2 font-medium">{{.Label}}</td>
-          <td class="px-6 py-2 text-gray-500">{{.Owner}}</td>
+          <td class="px-6 py-2 text-gray-500">{{t .Owner}}</td>
           <td class="px-6 py-2 text-gray-500">{{.Timezone}}</td>
-          <td class="px-6 py-2 {{if .Behind}}text-amber-700 font-medium{{else}}text-gray-500{{end}}">{{.SettledUntil}}{{if .Behind}} — behind{{end}}</td>
+          <td class="px-6 py-2 {{if .Behind}}text-amber-700 font-medium{{else}}text-gray-500{{end}}">{{.SettledUntil}}{{if .Behind}} — {{t "behind"}}{{end}}</td>
         </tr>
         {{else}}
-        <tr><td class="px-6 py-4 text-gray-400" colspan="4">The settlement job has not seen billable traffic yet.</td></tr>
+        <tr><td class="px-6 py-4 text-gray-400" colspan="4">{{t "The settlement job has not seen billable traffic yet."}}</td></tr>
         {{end}}
       </tbody>
     </table>
@@ -85,23 +85,23 @@
   <!-- Recent settled windows -->
   <div class="card mt-6 p-0 overflow-x-auto">
     <div class="px-6 pt-6">
-      <h2 class="font-semibold text-lg">Recent settled windows</h2>
+      <h2 class="font-semibold text-lg">{{t "Recent settled windows"}}</h2>
     </div>
     <table class="w-full text-sm mt-3">
       <thead>
         <tr class="border-b text-left text-gray-400">
-          <th class="px-6 py-2 font-medium">Entity</th>
-          <th class="px-6 py-2 font-medium">Local day</th>
-          <th class="px-6 py-2 font-medium" title="The exact instant range booked (UTC), for auditing">Window (UTC)</th>
-          <th class="px-6 py-2 font-medium" title="One line item = one campaign + site combination billed in this window">Line items</th>
-          <th class="px-6 py-2 font-medium">Skipped (no publisher)</th>
-          <th class="px-6 py-2 font-medium">Gross</th>
+          <th class="px-6 py-2 font-medium">{{t "Entity"}}</th>
+          <th class="px-6 py-2 font-medium">{{t "Local day"}}</th>
+          <th class="px-6 py-2 font-medium" title="{{t "The exact instant range booked (UTC), for auditing"}}">{{t "Window (UTC)"}}</th>
+          <th class="px-6 py-2 font-medium" title="{{t "One line item = one campaign + site combination billed in this window"}}">{{t "Line items"}}</th>
+          <th class="px-6 py-2 font-medium">{{t "Skipped (no publisher)"}}</th>
+          <th class="px-6 py-2 font-medium">{{t "Gross"}}</th>
         </tr>
       </thead>
       <tbody>
         {{range .Windows}}
         <tr class="border-b last:border-0">
-          <td class="px-6 py-2 font-medium">{{.Label}} <span class="text-gray-400">({{.Owner}})</span></td>
+          <td class="px-6 py-2 font-medium">{{.Label}} <span class="text-gray-400">({{t .Owner}})</span></td>
           <td class="px-6 py-2 text-gray-500">{{.LocalDay}}</td>
           <td class="px-6 py-2 text-gray-400 whitespace-nowrap">{{.Window}}</td>
           <td class="px-6 py-2 text-gray-500">{{.Rows}}</td>
@@ -109,7 +109,7 @@
           <td class="px-6 py-2 text-gray-500">${{.Gross}}</td>
         </tr>
         {{else}}
-        <tr><td class="px-6 py-4 text-gray-400" colspan="6">The settlement job has not completed a window yet.</td></tr>
+        <tr><td class="px-6 py-4 text-gray-400" colspan="6">{{t "The settlement job has not completed a window yet."}}</td></tr>
         {{end}}
       </tbody>
     </table>

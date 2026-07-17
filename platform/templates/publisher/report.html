@@ -2,50 +2,50 @@
 {{$r := .PubReport}}
 <div class="flex items-center justify-between mb-6">
   <div>
-    <h1 class="page-title">Report</h1>
-    <p class="page-sub">Category earnings per site · report days are UTC buckets (your Earnings statements use your local day, so days can differ near midnight)</p>
+    <h1 class="page-title">{{t "Report"}}</h1>
+    <p class="page-sub">{{t "Category earnings per site · report days are UTC buckets (your Earnings statements use your local day, so days can differ near midnight)"}}</p>
   </div>
 </div>
 
 {{template "report-range-picker" dict "From" $r.From "To" $r.To "Preset" $r.Preset "Presets" $r.Presets "CSVURL" $r.CSVURL}}
 
 {{if not $r.HasData}}
-<div class="card text-center text-gray-500">No delivery in this range.</div>
+<div class="card text-center text-gray-500">{{t "No delivery in this range."}}</div>
 {{else}}
 
 {{/* Totals across the range — revenue is NET (platform fee deducted). */}}
 <div class="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-6 gap-3 mb-6">
   <div class="card card-tight">
-    <p class="text-xs text-gray-500">Revenue</p>
+    <p class="text-xs text-gray-500">{{t "Revenue"}}</p>
     <p class="text-xl font-semibold mt-1">${{$r.Totals.SpendDisp}}</p>
-    {{if $r.FeePct}}<p class="text-xs text-gray-400">net of {{$r.FeePct}}% platform fee</p>{{end}}
+    {{if $r.FeePct}}<p class="text-xs text-gray-400">{{t "net of %s%% platform fee" $r.FeePct}}</p>{{end}}
   </div>
   <div class="card card-tight">
-    <p class="text-xs text-gray-500">Impressions</p>
+    <p class="text-xs text-gray-500">{{t "Impressions"}}</p>
     <p class="text-xl font-semibold mt-1">{{$r.Totals.Impressions}}</p>
-    {{if $r.Totals.DogearedImps}}<p class="text-xs text-gray-400">+{{$r.Totals.DogearedImps}} dog-eared</p>{{end}}
+    {{if $r.Totals.DogearedImps}}<p class="text-xs text-gray-400">{{t "+%d dog-eared" $r.Totals.DogearedImps}}</p>{{end}}
   </div>
   <div class="card card-tight">
-    <p class="text-xs text-gray-500">Clicks</p>
+    <p class="text-xs text-gray-500">{{t "Clicks"}}</p>
     <p class="text-xl font-semibold mt-1">{{$r.Totals.Clicks}}</p>
   </div>
   <div class="card card-tight">
-    <p class="text-xs text-gray-500">CTR</p>
+    <p class="text-xs text-gray-500">{{t "CTR"}}</p>
     <p class="text-xl font-semibold mt-1">{{$r.Totals.CTR}}</p>
   </div>
   <div class="card card-tight">
-    <p class="text-xs text-gray-500">CTA clicks</p>
+    <p class="text-xs text-gray-500">{{t "CTA clicks"}}</p>
     <p class="text-xl font-semibold mt-1">{{$r.Totals.CTAClicks}}</p>
   </div>
   <div class="card card-tight">
-    <p class="text-xs text-gray-500">eCPM</p>
+    <p class="text-xs text-gray-500">{{t "eCPM"}}</p>
     <p class="text-xl font-semibold mt-1">${{$r.Totals.ECPM}}</p>
   </div>
 </div>
 
 {{if $r.CoverageNote}}
 <div class="bg-yellow-50 border border-yellow-200 rounded-lg px-4 py-2 mb-4 text-sm text-yellow-800">
-  Breakdown data is available from {{$r.CoverageNote}} — earlier days in this range are not included.
+  {{t "Breakdown data is available from %s — earlier days in this range are not included." $r.CoverageNote}}
 </div>
 {{end}}
 
@@ -53,31 +53,31 @@
      site; the per-site sections below carry the single-site story. */}}
 {{if gt (len $r.SiteRows) 1}}
 <div class="mb-8">
-  <h2 class="text-base font-semibold mb-3">All sites</h2>
+  <h2 class="text-base font-semibold mb-3">{{t "All sites"}}</h2>
   <div class="card card-tight mb-4">
-    <p class="text-sm font-semibold mb-1">Daily revenue by site</p>
+    <p class="text-sm font-semibold mb-1">{{t "Daily revenue by site"}}</p>
     <div class="h-56"><canvas id="report-chart-sites-rev"></canvas></div>
-    <p class="text-sm font-semibold mb-1 mt-4">Daily impressions by site</p>
+    <p class="text-sm font-semibold mb-1 mt-4">{{t "Daily impressions by site"}}</p>
     <div class="h-56"><canvas id="report-chart-sites-imps"></canvas></div>
   </div>
   <div class="card card-tight overflow-x-auto">
     <table class="w-full text-sm">
       <thead>
         <tr class="text-left text-xs text-gray-500 border-b">
-          <th class="py-2 pr-4">Site</th>
-          <th class="py-2 pr-4 text-right">Impressions</th>
-          <th class="py-2 pr-4 text-right">Clicks</th>
-          <th class="py-2 pr-4 text-right">CTR</th>
-          <th class="py-2 pr-4 text-right">CTA</th>
-          <th class="py-2 pr-4 text-right">Revenue</th>
-          <th class="py-2 text-right">eCPM</th>
+          <th class="py-2 pr-4">{{t "Site"}}</th>
+          <th class="py-2 pr-4 text-right">{{t "Impressions"}}</th>
+          <th class="py-2 pr-4 text-right">{{t "Clicks"}}</th>
+          <th class="py-2 pr-4 text-right">{{t "CTR"}}</th>
+          <th class="py-2 pr-4 text-right">{{t "CTA"}}</th>
+          <th class="py-2 pr-4 text-right">{{t "Revenue"}}</th>
+          <th class="py-2 text-right">{{t "eCPM"}}</th>
         </tr>
       </thead>
       <tbody>
         {{range $r.SiteRows}}
         <tr class="border-b border-gray-100">
           <td class="py-2 pr-4">{{.Label}}</td>
-          <td class="py-2 pr-4 text-right">{{.Impressions}}{{if .DogearedImps}} <span class="text-xs text-gray-400">(+{{.DogearedImps}} dog-eared)</span>{{end}}</td>
+          <td class="py-2 pr-4 text-right">{{.Impressions}}{{if .DogearedImps}} <span class="text-xs text-gray-400">{{t "(+%d dog-eared)" .DogearedImps}}</span>{{end}}</td>
           <td class="py-2 pr-4 text-right">{{.Clicks}}</td>
           <td class="py-2 pr-4 text-right">{{.CTR}}</td>
           <td class="py-2 pr-4 text-right">{{.CTAClicks}}</td>
@@ -99,7 +99,7 @@
 <div x-data="{site: '{{(index $r.Sites 0).SiteID}}'}">
   {{if gt (len $r.Sites) 1}}
   <div class="flex items-center gap-3 mb-4">
-    <label class="form-label mb-0" for="report-site-select">Site</label>
+    <label class="form-label mb-0" for="report-site-select">{{t "Site"}}</label>
     <select id="report-site-select" x-model="site" class="form-input" style="width:auto">
       {{range $r.Sites}}
       <option value="{{.SiteID}}">{{.Host}}</option>
@@ -114,9 +114,9 @@
   {{if ne $s.Host $s.SiteID}}<p class="text-xs text-gray-400 mb-3">{{$s.SiteID}}</p>{{else}}<div class="mb-3"></div>{{end}}
 
   <div class="card card-tight mb-4">
-    <p class="text-sm font-semibold mb-1">Daily revenue by category</p>
+    <p class="text-sm font-semibold mb-1">{{t "Daily revenue by category"}}</p>
     <div class="h-56"><canvas id="report-chart-site-{{$i}}-rev"></canvas></div>
-    <p class="text-sm font-semibold mb-1 mt-4">Daily impressions by category</p>
+    <p class="text-sm font-semibold mb-1 mt-4">{{t "Daily impressions by category"}}</p>
     <div class="h-56"><canvas id="report-chart-site-{{$i}}-imps"></canvas></div>
   </div>
 
@@ -124,20 +124,20 @@
     <table class="w-full text-sm">
       <thead>
         <tr class="text-left text-xs text-gray-500 border-b">
-          <th class="py-2 pr-4">Category</th>
-          <th class="py-2 pr-4 text-right">Impressions</th>
-          <th class="py-2 pr-4 text-right">Clicks</th>
-          <th class="py-2 pr-4 text-right">CTR</th>
-          <th class="py-2 pr-4 text-right">CTA</th>
-          <th class="py-2 pr-4 text-right">Revenue</th>
-          <th class="py-2 text-right">eCPM</th>
+          <th class="py-2 pr-4">{{t "Category"}}</th>
+          <th class="py-2 pr-4 text-right">{{t "Impressions"}}</th>
+          <th class="py-2 pr-4 text-right">{{t "Clicks"}}</th>
+          <th class="py-2 pr-4 text-right">{{t "CTR"}}</th>
+          <th class="py-2 pr-4 text-right">{{t "CTA"}}</th>
+          <th class="py-2 pr-4 text-right">{{t "Revenue"}}</th>
+          <th class="py-2 text-right">{{t "eCPM"}}</th>
         </tr>
       </thead>
       <tbody>
         {{range $s.Rows}}
         <tr class="border-b border-gray-100">
           <td class="py-2 pr-4">{{.Label}}</td>
-          <td class="py-2 pr-4 text-right">{{.Impressions}}{{if .DogearedImps}} <span class="text-xs text-gray-400">(+{{.DogearedImps}} dog-eared)</span>{{end}}</td>
+          <td class="py-2 pr-4 text-right">{{.Impressions}}{{if .DogearedImps}} <span class="text-xs text-gray-400">{{t "(+%d dog-eared)" .DogearedImps}}</span>{{end}}</td>
           <td class="py-2 pr-4 text-right">{{.Clicks}}</td>
           <td class="py-2 pr-4 text-right">{{.CTR}}</td>
           <td class="py-2 pr-4 text-right">{{.CTAClicks}}</td>
@@ -146,7 +146,7 @@
         </tr>
         {{end}}
         <tr class="border-b bg-gray-50 text-gray-600">
-          <td class="py-1.5 pr-4 text-xs font-medium">Site total</td>
+          <td class="py-1.5 pr-4 text-xs font-medium">{{t "Site total"}}</td>
           <td class="py-1.5 pr-4 text-right text-xs font-medium">{{$s.Totals.Impressions}}</td>
           <td class="py-1.5 pr-4 text-right text-xs font-medium">{{$s.Totals.Clicks}}</td>
           <td class="py-1.5 pr-4 text-right text-xs font-medium">{{$s.Totals.CTR}}</td>

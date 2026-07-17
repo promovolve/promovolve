@@ -32,26 +32,49 @@ import (
 // them, so they are exempt from the unused-key check. Keep this list
 // honest — every entry should name where the dynamic lookup happens.
 var dynamicKeys = map[string]string{
-	"advertiser": "account-preferences.html landing-side radios ({{t .}})",
-	"publisher":  "account-preferences.html landing-side radios ({{t .}})",
-	"7d":         "report-range-picker preset labels ({{t .Label}}, report.go reportPresets)",
-	"30d":        "report-range-picker preset labels ({{t .Label}}, report.go reportPresets)",
-	"This month": "report-range-picker preset labels ({{t .Label}}, report.go reportPresets)",
-	"Active":     "creatives.html {{t .ActiveStatus}}",
-	"Paused":     "creatives.html {{t .ActiveStatus}}",
-	"Draft":      "creatives.html {{t .ActiveStatus}}",
-	"active":     "creatives.html {{t .Status}} legacy fallback (core enum)",
-	"paused":     "creatives.html {{t .Status}} legacy fallback (core enum)",
-	"topup":      "wallet.html {{t .Kind}} (billing.TxnKind)",
-	"settlement": "wallet.html {{t .Kind}} (billing.TxnKind)",
-	"payout":     "wallet.html {{t .Kind}} (billing.TxnKind)",
-	"adjustment": "wallet.html {{t .Kind}} (billing.TxnKind)",
-	"refund":     "wallet.html {{t .Kind}} (billing.TxnKind)",
+	"advertiser":                     "account-preferences.html landing-side radios ({{t .}})",
+	"publisher":                      "account-preferences.html landing-side radios ({{t .}})",
+	"7d":                             "report-range-picker preset labels ({{t .Label}}, report.go reportPresets)",
+	"30d":                            "report-range-picker preset labels ({{t .Label}}, report.go reportPresets)",
+	"This month":                     "report-range-picker preset labels ({{t .Label}}, report.go reportPresets)",
+	"Active":                         "creatives.html {{t .ActiveStatus}}",
+	"Paused":                         "creatives.html {{t .ActiveStatus}}",
+	"Draft":                          "creatives.html {{t .ActiveStatus}}",
+	"active":                         "creatives.html {{t .Status}} legacy fallback (core enum)",
+	"paused":                         "creatives.html {{t .Status}} legacy fallback (core enum)",
+	"topup":                          "wallet.html {{t .Kind}} (billing.TxnKind)",
+	"settlement":                     "wallet.html {{t .Kind}} (billing.TxnKind)",
+	"payout":                         "wallet.html {{t .Kind}} (billing.TxnKind)",
+	"adjustment":                     "wallet.html {{t .Kind}} (billing.TxnKind)",
+	"refund":                         "wallet.html {{t .Kind}} (billing.TxnKind)",
+	"email already registered":       "handler.go handleLoginPost sentinel switch (i18n.T(lang, msg))",
+	"invalid credentials":            "handler.go handleLoginPost sentinel switch (i18n.T(lang, msg))",
+	"pending":                        "payout/site-request status pills ({{t .Status}})",
+	"paid":                           "payout status pills ({{t .Status}})",
+	"cancelled":                      "payout status pills ({{t .Status}})",
+	"low_balance":                    "billing account status ({{t .Status}})",
+	"suspended":                      "billing account status ({{t .Status}})",
+	"rejected":                       "site-request status ({{t .Status}})",
+	"Stable optimum":                 "site-observations argmax stability ({{t .Status}})",
+	"Mildly variable":                "site-observations argmax stability ({{t .Status}})",
+	"Highly variable":                "site-observations argmax stability ({{t .Status}})",
+	"Insufficient data":              "site-observations argmax stability ({{t .Status}})",
+	"Converging":                     "site-observations argmax stability ({{t .Status}})",
+	"Benched — advertiser suspended": "approval preview-pane badge ({{t .Badge}}, handler.go)",
+	"Benched — out of budget today, resumes at rollover": "approval preview-pane badge ({{t .Badge}}, handler.go)",
+	"Benched — campaign budget spent for today":          "approval preview-pane badge ({{t .Badge}}, handler.go)",
+	"Pin-only (below floor)":                             "approval preview-pane badge ({{t .Badge}})",
+	"Auto-approved":                                      "approval preview-pane ({{t .ExtraBadge}})",
+	"Not relevant to my content":                         "approval flagged reason ({{t $c.Reason}}, Decline form value)",
+	"Campaign":                                           "trusted.html anchor type ({{t .Type}}) + report dict heads",
+	"Landing domain":                                     "trusted.html anchor type ({{t .Type}})",
+	"member":                                             "org/members.html + admin/users.html {{t .OrgRole}}",
 }
 
 var (
-	// Matches both action form {{t "..."}} and pipeline form (t "...").
-	tmplKeyRe = regexp.MustCompile(`[({]\s*t\s+"((?:[^"\\]|\\.)*)"`)
+	// Matches action form {{t "..."}}, pipeline form (t "..."), and
+	// assignment/pipe forms {{$x = t "..."}} / {{... | t "..."}}.
+	tmplKeyRe = regexp.MustCompile(`[({=|]\s*t\s+"((?:[^"\\]|\\.)*)"`)
 	goKeyRe   = regexp.MustCompile(`(?:i18n\.T|jsonErrorT)\([^"\n]+"((?:[^"\\]|\\.)*)"`)
 	// Page titles are plain literals at the call sites; renderStatus
 	// translates them centrally, so they count as used keys.

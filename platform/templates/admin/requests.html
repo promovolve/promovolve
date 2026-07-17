@@ -1,7 +1,7 @@
 {{define "content"}}
 <div class="max-w-4xl">
-  <h1 class="page-title">Account Requests</h1>
-  <p class="page-sub">Review who gets access to this platform. Approval provisions the account on the ad server.</p>
+  <h1 class="page-title">{{t "Account Requests"}}</h1>
+  <p class="page-sub">{{t "Review who gets access to this platform. Approval provisions the account on the ad server."}}</p>
 
   {{if .Error}}
   <div class="bg-red-50 border border-red-200 text-red-700 rounded-lg p-3 mt-6 text-sm">{{.Error}}</div>
@@ -10,13 +10,13 @@
   {{if and (not .AdminRequests) (not .AdminOrgSideRequests)}}
   <div class="card mt-6 text-center text-gray-500">
     <p class="text-3xl mb-2">&#10003;</p>
-    <p>No pending requests.</p>
+    <p>{{t "No pending requests."}}</p>
   </div>
   {{end}}
 
   {{if .AdminOrgSideRequests}}
-  <h2 class="text-lg font-medium mt-8">Organization side requests</h2>
-  <p class="text-sm text-gray-500">An existing organization asking for its other side. Approval provisions the account on the ad server.</p>
+  <h2 class="text-lg font-medium mt-8">{{t "Organization side requests"}}</h2>
+  <p class="text-sm text-gray-500">{{t "An existing organization asking for its other side. Approval provisions the account on the ad server."}}</p>
   <div class="space-y-4 mt-4">
     {{range .AdminOrgSideRequests}}
     <div class="card">
@@ -24,9 +24,9 @@
         <div>
           <div class="flex items-center gap-2 mb-1">
             <h2 class="font-semibold text-lg">{{if .OrgName}}{{.OrgName}}{{else}}@{{.OrgDomain}}{{end}}</h2>
-            <span class="badge {{if eq .Side "publisher"}}badge-info{{else}}badge-success{{end}}">wants {{.Side}}</span>
+            <span class="badge {{if eq .Side "publisher"}}badge-info{{else}}badge-success{{end}}">{{t "wants %s" (t (printf "%s" .Side))}}</span>
           </div>
-          <p class="text-sm text-gray-500">@{{.OrgDomain}} · requested by {{if .RequesterEmail}}{{.RequesterEmail}}{{else}}(removed member){{end}}</p>
+          <p class="text-sm text-gray-500">@{{.OrgDomain}} · {{if .RequesterEmail}}{{t "requested by %s" .RequesterEmail}}{{else}}{{t "requested by %s" (t "(removed member)")}}{{end}}</p>
         </div>
         <span class="text-xs text-gray-400 whitespace-nowrap">{{.CreatedAt.Format "2006-01-02 15:04"}}</span>
       </div>
@@ -35,13 +35,13 @@
       {{end}}
       <div class="flex gap-3 mt-4">
         <form method="POST" action="/admin/org-side/approve"
-          onsubmit="return confirm('Approve the {{.Side}} side for @{{.OrgDomain}}? This provisions the account on the ad server.')">
+          onsubmit="return confirm('{{t "Approve the %s side for @%s? This provisions the account on the ad server." (t (printf "%s" .Side)) .OrgDomain}}')">
           <input type="hidden" name="requestId" value="{{.ID}}">
-          <button type="submit" class="btn btn-success">Approve</button>
+          <button type="submit" class="btn btn-success">{{t "Approve"}}</button>
         </form>
         <form method="POST" action="/admin/org-side/reject">
           <input type="hidden" name="requestId" value="{{.ID}}">
-          <button type="submit" class="btn btn-danger">Reject</button>
+          <button type="submit" class="btn btn-danger">{{t "Reject"}}</button>
         </form>
       </div>
     </div>
@@ -56,7 +56,7 @@
         <div>
           <div class="flex items-center gap-2 mb-1">
             <h2 class="font-semibold text-lg">{{.Company}}</h2>
-            <span class="badge {{if eq .Role "publisher"}}badge-info{{else}}badge-success{{end}}">{{.Role}}</span>
+            <span class="badge {{if eq .Role "publisher"}}badge-info{{else}}badge-success{{end}}">{{t .Role}}</span>
           </div>
           <p class="text-sm text-gray-500">
             <a href="{{.Website}}" target="_blank" rel="noopener noreferrer" class="text-brand hover:underline">{{.Website}}</a>
@@ -66,8 +66,8 @@
       </div>
 
       <dl class="grid grid-cols-2 gap-x-6 gap-y-2 mt-4 text-sm">
-        <div><dt class="text-gray-400">Contact</dt><dd>{{.Contact}}</dd></div>
-        <div><dt class="text-gray-400">Email</dt><dd>{{.Email}}</dd></div>
+        <div><dt class="text-gray-400">{{t "Contact"}}</dt><dd>{{.Contact}}</dd></div>
+        <div><dt class="text-gray-400">{{t "Email"}}</dt><dd>{{.Email}}</dd></div>
       </dl>
 
       {{if .Message}}
@@ -76,14 +76,14 @@
 
       <div class="flex gap-3 mt-4">
         <form method="POST" action="/admin/requests/approve"
-          onsubmit="return confirm('Approve {{.Company}}? This provisions their account on the ad server.')">
+          onsubmit="return confirm('{{t "Approve %s? This provisions their account on the ad server." .Company}}')">
           <input type="hidden" name="userId" value="{{.ID}}">
-          <button type="submit" class="btn btn-success">Approve</button>
+          <button type="submit" class="btn btn-success">{{t "Approve"}}</button>
         </form>
         <form method="POST" action="/admin/requests/reject"
-          onsubmit="return confirm('Reject {{.Company}}? They will not be able to sign in.')">
+          onsubmit="return confirm('{{t "Reject %s? They will not be able to sign in." .Company}}')">
           <input type="hidden" name="userId" value="{{.ID}}">
-          <button type="submit" class="btn btn-danger">Reject</button>
+          <button type="submit" class="btn btn-danger">{{t "Reject"}}</button>
         </form>
       </div>
     </div>

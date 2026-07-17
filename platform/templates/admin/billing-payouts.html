@@ -1,7 +1,7 @@
 {{define "content"}}
 <div class="max-w-5xl">
-  <h1 class="page-title">Billing</h1>
-  <p class="page-sub">Publisher payouts: who is owed money, and the history of what was paid.</p>
+  <h1 class="page-title">{{t "Billing"}}</h1>
+  <p class="page-sub">{{t "Publisher payouts: who is owed money, and the history of what was paid."}}</p>
 
   {{template "billing-tabs" .}}
 
@@ -13,15 +13,15 @@
 
   <!-- Payout queue -->
   <div class="card mt-6 p-0 overflow-x-auto">
-    <h2 class="font-semibold text-lg px-6 pt-6">Payout queue</h2>
-    <p class="text-sm text-gray-500 px-6 mt-1">Publishers with settled, unpaid earnings. Creating a payout moves the balance out of the ledger; send the transfer, then mark it paid below.</p>
+    <h2 class="font-semibold text-lg px-6 pt-6">{{t "Payout queue"}}</h2>
+    <p class="text-sm text-gray-500 px-6 mt-1">{{t "Publishers with settled, unpaid earnings. Creating a payout moves the balance out of the ledger; send the transfer, then mark it paid below."}}</p>
     <table class="w-full text-sm mt-3">
       <thead>
         <tr class="border-b text-left text-gray-400">
-          <th class="px-6 py-2 font-medium">Publisher</th>
-          <th class="px-6 py-2 font-medium">Owed</th>
-          <th class="px-6 py-2 font-medium">Threshold</th>
-          <th class="px-6 py-2 font-medium">Method</th>
+          <th class="px-6 py-2 font-medium">{{t "Publisher"}}</th>
+          <th class="px-6 py-2 font-medium">{{t "Owed"}}</th>
+          <th class="px-6 py-2 font-medium">{{t "Threshold"}}</th>
+          <th class="px-6 py-2 font-medium">{{t "Method"}}</th>
           <th class="px-6 py-2 font-medium"></th>
         </tr>
       </thead>
@@ -31,21 +31,21 @@
           <td class="px-6 py-2 font-medium"><a href="/admin/billing/accounts/publisher/{{.PublisherID}}" class="text-brand hover:underline" title="{{.PublisherID}}">{{.PublisherLabel}}</a></td>
           <td class="px-6 py-2">${{.Payable}}</td>
           <td class="px-6 py-2 text-gray-500">${{.MinPayout}}</td>
-          <td class="px-6 py-2 text-gray-500">{{if .Method}}{{.Method}}{{else}}<span class="text-gray-400">not set</span>{{end}}</td>
+          <td class="px-6 py-2 text-gray-500">{{if .Method}}{{.Method}}{{else}}<span class="text-gray-400">{{t "not set"}}</span>{{end}}</td>
           <td class="px-6 py-2 text-right">
             {{if .Over}}
-            <form method="POST" action="/admin/billing/payouts/create" class="inline" onsubmit="return confirm('Create a payout for the full ${{.Payable}} owed to {{.PublisherLabel}}?')">
+            <form method="POST" action="/admin/billing/payouts/create" class="inline" onsubmit="return confirm('{{t "Create a payout for the full $%s owed to %s?" .Payable .PublisherLabel}}')">
               <input type="hidden" name="nonce" value="{{$.AdminPayouts.Nonce}}">
               <input type="hidden" name="publisherId" value="{{.PublisherID}}">
-              <button type="submit" class="btn btn-secondary btn-sm">Create payout</button>
+              <button type="submit" class="btn btn-secondary btn-sm">{{t "Create payout"}}</button>
             </form>
             {{else}}
-            <span class="badge badge-neutral">below threshold</span>
+            <span class="badge badge-neutral">{{t "below threshold"}}</span>
             {{end}}
           </td>
         </tr>
         {{else}}
-        <tr><td class="px-6 py-4 text-gray-400" colspan="5">No publishers are owed money.</td></tr>
+        <tr><td class="px-6 py-4 text-gray-400" colspan="5">{{t "No publishers are owed money."}}</td></tr>
         {{end}}
       </tbody>
     </table>
@@ -53,16 +53,16 @@
 
   <!-- Payouts -->
   <div class="card mt-6 p-0 overflow-x-auto">
-    <h2 class="font-semibold text-lg px-6 pt-6">Payouts</h2>
+    <h2 class="font-semibold text-lg px-6 pt-6">{{t "Payouts"}}</h2>
     <table class="w-full text-sm mt-3">
       <thead>
         <tr class="border-b text-left text-gray-400">
-          <th class="px-6 py-2 font-medium">Publisher</th>
-          <th class="px-6 py-2 font-medium">Amount</th>
-          <th class="px-6 py-2 font-medium">Period</th>
-          <th class="px-6 py-2 font-medium">Status</th>
-          <th class="px-6 py-2 font-medium">Reference</th>
-          <th class="px-6 py-2 font-medium">Created</th>
+          <th class="px-6 py-2 font-medium">{{t "Publisher"}}</th>
+          <th class="px-6 py-2 font-medium">{{t "Amount"}}</th>
+          <th class="px-6 py-2 font-medium">{{t "Period"}}</th>
+          <th class="px-6 py-2 font-medium">{{t "Status"}}</th>
+          <th class="px-6 py-2 font-medium">{{t "Reference"}}</th>
+          <th class="px-6 py-2 font-medium">{{t "Created"}}</th>
           <th class="px-6 py-2 font-medium"></th>
         </tr>
       </thead>
@@ -72,25 +72,25 @@
           <td class="px-6 py-2 font-medium"><a href="/admin/billing/accounts/publisher/{{.PublisherID}}" class="text-brand hover:underline" title="{{.PublisherID}}">{{.PublisherLabel}}</a></td>
           <td class="px-6 py-2">${{.Amount}}</td>
           <td class="px-6 py-2 text-gray-500">{{.Period}}</td>
-          <td class="px-6 py-2"><span class="badge {{.StatusBadge}}">{{.Status}}</span></td>
+          <td class="px-6 py-2"><span class="badge {{.StatusBadge}}">{{t .Status}}</span></td>
           <td class="px-6 py-2 text-gray-500">{{.ExternalRef}}</td>
           <td class="px-6 py-2 text-gray-500">{{.Created}}</td>
           <td class="px-6 py-2 text-right whitespace-nowrap">
             {{if .Pending}}
             <form method="POST" action="/admin/billing/payouts/paid" class="inline">
               <input type="hidden" name="payoutId" value="{{.ID}}">
-              <input name="externalRef" class="form-input w-36 inline-block" placeholder="transfer ref" required>
-              <button type="submit" class="btn btn-success btn-sm">Mark paid</button>
+              <input name="externalRef" class="form-input w-36 inline-block" placeholder="{{t "transfer ref"}}" required>
+              <button type="submit" class="btn btn-success btn-sm">{{t "Mark paid"}}</button>
             </form>
-            <form method="POST" action="/admin/billing/payouts/cancel" class="inline" onsubmit="return confirm('Cancel this payout and return the money to the publisher balance?')">
+            <form method="POST" action="/admin/billing/payouts/cancel" class="inline" onsubmit="return confirm('{{t "Cancel this payout and return the money to the publisher balance?"}}')">
               <input type="hidden" name="payoutId" value="{{.ID}}">
-              <button type="submit" class="btn btn-danger btn-sm">Cancel</button>
+              <button type="submit" class="btn btn-danger btn-sm">{{t "Cancel"}}</button>
             </form>
             {{end}}
           </td>
         </tr>
         {{else}}
-        <tr><td class="px-6 py-4 text-gray-400" colspan="7">No payouts yet.</td></tr>
+        <tr><td class="px-6 py-4 text-gray-400" colspan="7">{{t "No payouts yet."}}</td></tr>
         {{end}}
       </tbody>
     </table>

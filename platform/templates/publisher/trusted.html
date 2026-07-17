@@ -1,18 +1,16 @@
 {{define "content"}}
 <div class="max-w-4xl">
-  <a href="/publisher/approval" class="inline-flex items-center gap-1 text-sm text-brand hover:underline mb-3">&larr; Approval Queue</a>
-  <h1 class="page-title">Trusted Advertisers</h1>
+  <a href="/publisher/approval" class="inline-flex items-center gap-1 text-sm text-brand hover:underline mb-3">&larr; {{t "Approval Queue"}}</a>
+  <h1 class="page-title">{{t "Trusted Advertisers"}}</h1>
   <p class="page-sub">
-    Approving a creative manually records trust for its campaign and landing domain.
-    With auto-approve on, new creatives matching a trusted entry skip the approval queue.
-    Rejecting, flagging, or revoking a creative withdraws that trust.
+    {{t "Approving a creative manually records trust for its campaign and landing domain. With auto-approve on, new creatives matching a trusted entry skip the approval queue. Rejecting, flagging, or revoking a creative withdraws that trust."}}
   </p>
 
   <!-- Per-site opt-in. Off by default: approved creatives inform floor
        pricing, so widening what gets approved automatically is deliberate. -->
   <div class="card mt-6 p-6">
-    <h2 class="font-semibold text-lg">Auto-approve</h2>
-    <p class="text-sm text-gray-500 mt-1">Per site. Turning it off pauses auto-approval without deleting the trust list below.</p>
+    <h2 class="font-semibold text-lg">{{t "Auto-approve"}}</h2>
+    <p class="text-sm text-gray-500 mt-1">{{t "Per site. Turning it off pauses auto-approval without deleting the trust list below."}}</p>
     <div class="mt-4 space-y-2">
       {{range .TrustedToggles}}
       <form method="POST" action="/publisher/approval/auto-approve">
@@ -21,73 +19,73 @@
           <input type="checkbox" name="enabled" {{if .Enabled}}checked{{end}}
                  onchange="this.form.submit()" class="rounded border-gray-300">
           <span class="text-sm font-medium">{{.Domain}}</span>
-          {{if .Enabled}}<span class="badge bg-green-100 text-green-700">on</span>
-          {{else}}<span class="badge bg-gray-200 text-gray-600" title="Trust below is kept but not acting — enable to resume auto-approval">paused</span>{{end}}
+          {{if .Enabled}}<span class="badge bg-green-100 text-green-700">{{t "on"}}</span>
+          {{else}}<span class="badge bg-gray-200 text-gray-600" title="{{t "Trust below is kept but not acting — enable to resume auto-approval"}}">{{t "paused"}}</span>{{end}}
         </label>
       </form>
       {{else}}
-      <p class="text-sm text-gray-400">No sites yet.</p>
+      <p class="text-sm text-gray-400">{{t "No sites yet."}}</p>
       {{end}}
     </div>
   </div>
 
   <form method="GET" action="/publisher/trusted" class="flex items-end gap-3 mt-6">
     <div>
-      <label class="form-label">Search</label>
-      <input name="q" value="{{.Query}}" class="form-input w-72" placeholder="domain, campaign, advertiser, or site">
+      <label class="form-label">{{t "Search"}}</label>
+      <input name="q" value="{{.Query}}" class="form-input w-72" placeholder="{{t "domain, campaign, advertiser, or site"}}">
     </div>
-    <button type="submit" class="btn btn-secondary">Search</button>
-    {{if .Query}}<a href="/publisher/trusted" class="text-sm text-brand hover:underline pb-2">clear</a>{{end}}
+    <button type="submit" class="btn btn-secondary">{{t "Search"}}</button>
+    {{if .Query}}<a href="/publisher/trusted" class="text-sm text-brand hover:underline pb-2">{{t "clear"}}</a>{{end}}
   </form>
 
   <div class="card mt-4 p-0 overflow-x-auto">
-    <h2 class="font-semibold text-lg px-6 pt-6">Trusted campaigns &amp; domains</h2>
+    <h2 class="font-semibold text-lg px-6 pt-6">{{t "Trusted campaigns & domains"}}</h2>
     <table class="w-full text-sm mt-3">
       <thead>
         <tr class="border-b text-left text-gray-400">
-          <th class="px-6 py-2 font-medium">Site</th>
-          <th class="px-6 py-2 font-medium">Trusts</th>
-          <th class="px-6 py-2 font-medium">Type</th>
-          <th class="px-6 py-2 font-medium">Advertiser</th>
-          <th class="px-6 py-2 font-medium">Since</th>
+          <th class="px-6 py-2 font-medium">{{t "Site"}}</th>
+          <th class="px-6 py-2 font-medium">{{t "Trusts"}}</th>
+          <th class="px-6 py-2 font-medium">{{t "Type"}}</th>
+          <th class="px-6 py-2 font-medium">{{t "Advertiser"}}</th>
+          <th class="px-6 py-2 font-medium">{{t "Since"}}</th>
           <th class="px-6 py-2 font-medium"></th>
         </tr>
       </thead>
       <tbody>
         {{range .TrustedAnchors}}
         <tr class="border-b last:border-0">
-          <td class="px-6 py-2 text-gray-500 whitespace-nowrap">{{if .CoveredBy}}{{else}}{{.SiteDomain}}{{if .Paused}} <span class="text-xs text-gray-400">(paused)</span>{{end}}{{end}}</td>
+          <td class="px-6 py-2 text-gray-500 whitespace-nowrap">{{if .CoveredBy}}{{else}}{{.SiteDomain}}{{if .Paused}} <span class="text-xs text-gray-400">{{t "(paused)"}}</span>{{end}}{{end}}</td>
           {{if .CoveredBy}}
           {{/* Campaign already covered by the domain row above it — nested,
                with the redundancy stated: removing this row changes nothing
                while the domain stays trusted. */}}
           <td class="px-6 py-2 pl-10 text-gray-500" title="{{.AnchorValue}}">&#8627; {{.Display}}
-            <span class="text-xs text-gray-400">covered by {{.CoveredBy}}</span>
+            <span class="text-xs text-gray-400">{{t "covered by %s" .CoveredBy}}</span>
           </td>
           {{else}}
           <td class="px-6 py-2 font-medium" title="{{.AnchorValue}}">{{.Display}}</td>
           {{end}}
-          <td class="px-6 py-2 text-gray-500">{{.Type}}</td>
+          <td class="px-6 py-2 text-gray-500">{{t .Type}}</td>
           <td class="px-6 py-2 text-gray-500">{{if .Advertiser}}{{.Advertiser}}{{else}}&mdash;{{end}}</td>
           <td class="px-6 py-2 text-gray-500 whitespace-nowrap">{{if .Since}}{{.Since}}{{else}}&mdash;{{end}}</td>
           <td class="px-6 py-2 text-right">
             <form method="POST" action="/publisher/approval/trust-anchor/remove"
-                  onsubmit="return confirm('Stop trusting {{.Display}}? New creatives from it will return to the approval queue.')">
+                  onsubmit="return confirm('{{t "Stop trusting %s? New creatives from it will return to the approval queue." .Display}}')">
               <input type="hidden" name="siteId" value="{{.SiteID}}">
               <input type="hidden" name="anchorType" value="{{.AnchorType}}">
               <input type="hidden" name="anchorValue" value="{{.AnchorValue}}">
-              <button type="submit" class="text-red-600 hover:text-red-800 text-xs font-medium">Remove</button>
+              <button type="submit" class="text-red-600 hover:text-red-800 text-xs font-medium">{{t "Remove"}}</button>
             </form>
           </td>
         </tr>
         {{else}}
         <tr><td class="px-6 py-4 text-gray-400" colspan="6">
           {{if .Query}}
-          No trusted campaigns or domains match your search.
+          {{t "No trusted campaigns or domains match your search."}}
           {{else}}
-          Nothing trusted yet — approve a creative from the
-          <a href="/publisher/approval" class="text-brand underline">Approval Queue</a>
-          and its campaign and landing domain will appear here.
+          {{t "Nothing trusted yet — approve a creative from the"}}
+          <a href="/publisher/approval" class="text-brand underline">{{t "Approval Queue"}}</a>
+          {{t "and its campaign and landing domain will appear here."}}
           {{end}}
         </td></tr>
         {{end}}

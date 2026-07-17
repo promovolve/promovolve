@@ -3,8 +3,8 @@
   {{with .AdminAccount}}
   <div class="flex items-center gap-3">
     <h1 class="page-title">{{.Label}}</h1>
-    <span class="badge badge-neutral">{{.Type}}</span>
-    <span class="badge {{.StatusBadge}}">{{.Status}}</span>
+    <span class="badge badge-neutral">{{t .Type}}</span>
+    <span class="badge {{.StatusBadge}}">{{t .Status}}</span>
   </div>
   <p class="page-sub">{{.ID}}</p>
   {{end}}
@@ -15,13 +15,13 @@
 
   <div class="grid grid-cols-3 gap-6 mt-6">
     <div class="bg-white p-6 rounded-lg border">
-      <p class="text-sm text-gray-500">{{if .IsPublisher}}Balance owed{{else}}Wallet balance{{end}}</p>
+      <p class="text-sm text-gray-500">{{if .IsPublisher}}{{t "Balance owed"}}{{else}}{{t "Wallet balance"}}{{end}}</p>
       <p class="text-3xl font-semibold mt-2">{{.Balance}}</p>
-      <p class="text-xs text-gray-400 mt-1">settled through yesterday</p>
+      <p class="text-xs text-gray-400 mt-1">{{t "settled through yesterday"}}</p>
     </div>
     {{if .IsPublisher}}
     <div class="bg-white p-6 rounded-lg border">
-      <p class="text-sm text-gray-500">Lifetime paid</p>
+      <p class="text-sm text-gray-500">{{t "Lifetime paid"}}</p>
       <p class="text-3xl font-semibold mt-2">${{.LifetimePaid}}</p>
     </div>
     {{end}}
@@ -29,26 +29,26 @@
 
   <!-- Manual money activity -->
   <div class="card mt-6 p-0 overflow-x-auto">
-    <h2 class="font-semibold text-lg px-6 pt-6">Top-ups, adjustments &amp; payouts</h2>
+    <h2 class="font-semibold text-lg px-6 pt-6">{{t "Top-ups, adjustments & payouts"}}</h2>
     <table class="w-full text-sm mt-3">
       <thead>
         <tr class="border-b text-left text-gray-400">
-          <th class="px-6 py-2 font-medium">When</th>
-          <th class="px-6 py-2 font-medium">Kind</th>
-          <th class="px-6 py-2 font-medium">Reference</th>
-          <th class="px-6 py-2 font-medium text-right">Amount</th>
+          <th class="px-6 py-2 font-medium">{{t "When"}}</th>
+          <th class="px-6 py-2 font-medium">{{t "Kind"}}</th>
+          <th class="px-6 py-2 font-medium">{{t "Reference"}}</th>
+          <th class="px-6 py-2 font-medium text-right">{{t "Amount"}}</th>
         </tr>
       </thead>
       <tbody>
         {{range .Activity}}
         <tr class="border-b last:border-0">
           <td class="px-6 py-2 text-gray-500 whitespace-nowrap">{{.Date}}</td>
-          <td class="px-6 py-2"><span class="badge {{.KindBadge}}">{{.Kind}}</span></td>
+          <td class="px-6 py-2"><span class="badge {{.KindBadge}}">{{t .Kind}}</span></td>
           <td class="px-6 py-2 text-gray-500">{{.Memo}}</td>
           <td class="px-6 py-2 text-right font-medium">{{.Amount}}</td>
         </tr>
         {{else}}
-        <tr><td class="px-6 py-4 text-gray-400" colspan="4">No manual money movement yet.</td></tr>
+        <tr><td class="px-6 py-4 text-gray-400" colspan="4">{{t "No manual money movement yet."}}</td></tr>
         {{end}}
       </tbody>
     </table>
@@ -57,15 +57,15 @@
   {{if .IsPublisher}}
   <!-- Payout history -->
   <div class="card mt-6 p-0 overflow-x-auto">
-    <h2 class="font-semibold text-lg px-6 pt-6">Payouts</h2>
+    <h2 class="font-semibold text-lg px-6 pt-6">{{t "Payouts"}}</h2>
     <table class="w-full text-sm mt-3">
       <thead>
         <tr class="border-b text-left text-gray-400">
-          <th class="px-6 py-2 font-medium">Created</th>
-          <th class="px-6 py-2 font-medium">Period</th>
-          <th class="px-6 py-2 font-medium">Status</th>
-          <th class="px-6 py-2 font-medium">Reference</th>
-          <th class="px-6 py-2 font-medium text-right">Amount</th>
+          <th class="px-6 py-2 font-medium">{{t "Created"}}</th>
+          <th class="px-6 py-2 font-medium">{{t "Period"}}</th>
+          <th class="px-6 py-2 font-medium">{{t "Status"}}</th>
+          <th class="px-6 py-2 font-medium">{{t "Reference"}}</th>
+          <th class="px-6 py-2 font-medium text-right">{{t "Amount"}}</th>
         </tr>
       </thead>
       <tbody>
@@ -73,12 +73,12 @@
         <tr class="border-b last:border-0">
           <td class="px-6 py-2 text-gray-500 whitespace-nowrap">{{.Created}}</td>
           <td class="px-6 py-2 text-gray-500">{{.Period}}</td>
-          <td class="px-6 py-2"><span class="badge {{.StatusBadge}}">{{.Status}}</span></td>
+          <td class="px-6 py-2"><span class="badge {{.StatusBadge}}">{{t .Status}}</span></td>
           <td class="px-6 py-2 text-gray-500">{{.ExternalRef}}</td>
           <td class="px-6 py-2 text-right font-medium">${{.Amount}}</td>
         </tr>
         {{else}}
-        <tr><td class="px-6 py-4 text-gray-400" colspan="5">No payouts yet.</td></tr>
+        <tr><td class="px-6 py-4 text-gray-400" colspan="5">{{t "No payouts yet."}}</td></tr>
         {{end}}
       </tbody>
     </table>
@@ -87,16 +87,16 @@
 
   <!-- Monthly totals -->
   <div class="card mt-6 p-0 overflow-x-auto">
-    <h2 class="font-semibold text-lg px-6 pt-6">Monthly {{if .IsPublisher}}earnings{{else}}spend{{end}}</h2>
+    <h2 class="font-semibold text-lg px-6 pt-6">{{if .IsPublisher}}{{t "Monthly earnings"}}{{else}}{{t "Monthly spend"}}{{end}}</h2>
     <table class="w-full text-sm mt-3">
       <thead>
         <tr class="border-b text-left text-gray-400">
-          <th class="px-6 py-2 font-medium">Month</th>
-          <th class="px-6 py-2 font-medium">Impressions</th>
-          <th class="px-6 py-2 font-medium text-right">Gross</th>
+          <th class="px-6 py-2 font-medium">{{t "Month"}}</th>
+          <th class="px-6 py-2 font-medium">{{t "Impressions"}}</th>
+          <th class="px-6 py-2 font-medium text-right">{{t "Gross"}}</th>
           {{if .IsPublisher}}
-          <th class="px-6 py-2 font-medium text-right">Platform fee</th>
-          <th class="px-6 py-2 font-medium text-right">Net earned</th>
+          <th class="px-6 py-2 font-medium text-right">{{t "Platform fee"}}</th>
+          <th class="px-6 py-2 font-medium text-right">{{t "Net earned"}}</th>
           {{end}}
         </tr>
       </thead>
@@ -112,7 +112,7 @@
           {{end}}
         </tr>
         {{else}}
-        <tr><td class="px-6 py-4 text-gray-400" colspan="5">Nothing settled yet.</td></tr>
+        <tr><td class="px-6 py-4 text-gray-400" colspan="5">{{t "Nothing settled yet."}}</td></tr>
         {{end}}
       </tbody>
     </table>
@@ -120,16 +120,16 @@
 
   <!-- Recent daily settlements -->
   <div class="card mt-6 p-0 overflow-x-auto">
-    <h2 class="font-semibold text-lg px-6 pt-6">Recent daily settlements</h2>
-    <p class="text-sm text-gray-500 px-6 mt-1">Days are the entity's own local billing days (its organization's timezone).</p>
+    <h2 class="font-semibold text-lg px-6 pt-6">{{t "Recent daily settlements"}}</h2>
+    <p class="text-sm text-gray-500 px-6 mt-1">{{t "Days are the entity's own local billing days (its organization's timezone)."}}</p>
     <table class="w-full text-sm mt-3">
       <thead>
         <tr class="border-b text-left text-gray-400">
-          <th class="px-6 py-2 font-medium">Local day</th>
-          <th class="px-6 py-2 font-medium">Campaign</th>
-          <th class="px-6 py-2 font-medium">Site</th>
-          <th class="px-6 py-2 font-medium">Impressions</th>
-          <th class="px-6 py-2 font-medium text-right">{{if .IsPublisher}}Earned (net){{else}}Charged{{end}}</th>
+          <th class="px-6 py-2 font-medium">{{t "Local day"}}</th>
+          <th class="px-6 py-2 font-medium">{{t "Campaign"}}</th>
+          <th class="px-6 py-2 font-medium">{{t "Site"}}</th>
+          <th class="px-6 py-2 font-medium">{{t "Impressions"}}</th>
+          <th class="px-6 py-2 font-medium text-right">{{if .IsPublisher}}{{t "Earned (net)"}}{{else}}{{t "Charged"}}{{end}}</th>
         </tr>
       </thead>
       <tbody>
@@ -142,7 +142,7 @@
           <td class="px-6 py-2 text-right">${{.Amount}}</td>
         </tr>
         {{else}}
-        <tr><td class="px-6 py-4 text-gray-400" colspan="5">No settled days yet.</td></tr>
+        <tr><td class="px-6 py-4 text-gray-400" colspan="5">{{t "No settled days yet."}}</td></tr>
         {{end}}
       </tbody>
     </table>

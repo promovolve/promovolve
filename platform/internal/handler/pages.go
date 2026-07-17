@@ -3772,6 +3772,9 @@ type creativeDesignData struct {
 	// save silently overwrites the stored blob with defaults — the bug
 	// that kept eating the author-placed brand logo.
 	BannerConfigJSON string
+	// Set when a save/publish failed and the designer is re-rendered
+	// with the submitted state — the boot shows it as a toast.
+	ErrorMsg string
 }
 
 // SaveCreative saves an expandable magazine banner creative
@@ -3852,13 +3855,45 @@ func (h *Handler) SaveCreative(w http.ResponseWriter, r *http.Request) {
 	}
 	reqBody, _ := json.Marshal(body)
 
-	_, err := h.corePost(
+	_, err := h.corePostChecked(
 		fmt.Sprintf("/v1/advertisers/me/campaigns/%s/creatives", campID),
 		claims,
 		string(reqBody),
 	)
 	if err != nil {
+		// The old path logged and redirected anyway — a mid-rollout 503
+		// looked exactly like success, the creatives page polled 60s for
+		// a row that never existed, and the author's design was GONE (the
+		// form had already navigated away). Instead: put the designer
+		// back up with the submitted state and say what happened. Nothing
+		// is lost; Publish again when the ad server is back.
 		slog.Error("SaveCreative failed", "err", err, "draft", isDraft)
+		user, _ := h.sessionUser(r)
+		size := "300x250"
+		if wv, hv := r.FormValue("width"), r.FormValue("height"); wv != "" && hv != "" {
+			size = wv + "x" + hv
+		}
+		data := creativeDesignData{
+			CampaignID:       campID,
+			LandingURL:       landingUrl,
+			CreativeName:     name,
+			BannerSize:       size,
+			PagesJSON:        pagesJson,
+			LPTextSnapshot:   lpTextSnapshot,
+			CreativeID:       creativeID,
+			BannerScriptURL:  h.bannerScriptURL,
+			BannerConfigJSON: bannerConfigJson,
+			LPFontsJSON:      r.FormValue("lpFontsJson"),
+			ErrorMsg:         i18n.T(h.lang(r, user), "Saving failed — the ad server did not accept the creative. Your work is still here; try again in a moment."),
+		}
+		w.Header().Set("Content-Type", "text/html; charset=utf-8")
+		w.Header().Set("Cache-Control", "no-cache, no-store, must-revalidate")
+		t := getPageStandalone(h.lang(r, user), "advertiser/creative-design.html")
+		if terr := t.ExecuteTemplate(w, "creative-design.html", data); terr != nil {
+			slog.Error("SaveCreative: designer re-render failed", "err", terr)
+			http.Error(w, "render error: "+terr.Error(), http.StatusInternalServerError)
+		}
+		return
 	}
 
 	redirectURL := fmt.Sprintf("/advertiser/creatives?campaignId=%s", campID)

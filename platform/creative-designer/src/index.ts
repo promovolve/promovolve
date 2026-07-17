@@ -203,6 +203,35 @@ function boot(ctx: DesignerContext): void {
     } catch { /* malformed blob → fresh defaults */ }
   }
   const store = new Store(initialState(colourReconciled, "mobile", savedBannerConfig));
+  // A failed save re-renders the designer with the submitted state and an
+  // explanation — surface it. Dismissible; auto-fades after 12s.
+  if (ctx.errorMsg) {
+    const toast = document.createElement("div");
+    toast.style.cssText = [
+      "position: fixed",
+      "top: 14px",
+      "left: 50%",
+      "transform: translateX(-50%)",
+      "z-index: 10000",
+      "max-width: 560px",
+      "background: #7f1d1d",
+      "color: #fecaca",
+      "border: 1px solid #b91c1c",
+      "border-radius: 8px",
+      "padding: 10px 36px 10px 14px",
+      "font-size: 13px",
+      "line-height: 1.45",
+      "box-shadow: 0 8px 24px rgba(0,0,0,0.45)",
+    ].join(";");
+    toast.textContent = ctx.errorMsg;
+    const x = document.createElement("button");
+    x.textContent = "×";
+    x.style.cssText = "position:absolute;top:6px;right:8px;background:none;border:none;color:#fecaca;font-size:16px;cursor:pointer;";
+    x.addEventListener("click", () => toast.remove());
+    toast.appendChild(x);
+    document.body.appendChild(toast);
+    setTimeout(() => { toast.style.transition = "opacity 0.6s"; toast.style.opacity = "0"; setTimeout(() => toast.remove(), 700); }, 12000);
+  }
   // Dev-server-only hook so the vite fixture can be driven by Playwright
   // (state injection + assertions). import.meta.hot exists only under
   // `vite serve` — the committed static bundle is a --mode development

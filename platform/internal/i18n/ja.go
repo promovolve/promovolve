@@ -1075,6 +1075,9 @@ var ja = map[string]string{
 	"No top-ups yet.": "チャージはまだありません。",
 	"The site-wide sweep's current floor. This is a fallback: it only prices categories without their own learned floor — see Floor decisions for the per-category floors that price your actual demand.": "サイト全体スイープの現在のフロアです。これはフォールバックであり、独自の学習済みフロアを持たないカテゴリーにのみ値付けします。実際の需要に値付けするカテゴリー別フロアは「フロアの決定」を参照してください。",
 
+	// ── designer save failure ──
+	"Saving failed — the ad server did not accept the creative. Your work is still here; try again in a moment.": "保存に失敗しました。広告サーバーがクリエイティブを受け付けませんでした。作業内容はここに残っています。少し待ってからもう一度お試しください。",
+
 	// ── preferences: handler flash strings ──
 	"display name is limited to 80 characters": "表示名は80文字までです",
 	"unknown timezone: %s":                     "不明なタイムゾーン: %s",

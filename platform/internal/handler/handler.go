@@ -694,6 +694,28 @@ func (h *Handler) coreGetRaw(path string, claims *model.Claims) (*http.Response,
 }
 
 // corePost sends a POST to the core API
+// corePostChecked is corePost that FAILS on non-2xx. corePost's
+// body-with-nil-error contract on 4xx/5xx is load-bearing for callers
+// that parse core error bodies — but write paths that redirect on
+// "success" need a real error or a mid-rollout 503 silently discards
+// the user's work (the occasionally-vanishing publish).
+func (h *Handler) corePostChecked(path string, claims *model.Claims, body string) ([]byte, error) {
+	url := h.coreAPIURL + rewriteMePath(path, claims)
+	resp, err := coreClient.Post(url, "application/json", strings.NewReader(body))
+	if err != nil {
+		return nil, err
+	}
+	defer resp.Body.Close()
+	respBody, err := io.ReadAll(resp.Body)
+	if err != nil {
+		return nil, err
+	}
+	if resp.StatusCode < 200 || resp.StatusCode > 299 {
+		return respBody, fmt.Errorf("core returned %d: %s", resp.StatusCode, truncStr(string(respBody), 200))
+	}
+	return respBody, nil
+}
+
 func (h *Handler) corePost(path string, claims *model.Claims, body string) ([]byte, error) {
 	url := h.coreAPIURL + rewriteMePath(path, claims)
 	resp, err := coreClient.Post(url, "application/json", strings.NewReader(body))

@@ -36,6 +36,9 @@ export interface DesignerContext {
   // authoring. MUST seed the store or the next save wipes the stored
   // config back to defaults.
   bannerConfigJson?: string;
+  // Non-empty when a save/publish failed and the shell re-rendered the
+  // designer with the submitted state — shown as a dismissible toast.
+  errorMsg?: string;
   // Set when reopening a draft so Save Draft / Publish overwrite the
   // same row rather than creating a new creative per save. Empty on
   // first-time authoring from the editor.

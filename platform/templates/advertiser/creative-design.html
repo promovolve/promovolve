@@ -34,7 +34,10 @@
     // creative. The designer seeds its state from this; without it a
     // resumed draft reverts to defaults and the next save erases the
     // stored config (the vanishing-logo bug).
-    bannerConfigJson: {{.BannerConfigJSON}}
+    bannerConfigJson: {{.BannerConfigJSON}},
+    // Non-empty when a save/publish failed and this render carries the
+    // author's submitted state back — the designer shows it as a toast.
+    errorMsg: {{.ErrorMsg}}
   };
 </script>
 <script src="{{asset "creative-designer.js"}}" defer></script>

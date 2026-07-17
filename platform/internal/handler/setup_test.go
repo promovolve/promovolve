@@ -55,7 +55,9 @@ func TestSetupTemplateRenders(t *testing.T) {
 		Error:     "an error banner",
 		Timezones: preferenceTimezones,
 	}
-	if err := getPage(i18n.LangEN, "setup.html").ExecuteTemplate(io.Discard, "layout", data); err != nil {
-		t.Errorf("setup.html failed to render: %v", err)
+	for _, tlang := range []string{i18n.LangEN, i18n.LangJA} {
+		if err := getPage(tlang, "setup.html").ExecuteTemplate(io.Discard, "layout", data); err != nil {
+			t.Errorf("setup.html failed to render: %v", err)
+		}
 	}
 }

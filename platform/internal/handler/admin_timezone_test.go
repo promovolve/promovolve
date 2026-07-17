@@ -50,8 +50,10 @@ func TestAdminUsersTemplateRenders(t *testing.T) {
 			OrgAdvertiser: true,
 		}},
 	}
-	if err := getPage(i18n.LangEN, "admin/users.html").ExecuteTemplate(io.Discard, "layout", data); err != nil {
-		t.Errorf("admin/users.html failed to render: %v", err)
+	for _, tlang := range []string{i18n.LangEN, i18n.LangJA} {
+		if err := getPage(tlang, "admin/users.html").ExecuteTemplate(io.Discard, "layout", data); err != nil {
+			t.Errorf("admin/users.html failed to render: %v", err)
+		}
 	}
 }
 
@@ -70,7 +72,9 @@ func TestAdminSettingsTemplateRenders(t *testing.T) {
 			{Percent: "15", EffectiveFrom: "2026-07-14 12:00", By: "admin@test"},
 		},
 	}
-	if err := getPage(i18n.LangEN, "admin/settings.html").ExecuteTemplate(io.Discard, "layout", data); err != nil {
-		t.Errorf("admin/settings.html failed to render: %v", err)
+	for _, tlang := range []string{i18n.LangEN, i18n.LangJA} {
+		if err := getPage(tlang, "admin/settings.html").ExecuteTemplate(io.Discard, "layout", data); err != nil {
+			t.Errorf("admin/settings.html failed to render: %v", err)
+		}
 	}
 }

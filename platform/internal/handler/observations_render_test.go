@@ -43,8 +43,10 @@ func TestObservationsTrafficShapeRenders(t *testing.T) {
 			FloorObservations: &floorObservationsData{SiteID: "site-1", TrafficShape: tc.shape},
 		}
 		var sb strings.Builder
-		if err := getPage(i18n.LangEN, "publisher/site-observations.html").ExecuteTemplate(&sb, "layout", data); err != nil {
-			t.Fatalf("%s: render failed: %v", tc.name, err)
+		for _, tlang := range []string{i18n.LangEN, i18n.LangJA} {
+			if err := getPage(tlang, "publisher/site-observations.html").ExecuteTemplate(&sb, "layout", data); err != nil {
+				t.Fatalf("%s: render failed: %v", tc.name, err)
+			}
 		}
 		out := sb.String()
 		if tc.want != "" && !strings.Contains(out, tc.want) {

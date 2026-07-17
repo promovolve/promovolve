@@ -68,8 +68,10 @@ func TestSitesAndCreativesTemplatesRender(t *testing.T) {
 	}
 
 	for _, c := range cases {
-		if err := getPage(i18n.LangEN, c.name).ExecuteTemplate(io.Discard, "layout", c.data); err != nil {
-			t.Errorf("%s failed to render: %v", c.name, err)
+		for _, tlang := range []string{i18n.LangEN, i18n.LangJA} {
+			if err := getPage(tlang, c.name).ExecuteTemplate(io.Discard, "layout", c.data); err != nil {
+				t.Errorf("%s failed to render: %v", c.name, err)
+			}
 		}
 	}
 }

@@ -1126,17 +1126,12 @@ export class ExpandableMagazineBanner extends HTMLElement {
     const earSize = "7.5cqmin"; // 1.25× the prior 6cqmin — bigger fold corner on collapsed/IAB sizes
     // RTL reading (Arabic / vertical) mirrors the dog-ear to the top-LEFT.
     const rtl = resolveReadingRtl(cfg, this.pagesData);
-    // Resting dog-ear = a BACKWARD fold: the corner triangle shows the
-    // paper back exactly IN the notch, silhouette complete. (It used to
-    // punch a hole through the card instead — a see-through triangle
-    // that read as a rendering bug over any dark surroundings.)
+    const pageClip = rtl
+      ? `polygon(${earSize} 0, 100% 0, 100% 100%, 0 100%, 0 ${earSize})`
+      : `polygon(0 0, calc(100% - ${earSize}) 0, 100% ${earSize}, 100% 100%, 0 100%)`;
     const flapSide = rtl ? "left: 0;" : "right: 0;";
-    const flapClip = rtl ? "polygon(0 0, 100% 0, 0 100%)" : "polygon(0 0, 100% 0, 100% 100%)";
-    // Flush fold: no cast shadow — depth comes from the crease-side
-    // shading baked into the flap background below.
-    const flapShade = rtl
-      ? "linear-gradient(315deg, rgba(0,0,0,0.18), rgba(0,0,0,0) 50%), linear-gradient(135deg, rgba(255,255,255,0.25), rgba(255,255,255,0) 55%)"
-      : "linear-gradient(45deg, rgba(0,0,0,0.18), rgba(0,0,0,0) 50%), linear-gradient(225deg, rgba(255,255,255,0.25), rgba(255,255,255,0) 55%)";
+    const flapClip = rtl ? "polygon(100% 0, 100% 100%, 0 100%)" : "polygon(0 0, 0 100%, 100% 100%)";
+    const flapShadow = rtl ? "drop-shadow(3px 3px 3px rgba(0,0,0,0.2))" : "drop-shadow(-3px 3px 3px rgba(0,0,0,0.2))";
 
     if (!this.shadowRoot) return;
     this.shadowRoot.innerHTML = `
@@ -1153,6 +1148,18 @@ export class ExpandableMagazineBanner extends HTMLElement {
           background: ${page.bg ?? "linear-gradient(135deg,#1a1a1a,#2d2518)"};
           border-radius: ${editMode ? "0" : "4px"};
         }
+        .banner.folded .design-box {
+          clip-path: ${pageClip};
+          -webkit-clip-path: ${pageClip};
+        }
+        /* The ad frame border is on .banner (not clipped), so when the
+           corner is punched it would trace a contour line across the
+           see-through hole. Drop it while folded — the corner reads as a
+           clean window to the publisher. border-color keeps the 1px box
+           so nothing shifts. */
+        .banner.folded {
+          border-color: transparent;
+        }
         .collapsed-dogear-flap {
           position: absolute;
           top: 0;
@@ -1160,7 +1167,8 @@ export class ExpandableMagazineBanner extends HTMLElement {
           width: ${earSize};
           height: ${earSize};
           clip-path: ${flapClip};
-          background: ${flapShade}, #d9d2bf;
+          background: #d9d2bf;
+          filter: ${flapShadow};
           pointer-events: none;
           z-index: 2;
           opacity: 0;
@@ -2248,9 +2256,10 @@ function resolveReadingRtl(cfg: BannerConfig, pages: Page[]): boolean {
 }
 
 function buildDogEar(
-  // The page's outer box (.paper-stack on desktop). Kept as the flap
-  // host for the hover peel; the RESTING fold no longer clips it —
-  // a punched hole read as a transparent triangle over dark scrims.
+  // The page's outer box (.paper-stack on desktop). The fold clips
+  // THIS — stack, leaves, sheet, stage, everything — so the punched
+  // corner is a hole through the whole magazine to the article
+  // behind, not a reveal of some internal surface.
   pageBox: HTMLElement,
   size: string = "12cqmin",
   host: HTMLElement,
@@ -2272,9 +2281,30 @@ function buildDogEar(
   // Absent (designer/standalone contexts) = unlimited, old behavior.
   teaseGate?: () => boolean,
 ): DogEarHandle {
+  // The folded clip punches the corner through the WHOLE pageBox —
+  // but a clip-path confines ALL painting to its polygon, so a
+  // box-tight polygon would truncate the sheet's contact shadow. The
+  // polygon extends 120px beyond the box on all sides and only dips
+  // in at the corner notch, which stays cut exactly at the page
+  // edge. The region beside the notch is excluded too, so the shadow
+  // is notched at the hole — paper that isn't there casts no shadow.
+  // RTL mirrors every x across the box (top-right notch → top-left).
+  // Parameterised by fold size so the hover hint can interpolate the
+  // page's clip-path between unfolded (sz=0, a degenerate notch ≈ full
+  // rect) and folded — both 7-point polygons, so clip-path animates
+  // smoothly between them.
+  const foldClipFor = (sz: string): string => rtl
+    ? `polygon(calc(100% + 120px) -120px, ${sz} -120px, ${sz} 0, ` +
+      `0 ${sz}, -120px ${sz}, ` +
+      `-120px calc(100% + 120px), calc(100% + 120px) calc(100% + 120px))`
+    : `polygon(-120px -120px, calc(100% - ${sz}) -120px, calc(100% - ${sz}) 0, ` +
+      `100% ${sz}, calc(100% + 120px) ${sz}, ` +
+      `calc(100% + 120px) calc(100% + 120px), -120px calc(100% + 120px))`;
   // Peak peel depth, shared by the hover/auto peel and (when alignToPeel)
   // the resting-corner px sync below.
   const PEEL_MAX = 0.09;
+  // `let` so alignToPeel can recompute it from the measured px leg.
+  let pageClip = foldClipFor(size);
 
   // Respect prefers-reduced-motion: skip the CSS transitions so the
   // fold/unfold visual change is instant rather than animated. Per
@@ -2367,17 +2397,20 @@ function buildDogEar(
   crease.appendChild(creaseLine);
   wrap.appendChild(crease);
 
-  // Folded: a BACKWARD fold. The corner triangle (the notch side of the
-  // diagonal) shows the paper back exactly where the corner was — the
-  // sheet's silhouette stays complete. (The old forward fold punched a
-  // hole through the page instead, which read as a transparent triangle
-  // over the reader's dark scrim.)
+  // Folded: bottom-left triangle via clip-path. Vertices (0,0),
+  // (0,100%), (100%,100%). Its three edges are:
+  //   - left edge: x=0 (non-hypotenuse)
+  //   - bottom edge: y=100% (non-hypotenuse)
+  //   - hypotenuse: diagonal from top-left to bottom-right
+  // drop-shadow offset (-2px, 2px) casts shadow outside the left and
+  // bottom edges (onto the page surface); the hypotenuse-side shadow
+  // falls into the flap body and is covered by the fill.
   const flap = document.createElement("div");
   Object.assign(flap.style, {
     position: "absolute",
     inset: "0",
-    // LTR fold = top-right triangle; RTL fold = top-left triangle.
-    clipPath: rtl ? "polygon(0 0, 100% 0, 0 100%)" : "polygon(0 0, 100% 0, 100% 100%)",
+    // LTR fold = bottom-left triangle; RTL fold = bottom-right triangle.
+    clipPath: rtl ? "polygon(100% 0, 100% 100%, 0 100%)" : "polygon(0 0, 0 100%, 100% 100%)",
     background: "transparent",
     filter: "none",
     transition: reduceMotion ? "none" : "background 0.25s ease, filter 0.25s ease",
@@ -2494,19 +2527,35 @@ function buildDogEar(
   // page on initial mount (honored pin) without going through a click.
   const applyFolded = (): void => {
     clearPeel(); // a real fold supersedes any hover peel in progress
+    // Clip the whole pageBox: the punched corner is a hole through
+    // the magazine (stack, leaves, sheet, content) to the article
+    // behind it. The flap sits on the kept side of the diagonal, so
+    // it survives the clip.
+    pageBox.style.clipPath = pageClip;
+    // -webkit-clip-path isn't in the standard CSSStyleDeclaration
+    // typings, so go through setProperty to avoid an `any` cast.
+    pageBox.style.setProperty("-webkit-clip-path", pageClip);
     // Back of the folded corner: the magazine's shared paper stock
     // (same textured fill as the peel flap — every page's back is the
-    // same paper). Backward fold = the flap fills the notch flush with
-    // the sheet, so no cast shadow; depth comes from crease-side
-    // shading (dark at the diagonal) plus a sheen toward the outer
-    // corner. Angles mirror for RTL.
+    // same paper), with a sheen brightest at the crease.
+    // Sheen brightest at the crease — mirror the gradient angle for RTL.
     const flapSheen = rtl
-      ? "linear-gradient(315deg, rgba(0,0,0,0.22), rgba(0,0,0,0) 48%), linear-gradient(135deg, rgba(255,255,255,0.28), rgba(255,255,255,0) 55%)"
-      : "linear-gradient(45deg, rgba(0,0,0,0.22), rgba(0,0,0,0) 48%), linear-gradient(225deg, rgba(255,255,255,0.28), rgba(255,255,255,0) 55%)";
+      ? "linear-gradient(135deg, rgba(255,255,255,0.30), rgba(255,255,255,0) 55%)"
+      : "linear-gradient(225deg, rgba(255,255,255,0.30), rgba(255,255,255,0) 55%)";
     flap.style.background = paperBackBackground(flapSheen);
     flap.style.backgroundBlendMode = PAPER_BACK_BLEND;
     flapGrain.style.opacity = "0.05";
-    flap.style.filter = "none";
+    // A folded flap rests ON the page, so it casts a real shadow
+    // underneath — offset down-left (toward the page) for a top-right
+    // fold. drop-shadow because the flap is clipped to a triangle —
+    // it traces the clipped silhouette; box-shadow would draw around
+    // the full element box. Two layers: a tight contact shadow at the
+    // crease + a softer ambient falloff.
+    // Shadow offsets toward the page (down + away from the fold edge):
+    // down-left for a top-right fold, down-right for a top-left (RTL) fold.
+    flap.style.filter = rtl
+      ? "drop-shadow(4px 5px 4px rgba(0,0,0,0.45)) drop-shadow(10px 14px 14px rgba(0,0,0,0.30))"
+      : "drop-shadow(-4px 5px 4px rgba(0,0,0,0.45)) drop-shadow(-10px 14px 14px rgba(0,0,0,0.30))";
     // Fold triangle takes over; hide the hint, show the crease.
     hint.style.opacity = "0";
     crease.style.opacity = "1";
@@ -2580,6 +2629,11 @@ function buildDogEar(
       const leg = Math.min(sw, sh) * PEEL_MAX * DOGEAR_PEEL_TRAVEL;
       wrap.style.width = `${leg}px`;
       wrap.style.height = `${leg}px`;
+      pageClip = foldClipFor(`${leg}px`); // real-fold clip uses the same leg
+      if (wrap.dataset.folded === "1") {
+        pageBox.style.clipPath = pageClip;
+        pageBox.style.setProperty("-webkit-clip-path", pageClip);
+      }
     };
     requestAnimationFrame(syncCornerToPeel);
     if (typeof ResizeObserver === "function") {

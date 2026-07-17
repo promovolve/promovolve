@@ -134,6 +134,44 @@ function mountColorRow(store: Store): ColorRowHandle {
     "font-size:11px",
   ].join(";");
 
+  // ── Opacity: the native color input has no alpha channel, but the
+  // engine renders any CSS color — a translucent page background lets
+  // the HOST ARTICLE show through the collapsed ad (glassy/native
+  // look). The slider composes an 8-digit hex (#RRGGBBAA) from the
+  // swatch RGB + its own alpha; 100% writes plain 6-digit hex so
+  // opaque creatives keep their familiar values.
+  const alphaRow = document.createElement("div");
+  alphaRow.style.cssText = "display:flex;align-items:center;gap:8px;margin-top:6px;";
+  const alphaLabel = document.createElement("label");
+  alphaLabel.style.cssText = `flex:0 0 80px;color:${tokens.ink300};font-size:11px;`;
+  alphaLabel.textContent = "Opacity";
+  const alpha = document.createElement("input");
+  alpha.type = "range";
+  alpha.min = "0";
+  alpha.max = "100";
+  alpha.value = "100";
+  alpha.style.cssText = "flex:1;min-width:0;cursor:pointer;";
+  const alphaVal = document.createElement("span");
+  alphaVal.style.cssText = `flex:0 0 34px;text-align:right;color:${tokens.ink300};font-size:11px;`;
+  alphaVal.textContent = "100%";
+  alphaRow.append(alphaLabel, alpha, alphaVal);
+
+  const hexRgb = (v: string): string | null => {
+    const m = /^#([0-9a-fA-F]{6})(?:[0-9a-fA-F]{2})?$/.exec(v.trim());
+    return m ? "#" + m[1] : null;
+  };
+  const hexAlpha = (v: string): number => {
+    const m = /^#[0-9a-fA-F]{6}([0-9a-fA-F]{2})$/.exec(v.trim());
+    return m ? Math.round((parseInt(m[1], 16) / 255) * 100) : 100;
+  };
+  const composeBg = (): string => {
+    const rgb = hexRgb(text.value) ?? swatch.value;
+    const a = Number(alpha.value);
+    if (a >= 100) return rgb;
+    const aa = Math.round((a / 100) * 255).toString(16).padStart(2, "0");
+    return rgb + aa;
+  };
+
   const clear = document.createElement("button");
   clear.type = "button";
   clear.textContent = "Reset";
@@ -153,16 +191,27 @@ function mountColorRow(store: Store): ColorRowHandle {
   row.appendChild(text);
   row.appendChild(swatch);
   row.appendChild(clear);
+  wrap.appendChild(alphaRow);
 
   // Keep the swatch and text input in sync. Picker fires "input" on
   // every drag tick — replace state for live preview, commit on close.
   // Text input commits on blur via "change".
   swatch.addEventListener("input", () => {
-    text.value = swatch.value;
-    store.replace(setPageBg(store.state, swatch.value));
+    const v = composeBg();
+    text.value = v;
+    store.replace(setPageBg(store.state, v));
   });
   swatch.addEventListener("change", () => {
-    store.commit(setPageBg(store.state, swatch.value));
+    store.commit(setPageBg(store.state, composeBg()));
+  });
+  alpha.addEventListener("input", () => {
+    alphaVal.textContent = alpha.value + "%";
+    const v = composeBg();
+    text.value = v;
+    store.replace(setPageBg(store.state, v));
+  });
+  alpha.addEventListener("change", () => {
+    store.commit(setPageBg(store.state, composeBg()));
   });
   text.addEventListener("change", () => {
     const v = text.value.trim();
@@ -211,11 +260,18 @@ function mountColorRow(store: Store): ColorRowHandle {
       if (text.value !== currentBg) {
         text.value = currentBg;
       }
-      // Color picker only accepts hex; leave blank for non-hex values
-      // (e.g. "transparent", gradients) so we don't lie about the swatch.
-      if (/^#[0-9a-fA-F]{6}$/.test(currentBg)) {
-        if (swatch.value.toLowerCase() !== currentBg.toLowerCase()) {
-          swatch.value = currentBg;
+      // Color picker only accepts 6-digit hex; for 8-digit values show
+      // the RGB part and reflect the alpha on the slider. Non-hex values
+      // ("transparent", gradients) leave both untouched so we don't lie.
+      const rgbPart = hexRgb(currentBg);
+      if (rgbPart && swatch.value.toLowerCase() !== rgbPart.toLowerCase()) {
+        swatch.value = rgbPart;
+      }
+      if (rgbPart) {
+        const a = hexAlpha(currentBg);
+        if (Number(alpha.value) !== a) {
+          alpha.value = String(a);
+          alphaVal.textContent = a + "%";
         }
       }
       // Toggle operable only on page 1 (state readable everywhere).

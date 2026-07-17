@@ -1404,12 +1404,11 @@ export class ExpandableMagazineBanner extends HTMLElement {
     // A drag shouldn't smear a text selection across the creative.
     overlay.style.userSelect = "none";
     (overlay.style as CSSStyleDeclaration & { webkitUserSelect?: string }).webkitUserSelect = "none";
-    const wrapper = buildExpandWrapper({ cfg, reducedMotion });
-    overlay.appendChild(wrapper);
-
-    // Reading direction drives the dog-ear/peel/nav side + the counter's
-    // corner (opposite the flap). Computed once for all the chrome here.
+    // Reading direction drives the deal-in mirror, the dog-ear/peel/nav
+    // side, and the counter's corner. Computed once for everything here.
     const readingRtl = resolveReadingRtl(cfg, pages);
+    const wrapper = buildExpandWrapper({ cfg, reducedMotion, rtl: readingRtl });
+    overlay.appendChild(wrapper);
 
     // Chrome box: overlays the floating SHEET (same centering + aspect
     // fit), so the nav arrows, close, and page counter sit at the

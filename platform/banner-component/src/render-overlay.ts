@@ -90,8 +90,11 @@ export function buildOverlay(opts: {
 export function buildExpandWrapper(opts: {
   cfg: BannerConfig;
   reducedMotion: boolean;
+  // Resolved reading direction (banner.ts resolveReadingRtl) — mirrors
+  // the deal-in so sheets arrive from the side they'll leave toward.
+  rtl: boolean;
 }): HTMLElement {
-  const { cfg, reducedMotion } = opts;
+  const { cfg, reducedMotion, rtl } = opts;
   const wrapper = document.createElement("div");
   wrapper.className = "expand-wrapper";
   // The open effect is always the kawaraban deal; reduced-motion
@@ -116,6 +119,10 @@ export function buildExpandWrapper(opts: {
   const stackTotalMs = Math.round(540 * tempo) + 80;
   wrapper.style.setProperty("--deal-ms", `${Math.round(360 * tempo)}ms`);
   wrapper.style.setProperty("--deal-stagger", `${Math.round(90 * tempo)}ms`);
+  if (rtl) {
+    wrapper.style.setProperty("--deal-from-x", "85%");
+    wrapper.style.setProperty("--deal-rot", "6deg");
+  }
   if (appliedEffect === "stack" && !(typeof cfg.expandDurationMs === "number" && cfg.expandDurationMs > 0)) {
     wrapper.style.setProperty("--expand-duration", `${stackTotalMs}ms`);
   }

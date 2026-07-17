@@ -38,8 +38,11 @@ export const EXPAND_EFFECT_CSS = `
    * keyframe names deliberately do NOT start with "expand-effect-" —
    * they bubble to the wrapper's animationend filter, and only the
    * wrapper-level animation may signal open/close completion. */
+  /* --deal-from-x / --deal-rot flip sign for RTL reading (renderOverlay
+   * stamps them): a right-to-left pile deals in from up-RIGHT, the exact
+   * mirror of the fly-away, which already mirrors. */
   @keyframes stack-deal-in-anim {
-    from { transform: translate(-85%, -30%) rotate(-6deg); opacity: 0; }
+    from { transform: translate(var(--deal-from-x, -85%), -30%) rotate(var(--deal-rot, -6deg)); opacity: 0; }
     30%  { opacity: 1; }
     to   { transform: none; opacity: 1; }
   }

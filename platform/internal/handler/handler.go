@@ -411,7 +411,9 @@ type pageData struct {
 	NoCampaigns      bool
 	Creatives        []creativeData
 	HasPendingRender bool
-	LandingURL       string
+	// Creative × media stacked-bar chart (creatives page); nil = no data.
+	MediaChart *creativeMediaChart
+	LandingURL string
 	// CDN URL for the <expandable-magazine-banner> web component.
 	// Used by templates that need to load the banner script to render
 	// a live creative (e.g., the publisher approval page).

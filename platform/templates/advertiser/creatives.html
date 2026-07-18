@@ -43,6 +43,57 @@
     window.__pubGrace = Date.now() + 60000;
   }
 </script>
+{{if .MediaChart}}
+{{/* Creative × media: which creative delivers on which site. Horizontal
+     stacked bars (one per creative, segments = sites) over the trailing
+     30 days — the tracking_events window. Sits OUTSIDE #creatives-area
+     so the pending-render poll swap never tears the chart down. */}}
+<div class="bg-white rounded-lg border p-4 mb-6">
+  <h2 class="text-sm font-semibold mb-1">{{t "Impressions by media"}}</h2>
+  <p class="text-xs text-gray-400 mb-3">{{t "Last 30 days · expand a creative’s “By media” below for clicks, CTR and spend per site"}}</p>
+  <div id="media-chart-box" class="relative">
+    <canvas id="creative-media-chart"></canvas>
+  </div>
+</div>
+<script src="{{asset "chart.umd.min.js"}}"></script>
+<script>
+(function(){
+  var labels = {{.MediaChart.Labels}};
+  var series = {{.MediaChart.Series}};
+  if (!labels || !labels.length || typeof Chart === 'undefined') return;
+  // Same categorical palette as the report's breakdown charts; the tail
+  // "Other" dataset (always last when present) goes gray.
+  var PAL = ['#2a78d6', '#1baf7a', '#eda100', '#008300', '#4a3aa7', '#d35f00'], OTHER = '#7d7a75';
+  var INK = '#7d7a75', GRID = 'rgba(125,122,117,0.15)';
+  // Horizontal bars: height scales with the creative count.
+  document.getElementById('media-chart-box').style.height = (labels.length * 44 + 72) + 'px';
+  new Chart(document.getElementById('creative-media-chart'), {
+    type: 'bar',
+    data: {
+      labels: labels,
+      datasets: series.map(function(s, i){
+        var last = i === series.length - 1 && series.length > 6;
+        var color = last ? OTHER : PAL[i % PAL.length];
+        return { label: s.label, data: s.data, backgroundColor: color, borderWidth: 0, barPercentage: 0.7 };
+      })
+    },
+    options: {
+      indexAxis: 'y',
+      responsive: true,
+      maintainAspectRatio: false,
+      plugins: {
+        legend: { display: true, position: 'bottom', labels: { color: INK, usePointStyle: true, boxWidth: 8, boxHeight: 8 } },
+        tooltip: { callbacks: { label: function(c){ return c.dataset.label + ': ' + c.parsed.x.toLocaleString(); } } }
+      },
+      scales: {
+        x: { stacked: true, beginAtZero: true, grid: { color: GRID }, ticks: { color: INK, precision: 0 } },
+        y: { stacked: true, grid: { display: false }, ticks: { color: INK } }
+      }
+    }
+  });
+})();
+</script>
+{{end}}
 <div id="creatives-area"
      hx-get="/advertiser/creatives?campaignId={{.CampaignID}}{{if .ListNav}}{{if .ListNav.Sort}}&amp;sort={{.ListNav.Sort}}{{end}}&amp;page={{.ListNav.Page}}{{end}}"
      hx-trigger="every 3s [document.querySelectorAll('[data-pending-render], [data-pending-verify]').length > 0 || (window.__pubGrace && Date.now() < window.__pubGrace)]"
@@ -145,6 +196,35 @@
         {{if .DogearedCTAClicks}}<span>{{t "%d CTA" .DogearedCTAClicks}}</span>{{end}}
         {{if .PinCTR}}<span title="{{t "Re-engagement click-through rate"}}">{{t "%s pin CTR" .PinCTR}}</span>{{end}}
       </div>
+      {{end}}
+      {{if .Media}}
+      {{/* Per-site performance of THIS creative (trailing 30 days),
+           sorted by spend — the row-level answer to the chart above. */}}
+      <details class="mt-2 text-xs">
+        <summary class="cursor-pointer text-gray-500 hover:text-gray-700 select-none">{{t "By media"}}</summary>
+        <table class="w-full mt-1.5">
+          <thead>
+            <tr class="text-gray-400 text-left">
+              <th class="font-normal pb-0.5">{{t "Media"}}</th>
+              <th class="font-normal pb-0.5 text-right">{{t "imps"}}</th>
+              <th class="font-normal pb-0.5 text-right">{{t "clicks"}}</th>
+              <th class="font-normal pb-0.5 text-right">{{t "CTR"}}</th>
+              <th class="font-normal pb-0.5 text-right">{{t "Spend"}}</th>
+            </tr>
+          </thead>
+          <tbody>
+            {{range .Media}}
+            <tr class="text-gray-600">
+              <td class="truncate max-w-[9rem] pr-1" title="{{.SiteLabel}}">{{.SiteLabel}}</td>
+              <td class="text-right">{{.Impressions}}</td>
+              <td class="text-right">{{.Clicks}}</td>
+              <td class="text-right">{{if .CTR}}{{.CTR}}{{else}}&mdash;{{end}}</td>
+              <td class="text-right">{{.Spend}}</td>
+            </tr>
+            {{end}}
+          </tbody>
+        </table>
+      </details>
       {{end}}
       <div class="mt-2 pt-2 border-t flex items-center justify-between">
         {{if eq .ActiveStatus "Draft"}}

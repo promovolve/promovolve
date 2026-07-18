@@ -65,6 +65,20 @@ class DashboardRoutes(dbConfig: DatabaseConfig[PostgresProfile])(using system: A
           }
         }
       },
+      // GET /v1/dashboard/advertisers/{advertiserId}/campaigns/{campaignId}/creative-sites?days=30
+      // Creative × media matrix: which creative performs on which site.
+      // Sourced from tracking_events (the pre-aggregated rollups carry no
+      // creative×site dimension), so the window is bounded by its 30-day
+      // retention policy.
+      path("advertisers" / Segment / "campaigns" / Segment / "creative-sites") { (advertiserId, campaignId) =>
+        get {
+          parameter("days".as[Int].withDefault(30)) { days =>
+            onSuccess(getCreativeSiteStats(advertiserId, campaignId, days.max(1).min(30))) { stats =>
+              complete(stats.toJson.prettyPrint)
+            }
+          }
+        }
+      },
       // GET /v1/dashboard/advertisers/{advertiserId}
       path("advertisers" / Segment) { advertiserId =>
         get {
@@ -195,6 +209,48 @@ class DashboardRoutes(dbConfig: DatabaseConfig[PostgresProfile])(using system: A
     })
   }
 
+  private def getCreativeSiteStats(
+      advertiserId: String,
+      campaignId: String,
+      days: Int
+  ): Future[Seq[CreativeSiteStatsDTO]] = {
+    // advertiser_id is a first-class column on tracking_events, so the
+    // ownership gate is direct (no EXISTS idiom needed). Site label =
+    // real host from publisher_sites where known — same advertiser-safe
+    // identity the report breakdown exposes; '' falls back to the
+    // site_id slug platform-side.
+    given slick.jdbc.GetResult[(String, String, String, Long, Long, Long, Double)] =
+      slick.jdbc.GetResult(using r =>
+        (r.nextString(), r.nextString(), r.nextString(), r.nextLong(), r.nextLong(), r.nextLong(), r.nextDouble()))
+    val query = sql"""
+      SELECT t.creative_id, t.site_id, COALESCE(ps.host, ''),
+             COUNT(*) FILTER (WHERE t.event_type = 'impression')::bigint,
+             COUNT(*) FILTER (WHERE t.event_type = 'click')::bigint,
+             COUNT(*) FILTER (WHERE t.event_type = 'cta_click')::bigint,
+             COALESCE(SUM(t.cpm) FILTER (WHERE t.event_type = 'impression') / 1000.0, 0)::double precision
+      FROM tracking_events t
+      LEFT JOIN publisher_sites ps ON ps.site_id = t.site_id
+      WHERE t.campaign_id = $campaignId AND t.advertiser_id = $advertiserId
+        AND t.event_time >= NOW() - make_interval(days => $days)
+        AND t.event_type IN ('impression', 'click', 'cta_click')
+      GROUP BY t.creative_id, t.site_id, ps.host
+      ORDER BY 7 DESC, 4 DESC
+    """.as[(String, String, String, Long, Long, Long, Double)]
+
+    db.run(query).map(_.map { case (creativeId, siteId, host, imps, clicks, ctas, spend) =>
+      CreativeSiteStatsDTO(
+        creativeId = creativeId,
+        siteId = siteId,
+        siteLabel = host,
+        impressions = imps,
+        clicks = clicks,
+        ctaClicks = ctas,
+        spend = BigDecimal(spend).setScale(4, BigDecimal.RoundingMode.HALF_UP),
+        ctr = if (imps > 0) clicks.toDouble / imps else 0.0
+      )
+    })
+  }
+
   private def getAdvertiserSummary(advertiserId: String): Future[Option[AdvertiserSummaryDTO]] = {
     val query = sql"""
       SELECT advertiser_id, total_impressions, total_clicks, total_spend,
@@ -320,6 +376,19 @@ case class CreativeStatsDTO(
     updatedAt: String
 )
 
+/** One creative × site cell of the media matrix (trailing-window). */
+case class CreativeSiteStatsDTO(
+    creativeId: String,
+    siteId: String,
+    /** Real host where known; "" → platform falls back to the siteId slug. */
+    siteLabel: String,
+    impressions: Long,
+    clicks: Long,
+    ctaClicks: Long,
+    spend: BigDecimal,
+    ctr: Double
+)
+
 case class AdvertiserSummaryDTO(
     advertiserId: String,
     totalImpressions: Long,
@@ -337,5 +406,6 @@ object DashboardRoutes {
   given RootJsonFormat[HourlyStatsDTO] = jsonFormat5(HourlyStatsDTO.apply)
   given RootJsonFormat[DailyStatsDTO] = jsonFormat6(DailyStatsDTO.apply)
   given RootJsonFormat[CreativeStatsDTO] = jsonFormat11(CreativeStatsDTO.apply)
+  given RootJsonFormat[CreativeSiteStatsDTO] = jsonFormat8(CreativeSiteStatsDTO.apply)
   given RootJsonFormat[AdvertiserSummaryDTO] = jsonFormat8(AdvertiserSummaryDTO.apply)
 }

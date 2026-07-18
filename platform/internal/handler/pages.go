@@ -6,6 +6,7 @@ import (
 	"encoding/json"
 	"errors"
 	"fmt"
+	"html/template"
 	"image"
 	_ "image/gif"
 	_ "image/jpeg"
@@ -2351,6 +2352,28 @@ type creativeData struct {
 	// render and were hidden; the card surfaces a warning so the advertiser
 	// can swap the source image.
 	BrokenImages int
+	// Per-site performance of THIS creative (trailing 30 days, bounded by
+	// tracking_events retention) — "which media does this creative earn
+	// its keep on". Sorted by spend desc; empty until it has served.
+	Media []creativeMediaRow
+}
+
+// One site row in a creative's "By media" breakdown.
+type creativeMediaRow struct {
+	SiteLabel   string // real host, or the site_id slug when unknown
+	Impressions int64
+	Clicks      int64
+	CTAClicks   int64
+	CTR         string // "" when no clicks (see the CTR note on creativeData)
+	Spend       string // "$X.XX"
+}
+
+// Chart.js payload for the creative × media stacked-bar chart: labels =
+// creative names, one dataset per site (top sites + Other). Pre-marshaled
+// JSON as template.JS, the same convention reportSeriesChart uses.
+type creativeMediaChart struct {
+	Labels template.JS
+	Series template.JS
 }
 
 func (h *Handler) AdvertiserCreatives(w http.ResponseWriter, r *http.Request) {
@@ -2489,6 +2512,107 @@ func (h *Handler) AdvertiserCreatives(w http.ResponseWriter, r *http.Request) {
 		}
 	}
 
+	// Creative × media matrix (trailing 30 days, tracking_events window):
+	// which creative earns its keep on which site. Attached BEFORE
+	// pagination so every card carries its own breakdown; the stacked-bar
+	// chart covers the whole campaign (top sites + Other).
+	var mediaChart *creativeMediaChart
+	{
+		msBody, _ := h.coreGet(fmt.Sprintf("/v1/dashboard/advertisers/%s/campaigns/%s/creative-sites?days=30", claims.AdvertiserID, campID), claims)
+		var msResp []struct {
+			CreativeID  string  `json:"creativeId"`
+			SiteID      string  `json:"siteId"`
+			SiteLabel   string  `json:"siteLabel"`
+			Impressions int64   `json:"impressions"`
+			Clicks      int64   `json:"clicks"`
+			CTAClicks   int64   `json:"ctaClicks"`
+			Spend       float64 `json:"spend"`
+			CTR         float64 `json:"ctr"`
+		}
+		if json.Unmarshal(msBody, &msResp) == nil && len(msResp) > 0 {
+			byCreative := map[string][]creativeMediaRow{}
+			siteImps := map[string]int64{}
+			cellImps := map[string]map[string]int64{} // creativeID → site label → imps
+			for _, m := range msResp {
+				label := m.SiteLabel
+				if label == "" {
+					label = m.SiteID
+				}
+				row := creativeMediaRow{
+					SiteLabel:   label,
+					Impressions: m.Impressions,
+					Clicks:      m.Clicks,
+					CTAClicks:   m.CTAClicks,
+					Spend:       fmt.Sprintf("$%.2f", m.Spend),
+				}
+				// CTR only with at least one click — same rule as the card totals.
+				if m.Clicks > 0 {
+					row.CTR = fmt.Sprintf("%.1f%%", m.CTR*100)
+				}
+				byCreative[m.CreativeID] = append(byCreative[m.CreativeID], row)
+				siteImps[label] += m.Impressions
+				if cellImps[m.CreativeID] == nil {
+					cellImps[m.CreativeID] = map[string]int64{}
+				}
+				cellImps[m.CreativeID][label] += m.Impressions
+			}
+			for i := range creatives {
+				creatives[i].Media = byCreative[creatives[i].ID]
+			}
+			// Chart: one bar per creative (with data), one dataset per top
+			// site; the tail collapses into "Other" so the legend stays legible.
+			type chartDataset struct {
+				Label string  `json:"label"`
+				Data  []int64 `json:"data"`
+			}
+			var chartIDs, chartLabels []string
+			for _, c := range creatives {
+				if len(cellImps[c.ID]) == 0 {
+					continue
+				}
+				chartIDs = append(chartIDs, c.ID)
+				if c.Name != "" {
+					chartLabels = append(chartLabels, c.Name)
+				} else {
+					chartLabels = append(chartLabels, c.ID)
+				}
+			}
+			topSites := make([]string, 0, len(siteImps))
+			for s := range siteImps {
+				topSites = append(topSites, s)
+			}
+			sort.Slice(topSites, func(i, j int) bool { return siteImps[topSites[i]] > siteImps[topSites[j]] })
+			const maxSites = 6
+			var datasets []chartDataset
+			for si, site := range topSites {
+				if si >= maxSites {
+					break
+				}
+				ds := chartDataset{Label: site, Data: make([]int64, len(chartIDs))}
+				for ci, id := range chartIDs {
+					ds.Data[ci] = cellImps[id][site]
+				}
+				datasets = append(datasets, ds)
+			}
+			if len(topSites) > maxSites {
+				ds := chartDataset{Label: i18n.T(h.lang(r, user), "Other"), Data: make([]int64, len(chartIDs))}
+				for _, site := range topSites[maxSites:] {
+					for ci, id := range chartIDs {
+						ds.Data[ci] += cellImps[id][site]
+					}
+				}
+				datasets = append(datasets, ds)
+			}
+			if len(chartIDs) > 0 {
+				lb, err1 := json.Marshal(chartLabels)
+				sb, err2 := json.Marshal(datasets)
+				if err1 == nil && err2 == nil {
+					mediaChart = &creativeMediaChart{Labels: template.JS(lb), Series: template.JS(sb)}
+				}
+			}
+		}
+	}
+
 	sortCreatives(creatives, r.URL.Query().Get("sort"))
 	start, end, nav := buildListNav(r, len(creatives), 12)
 	creatives = creatives[start:end]
@@ -2507,6 +2631,7 @@ func (h *Handler) AdvertiserCreatives(w http.ResponseWriter, r *http.Request) {
 		HasPendingRender: hasPending,
 		ListNav:          nav,
 		BannerScriptURL:  h.bannerScriptURL,
+		MediaChart:       mediaChart,
 	})
 }
 

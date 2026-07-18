@@ -6,6 +6,7 @@ package handler
 
 import (
 	"github.com/hanishi/promovolve/platform/internal/i18n"
+	"html/template"
 	"io"
 	"testing"
 
@@ -55,8 +56,15 @@ func TestSitesAndCreativesTemplatesRender(t *testing.T) {
 			Campaigns:       []campaignData{{ID: "camp-1", Name: "Campaign One"}},
 			BannerScriptURL: "https://cdn.example.com/banner.js",
 			ListNav:         nav,
+			// MediaChart exercises the template.JS embedding in the chart
+			// script (JS context) and the per-card "By media" table.
+			MediaChart: &creativeMediaChart{
+				Labels: template.JS(`["Rendered"]`),
+				Series: template.JS(`[{"label":"site.example.com","data":[10]}]`),
+			},
 			Creatives: []creativeData{
-				{ID: "cr-1", Name: "Rendered", ActiveStatus: "Active", AssetURL: "https://cdn.example.com/a.png", Confidence: "90%", Impressions: 10, Clicks: 1, CTR: "10.0%"},
+				{ID: "cr-1", Name: "Rendered", ActiveStatus: "Active", AssetURL: "https://cdn.example.com/a.png", Confidence: "90%", Impressions: 10, Clicks: 1, CTR: "10.0%",
+					Media: []creativeMediaRow{{SiteLabel: "site.example.com", Impressions: 10, Clicks: 1, CTAClicks: 1, CTR: "10.0%", Spend: "$0.12"}}},
 				{ID: "cr-2", Name: "Rendering", ActiveStatus: "Draft"},
 			},
 		}},

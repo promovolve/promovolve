@@ -63,6 +63,8 @@ object ApiSchemas {
   given Schema[CategoryDemand] = Schema.derived
   given Schema[CategoryDemandResponse] = Schema.derived
   given Schema[SiteRevenueTodayResponse] = Schema.derived
+  given Schema[MountHealthReason] = Schema.derived
+  given Schema[SiteMountHealthResponse] = Schema.derived
   given Schema[AdvertiserSpendTodayResponse] = Schema.derived
 
   // Internal (billing settlement)

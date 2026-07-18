@@ -99,6 +99,8 @@ trait ApiJsonFormats extends DefaultJsonProtocol {
   given RootJsonFormat[CategoryDemand] = jsonFormat6(CategoryDemand.apply)
   given RootJsonFormat[CategoryDemandResponse] = jsonFormat2(CategoryDemandResponse.apply)
   given RootJsonFormat[SiteRevenueTodayResponse] = jsonFormat5(SiteRevenueTodayResponse.apply)
+  given RootJsonFormat[MountHealthReason] = jsonFormat2(MountHealthReason.apply)
+  given RootJsonFormat[SiteMountHealthResponse] = jsonFormat7(SiteMountHealthResponse.apply)
   given RootJsonFormat[AdvertiserSpendTodayResponse] = jsonFormat5(AdvertiserSpendTodayResponse.apply)
 
   // Internal (billing settlement)

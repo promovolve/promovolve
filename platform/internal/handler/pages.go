@@ -67,6 +67,22 @@ type siteData struct {
 	OptimizedFloor      string // "$X.XX" or "" if no argmax yet
 	OptimizedFloorDelta string // "+$0.50" / "-$0.20" / "" / "$0.00"
 	OptimizedFloorTrend string // "▲" / "▼" / "=" / ""
+	// Integration health from the ad tag's mount heartbeat, trailing 7
+	// days. HealthKnown=false (no heartbeats or endpoint unavailable)
+	// hides the panel — a site whose tag was never embedded shouldn't
+	// show a scary 0%.
+	HealthKnown      bool
+	HealthPageviews  int64
+	HealthOkPct      string // "98.2" — (rendered + noFill) / pageviews
+	HealthRendered   int64
+	HealthNoFill     int64
+	HealthFailures   int64
+	HealthTopReasons []healthReason
+}
+
+type healthReason struct {
+	Reason string
+	Count  int64
 }
 
 // siteRequestRow is a pending/denied site-request card on /publisher/sites —
@@ -224,6 +240,35 @@ func (h *Handler) renderPublisherSites(w http.ResponseWriter, r *http.Request, e
 				sites[i].OptimizedFloorDelta = "$0.00"
 				sites[i].OptimizedFloorTrend = "="
 			}
+		}
+	}
+
+	// Integration health from the ad tag's mount heartbeat (trailing 7
+	// days). Zero pageviews means the tag never phoned home — panel
+	// stays hidden rather than implying the integration is broken.
+	for i := range sites {
+		mhBody, _ := h.coreGet(fmt.Sprintf("/v1/publishers/me/sites/%s/mount-health?days=7", sites[i].ID), claims)
+		var mh struct {
+			Pageviews      int64 `json:"pageviews"`
+			Rendered       int64 `json:"rendered"`
+			NoFill         int64 `json:"noFill"`
+			Failures       int64 `json:"failures"`
+			FailureReasons []struct {
+				Reason string `json:"reason"`
+				Count  int64  `json:"count"`
+			} `json:"failureReasons"`
+		}
+		if json.Unmarshal(mhBody, &mh) != nil || mh.Pageviews == 0 {
+			continue
+		}
+		sites[i].HealthKnown = true
+		sites[i].HealthPageviews = mh.Pageviews
+		sites[i].HealthRendered = mh.Rendered
+		sites[i].HealthNoFill = mh.NoFill
+		sites[i].HealthFailures = mh.Failures
+		sites[i].HealthOkPct = fmt.Sprintf("%.1f", float64(mh.Rendered+mh.NoFill)/float64(mh.Pageviews)*100)
+		for _, fr := range mh.FailureReasons {
+			sites[i].HealthTopReasons = append(sites[i].HealthTopReasons, healthReason{Reason: fr.Reason, Count: fr.Count})
 		}
 	}
 

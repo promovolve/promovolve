@@ -277,6 +277,26 @@
             <span class="text-xs text-gray-500">${{if .FloorCpm}}{{.FloorCpm}}{{else}}0.50{{end}}</span>
           </div>
         </div>
+        {{if .HealthKnown}}
+        {{/* Mount heartbeat: the ad tag reports script → slot → serve →
+              render once per pageview. Healthy = rendered or a genuine
+              no-fill; anything else is a broken integration. Reason
+              tokens are machine identifiers — never translated. */}}
+        <div class="flex flex-col gap-1"
+             title="{{t "The ad tag reports its own lifecycle on every pageview. Healthy means an ad rendered or the auction genuinely had no ad to show; failures mean the integration is broken on some pageviews — the reasons say where it stopped."}}">
+          <div class="flex items-center gap-2">
+            <label class="text-xs text-gray-500">{{t "Integration health (7d):"}}</label>
+            <span class="text-sm font-semibold {{if eq .HealthFailures 0}}text-green-700{{else}}text-amber-600{{end}}">{{.HealthOkPct}}%</span>
+            <span class="text-xs text-gray-400">{{t "healthy"}}</span>
+          </div>
+          <p class="text-xs text-gray-400">
+            {{.HealthPageviews}} {{t "pageviews"}} · {{.HealthRendered}} {{t "rendered"}} · {{.HealthNoFill}} {{t "no fill"}}{{if gt .HealthFailures 0}} ·
+            <span class="text-amber-600">{{.HealthFailures}} {{t "failed"}}</span>
+            <span class="font-mono">({{range $i, $fr := .HealthTopReasons}}{{if $i}}, {{end}}{{$fr.Reason}} ×{{$fr.Count}}{{end}})</span>
+            {{end}}
+          </p>
+        </div>
+        {{end}}
         <form method="POST" action="/publisher/sites/min-floor" class="flex items-center gap-2" onclick="event.stopPropagation();">
           <input type="hidden" name="siteId" value="{{.ID}}">
           <label class="text-xs text-gray-500">{{t "Min Floor:"}} $</label>

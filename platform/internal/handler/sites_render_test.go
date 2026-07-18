@@ -35,6 +35,11 @@ func TestSitesAndCreativesTemplatesRender(t *testing.T) {
 				ID: "site-1", Domain: "site.example.com", VerificationStatus: "verified",
 				FloorCpm: "0.50", MinFloorCpm: "0.10", BidWeight: "0.50", BidWeightLabel: "Balanced",
 				Slots: []slotData{{SlotID: "hero", Width: 300, Height: 250}},
+				// Integration-health panel with failures present — proves the
+				// int64 eq/gt comparisons and the reason loop execute.
+				HealthKnown: true, HealthPageviews: 120, HealthOkPct: "97.5",
+				HealthRendered: 100, HealthNoFill: 17, HealthFailures: 3,
+				HealthTopReasons: []healthReason{{Reason: "mount_failed", Count: 2}, {Reason: "timeout", Count: 1}},
 			}},
 		}},
 		{"admin/sites.html", pageData{

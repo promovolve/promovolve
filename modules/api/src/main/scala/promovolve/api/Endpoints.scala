@@ -384,6 +384,18 @@ object Endpoints extends ApiJsonFormats {
       .out(jsonBody[SiteRevenueTodayResponse])
       .errorOut(jsonBody[ErrorResponse])
 
+  val getSiteMountHealth: PublicEndpoint[(String, String, Option[Int]), ErrorResponse, SiteMountHealthResponse, Any] =
+    endpoint
+      .tag("Sites")
+      .summary("Integration health for a site, sourced from mount heartbeats")
+      .description(
+        "Aggregates the anonymous per-pageview mount heartbeat the ad tag fires (script → slot → serve → render) over the trailing window. Distinguishes healthy no-fill from broken integrations (no slots found, serve unreachable, winners that never painted). Returns zeros if the projection DB isn't configured.")
+      .get
+      .in(sitesBase / path[String]("siteId") / "mount-health")
+      .in(query[Option[Int]]("days").description("Trailing window in days, clamped to 1–30; default 7"))
+      .out(jsonBody[SiteMountHealthResponse])
+      .errorOut(jsonBody[ErrorResponse])
+
   val getAdvertiserSpendToday: PublicEndpoint[String, ErrorResponse, AdvertiserSpendTodayResponse, Any] =
     endpoint
       .tag("Advertisers")

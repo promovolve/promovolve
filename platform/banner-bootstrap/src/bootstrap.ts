@@ -41,6 +41,7 @@ import {
 } from "./dogear-storage.js";
 import { attachLpPrefetch } from "./lp-prefetch.js";
 import { clearRemovedPin, isCreativeRemoved, processDogearResponse } from "./dogear-response.js";
+import { hbArmFlush, hbInit, hbMounted, hbSend, hbServe, hbSlots } from "./heartbeat.js";
 
 // ─── Types mirroring server-side BatchServeReq / BatchServeRes ────
 
@@ -419,7 +420,16 @@ function collapseEmpty(slot: Slot): void {
 async function runBatch(
   slotsToServe: Slot[],
   pinHints: PinHint[],
-): Promise<{ results: Map<string, BatchImpResult>; stalePins: string[]; needClassify: boolean }> {
+): Promise<{
+  results: Map<string, BatchImpResult>;
+  stalePins: string[];
+  needClassify: boolean;
+  // Heartbeat: did the serve endpoint ANSWER? An empty results map is
+  // ambiguous on its own — "no winners" (economics) and "unreachable"
+  // (broken integration) must not look alike to the health panel.
+  answered: boolean;
+  failReason?: string;
+}> {
   const body: BatchServeReq = {
     pub: config.pub,
     url: window.location.href,
@@ -437,7 +447,10 @@ async function runBatch(
     });
     if (!resp.ok) {
       console.warn("[promovolve] batch request failed: %d", resp.status);
-      return { results: new Map(), stalePins: [], needClassify: false };
+      return {
+        results: new Map(), stalePins: [], needClassify: false,
+        answered: false, failReason: `http_${resp.status}`,
+      };
     }
     const data = (await resp.json()) as BatchServeRes;
     const out = new Map<string, BatchImpResult>();
@@ -446,10 +459,14 @@ async function runBatch(
     // legacy needText flag if an older server omits reclassifyInMs.
     const needClassify =
       data.reclassifyInMs !== undefined ? data.reclassifyInMs <= 0 : data.needText === true;
-    return { results: out, stalePins: data.stalePins ?? [], needClassify };
+    return { results: out, stalePins: data.stalePins ?? [], needClassify, answered: true };
   } catch (e) {
     console.warn("[promovolve] batch request error", e);
-    return { results: new Map(), stalePins: [], needClassify: false };
+    const aborted = e instanceof DOMException && e.name === "AbortError";
+    return {
+      results: new Map(), stalePins: [], needClassify: false,
+      answered: false, failReason: aborted ? "timeout" : "network",
+    };
   } finally {
     window.clearTimeout(timeout);
   }
@@ -641,12 +658,24 @@ async function displayImpl(): Promise<void> {
   }
   displayed = true;
 
+  // Mount heartbeat: one anonymous integration-health beacon per
+  // pageview (script → slot → serve → render). Armed here — after the
+  // pub guard — so misconfigured embeds without a site id stay silent.
+  hbInit(config.pub, config.apiBase ?? "");
+  hbArmFlush();
+
   // Zero-config path: publishers who only place divs and never call
   // defineSlot get auto-discovery on first display.
   if (slots.size === 0) collectDomSlots();
 
   const allSlots = Array.from(slots.values());
-  if (allSlots.length === 0) return;
+  hbSlots(allSlots.length);
+  if (allSlots.length === 0) {
+    // Script ran but found nowhere to render — the classic broken
+    // integration (typoed data attribute, div stripped by the CMS).
+    hbSend();
+    return;
+  }
 
   // Read EVERY pin from IDB — not just pins matching slots on this
   // page. Pins whose slotId is on the current page are honored as
@@ -667,7 +696,10 @@ async function displayImpl(): Promise<void> {
     creativeId: p.creativeId,
   }));
 
-  const { results: batchResults, stalePins, needClassify } = await runBatch(allSlots, pinHints);
+  const { results: batchResults, stalePins, needClassify, answered, failReason } =
+    await runBatch(allSlots, pinHints);
+  const servedCount = allSlots.filter((s) => batchResults.get(s.id)?.winner).length;
+  hbServe(answered, servedCount, failReason);
 
   // Page needs (re)classification — cold (never classified) or stale (token
   // expired). Extract the live-page text and POST it so the next serve fills/
@@ -699,6 +731,29 @@ async function displayImpl(): Promise<void> {
     }
   }
   await Promise.all(renderTasks);
+  // Render checkpoint: renderTasks settle once the component element is
+  // in the DOM, but the shadow content paints when the custom element
+  // upgrades and connects — poll briefly for real pixels (the same
+  // `.design-box` probe the hostile suite uses) before reporting.
+  if (servedCount > 0) {
+    const deadline = Date.now() + 3000;
+    const probe = (): void => {
+      const mounted = allSlots.filter((s) => {
+        const el = findContainer(s.id)?.querySelector("expandable-magazine-banner");
+        return !!el?.shadowRoot?.querySelector(".design-box");
+      }).length;
+      if (mounted >= servedCount || Date.now() >= deadline) {
+        hbMounted(mounted);
+        hbSend();
+        return;
+      }
+      hbMounted(mounted);
+      window.setTimeout(probe, 250);
+    };
+    probe();
+  } else {
+    hbSend();
+  }
 }
 
 // ─── Public API ──────────────────────────────────────────────────

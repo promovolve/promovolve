@@ -422,6 +422,26 @@ object ApiModels {
       eCpm: String // dollars per 1k imps, %.4f
   )
 
+  /** One failure-reason bucket in the mount-health summary. */
+  case class MountHealthReason(reason: String, count: Long)
+
+  /**
+   * Integration-health summary aggregated from mount heartbeats (the
+   * anonymous per-pageview beacon the ad tag fires — mount_beacons
+   * table). pageviews = all heartbeats in the window; rendered =
+   * reached the render stage; noFill = serve answered with zero
+   * winners (healthy); failures = ok=false, bucketed by reason.
+   */
+  case class SiteMountHealthResponse(
+      siteId: String,
+      days: Int,
+      pageviews: Long,
+      rendered: Long,
+      noFill: Long,
+      failures: Long,
+      failureReasons: Vector[MountHealthReason]
+  )
+
   /**
    * Per-advertiser spend summary, mirror of SiteRevenueTodayResponse.
    * Used by the advertiser dashboard's Today's Spend tile so it matches

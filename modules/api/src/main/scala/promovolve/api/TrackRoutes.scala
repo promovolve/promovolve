@@ -34,13 +34,34 @@ trait DogearEventJson extends DefaultJsonProtocol {
   given RootJsonFormat[DogearEventReq] = jsonFormat7(DogearEventReq.apply)
 }
 
+/**
+ * POST /v1/beacon/mount request body — the mount heartbeat the publisher
+ * ad tag fires once per pageview (banner-bootstrap/src/heartbeat.ts).
+ * Anonymous by design: site id + lifecycle stage + counts, nothing else.
+ */
+final case class MountBeaconReq(
+    v: Int,
+    pub: String,
+    stage: String, // "script" | "slot" | "serve" | "render"
+    ok: Boolean,
+    slots: Int,
+    served: Int,
+    mounted: Int,
+    reason: Option[String] = None
+)
+
+trait MountBeaconJson extends DefaultJsonProtocol {
+  given RootJsonFormat[MountBeaconReq] = jsonFormat8(MountBeaconReq.apply)
+}
+
 final class TrackRoutes(
     secrets: PublisherSecretsRepo,
     events: EventLog,
     bucketMs: Long = 60 * 1000L,
     maxSkew: FiniteDuration = 3.minutes,
-    replayGuard: Option[ActorRef[TrackingReplayGuard.Command]] = None
-)(using system: ActorSystem[?]) extends DogearEventJson {
+    replayGuard: Option[ActorRef[TrackingReplayGuard.Command]] = None,
+    mountBeacons: Option[promovolve.publisher.MountBeaconRepo] = None
+)(using system: ActorSystem[?]) extends DogearEventJson with MountBeaconJson {
 
   val routes: Route =
     pathPrefix("v1") {
@@ -195,6 +216,43 @@ final class TrackRoutes(
                   case other =>
                     complete(StatusCodes.BadRequest -> s"unknown event: $other")
                 }
+              }
+            }
+          } ~
+          pathPrefix("beacon" / "mount") {
+            post {
+              entity(as[MountBeaconReq]) { req =>
+                // Always 204 — the tag treats this as fire-and-forget, and a
+                // uniform reply gives probes nothing to enumerate site ids
+                // with. Persist only when the pub is a real publisher (has an
+                // HMAC secret) and the payload is shaped like the tag sends
+                // it; junk is dropped silently.
+                val validStage = Set("script", "slot", "serve", "render")
+                val sane = req.v == 1 &&
+                  req.pub.nonEmpty && req.pub.length <= 128 &&
+                  validStage.contains(req.stage) &&
+                  Seq(req.slots, req.served, req.mounted).forall(n => n >= 0 && n <= 10000)
+                if (sane) {
+                  mountBeacons.foreach { repo =>
+                    secrets.secretFor(req.pub).foreach {
+                      case Some(_) =>
+                        repo
+                          .record(
+                            req.pub,
+                            req.stage,
+                            req.ok,
+                            req.reason.map(_.take(120)),
+                            req.slots,
+                            req.served,
+                            req.mounted
+                          )
+                          .failed
+                          .foreach(e => system.log.warn("mount beacon insert failed: {}", e.toString))
+                      case None => // unknown site id — drop
+                    }
+                  }
+                }
+                complete(StatusCodes.NoContent)
               }
             }
           } ~

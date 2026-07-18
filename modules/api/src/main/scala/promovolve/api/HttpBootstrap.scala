@@ -116,7 +116,7 @@ object HttpBootstrap {
       // Database-backed repos for creative storage (required)
       // NOTE: creativeRepo is passed in from ClusterBootstrap.Repositories to ensure
       // both entities (AdServer) and HTTP routes use the SAME repo instance
-      val (imageAssetRepo, advertiserEmailRepo, publisherEmailRepo, advertiserAssetRepo) = try {
+      val (imageAssetRepo, advertiserEmailRepo, publisherEmailRepo, advertiserAssetRepo, mountBeaconRepo) = try {
         val dbConfig = DatabaseConfig.forConfig[PostgresProfile]("dashboard-projection-db", config)
         val db = dbConfig.db
 
@@ -132,12 +132,15 @@ object HttpBootstrap {
         val advAssetRepo = new SlickAdvertiserAssetRepo(db)(using system.executionContext)
         advAssetRepo.ensureSchema()
 
+        val beaconRepo = new promovolve.publisher.SlickMountBeaconRepo(db)(using system.executionContext)
+        beaconRepo.ensureSchema()
+
         system.log.info(
-          "ImageAssetRepo, AdvertiserEmailRepo, PublisherEmailRepo, AdvertiserAssetRepo initialized (PostgreSQL), ImageStorage: {}",
+          "ImageAssetRepo, AdvertiserEmailRepo, PublisherEmailRepo, AdvertiserAssetRepo, MountBeaconRepo initialized (PostgreSQL), ImageStorage: {}",
           storageType)
         system.log.info("Using shared CreativeRepo from ClusterBootstrap.Repositories")
         (imgRepo: ImageAssetRepo, advEmailRepo: AdvertiserEmailRepo, pubEmailRepo: PublisherEmailRepo,
-          advAssetRepo: AdvertiserAssetRepo)
+          advAssetRepo: AdvertiserAssetRepo, beaconRepo: promovolve.publisher.MountBeaconRepo)
       } catch {
         case ex: Exception =>
           system.log.error("Failed to initialize database repos: {}", ex.getMessage)
@@ -204,7 +207,8 @@ object HttpBootstrap {
         secretsRepo,
         eventLog,
         maxSkew = urlValidityWindow, // Same source of truth
-        replayGuard = replayGuard
+        replayGuard = replayGuard,
+        mountBeacons = Some(mountBeaconRepo)
       )(using system)
 
       val enableTestRoutes = Try(config.getBoolean("promovolve.enable-test-routes")).getOrElse(false)

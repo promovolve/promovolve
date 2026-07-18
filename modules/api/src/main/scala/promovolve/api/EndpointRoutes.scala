@@ -4616,6 +4616,63 @@ class EndpointRoutes(
       }
   }
 
+  private val getSiteMountHealthLogic
+      : ((String, String, Option[Int])) => Future[Either[ErrorResponse, SiteMountHealthResponse]] = {
+    case (_publisherId, siteId, daysOpt) =>
+      // Aggregate the mount heartbeats (see MountBeaconRepo) for the
+      // trailing window. `pub` in mount_beacons IS the site id — that's
+      // what the publisher embeds as data-pub. Same graceful-degradation
+      // contract as revenue-today: no projection DB → zeros, not errors.
+      val days = daysOpt.getOrElse(7).max(1).min(30)
+      val zero = SiteMountHealthResponse(
+        siteId = siteId,
+        days = days,
+        pageviews = 0L,
+        rendered = 0L,
+        noFill = 0L,
+        failures = 0L,
+        failureReasons = Vector.empty
+      )
+      dashboardDb match {
+        case None     => Future.successful(Right(zero))
+        case Some(db) =>
+          import slick.jdbc.PostgresProfile.api.*
+          import slick.jdbc.GetResult
+          given GetResult[(Long, Long, Long, Long)] =
+            GetResult(using r => (r.nextLong(), r.nextLong(), r.nextLong(), r.nextLong()))
+          given GetResult[(String, Long)] = GetResult(using r => (r.nextString(), r.nextLong()))
+          val totalsQ = sql"""
+            SELECT COUNT(*)::bigint,
+                   COUNT(*) FILTER (WHERE stage = 'render')::bigint,
+                   COUNT(*) FILTER (WHERE ok AND reason = 'no_fill')::bigint,
+                   COUNT(*) FILTER (WHERE NOT ok)::bigint
+            FROM mount_beacons
+            WHERE pub = $siteId AND ts >= NOW() - make_interval(days => $days)
+          """.as[(Long, Long, Long, Long)].headOption
+          val reasonsQ = sql"""
+            SELECT COALESCE(reason, 'unknown'), COUNT(*)::bigint
+            FROM mount_beacons
+            WHERE pub = $siteId AND ts >= NOW() - make_interval(days => $days) AND NOT ok
+            GROUP BY 1 ORDER BY 2 DESC LIMIT 8
+          """.as[(String, Long)]
+          (for {
+            totals <- db.run(totalsQ)
+            reasons <- db.run(reasonsQ)
+          } yield {
+            val (total, rendered, noFill, failures) = totals.getOrElse((0L, 0L, 0L, 0L))
+            Right(zero.copy(
+              pageviews = total,
+              rendered = rendered,
+              noFill = noFill,
+              failures = failures,
+              failureReasons = reasons.toVector.map { case (reason, n) => MountHealthReason(reason, n) }
+            )): Either[ErrorResponse, SiteMountHealthResponse]
+          }).recover { case ex =>
+            Left(ErrorResponse("mount_health_failed", ex.getMessage))
+          }
+      }
+  }
+
   private val getFloorSweepHistoryLogic
       : ((String, String, Int, Option[String])) => Future[Either[ErrorResponse, FloorSweepHistoryResponse]] = {
     case (_publisherId, siteId, limit, dateOpt) =>
@@ -5207,6 +5264,8 @@ class EndpointRoutes(
     PekkoHttpServerInterpreter().toRoute(Endpoints.getCategoryDemand.serverLogic(gateSite2(getCategoryDemandLogic))),
     PekkoHttpServerInterpreter().toRoute(
       Endpoints.getSiteRevenueToday.serverLogic(gateSite3(getSiteRevenueTodayLogic))),
+    PekkoHttpServerInterpreter().toRoute(
+      Endpoints.getSiteMountHealth.serverLogic(gateSite3(getSiteMountHealthLogic))),
     PekkoHttpServerInterpreter().toRoute(Endpoints.getAdvertiserSpendToday.serverLogic(getAdvertiserSpendTodayLogic)),
     PekkoHttpServerInterpreter().toRoute(Endpoints.getAdvertiserWinRates.serverLogic(getAdvertiserWinRatesLogic)),
     PekkoHttpServerInterpreter().toRoute(

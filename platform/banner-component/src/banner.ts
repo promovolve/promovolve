@@ -1667,9 +1667,16 @@ export class ExpandableMagazineBanner extends HTMLElement {
       // fit-content sizing, border, padding, background: canvas) —
       // neutralize it so the overlay keeps its designed fullscreen
       // scrim geometry. Inline styles win over UA popover rules.
+      // Size by inset-STRETCH (auto width/height), never viewport
+      // units: 100vh is the LARGE viewport, so with the mobile URL
+      // bar visible the overlay overhangs the visible area and the
+      // centered sheet's bottom gets clipped — whether that happens
+      // depended on scroll position at tap time. Stretch tracks the
+      // real layout viewport exactly like the pre-popover
+      // fixed+inset:0 overlay did.
       overlay.style.inset = "0";
-      overlay.style.width = "100vw";
-      overlay.style.height = "100vh";
+      overlay.style.width = "auto";
+      overlay.style.height = "auto";
       overlay.style.margin = "0";
       overlay.style.border = "none";
       overlay.style.padding = "0";

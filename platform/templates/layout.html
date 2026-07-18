@@ -102,8 +102,10 @@
         <a href="/publisher/help" class="block px-3 py-2 rounded text-sm {{if eq .Nav "help"}}bg-gray-700 text-white{{else}}text-gray-300 hover:bg-gray-800{{end}}">{{t "Help"}}</a>
         {{else if eq .User.Role "advertiser"}}
         <a href="/advertiser/account" class="block px-3 py-2 rounded text-sm {{if eq .Nav "account"}}bg-gray-700 text-white{{else}}text-gray-300 hover:bg-gray-800{{end}}">{{t "Account"}}</a>
-        <a href="/advertiser/campaigns" class="block px-3 py-2 rounded text-sm {{if eq .Nav "campaigns"}}bg-gray-700 text-white{{else}}text-gray-300 hover:bg-gray-800{{end}}">{{t "Campaigns"}}</a>
-        <a href="/advertiser/creatives" class="block px-3 py-2 rounded text-sm {{if eq .Nav "creatives"}}bg-gray-700 text-white{{else}}text-gray-300 hover:bg-gray-800{{end}}">{{t "Creatives"}}</a>
+        {{/* Creatives has no nav item of its own — it's reached from each
+             campaign's row (a creative belongs to a campaign, and the page
+             is campaign-scoped anyway). Nav stays on "campaigns" there. */}}
+        <a href="/advertiser/campaigns" class="block px-3 py-2 rounded text-sm {{if or (eq .Nav "campaigns") (eq .Nav "creatives")}}bg-gray-700 text-white{{else}}text-gray-300 hover:bg-gray-800{{end}}">{{t "Campaigns"}}</a>
         <a href="/advertiser/stats" class="block px-3 py-2 rounded text-sm {{if eq .Nav "stats"}}bg-gray-700 text-white{{else}}text-gray-300 hover:bg-gray-800{{end}}">{{t "Stats"}}</a>
         <a href="/advertiser/report" class="block px-3 py-2 rounded text-sm {{if eq .Nav "report"}}bg-gray-700 text-white{{else}}text-gray-300 hover:bg-gray-800{{end}}">{{t "Report"}}</a>
         {{if .User.CanBilling}}

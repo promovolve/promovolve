@@ -307,6 +307,14 @@
         <p class="text-xs text-gray-500">{{t "eCPM"}}</p>
       </div>
 
+      <!-- Creatives live under their campaign — this is THE way in since
+           the top-level nav item was dropped. @click.stop so it doesn't
+           toggle the row. -->
+      <a href="/advertiser/creatives?campaignId={{.ID}}" @click.stop
+         class="px-2.5 py-1 text-xs border rounded-md hover:bg-gray-100 text-gray-600 shrink-0">
+        {{t "Creatives"}}
+      </a>
+
       <!-- Edit settings (stop propagation so it doesn't toggle the row).
            After the inline panel opens, scroll it into view so the Edit
            Campaign form isn't left below the fold. -->

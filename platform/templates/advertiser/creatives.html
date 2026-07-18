@@ -9,18 +9,19 @@
 <div class="flex items-center justify-between mb-6">
   <div>
     <h1 class="page-title">{{t "Creatives"}}</h1>
-    <p class="page-sub">{{if .ListNav}}{{t "%d creatives" .ListNav.Total}}{{else}}{{t "%d creatives" (len .Creatives)}}{{end}}</p>
+    {{/* Campaign-scoped page reached from the campaign's row (the old
+         campaign DROPDOWN is gone — switching campaigns happens on the
+         Campaigns page, not here). The sub line anchors the context:
+         back link + which campaign these creatives belong to. */}}
+    <p class="page-sub">
+      <a href="/advertiser/campaigns" class="text-brand hover:underline">← {{t "Campaigns"}}</a>
+      <span class="mx-1">·</span>
+      <span class="font-medium">{{range .Campaigns}}{{if eq .ID $.CampaignID}}{{if .Name}}{{.Name}}{{else}}{{.ID}}{{end}}{{end}}{{end}}</span>
+      <span class="mx-1">·</span>
+      {{if .ListNav}}{{t "%d creatives" .ListNav.Total}}{{else}}{{t "%d creatives" (len .Creatives)}}{{end}}
+    </p>
   </div>
   <div class="flex items-center gap-3">
-    {{if .Campaigns}}
-    <form method="GET" action="/advertiser/creatives">
-      <select name="campaignId" onchange="this.form.submit()" class="px-3 py-2 border rounded-md text-sm">
-        {{range .Campaigns}}
-        <option value="{{.ID}}" {{if eq .ID $.CampaignID}}selected{{end}}>{{if .Name}}{{.Name}}{{else}}{{.ID}}{{end}}</option>
-        {{end}}
-      </select>
-    </form>
-    {{end}}
     {{/* Entry into the authoring editor — its saves would 403 mid-work in a
          read-only view-as session, so block the door, not just the save. */}}
     <a href="/advertiser/creatives/editor?campaignId={{.CampaignID}}"

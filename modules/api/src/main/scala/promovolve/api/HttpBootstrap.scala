@@ -266,7 +266,8 @@ object HttpBootstrap {
         val behavior = CreativeProcessor(
           creativeRepo, imageAssetRepo, imageStorage, cdnBase,
           lpAnalyzer, categoryVerificationClient, sharding,
-          fontProvisioner
+          fontProvisioner,
+          budgetEventTopic = Some(budgetEventTopic)
         )
         Some(system.systemActorOf(
           org.apache.pekko.actor.typed.scaladsl.Behaviors.supervise(behavior)

@@ -2,7 +2,7 @@ package promovolve.api
 
 import org.apache.pekko.actor.typed.{ ActorRef, Behavior }
 import org.apache.pekko.actor.typed.scaladsl.Behaviors
-import promovolve.{ BudgetEvent, CreativeAutoApproved, PendingCreativesQueued }
+import promovolve.{ BudgetEvent, CreativeAssetReady, CreativeAutoApproved, PendingCreativesQueued }
 
 /**
  * Adapter actor that converts BudgetEvents to PendingEventHub commands.
@@ -43,6 +43,14 @@ object PendingEventHubAdapter {
             creativeId = event.creativeId.value,
             campaignId = event.campaignId.value
           )
+          Behaviors.same
+
+        case event: CreativeAssetReady =>
+          ctx.log.debug(
+            "Forwarding CreativeAssetReady to hub: creative={}",
+            event.creativeId.value
+          )
+          hub ! PendingEventHub.PublishCreativeAssetReady(event.creativeId.value)
           Behaviors.same
 
         case _ =>

@@ -34,7 +34,7 @@
 <div class="flex-1 min-h-0 flex flex-col" hx-ext="sse" sse-connect="/sse/publishers/events">
   <div id="tab-content" class="flex-1 min-h-0 flex flex-col"
        hx-get="/publisher/approval"
-       hx-trigger="sse:pending-updated throttle:2s, sse:approved throttle:2s, sse:auto-approved throttle:2s, sse:rejected throttle:2s, sse:revoked throttle:2s, sse:bulk-approved throttle:2s, sse:campaign-status-changed throttle:2s, sse:creative-status-changed throttle:2s"
+       hx-trigger="sse:pending-updated throttle:2s, sse:approved throttle:2s, sse:auto-approved throttle:2s, sse:rejected throttle:2s, sse:revoked throttle:2s, sse:bulk-approved throttle:2s, sse:campaign-status-changed throttle:2s, sse:creative-status-changed throttle:2s, sse:creative-asset-ready throttle:2s"
        hx-target="#tab-content"
        hx-swap="innerHTML">
     {{template "approval-tab" .}}
@@ -62,7 +62,8 @@ document.body.addEventListener('htmx:beforeRequest', function(evt) {
 // no request followed until this bridge existed.
 (function(){
   var REFRESH_EVENTS = ['pending-updated','approved','auto-approved','rejected','revoked',
-                        'bulk-approved','campaign-status-changed','creative-status-changed'];
+                        'bulk-approved','campaign-status-changed','creative-status-changed',
+                        'creative-asset-ready'];
   var last = 0;
   document.body.addEventListener('htmx:sseMessage', function(e){
     var t = e.detail && e.detail.type;
@@ -135,6 +136,26 @@ window.selectSite = function(site) {
   // A previously-open detail may belong to a now-hidden site → let
   // applyInboxFilter drop it and auto-select within the new scope.
   applyInboxFilter();
+};
+// Inbox thumbnail self-heal: the row's asset URL can 404 while the
+// creative's preview render is still in flight (publish → render gap) —
+// retry with growing backoff + a cache-buster (the 404 may be cached),
+// then give up into a neutral placeholder so a permanently render-less
+// creative never shows a broken image. Lives OUTSIDE the swapped tab
+// content so SSE swaps keep it defined.
+window.thumbHeal = function(img){
+  var n = parseInt(img.dataset.retries || '0', 10);
+  if (n >= 4) {
+    var d = document.createElement('div');
+    d.className = 'w-10 h-10 rounded bg-gray-100 shrink-0';
+    img.replaceWith(d);
+    return;
+  }
+  img.dataset.retries = String(n + 1);
+  var base = img.src.split(/[?&]r=\d+/)[0];
+  setTimeout(function(){
+    img.src = base + (base.indexOf('?') === -1 ? '?' : '&') + 'r=' + Date.now();
+  }, 1500 * (n + 1));
 };
 // Hide every detail pane + deselect rows, WITHOUT triggering the SSE
 // refetch (that's only for an explicit close while a preview is open).
@@ -601,7 +622,11 @@ document.getElementById('previewDialog').addEventListener('close', () => {
         class="w-full text-left p-3 rounded-lg border transition-colors bg-white border-gray-200 hover:border-gray-300">
   <div class="flex items-center gap-2">
     {{if .Asset}}
-    <img src="{{.Asset}}" alt="" class="w-10 h-10 object-contain rounded bg-gray-50 shrink-0">
+    {{/* The asset URL is minted at publish but the webp lands in R2 only
+         when CreativeProcessor finishes rendering — a row SSE-inserted in
+         that gap 404s. thumbHeal retries with a cache-buster (the browser
+         may have cached the 404), then settles on a neutral box. */}}
+    <img src="{{.Asset}}" alt="" onerror="window.thumbHeal && thumbHeal(this)" class="w-10 h-10 object-contain rounded bg-gray-50 shrink-0">
     {{else if .Pages}}
     <div class="w-10 h-10 rounded overflow-hidden bg-gray-50 shrink-0" style="pointer-events:none;">
       <expandable-magazine-banner pages="{{.Pages}}" width="40" height="40" style="display:block;width:100%;height:100%;"></expandable-magazine-banner>

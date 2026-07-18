@@ -86,6 +86,14 @@ object PendingEventHub {
       creativeId: String
   ) extends Command
 
+  /**
+   * Publish "preview thumbnail rendered" (broadcasts to all site subscribers —
+   * the queue row referencing it may be open on any publisher's inbox)
+   */
+  final case class PublishCreativeAssetReady(
+      creativeId: String
+  ) extends Command
+
   /** Publish a creative status change event (broadcasts to all site subscribers) */
   final case class PublishCreativeStatusChanged(
       creativeId: String,
@@ -143,6 +151,10 @@ object PendingEventHub {
   ) extends PendingEvent
   final case class Revoked(
       siteId: String,
+      creativeId: String,
+      timestamp: Instant
+  ) extends PendingEvent
+  final case class CreativeAssetReady(
       creativeId: String,
       timestamp: Instant
   ) extends PendingEvent
@@ -277,6 +289,21 @@ object PendingEventHub {
             subscribers.size, siteId, creativeId
           )
           subscribers.foreach(_ ! event)
+        }
+        Behaviors.same
+
+      case PublishCreativeAssetReady(creativeId) =>
+        // Broadcast to ALL subscribers — the pending row for this creative
+        // may sit in any publisher's open inbox, and the hub doesn't know
+        // which sites queued it.
+        val event = CreativeAssetReady(creativeId, Instant.now())
+        val allSubs = state.allSubscribers
+        if (allSubs.nonEmpty) {
+          ctx.log.info(
+            "Broadcasting creative-asset-ready to {} subscribers: creativeId={}",
+            allSubs.size, creativeId
+          )
+          allSubs.foreach(_ ! event)
         }
         Behaviors.same
 

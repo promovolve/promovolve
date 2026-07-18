@@ -8,7 +8,8 @@ import org.apache.pekko.http.scaladsl.model.*
 import org.apache.pekko.http.scaladsl.model.headers.`User-Agent`
 import org.apache.pekko.http.scaladsl.unmarshalling.Unmarshal
 import org.apache.pekko.util.Timeout
-import promovolve.{ CampaignId, CategoryId }
+import org.apache.pekko.actor.typed.pubsub.Topic
+import promovolve.{ BudgetEvent, CampaignId, CategoryId, CreativeAssetReady, CreativeId }
 import promovolve.advertiser.CampaignEntity
 import promovolve.taxonomy.TieredCategory
 import promovolve.creative.BannerPage
@@ -133,7 +134,11 @@ object CreativeProcessor {
       lpAnalyzer: Option[promovolve.browser.LPAnalyzer],
       categoryVerificationClient: Option[promovolve.publisher.assessment.CategoryVerificationClient],
       sharding: ClusterSharding,
-      fontProvisioner: Option[GoogleFontProvisioner] = None
+      fontProvisioner: Option[GoogleFontProvisioner] = None,
+      // Budget topic (distributed pub/sub) for CreativeAssetReady — lets every
+      // node's PendingEventHub nudge open approval inboxes once the preview
+      // thumbnail actually exists in R2, regardless of which pod rendered it.
+      budgetEventTopic: Option[ActorRef[Topic.Command[BudgetEvent]]] = None
   )(using system: ActorSystem[?]): Behavior[Command] = Behaviors.setup { ctx =>
     given ExecutionContext = ctx.executionContext
 
@@ -422,6 +427,16 @@ object CreativeProcessor {
             status = existing.map(_.status).getOrElse(promovolve.publisher.CreativeStatus.Active),
             brokenImages = brokenImages
           )).map(_ => existing.flatMap(_.lpTextSnapshot))
+        }
+
+        // The thumbnail webp is in R2 and the row now points at it — tell
+        // open approval inboxes to refetch (their SSE-inserted rows 404'd
+        // the asset URL during the publish→render gap). After updateF so a
+        // refetch can't race the row write and re-read the stale asset.
+        updateF.foreach { _ =>
+          budgetEventTopic.foreach(
+            _ ! Topic.Publish(CreativeAssetReady(CreativeId(creativeId), Instant.now()))
+          )
         }
 
         if (skipVerify) {

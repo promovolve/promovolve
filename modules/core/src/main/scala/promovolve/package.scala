@@ -630,3 +630,16 @@ final case class CreativeAutoApproved(
     campaignId: CampaignId,
     timestamp: Instant
 ) extends BudgetEvent
+
+/**
+ * A creative's preview thumbnail finished rendering (CreativeProcessor
+ * wrote the rendered webp to R2 and updated the row). Published on the
+ * budget topic so every node's PendingEventHub can nudge open approval
+ * inboxes: a queue row that arrived via SSE in the publish→render gap
+ * carries an asset URL whose object doesn't exist yet — the thumbnail
+ * 404s blank until a refetch.
+ */
+final case class CreativeAssetReady(
+    creativeId: CreativeId,
+    timestamp: Instant
+) extends BudgetEvent

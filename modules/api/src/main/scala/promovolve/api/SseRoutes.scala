@@ -176,6 +176,13 @@ class SseRoutes(
           ).compactPrint
           ServerSentEvent(data, "revoked")
 
+        case PendingEventHub.CreativeAssetReady(creativeId, timestamp) =>
+          val data = JsObject(
+            "creativeId" -> JsString(creativeId),
+            "timestamp" -> JsString(timestamp.toString)
+          ).compactPrint
+          ServerSentEvent(data, "creative-asset-ready")
+
         case PendingEventHub.CreativeStatusChanged(creativeId, campaignId, newStatus, timestamp) =>
           val data = JsObject(
             "creativeId" -> JsString(creativeId),

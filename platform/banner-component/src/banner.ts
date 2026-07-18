@@ -13,7 +13,7 @@ import {
 } from "./render-overlay";
 import { collectExpandedImageUrls, parseJSON, pickCollapsedLayout, pickExpandedLayout, sheetFitPct, sheetSizeFor } from "./utils";
 import { resolveExpandedFonts } from "./font-catalog";
-import { animatePageTurn, createInteractivePeel, buildGrainOverlay, dogEarPeelFrame, DOGEAR_PEEL_TRAVEL, PAPER_CSS, PAPER_BACK_BLEND, paperBackBackground } from "./paper";
+import { animatePageTurn, createInteractivePeel, buildGrainOverlay, dogEarPeelFrame, DOGEAR_PEEL_TRAVEL, PAPER_CSS, PAPER_BACK_BLEND, paperBackBackground, paperBackStock } from "./paper";
 
 // The reader deals its sheets in by default (the kawaraban lifecycle);
 // an advertiser can opt out via cfg.entrance = "fade" for a plain fade
@@ -1123,6 +1123,14 @@ export class ExpandableMagazineBanner extends HTMLElement {
     // folding in the expanded view updates the collapsed view behind it
     // without a full re-render (which would destroy the overlay).
     const startFolded = !editMode && this.pinnedPageIdx >= 0;
+    // Paper-back stock for every peeled surface in this banner (tease,
+    // thumb-peel, pinned flap): a translucent page background makes the
+    // back of the sheet equally translucent — the flap must not sit as
+    // an opaque cream sticker on an ad the article shows through. Set on
+    // the HOST so the custom property inherits into the whole shadow tree.
+    const backStock = paperBackStock(cfg.paperBackColor, page.bg);
+    if (backStock) this.style.setProperty("--paper-back-color", backStock);
+    else this.style.removeProperty("--paper-back-color");
     const earSize = "7.5cqmin"; // 1.25× the prior 6cqmin — bigger fold corner on collapsed/IAB sizes
     // RTL reading (Arabic / vertical) mirrors the dog-ear to the top-LEFT.
     const rtl = resolveReadingRtl(cfg, this.pagesData);
@@ -1167,7 +1175,10 @@ export class ExpandableMagazineBanner extends HTMLElement {
           width: ${earSize};
           height: ${earSize};
           clip-path: ${flapClip};
-          background: #d9d2bf;
+          /* Follows the shared paper stock (and its alpha) like every
+             other peeled surface; the old opaque #d9d2bf stays as the
+             fallback tone when no stock override is in play. */
+          background: var(--paper-back-color, #d9d2bf);
           filter: ${flapShadow};
           pointer-events: none;
           z-index: 2;
@@ -1338,7 +1349,11 @@ export class ExpandableMagazineBanner extends HTMLElement {
     // Paper-back stock colour: one CSS var recolours every peeled surface
     // (flap, dog-ear tease, folded corner) while their fiber/mottle/sheen
     // texture layers ride on top unchanged. Unset → the default warm tone.
-    if (cfg.paperBackColor) overlay.style.setProperty("--paper-back-color", cfg.paperBackColor);
+    // Same alpha-carrying resolution as the collapsed render (keyed to the
+    // cover page's bg) so a translucent creative's page-turn backs match
+    // its flap instead of flipping back to opaque in the reader.
+    const overlayBackStock = paperBackStock(cfg.paperBackColor, pages[0]?.bg);
+    if (overlayBackStock) overlay.style.setProperty("--paper-back-color", overlayBackStock);
     // Navigation gestures, unified across touch AND mouse via pointer
     // events (touch fires pointer* with pointerType "touch"; desktop and
     // the framed mobile-preview on a PC use mouse). Two gestures share

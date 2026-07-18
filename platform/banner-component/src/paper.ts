@@ -42,7 +42,26 @@ const MOTTLE_TILE =
 // FALLBACK for --paper-back-color, which a creative can override to print
 // on a different stock; the fiber/mottle/sheen layers ride on top either
 // way (soft-light + multiply modulate whatever base tone shows through).
-const PAPER_BASE = "#f0e9d9";
+export const PAPER_BASE = "#f0e9d9";
+
+/**
+ * Resolve the paper-back stock for a banner's peeled surfaces (tease,
+ * thumb-peel, pinned flap, page-turn back). A translucent page
+ * background carries its alpha onto the back of the sheet — see-through
+ * paper is see-through from BOTH sides; an opaque cream flap over a
+ * translucent ad reads as a sticker on the article. A configured
+ * back color that already carries its own alpha wins as-is.
+ * Returns undefined when the default opaque stock should apply.
+ */
+export function paperBackStock(
+  configured: string | undefined,
+  pageBg: string | undefined,
+): string | undefined {
+  if (configured && !/^#[0-9a-fA-F]{6}$/.test(configured)) return configured;
+  const alpha = pageBg && /^#[0-9a-fA-F]{8}$/.test(pageBg) ? pageBg.slice(7, 9) : undefined;
+  if (!alpha) return configured;
+  return `${configured ?? PAPER_BASE}${alpha}`;
+}
 
 /** Background list for a paper-back surface: caller's lighting/sheen
   * gradient on top, then the two texture tiles, then the base tone. The

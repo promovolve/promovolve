@@ -35,6 +35,30 @@ jobs:
       - name: Compile (main + test)
         run: sbt "compile; Test/compile"
 
+  banner:
+    name: Banner (unit + hostile environments)
+    runs-on: ubuntu-latest
+    defaults:
+      run:
+        working-directory: platform/banner-component
+    steps:
+      - uses: actions/checkout@9c091bb21b7c1c1d1991bb908d89e4e9dddfe3e0 # v7.0.0
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+          cache-dependency-path: platform/banner-component/package-lock.json
+      - run: npm ci
+      - run: npx tsc --noEmit
+      - run: npx vitest run
+      # Hostile-environment suite: the built bundle inside fixture pages
+      # reproducing real-publisher hostility (strict CSP, Trusted Types,
+      # transformed ancestors, quirks mode, CSS bombs, SPA remounts,
+      # z-index wars, vertical writing). Known gaps are pinned in
+      # tests/hostile/run.mjs and fail the suite if their shape changes.
+      - run: npx playwright install --with-deps chromium
+      - run: npm run test:hostile
+
   go:
     name: Platform (go)
     runs-on: ubuntu-latest

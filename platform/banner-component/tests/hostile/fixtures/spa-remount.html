@@ -1,0 +1,17 @@
+<!doctype html><html><head><meta charset="utf-8"><title>spa remount</title></head><body>
+<div id="app"><div id="slot" style="width:300px;height:250px;"></div></div>
+<script src="/dist/expandable-magazine-banner.js"></script>
+<script src="/tests/hostile/fixtures/_seed.js"></script>
+<script>
+  // Simulate a framework re-render 1.2s after mount: the subtree is
+  // discarded and rebuilt (React-style key change). A fresh slot appears;
+  // the integration must survive (fresh element seeded like a route change).
+  setTimeout(function () {
+    var app = document.getElementById("app");
+    app.innerHTML = '<div id="slot" style="width:300px;height:250px;"></div>';
+    var s = document.createElement("script");
+    s.src = "/tests/hostile/fixtures/_seed.js";
+    document.body.appendChild(s);
+  }, 1200);
+</script>
+</body></html>

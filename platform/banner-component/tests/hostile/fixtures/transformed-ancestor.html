@@ -1,0 +1,20 @@
+<!doctype html><html><head><meta charset="utf-8"><title>transformed ancestor</title>
+<style>
+  body { margin: 0; font-family: serif; }
+  header { position: sticky; top: 0; z-index: 999999; background: #333; color: #fff; padding: 14px; }
+  /* The trap: a transformed, overflow-hidden wrapper — extremely common
+     under animation libraries and sticky-header shims. position:fixed
+     descendants become fixed WITHIN this box. */
+  .page-wrap { transform: translateZ(0); overflow: hidden; width: 700px; margin: 0 auto; }
+  article { padding: 20px; }
+</style></head><body>
+<header>Site Chrome (z-index 999999)</header>
+<div class="page-wrap"><article>
+  <h1>Article inside a transformed wrapper</h1>
+  <p>Filler paragraph before the ad slot.</p>
+  <div id="slot" style="width:300px;height:250px;margin:20px auto;"></div>
+  <p>Filler paragraph after the ad slot.</p>
+</article></div>
+<script src="/dist/expandable-magazine-banner.js"></script>
+<script src="/tests/hostile/fixtures/_seed.js"></script>
+</body></html>

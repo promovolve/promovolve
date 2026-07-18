@@ -1651,6 +1651,35 @@ export class ExpandableMagazineBanner extends HTMLElement {
     }
 
     this.shadowRoot.appendChild(overlay);
+    // TOP-LAYER promotion (delivery only): position:fixed is computed
+    // against the nearest transformed/filtered ANCESTOR, so a publisher
+    // wrapper with transform/will-change traps the reader inside the
+    // article column (observed: 51% viewport coverage in the hostile
+    // suite). The Popover API's top layer escapes ancestor transforms,
+    // overflow clipping, AND z-index stacking in one move. "manual" =
+    // no light-dismiss and no UA Escape handling (the reader owns its
+    // exits). Framed previews must stay INSIDE their frames, and
+    // engines without popover keep today's behavior — same code path,
+    // just not promoted.
+    if (!framed && typeof overlay.showPopover === "function") {
+      overlay.setAttribute("popover", "manual");
+      // The [popover] UA stylesheet imposes its own box (auto inset,
+      // fit-content sizing, border, padding, background: canvas) —
+      // neutralize it so the overlay keeps its designed fullscreen
+      // scrim geometry. Inline styles win over UA popover rules.
+      overlay.style.inset = "0";
+      overlay.style.width = "100vw";
+      overlay.style.height = "100vh";
+      overlay.style.margin = "0";
+      overlay.style.border = "none";
+      overlay.style.padding = "0";
+      try {
+        overlay.showPopover();
+      } catch {
+        // Already-showing / detached edge states — the overlay still
+        // renders in normal flow, which is the pre-popover behavior.
+      }
+    }
     requestAnimationFrame(() => {
       overlay.style.opacity = "1";
       this.updatePages();

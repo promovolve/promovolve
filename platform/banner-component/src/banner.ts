@@ -1591,8 +1591,16 @@ export class ExpandableMagazineBanner extends HTMLElement {
       let hintTimer: number | null = null;
       const HINT_SHOW_MS = 2600; // message on screen per beat
       const HINT_SWAP_MS = 450;  // fade gap while the text swaps
+      const landscapeMq = window.matchMedia("(orientation: landscape)");
       const hintCycle = (): void => {
         if (hintDone || !overlay.isConnected) return;
+        if (!framed && landscapeMq.matches) {
+          // The rotate nudge (below) owns the bottom slot while the
+          // phone is held sideways — skip this beat, check again next.
+          hint.style.opacity = "0";
+          hintTimer = window.setTimeout(hintCycle, HINT_SHOW_MS);
+          return;
+        }
         hint.style.opacity = "1";
         hintTimer = window.setTimeout(() => {
           hint.style.opacity = "0";
@@ -1625,6 +1633,80 @@ export class ExpandableMagazineBanner extends HTMLElement {
       chromeParent.appendChild(buildCloseButton({ ui, onClick: () => this.closeViaFlight(), label: closeLabel, onLight: marginOnLight }));
     }
     chromeParent.appendChild(buildPageCounter({ ui, onLight: readerOnLight, rtl: readingRtl }));
+
+    // Rotate-to-portrait nudge (delivery only). The reader is a portrait
+    // sheet by design (the 16:9 expanded layout is retired — see
+    // pickExpandedLayout), so a PHONE held sideways renders it as a small
+    // card the height of the viewport. We don't degrade the format — we
+    // encourage the upright hold with the universal SIGN: a phone glyph
+    // that animates from sideways to upright, looping. No words.
+    //
+    // Gated on the VIEWPORT being phone-landscape-shaped (short + touch),
+    // NOT on isMobileReader: a landscape phone is 844px wide, fails the
+    // max-width:768 mobile query, and lands in the DESKTOP chrome branch
+    // — so this lives outside the mobile/desktop split. Appears and
+    // retires LIVE as the device rotates; the sheet needs no re-render
+    // (sizing and autofit are cq-based). Framed previews never see it.
+    if (!framed) {
+      const phoneLandscapeMq = window.matchMedia(
+        "(orientation: landscape) and (max-height: 500px) and (pointer: coarse)",
+      );
+      const rotate = document.createElement("div");
+      rotate.className = "rotate-hint";
+      // Lives in the LEFT margin beside the sheet: a landscape 9:16
+      // sheet is ~49-55cqh wide depending on fit, so centering at
+      // (100cqw − 52cqh)/4 lands mid-margin for either chrome branch
+      // without covering the creative. (cq units resolve against the
+      // overlay, container-type: size.)
+      Object.assign(rotate.style, {
+        position: "absolute",
+        left: "calc((100cqw - 52cqh) / 4)",
+        top: "50%",
+        transform: "translate(-50%, -50%)",
+        zIndex: "100",
+        pointerEvents: "none",
+        color: "rgba(255,255,255,0.9)",
+        filter: "drop-shadow(0 2px 8px rgba(0,0,0,0.6))",
+        opacity: "0",
+        transition: "opacity 0.4s ease",
+      } as Partial<CSSStyleDeclaration>);
+      rotate.innerHTML =
+        '<svg width="56" height="56" viewBox="0 0 48 48" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round">' +
+        '<rect x="17" y="8" width="14" height="30" rx="3"/>' +
+        '<line x1="21" y1="34" x2="27" y2="34"/>' +
+        // Curved arrow suggesting the turn, sweeping around the phone.
+        '<path d="M40 20 a17 17 0 0 0 -9 -9"/>' +
+        '<path d="M40 20 l1.5 -5 M40 20 l-5 -1.5"/>' +
+        "</svg>";
+      // The glyph performs the turn itself: hold sideways → rotate
+      // upright → hold → repeat. WAAPI so no keyframe CSS to inject.
+      rotate.firstElementChild?.animate(
+        [
+          { transform: "rotate(-90deg)", offset: 0 },
+          { transform: "rotate(-90deg)", offset: 0.3 },
+          { transform: "rotate(0deg)", offset: 0.6 },
+          { transform: "rotate(0deg)", offset: 1 },
+        ],
+        { duration: 2600, iterations: Infinity, easing: "ease-in-out" },
+      );
+      overlay.appendChild(rotate);
+      const syncRotate = (): void => {
+        rotate.style.opacity = phoneLandscapeMq.matches ? "1" : "0";
+      };
+      const onOrientationChange = (): void => {
+        if (!overlay.isConnected) {
+          // Reader closed — this listener is the only reference left;
+          // drop it so rotations after collapse touch nothing. (Checked
+          // only on CHANGE: at construction time the overlay is not yet
+          // in the shadow root, so the initial sync must not gate on it.)
+          phoneLandscapeMq.removeEventListener("change", onOrientationChange);
+          return;
+        }
+        syncRotate();
+      };
+      phoneLandscapeMq.addEventListener("change", onOrientationChange);
+      syncRotate();
+    }
 
     pages.forEach((page, i) => {
       wrapper.appendChild(this.createPage(page, i, cfg));

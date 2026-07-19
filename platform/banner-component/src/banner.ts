@@ -1480,6 +1480,9 @@ export class ExpandableMagazineBanner extends HTMLElement {
     // visible regardless of which page is showing. Both appear in
     // framed previews too, so previews carry the same close control
     // delivery does.
+    // Desktop chrome that waits for the enter animation to settle
+    // before fading in (populated in the desktop branches below).
+    const deferredChrome: HTMLElement[] = [];
     if (isMobile) {
       const closeX = document.createElement("button");
       closeX.className = "mobile-close-x";
@@ -1631,7 +1634,12 @@ export class ExpandableMagazineBanner extends HTMLElement {
       };
       this.addEventListener("magazine-page-changed", onTurn);
     } else {
-      chromeParent.appendChild(buildCloseButton({ ui, onClick: () => this.closeViaFlight(), label: closeLabel, onLight: marginOnLight }));
+      // Desktop close waits for the enter to finish (see the deferred-
+      // chrome reveal below) — chrome fading in while sheets are still
+      // dealing reads as clutter arriving mid-ceremony.
+      const desktopClose = buildCloseButton({ ui, onClick: () => this.closeViaFlight(), label: closeLabel, onLight: marginOnLight });
+      deferredChrome.push(desktopClose);
+      chromeParent.appendChild(desktopClose);
     }
     chromeParent.appendChild(buildPageCounter({ ui, onLight: readerOnLight, rtl: readingRtl }));
 
@@ -1744,8 +1752,40 @@ export class ExpandableMagazineBanner extends HTMLElement {
     // top-left counter carries page position. RTL reading flips each
     // arrow's side + glyph so "next" sits on the left.
     if (!isMobile) {
-      chromeParent.appendChild(buildNavButton({ direction: "prev", onClick: () => this.prev(), onLight: marginOnLight, rtl: readingRtl }));
-      chromeParent.appendChild(buildNavButton({ direction: "next", onClick: () => this.next(), onLight: marginOnLight, rtl: readingRtl }));
+      for (const direction of ["prev", "next"] as const) {
+        const btn = buildNavButton({
+          direction,
+          onClick: () => (direction === "prev" ? this.prev() : this.next()),
+          onLight: marginOnLight,
+          rtl: readingRtl,
+        });
+        deferredChrome.push(btn);
+        chromeParent.appendChild(btn);
+      }
+    }
+
+    // PC chrome enters AFTER the sheets have landed: hold the close pill
+    // and nav arrows invisible (and unclickable) until the wrapper's
+    // enter animation settles, then fade them in. The settle event also
+    // fires from the animation safety net, so the chrome can never be
+    // lost to a swallowed animationend. Mobile keeps its own choreography
+    // (breathing close pill, gesture hints).
+    if (deferredChrome.length > 0) {
+      for (const el of deferredChrome) {
+        el.style.opacity = "0";
+        el.style.pointerEvents = "none";
+        el.style.transition = "opacity 0.3s ease";
+      }
+      overlay.addEventListener(
+        "magazine-enter-settled",
+        () => {
+          for (const el of deferredChrome) {
+            el.style.opacity = "1";
+            el.style.pointerEvents = "auto";
+          }
+        },
+        { once: true },
+      );
     }
 
     this.shadowRoot.appendChild(overlay);

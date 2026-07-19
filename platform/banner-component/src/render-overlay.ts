@@ -140,6 +140,10 @@ export function buildExpandWrapper(opts: {
     settled = true;
     wrapper.style.willChange = "";
     wrapper.removeEventListener("animationend", onEffectEnd);
+    // The enter is over (sheets landed, or the safety net declared it
+    // so). Bubbles so renderOverlay-level listeners on the overlay can
+    // reveal deferred chrome (desktop close/nav wait for this).
+    wrapper.dispatchEvent(new CustomEvent("magazine-enter-settled", { bubbles: true }));
   };
   const onEffectEnd = (e: AnimationEvent): void => {
     if (!e.animationName.startsWith("expand-effect-")) return;

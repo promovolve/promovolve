@@ -37,6 +37,14 @@ FROM eclipse-temurin:21-jre-jammy AS jre
 # ---- runtime stage: Playwright (Chromium + system libs) + JRE 21 ----
 FROM mcr.microsoft.com/playwright/java:v1.54.0-jammy
 
+# ffmpeg: CreativeProcessor normalizes video backgrounds at publish
+# (strip audio / clip / downscale / poster frame — VideoTranscoder.scala).
+# Absent ffmpeg the pass degrades to keeping the raw upload, so this
+# install is what makes the living-paper constraints actually bind.
+RUN apt-get update \
+ && apt-get install -y --no-install-recommends ffmpeg \
+ && rm -rf /var/lib/apt/lists/*
+
 # Deterministic Java 21 (the Playwright image's bundled JDK version is
 # not guaranteed). The sbt-native-packager launcher prefers $JAVA_HOME.
 COPY --from=jre /opt/java/openjdk /opt/java/openjdk

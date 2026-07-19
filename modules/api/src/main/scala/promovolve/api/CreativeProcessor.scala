@@ -254,6 +254,87 @@ object CreativeProcessor {
       go(1)
     }
 
+    // ── Living-paper video pass ──────────────────────────────────────
+    // Uploads go browser-direct to R2 (presigned PUT), so publish time is
+    // the first moment the server touches the bytes. Normalize here, in
+    // the same tolerant slot where LP images get rehosted: fetch the raw
+    // upload, run VideoTranscoder (strip audio / clip / downscale /
+    // faststart + poster frame), store both under SYNTHETIC hashes derived
+    // from the source URL ("<sha256(src)>-vtx" / "-vtxp") so a re-publish
+    // or a second creative using the same upload reuses the transcode
+    // instead of re-encoding. Rewrites videoBg.src to the normalized file
+    // and fills videoBg.poster when the author didn't set one. Any
+    // failure (no ffmpeg, fetch error, timeout) keeps the original —
+    // exactly how an unfetchable image is treated.
+    def ensureLivingPaperVideo(videoBg: spray.json.JsValue): Future[spray.json.JsValue] = {
+      import spray.json.{ JsObject, JsString }
+      videoBg match {
+        // Only a JsObject with an http src that isn't already normalized
+        // ("-vtx" marker) gets the pass; everything else flows through
+        // untouched. Expression-structured on purpose — no early returns.
+        case JsObject(fields) =>
+          fields.get("src") match {
+            case Some(JsString(src)) if src.startsWith("http") && !src.contains("-vtx") =>
+              normalizeVideo(videoBg, fields, src)
+            case _ => Future.successful(videoBg)
+          }
+        case _ => Future.successful(videoBg)
+      }
+    }
+
+    def normalizeVideo(
+        videoBg: spray.json.JsValue,
+        fields: Map[String, spray.json.JsValue],
+        src: String
+    ): Future[spray.json.JsValue] = {
+      import spray.json.{ JsObject, JsString }
+      val base = MessageDigest.getInstance("SHA-256")
+        .digest(src.getBytes(java.nio.charset.StandardCharsets.UTF_8)).map("%02x".format(_)).mkString
+      val vHash = s"$base-vtx"
+      val pHash = s"$base-vtxp"
+
+      def rewritten(videoKey: String, posterKey: Option[String]): spray.json.JsValue = {
+        val withSrc = fields + ("src" -> JsString(s"$cdnBaseUrl/$videoKey"))
+        val withPoster = posterKey match {
+          case Some(pk) if !fields.contains("poster") => withSrc + ("poster" -> JsString(s"$cdnBaseUrl/$pk"))
+          case _                                      => withSrc
+        }
+        JsObject(withPoster)
+      }
+
+      val resultF = imageAssetRepo.get(vHash).flatMap {
+        case Some(existing) =>
+          imageAssetRepo.get(pHash).map(p => rewritten(existing.s3Key, p.map(_.s3Key)))
+        case None =>
+          httpExt.singleRequest(HttpRequest(uri = src)).flatMap { response =>
+            if (!response.status.isSuccess) {
+              response.entity.discardBytes()
+              Future.failed(new RuntimeException(s"HTTP ${response.status} for $src"))
+            } else {
+              response.entity.toStrict(60.seconds, 250L * 1024 * 1024).map(_.data.toArray)
+            }
+          }.flatMap { raw =>
+            val mime = if (src.endsWith(".webm")) "video/webm" else "video/mp4"
+            Future(scala.concurrent.blocking(VideoTranscoder.transcode(raw, mime))).flatMap {
+              case None    => Future.successful(videoBg) // no ffmpeg / encode failed — keep as uploaded
+              case Some(r) =>
+                for {
+                  vKey <- imageStorage.store(vHash, r.video, r.videoMime)
+                  _ <- imageAssetRepo.put(ImageAsset(vHash, vKey, r.videoMime, 0, 0, Instant.now()))
+                  pKey <- imageStorage.store(pHash, r.poster, r.posterMime)
+                  _ <- imageAssetRepo.put(ImageAsset(pHash, pKey, r.posterMime, 0, 0, Instant.now()))
+                } yield rewritten(vKey, Some(pKey))
+            }
+          }
+      }
+      val timeoutF = org.apache.pekko.pattern.after(180.seconds, system.classicSystem.scheduler)(
+        Future.failed(new RuntimeException(s"video normalize timeout: $src")))
+      Future.firstCompletedOf(Seq(resultF, timeoutF)).recover { case e =>
+        system.log.warn("CreativeProcessor: video background kept as uploaded ({}): {}", src, e.getMessage)
+        videoBg
+      }
+    }
+
     Behaviors.receiveMessage {
       // Step 1: Download external images
       case Process(creativeId, advertiserId, campaignId, name, landingUrl, pages, originalPagesJson, originalHash,
@@ -270,7 +351,7 @@ object CreativeProcessor {
         // and retrying a 403/tarpit is futile. Future body stays pure (no ctx,
         // no recover); `transform` folds both outcomes into a value.
         val downloadF = Future.traverse(pages) { page =>
-          page.img match {
+          val imgF = page.img match {
             case Some(imgUrl) if imgUrl.startsWith("http") && !imgUrl.startsWith(cdnBaseUrl) =>
               val dlF = downloadAndStoreImage(imgUrl).map(cdnUrl => page.copy(img = Some(cdnUrl)))
               val timeoutF = org.apache.pekko.pattern.after(imgTimeout, system.classicSystem.scheduler)(
@@ -280,6 +361,15 @@ object CreativeProcessor {
                 case Failure(e)       => Success((page, Some(s"$imgUrl — ${e.getMessage}")))
               }
             case _ => Future.successful((page, None))
+          }
+          // Living-paper video normalization rides the same tolerant pass
+          // (ensureLivingPaperVideo never fails — worst case it returns the
+          // original videoBg and the raw upload keeps serving as before).
+          imgF.flatMap { case (p, err) =>
+            p.videoBg match {
+              case Some(v) => ensureLivingPaperVideo(v).map(nv => (p.copy(videoBg = Some(nv)), err))
+              case None    => Future.successful((p, err))
+            }
           }
         }
 

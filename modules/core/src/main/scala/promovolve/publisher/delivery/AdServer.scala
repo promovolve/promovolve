@@ -69,6 +69,7 @@ object AdServer {
     GetAutoApproveInfo,
     GetCreativeStats,
     GetServeStats,
+    InvalidateClassification,
     ListFlagged,
     ListPending,
     MarkClassified,
@@ -1767,6 +1768,17 @@ private[delivery] class AdServer(
         // A page was classified (matched OR filler), regardless of bidders.
         // Record classifiedAt so reclassifyInMs/needText treat it as known.
         recordClassified(url.value, classifiedAt.toEpochMilli)
+        Behaviors.same
+
+      case InvalidateClassification(url) =>
+        // Auctioneer found the stores inconsistent (see Protocol note):
+        // forget this url so the next serve reports needText/expired and
+        // the ad tag re-classifies on the very next pageview.
+        classifiedAtMsByUrl = classifiedAtMsByUrl - url.value
+        pageCategoriesCache = pageCategoriesCache - url.value
+        log.info(
+          "Classification invalidated for url={} (auctioneer recovery found no persisted copy) — next visit re-classifies",
+          url.value)
         Behaviors.same
 
       case CandidatesCollected(url, slotId, candidates, classifiedAt, ttl, pageCategories, floorCpm, categoryFloors,

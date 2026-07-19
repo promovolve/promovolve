@@ -1511,8 +1511,21 @@ private final class AuctioneerEntity private (
                 // startRanking, empty scores → filler auction).
                 ctx.self ! Reevaluate(url)
               case None =>
-                ctx.log.debug(
-                  "No persisted classification for {} — awaiting ad-tag classification", url)
+                // SiteEntity has nothing for this page, yet something asked us
+                // to re-auction it — usually the AdServer's serve-miss
+                // self-heal, which only fires when its freshness token calls
+                // the page CLASSIFIED. The stores are inconsistent (48h
+                // cleanup pruned SiteEntity's copy, or the announce was
+                // lost); left alone, the fresh token blocks the ad tag from
+                // re-classifying and the page is a no-fill dead-end for the
+                // rest of the window. Drop the token so the next visitor's
+                // tag re-classifies immediately. INFO on purpose — this is
+                // an anomaly worth seeing (it was invisible at debug when it
+                // darkened the demo homepage, 2026-07-20).
+                ctx.log.info(
+                  "No persisted classification for {} — invalidating AdServer freshness token so the next visit re-classifies",
+                  url)
+                adServer ! AdServer.InvalidateClassification(url)
             }
             Behaviors.same
           case msg =>

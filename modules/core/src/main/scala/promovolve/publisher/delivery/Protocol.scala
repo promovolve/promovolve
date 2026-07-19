@@ -86,6 +86,19 @@ object Protocol {
    */
   final case class MarkClassified(url: URL, classifiedAt: Instant) extends Command
 
+  /**
+   * Drop the freshness token for a url so the NEXT visitor's ad tag
+   * re-classifies immediately. Sent by AuctioneerEntity when its
+   * recovery fetch finds NO persisted classification for a page the
+   * AdServer still calls fresh — the two stores are provably
+   * inconsistent (SiteEntity's 48h cleanup pruned the entry, or the
+   * classify announce was lost), and keeping the token would lock the
+   * page into a no-fill dead-end until the window expires (observed
+   * live 2026-07-20: the demo homepage dark for hours, tag blocked
+   * from re-classifying for ~44 more).
+   */
+  final case class InvalidateClassification(url: URL) extends Command
+
   /** Approve a pending creative (from publisher dashboard) */
   final case class Approve(
       url: String,

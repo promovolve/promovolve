@@ -317,8 +317,12 @@
 
       <!-- Edit settings (stop propagation so it doesn't toggle the row).
            After the inline panel opens, scroll it into view so the Edit
-           Campaign form isn't left below the fold. -->
-      <button type="button" @click.stop="editOpen = true; $nextTick(() => $refs.editPanel.scrollIntoView({ behavior: 'smooth', block: 'start' }))"
+           Campaign form isn't left below the fold. $nextTick alone is NOT
+           enough in Safari: WebKit hasn't laid the just-unhidden panel out
+           yet and scrollIntoView on it silently no-ops (panel opens below
+           the fold → "the button did nothing"). One rAF after nextTick
+           guarantees a layout pass first — verified in both engines. -->
+      <button type="button" @click.stop="editOpen = true; $nextTick(() => requestAnimationFrame(() => $refs.editPanel.scrollIntoView({ behavior: 'smooth', block: 'start' })))"
               class="px-2.5 py-1 text-xs border rounded-md hover:bg-gray-100 text-gray-600 shrink-0">
         {{t "Edit"}}
       </button>

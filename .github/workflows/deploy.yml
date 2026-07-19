@@ -86,6 +86,7 @@ jobs:
       api: ${{ steps.filter.outputs.api == 'true' || (github.event_name == 'workflow_dispatch' && inputs.rebuild != 'platform') }}
       platform: ${{ steps.filter.outputs.platform == 'true' || (github.event_name == 'workflow_dispatch' && inputs.rebuild != 'api') }}
       banner: ${{ steps.filter.outputs.banner == 'true' }}
+      bootstrap: ${{ steps.filter.outputs.bootstrap == 'true' }}
     steps:
       - uses: actions/checkout@9c091bb21b7c1c1d1991bb908d89e4e9dddfe3e0 # v7.0.0
       - uses: dorny/paths-filter@v3
@@ -113,6 +114,12 @@ jobs:
             # 2026-07-13 match-everything footgun, so we accept the overlap.
             banner:
               - 'platform/banner-component/**'
+            # The publisher ad tag (bootstrap). Publishers load the STABLE
+            # R2 alias (promovolve-ad.js, max-age=300), so publishing alone
+            # propagates within ~5 min — no cluster roll involved. Same
+            # positive-glob-only rule as above.
+            bootstrap:
+              - 'platform/banner-bootstrap/**'
 
   build-api:
     name: Build api (arm64)
@@ -288,3 +295,46 @@ jobs:
           done
           kubectl -n promovolve rollout status statefulset/promovolve-api --timeout=600s
           kubectl -n promovolve rollout status deployment/promovolve-platform --timeout=300s
+
+  # The publisher ad tag. Bootstrap releases used to be MANUAL (npm run
+  # release from a laptop with scripts/.env) — a merged tag fix that nobody
+  # released was invisible-but-shipped, the exact blind spot the banner
+  # publish job closed for the component (2026-07-16). Publishing writes the
+  # content-hashed bundle AND the stable promovolve-ad.js alias (max-age=300)
+  # that publisher HTML references, so propagation is automatic — no cluster
+  # roll. Gated on deploy like the banner job: if this push also changes the
+  # api tier (e.g. the tag calls a NEW endpoint), the tag must not reach
+  # publishers before the endpoint exists.
+  publish-bootstrap:
+    name: Publish bootstrap tag → R2 (stable alias)
+    needs: [changes, ci-gate, deploy]
+    if: >-
+      !cancelled()
+      && needs.ci-gate.result == 'success'
+      && needs.changes.outputs.bootstrap == 'true'
+      && needs.deploy.result != 'failure'
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+      - name: Build + publish bootstrap to R2
+        working-directory: platform/banner-bootstrap
+        env:
+          R2_ACCOUNT_ID: ${{ secrets.R2_ACCOUNT_ID }}
+          R2_ACCESS_KEY_ID: ${{ secrets.R2_ACCESS_KEY_ID }}
+          R2_SECRET_ACCESS_KEY: ${{ secrets.R2_SECRET_ACCESS_KEY }}
+          R2_BUCKET: ${{ secrets.R2_BUCKET }}
+          CDN_BASE_URL: ${{ secrets.CDN_BASE_URL }}
+        run: |
+          npm ci
+          # Full release checks, then publish. No fanout: it rewrites the
+          # committed example-site copies, which stay a local-dev concern.
+          # publish-to-r2.mjs skips its scripts/.env write when the file is
+          # absent (CI), and the stable alias makes URL plumbing a no-op.
+          npm run typecheck
+          npm run lint
+          npm run test
+          npm run build
+          npm run publish:r2

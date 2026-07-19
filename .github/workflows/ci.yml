@@ -59,6 +59,24 @@ jobs:
       - run: npx playwright install --with-deps chromium
       - run: npm run test:hostile
 
+  bootstrap:
+    name: Bootstrap (publisher ad tag)
+    runs-on: ubuntu-latest
+    defaults:
+      run:
+        working-directory: platform/banner-bootstrap
+    steps:
+      - uses: actions/checkout@9c091bb21b7c1c1d1991bb908d89e4e9dddfe3e0 # v7.0.0
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+          cache-dependency-path: platform/banner-bootstrap/package-lock.json
+      - run: npm ci
+      - run: npm run typecheck
+      - run: npm run lint
+      - run: npm run test
+
   go:
     name: Platform (go)
     runs-on: ubuntu-latest

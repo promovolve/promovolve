@@ -351,14 +351,14 @@ var ja = map[string]string{
 	"Spend":                                           "消化額",
 	// Creative × media breakdown (creatives page)
 	"Impressions by media": "メディア別インプレッション",
-	"Last 30 days · expand a creative’s “By media” below for clicks, CTR and spend per site": "過去30日間 · 各クリエイティブの「メディア別」を開くと、サイトごとのクリック・CTR・消化額が見られます",
-	"By media":        "メディア別",
-	"Media":           "メディア",
-	"Other":           "その他",
-	"Budget Used":     "予算使用率",
-	"Effective CPM:":  "実効CPM:",
-	"Lifetime spend:": "累計消化額:",
-	"Max CPM:":        "上限CPM:",
+	"Last 30 days":         "過去30日間",
+	"By media":             "メディア別",
+	"Media":                "メディア",
+	"Other":                "その他",
+	"Budget Used":          "予算使用率",
+	"Effective CPM:":       "実効CPM:",
+	"Lifetime spend:":      "累計消化額:",
+	"Max CPM:":             "上限CPM:",
 
 	// ── wallet ──
 	"Your prepaid balance. Campaigns spend from it as impressions are settled at the end of each day in your account's timezone (%s) — the same day your budgets roll on.": "前払い残高です。アカウントのタイムゾーン(%s)での毎日の終わりにインプレッションが精算されると、ここから消化されます。予算日が切り替わるのと同じ日です。",

@@ -219,6 +219,10 @@ class DashboardRoutes(dbConfig: DatabaseConfig[PostgresProfile])(using system: A
     // real host from publisher_sites where known — same advertiser-safe
     // identity the report breakdown exposes; '' falls back to the
     // site_id slug platform-side.
+    // FRESH events only (NOT dogeared): the creative card counts pin
+    // re-encounters on their own 📌 line, and they are never billed —
+    // including them here both broke the card↔table match and
+    // overstated per-site spend.
     given slick.jdbc.GetResult[(String, String, String, Long, Long, Long, Double)] =
       slick.jdbc.GetResult(using r =>
         (r.nextString(), r.nextString(), r.nextString(), r.nextLong(), r.nextLong(), r.nextLong(), r.nextDouble()))
@@ -233,6 +237,7 @@ class DashboardRoutes(dbConfig: DatabaseConfig[PostgresProfile])(using system: A
       WHERE t.campaign_id = $campaignId AND t.advertiser_id = $advertiserId
         AND t.event_time >= NOW() - make_interval(days => $days)
         AND t.event_type IN ('impression', 'click', 'cta_click')
+        AND NOT t.dogeared
       GROUP BY t.creative_id, t.site_id, ps.host
       ORDER BY 7 DESC, 4 DESC
     """.as[(String, String, String, Long, Long, Long, Double)]

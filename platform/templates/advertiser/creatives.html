@@ -50,7 +50,7 @@
      so the pending-render poll swap never tears the chart down. */}}
 <div class="bg-white rounded-lg border p-4 mb-6">
   <h2 class="text-sm font-semibold mb-1">{{t "Impressions by media"}}</h2>
-  <p class="text-xs text-gray-400 mb-3">{{t "Last 30 days · expand a creative’s “By media” below for clicks, CTR and spend per site"}}</p>
+  <p class="text-xs text-gray-400 mb-3">{{t "Last 30 days"}}</p>
   <div id="media-chart-box" class="relative">
     <canvas id="creative-media-chart"></canvas>
   </div>
@@ -200,7 +200,7 @@
       {{if .Media}}
       {{/* Per-site performance of THIS creative (trailing 30 days),
            sorted by spend — the row-level answer to the chart above. */}}
-      <details class="mt-2 text-xs">
+      <details class="mt-2 text-xs" data-media-cid="{{.ID}}">
         <summary class="cursor-pointer text-gray-500 hover:text-gray-700 select-none">{{t "By media"}}</summary>
         <table class="w-full mt-1.5">
           <thead>
@@ -265,6 +265,26 @@
 {{template "list-pagination" .}}
 {{end}}
 </div>
+
+<script>
+// The pending-render poll swaps #creatives-area every 3s; an open
+// "By media" <details> is DOM state and would snap shut on every swap.
+// Record the open expanders (by creative id) before each swap of the
+// grid and re-open them after. Lives OUTSIDE the swapped region.
+(function(){
+  document.body.addEventListener('htmx:beforeSwap', function(){
+    window.__openMedia = Array.prototype.map.call(
+      document.querySelectorAll('details[data-media-cid][open]'),
+      function(d){ return d.getAttribute('data-media-cid'); });
+  });
+  document.body.addEventListener('htmx:afterSwap', function(){
+    (window.__openMedia || []).forEach(function(cid){
+      var d = document.querySelector('details[data-media-cid="' + CSS.escape(cid) + '"]');
+      if (d) d.setAttribute('open', '');
+    });
+  });
+})();
+</script>
 
 {{/* htmx handles bfcache restore correctly — it re-evaluates triggers
      when the page becomes visible again, so coming back from the

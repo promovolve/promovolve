@@ -33,14 +33,12 @@ const PORT = server.address().port;
 
 // Environments we KNOWINGLY do not survive yet. Each maps to a predicate
 // over the probe result that must hold — the documented failure shape.
-const KNOWN = {
-  // Trusted Types (require-trusted-types-for 'script'): the component
-  // builds its DOM with shadowRoot.innerHTML, which throws under
-  // enforcement — the ad never mounts on such sites. Fix direction:
-  // register a TT policy (trustedTypes.createPolicy) or build via
-  // DOM APIs. Until then this is a documented no-serve environment.
-  "trusted-types": (r) => !r.mounted && r.errors.some((e) => e.includes("TrustedHTML")),
-};
+// (Trusted Types graduated 2026-07-19: every HTML sink goes through the
+// "promovolve" TT policy — see src/trusted-html.ts — and the fixture now
+// also ALLOWLISTS that policy name, so it must fully pass like any other
+// environment. Publishers restricting policy names must include
+// "promovolve" in their trusted-types directive.)
+const KNOWN = {};
 
 async function probe(browser, name) {
   const page = await browser.newPage({ viewport: { width: 900, height: 700 } });

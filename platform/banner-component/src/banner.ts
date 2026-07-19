@@ -11,6 +11,7 @@ import {
   buildOverlay,
   buildPageCounter,
 } from "./render-overlay";
+import { trustedHTML } from "./trusted-html";
 import { collectExpandedImageUrls, parseJSON, pickCollapsedLayout, pickExpandedLayout, sheetFitPct, sheetSizeFor } from "./utils";
 import { resolveExpandedFonts } from "./font-catalog";
 import { animatePageTurn, createInteractivePeel, buildGrainOverlay, dogEarPeelFrame, DOGEAR_PEEL_TRAVEL, PAPER_CSS, PAPER_BACK_BLEND, paperBackBackground, paperBackStock } from "./paper";
@@ -1061,13 +1062,13 @@ export class ExpandableMagazineBanner extends HTMLElement {
       return;
     }
     if (this.shadowRoot) {
-      this.shadowRoot.innerHTML = `
+      this.shadowRoot.innerHTML = trustedHTML(`
         <style>:host { display: block; } * { box-sizing: border-box; margin: 0; padding: 0; }</style>
         <div style="width:${w}px;height:${h}px;display:flex;align-items:center;justify-content:center;
                     background:#1a1a1a;color:#9ca3af;font:11px/1.4 system-ui;text-align:center;padding:8px;
                     border:1px solid #333;border-radius:6px;">
           Creative missing layout
-        </div>`;
+        </div>`);
     }
   }
 
@@ -1142,7 +1143,7 @@ export class ExpandableMagazineBanner extends HTMLElement {
     const flapShadow = rtl ? "drop-shadow(3px 3px 3px rgba(0,0,0,0.2))" : "drop-shadow(-3px 3px 3px rgba(0,0,0,0.2))";
 
     if (!this.shadowRoot) return;
-    this.shadowRoot.innerHTML = `
+    this.shadowRoot.innerHTML = trustedHTML(`
       <style>
         * { box-sizing: border-box; margin: 0; padding: 0; }
         .design-box {
@@ -1202,7 +1203,7 @@ export class ExpandableMagazineBanner extends HTMLElement {
       ">
         <div class="design-box">${html}</div>
         <div class="collapsed-dogear-flap"></div>
-      </div>`;
+      </div>`);
 
     // Per-page full-bleed video background. Runs in every mode —
     // collapsed PC, collapsed mobile, and every IAB size — because
@@ -1670,14 +1671,14 @@ export class ExpandableMagazineBanner extends HTMLElement {
         opacity: "0",
         transition: "opacity 0.4s ease",
       } as Partial<CSSStyleDeclaration>);
-      rotate.innerHTML =
+      rotate.innerHTML = trustedHTML(
         '<svg width="56" height="56" viewBox="0 0 48 48" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round">' +
         '<rect x="17" y="8" width="14" height="30" rx="3"/>' +
         '<line x1="21" y1="34" x2="27" y2="34"/>' +
         // Curved arrow suggesting the turn, sweeping around the phone.
         '<path d="M40 20 a17 17 0 0 0 -9 -9"/>' +
         '<path d="M40 20 l1.5 -5 M40 20 l-5 -1.5"/>' +
-        "</svg>";
+        "</svg>");
       // The glyph performs the turn itself: hold sideways → rotate
       // upright → hold → repeat. WAAPI so no keyframe CSS to inject.
       rotate.firstElementChild?.animate(

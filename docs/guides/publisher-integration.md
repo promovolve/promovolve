@@ -148,6 +148,21 @@ The toggle is off by default: approved creatives inform your floor
 pricing, so widening what gets approved automatically is a deliberate
 choice.
 
+## Content-Security-Policy and Trusted Types
+
+The ad tag works on pages that enforce
+`require-trusted-types-for 'script'`: it creates one Trusted Types policy
+named **`promovolve`** and routes all of its own HTML through it. If your
+CSP *also* restricts which policy names may be created (a `trusted-types`
+directive listing names), add `promovolve` to that list:
+
+```
+Content-Security-Policy: require-trusted-types-for 'script'; trusted-types promovolve yourOtherPolicies
+```
+
+Strict `style-src` policies (no `'unsafe-inline'`) log two cosmetic
+style-attribute warnings in the console; rendering is unaffected.
+
 ## Troubleshooting
 
 - **A slot renders nothing** — check the browser console. A missing or

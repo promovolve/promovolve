@@ -1,7 +1,9 @@
 <!doctype html><html><head><meta charset="utf-8"><title>trusted types</title>
-<meta http-equiv="Content-Security-Policy" content="require-trusted-types-for 'script'">
+<meta http-equiv="Content-Security-Policy" content="require-trusted-types-for 'script'; trusted-types promovolve">
 </head><body>
-<p>Trusted Types enforced: plain innerHTML assignments throw.</p>
+<p>Trusted Types enforced WITH a policy-name allowlist: plain innerHTML
+   assignments throw, and only the "promovolve" policy may be created —
+   the strictest real-world shape of this environment.</p>
 <div id="slot" style="width:300px;height:250px;"></div>
 <script src="/dist/expandable-magazine-banner.js"></script>
 <script src="/tests/hostile/fixtures/_seed.js"></script>

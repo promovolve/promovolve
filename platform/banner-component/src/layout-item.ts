@@ -1,4 +1,5 @@
 import { hasTorn, imageEdgeCss, needsImageWrapper, nextTornMaskId, tornMaskDefs, vignetteOverlayCss } from "./image-effects";
+import { trustedHTML } from "./trusted-html";
 import type { LayoutItem, Page } from "./types";
 
 // Resolve a layout item's text/src from either a literal value or a
@@ -122,7 +123,7 @@ export function layoutItemToNode(
         });
         if (item.borderRadius) wrap.style.borderRadius = `${item.borderRadius}cqmin`;
         if (edge) wrap.style.cssText += edge;
-        if (tornDefs) wrap.insertAdjacentHTML("afterbegin", tornDefs);
+        if (tornDefs) wrap.insertAdjacentHTML("afterbegin", trustedHTML(tornDefs));
         const img = document.createElement("img");
         img.src = src;
         img.alt = "";
@@ -151,7 +152,7 @@ export function layoutItemToNode(
         });
         if (item.borderRadius) wrap.style.borderRadius = `${item.borderRadius}cqmin`;
         if (edge) wrap.style.cssText += edge;
-        if (tornDefs) wrap.insertAdjacentHTML("afterbegin", tornDefs);
+        if (tornDefs) wrap.insertAdjacentHTML("afterbegin", trustedHTML(tornDefs));
         const img = document.createElement("img");
         img.src = src;
         img.alt = "";

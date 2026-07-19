@@ -101,12 +101,14 @@ object LayoutTemplates {
    * the designer's documentation says about the chosen template.
    */
   def slotsAsPromptLine(template: Template): String = {
-    if (template.slots.isEmpty) return ""
-    val phrases = template.slots.map { s =>
-      val prom = s.prominence.map(p => s" (${p.toString.toLowerCase})").getOrElse("")
-      s"${s.role.toString.toLowerCase}$prom in ${regionToWire(s.region)}"
+    if (template.slots.isEmpty) ""
+    else {
+      val phrases = template.slots.map { s =>
+        val prom = s.prominence.map(p => s" (${p.toString.toLowerCase})").getOrElse("")
+        s"${s.role.toString.toLowerCase}$prom in ${regionToWire(s.region)}"
+      }
+      s"Layout intent: ${phrases.mkString("; ")}."
     }
-    s"Layout intent: ${phrases.mkString("; ")}."
   }
 
   // Wire format for region — kebab-case strings matching what the

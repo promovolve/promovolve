@@ -128,20 +128,22 @@ object BrowserSessionPool {
    * block. Returns empty when disabled or absent.
    */
   def proxiesFromConfig(config: Config): Seq[ProxyProviderConf] = {
-    if (!config.hasPath("crawler")) return Seq.empty
-    val c = config.getConfig("crawler")
-    val enabled = c.hasPath("useProxy") && c.getBoolean("useProxy")
-    if (!enabled || !c.hasPath("proxyProviders")) Seq.empty
-    else
-      c.getConfigList("proxyProviders").asScala
-        .map(p =>
-          ProxyProviderConf(
-            p.getString("provider"),
-            p.getString("server"),
-            p.getString("username"),
-            p.getString("password")
-          ))
-        .toSeq
+    if (!config.hasPath("crawler")) Seq.empty
+    else {
+      val c = config.getConfig("crawler")
+      val enabled = c.hasPath("useProxy") && c.getBoolean("useProxy")
+      if (!enabled || !c.hasPath("proxyProviders")) Seq.empty
+      else
+        c.getConfigList("proxyProviders").asScala
+          .map(p =>
+            ProxyProviderConf(
+              p.getString("provider"),
+              p.getString("server"),
+              p.getString("username"),
+              p.getString("password")
+            ))
+          .toSeq
+    }
   }
 
   // -- Behavior --

@@ -661,34 +661,37 @@ final class LPAnalyzer(
       .timeout(java.time.Duration.ofSeconds(15))
       .GET()
       .build()
-    val resp = try client.send(req, java.net.http.HttpResponse.BodyHandlers.ofString())
+    val respOpt = try Some(client.send(req, java.net.http.HttpResponse.BodyHandlers.ofString()))
     catch {
       case e: Exception =>
         log.info("LPAnalyzer: archive.org fetch failed for {}: {}", targetUrl, e.getMessage)
-        return None
+        None
     }
-    if (resp.statusCode() < 200 || resp.statusCode() >= 300) {
-      log.info("LPAnalyzer: archive.org returned {} for {}", resp.statusCode(), targetUrl)
-      return None
-    }
-    val html = resp.body()
-    val ogImage = extractMetaContent(html, "og:image")
-      .orElse(extractMetaContent(html, "twitter:image"))
-    val ogTitle = extractMetaContent(html, "og:title").orElse(extractTitleTag(html))
-    val ogDescription = extractMetaContent(html, "og:description")
-      .orElse(extractMetaContent(html, "description"))
+    respOpt match {
+      case None                                                              => None
+      case Some(resp) if resp.statusCode() < 200 || resp.statusCode() >= 300 =>
+        log.info("LPAnalyzer: archive.org returned {} for {}", resp.statusCode(), targetUrl)
+        None
+      case Some(resp) =>
+        val html = resp.body()
+        val ogImage = extractMetaContent(html, "og:image")
+          .orElse(extractMetaContent(html, "twitter:image"))
+        val ogTitle = extractMetaContent(html, "og:title").orElse(extractTitleTag(html))
+        val ogDescription = extractMetaContent(html, "og:description")
+          .orElse(extractMetaContent(html, "description"))
 
-    if (ogImage.isEmpty && ogTitle.isEmpty && ogDescription.isEmpty) None
-    else {
-      val images = ogImage.toVector.map(src => LPImage(src, 0, 0, ""))
-      val section = LPSection(
-        heading = ogTitle.getOrElse(""),
-        text = ogDescription.getOrElse(""),
-        images = images
-      )
-      log.info("LPAnalyzer: archive.org fallback hit for {} — title={} img={}",
-        targetUrl, ogTitle.getOrElse("(none)"), ogImage.getOrElse("(none)"))
-      Some(LPAnalysisResult(targetUrl, Vector(section), None, None))
+        if (ogImage.isEmpty && ogTitle.isEmpty && ogDescription.isEmpty) None
+        else {
+          val images = ogImage.toVector.map(src => LPImage(src, 0, 0, ""))
+          val section = LPSection(
+            heading = ogTitle.getOrElse(""),
+            text = ogDescription.getOrElse(""),
+            images = images
+          )
+          log.info("LPAnalyzer: archive.org fallback hit for {} — title={} img={}",
+            targetUrl, ogTitle.getOrElse("(none)"), ogImage.getOrElse("(none)"))
+          Some(LPAnalysisResult(targetUrl, Vector(section), None, None))
+        }
     }
   }
 

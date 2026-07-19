@@ -70,7 +70,7 @@ object CategoryVerification {
   ): VerificationResult = {
 
     if (!isAssessed) {
-      return VerificationResult(
+      VerificationResult(
         status = VerificationStatus.NotAssessed,
         matchScore = 0.5,
         llmConfidence = 0.0,
@@ -78,10 +78,8 @@ object CategoryVerification {
         expectedCategories = Set.empty,
         detectedCategories = detectedCategories
       )
-    }
-
-    if (expectedCategories.isEmpty) {
-      return VerificationResult(
+    } else if (expectedCategories.isEmpty) {
+      VerificationResult(
         status = VerificationStatus.NoDeclaredCategory,
         matchScore = 0.5,
         llmConfidence = categoryConfidence,
@@ -89,10 +87,8 @@ object CategoryVerification {
         expectedCategories = Set.empty,
         detectedCategories = detectedCategories
       )
-    }
-
-    if (categoryConfidence < MinConfidenceThreshold || detectedCategories.isEmpty) {
-      return VerificationResult(
+    } else if (categoryConfidence < MinConfidenceThreshold || detectedCategories.isEmpty) {
+      VerificationResult(
         status = VerificationStatus.Unverifiable,
         matchScore = 0.5,
         llmConfidence = categoryConfidence,
@@ -100,21 +96,21 @@ object CategoryVerification {
         expectedCategories = expectedCategories.map(_.value),
         detectedCategories = detectedCategories
       )
+    } else {
+      val expectedNormalized = expectedCategories.map(c => TieredCategory.normalize(c.value))
+      val detectedNormalized = detectedCategories.map(TieredCategory.normalize)
+      val (matched, score) = calculateMatch(detectedNormalized, expectedNormalized)
+
+      val baseResult = VerificationResult(
+        status = if (matched.nonEmpty) VerificationStatus.Verified else VerificationStatus.Mismatch,
+        matchScore = if (matched.nonEmpty) score else 0.0,
+        llmConfidence = categoryConfidence,
+        matchedCategories = matched,
+        expectedCategories = expectedNormalized,
+        detectedCategories = detectedNormalized
+      )
+      baseResult
     }
-
-    val expectedNormalized = expectedCategories.map(c => TieredCategory.normalize(c.value))
-    val detectedNormalized = detectedCategories.map(TieredCategory.normalize)
-    val (matched, score) = calculateMatch(detectedNormalized, expectedNormalized)
-
-    val baseResult = VerificationResult(
-      status = if (matched.nonEmpty) VerificationStatus.Verified else VerificationStatus.Mismatch,
-      matchScore = if (matched.nonEmpty) score else 0.0,
-      llmConfidence = categoryConfidence,
-      matchedCategories = matched,
-      expectedCategories = expectedNormalized,
-      detectedCategories = detectedNormalized
-    )
-    baseResult
   }
 
   /**
@@ -128,16 +124,17 @@ object CategoryVerification {
       expected: Set[String]
   ): (List[String], Double) = {
     val directMatches = detected.filter(expected.contains)
-    if (directMatches.nonEmpty) return (directMatches, 1.0)
-
-    val expectedWithAncestors: Set[String] = expected.flatMap { e =>
-      TieredCategory.getAncestors(e).map(_.id).toSet + e
+    if (directMatches.nonEmpty) (directMatches, 1.0)
+    else {
+      val expectedWithAncestors: Set[String] = expected.flatMap { e =>
+        TieredCategory.getAncestors(e).map(_.id).toSet + e
+      }
+      val ancestorMatches = detected.filter { d =>
+        val dWithAncestors = TieredCategory.getAncestors(d).map(_.id).toSet + d
+        dWithAncestors.intersect(expectedWithAncestors).nonEmpty
+      }
+      if (ancestorMatches.nonEmpty) (ancestorMatches, 0.75)
+      else (Nil, 0.0)
     }
-    val ancestorMatches = detected.filter { d =>
-      val dWithAncestors = TieredCategory.getAncestors(d).map(_.id).toSet + d
-      dWithAncestors.intersect(expectedWithAncestors).nonEmpty
-    }
-    if (ancestorMatches.nonEmpty) (ancestorMatches, 0.75)
-    else (Nil, 0.0)
   }
 }

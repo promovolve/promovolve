@@ -44,77 +44,75 @@ object ImageCompression {
    * bytes with detected dims (or 0/0 if dim detection also failed).
    */
   def compress(bytes: Array[Byte], mime: String): (Array[Byte], String, Int, Int) = {
-    // SVG: sanitize (strip script/event handlers/javascript: hrefs)
-    // and pass through. ImageIO has no SVG decoder, so dims come from
-    // the document's width/height attrs or viewBox.
     if (mime == "image/svg+xml") {
+      // SVG: sanitize (strip script/event handlers/javascript: hrefs)
+      // and pass through. ImageIO has no SVG decoder, so dims come from
+      // the document's width/height attrs or viewBox.
       val cleaned = SvgSanitizer.sanitize(bytes)
       val (w, h) = SvgSanitizer.extractDims(cleaned)
       log.info(
         "image-compress svg-sanitize mime={} bytes={}→{} dims={}x{}",
         mime, bytes.length, cleaned.length, w, h
       )
-      return (cleaned, mime, w, h)
-    }
-
-    // Pass-through formats — touch nothing, just read dimensions so
-    // the caller still gets accurate width/height for the asset row.
-    if (mime == "image/gif" || mime == "image/webp") {
+      (cleaned, mime, w, h)
+    } else if (mime == "image/gif" || mime == "image/webp") {
+      // Pass-through formats — touch nothing, just read dimensions so
+      // the caller still gets accurate width/height for the asset row.
       val (w, h) = detectDims(bytes)
       log.info(
         "image-compress pass-through mime={} bytes={} dims={}x{}",
         mime, bytes.length, w, h
       )
-      return (bytes, mime, w, h)
-    }
+      (bytes, mime, w, h)
+    } else {
+      try {
+        val src = ImageIO.read(new ByteArrayInputStream(bytes))
+        if (src == null) {
+          log.warn("image-compress decode returned null mime={} bytes={}", mime, bytes.length)
+          fallback(bytes, mime)
+        } else {
+          val srcW = src.getWidth
+          val srcH = src.getHeight
+          val scale = math.min(1.0, MaxEdge.toDouble / math.max(srcW, srcH).toDouble)
+          val targetW = math.max(1, math.round(srcW * scale).toInt)
+          val targetH = math.max(1, math.round(srcH * scale).toInt)
 
-    try {
-      val src = ImageIO.read(new ByteArrayInputStream(bytes))
-      if (src == null) {
-        log.warn("image-compress decode returned null mime={} bytes={}", mime, bytes.length)
-        return fallback(bytes, mime)
+          val sourceHasAlpha = src.getColorModel.hasAlpha
+          val keepAsPng = mime == "image/png" && sourceHasAlpha
+          val (outMime, formatName) =
+            if (keepAsPng) ("image/png", "png")
+            else ("image/jpeg", "jpeg")
+
+          val resampled = resample(src, targetW, targetH, keepAsPng)
+
+          val baos = new ByteArrayOutputStream()
+          if (formatName == "jpeg") writeJpeg(resampled, baos)
+          else ImageIO.write(resampled, "png", baos)
+          val out = baos.toByteArray
+
+          // Safety net: if we didn't downsample AND the new encoding came
+          // out larger than the input, keep the original. Happens for
+          // already-optimised inputs (e.g., PNGs of flat-color icons).
+          if (scale == 1.0 && out.length >= bytes.length) {
+            log.info(
+              "image-compress bail mime={} bytes={} (re-encode would grow to {}) dims={}x{}",
+              mime, bytes.length, out.length, srcW, srcH
+            )
+            (bytes, mime, srcW, srcH)
+          } else {
+            val savings = if (bytes.length > 0) 100 - math.round(out.length.toDouble * 100 / bytes.length).toInt else 0
+            log.info(
+              "image-compress mime={}→{} bytes={}→{} (-{}%) dims={}x{}→{}x{}",
+              mime, outMime, bytes.length, out.length, savings, srcW, srcH, targetW, targetH
+            )
+            (out, outMime, targetW, targetH)
+          }
+        }
+      } catch {
+        case t: Throwable =>
+          log.warn("image-compress failed mime={} bytes={} err={}", mime, bytes.length, t.getMessage)
+          fallback(bytes, mime)
       }
-
-      val srcW = src.getWidth
-      val srcH = src.getHeight
-      val scale = math.min(1.0, MaxEdge.toDouble / math.max(srcW, srcH).toDouble)
-      val targetW = math.max(1, math.round(srcW * scale).toInt)
-      val targetH = math.max(1, math.round(srcH * scale).toInt)
-
-      val sourceHasAlpha = src.getColorModel.hasAlpha
-      val keepAsPng = mime == "image/png" && sourceHasAlpha
-      val (outMime, formatName) =
-        if (keepAsPng) ("image/png", "png")
-        else ("image/jpeg", "jpeg")
-
-      val resampled = resample(src, targetW, targetH, keepAsPng)
-
-      val baos = new ByteArrayOutputStream()
-      if (formatName == "jpeg") writeJpeg(resampled, baos)
-      else ImageIO.write(resampled, "png", baos)
-      val out = baos.toByteArray
-
-      // Safety net: if we didn't downsample AND the new encoding came
-      // out larger than the input, keep the original. Happens for
-      // already-optimised inputs (e.g., PNGs of flat-color icons).
-      if (scale == 1.0 && out.length >= bytes.length) {
-        log.info(
-          "image-compress bail mime={} bytes={} (re-encode would grow to {}) dims={}x{}",
-          mime, bytes.length, out.length, srcW, srcH
-        )
-        return (bytes, mime, srcW, srcH)
-      }
-
-      val savings = if (bytes.length > 0) 100 - math.round(out.length.toDouble * 100 / bytes.length).toInt else 0
-      log.info(
-        "image-compress mime={}→{} bytes={}→{} (-{}%) dims={}x{}→{}x{}",
-        mime, outMime, bytes.length, out.length, savings, srcW, srcH, targetW, targetH
-      )
-      (out, outMime, targetW, targetH)
-    } catch {
-      case t: Throwable =>
-        log.warn("image-compress failed mime={} bytes={} err={}", mime, bytes.length, t.getMessage)
-        fallback(bytes, mime)
     }
   }
 
@@ -129,40 +127,43 @@ object ImageCompression {
       else BufferedImage.TYPE_INT_RGB
     val needsResize = w != src.getWidth || h != src.getHeight
     val needsAlphaFlatten = !keepAlpha && src.getColorModel.hasAlpha
-    if (!needsResize && !needsAlphaFlatten) return src
-
-    val dst = new BufferedImage(w, h, typeFor)
-    val g = dst.createGraphics()
-    try {
-      g.setRenderingHint(RenderingHints.KEY_INTERPOLATION, RenderingHints.VALUE_INTERPOLATION_BICUBIC)
-      g.setRenderingHint(RenderingHints.KEY_RENDERING, RenderingHints.VALUE_RENDER_QUALITY)
-      g.setRenderingHint(RenderingHints.KEY_ANTIALIASING, RenderingHints.VALUE_ANTIALIAS_ON)
-      // If we're flattening alpha to JPEG, paint over white first so
-      // semi-transparent pixels composite sensibly rather than going
-      // black (JPEG has no alpha channel).
-      if (needsAlphaFlatten) {
-        g.setColor(java.awt.Color.WHITE)
-        g.fillRect(0, 0, w, h)
-      }
-      g.drawImage(src, 0, 0, w, h, null)
-    } finally g.dispose()
-    dst
+    if (!needsResize && !needsAlphaFlatten) src
+    else {
+      val dst = new BufferedImage(w, h, typeFor)
+      val g = dst.createGraphics()
+      try {
+        g.setRenderingHint(RenderingHints.KEY_INTERPOLATION, RenderingHints.VALUE_INTERPOLATION_BICUBIC)
+        g.setRenderingHint(RenderingHints.KEY_RENDERING, RenderingHints.VALUE_RENDER_QUALITY)
+        g.setRenderingHint(RenderingHints.KEY_ANTIALIASING, RenderingHints.VALUE_ANTIALIAS_ON)
+        // If we're flattening alpha to JPEG, paint over white first so
+        // semi-transparent pixels composite sensibly rather than going
+        // black (JPEG has no alpha channel).
+        if (needsAlphaFlatten) {
+          g.setColor(java.awt.Color.WHITE)
+          g.fillRect(0, 0, w, h)
+        }
+        g.drawImage(src, 0, 0, w, h, null)
+      } finally g.dispose()
+      dst
+    }
   }
 
   private def writeJpeg(img: BufferedImage, out: ByteArrayOutputStream): Unit = {
     val writers = ImageIO.getImageWritersByFormatName("jpeg")
-    if (!writers.hasNext) { ImageIO.write(img, "jpeg", out); return }
-    val writer = writers.next()
-    val ios = ImageIO.createImageOutputStream(out)
-    try {
-      writer.setOutput(ios)
-      val param = writer.getDefaultWriteParam()
-      param.setCompressionMode(ImageWriteParam.MODE_EXPLICIT)
-      param.setCompressionQuality(JpegQuality)
-      writer.write(null, new IIOImage(img, null, null), param)
-    } finally {
-      writer.dispose()
-      ios.close()
+    if (!writers.hasNext) ImageIO.write(img, "jpeg", out)
+    else {
+      val writer = writers.next()
+      val ios = ImageIO.createImageOutputStream(out)
+      try {
+        writer.setOutput(ios)
+        val param = writer.getDefaultWriteParam()
+        param.setCompressionMode(ImageWriteParam.MODE_EXPLICIT)
+        param.setCompressionQuality(JpegQuality)
+        writer.write(null, new IIOImage(img, null, null), param)
+      } finally {
+        writer.dispose()
+        ios.close()
+      }
     }
   }
 
@@ -198,10 +199,9 @@ object ImageCompression {
    *
    * Spec references: RFC 6386 (VP8), RFC 9649 (WebP container).
    */
-  private def readWebPDims(bytes: Array[Byte]): Option[(Int, Int)] = {
-    if (bytes.length < 30) return None
-    val fourcc = new String(bytes, 12, 4, "US-ASCII")
-    fourcc match {
+  private def readWebPDims(bytes: Array[Byte]): Option[(Int, Int)] =
+    if (bytes.length < 30) None
+    else new String(bytes, 12, 4, "US-ASCII") match {
       case "VP8 " =>
         // Sync code 0x9D 0x01 0x2A must appear at offset 23.
         if ((bytes(23) & 0xFF) != 0x9D || (bytes(24) & 0xFF) != 0x01 || (bytes(25) & 0xFF) != 0x2A) None
@@ -229,5 +229,4 @@ object ImageCompression {
         Some((w, h))
       case _ => None
     }
-  }
 }

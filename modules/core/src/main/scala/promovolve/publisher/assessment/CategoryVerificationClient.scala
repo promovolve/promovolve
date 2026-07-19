@@ -423,99 +423,106 @@ JSON: {"match_confidence": 0.5, "reason": "description of ad", "suggested_conten
       val candidate = candidates.head.asJsObject
 
       // Check finish reason
-      candidate.fields.get("finishReason") match {
+      val safetyBlocked = candidate.fields.get("finishReason") match {
         case Some(JsString("SAFETY")) =>
           log.warn("Gemini blocked response due to safety filters")
-          return CategoryVerificationResult(0.5, "blocked by safety filter")
+          true
         case Some(JsString("MAX_TOKENS")) =>
           log.warn("Gemini response truncated due to max tokens")
+          false
         case _ => // OK
+          false
       }
 
-      val content = candidate.fields.get("content") match {
-        case Some(c) => c.asJsObject
-        case None    =>
-          log.error("No content in candidate: {}", candidate.prettyPrint.take(500))
-          throw new RuntimeException("No content in candidate")
-      }
+      if (safetyBlocked) {
+        CategoryVerificationResult(0.5, "blocked by safety filter")
+      } else {
 
-      val parts = content.fields("parts").convertTo[JsArray].elements
-      val text = parts.head.asJsObject.fields("text").convertTo[String]
-
-      log.info("Gemini raw response text: {}", text)
-
-      // Clean up the response - remove markdown code blocks if present
-      val cleanedText = text.trim
-        .stripPrefix("```json")
-        .stripPrefix("```")
-        .stripSuffix("```")
-        .trim
-
-      // Try to parse, with fallback for truncated responses
-      val input = try {
-        cleanedText.parseJson.asJsObject
-      } catch {
-        case _: Exception =>
-          // Try to fix truncated JSON by closing open structures
-          val fixed = fixTruncatedJson(cleanedText)
-          log.warn("Attempting to fix truncated JSON: {}", fixed)
-          fixed.parseJson.asJsObject
-      }
-
-      def getField(key: String): Option[JsValue] = {
-        val camelCase = key.split("_").zipWithIndex.map { case (s, i) =>
-          if (i == 0) s else s.capitalize
-        }.mkString
-        input.fields.get(key).orElse(input.fields.get(camelCase))
-      }
-
-      val matchConfidence = getField("match_confidence")
-        .collect { case JsNumber(n) => n.toDouble }
-        .getOrElse(0.5)
-
-      val reason = getField("reason")
-        .collect { case JsString(s) => s }
-        .getOrElse("no reason provided")
-
-      val adultContent = getField("adult_content")
-        .collect { case JsBoolean(b) => b }
-        .getOrElse(false)
-
-      val violence = getField("violence")
-        .collect { case JsBoolean(b) => b }
-        .getOrElse(false)
-
-      val hateSpeech = getField("hate_speech")
-        .collect { case JsBoolean(b) => b }
-        .getOrElse(false)
-
-      val safetyScore = getField("safety_score")
-        .collect { case JsNumber(n) => n.toDouble }
-
-      val suggestedContentCategories = getField("suggested_content_categories")
-        .collect { case JsArray(elements) =>
-          elements.collect { case JsString(s) if s.nonEmpty => s }.toList
+        val content = candidate.fields.get("content") match {
+          case Some(c) => c.asJsObject
+          case None    =>
+            log.error("No content in candidate: {}", candidate.prettyPrint.take(500))
+            throw new RuntimeException("No content in candidate")
         }
-        .getOrElse(Nil)
 
-      if (adultContent || violence || hateSpeech) {
-        log.warn("Safety flags detected: adult={}, violence={}, hate={}, score={}",
-          adultContent, violence, hateSpeech, safetyScore)
+        val parts = content.fields("parts").convertTo[JsArray].elements
+        val text = parts.head.asJsObject.fields("text").convertTo[String]
+
+        log.info("Gemini raw response text: {}", text)
+
+        // Clean up the response - remove markdown code blocks if present
+        val cleanedText = text.trim
+          .stripPrefix("```json")
+          .stripPrefix("```")
+          .stripSuffix("```")
+          .trim
+
+        // Try to parse, with fallback for truncated responses
+        val input = try {
+          cleanedText.parseJson.asJsObject
+        } catch {
+          case _: Exception =>
+            // Try to fix truncated JSON by closing open structures
+            val fixed = fixTruncatedJson(cleanedText)
+            log.warn("Attempting to fix truncated JSON: {}", fixed)
+            fixed.parseJson.asJsObject
+        }
+
+        def getField(key: String): Option[JsValue] = {
+          val camelCase = key.split("_").zipWithIndex.map { case (s, i) =>
+            if (i == 0) s else s.capitalize
+          }.mkString
+          input.fields.get(key).orElse(input.fields.get(camelCase))
+        }
+
+        val matchConfidence = getField("match_confidence")
+          .collect { case JsNumber(n) => n.toDouble }
+          .getOrElse(0.5)
+
+        val reason = getField("reason")
+          .collect { case JsString(s) => s }
+          .getOrElse("no reason provided")
+
+        val adultContent = getField("adult_content")
+          .collect { case JsBoolean(b) => b }
+          .getOrElse(false)
+
+        val violence = getField("violence")
+          .collect { case JsBoolean(b) => b }
+          .getOrElse(false)
+
+        val hateSpeech = getField("hate_speech")
+          .collect { case JsBoolean(b) => b }
+          .getOrElse(false)
+
+        val safetyScore = getField("safety_score")
+          .collect { case JsNumber(n) => n.toDouble }
+
+        val suggestedContentCategories = getField("suggested_content_categories")
+          .collect { case JsArray(elements) =>
+            elements.collect { case JsString(s) if s.nonEmpty => s }.toList
+          }
+          .getOrElse(Nil)
+
+        if (adultContent || violence || hateSpeech) {
+          log.warn("Safety flags detected: adult={}, violence={}, hate={}, score={}",
+            adultContent, violence, hateSpeech, safetyScore)
+        }
+
+        if (suggestedContentCategories.nonEmpty) {
+          log.info("Suggested content categories: {}", suggestedContentCategories.mkString(", "))
+        }
+
+        CategoryVerificationResult(
+          matchConfidence = matchConfidence,
+          reason = reason,
+          adultContent = adultContent,
+          violence = violence,
+          hateSpeech = hateSpeech,
+          safetyScore = safetyScore,
+          suggestedContentCategories = suggestedContentCategories
+        )
       }
-
-      if (suggestedContentCategories.nonEmpty) {
-        log.info("Suggested content categories: {}", suggestedContentCategories.mkString(", "))
-      }
-
-      CategoryVerificationResult(
-        matchConfidence = matchConfidence,
-        reason = reason,
-        adultContent = adultContent,
-        violence = violence,
-        hateSpeech = hateSpeech,
-        safetyScore = safetyScore,
-        suggestedContentCategories = suggestedContentCategories
-      )
     } catch {
       case e: Exception =>
         log.error("Failed to parse Gemini response: {}. Raw body: {}", e.getMessage, body.take(1000))

@@ -118,11 +118,13 @@ object TieredCategory {
    * judgement about them; better to keep than silently drop).
    */
   def keepMostSpecific(ids: Set[String]): Set[String] = {
-    if (ids.size < 2) return ids
-    val normalized = ids.map(normalize)
-    normalized.filterNot { id =>
-      normalized.exists { other =>
-        other != id && getAncestors(other).exists(_.id == id)
+    if (ids.size < 2) ids
+    else {
+      val normalized = ids.map(normalize)
+      normalized.filterNot { id =>
+        normalized.exists { other =>
+          other != id && getAncestors(other).exists(_.id == id)
+        }
       }
     }
   }

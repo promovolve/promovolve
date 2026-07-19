@@ -76,14 +76,15 @@ final case class ReplayGuardState(
 
   /** Check if we should publish to DData. */
   def shouldPublish(config: GuardConfiguration): Boolean = {
-    if (publishInFlight) return false
-    if (forceInitialPublish) return true
+    if (publishInFlight) false
+    else if (forceInitialPublish) true
+    else {
+      val nowNs = System.nanoTime()
+      val due = (nowNs - lastPublishAtNs) >= config.publishEvery.toNanos
+      val enoughAdds = addsSincePublish >= config.publishMinAdds
 
-    val nowNs = System.nanoTime()
-    val due = (nowNs - lastPublishAtNs) >= config.publishEvery.toNanos
-    val enoughAdds = addsSincePublish >= config.publishMinAdds
-
-    due && enoughAdds
+      due && enoughAdds
+    }
   }
 
   /** Mark publish as started. */

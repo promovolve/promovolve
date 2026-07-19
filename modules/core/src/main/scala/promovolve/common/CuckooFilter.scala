@@ -53,17 +53,15 @@ final class CuckooFilter private (
     // Try primary bucket
     if (insertIntoBucket(i1, fp)) {
       count += 1
-      return true
-    }
-
-    // Try alternate bucket
-    if (insertIntoBucket(i2, fp)) {
+      true
+    } else if (insertIntoBucket(i2, fp)) {
+      // Try alternate bucket
       count += 1
-      return true
+      true
+    } else {
+      // Both full - need to kick
+      kickInsert(i1, fp)
     }
-
-    // Both full - need to kick
-    kickInsert(i1, fp)
   }
 
   /**
@@ -149,37 +147,40 @@ final class CuckooFilter private (
   private def insertIntoBucket(bucketIdx: Int, fp: Int): Boolean = {
     val bucket = buckets(bucketIdx)
     var i = 0
-    while (i < bucketSize) {
+    var inserted = false
+    while (!inserted && i < bucketSize) {
       if (bucket(i) == 0) {
         bucket(i) = fp
-        return true
+        inserted = true
       }
       i += 1
     }
-    false
+    inserted
   }
 
   private def bucketContains(bucketIdx: Int, fp: Int): Boolean = {
     val bucket = buckets(bucketIdx)
     var i = 0
-    while (i < bucketSize) {
-      if (bucket(i) == fp) return true
+    var found = false
+    while (!found && i < bucketSize) {
+      if (bucket(i) == fp) found = true
       i += 1
     }
-    false
+    found
   }
 
   private def deleteFromBucket(bucketIdx: Int, fp: Int): Boolean = {
     val bucket = buckets(bucketIdx)
     var i = 0
-    while (i < bucketSize) {
+    var deleted = false
+    while (!deleted && i < bucketSize) {
       if (bucket(i) == fp) {
         bucket(i) = 0
-        return true
+        deleted = true
       }
       i += 1
     }
-    false
+    deleted
   }
 
   private def kickInsert(startBucket: Int, startFp: Int): Boolean = {
@@ -188,7 +189,8 @@ final class CuckooFilter private (
     val rand = new Random(System.nanoTime())
 
     var kicks = 0
-    while (kicks < maxKicks) {
+    var inserted = false
+    while (!inserted && kicks < maxKicks) {
       // Pick random entry to kick
       val bucket = buckets(i)
       val kickIdx = rand.nextInt(bucketSize)
@@ -202,14 +204,14 @@ final class CuckooFilter private (
       // Try to insert kicked fingerprint
       if (insertIntoBucket(i, fp)) {
         count += 1
-        return true
+        inserted = true
       }
 
       kicks += 1
     }
 
-    // Filter is too full
-    false
+    // false means the filter is too full
+    inserted
   }
 
   private def intToBytes(i: Int): Array[Byte] = {

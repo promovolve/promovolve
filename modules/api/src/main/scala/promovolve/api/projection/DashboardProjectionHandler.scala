@@ -56,15 +56,14 @@ class DashboardProjectionHandler extends SlickHandler[TrackingEvent] {
     // counters so the auction + budget surfaces stay clean while the
     // pin-value telemetry still moves.
     if (e.dogeared) {
-      return bumpDogearedImpression(e, hourBucket, dayBucket).map(_ => Done).transactionally
-    }
-
-    // Combine all updates into a single transaction
-    val updates = for {
-      // Update campaign_stats
-      _ <- e.campaignId match {
-        case Some(campId) if campId.nonEmpty =>
-          sqlu"""
+      bumpDogearedImpression(e, hourBucket, dayBucket).map(_ => Done).transactionally
+    } else {
+      // Combine all updates into a single transaction
+      val updates = for {
+        // Update campaign_stats
+        _ <- e.campaignId match {
+          case Some(campId) if campId.nonEmpty =>
+            sqlu"""
             INSERT INTO campaign_stats (campaign_id, advertiser_id, impressions, total_spend,
                                         first_impression_at, last_impression_at, updated_at)
             VALUES ($campId, ${e.advertiserId}, 1, $spend, ${e.eventTime}, ${e.eventTime}, NOW())
@@ -75,13 +74,13 @@ class DashboardProjectionHandler extends SlickHandler[TrackingEvent] {
               last_impression_at = ${e.eventTime},
               updated_at = NOW()
           """
-        case _ => DBIO.successful(0)
-      }
+          case _ => DBIO.successful(0)
+        }
 
-      // Update creative_stats
-      _ <- e.campaignId match {
-        case Some(campId) if campId.nonEmpty =>
-          sqlu"""
+        // Update creative_stats
+        _ <- e.campaignId match {
+          case Some(campId) if campId.nonEmpty =>
+            sqlu"""
             INSERT INTO creative_stats (creative_id, campaign_id, advertiser_id, impressions, total_spend, updated_at)
             VALUES (${e.creativeId}, $campId, ${e.advertiserId}, 1, $spend, NOW())
             ON CONFLICT (creative_id, campaign_id) DO UPDATE SET
@@ -89,13 +88,13 @@ class DashboardProjectionHandler extends SlickHandler[TrackingEvent] {
               total_spend = creative_stats.total_spend + $spend,
               updated_at = NOW()
           """
-        case _ => DBIO.successful(0)
-      }
+          case _ => DBIO.successful(0)
+        }
 
-      // Update hourly stats
-      _ <- e.campaignId match {
-        case Some(campId) if campId.nonEmpty =>
-          sqlu"""
+        // Update hourly stats
+        _ <- e.campaignId match {
+          case Some(campId) if campId.nonEmpty =>
+            sqlu"""
             INSERT INTO campaign_hourly_stats (campaign_id, hour_bucket, impressions, spend, updated_at)
             VALUES ($campId, $hourBucket, 1, $spend, NOW())
             ON CONFLICT (campaign_id, hour_bucket) DO UPDATE SET
@@ -103,13 +102,13 @@ class DashboardProjectionHandler extends SlickHandler[TrackingEvent] {
               spend = campaign_hourly_stats.spend + $spend,
               updated_at = NOW()
           """
-        case _ => DBIO.successful(0)
-      }
+          case _ => DBIO.successful(0)
+        }
 
-      // Update daily stats
-      _ <- e.campaignId match {
-        case Some(campId) if campId.nonEmpty =>
-          sqlu"""
+        // Update daily stats
+        _ <- e.campaignId match {
+          case Some(campId) if campId.nonEmpty =>
+            sqlu"""
             INSERT INTO campaign_daily_stats (campaign_id, day_bucket, impressions, spend, unique_sites, updated_at)
             VALUES ($campId, $dayBucket, 1, $spend, 1, NOW())
             ON CONFLICT (campaign_id, day_bucket) DO UPDATE SET
@@ -117,14 +116,14 @@ class DashboardProjectionHandler extends SlickHandler[TrackingEvent] {
               spend = campaign_daily_stats.spend + $spend,
               updated_at = NOW()
           """
-        case _ => DBIO.successful(0)
-      }
+          case _ => DBIO.successful(0)
+        }
 
-      // Dimensional daily rollup (site x category) — feeds the advertiser
-      // report's by-site / by-category / by-publisher breakdowns.
-      _ <- e.campaignId match {
-        case Some(campId) if campId.nonEmpty =>
-          sqlu"""
+        // Dimensional daily rollup (site x category) — feeds the advertiser
+        // report's by-site / by-category / by-publisher breakdowns.
+        _ <- e.campaignId match {
+          case Some(campId) if campId.nonEmpty =>
+            sqlu"""
             INSERT INTO campaign_dim_daily_stats (campaign_id, day_bucket, site_id, category, impressions, spend, updated_at)
             VALUES ($campId, $dayBucket, ${e.siteId}, ${dimCategory(e)}, 1, $spend, NOW())
             ON CONFLICT (campaign_id, day_bucket, site_id, category) DO UPDATE SET
@@ -132,13 +131,13 @@ class DashboardProjectionHandler extends SlickHandler[TrackingEvent] {
               spend = campaign_dim_daily_stats.spend + $spend,
               updated_at = NOW()
           """
-        case _ => DBIO.successful(0)
-      }
+          case _ => DBIO.successful(0)
+        }
 
-      // Update advertiser summary
-      _ <- e.advertiserId match {
-        case Some(advId) if advId.nonEmpty =>
-          sqlu"""
+        // Update advertiser summary
+        _ <- e.advertiserId match {
+          case Some(advId) if advId.nonEmpty =>
+            sqlu"""
             INSERT INTO advertiser_summary (advertiser_id, total_impressions, total_spend, updated_at)
             VALUES ($advId, 1, $spend, NOW())
             ON CONFLICT (advertiser_id) DO UPDATE SET
@@ -146,16 +145,17 @@ class DashboardProjectionHandler extends SlickHandler[TrackingEvent] {
               total_spend = advertiser_summary.total_spend + $spend,
               updated_at = NOW()
           """
-        case _ => DBIO.successful(0)
-      }
+          case _ => DBIO.successful(0)
+        }
 
-      // Non-dogeared path only — the early-return above handles the
-      // dogeared case. The dogeared_* counters surface bookmark-driven
-      // re-engagement as a separate dimension; primary metrics above
-      // track only fresh paid impressions.
-    } yield Done
+        // Non-dogeared path only — the branch above handles the
+        // dogeared case. The dogeared_* counters surface bookmark-driven
+        // re-engagement as a separate dimension; primary metrics above
+        // track only fresh paid impressions.
+      } yield Done
 
-    updates.transactionally
+      updates.transactionally
+    }
   }
 
   private def bumpDogearedImpression(
@@ -365,84 +365,86 @@ class DashboardProjectionHandler extends SlickHandler[TrackingEvent] {
     // Dogeared click = same user re-engaging with a creative they
     // already folded. Not a fresh CTR signal — skip every primary
     // metric and bump the parallel dogeared_clicks counters instead.
-    if (e.dogeared) return bumpDogearedClick(e, hourBucket, dayBucket).map(_ => Done).transactionally
-
-    val updates = for {
-      // Update campaign_stats
-      _ <- e.campaignId match {
-        case Some(campId) if campId.nonEmpty =>
-          sqlu"""
+    if (e.dogeared) {
+      bumpDogearedClick(e, hourBucket, dayBucket).map(_ => Done).transactionally
+    } else {
+      val updates = for {
+        // Update campaign_stats
+        _ <- e.campaignId match {
+          case Some(campId) if campId.nonEmpty =>
+            sqlu"""
             UPDATE campaign_stats
             SET clicks = clicks + 1, last_click_at = ${e.eventTime}, updated_at = NOW()
             WHERE campaign_id = $campId
           """
-        case _ => DBIO.successful(0)
-      }
+          case _ => DBIO.successful(0)
+        }
 
-      // Update creative_stats
-      _ <- e.campaignId match {
-        case Some(campId) if campId.nonEmpty =>
-          sqlu"""
+        // Update creative_stats
+        _ <- e.campaignId match {
+          case Some(campId) if campId.nonEmpty =>
+            sqlu"""
             UPDATE creative_stats
             SET clicks = clicks + 1, updated_at = NOW()
             WHERE creative_id = ${e.creativeId} AND campaign_id = $campId
           """
-        case _ => DBIO.successful(0)
-      }
+          case _ => DBIO.successful(0)
+        }
 
-      // Update hourly stats (insert if not exists from impression)
-      _ <- e.campaignId match {
-        case Some(campId) if campId.nonEmpty =>
-          sqlu"""
+        // Update hourly stats (insert if not exists from impression)
+        _ <- e.campaignId match {
+          case Some(campId) if campId.nonEmpty =>
+            sqlu"""
             INSERT INTO campaign_hourly_stats (campaign_id, hour_bucket, clicks, updated_at)
             VALUES ($campId, $hourBucket, 1, NOW())
             ON CONFLICT (campaign_id, hour_bucket) DO UPDATE SET
               clicks = campaign_hourly_stats.clicks + 1,
               updated_at = NOW()
           """
-        case _ => DBIO.successful(0)
-      }
+          case _ => DBIO.successful(0)
+        }
 
-      // Update daily stats
-      _ <- e.campaignId match {
-        case Some(campId) if campId.nonEmpty =>
-          val dayBucket = e.eventTime.atZone(ZoneOffset.UTC).toLocalDate
-          sqlu"""
+        // Update daily stats
+        _ <- e.campaignId match {
+          case Some(campId) if campId.nonEmpty =>
+            val dayBucket = e.eventTime.atZone(ZoneOffset.UTC).toLocalDate
+            sqlu"""
             INSERT INTO campaign_daily_stats (campaign_id, day_bucket, clicks, updated_at)
             VALUES ($campId, $dayBucket, 1, NOW())
             ON CONFLICT (campaign_id, day_bucket) DO UPDATE SET
               clicks = campaign_daily_stats.clicks + 1,
               updated_at = NOW()
           """
-        case _ => DBIO.successful(0)
-      }
+          case _ => DBIO.successful(0)
+        }
 
-      // Dimensional daily rollup (site x category)
-      _ <- e.campaignId match {
-        case Some(campId) if campId.nonEmpty =>
-          sqlu"""
+        // Dimensional daily rollup (site x category)
+        _ <- e.campaignId match {
+          case Some(campId) if campId.nonEmpty =>
+            sqlu"""
             INSERT INTO campaign_dim_daily_stats (campaign_id, day_bucket, site_id, category, clicks, updated_at)
             VALUES ($campId, $dayBucket, ${e.siteId}, ${dimCategory(e)}, 1, NOW())
             ON CONFLICT (campaign_id, day_bucket, site_id, category) DO UPDATE SET
               clicks = campaign_dim_daily_stats.clicks + 1,
               updated_at = NOW()
           """
-        case _ => DBIO.successful(0)
-      }
+          case _ => DBIO.successful(0)
+        }
 
-      // Update advertiser summary
-      _ <- e.advertiserId match {
-        case Some(advId) if advId.nonEmpty =>
-          sqlu"""
+        // Update advertiser summary
+        _ <- e.advertiserId match {
+          case Some(advId) if advId.nonEmpty =>
+            sqlu"""
             UPDATE advertiser_summary
             SET total_clicks = total_clicks + 1, updated_at = NOW()
             WHERE advertiser_id = $advId
           """
-        case _ => DBIO.successful(0)
-      }
-    } yield Done
+          case _ => DBIO.successful(0)
+        }
+      } yield Done
 
-    updates.transactionally
+      updates.transactionally
+    }
   }
 
   private def processCTAClick(e: TrackingEvent): DBIO[Done] = {
@@ -454,79 +456,81 @@ class DashboardProjectionHandler extends SlickHandler[TrackingEvent] {
     // the bookmark-conversion signal, tracked on the parallel
     // dogeared_cta_clicks counters so dashboards can show "delayed
     // conversion via pin" as its own dimension.
-    if (e.dogeared) return bumpDogearedCTAClick(e, hourBucket, dayBucket).map(_ => Done).transactionally
-
-    val updates = for {
-      _ <- e.campaignId match {
-        case Some(campId) if campId.nonEmpty =>
-          sqlu"""
+    if (e.dogeared) {
+      bumpDogearedCTAClick(e, hourBucket, dayBucket).map(_ => Done).transactionally
+    } else {
+      val updates = for {
+        _ <- e.campaignId match {
+          case Some(campId) if campId.nonEmpty =>
+            sqlu"""
             UPDATE campaign_stats
             SET cta_clicks = cta_clicks + 1, updated_at = NOW()
             WHERE campaign_id = $campId
           """
-        case _ => DBIO.successful(0)
-      }
+          case _ => DBIO.successful(0)
+        }
 
-      _ <- e.campaignId match {
-        case Some(campId) if campId.nonEmpty =>
-          sqlu"""
+        _ <- e.campaignId match {
+          case Some(campId) if campId.nonEmpty =>
+            sqlu"""
             UPDATE creative_stats
             SET cta_clicks = cta_clicks + 1, updated_at = NOW()
             WHERE creative_id = ${e.creativeId} AND campaign_id = $campId
           """
-        case _ => DBIO.successful(0)
-      }
+          case _ => DBIO.successful(0)
+        }
 
-      _ <- e.campaignId match {
-        case Some(campId) if campId.nonEmpty =>
-          sqlu"""
+        _ <- e.campaignId match {
+          case Some(campId) if campId.nonEmpty =>
+            sqlu"""
             INSERT INTO campaign_hourly_stats (campaign_id, hour_bucket, cta_clicks, updated_at)
             VALUES ($campId, $hourBucket, 1, NOW())
             ON CONFLICT (campaign_id, hour_bucket) DO UPDATE SET
               cta_clicks = campaign_hourly_stats.cta_clicks + 1,
               updated_at = NOW()
           """
-        case _ => DBIO.successful(0)
-      }
+          case _ => DBIO.successful(0)
+        }
 
-      _ <- e.campaignId match {
-        case Some(campId) if campId.nonEmpty =>
-          val dayBucket = e.eventTime.atZone(ZoneOffset.UTC).toLocalDate
-          sqlu"""
+        _ <- e.campaignId match {
+          case Some(campId) if campId.nonEmpty =>
+            val dayBucket = e.eventTime.atZone(ZoneOffset.UTC).toLocalDate
+            sqlu"""
             INSERT INTO campaign_daily_stats (campaign_id, day_bucket, cta_clicks, updated_at)
             VALUES ($campId, $dayBucket, 1, NOW())
             ON CONFLICT (campaign_id, day_bucket) DO UPDATE SET
               cta_clicks = campaign_daily_stats.cta_clicks + 1,
               updated_at = NOW()
           """
-        case _ => DBIO.successful(0)
-      }
+          case _ => DBIO.successful(0)
+        }
 
-      // Dimensional daily rollup (site x category)
-      _ <- e.campaignId match {
-        case Some(campId) if campId.nonEmpty =>
-          sqlu"""
+        // Dimensional daily rollup (site x category)
+        _ <- e.campaignId match {
+          case Some(campId) if campId.nonEmpty =>
+            sqlu"""
             INSERT INTO campaign_dim_daily_stats (campaign_id, day_bucket, site_id, category, cta_clicks, updated_at)
             VALUES ($campId, $dayBucket, ${e.siteId}, ${dimCategory(e)}, 1, NOW())
             ON CONFLICT (campaign_id, day_bucket, site_id, category) DO UPDATE SET
               cta_clicks = campaign_dim_daily_stats.cta_clicks + 1,
               updated_at = NOW()
           """
-        case _ => DBIO.successful(0)
-      }
+          case _ => DBIO.successful(0)
+        }
 
-      _ <- e.advertiserId match {
-        case Some(advId) if advId.nonEmpty =>
-          sqlu"""
+        _ <- e.advertiserId match {
+          case Some(advId) if advId.nonEmpty =>
+            sqlu"""
             UPDATE advertiser_summary
             SET total_cta_clicks = total_cta_clicks + 1, updated_at = NOW()
             WHERE advertiser_id = $advId
           """
-        case _ => DBIO.successful(0)
-      }
-    } yield Done
+          case _ => DBIO.successful(0)
+        }
+      } yield Done
 
-    updates.transactionally
+      updates.transactionally
+    }
   }
 
   /**

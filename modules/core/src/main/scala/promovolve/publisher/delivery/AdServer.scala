@@ -609,77 +609,78 @@ object AdServer {
         triedMap: Map[SlotId, Set[CreativeId]],
         usedCamps: Set[String],
         pending: Map[CampaignId, Double]
-    ): Future[(Vector[Protocol.BatchSlotOutcome], Map[CampaignId, Double])] = {
-      if (toReserve.isEmpty) return Future.successful((confirmed, pending))
-      val attempts: Vector[Future[(Protocol.BatchSlotSpec, CandidateView, CPM, String, Boolean)]] =
-        toReserve.map { case (slot, cand, clearing) =>
-          // Reserve at the quality-adjusted clearing price, not the
-          // bid. Otherwise pacing budgets see in-flight spend that
-          // overstates what the campaign actually owes. The requestId
-          // minted here is both the reservation key AND the served
-          // slot's outcome id, so the impression's RecordSpend dedupes.
-          val rid = java.util.UUID.randomUUID().toString
-          reserve(cand, clearing, rid).map(ok => (slot, cand, clearing, rid, ok))
-        }
-      Future.sequence(attempts).flatMap { results =>
-        // Two-pass: record ALL successes first so subsequent retries
-        // see the complete set of locked creatives/campaigns. A
-        // single-pass interleaving could pick the same creative
-        // twice if a failure is processed before a sibling success.
-        var newConfirmed = confirmed
-        var newPending = pending
-        var newTried = triedMap
-        var newUsed = usedCamps
-        val failures = Vector.newBuilder[(Protocol.BatchSlotSpec, CandidateView)]
-        for ((slot, cand, clearing, rid, success) <- results) {
-          if (success) {
-            newConfirmed = newConfirmed :+ Protocol.BatchSlotOutcome(
-              slotId = slot.slotId,
-              winner = Some(cand),
-              clearingPrice = clearing,
-              requestId = rid,
-              dogear = dogearFallthrough(slot, isApproved)
-            )
-            // Pending spend delta tracks the actual reserved amount —
-            // clearing price, not bid — so concurrent batches see
-            // accurate in-flight totals.
-            val delta = clearing.toDouble / 1000.0
-            newPending = newPending.updated(
-              cand.campaignId,
-              newPending.getOrElse(cand.campaignId, 0.0) + delta
-            )
-          } else {
-            failures += ((slot, cand))
+    ): Future[(Vector[Protocol.BatchSlotOutcome], Map[CampaignId, Double])] =
+      if (toReserve.isEmpty) Future.successful((confirmed, pending))
+      else {
+        val attempts: Vector[Future[(Protocol.BatchSlotSpec, CandidateView, CPM, String, Boolean)]] =
+          toReserve.map { case (slot, cand, clearing) =>
+            // Reserve at the quality-adjusted clearing price, not the
+            // bid. Otherwise pacing budgets see in-flight spend that
+            // overstates what the campaign actually owes. The requestId
+            // minted here is both the reservation key AND the served
+            // slot's outcome id, so the impression's RecordSpend dedupes.
+            val rid = java.util.UUID.randomUUID().toString
+            reserve(cand, clearing, rid).map(ok => (slot, cand, clearing, rid, ok))
           }
-        }
-
-        // Second pass: retry failed slots. Now lockedCreatives sees
-        // every winner confirmed in this iteration.
-        val nextPicks = Vector.newBuilder[(Protocol.BatchSlotSpec, CandidateView, CPM)]
-        for ((slot, cand) <- failures.result()) {
-          newUsed = newUsed - cand.campaignId.value
-          val alreadyTried = newTried.getOrElse(slot.slotId, Set.empty) + cand.creativeId
-          newTried = newTried.updated(slot.slotId, alreadyTried)
-          val lockedCreatives = newConfirmed.flatMap(_.winner).map(_.creativeId).toSet
-          val available = pool
-            .filterNot(c => alreadyTried.contains(c.creativeId))
-            .filterNot(c => lockedCreatives.contains(c.creativeId))
-          pickWithPagePref(slot, available, newUsed) match {
-            case None =>
+        Future.sequence(attempts).flatMap { results =>
+          // Two-pass: record ALL successes first so subsequent retries
+          // see the complete set of locked creatives/campaigns. A
+          // single-pass interleaving could pick the same creative
+          // twice if a failure is processed before a sibling success.
+          var newConfirmed = confirmed
+          var newPending = pending
+          var newTried = triedMap
+          var newUsed = usedCamps
+          val failures = Vector.newBuilder[(Protocol.BatchSlotSpec, CandidateView)]
+          for ((slot, cand, clearing, rid, success) <- results) {
+            if (success) {
               newConfirmed = newConfirmed :+ Protocol.BatchSlotOutcome(
                 slotId = slot.slotId,
-                winner = None,
+                winner = Some(cand),
+                clearingPrice = clearing,
+                requestId = rid,
                 dogear = dogearFallthrough(slot, isApproved)
               )
-            case Some((nextC, nextClearing)) =>
-              newTried = newTried.updated(slot.slotId, alreadyTried + nextC.creativeId)
-              newUsed = newUsed + nextC.campaignId.value
-              nextPicks += ((slot, nextC, nextClearing))
+              // Pending spend delta tracks the actual reserved amount —
+              // clearing price, not bid — so concurrent batches see
+              // accurate in-flight totals.
+              val delta = clearing.toDouble / 1000.0
+              newPending = newPending.updated(
+                cand.campaignId,
+                newPending.getOrElse(cand.campaignId, 0.0) + delta
+              )
+            } else {
+              failures += ((slot, cand))
+            }
           }
+
+          // Second pass: retry failed slots. Now lockedCreatives sees
+          // every winner confirmed in this iteration.
+          val nextPicks = Vector.newBuilder[(Protocol.BatchSlotSpec, CandidateView, CPM)]
+          for ((slot, cand) <- failures.result()) {
+            newUsed = newUsed - cand.campaignId.value
+            val alreadyTried = newTried.getOrElse(slot.slotId, Set.empty) + cand.creativeId
+            newTried = newTried.updated(slot.slotId, alreadyTried)
+            val lockedCreatives = newConfirmed.flatMap(_.winner).map(_.creativeId).toSet
+            val available = pool
+              .filterNot(c => alreadyTried.contains(c.creativeId))
+              .filterNot(c => lockedCreatives.contains(c.creativeId))
+            pickWithPagePref(slot, available, newUsed) match {
+              case None =>
+                newConfirmed = newConfirmed :+ Protocol.BatchSlotOutcome(
+                  slotId = slot.slotId,
+                  winner = None,
+                  dogear = dogearFallthrough(slot, isApproved)
+                )
+              case Some((nextC, nextClearing)) =>
+                newTried = newTried.updated(slot.slotId, alreadyTried + nextC.creativeId)
+                newUsed = newUsed + nextC.campaignId.value
+                nextPicks += ((slot, nextC, nextClearing))
+            }
+          }
+          loop(nextPicks.result(), newConfirmed, newTried, newUsed, newPending)
         }
-        loop(nextPicks.result(), newConfirmed, newTried, newUsed, newPending)
       }
-    }
     loop(initialToReserve.result(), initialConfirmed.result(), tried, used, Map.empty)
   }
 
@@ -3537,41 +3538,40 @@ private[delivery] class AdServer(
       url: URL,
       slotId: SlotId,
       ttl: FiniteDuration
-  ): Unit = {
-    if (pending.isEmpty) {
+  ): Unit =
+    if (pending.isEmpty)
       log.debug("queuePendingCandidates: no pending candidates to queue for url={} slot={}", url.value, slotId.value)
-      return
-    }
-    log.info("📋 Queuing {} pending candidates for approval: url={} slot={}", pending.size, url.value, slotId.value)
-    pending.foreach { c =>
-      log.info("   📋 Pending: creative={} campaign={} preApproved={}", c.creativeId.value, c.campaignId.value,
-        c.preApproved)
-    }
-    pending.headOption.foreach { top =>
-      val now = Instant.now
-      val selection = Selection(
-        publisherId = siteId,
-        url = url,
-        slotId = slotId,
-        ordered = pending,
-        idx = 0,
-        state = SelState.Pending,
-        createdAt = now,
-        expiresAt = now.plusSeconds(ttl.toSeconds)
-      )
+    else {
+      log.info("📋 Queuing {} pending candidates for approval: url={} slot={}", pending.size, url.value, slotId.value)
+      pending.foreach { c =>
+        log.info("   📋 Pending: creative={} campaign={} preApproved={}", c.creativeId.value, c.campaignId.value,
+          c.preApproved)
+      }
+      pending.headOption.foreach { top =>
+        val now = Instant.now
+        val selection = Selection(
+          publisherId = siteId,
+          url = url,
+          slotId = slotId,
+          ordered = pending,
+          idx = 0,
+          state = SelState.Pending,
+          createdAt = now,
+          expiresAt = now.plusSeconds(ttl.toSeconds)
+        )
 
-      val cids = pending.map(_.creativeId.value).toSet
-      // Track true queue age alongside the selection: first_seen is set
-      // once per (publisher, creative) and survives the purge/re-queue
-      // cycle that resets this selection's createdAt.
-      val write = store.upsertPending(selection).flatMap { _ =>
-        store.recordQueued(siteId.value, cids, now)
-      }
-      ctx.pipeToSelf(write) { _ =>
-        UpsertPendingCompleted(pending.size, url, slotId, top.creativeId.value, cids)
+        val cids = pending.map(_.creativeId.value).toSet
+        // Track true queue age alongside the selection: first_seen is set
+        // once per (publisher, creative) and survives the purge/re-queue
+        // cycle that resets this selection's createdAt.
+        val write = store.upsertPending(selection).flatMap { _ =>
+          store.recordQueued(siteId.value, cids, now)
+        }
+        ctx.pipeToSelf(write) { _ =>
+          UpsertPendingCompleted(pending.size, url, slotId, top.creativeId.value, cids)
+        }
       }
     }
-  }
 
   // ═══════════════════════════════════════════════════════════════════════════
   // APPROVAL WORKFLOW
@@ -4153,173 +4153,175 @@ private[delivery] class AdServer(
         requestCount = newRequestCount,
         lastRequestTimeMs = nowMs
       )
-      return (newState, ArrivalAction.SkipRolloverGrace)
-    }
+      (newState, ArrivalAction.SkipRolloverGrace)
+    } else {
 
-    val clearedGracePeriod = if (rolloverGraceUntilMs > 0 && nowMs >= rolloverGraceUntilMs) {
-      log.info("Grace period expired (timeout)")
-      0L
-    } else rolloverGraceUntilMs
+      val clearedGracePeriod = if (rolloverGraceUntilMs > 0 && nowMs >= rolloverGraceUntilMs) {
+        log.info("Grace period expired (timeout)")
+        0L
+      } else rolloverGraceUntilMs
 
-    // Day rollover detection — unified for real & simulated days.
-    val (updatedDayStart, needsReset) = lastDayStart match {
-      case Some(dayStart) =>
-        val shouldRollover = if (dayDurationSeconds == 86400) {
-          val lastDay = dayStart.atZone(java.time.ZoneOffset.UTC).toLocalDate
-          val today = java.time.LocalDate.now(java.time.ZoneOffset.UTC)
-          today.isAfter(lastDay)
-        } else {
-          val elapsedSeconds = (nowMs - dayStart.toEpochMilli) / 1000.0
-          elapsedSeconds >= dayDurationSeconds
-        }
-
-        if (shouldRollover) {
-          val rolloverType = if (dayDurationSeconds == 86400) "Calendar" else "Simulated"
-          log.info("{} day rollover detected, resetting pacing for new day", rolloverType)
-
-          // Cross-day learning: was the budget exhausted prematurely?
-          val validInfos = participatingCampaigns.toSeq.flatMap { campId =>
-            spendInfoCache.get(campId).map(info => (campId, info))
-          }
-          if (validInfos.nonEmpty) {
-            val totalBudget = validInfos.map(_._2.dailyBudget.value).sum
-            val totalSpend = validInfos.map(_._2.todaySpend.value).sum +
-              validInfos.flatMap(vi => pendingSpendByCampaign.get(vi._1).map(_._1)).sum
-            val budgetExhausted = totalSpend >= totalBudget
-            val elapsedSeconds = (nowMs - dayStart.toEpochMilli) / 1000.0
-            val remainingFraction = math.max(0.0, 1.0 - elapsedSeconds / dayDurationSeconds)
-
-            if (budgetExhausted && remainingFraction > 0.01) {
-              log.info("Cross-day learning: budget exhausted with {:.1f}% of day remaining",
-                remainingFraction * 100)
-            }
-            pacingStrategy.prepareForRollover(budgetExhausted, remainingFraction)
-          }
-
-          pacingStrategy.reset()
-          trafficObserver.reset()
-          trafficShapeTracker.rolloverDay(0.2) // 20% today, 80% historical
-
-          val nextDayOfWeek = if (dayDurationSeconds == 86400) {
-            java.time.LocalDate.now(java.time.ZoneOffset.UTC).getDayOfWeek
+      // Day rollover detection — unified for real & simulated days.
+      val (updatedDayStart, needsReset) = lastDayStart match {
+        case Some(dayStart) =>
+          val shouldRollover = if (dayDurationSeconds == 86400) {
+            val lastDay = dayStart.atZone(java.time.ZoneOffset.UTC).toLocalDate
+            val today = java.time.LocalDate.now(java.time.ZoneOffset.UTC)
+            today.isAfter(lastDay)
           } else {
-            simulatedDayOfWeek.plus(1)
-          }
-          trafficShapeTracker.setDayType(nextDayOfWeek)
-          log.info("Traffic shape now using {} pattern",
-            if (nextDayOfWeek.getValue >= 6) "weekend" else "weekday")
-
-          // Persist immediately: rolloverDay just blended today into the
-          // learned shape — waiting for the hourly SnapshotStats timer
-          // loses the whole day's contribution to any restart in between.
-          ctx.pipeToSelf(trafficShapeSnapshotRepo.upsert(siteId.value, trafficShapeTracker.toSnapshot)) {
-            _.fold(ex => TrafficShapeSnapshotSaveResult(Some(ex)), _ => TrafficShapeSnapshotSaveResult(None))
+            val elapsedSeconds = (nowMs - dayStart.toEpochMilli) / 1000.0
+            elapsedSeconds >= dayDurationSeconds
           }
 
-          if (dayDurationSeconds != 86400 && participatingCampaigns.nonEmpty) {
-            // Simulated days only: campaigns rely on this signal to roll their
-            // budget window. Real days: CampaignEntity rolls itself off
-            // calendar dates.
-            log.info("Day rollover: resetting {} participating campaigns for site {}",
-              participatingCampaigns.size, siteId.value)
-            participatingCampaigns.foreach { campaignId =>
-              spendInfoCache.get(campaignId).foreach { cached =>
-                val campaignEntityId = s"${cached.advertiserId.value}|${campaignId.value}"
-                val campaignRef = sharding.entityRefFor(CampaignEntity.TypeKey, campaignEntityId)
-                campaignRef ! CampaignEntity.ResetDayStart(system.ignoreRef, dayDurationSeconds)
+          if (shouldRollover) {
+            val rolloverType = if (dayDurationSeconds == 86400) "Calendar" else "Simulated"
+            log.info("{} day rollover detected, resetting pacing for new day", rolloverType)
+
+            // Cross-day learning: was the budget exhausted prematurely?
+            val validInfos = participatingCampaigns.toSeq.flatMap { campId =>
+              spendInfoCache.get(campId).map(info => (campId, info))
+            }
+            if (validInfos.nonEmpty) {
+              val totalBudget = validInfos.map(_._2.dailyBudget.value).sum
+              val totalSpend = validInfos.map(_._2.todaySpend.value).sum +
+                validInfos.flatMap(vi => pendingSpendByCampaign.get(vi._1).map(_._1)).sum
+              val budgetExhausted = totalSpend >= totalBudget
+              val elapsedSeconds = (nowMs - dayStart.toEpochMilli) / 1000.0
+              val remainingFraction = math.max(0.0, 1.0 - elapsedSeconds / dayDurationSeconds)
+
+              if (budgetExhausted && remainingFraction > 0.01) {
+                log.info("Cross-day learning: budget exhausted with {:.1f}% of day remaining",
+                  remainingFraction * 100)
+              }
+              pacingStrategy.prepareForRollover(budgetExhausted, remainingFraction)
+            }
+
+            pacingStrategy.reset()
+            trafficObserver.reset()
+            trafficShapeTracker.rolloverDay(0.2) // 20% today, 80% historical
+
+            val nextDayOfWeek = if (dayDurationSeconds == 86400) {
+              java.time.LocalDate.now(java.time.ZoneOffset.UTC).getDayOfWeek
+            } else {
+              simulatedDayOfWeek.plus(1)
+            }
+            trafficShapeTracker.setDayType(nextDayOfWeek)
+            log.info("Traffic shape now using {} pattern",
+              if (nextDayOfWeek.getValue >= 6) "weekend" else "weekday")
+
+            // Persist immediately: rolloverDay just blended today into the
+            // learned shape — waiting for the hourly SnapshotStats timer
+            // loses the whole day's contribution to any restart in between.
+            ctx.pipeToSelf(trafficShapeSnapshotRepo.upsert(siteId.value, trafficShapeTracker.toSnapshot)) {
+              _.fold(ex => TrafficShapeSnapshotSaveResult(Some(ex)), _ => TrafficShapeSnapshotSaveResult(None))
+            }
+
+            if (dayDurationSeconds != 86400 && participatingCampaigns.nonEmpty) {
+              // Simulated days only: campaigns rely on this signal to roll their
+              // budget window. Real days: CampaignEntity rolls itself off
+              // calendar dates.
+              log.info("Day rollover: resetting {} participating campaigns for site {}",
+                participatingCampaigns.size, siteId.value)
+              participatingCampaigns.foreach { campaignId =>
+                spendInfoCache.get(campaignId).foreach { cached =>
+                  val campaignEntityId = s"${cached.advertiserId.value}|${campaignId.value}"
+                  val campaignRef = sharding.entityRefFor(CampaignEntity.TypeKey, campaignEntityId)
+                  campaignRef ! CampaignEntity.ResetDayStart(system.ignoreRef, dayDurationSeconds)
+                }
+              }
+              val participatingAdvertiserIds = participatingCampaigns.flatMap { campaignId =>
+                spendInfoCache.get(campaignId).map(_.advertiserId)
+              }
+              participatingAdvertiserIds.foreach { advertiserId =>
+                val advertiserRef = sharding.entityRefFor(AdvertiserEntity.TypeKey, advertiserId.value)
+                advertiserRef ! AdvertiserEntity.ResetDayStart(system.ignoreRef)
               }
             }
-            val participatingAdvertiserIds = participatingCampaigns.flatMap { campaignId =>
-              spendInfoCache.get(campaignId).map(_.advertiserId)
-            }
-            participatingAdvertiserIds.foreach { advertiserId =>
-              val advertiserRef = sharding.entityRefFor(AdvertiserEntity.TypeKey, advertiserId.value)
-              advertiserRef ! AdvertiserEntity.ResetDayStart(system.ignoreRef)
-            }
-          }
 
-          val newDayStart = if (dayDurationSeconds == 86400) {
-            java.time.LocalDate.now(java.time.ZoneOffset.UTC)
-              .atStartOfDay(java.time.ZoneOffset.UTC)
-              .toInstant
+            val newDayStart = if (dayDurationSeconds == 86400) {
+              java.time.LocalDate.now(java.time.ZoneOffset.UTC)
+                .atStartOfDay(java.time.ZoneOffset.UTC)
+                .toInstant
+            } else {
+              Instant.now()
+            }
+            (Some(newDayStart), true)
           } else {
-            Instant.now()
+            (Some(dayStart), false)
           }
-          (Some(newDayStart), true)
+        case None =>
+          // First request — initialize lastDayStart from cached spend info if any.
+          val fromCache = spendInfoCache.values.headOption.map(_.dayStart)
+          (fromCache, false)
+      }
+
+      // Traffic shape: record request bucket so the per-hour histogram learns.
+      updatedDayStart.foreach { dayStart =>
+        val scaledElapsed = if (dayDurationSeconds == 86400) {
+          val time = Instant.ofEpochMilli(nowMs).atZone(java.time.ZoneOffset.UTC).toLocalTime
+          time.getHour * 3600.0 + time.getMinute * 60.0 + time.getSecond
         } else {
-          (Some(dayStart), false)
+          val elapsedSec = (nowMs - dayStart.toEpochMilli) / 1000.0
+          elapsedSec * (86400.0 / dayDurationSeconds)
         }
-      case None =>
-        // First request — initialize lastDayStart from cached spend info if any.
-        val fromCache = spendInfoCache.values.headOption.map(_.dayStart)
-        (fromCache, false)
-    }
-
-    // Traffic shape: record request bucket so the per-hour histogram learns.
-    updatedDayStart.foreach { dayStart =>
-      val scaledElapsed = if (dayDurationSeconds == 86400) {
-        val time = Instant.ofEpochMilli(nowMs).atZone(java.time.ZoneOffset.UTC).toLocalTime
-        time.getHour * 3600.0 + time.getMinute * 60.0 + time.getSecond
-      } else {
-        val elapsedSec = (nowMs - dayStart.toEpochMilli) / 1000.0
-        elapsedSec * (86400.0 / dayDurationSeconds)
+        trafficShapeTracker.recordRequest(scaledElapsed)
       }
-      trafficShapeTracker.recordRequest(scaledElapsed)
-    }
 
-    val updatedDayOfWeek = if (needsReset && dayDurationSeconds != 86400) {
-      simulatedDayOfWeek.plus(1)
-    } else simulatedDayOfWeek
+      val updatedDayOfWeek = if (needsReset && dayDurationSeconds != 86400) {
+        simulatedDayOfWeek.plus(1)
+      } else simulatedDayOfWeek
 
-    // Warmup mode short-circuit — record traffic but don't serve.
-    if (warmupMode) {
-      log.debug("Warmup mode active: recording traffic but not serving ads")
-      val newDayStart = if (needsReset) Some(Instant.ofEpochMilli(nowMs)) else updatedDayStart
-      val updatedCampaignSet = if (needsReset) Set.empty[CampaignId] else lastCampaignSet
-      val newState = state.copy(
-        serveStats = serveStats.recordWarmup,
-        lastDayStart = newDayStart,
-        smoothedReqRate = newRate,
-        rolloverGraceUntilMs = clearedGracePeriod,
-        requestCount = newRequestCount,
-        lastRequestTimeMs = nowMs,
-        lastCampaignSet = updatedCampaignSet,
-        simulatedDayOfWeek = updatedDayOfWeek
-      )
-      return (newState, ArrivalAction.SkipWarmup)
-    }
-
-    // Normal proceed: apply rollover-related cache resets, return Proceed.
-    val newDayStart = Instant.ofEpochMilli(nowMs)
-    val (clearedPending, resetServeStats, resetCache) = if (needsReset) {
-      log.info("Day rollover: resetting cache values (todaySpend=0, dayStart={})", newDayStart)
-      val resetCacheEntries = spendInfoCache.map { case (campaignId, cached) =>
-        campaignId -> cached.copy(
-          todaySpend = Spend.zero,
-          dayStart = newDayStart,
-          timestamp = newDayStart
+      // Warmup mode short-circuit — record traffic but don't serve.
+      if (warmupMode) {
+        log.debug("Warmup mode active: recording traffic but not serving ads")
+        val newDayStart = if (needsReset) Some(Instant.ofEpochMilli(nowMs)) else updatedDayStart
+        val updatedCampaignSet = if (needsReset) Set.empty[CampaignId] else lastCampaignSet
+        val newState = state.copy(
+          serveStats = serveStats.recordWarmup,
+          lastDayStart = newDayStart,
+          smoothedReqRate = newRate,
+          rolloverGraceUntilMs = clearedGracePeriod,
+          requestCount = newRequestCount,
+          lastRequestTimeMs = nowMs,
+          lastCampaignSet = updatedCampaignSet,
+          simulatedDayOfWeek = updatedDayOfWeek
         )
+        (newState, ArrivalAction.SkipWarmup)
+      } else {
+
+        // Normal proceed: apply rollover-related cache resets, yield Proceed.
+        val newDayStart = Instant.ofEpochMilli(nowMs)
+        val (clearedPending, resetServeStats, resetCache) = if (needsReset) {
+          log.info("Day rollover: resetting cache values (todaySpend=0, dayStart={})", newDayStart)
+          val resetCacheEntries = spendInfoCache.map { case (campaignId, cached) =>
+            campaignId -> cached.copy(
+              todaySpend = Spend.zero,
+              dayStart = newDayStart,
+              timestamp = newDayStart
+            )
+          }
+          (Map.empty[CampaignId, (Double, Instant)], ServeStats(siteId.value), resetCacheEntries)
+        } else {
+          (pendingSpendByCampaign, serveStats, spendInfoCache)
+        }
+
+        val updatedCampaignSet = if (needsReset) Set.empty[CampaignId] else lastCampaignSet
+
+        val newState = state.copy(
+          serveStats = resetServeStats,
+          lastDayStart = updatedDayStart,
+          smoothedReqRate = newRate,
+          pendingSpendByCampaign = clearedPending,
+          spendInfoCache = resetCache,
+          rolloverGraceUntilMs = 0L,
+          requestCount = newRequestCount,
+          lastRequestTimeMs = nowMs,
+          lastCampaignSet = updatedCampaignSet,
+          simulatedDayOfWeek = updatedDayOfWeek
+        )
+        (newState, ArrivalAction.Proceed)
       }
-      (Map.empty[CampaignId, (Double, Instant)], ServeStats(siteId.value), resetCacheEntries)
-    } else {
-      (pendingSpendByCampaign, serveStats, spendInfoCache)
     }
-
-    val updatedCampaignSet = if (needsReset) Set.empty[CampaignId] else lastCampaignSet
-
-    val newState = state.copy(
-      serveStats = resetServeStats,
-      lastDayStart = updatedDayStart,
-      smoothedReqRate = newRate,
-      pendingSpendByCampaign = clearedPending,
-      spendInfoCache = resetCache,
-      rolloverGraceUntilMs = 0L,
-      requestCount = newRequestCount,
-      lastRequestTimeMs = nowMs,
-      lastCampaignSet = updatedCampaignSet,
-      simulatedDayOfWeek = updatedDayOfWeek
-    )
-    (newState, ArrivalAction.Proceed)
   }
 
   // ═══════════════════════════════════════════════════════════════════════════

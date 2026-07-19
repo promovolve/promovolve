@@ -99,78 +99,77 @@ final class LearningEventLog(
         "Dogeared impression (silent): pub={} cid={} campaign={}",
         e.pub, e.cid, campaignId
       )
-      return
-    }
+    } else {
+      // 1. Send impression to TaxonomyRankerEntity for category-level CTR learning
+      val rankerEntityId = s"$category|${siteId.value}"
+      val rankerRef = sharding.entityRefFor(TaxonomyRankerEntity.TypeKey, rankerEntityId)
+      rankerRef ! TaxonomyRankerEntity.RecordImpression(
+        revenue = cpm / 1000.0
+      )
 
-    // 1. Send impression to TaxonomyRankerEntity for category-level CTR learning
-    val rankerEntityId = s"$category|${siteId.value}"
-    val rankerRef = sharding.entityRefFor(TaxonomyRankerEntity.TypeKey, rankerEntityId)
-    rankerRef ! TaxonomyRankerEntity.RecordImpression(
-      revenue = cpm / 1000.0
-    )
-
-    // 1b. Send impression to ContentProductAffinityEntity for affinity learning
-    //     Record for ALL page categories (not just the matched one) to discover cross-category affinities
-    e.adProductCategory.foreach { apc =>
-      val allCategories = e.pageCategories.map(_.split(",").toSet).getOrElse(Set(category))
-      allCategories.foreach { cat =>
-        val affinityEntityId = s"$cat|$apc"
-        val affinityRef = sharding.entityRefFor(ContentProductAffinityEntity.TypeKey, affinityEntityId)
-        affinityRef ! ContentProductAffinityEntity.RecordImpression(revenue = cpm / 1000.0)
-        affinityRegistry.foreach(_ ! AffinityRegistryDData.Register(cat, apc))
+      // 1b. Send impression to ContentProductAffinityEntity for affinity learning
+      //     Record for ALL page categories (not just the matched one) to discover cross-category affinities
+      e.adProductCategory.foreach { apc =>
+        val allCategories = e.pageCategories.map(_.split(",").toSet).getOrElse(Set(category))
+        allCategories.foreach { cat =>
+          val affinityEntityId = s"$cat|$apc"
+          val affinityRef = sharding.entityRefFor(ContentProductAffinityEntity.TypeKey, affinityEntityId)
+          affinityRef ! ContentProductAffinityEntity.RecordImpression(revenue = cpm / 1000.0)
+          affinityRegistry.foreach(_ ! AffinityRegistryDData.Register(cat, apc))
+        }
       }
+
+      // 2. Per-creative impression tracking is done server-side in AdServer at
+      // serve time (BatchReservationsResolved records recordImpression for each
+      // served winner except honored pins), eliminating a separate HTTP call
+      // that could fail. Note creativeStats.impressions therefore counts serves,
+      // not rendered beacons, and (unlike serveStats.selected) excludes
+      // dogeared pin-honors.
+
+      // 3. Use requestId from TryReserve (budget already deducted)
+      // RecordSpend will see this as duplicate and skip deduction
+      val requestId = e.requestId match {
+        case Some(rid) => rid // ULID string passed directly
+        case None      =>
+          // Should not happen with current serve flow, but generate deterministic fallback
+          log.warn("Missing requestId in impression event: cid={} pub={}", e.cid, e.pub)
+          jkugiya.ulid.ULID.getGenerator().base32()
+      }
+
+      // 4. Record spend to CampaignEntity for budget tracking
+      // If requestId came from TryReserve, this will be idempotent (no double-deduct)
+      val campaignEntityId = s"$advertiserId|$campaignId"
+      val campaignRef = sharding.entityRefFor(CampaignEntity.TypeKey, campaignEntityId)
+      campaignRef ! CampaignEntity.RecordSpend(
+        requestId = requestId,
+        amount = Spend(cpm / 1000.0),
+        ts = Instant.now(),
+        replyTo = system.ignoreRef
+      )
+
+      // 5. Notify SiteEntity of served impression for floor CPM optimization RL.
+      //    Tag with the winning creative's category so the per-category floor
+      //    optimizer (per-category floors) can attribute revenue; the
+      //    site-wide optimizer ignores the tag.
+      val siteRef = sharding.entityRefFor(SiteEntity.TypeKey, siteId.value)
+      val impCategory = Option(category).map(_.trim).filter(_.nonEmpty)
+      // Slot rides along so SiteEntity can exclude admin-overridden slots
+      // from floor learning (their price is human-set, not sweep-governed).
+      siteRef ! SiteEntity.ImpressionServed(cpm / 1000.0, impCategory, Option(e.slot).filter(_.nonEmpty))
+
+      // 6. Write to journal for dashboard projection (fire-and-forget)
+      trackingJournal.foreach(_.writeImpression(e))
+
+      system.log.debug(
+        "Recorded impression (direct): pub={} cid={} campaign={} cpm={} requestId={} fromReserve={}",
+        e.pub,
+        e.cid,
+        campaignId,
+        cpm,
+        requestId,
+        e.requestId.isDefined
+      )
     }
-
-    // 2. Per-creative impression tracking is done server-side in AdServer at
-    // serve time (BatchReservationsResolved records recordImpression for each
-    // served winner except honored pins), eliminating a separate HTTP call
-    // that could fail. Note creativeStats.impressions therefore counts serves,
-    // not rendered beacons, and (unlike serveStats.selected) excludes
-    // dogeared pin-honors.
-
-    // 3. Use requestId from TryReserve (budget already deducted)
-    // RecordSpend will see this as duplicate and skip deduction
-    val requestId = e.requestId match {
-      case Some(rid) => rid // ULID string passed directly
-      case None      =>
-        // Should not happen with current serve flow, but generate deterministic fallback
-        log.warn("Missing requestId in impression event: cid={} pub={}", e.cid, e.pub)
-        jkugiya.ulid.ULID.getGenerator().base32()
-    }
-
-    // 4. Record spend to CampaignEntity for budget tracking
-    // If requestId came from TryReserve, this will be idempotent (no double-deduct)
-    val campaignEntityId = s"$advertiserId|$campaignId"
-    val campaignRef = sharding.entityRefFor(CampaignEntity.TypeKey, campaignEntityId)
-    campaignRef ! CampaignEntity.RecordSpend(
-      requestId = requestId,
-      amount = Spend(cpm / 1000.0),
-      ts = Instant.now(),
-      replyTo = system.ignoreRef
-    )
-
-    // 5. Notify SiteEntity of served impression for floor CPM optimization RL.
-    //    Tag with the winning creative's category so the per-category floor
-    //    optimizer (per-category floors) can attribute revenue; the
-    //    site-wide optimizer ignores the tag.
-    val siteRef = sharding.entityRefFor(SiteEntity.TypeKey, siteId.value)
-    val impCategory = Option(category).map(_.trim).filter(_.nonEmpty)
-    // Slot rides along so SiteEntity can exclude admin-overridden slots
-    // from floor learning (their price is human-set, not sweep-governed).
-    siteRef ! SiteEntity.ImpressionServed(cpm / 1000.0, impCategory, Option(e.slot).filter(_.nonEmpty))
-
-    // 6. Write to journal for dashboard projection (fire-and-forget)
-    trackingJournal.foreach(_.writeImpression(e))
-
-    system.log.debug(
-      "Recorded impression (direct): pub={} cid={} campaign={} cpm={} requestId={} fromReserve={}",
-      e.pub,
-      e.cid,
-      campaignId,
-      cpm,
-      requestId,
-      e.requestId.isDefined
-    )
   }
 
   def logClick(e: TrackEvent): Unit = {
@@ -200,38 +199,37 @@ final class LearningEventLog(
         "Dogeared click (silent): pub={} cid={} category={}",
         e.pub, e.cid, category
       )
-      return
-    }
+    } else {
+      // 1. Send click to TaxonomyRankerEntity for category-level CTR learning
+      val rankerEntityId = s"$category|${siteId.value}"
+      val rankerRef = sharding.entityRefFor(TaxonomyRankerEntity.TypeKey, rankerEntityId)
+      rankerRef ! TaxonomyRankerEntity.RecordClick()
 
-    // 1. Send click to TaxonomyRankerEntity for category-level CTR learning
-    val rankerEntityId = s"$category|${siteId.value}"
-    val rankerRef = sharding.entityRefFor(TaxonomyRankerEntity.TypeKey, rankerEntityId)
-    rankerRef ! TaxonomyRankerEntity.RecordClick()
-
-    // 1b. Send click to ContentProductAffinityEntity for affinity learning
-    //     Record for ALL page categories to discover cross-category affinities
-    e.adProductCategory.foreach { apc =>
-      val allCategories = e.pageCategories.map(_.split(",").toSet).getOrElse(Set(category))
-      allCategories.foreach { cat =>
-        val affinityEntityId = s"$cat|$apc"
-        val affinityRef = sharding.entityRefFor(ContentProductAffinityEntity.TypeKey, affinityEntityId)
-        affinityRef ! ContentProductAffinityEntity.RecordClick()
+      // 1b. Send click to ContentProductAffinityEntity for affinity learning
+      //     Record for ALL page categories to discover cross-category affinities
+      e.adProductCategory.foreach { apc =>
+        val allCategories = e.pageCategories.map(_.split(",").toSet).getOrElse(Set(category))
+        allCategories.foreach { cat =>
+          val affinityEntityId = s"$cat|$apc"
+          val affinityRef = sharding.entityRefFor(ContentProductAffinityEntity.TypeKey, affinityEntityId)
+          affinityRef ! ContentProductAffinityEntity.RecordClick()
+        }
       }
+
+      // 2. Send click to AdServer for per-creative Thompson Sampling
+      val adServerRef = sharding.entityRefFor(AdServer.TypeKey, siteId.value)
+      adServerRef ! AdServer.RecordClick(CreativeId(e.cid))
+
+      // 4. Write to journal for dashboard projection (fire-and-forget)
+      trackingJournal.foreach(_.writeClick(e))
+
+      system.log.debug(
+        "Recorded click: pub={} cid={} category={}",
+        e.pub,
+        e.cid,
+        category
+      )
     }
-
-    // 2. Send click to AdServer for per-creative Thompson Sampling
-    val adServerRef = sharding.entityRefFor(AdServer.TypeKey, siteId.value)
-    adServerRef ! AdServer.RecordClick(CreativeId(e.cid))
-
-    // 4. Write to journal for dashboard projection (fire-and-forget)
-    trackingJournal.foreach(_.writeClick(e))
-
-    system.log.debug(
-      "Recorded click: pub={} cid={} category={}",
-      e.pub,
-      e.cid,
-      category
-    )
   }
 
   def logCTAClick(e: TrackEvent): Unit = {

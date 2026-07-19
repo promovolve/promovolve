@@ -250,42 +250,42 @@ class TrafficShapeTracker(
       java.util.Arrays.fill(todayCount, 0L)
       currentBucket = -1
       requestsInBucket = 0
-      return
-    }
-
-    // Normalize today's counts to relative shape (same scale as shapes)
-    // Average bucket count becomes ~1.0, matching shape's scale
-    val avgCount = todayTotal.toDouble / bucketCount
-    val todayNormalized = todayCount.map(c => c.toDouble / avgCount)
-
-    // Blend today into the appropriate shape based on whether today is weekend
-    val shape = if (todayIsWeekend) weekendShape else weekdayShape
-    var newTotal = 0.0
-    var i = 0
-    while (i < bucketCount) {
-      shape(i) = dayAlpha * todayNormalized(i) + (1 - dayAlpha) * shape(i)
-      newTotal += shape(i)
-      i += 1
-    }
-
-    // Update the correct cached total
-    if (todayIsWeekend) {
-      weekendTotal = newTotal
     } else {
-      weekdayTotal = newTotal
-    }
 
-    // Reset today's counters for new day
-    java.util.Arrays.fill(todayCount, 0L)
-    currentBucket = -1
-    requestsInBucket = 0
+      // Normalize today's counts to relative shape (same scale as shapes)
+      // Average bucket count becomes ~1.0, matching shape's scale
+      val avgCount = todayTotal.toDouble / bucketCount
+      val todayNormalized = todayCount.map(c => c.toDouble / avgCount)
 
-    // Switch to new mode (disable legacy within-day EMA updates)
-    useLegacyMode = false
+      // Blend today into the appropriate shape based on whether today is weekend
+      val shape = if (todayIsWeekend) weekendShape else weekdayShape
+      var newTotal = 0.0
+      var i = 0
+      while (i < bucketCount) {
+        shape(i) = dayAlpha * todayNormalized(i) + (1 - dayAlpha) * shape(i)
+        newTotal += shape(i)
+        i += 1
+      }
 
-    // Mark as warmed up since we now have blended data
-    if (bucketUpdateCount < warmupThreshold) {
-      bucketUpdateCount = warmupThreshold
+      // Update the correct cached total
+      if (todayIsWeekend) {
+        weekendTotal = newTotal
+      } else {
+        weekdayTotal = newTotal
+      }
+
+      // Reset today's counters for new day
+      java.util.Arrays.fill(todayCount, 0L)
+      currentBucket = -1
+      requestsInBucket = 0
+
+      // Switch to new mode (disable legacy within-day EMA updates)
+      useLegacyMode = false
+
+      // Mark as warmed up since we now have blended data
+      if (bucketUpdateCount < warmupThreshold) {
+        bucketUpdateCount = warmupThreshold
+      }
     }
   }
 
@@ -333,21 +333,23 @@ class TrafficShapeTracker(
     // Use cached total (O(1) instead of O(bucketCount))
     val total = cachedTotal
     // Defensive: cachedTotal is always > 0 (initialized to bucketCount, updated incrementally)
-    if (total <= 0) return elapsedSeconds / 86400.0
+    if (total <= 0) elapsedSeconds / 86400.0
+    else {
 
-    // Get current shape based on day type
-    val shape = currentShape
+      // Get current shape based on day type
+      val shape = currentShape
 
-    // Cumulative up to previous bucket + interpolated current bucket
-    var prevCumulative = 0.0
-    var i = 0
-    while (i < bucket) {
-      prevCumulative += shape(i)
-      i += 1
+      // Cumulative up to previous bucket + interpolated current bucket
+      var prevCumulative = 0.0
+      var i = 0
+      while (i < bucket) {
+        prevCumulative += shape(i)
+        i += 1
+      }
+      val currentContribution = shape(bucket) * fractionIntoBucket
+
+      (prevCumulative + currentContribution) / total
     }
-    val currentContribution = shape(bucket) * fractionIntoBucket
-
-    (prevCumulative + currentContribution) / total
   }
 
   /**
@@ -388,23 +390,25 @@ class TrafficShapeTracker(
     val bucket = bucketForElapsed(elapsedSeconds)
     val total = cachedTotal
     val avgVol = total / bucketCount
-    if (avgVol <= 0) return 1.0
+    if (avgVol <= 0) 1.0
+    else {
 
-    val shape = currentShape
-    val effectiveVol = if (interpolateVolumes) {
-      // Interpolate between current and next bucket for smooth transitions
-      val bucketStart = bucket * bucketDurationSec
-      val fractionIntoBucket = math.min(1.0, (elapsedSeconds - bucketStart) / bucketDurationSec)
-      val currentVol = shape(bucket)
-      val nextBucket = (bucket + 1) % bucketCount
-      val nextVol = shape(nextBucket)
-      currentVol + fractionIntoBucket * (nextVol - currentVol)
-    } else {
-      // Use current bucket's volume directly for sharper peak definition
-      shape(bucket)
+      val shape = currentShape
+      val effectiveVol = if (interpolateVolumes) {
+        // Interpolate between current and next bucket for smooth transitions
+        val bucketStart = bucket * bucketDurationSec
+        val fractionIntoBucket = math.min(1.0, (elapsedSeconds - bucketStart) / bucketDurationSec)
+        val currentVol = shape(bucket)
+        val nextBucket = (bucket + 1) % bucketCount
+        val nextVol = shape(nextBucket)
+        currentVol + fractionIntoBucket * (nextVol - currentVol)
+      } else {
+        // Use current bucket's volume directly for sharper peak definition
+        shape(bucket)
+      }
+
+      effectiveVol / avgVol
     }
-
-    effectiveVol / avgVol
   }
 
   /**
@@ -450,32 +454,34 @@ class TrafficShapeTracker(
     val bucket = bucketForElapsed(elapsedSeconds)
     val total = cachedTotal
     val avgVol = total / bucketCount
-    if (avgVol <= 0) return 1.0
+    if (avgVol <= 0) 1.0
+    else {
 
-    val bucketStart = bucket * bucketDurationSec
-    val fractionIntoBucket = math.min(1.0, (elapsedSeconds - bucketStart) / bucketDurationSec)
+      val bucketStart = bucket * bucketDurationSec
+      val fractionIntoBucket = math.min(1.0, (elapsedSeconds - bucketStart) / bucketDurationSec)
 
-    val shape = currentShape
-    val currentVol = shape(bucket)
-    val nextBucket = (bucket + 1) % bucketCount
-    val nextVol = shape(nextBucket)
+      val shape = currentShape
+      val currentVol = shape(bucket)
+      val nextBucket = (bucket + 1) % bucketCount
+      val nextVol = shape(nextBucket)
 
-    val effectiveVol = if (feedforwardWindow > 0 && fractionIntoBucket > (1.0 - feedforwardWindow)) {
-      // In feedforward window - blend toward next bucket
-      // blendFactor: 0.0 at start of window, 1.0 at end of bucket
-      val windowStart = 1.0 - feedforwardWindow
-      val blendFactor = (fractionIntoBucket - windowStart) / feedforwardWindow
+      val effectiveVol = if (feedforwardWindow > 0 && fractionIntoBucket > (1.0 - feedforwardWindow)) {
+        // In feedforward window - blend toward next bucket
+        // blendFactor: 0.0 at start of window, 1.0 at end of bucket
+        val windowStart = 1.0 - feedforwardWindow
+        val blendFactor = (fractionIntoBucket - windowStart) / feedforwardWindow
 
-      // Smooth blend using ease-in-out curve for gradual transition
-      val smoothBlend = blendFactor * blendFactor * (3.0 - 2.0 * blendFactor)
+        // Smooth blend using ease-in-out curve for gradual transition
+        val smoothBlend = blendFactor * blendFactor * (3.0 - 2.0 * blendFactor)
 
-      currentVol + smoothBlend * (nextVol - currentVol)
-    } else {
-      // Before feedforward window - use current bucket's sharp value
-      currentVol
+        currentVol + smoothBlend * (nextVol - currentVol)
+      } else {
+        // Before feedforward window - use current bucket's sharp value
+        currentVol
+      }
+
+      effectiveVol / avgVol
     }
-
-    effectiveVol / avgVol
   }
 
   /** Get current shape based on day type (for pacing decisions) */
@@ -567,21 +573,23 @@ class TrafficShapeTracker(
   def volatility: Double = {
     val total = cachedTotal
     val mean = total / bucketCount
-    if (mean <= 0) return 0.0
+    if (mean <= 0) 0.0
+    else {
 
-    val shape = currentShape
-    // Calculate standard deviation
-    var sumSqDiff = 0.0
-    var i = 0
-    while (i < bucketCount) {
-      val diff = shape(i) - mean
-      sumSqDiff += diff * diff
-      i += 1
+      val shape = currentShape
+      // Calculate standard deviation
+      var sumSqDiff = 0.0
+      var i = 0
+      while (i < bucketCount) {
+        val diff = shape(i) - mean
+        sumSqDiff += diff * diff
+        i += 1
+      }
+      val stddev = math.sqrt(sumSqDiff / bucketCount)
+
+      // Coefficient of variation
+      stddev / mean
     }
-    val stddev = math.sqrt(sumSqDiff / bucketCount)
-
-    // Coefficient of variation
-    stddev / mean
   }
 
   /**

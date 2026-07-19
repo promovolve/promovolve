@@ -402,75 +402,76 @@ class RateAwarePacing(
       lastTimestamp = Some(ctx.now)
       // Clamp to MaxThrottleProb so a flood during grace never returns a true
       // 1.0 (which is reserved for hard stops); baseThrottle stays < 1.0 anyway.
-      return math.min(baseThrottle, PacingStrategy.MaxThrottleProb)
+      math.min(baseThrottle, PacingStrategy.MaxThrottleProb)
+    } else {
+
+      if (rateIsStale) {
+        // Traffic gap detected (e.g., machine sleep, idle period).
+        // Reset PI state so we don't make corrections based on stale accumulated error,
+        // but allow serving immediately — the gap doesn't mean data is bad, just old.
+        integralError = 0.0
+        smoothedSpendRatio = None
+        lastTimestamp = Some(ctx.now)
+        // Fall through to normal PI control with fresh state
+      }
+
+      // PI error: positive when under-paced, negative when over-paced
+      val error = 1.0 - spendRatio
+      val isOverPacing = error < 0
+
+      // Dynamic gain boost near drastic bucket transitions
+      // If upcoming transition is severe (ratio far from 1.0), boost gains to react faster
+      val transitionBoost = ctx.trafficShape.map { tracker =>
+        val (ratio, fractionUntil) = tracker.upcomingTransition(ctx.trafficShapeSeconds)
+
+        // Only boost in the last 20% of bucket when transition is drastic
+        val inTransitionWindow = fractionUntil < 0.2
+        val transitionSeverity = math.abs(math.log(math.max(0.1, math.min(10.0, ratio))))
+        // severity: 0 = no change, ~0.7 = 2x change, ~1.6 = 5x change, ~2.3 = 10x change
+
+        if (inTransitionWindow && transitionSeverity > 0.5) {
+          // Boost proportional to severity, max 2x
+          1.0 + math.min(1.0, transitionSeverity / 2.0)
+        } else 1.0
+      }.getOrElse(1.0)
+
+      // Asymmetric gains: be more aggressive when over-pacing to recover faster
+      // Uses self-tuned overpace multiplier (boosted when persistently overspending)
+      val baseEffectiveKp = if (isOverPacing) kp * currentOverpaceMultiplier else kp
+      val baseEffectiveKi = if (isOverPacing) ki * currentOverpaceMultiplier else ki
+
+      // Apply transition boost
+      val effectiveKp = baseEffectiveKp * transitionBoost
+      val effectiveKi = baseEffectiveKi * transitionBoost
+
+      // Calculate dt for integral
+      val now = ctx.now
+      val dt = lastTimestamp match {
+        case Some(last) =>
+          val seconds = java.time.Duration.between(last, now).toMillis / 1000.0
+          math.max(0.001, math.min(seconds, 1.0)) // Clamp to reasonable range
+        case None => 0.1 // Default for first call
+      }
+
+      // Update integral with leaky integrator (decay prevents indefinite windup)
+      // Decay first, then accumulate new error
+      integralError = integralError * AdaptivePacing.IntegralDecayFactor + error * dt
+      integralError = math.max(minIntegral, math.min(maxIntegral, integralError))
+
+      // PI output: adjustment to throttle (positive = reduce throttle, negative = increase)
+      val pTerm = effectiveKp * error
+      val iTerm = effectiveKi * integralError
+      val adjustment = pTerm + iTerm
+
+      // Apply adjustment: subtract from base throttle (positive adjustment = less throttle)
+      val adjustedThrottle = baseThrottle - adjustment
+
+      // Update state for next call
+      lastTimestamp = Some(now)
+
+      // Clamp to valid probability range [0, 1]
+      math.max(0.0, math.min(1.0, adjustedThrottle))
     }
-
-    if (rateIsStale) {
-      // Traffic gap detected (e.g., machine sleep, idle period).
-      // Reset PI state so we don't make corrections based on stale accumulated error,
-      // but allow serving immediately — the gap doesn't mean data is bad, just old.
-      integralError = 0.0
-      smoothedSpendRatio = None
-      lastTimestamp = Some(ctx.now)
-      // Fall through to normal PI control with fresh state
-    }
-
-    // PI error: positive when under-paced, negative when over-paced
-    val error = 1.0 - spendRatio
-    val isOverPacing = error < 0
-
-    // Dynamic gain boost near drastic bucket transitions
-    // If upcoming transition is severe (ratio far from 1.0), boost gains to react faster
-    val transitionBoost = ctx.trafficShape.map { tracker =>
-      val (ratio, fractionUntil) = tracker.upcomingTransition(ctx.trafficShapeSeconds)
-
-      // Only boost in the last 20% of bucket when transition is drastic
-      val inTransitionWindow = fractionUntil < 0.2
-      val transitionSeverity = math.abs(math.log(math.max(0.1, math.min(10.0, ratio))))
-      // severity: 0 = no change, ~0.7 = 2x change, ~1.6 = 5x change, ~2.3 = 10x change
-
-      if (inTransitionWindow && transitionSeverity > 0.5) {
-        // Boost proportional to severity, max 2x
-        1.0 + math.min(1.0, transitionSeverity / 2.0)
-      } else 1.0
-    }.getOrElse(1.0)
-
-    // Asymmetric gains: be more aggressive when over-pacing to recover faster
-    // Uses self-tuned overpace multiplier (boosted when persistently overspending)
-    val baseEffectiveKp = if (isOverPacing) kp * currentOverpaceMultiplier else kp
-    val baseEffectiveKi = if (isOverPacing) ki * currentOverpaceMultiplier else ki
-
-    // Apply transition boost
-    val effectiveKp = baseEffectiveKp * transitionBoost
-    val effectiveKi = baseEffectiveKi * transitionBoost
-
-    // Calculate dt for integral
-    val now = ctx.now
-    val dt = lastTimestamp match {
-      case Some(last) =>
-        val seconds = java.time.Duration.between(last, now).toMillis / 1000.0
-        math.max(0.001, math.min(seconds, 1.0)) // Clamp to reasonable range
-      case None => 0.1 // Default for first call
-    }
-
-    // Update integral with leaky integrator (decay prevents indefinite windup)
-    // Decay first, then accumulate new error
-    integralError = integralError * AdaptivePacing.IntegralDecayFactor + error * dt
-    integralError = math.max(minIntegral, math.min(maxIntegral, integralError))
-
-    // PI output: adjustment to throttle (positive = reduce throttle, negative = increase)
-    val pTerm = effectiveKp * error
-    val iTerm = effectiveKi * integralError
-    val adjustment = pTerm + iTerm
-
-    // Apply adjustment: subtract from base throttle (positive adjustment = less throttle)
-    val adjustedThrottle = baseThrottle - adjustment
-
-    // Update state for next call
-    lastTimestamp = Some(now)
-
-    // Clamp to valid probability range [0, 1]
-    math.max(0.0, math.min(1.0, adjustedThrottle))
   }
 
   /**

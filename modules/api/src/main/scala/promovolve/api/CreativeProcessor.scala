@@ -290,8 +290,13 @@ object CreativeProcessor {
       import spray.json.{ JsObject, JsString }
       val base = MessageDigest.getInstance("SHA-256")
         .digest(src.getBytes(java.nio.charset.StandardCharsets.UTF_8)).map("%02x".format(_)).mkString
-      val vHash = s"$base-vtx"
-      val pHash = s"$base-vtxp"
+      // image_asset.hash is VARCHAR(64) — a full sha256 IS 64 chars, so the
+      // suffixed synthetic keys must truncate the digest to fit (the first
+      // attempt didn't: R2 stored the video, then the row INSERT failed on
+      // column width and the tolerant recover kept the raw upload). 240
+      // bits of digest still makes collisions a non-concern here.
+      val vHash = base.take(60) + "-vtx"
+      val pHash = base.take(59) + "-vtxp"
 
       def rewritten(videoKey: String, posterKey: Option[String]): spray.json.JsValue = {
         val withSrc = fields + ("src" -> JsString(s"$cdnBaseUrl/$videoKey"))

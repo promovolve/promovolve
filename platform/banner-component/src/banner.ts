@@ -1802,8 +1802,35 @@ export class ExpandableMagazineBanner extends HTMLElement {
       overlay.querySelectorAll<HTMLElement>('[data-autofit="1"]').forEach(autoFitText);
       // Cross-page: unify each field's fitted size to the smallest across pages.
       harmonizeAutofit(overlay);
-      requestAnimationFrame(() => {
-        overlay.style.opacity = "1";
+      // Pre-decode the creative's images before the fade starts. In
+      // Chromium the fade is composited, but the dealing sheets' image
+      // tiles rasterize on the same raster pipeline — undecoded images
+      // made the fade's frame cadence collapse to 25-47ms steps with
+      // 30+ luminance jumps (measured 2026-07-19, real creative): the
+      // "rattling" light→dark. decode() is off-thread; the 300ms cap
+      // means a cold/hung image delays nothing further — the fade just
+      // proceeds and that image pops in later, as it always did.
+      const pendingDecodes = Array.from(overlay.querySelectorAll("img"))
+        .map((im) => (typeof im.decode === "function" ? im.decode().catch(() => {}) : Promise.resolve()));
+      const decodeCap = new Promise<void>((r) => window.setTimeout(r, 300));
+      void Promise.race([Promise.allSettled(pendingDecodes), decodeCap]).then(() => {
+        requestAnimationFrame(() => {
+          // Pin the overlay's fade to its own compositor layer for the
+          // transition's duration: without the explicit hint Chromium can
+          // re-raster the overlay alongside the dealing sheets' tiles and
+          // the color ramp inherits their jank. Dropped on transitionend —
+          // a permanently-hinted layer wastes memory (same discipline as
+          // the wrapper's will-change cleanup).
+          overlay.style.willChange = "opacity";
+          overlay.addEventListener(
+            "transitionend",
+            (e) => {
+              if (e.target === overlay && e.propertyName === "opacity") overlay.style.willChange = "";
+            },
+            { once: true },
+          );
+          overlay.style.opacity = "1";
+        });
       });
     });
   }

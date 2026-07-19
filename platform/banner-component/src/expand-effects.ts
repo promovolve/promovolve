@@ -57,8 +57,16 @@ export const EXPAND_EFFECT_CSS = `
     from { opacity: 1; }
     to   { opacity: 0; }
   }
+  /* --deal-base (renderOverlay stamps it = the scrim fade duration)
+   * holds EVERY sheet off-stage until the backdrop has finished
+   * dimming: dim the room first, then deal the papers. Two reasons:
+   * it reads better, and in Chromium the dealing sheets' rastering
+   * starved the scrim fade's frames — light→dark stepped at ~25fps
+   * ("rattling", measured 2026-07-19). With the stage dimmed solo the
+   * fade owns its frames; the deal then runs on a quiet screen. */
   .expand-wrapper.expand-effect-stack {
     animation: expand-effect-stack-anim var(--expand-duration, 620ms) ease both;
+    animation-delay: var(--deal-base, 0ms);
   }
   .expand-wrapper.expand-effect-stack [class^="page-"],
   .expand-wrapper.expand-effect-stack [class*=" page-"] {
@@ -67,9 +75,9 @@ export const EXPAND_EFFECT_CSS = `
     animation: stack-deal-in-anim var(--deal-ms, 360ms) cubic-bezier(0.22, 0.9, 0.3, 1) backwards;
   }
   /* Deal order: bottom sheet first, top (page-0, the current) last. */
-  .expand-wrapper.expand-effect-stack .page-2 { animation-delay: 0ms; }
-  .expand-wrapper.expand-effect-stack .page-1 { animation-delay: var(--deal-stagger, 90ms); }
-  .expand-wrapper.expand-effect-stack .page-0 { animation-delay: calc(var(--deal-stagger, 90ms) * 2); }
+  .expand-wrapper.expand-effect-stack .page-2 { animation-delay: var(--deal-base, 0ms); }
+  .expand-wrapper.expand-effect-stack .page-1 { animation-delay: calc(var(--deal-base, 0ms) + var(--deal-stagger, 90ms)); }
+  .expand-wrapper.expand-effect-stack .page-0 { animation-delay: calc(var(--deal-base, 0ms) + var(--deal-stagger, 90ms) * 2); }
   /* Close: a plain quick fade — dealing the sheets OUT read as
    * ceremony; leaving should just get out of the reader's way. */
   .expand-wrapper.expand-effect-stack-closing {

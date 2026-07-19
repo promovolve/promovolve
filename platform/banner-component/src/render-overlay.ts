@@ -116,9 +116,15 @@ export function buildExpandWrapper(opts: {
   // Paper mass drives the deal tempo: heavy stock enters (and leaves)
   // the pile slower; light snaps. Same multiplier the close flight uses.
   const tempo = PAPER_FEEL[cfg.paperWeight ?? "medium"].tempo;
-  // Last sheet lands at 360·tempo + 2·90·tempo; the wrapper animation
-  // (which owns the completion event) must outlast it: 540·tempo + 80.
+  // The deal waits for the scrim: --deal-base must match buildOverlay's
+  // opacity transition (0.4s) so the sheets start the moment the room
+  // finishes dimming. See the --deal-base note in EXPAND_EFFECT_CSS.
+  const DEAL_BASE_MS = 400;
+  // Last sheet lands at base + 360·tempo + 2·90·tempo; the wrapper
+  // animation (which owns the completion event and is ALSO base-delayed)
+  // must outlast the sheets: 540·tempo + 80 after its own delay.
   const stackTotalMs = Math.round(540 * tempo) + 80;
+  wrapper.style.setProperty("--deal-base", `${DEAL_BASE_MS}ms`);
   wrapper.style.setProperty("--deal-ms", `${Math.round(360 * tempo)}ms`);
   wrapper.style.setProperty("--deal-stagger", `${Math.round(90 * tempo)}ms`);
   if (rtl) {
@@ -155,6 +161,10 @@ export function buildExpandWrapper(opts: {
     typeof cfg.expandDurationMs === "number" && cfg.expandDurationMs > 0
       ? cfg.expandDurationMs
       : cssDefaultMs;
+  // The stack wrapper's animation is --deal-base-delayed (scrim first,
+  // deal after) — the safety net must wait out the delay too or it
+  // would force the resting state mid-deal.
+  const settleAfterMs = durMs + (appliedEffect === "stack" ? DEAL_BASE_MS : 0) + 150;
   setTimeout(() => {
     if (settled) return;
     wrapper.style.animation = "none";
@@ -162,7 +172,7 @@ export function buildExpandWrapper(opts: {
     wrapper.style.filter = "none";
     wrapper.style.opacity = "1";
     settle();
-  }, durMs + 150);
+  }, settleAfterMs);
   return wrapper;
 }
 

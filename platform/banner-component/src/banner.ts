@@ -1785,14 +1785,26 @@ export class ExpandableMagazineBanner extends HTMLElement {
         // renders in normal flow, which is the pre-popover behavior.
       }
     }
+    // Two-frame open choreography. Frame 1 does ALL the expensive work
+    // invisibly (top-layer first layout, page setup, autofit reflows)
+    // while the overlay is still transparent; frame 2 starts the fade.
+    // Starting the fade in frame 1 broke Safari: showPopover()'s first
+    // style/layout pass blocks the main thread for hundreds of ms AFTER
+    // the transition clock starts, so WebKit's first painted frame was
+    // already ~93% dark — the light→dark change became a snap, not a
+    // fade. Chromium composites the fade off-main-thread and never
+    // showed it; costs it one 16ms frame. Measured, not guessed:
+    // opacity trajectories 2026-07-19.
     requestAnimationFrame(() => {
-      overlay.style.opacity = "1";
       this.updatePages();
       // Auto-fit pass — mirrors the mobile branch so desktop preview
       // also shrinks textFit:"shrink" items to fit their boxes.
       overlay.querySelectorAll<HTMLElement>('[data-autofit="1"]').forEach(autoFitText);
       // Cross-page: unify each field's fitted size to the smallest across pages.
       harmonizeAutofit(overlay);
+      requestAnimationFrame(() => {
+        overlay.style.opacity = "1";
+      });
     });
   }
 

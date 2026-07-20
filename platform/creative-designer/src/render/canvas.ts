@@ -447,10 +447,20 @@ function applyState(wrap: HTMLElement, banner: HTMLElement, state: DesignerState
   // pagesData copy routes banners[sizeKey] into .layout to match the
   // non-expanded authoring model.
   const pagesForBanner = [prepareRenderPage(page, state)];
-  banner.setAttribute("pages", JSON.stringify(pagesForBanner));
-  banner.setAttribute("width", String(mode.w));
-  banner.setAttribute("height", String(mode.h));
-  banner.setAttribute("collapsed-page-index", "0");
+  // setAttribute fires attributeChangedCallback (= a FULL banner
+  // re-render) even when the value is byte-identical, and applyState
+  // runs on every store tick — zoom, selection, drags that touch
+  // nothing in the page. Skipping unchanged values is what keeps a
+  // video-background page editable: each redundant re-render used to
+  // mint a fresh <video> decoder for the raw upload, and a few seconds
+  // of dragging crashed the tab.
+  const setAttrIfChanged = (name: string, value: string): void => {
+    if (banner.getAttribute(name) !== value) banner.setAttribute(name, value);
+  };
+  setAttrIfChanged("pages", JSON.stringify(pagesForBanner));
+  setAttrIfChanged("width", String(mode.w));
+  setAttrIfChanged("height", String(mode.h));
+  setAttrIfChanged("collapsed-page-index", "0");
   // Forward banner-level config (animation, font, etc.) so changes
   // in banner-config-panel show up in the preview without a reload.
   // Logo is expanded-view only — show it on the expanded master (where the
@@ -458,7 +468,7 @@ function applyState(wrap: HTMLElement, banner: HTMLElement, state: DesignerState
   const cfgForBanner = isMultiPage(state.mode)
     ? state.bannerConfig
     : { ...state.bannerConfig, logo: undefined };
-  banner.setAttribute("config", JSON.stringify(cfgForBanner));
+  setAttrIfChanged("config", JSON.stringify(cfgForBanner));
 }
 
 function prepareRenderPage(page: Page, state: DesignerState): Page {

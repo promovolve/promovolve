@@ -47,6 +47,15 @@ export class ExpandableMagazineBanner extends HTMLElement {
   // Interactive corner-peel (thumb-driven forward turn). Non-null only
   // while a peel gesture is live.
   private _peel: { scrubTo: (t: number) => void; release: (commit: boolean, v0?: number) => void } | null = null;
+  // COLLAPSED-view video background, reused across re-renders. The
+  // designer rewrites the `pages` attribute on every editing tick and
+  // each rewrite rebuilds the shadow DOM — creating a FRESH <video>
+  // (with a possibly huge raw upload) per tick leaked a decoder per
+  // discarded element and crashed the tab within seconds of dragging.
+  // One live element, moved into each new .design-box, keeps exactly
+  // one decoder alive and playback position intact. Keyed by the
+  // videoBg spec so a real change (new src, new trim) still swaps it.
+  private _videoBgCache: { key: string; el: HTMLVideoElement } | null = null;
   private _peelStartX = 0;
   private _peelWidth = 1;
   // Release momentum: smoothed fold-progress velocity (units/sec) and the
@@ -215,6 +224,7 @@ export class ExpandableMagazineBanner extends HTMLElement {
   }
 
   disconnectedCallback(): void {
+    this.teardownVideoBg();
     window.removeEventListener("keydown", this.handleKeyDown);
     this.removeEventListener("dogear-fold", this.onDogearFold);
     this.removeEventListener("dogear-unfold", this.onDogearUnfold);
@@ -1094,6 +1104,64 @@ export class ExpandableMagazineBanner extends HTMLElement {
   }
 
   // Collapsed renderer — items absolutely positioned in %, sized via cq units.
+  private applyVideoBgCached(container: HTMLElement, videoBg: VideoBg | undefined): HTMLVideoElement | null {
+    const key = videoBg && videoBg.src ? JSON.stringify(videoBg) : null;
+    if (!key) {
+      this.teardownVideoBg();
+      return null;
+    }
+    const cached = this._videoBgCache;
+    if (cached && cached.key === key) {
+      // Same spec: MOVE the live element into the fresh design-box.
+      // First child so layout items stack above (DOM order = z-order).
+      container.insertBefore(cached.el, container.firstChild);
+      if (!this.editMode) {
+        cached.el.play().catch(() => { /* muted autoplay; refusal leaves the poster */ });
+      }
+      return cached.el;
+    }
+    this.teardownVideoBg();
+    const el = applyVideoBg(container, videoBg);
+    if (el) {
+      this._videoBgCache = { key, el };
+      if (this.editMode && videoBg) this.freezeVideoForEditing(el, videoBg);
+    }
+    return el;
+  }
+
+  /** The DESIGNER shows a still frame, not a running film: continuous
+    * decode of a raw (possibly 100+ MB, 1080p) upload makes every edit
+    * heavy and OOM-crashes long sessions. Freeze on the trim-in frame;
+    * real playback belongs to the preview dialog and delivery, which
+    * render outside edit mode. */
+  private freezeVideoForEditing(el: HTMLVideoElement, videoBg: VideoBg): void {
+    el.autoplay = false;
+    el.loop = false;
+    el.pause();
+    const frameAt = Math.max(videoBg.inSec ?? 0, 0.001); // tiny seek paints a frame
+    const freeze = (): void => {
+      try {
+        el.currentTime = frameAt;
+      } catch { /* metadata race; the poster (if any) still shows */ }
+      el.pause();
+    };
+    if (el.readyState >= 1) freeze();
+    else el.addEventListener("loadedmetadata", freeze, { once: true });
+  }
+
+  private teardownVideoBg(): void {
+    const cached = this._videoBgCache;
+    if (!cached) return;
+    this._videoBgCache = null;
+    // Full media teardown — pausing alone leaves the decoder allocated.
+    try {
+      cached.el.pause();
+      cached.el.removeAttribute("src");
+      cached.el.load();
+      cached.el.remove();
+    } catch { /* teardown is best-effort */ }
+  }
+
   private renderFromLayout(page: Page, cfg: BannerConfig): void {
     const defaultFont = fontMain(cfg);
     const items: LayoutItem[] = page.layout ?? [];
@@ -1210,7 +1278,7 @@ export class ExpandableMagazineBanner extends HTMLElement {
     // we inject it into .design-box, which every render path builds.
     const designBox = this.shadowRoot.querySelector<HTMLElement>(".design-box");
     if (designBox) {
-      applyTextureBg(designBox, page.textureBg, applyVideoBg(designBox, page.videoBg));
+      applyTextureBg(designBox, page.textureBg, this.applyVideoBgCached(designBox, page.videoBg));
       // Logo is an EXPANDED-view element. In the collapsed render it shows
       // ONLY in the designer (edit mode), so the author can place it on the
       // expanded master — delivery's collapsed served ad carries no logo.

@@ -17,6 +17,10 @@ import { openAssetModal } from "./asset-modal";
 import { tokens } from "./tokens";
 import { visualRect } from "./visual-rect";
 
+// Delivered video loops are cut to this many seconds at publish
+// (VideoTranscoder.LoopSeconds — keep in sync).
+const MAX_LOOP_SEC = 15;
+
 export interface PageBgPanelHandle {
   update(state: DesignerState): void;
 }
@@ -361,15 +365,10 @@ function renderWithVideo(body: HTMLElement, videoBg: VideoBg, store: Store): voi
   ), "data-opacity");
 
   // Loop / Muted / Autoplay toggles.
-  row(body, "Loop", toggle(videoBg.loop ?? true,
-    (v) => commit(store, (bg) => ({ ...bg, loop: v })),
-  ), "data-loop");
-  row(body, "Muted", toggle(videoBg.muted ?? true,
-    (v) => commit(store, (bg) => ({ ...bg, muted: v })),
-  ), "data-muted");
-  row(body, "Autoplay", toggle(videoBg.autoplay ?? true,
-    (v) => commit(store, (bg) => ({ ...bg, autoplay: v })),
-  ), "data-autoplay");
+  // No Loop / Muted / Autoplay toggles: living paper is ALWAYS a silent
+  // autoplaying loop — the publish transcode strips the audio track at
+  // the file level and the loop is the format. Choices that don't exist
+  // don't get controls.
 
   // Trim in/out — optional seconds. Empty = clear.
   const trim = document.createElement("div");
@@ -378,11 +377,30 @@ function renderWithVideo(body: HTMLElement, videoBg: VideoBg, store: Store): voi
   trimLabel.textContent = "Trim";
   trimLabel.style.cssText = `flex:0 0 80px;color:${tokens.ink300};font-size:11px;`;
   trim.appendChild(trimLabel);
+  // The delivered loop is capped at MAX_LOOP_SEC (the publish transcode
+  // cuts the window — VideoTranscoder.LoopSeconds, keep in sync). Clamp
+  // Out to In+cap here so the draft preview never loops footage the
+  // published ad won't contain.
   trim.appendChild(trimInput("in", videoBg.inSec,
-    (v) => commit(store, (bg) => ({ ...bg, inSec: v })),
+    (v) => commit(store, (bg) => {
+      const next = { ...bg, inSec: v };
+      const start = v ?? 0;
+      if (next.outSec != null) {
+        // Keep the window valid AND within the cap: an Out at or before
+        // the new In would be an inverted window (glitchy preview,
+        // ignored by the transcode) — drop it and let the cap apply.
+        if (next.outSec <= start) next.outSec = undefined;
+        else if (next.outSec > start + MAX_LOOP_SEC) next.outSec = start + MAX_LOOP_SEC;
+      }
+      return next;
+    }),
   ));
   trim.appendChild(trimInput("out", videoBg.outSec,
-    (v) => commit(store, (bg) => ({ ...bg, outSec: v })),
+    (v) => commit(store, (bg) => {
+      const start = bg.inSec ?? 0;
+      const clamped = v == null ? undefined : Math.min(Math.max(v, start), start + MAX_LOOP_SEC);
+      return { ...bg, outSec: clamped };
+    }),
   ));
   trim.dataset.trim = "1";
   body.appendChild(trim);
@@ -901,14 +919,6 @@ function opacitySlider(value: number, onChange: (v: number, commit: boolean) => 
   return wrap;
 }
 
-function toggle(value: boolean, onChange: (v: boolean) => void): HTMLElement {
-  const input = document.createElement("input");
-  input.type = "checkbox";
-  input.checked = value;
-  input.style.cssText = "margin:0;cursor:pointer;";
-  input.addEventListener("change", () => onChange(input.checked));
-  return input;
-}
 
 function trimInput(placeholder: string, value: number | undefined, onChange: (v: number | undefined) => void): HTMLInputElement {
   const input = document.createElement("input");

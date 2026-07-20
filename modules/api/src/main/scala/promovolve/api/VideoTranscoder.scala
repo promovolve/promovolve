@@ -32,7 +32,10 @@ object VideoTranscoder {
       posterMime: String
   )
 
-  private val LoopSeconds = 10
+  // 15s = the industry's shortest standard video spot, so an advertiser's
+  // existing 15s cut drops in as living paper without re-editing
+  // (silenced + downscaled, ~1.8 MB at 720p/CRF-27).
+  private val LoopSeconds = 15
   private val MaxWidth = 1280
   private val TimeoutSeconds = 120L
 

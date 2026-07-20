@@ -28,11 +28,11 @@ class VideoTranscoderSpec extends AnyWordSpec with Matchers {
 
       val dir = Files.createTempDirectory("vtx-spec")
       val src = dir.resolve("src.mp4")
-      // 12 s test pattern + 440 Hz sine → both constraints get exercised.
+      // 20 s test pattern + 440 Hz sine → both constraints get exercised.
       val (gen, genOut) = run(
         "ffmpeg", "-y", "-nostdin",
-        "-f", "lavfi", "-i", "testsrc=duration=12:size=320x240:rate=15",
-        "-f", "lavfi", "-i", "sine=frequency=440:duration=12",
+        "-f", "lavfi", "-i", "testsrc=duration=20:size=320x240:rate=15",
+        "-f", "lavfi", "-i", "sine=frequency=440:duration=20",
         "-shortest", "-c:v", "libx264", "-pix_fmt", "yuv420p", "-c:a", "aac",
         src.toString
       )
@@ -54,7 +54,7 @@ class VideoTranscoderSpec extends AnyWordSpec with Matchers {
       streams.trim.linesIterator.toSeq shouldBe Seq("video")
       val (_, duration) = run(
         "ffprobe", "-v", "error", "-show_entries", "format=duration", "-of", "csv=p=0", out.toString)
-      duration.trim.toDouble should be <= 10.5
+      duration.trim.toDouble should be <= 15.5
     }
 
     "cut the author's trim window instead of the head of the file" in {
@@ -63,7 +63,7 @@ class VideoTranscoderSpec extends AnyWordSpec with Matchers {
       val src = dir.resolve("src.mp4")
       val (gen, genOut) = run(
         "ffmpeg", "-y", "-nostdin",
-        "-f", "lavfi", "-i", "testsrc=duration=12:size=320x240:rate=15",
+        "-f", "lavfi", "-i", "testsrc=duration=20:size=320x240:rate=15",
         "-c:v", "libx264", "-pix_fmt", "yuv420p",
         src.toString
       )

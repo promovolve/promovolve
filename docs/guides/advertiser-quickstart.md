@@ -100,6 +100,76 @@ below what an impression is really worth to you can only lose you
 auctions you'd have profitably won — it cannot lower the price you pay
 when you do win.
 
+### Knowing what to bid: the going rate
+
+You don't have to guess your Max CPM. Under the field, the form shows
+you the market:
+
+- **Going rate** — the price impressions have *actually sold for* over
+  the last 7 days: the median, and the range the middle half of
+  impressions fell into. This is computed from real charged prices
+  across every advertiser on the network. Nobody's individual bids are
+  shown — only what the auction ended up charging.
+- **Entry floors from $X** — the cheapest minimum price any publisher
+  in your market currently asks. Where there's not yet enough traffic
+  to quote a fair going rate, the floor is your starting point.
+- **Reach** — the part that answers your actual question. As you type
+  a number into Max CPM, a line updates live: *"a bid this high reaches
+  roughly ~60% of impressions."* Type a bigger number and watch the
+  share grow; that's the trade-off between cost and coverage, in one
+  sentence.
+
+**All of these follow your chosen context.** This network sells
+attention by topic, the way traditional media planning buys audiences
+by demographic — "people reading soccer pages right now" *is* the
+soccer audience, no tracking required. So when you pick target topics
+on the form, the going rate, floors, and reach all narrow to *that*
+market. Soccer inventory and health inventory are different markets
+with different prices, and the form never blends them. Before you pick
+topics, the numbers describe the whole network and say so.
+
+A dash or a missing rate isn't an error — it means that context is
+young and hasn't traded enough to quote honestly. Bid the floor and
+you're the market.
+
+#### How the numbers are made
+
+Every time an ad is actually shown, the system records two things about
+that impression: **what topic the page matched** and **what price the
+auction charged** (the second-price amount the winner really paid — not
+what anyone bid; bids are never disclosed to anyone).
+
+The going rate is those recorded prices, lined up from cheapest to most
+expensive, for the topics you've chosen, over the last 7 days:
+
+- The **median** is the middle of that line — half of all impressions
+  in your context sold at or below it.
+- The **typical range** is the middle half of the line — a quarter of
+  impressions sold cheaper than it, a quarter dearer.
+
+Medians are used instead of averages on purpose: a handful of expensive
+outliers can drag an average up and trick you into overbidding, but
+they can't move the middle of the line.
+
+The **reach line** uses the same lined-up prices, read the other way
+around: instead of asking "what's the middle price?", it asks "how far
+along the line does *my* number get?" A bid of $9 covers every
+impression that sold for $9 or less — if that's 60% of the line, your
+bid reaches roughly 60% of that market. It updates as you type because
+the page already holds a compact summary of the line (a set of price
+checkpoints at every 5% mark), so no server round-trip is needed.
+
+Three honesty rules apply throughout:
+
+1. **Only charged prices count.** Bids stay private; free re-displays
+   from readers' bookmarks are excluded because nobody paid for them.
+2. **Small markets don't get quoted.** Below a minimum number of
+   impressions, a percentile would be noise dressed as a fact — the
+   form shows the floor instead.
+3. **The numbers always name their scope.** "Context: Soccer" means
+   soccer impressions only; before you pick topics, the label says the
+   figures cover the whole network.
+
 Your daily budget is paced: serving is throttled through the day so the
 budget lasts rather than exhausting in the first hour. Budgets reset at
 midnight in your account's timezone (set by the platform operator; UTC by

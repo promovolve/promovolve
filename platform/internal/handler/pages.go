@@ -1001,58 +1001,11 @@ func (h *Handler) AdvertiserCampaigns(w http.ResponseWriter, r *http.Request) {
 	campaigns = campaigns[start:end]
 
 	// Going rates beside the Max CPM inputs — without market visibility
-	// the Max CPM field is a guess, not a decision. Clearing-price
-	// distribution across all advertisers + current floors, trailing 7d.
-	var marketRates *marketRatesData
-	{
-		mrBody, _ := h.coreGet("/v1/advertisers/me/market-rates?days=7", claims)
-		var mr struct {
-			Days    int `json:"days"`
-			Overall *struct {
-				P25    *string `json:"p25"`
-				Median *string `json:"median"`
-				P75    *string `json:"p75"`
-			} `json:"overall"`
-			Sites []struct {
-				SiteLabel   string  `json:"siteLabel"`
-				Impressions int64   `json:"impressions"`
-				P25         *string `json:"p25"`
-				Median      *string `json:"median"`
-				P75         *string `json:"p75"`
-				Floor       *string `json:"floor"`
-			} `json:"sites"`
-			ReachLadder []float64 `json:"reachLadder"`
-		}
-		if json.Unmarshal(mrBody, &mr) == nil && (mr.Overall != nil || len(mr.Sites) > 0) {
-			deref := func(p *string) string {
-				if p == nil {
-					return ""
-				}
-				return *p
-			}
-			marketRates = &marketRatesData{Days: mr.Days, ReachLadder: template.JS("null")}
-			if len(mr.ReachLadder) > 0 {
-				if lj, err := json.Marshal(mr.ReachLadder); err == nil {
-					marketRates.ReachLadder = template.JS(lj)
-				}
-			}
-			if mr.Overall != nil {
-				marketRates.OverallP25 = deref(mr.Overall.P25)
-				marketRates.OverallMedian = deref(mr.Overall.Median)
-				marketRates.OverallP75 = deref(mr.Overall.P75)
-			}
-			for _, srow := range mr.Sites {
-				marketRates.Sites = append(marketRates.Sites, marketRateRow{
-					SiteLabel:   srow.SiteLabel,
-					Impressions: srow.Impressions,
-					P25:         deref(srow.P25),
-					Median:      deref(srow.Median),
-					P75:         deref(srow.P75),
-					Floor:       deref(srow.Floor),
-				})
-			}
-		}
-	}
+	// the Max CPM field is a guess, not a decision. Unfiltered here (the
+	// whole network); the topic picker and edit panels re-fetch the hint
+	// scoped to their categories — context is this network's unit of
+	// value, so health and soccer inventory never blend silently.
+	marketRates := h.fetchMarketRates(claims, "")
 
 	h.render(w, r, "advertiser/campaigns.html", pageData{
 		Title:          "Campaigns",
@@ -1068,6 +1021,105 @@ func (h *Handler) AdvertiserCampaigns(w http.ResponseWriter, r *http.Request) {
 		ListNav:        nav,
 		MarketRates:    marketRates,
 	})
+}
+
+// fetchMarketRates loads the going-rate view, optionally scoped to a
+// comma-separated set of demand category ids. Context is the unit of
+// value on this network: a blended health+soccer number describes
+// neither market, so callers pass the categories they mean and the
+// hint names its scope.
+func (h *Handler) fetchMarketRates(claims *model.Claims, categories string) *marketRatesData {
+	u := "/v1/advertisers/me/market-rates?days=7"
+	if categories != "" {
+		u += "&categories=" + url.QueryEscape(categories)
+	}
+	mrBody, _ := h.coreGet(u, claims)
+	var mr struct {
+		Days    int `json:"days"`
+		Overall *struct {
+			P25    *string `json:"p25"`
+			Median *string `json:"median"`
+			P75    *string `json:"p75"`
+		} `json:"overall"`
+		Sites []struct {
+			SiteLabel   string  `json:"siteLabel"`
+			Impressions int64   `json:"impressions"`
+			P25         *string `json:"p25"`
+			Median      *string `json:"median"`
+			P75         *string `json:"p75"`
+			Floor       *string `json:"floor"`
+		} `json:"sites"`
+		ReachLadder []float64 `json:"reachLadder"`
+	}
+	if json.Unmarshal(mrBody, &mr) != nil || (mr.Overall == nil && len(mr.Sites) == 0) {
+		return nil
+	}
+	deref := func(p *string) string {
+		if p == nil {
+			return ""
+		}
+		return *p
+	}
+	out := &marketRatesData{Days: mr.Days, ReachLadderJSON: "null"}
+	if len(mr.ReachLadder) > 0 {
+		if lj, err := json.Marshal(mr.ReachLadder); err == nil {
+			out.ReachLadderJSON = string(lj)
+		}
+	}
+	if mr.Overall != nil {
+		out.OverallP25 = deref(mr.Overall.P25)
+		out.OverallMedian = deref(mr.Overall.Median)
+		out.OverallP75 = deref(mr.Overall.P75)
+	}
+	for _, srow := range mr.Sites {
+		out.Sites = append(out.Sites, marketRateRow{
+			SiteLabel:   srow.SiteLabel,
+			Impressions: srow.Impressions,
+			P25:         deref(srow.P25),
+			Median:      deref(srow.Median),
+			P75:         deref(srow.P75),
+			Floor:       deref(srow.Floor),
+		})
+	}
+	for _, srow := range out.Sites {
+		if srow.Floor == "" {
+			continue
+		}
+		if out.FloorFrom == "" || srow.Floor < out.FloorFrom {
+			out.FloorFrom = srow.Floor
+		}
+	}
+	if categories != "" {
+		names := h.taxonomyNames(claims)
+		var labels []string
+		for _, id := range strings.Split(categories, ",") {
+			id = strings.TrimSpace(id)
+			if id == "" {
+				continue
+			}
+			if n, ok := names[id]; ok && n != "" {
+				labels = append(labels, n)
+			} else {
+				labels = append(labels, id)
+			}
+		}
+		out.ScopeLabel = strings.Join(labels, ", ")
+	}
+	return out
+}
+
+// MarketRatesHint renders the going-rate hint fragment scoped to the
+// given categories — fetched by the create form's topic picker and by
+// edit panels on open, so each context sees its own market.
+func (h *Handler) MarketRatesHint(w http.ResponseWriter, r *http.Request) {
+	user, claims := h.sessionUser(r)
+	if user == nil {
+		http.Error(w, "unauthorized", http.StatusUnauthorized)
+		return
+	}
+	data := h.fetchMarketRates(claims, r.URL.Query().Get("categories"))
+	w.Header().Set("Content-Type", "text/html; charset=utf-8")
+	getPage(h.lang(r, user), "advertiser/campaigns.html").ExecuteTemplate(w, "market-rates-hint", data)
 }
 
 func (h *Handler) AdvertiserAccount(w http.ResponseWriter, r *http.Request) {
@@ -2440,10 +2492,19 @@ type marketRatesData struct {
 	OverallP25    string
 	OverallP75    string
 	Sites         []marketRateRow
-	// Clearing-price quantile ladder (5% steps, ascending) as JSON for
-	// the live reach indicator — "your bid reaches ~X% of impressions".
-	// Empty JS "null" when the sample was too small.
-	ReachLadder template.JS
+	// Clearing-price quantile ladder (5% steps, ascending) as JSON,
+	// embedded as a data-attribute on the hint container so every hint
+	// (create form, each edit panel) carries ITS OWN ladder for the live
+	// reach indicator. "null" when the sample was too small.
+	ReachLadderJSON string
+	// Lowest current site-wide floor across the scoped market — the
+	// cheapest entry ticket. The per-site table was removed on purpose:
+	// advertisers buy CONTEXT here, not placements.
+	FloorFrom string
+	// Human-readable context scope ("Cooking, Sports") — empty = whole
+	// network. Context is the unit of value on this network; the hint
+	// must always name which market it is quoting.
+	ScopeLabel string
 }
 
 // Chart.js payload for the creative × media stacked-bar chart: labels =

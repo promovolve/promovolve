@@ -114,8 +114,12 @@
         add(c) {
           if (!this.selected.find(x => x.id === c.id)) this.selected.push(c);
           this.query = ''; this.results = []; this.open = false;
+          document.dispatchEvent(new CustomEvent('market-scope', { detail: { ids: this.ids() } }));
         },
-        remove(id) { this.selected = this.selected.filter(x => x.id !== id); },
+        remove(id) {
+          this.selected = this.selected.filter(x => x.id !== id);
+          document.dispatchEvent(new CustomEvent('market-scope', { detail: { ids: this.ids() } }));
+        },
         ids() { return this.selected.map(c => c.id).join(','); }
       }">
       <label class="form-label">{{t "Target content topics (optional)"}}</label>
@@ -211,7 +215,7 @@
         <label class="form-label">{{t "Max CPM ($)"}}</label>
         <input type="number" name="maxCpm" step="0.01" min="0.01" required placeholder="5.00"
                class="form-input">
-        {{template "market-rates-hint" $.MarketRates}}
+        <span data-hint-slot>{{template "market-rates-hint" $.MarketRates}}</span>
       </div>
     </div>
     <div class="grid grid-cols-2 gap-4 mb-4">
@@ -323,7 +327,7 @@
            yet and scrollIntoView on it silently no-ops (panel opens below
            the fold → "the button did nothing"). One rAF after nextTick
            guarantees a layout pass first — verified in both engines. -->
-      <button type="button" @click.stop="editOpen = true; $nextTick(() => requestAnimationFrame(() => $refs.editPanel.scrollIntoView({ behavior: 'smooth', block: 'start' })))"
+      <button type="button" @click.stop="editOpen = true; window.__scopeHintIn && __scopeHintIn($refs.editPanel); $nextTick(() => requestAnimationFrame(() => $refs.editPanel.scrollIntoView({ behavior: 'smooth', block: 'start' })))"
               class="px-2.5 py-1 text-xs border rounded-md hover:bg-gray-100 text-gray-600 shrink-0">
         {{t "Edit"}}
       </button>
@@ -426,7 +430,8 @@
     </div>
 
     <!-- Edit settings: full-width inline panel (mirrors the New Campaign form, pre-filled) -->
-    <div x-show="editOpen" style="display:none" x-ref="editPanel" class="border-t bg-white p-6">
+    <div x-show="editOpen" style="display:none" x-ref="editPanel" class="border-t bg-white p-6"
+         data-cats="{{range $i, $c := .TargetCategories}}{{if $i}},{{end}}{{$c}}{{end}}">
       <div>
         <div class="flex items-center justify-between mb-4">
           <h2 class="font-semibold">{{t "Edit Campaign"}}</h2>
@@ -567,7 +572,7 @@
               <label class="form-label">{{t "Max CPM ($)"}}</label>
               <input type="number" name="maxCpm" step="0.01" min="0.01" value="{{.MaxCPM}}"
                      class="form-input">
-              {{template "market-rates-hint" $.MarketRates}}
+              <span data-hint-slot>{{template "market-rates-hint" $.MarketRates}}</span>
             </div>
           </div>
 
@@ -602,9 +607,10 @@
 {{if .MarketRates}}
 <script>
 (function(){
-  var ladder = {{.MarketRates.ReachLadder}};
-  if (!ladder || !ladder.length) return;
-  var fmtShare = function(bid){
+  // Each hint container carries ITS OWN ladder (data-ladder) — the
+  // create form and every edit panel can be scoped to different
+  // contexts, and health inventory must never price soccer bids.
+  var fmtShare = function(ladder, bid){
     if (bid < ladder[0]) return "<5%";
     var i = ladder.length - 1;
     while (i >= 0 && ladder[i] > bid) i--;
@@ -613,19 +619,50 @@
   };
   var update = function(input){
     var box = input.closest("div");
-    var line = box ? box.querySelector("[data-reach]") : null;
-    if (!line) return;
+    var hint = box ? box.querySelector("[data-market-hint]") : null;
+    var line = hint ? hint.querySelector("[data-reach]") : null;
+    if (!hint || !line) return;
+    var ladder = null;
+    try { ladder = JSON.parse(hint.dataset.ladder || "null"); } catch (e) { /* attr garbage → no reach */ }
     var bid = parseFloat(input.value);
-    if (!isFinite(bid) || bid <= 0) { line.classList.add("hidden"); return; }
-    line.textContent = line.getAttribute("data-fmt").replace("%s", fmtShare(bid));
+    if (!ladder || !ladder.length || !isFinite(bid) || bid <= 0) { line.classList.add("hidden"); return; }
+    line.textContent = line.getAttribute("data-fmt").replace("%s", fmtShare(ladder, bid));
     line.classList.remove("hidden");
   };
   document.addEventListener("input", function(e){
     var t = e.target;
     if (t && t.name === "maxCpm") update(t);
   });
-  // Prefilled edit panels get their line on load.
-  document.querySelectorAll('input[name="maxCpm"]').forEach(update);
+  var initAll = function(root){
+    (root || document).querySelectorAll('input[name="maxCpm"]').forEach(update);
+  };
+  initAll();
+  // Swap a hint slot to the given context and refresh its reach line.
+  var refreshSlot = function(slot, categories){
+    if (!slot) return;
+    fetch("/advertiser/market-rates-hint?categories=" + encodeURIComponent(categories || ""))
+      .then(function(r){ return r.ok ? r.text() : ""; })
+      .then(function(html){
+        if (html === "") return;
+        slot.innerHTML = html;
+        var form = slot.closest("form");
+        if (form) initAll(form);
+      })
+      .catch(function(){ /* keep the current hint on network trouble */ });
+  };
+  // Create form: the topic picker dispatches market-scope events.
+  document.addEventListener("market-scope", function(e){
+    var slot = document.querySelector('#new-campaign-form [data-hint-slot]');
+    refreshSlot(slot, e.detail && e.detail.ids);
+  });
+  // Edit panels: scope to the campaign's categories on first open.
+  window.__scopeHintIn = function(panel){
+    if (!panel || panel.dataset.hintScoped === "1") return;
+    panel.dataset.hintScoped = "1";
+    var cats = panel.dataset.cats || "";
+    if (cats === "") return; // no categories → whole-network view stays
+    refreshSlot(panel.querySelector("[data-hint-slot]"), cats);
+  };
 })();
 </script>
 {{end}}
@@ -639,42 +676,18 @@
 
 {{define "market-rates-hint"}}
 {{if .}}
-<div class="mt-1.5 text-xs text-gray-500">
+<div class="mt-1.5 text-xs text-gray-500" data-market-hint data-ladder="{{.ReachLadderJSON}}">
+  <p class="text-gray-400">{{if .ScopeLabel}}{{t "Context: %s" .ScopeLabel}}{{else}}{{t "Context: all topics — narrows when you pick target topics"}}{{end}}</p>
   {{if .OverallMedian}}
-  <p>{{t "Going rate (last %d days): median %s, typical range %s–%s" .Days .OverallMedian .OverallP25 .OverallP75}}</p>
+  <p title="{{t "Computed from the price every billed impression actually cleared at across the whole network — all advertisers, all sites. Median: half of all impressions were won at or below this. Typical range: the middle half of impressions cleared inside this band. Bids stay private; only charged prices are counted, and unbilled pin re-views are excluded."}}">{{t "Going rate (last %d days): median %s, typical range %s–%s" .Days .OverallMedian .OverallP25 .OverallP75}}</p>
   {{end}}
   {{/* Live reach: filled by the maxCpm input listener below (script sits
        once at the end of the page content; this element is per-instance).
        data-fmt carries the translated sentence; %s becomes the share. */}}
   <p data-reach class="hidden font-medium text-gray-600"
-     data-fmt="{{t "A bid this high reaches roughly %s of matched impressions (last %d days)" "%s" .Days}}"></p>
-  {{if .Sites}}
-  <details class="mt-1">
-    <summary class="cursor-pointer text-gray-400 hover:text-gray-600 select-none">{{t "Rates by site"}}</summary>
-    <table class="w-full mt-1.5">
-      <thead>
-        <tr class="text-gray-400 text-left">
-          <th class="font-normal pb-0.5">{{t "Media"}}</th>
-          <th class="font-normal pb-0.5 text-right">{{t "imps"}}</th>
-          <th class="font-normal pb-0.5 text-right">{{t "typical"}}</th>
-          <th class="font-normal pb-0.5 text-right">{{t "median"}}</th>
-          <th class="font-normal pb-0.5 text-right">{{t "floor"}}</th>
-        </tr>
-      </thead>
-      <tbody>
-        {{range .Sites}}
-        <tr class="text-gray-600">
-          <td class="truncate max-w-[10rem] pr-1" title="{{.SiteLabel}}">{{.SiteLabel}}</td>
-          <td class="text-right">{{.Impressions}}</td>
-          <td class="text-right">{{if .P25}}{{.P25}}–{{.P75}}{{else}}&mdash;{{end}}</td>
-          <td class="text-right">{{if .Median}}{{.Median}}{{else}}&mdash;{{end}}</td>
-          <td class="text-right">{{if .Floor}}{{.Floor}}{{else}}&mdash;{{end}}</td>
-        </tr>
-        {{end}}
-      </tbody>
-    </table>
-    <p class="mt-1 text-gray-400">{{t "A dash means too little traffic to quote fairly — the floor is the entry price there."}}</p>
-  </details>
+     data-fmt="{{t "A bid this high reaches roughly %s of all network impressions (last %d days)" "%s" .Days}}"></p>
+  {{if .FloorFrom}}
+  <p class="text-gray-400">{{t "Entry floors from %s" .FloorFrom}}</p>
   {{end}}
 </div>
 {{end}}

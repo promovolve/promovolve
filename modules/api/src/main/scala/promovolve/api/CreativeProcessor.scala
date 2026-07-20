@@ -288,8 +288,14 @@ object CreativeProcessor {
         src: String
     ): Future[spray.json.JsValue] = {
       import spray.json.{ JsObject, JsString }
+      // Trim window (videoBg inSec/outSec): the transcode CUTS this window,
+      // so it participates in the synthetic identity — same src with a
+      // different trim is a different delivered file.
+      val inSec = fields.get("inSec").collect { case spray.json.JsNumber(n) => n.toDouble }
+      val outSec = fields.get("outSec").collect { case spray.json.JsNumber(n) => n.toDouble }
+      val identity = s"$src|${inSec.getOrElse(0.0)}|${outSec.getOrElse(-1.0)}"
       val base = MessageDigest.getInstance("SHA-256")
-        .digest(src.getBytes(java.nio.charset.StandardCharsets.UTF_8)).map("%02x".format(_)).mkString
+        .digest(identity.getBytes(java.nio.charset.StandardCharsets.UTF_8)).map("%02x".format(_)).mkString
       // image_asset.hash is VARCHAR(64) — a full sha256 IS 64 chars, so the
       // suffixed synthetic keys must truncate the digest to fit (the first
       // attempt didn't: R2 stored the video, then the row INSERT failed on
@@ -299,7 +305,10 @@ object CreativeProcessor {
       val pHash = base.take(59) + "-vtxp"
 
       def rewritten(videoKey: String, posterKey: Option[String]): spray.json.JsValue = {
-        val withSrc = fields + ("src" -> JsString(s"$cdnBaseUrl/$videoKey"))
+        // The delivered file IS the trimmed window (transcode cut it), so the
+        // trim fields must go — the renderer would otherwise seek into a
+        // file that now starts at zero.
+        val withSrc = fields - "inSec" - "outSec" + ("src" -> JsString(s"$cdnBaseUrl/$videoKey"))
         val withPoster = posterKey match {
           case Some(pk) if !fields.contains("poster") => withSrc + ("poster" -> JsString(s"$cdnBaseUrl/$pk"))
           case _                                      => withSrc
@@ -320,7 +329,8 @@ object CreativeProcessor {
             }
           }.flatMap { raw =>
             val mime = if (src.endsWith(".webm")) "video/webm" else "video/mp4"
-            Future(scala.concurrent.blocking(VideoTranscoder.transcode(raw, mime))).flatMap {
+            Future(scala.concurrent.blocking(VideoTranscoder.transcode(raw, mime, inSec.getOrElse(0.0),
+              outSec))).flatMap {
               case None    => Future.successful(videoBg) // no ffmpeg / encode failed — keep as uploaded
               case Some(r) =>
                 for {

@@ -54,7 +54,27 @@ class VideoTranscoderSpec extends AnyWordSpec with Matchers {
       streams.trim.linesIterator.toSeq shouldBe Seq("video")
       val (_, duration) = run(
         "ffprobe", "-v", "error", "-show_entries", "format=duration", "-of", "csv=p=0", out.toString)
-      duration.trim.toDouble should be <= 8.5
+      duration.trim.toDouble should be <= 10.5
+    }
+
+    "cut the author's trim window instead of the head of the file" in {
+      assume(VideoTranscoder.available, "ffmpeg not on PATH — skipping")
+      val dir = Files.createTempDirectory("vtx-spec-trim")
+      val src = dir.resolve("src.mp4")
+      val (gen, genOut) = run(
+        "ffmpeg", "-y", "-nostdin",
+        "-f", "lavfi", "-i", "testsrc=duration=12:size=320x240:rate=15",
+        "-c:v", "libx264", "-pix_fmt", "yuv420p",
+        src.toString
+      )
+      withClue(genOut.takeRight(300)) { gen shouldBe 0 }
+      // Window 3s→6s: output must be the 3s window, not the first 10s.
+      val r = VideoTranscoder.transcode(Files.readAllBytes(src), "video/mp4", 3.0, Some(6.0)).get
+      val out = dir.resolve("out.mp4")
+      Files.write(out, r.video)
+      val (_, duration) = run(
+        "ffprobe", "-v", "error", "-show_entries", "format=duration", "-of", "csv=p=0", out.toString)
+      duration.trim.toDouble should be(3.0 +- 0.5)
     }
   }
 }

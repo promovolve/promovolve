@@ -32,7 +32,7 @@ object VideoTranscoder {
       posterMime: String
   )
 
-  private val LoopSeconds = 8
+  private val LoopSeconds = 10
   private val MaxWidth = 1280
   private val TimeoutSeconds = 120L
 
@@ -51,8 +51,19 @@ object VideoTranscoder {
   /**
    * Synchronous and CPU/IO heavy — call from a blocking dispatcher
    * (CreativeProcessor already lives on blocking-io-dispatcher).
+   *
+   * `startSec`/`endSec` carry the author's trim window (videoBg
+   * inSec/outSec): the output BEGINS at startSec and runs to endSec,
+   * capped at LoopSeconds — the delivered file IS the trimmed loop, so
+   * the caller must clear the trim fields afterwards (the renderer
+   * would otherwise seek into a file that starts at zero).
    */
-  def transcode(bytes: Array[Byte], mime: String): Option[Result] =
+  def transcode(
+      bytes: Array[Byte],
+      mime: String,
+      startSec: Double = 0.0,
+      endSec: Option[Double] = None
+  ): Option[Result] =
     if (!available) {
       log.warn("ffmpeg not available — video background kept as uploaded ({} bytes, {})", bytes.length, mime)
       None
@@ -64,12 +75,17 @@ object VideoTranscoder {
       val poster = dir.resolve("poster.jpg")
       try {
         Files.write(in, bytes)
+        val start = math.max(0.0, startSec)
+        val window = endSec.filter(_ > start).map(_ - start).getOrElse(LoopSeconds.toDouble)
+        val durationSec = math.min(window, LoopSeconds.toDouble)
         // && short-circuits: the poster pass only runs off a good encode.
+        // -ss BEFORE -i: input seeking, frame-accurate under re-encode.
         val ok = run(
           dir,
           "ffmpeg", "-y", "-nostdin",
+          "-ss", f"$start%.3f",
           "-i", in.toString,
-          "-t", LoopSeconds.toString,
+          "-t", f"$durationSec%.3f",
           "-an", // strip audio at the file level
           // Never upscale; -2 keeps the height even for yuv420p.
           "-vf", s"scale=min($MaxWidth\\,iw):-2",

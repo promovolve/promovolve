@@ -336,6 +336,33 @@ function renderWithVideo(body: HTMLElement, videoBg: VideoBg, store: Store): voi
     "margin-bottom: 10px",
     "display: block",
   ].join(";");
+  // The preview plays THE CONFIGURED SPAN, not the whole file: seek to
+  // In on load, wrap back to In at Out (or In+MAX_LOOP_SEC when Out is
+  // unset — the delivered cap). What the author watches here is exactly
+  // what the published loop will contain. The window updates live as
+  // the trim fields commit (patchValues → __applyWindow).
+  const windowOf = (bg: VideoBg): { s: number; e: number } => {
+    const start = bg.inSec ?? 0;
+    return { s: start, e: Math.min(bg.outSec ?? start + MAX_LOOP_SEC, start + MAX_LOOP_SEC) };
+  };
+  let win = windowOf(videoBg);
+  preview.addEventListener("loadedmetadata", () => {
+    try { preview.currentTime = win.s; } catch { /* seek race on load */ }
+  });
+  preview.addEventListener("timeupdate", () => {
+    // 50ms tolerance below In avoids seek-thrash right at the boundary;
+    // the native loop=true wraps file-end → 0, which this snaps to In.
+    if (preview.currentTime >= win.e || preview.currentTime < win.s - 0.05) {
+      try { preview.currentTime = win.s; } catch { /* mid-seek */ }
+      preview.play().catch(() => { /* keep looping when policy allows */ });
+    }
+  });
+  (preview as TrimPreviewEl).__applyWindow = (bg: VideoBg): void => {
+    win = windowOf(bg);
+    if (preview.readyState >= 1 && (preview.currentTime < win.s || preview.currentTime >= win.e)) {
+      try { preview.currentTime = win.s; } catch { /* not seekable yet */ }
+    }
+  };
   // Swallow autoplay-policy rejections — the poster/first-frame still
   // shows and the controls let the author press play.
   preview.play().catch(() => { /* autoplay may be denied in the panel */ });
@@ -398,12 +425,20 @@ function renderWithVideo(body: HTMLElement, videoBg: VideoBg, store: Store): voi
   trim.appendChild(trimInput("out", videoBg.outSec,
     (v) => commit(store, (bg) => {
       const start = bg.inSec ?? 0;
-      const clamped = v == null ? undefined : Math.min(Math.max(v, start), start + MAX_LOOP_SEC);
+      // Strictly start < end: a zero-length window is not a loop. The
+      // 0.1 floor matches the input's step.
+      const clamped = v == null ? undefined : Math.min(Math.max(v, start + 0.1), start + MAX_LOOP_SEC);
       return { ...bg, outSec: clamped };
     }),
   ));
   trim.dataset.trim = "1";
   body.appendChild(trim);
+
+  // The cap, said out loud — the clamp enforces it, this explains it.
+  const trimHint = document.createElement("p");
+  trimHint.style.cssText = `color:${tokens.ink400};font-size:10px;margin:4px 0 0;line-height:1.4;`;
+  trimHint.textContent = `Max ${MAX_LOOP_SEC}s from In — the published loop plays exactly this span.`;
+  body.appendChild(trimHint);
 
   // Remove — destructive, bottom.
   const remove = document.createElement("button");
@@ -432,13 +467,30 @@ function renderWithVideo(body: HTMLElement, videoBg: VideoBg, store: Store): voi
 // When the videoBg identity stays the same but values tick during a
 // live drag (opacity), sync inputs that weren't being edited without
 // destroying focus on the one that is.
+interface TrimPreviewEl extends HTMLVideoElement {
+  __applyWindow?: (bg: VideoBg) => void;
+}
+
 function patchValues(body: HTMLElement, videoBg: VideoBg): void {
+  // Re-window the inline preview so trim edits take effect immediately.
+  body.querySelector<TrimPreviewEl>("video")?.__applyWindow?.(videoBg);
   const opacity = body.querySelector<HTMLInputElement>('[data-opacity] input[type="range"]');
   if (opacity && document.activeElement !== opacity) {
     opacity.value = String(Math.round((videoBg.opacity ?? 1) * 100));
   }
   const opacityReadout = body.querySelector<HTMLElement>('[data-opacity] .cd-readout');
   if (opacityReadout) opacityReadout.textContent = `${Math.round((videoBg.opacity ?? 1) * 100)}%`;
+  // Trim fields reflect the STORE, not the keystrokes: the commit
+  // handlers clamp (Out into (In, In+MAX_LOOP_SEC], stale Out cleared),
+  // and without this write-back a field could keep displaying the
+  // rejected value (type Out=60 → store says 15 → field still showed
+  // 60). Written unconditionally — number inputs only fire `change` on
+  // Enter/blur, so this never fights live typing; on Enter the snap to
+  // the clamped value IS the feedback.
+  const inInput = body.querySelector<HTMLInputElement>('[data-trim] input[placeholder="in"]');
+  if (inInput) inInput.value = videoBg.inSec == null ? "" : String(videoBg.inSec);
+  const outInput = body.querySelector<HTMLInputElement>('[data-trim] input[placeholder="out"]');
+  if (outInput) outInput.value = videoBg.outSec == null ? "" : String(videoBg.outSec);
 }
 
 // ─── Texture: empty state ──────────────────────────────────────────
@@ -854,12 +906,25 @@ interface AssetUploadResponse {
 }
 
 async function uploadVideo(file: File): Promise<string | null> {
-  const fd = new FormData();
-  fd.append("file", file, file.name);
-  const resp = await fetch("/advertiser/assets", { method: "POST", body: fd });
-  if (!resp.ok) throw new Error(`HTTP ${resp.status}`);
-  const data = (await resp.json()) as AssetUploadResponse;
-  return data.asset?.cdnUrl ?? null;
+  try {
+    const fd = new FormData();
+    fd.append("file", file, file.name);
+    const resp = await fetch("/advertiser/assets", { method: "POST", body: fd });
+    if (!resp.ok) throw new Error(`HTTP ${resp.status}`);
+    const data = (await resp.json()) as AssetUploadResponse;
+    return data.asset?.cdnUrl ?? null;
+  } catch (e) {
+    // Dev harness (vite serve without the :9091 dashboard): fall back to
+    // a local object URL so the video still lands on the page and the
+    // panel (trim clamp, fit, opacity, edit-freeze) can be exercised
+    // offline. Same pattern as asset-modal's image fallback. Dead code
+    // in production builds (import.meta.env.DEV === false).
+    if (import.meta.env.DEV) {
+      console.info("[page-bg] dev fallback: local object URL for %s (no backend)", file.name);
+      return URL.createObjectURL(file);
+    }
+    throw e;
+  }
 }
 
 function segmented(options: string[], selected: string, onChange: (v: string) => void): HTMLElement {

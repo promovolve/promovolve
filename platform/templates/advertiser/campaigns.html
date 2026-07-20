@@ -211,6 +211,7 @@
         <label class="form-label">{{t "Max CPM ($)"}}</label>
         <input type="number" name="maxCpm" step="0.01" min="0.01" required placeholder="5.00"
                class="form-input">
+        {{template "market-rates-hint" $.MarketRates}}
       </div>
     </div>
     <div class="grid grid-cols-2 gap-4 mb-4">
@@ -566,6 +567,7 @@
               <label class="form-label">{{t "Max CPM ($)"}}</label>
               <input type="number" name="maxCpm" step="0.01" min="0.01" value="{{.MaxCPM}}"
                      class="form-input">
+              {{template "market-rates-hint" $.MarketRates}}
             </div>
           </div>
 
@@ -593,5 +595,47 @@
   {{end}}
 </div>
 {{template "list-pagination" .}}
+{{end}}
+{{end}}
+
+{{/* Going rates beside Max CPM: what impressions actually CLEAR at,
+     per site, across all advertisers (individual bids never shown),
+     plus each site's current floor — the entry ticket. Without this
+     the Max CPM field is a guess. */}}
+{{define "market-rates-hint"}}
+{{if .}}
+<div class="mt-1.5 text-xs text-gray-500">
+  {{if .OverallMedian}}
+  <p>{{t "Going rate (last %d days): median %s, typical range %s–%s" .Days .OverallMedian .OverallP25 .OverallP75}}</p>
+  {{end}}
+  {{if .Sites}}
+  <details class="mt-1">
+    <summary class="cursor-pointer text-gray-400 hover:text-gray-600 select-none">{{t "Rates by site"}}</summary>
+    <table class="w-full mt-1.5">
+      <thead>
+        <tr class="text-gray-400 text-left">
+          <th class="font-normal pb-0.5">{{t "Media"}}</th>
+          <th class="font-normal pb-0.5 text-right">{{t "imps"}}</th>
+          <th class="font-normal pb-0.5 text-right">{{t "typical"}}</th>
+          <th class="font-normal pb-0.5 text-right">{{t "median"}}</th>
+          <th class="font-normal pb-0.5 text-right">{{t "floor"}}</th>
+        </tr>
+      </thead>
+      <tbody>
+        {{range .Sites}}
+        <tr class="text-gray-600">
+          <td class="truncate max-w-[10rem] pr-1" title="{{.SiteLabel}}">{{.SiteLabel}}</td>
+          <td class="text-right">{{.Impressions}}</td>
+          <td class="text-right">{{if .P25}}{{.P25}}–{{.P75}}{{else}}&mdash;{{end}}</td>
+          <td class="text-right">{{if .Median}}{{.Median}}{{else}}&mdash;{{end}}</td>
+          <td class="text-right">{{if .Floor}}{{.Floor}}{{else}}&mdash;{{end}}</td>
+        </tr>
+        {{end}}
+      </tbody>
+    </table>
+    <p class="mt-1 text-gray-400">{{t "A dash means too little traffic to quote fairly — the floor is the entry price there."}}</p>
+  </details>
+  {{end}}
+</div>
 {{end}}
 {{end}}

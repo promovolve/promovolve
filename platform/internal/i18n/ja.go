@@ -355,10 +355,17 @@ var ja = map[string]string{
 	"By media":             "メディア別",
 	"Media":                "メディア",
 	"Other":                "その他",
-	"Budget Used":          "予算使用率",
-	"Effective CPM:":       "実効CPM:",
-	"Lifetime spend:":      "累計消化額:",
-	"Max CPM:":             "上限CPM:",
+	// Going-rate hint beside Max CPM (campaigns page)
+	"Going rate (last %d days): median %s, typical range %s–%s": "実勢価格(過去%d日間): 中央値 %s、通常レンジ %s〜%s",
+	"Rates by site": "サイト別の実勢価格",
+	"typical":       "通常レンジ",
+	"median":        "中央値",
+	"floor":         "フロア",
+	"A dash means too little traffic to quote fairly — the floor is the entry price there.": "ダッシュは公正に提示できるだけの配信量がないことを意味します。その場合はフロアが参入価格です。",
+	"Budget Used":     "予算使用率",
+	"Effective CPM:":  "実効CPM:",
+	"Lifetime spend:": "累計消化額:",
+	"Max CPM:":        "上限CPM:",
 
 	// ── wallet ──
 	"Your prepaid balance. Campaigns spend from it as impressions are settled at the end of each day in your account's timezone (%s) — the same day your budgets roll on.": "前払い残高です。アカウントのタイムゾーン(%s)での毎日の終わりにインプレッションが精算されると、ここから消化されます。予算日が切り替わるのと同じ日です。",

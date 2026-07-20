@@ -1000,6 +1000,54 @@ func (h *Handler) AdvertiserCampaigns(w http.ResponseWriter, r *http.Request) {
 	start, end, nav := buildListNav(r, len(campaigns), 10)
 	campaigns = campaigns[start:end]
 
+	// Going rates beside the Max CPM inputs — without market visibility
+	// the Max CPM field is a guess, not a decision. Clearing-price
+	// distribution across all advertisers + current floors, trailing 7d.
+	var marketRates *marketRatesData
+	{
+		mrBody, _ := h.coreGet("/v1/advertisers/me/market-rates?days=7", claims)
+		var mr struct {
+			Days    int `json:"days"`
+			Overall *struct {
+				P25    *string `json:"p25"`
+				Median *string `json:"median"`
+				P75    *string `json:"p75"`
+			} `json:"overall"`
+			Sites []struct {
+				SiteLabel   string  `json:"siteLabel"`
+				Impressions int64   `json:"impressions"`
+				P25         *string `json:"p25"`
+				Median      *string `json:"median"`
+				P75         *string `json:"p75"`
+				Floor       *string `json:"floor"`
+			} `json:"sites"`
+		}
+		if json.Unmarshal(mrBody, &mr) == nil && (mr.Overall != nil || len(mr.Sites) > 0) {
+			deref := func(p *string) string {
+				if p == nil {
+					return ""
+				}
+				return *p
+			}
+			marketRates = &marketRatesData{Days: mr.Days}
+			if mr.Overall != nil {
+				marketRates.OverallP25 = deref(mr.Overall.P25)
+				marketRates.OverallMedian = deref(mr.Overall.Median)
+				marketRates.OverallP75 = deref(mr.Overall.P75)
+			}
+			for _, srow := range mr.Sites {
+				marketRates.Sites = append(marketRates.Sites, marketRateRow{
+					SiteLabel:   srow.SiteLabel,
+					Impressions: srow.Impressions,
+					P25:         deref(srow.P25),
+					Median:      deref(srow.Median),
+					P75:         deref(srow.P75),
+					Floor:       deref(srow.Floor),
+				})
+			}
+		}
+	}
+
 	h.render(w, r, "advertiser/campaigns.html", pageData{
 		Title:          "Campaigns",
 		Nav:            "campaigns",
@@ -1012,6 +1060,7 @@ func (h *Handler) AdvertiserCampaigns(w http.ResponseWriter, r *http.Request) {
 		ServedSites:    servedSites,
 		NoCampaigns:    totalCampaigns == 0,
 		ListNav:        nav,
+		MarketRates:    marketRates,
 	})
 }
 
@@ -2366,6 +2415,25 @@ type creativeMediaRow struct {
 	CTAClicks   int64
 	CTR         string // "" when no clicks (see the CTR note on creativeData)
 	Spend       string // "$X.XX"
+}
+
+// One site row of the going-rate view shown beside the Max CPM inputs.
+type marketRateRow struct {
+	SiteLabel   string
+	Impressions int64
+	P25         string // "" below the sample floor
+	Median      string
+	P75         string
+	Floor       string // "" when the optimizer has no decision yet
+}
+
+// Going rates for the Max CPM decision (trailing window).
+type marketRatesData struct {
+	Days          int
+	OverallMedian string
+	OverallP25    string
+	OverallP75    string
+	Sites         []marketRateRow
 }
 
 // Chart.js payload for the creative × media stacked-bar chart: labels =

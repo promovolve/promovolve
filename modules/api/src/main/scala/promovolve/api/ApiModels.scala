@@ -422,6 +422,29 @@ object ApiModels {
       eCpm: String // dollars per 1k imps, %.4f
   )
 
+  /**
+   * One row of the advertiser-facing market-rate view: what impressions
+   * on this site actually CLEARED at (trailing window, dogeared/unbilled
+   * excluded), plus the site-wide floor — the entry ticket where there is
+   * no clearing history. Percentiles are absent below minSample.
+   */
+  case class MarketRateRow(
+      siteId: String,
+      siteLabel: String,
+      impressions: Long,
+      p25: Option[String],
+      median: Option[String],
+      p75: Option[String],
+      floor: Option[String]
+  )
+
+  case class MarketRatesResponse(
+      days: Int,
+      minSample: Int,
+      overall: Option[MarketRateRow],
+      sites: Vector[MarketRateRow]
+  )
+
   /** One failure-reason bucket in the mount-health summary. */
   case class MountHealthReason(reason: String, count: Long)
 

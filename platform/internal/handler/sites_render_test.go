@@ -51,6 +51,20 @@ func TestSitesAndCreativesTemplatesRender(t *testing.T) {
 				RequestedAt: "2026-07-07 10:00",
 			}},
 		}},
+		{"advertiser/campaigns.html", pageData{
+			Title: "Campaigns", Nav: "campaigns", User: adv,
+			// Going-rate hint: exercises the market-rates define with data
+			// (nil-guard path runs in the all-pages smoke).
+			MarketRates: &marketRatesData{
+				Days: 7, OverallMedian: "$9.00", OverallP25: "$6.00", OverallP75: "$14.00",
+				Sites: []marketRateRow{
+					{SiteLabel: "site.example.com", Impressions: 1200, P25: "$6.00", Median: "$9.00", P75: "$14.00", Floor: "$4.00"},
+					{SiteLabel: "tiny.example.com", Impressions: 12, Floor: "$2.00"},
+				},
+			},
+			Campaigns: []campaignData{{ID: "camp-1", Name: "Campaign One", Status: "active", MaxCPM: "5.00"}},
+			ListNav:   nav,
+		}},
 		{"advertiser/creatives.html", pageData{
 			Title: "Creatives", Nav: "creatives", User: adv, CampaignID: "camp-1",
 			Campaigns:       []campaignData{{ID: "camp-1", Name: "Campaign One"}},

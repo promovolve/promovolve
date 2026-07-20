@@ -413,6 +413,8 @@ type pageData struct {
 	HasPendingRender bool
 	// Creative × media stacked-bar chart (creatives page); nil = no data.
 	MediaChart *creativeMediaChart
+	// Going rates beside Max CPM (campaigns page); nil = no data yet.
+	MarketRates *marketRatesData
 	LandingURL string
 	// CDN URL for the <expandable-magazine-banner> web component.
 	// Used by templates that need to load the banner script to render

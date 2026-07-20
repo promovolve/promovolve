@@ -4616,6 +4616,97 @@ class EndpointRoutes(
       }
   }
 
+  private val getAdvertiserMarketRatesLogic
+      : ((String, Option[Int], Option[String])) => Future[Either[ErrorResponse, MarketRatesResponse]] = {
+    case (_advertiserId, daysOpt, categoriesOpt) =>
+      // Price discovery for the Max CPM decision. Clearing prices are
+      // aggregated across ALL advertisers (market truth, no individual
+      // bid exposed); dogeared re-views are excluded (never billed).
+      // Below MinSample impressions the percentiles are withheld and
+      // only the floor speaks — small samples both mislead and leak.
+      val days = daysOpt.getOrElse(7).max(1).min(30)
+      val MinSample = 100
+      val cats: Vector[String] =
+        categoriesOpt.map(_.split(',').map(_.trim).filter(_.nonEmpty).toVector).getOrElse(Vector.empty)
+      dashboardDb match {
+        case None     => Future.successful(Right(MarketRatesResponse(days, MinSample, None, Vector.empty)))
+        case Some(db) =>
+          import slick.jdbc.PostgresProfile.api.*
+          import slick.jdbc.GetResult
+          given GetResult[(String, String, Long, Double, Double, Double)] =
+            GetResult(using r =>
+              (r.nextString(), r.nextString(), r.nextLong(), r.nextDouble(), r.nextDouble(), r.nextDouble()))
+          given GetResult[(Long, Double, Double, Double)] =
+            GetResult(using r => (r.nextLong(), r.nextDouble(), r.nextDouble(), r.nextDouble()))
+          given GetResult[(String, Double)] = GetResult(using r => (r.nextString(), r.nextDouble()))
+          val catFilter =
+            if (cats.isEmpty) ""
+            else s"AND t.category IN (${cats.map(c => s"'${c.replace("'", "")}'").mkString(",")})"
+          val perSiteQ = sql"""
+            SELECT t.site_id, COALESCE(ps.host, ''), COUNT(*)::bigint,
+                   percentile_cont(0.25) WITHIN GROUP (ORDER BY t.cpm)::double precision,
+                   percentile_cont(0.5)  WITHIN GROUP (ORDER BY t.cpm)::double precision,
+                   percentile_cont(0.75) WITHIN GROUP (ORDER BY t.cpm)::double precision
+            FROM tracking_events t
+            LEFT JOIN publisher_sites ps ON ps.site_id = t.site_id
+            WHERE t.event_type = 'impression' AND NOT t.dogeared AND t.cpm IS NOT NULL
+              AND t.event_time >= NOW() - make_interval(days => $days)
+              #$catFilter
+            GROUP BY t.site_id, ps.host
+            ORDER BY 3 DESC
+            LIMIT 50
+          """.as[(String, String, Long, Double, Double, Double)]
+          val overallQ = sql"""
+            SELECT COUNT(*)::bigint,
+                   COALESCE(percentile_cont(0.25) WITHIN GROUP (ORDER BY t.cpm), 0)::double precision,
+                   COALESCE(percentile_cont(0.5)  WITHIN GROUP (ORDER BY t.cpm), 0)::double precision,
+                   COALESCE(percentile_cont(0.75) WITHIN GROUP (ORDER BY t.cpm), 0)::double precision
+            FROM tracking_events t
+            WHERE t.event_type = 'impression' AND NOT t.dogeared AND t.cpm IS NOT NULL
+              AND t.event_time >= NOW() - make_interval(days => $days)
+              #$catFilter
+          """.as[(Long, Double, Double, Double)].head
+          // Current site-wide floor per site (category IS NULL rows are the
+          // site-wide sweep's decisions; per-category floors change with the
+          // advertiser's exact categories and stay out of the v1 ballpark).
+          val floorsQ = sql"""
+            SELECT DISTINCT ON (site_id) site_id, argmax_floor::double precision
+            FROM floor_decisions
+            WHERE category IS NULL
+            ORDER BY site_id, ts DESC
+          """.as[(String, Double)]
+          val f = for {
+            perSite <- db.run(perSiteQ)
+            overall <- db.run(overallQ)
+            floors <- db.run(floorsQ)
+          } yield {
+            val floorMap = floors.toMap
+            def money(v: Double): String = f"$$${v}%.2f"
+            val siteRows = perSite.toVector.map { case (siteId, host, imps, p25, p50, p75) =>
+              val label = if (host.nonEmpty) host else siteId
+              val enough = imps >= MinSample
+              MarketRateRow(
+                siteId = siteId,
+                siteLabel = label,
+                impressions = imps,
+                p25 = if (enough) Some(money(p25)) else None,
+                median = if (enough) Some(money(p50)) else None,
+                p75 = if (enough) Some(money(p75)) else None,
+                floor = floorMap.get(siteId).map(money)
+              )
+            }
+            val (oImps, o25, o50, o75) = overall
+            val overallRow =
+              if (oImps >= MinSample)
+                Some(MarketRateRow("", "", oImps, Some(money(o25)), Some(money(o50)), Some(money(o75)), None))
+              else None
+            Right(MarketRatesResponse(days, MinSample, overallRow, siteRows)): Either[
+              ErrorResponse, MarketRatesResponse]
+          }
+          f.recover { case ex => Left(ErrorResponse("market_rates_failed", ex.getMessage)) }
+      }
+  }
+
   private val getSiteMountHealthLogic
       : ((String, String, Option[Int])) => Future[Either[ErrorResponse, SiteMountHealthResponse]] = {
     case (_publisherId, siteId, daysOpt) =>
@@ -5267,6 +5358,8 @@ class EndpointRoutes(
     PekkoHttpServerInterpreter().toRoute(
       Endpoints.getSiteMountHealth.serverLogic(gateSite3(getSiteMountHealthLogic))),
     PekkoHttpServerInterpreter().toRoute(Endpoints.getAdvertiserSpendToday.serverLogic(getAdvertiserSpendTodayLogic)),
+    PekkoHttpServerInterpreter().toRoute(
+      Endpoints.getAdvertiserMarketRates.serverLogic(getAdvertiserMarketRatesLogic)),
     PekkoHttpServerInterpreter().toRoute(Endpoints.getAdvertiserWinRates.serverLogic(getAdvertiserWinRatesLogic)),
     PekkoHttpServerInterpreter().toRoute(
       Endpoints.getAdvertiserCampaignSpendToday.serverLogic(getAdvertiserCampaignSpendTodayLogic)),

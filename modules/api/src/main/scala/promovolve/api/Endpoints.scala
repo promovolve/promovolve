@@ -396,6 +396,20 @@ object Endpoints extends ApiJsonFormats {
       .out(jsonBody[SiteMountHealthResponse])
       .errorOut(jsonBody[ErrorResponse])
 
+  val getAdvertiserMarketRates
+      : PublicEndpoint[(String, Option[Int], Option[String]), ErrorResponse, MarketRatesResponse, Any] =
+    endpoint
+      .tag("Advertisers")
+      .summary("Going rates: cleared-CPM distribution per site + current floors")
+      .description(
+        "Price discovery for the Max CPM decision: per-site p25/median/p75 of ACTUAL clearing prices (impressions, trailing window, pin re-views excluded) aggregated across all advertisers — market truth without exposing any individual bid — plus each site's current site-wide floor (the entry ticket where no clearing history exists). Percentiles withheld below a minimum sample. Optional category filter narrows to the campaign's demand categories.")
+      .get
+      .in(advertisersBase / path[String]("advertiserId") / "market-rates")
+      .in(query[Option[Int]]("days").description("Trailing window in days, clamped 1-30; default 7"))
+      .in(query[Option[String]]("categories").description("Comma-separated demand category ids; unset = all"))
+      .out(jsonBody[MarketRatesResponse])
+      .errorOut(jsonBody[ErrorResponse])
+
   val getAdvertiserSpendToday: PublicEndpoint[String, ErrorResponse, AdvertiserSpendTodayResponse, Any] =
     endpoint
       .tag("Advertisers")

@@ -368,6 +368,26 @@ function renderWithVideo(body: HTMLElement, videoBg: VideoBg, store: Store): voi
   preview.play().catch(() => { /* autoplay may be denied in the panel */ });
   body.appendChild(preview);
 
+  // Codec blindness is NOT a failed upload — say so. Safari cannot
+  // decode AV1 (and some browsers lack other codecs), so a perfectly
+  // uploaded file previews as silent black, which authors read as
+  // "upload failed" (happened live 2026-07-20 with an AV1 webm). The
+  // published ad is unaffected: the publish transcode converts to
+  // H.264, which plays everywhere.
+  const codecNotice = document.createElement("p");
+  codecNotice.style.cssText = `color:${tokens.ink300};font-size:10px;margin:-6px 0 10px;line-height:1.5;display:none;border-left:2px solid ${tokens.ink500};padding-left:8px;`;
+  codecNotice.textContent = "Your upload is fine — this browser just can't decode this video codec, so the preview is blank. "
+    + "Publishing converts it to H.264, which plays in every browser. To see a live preview now, open this creative in Chrome.";
+  body.appendChild(codecNotice);
+  const showCodecNotice = (): void => { codecNotice.style.display = "block"; };
+  preview.addEventListener("error", showCodecNotice);
+  preview.addEventListener("loadeddata", () => {
+    // Some engines load the container but decode nothing: metadata
+    // arrives with zero-sized frames. Same blindness, same notice.
+    if (preview.videoWidth === 0) showCodecNotice();
+    else codecNotice.style.display = "none";
+  });
+
   // Current-file readout + replace button.
   const head = document.createElement("div");
   head.style.cssText = "display:flex;align-items:center;gap:8px;margin-bottom:12px;";

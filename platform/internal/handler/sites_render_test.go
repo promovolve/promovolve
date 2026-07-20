@@ -8,6 +8,7 @@ import (
 	"github.com/hanishi/promovolve/platform/internal/i18n"
 	"html/template"
 	"io"
+	"strings"
 	"testing"
 
 	platform "github.com/hanishi/promovolve/platform"
@@ -100,6 +101,33 @@ func TestSitesAndCreativesTemplatesRender(t *testing.T) {
 			if err := getPage(tlang, c.name).ExecuteTemplate(io.Discard, "layout", c.data); err != nil {
 				t.Errorf("%s failed to render: %v", c.name, err)
 			}
+		}
+	}
+}
+
+func TestMarketRatesHintScopedNoTrades(t *testing.T) {
+	SetFS(platform.Templates, platform.Static)
+
+	// A scoped context with zero cleared impressions still has an entry
+	// price (floorFrom is independent of trade history). The hint must
+	// render the scope, say there are no trades yet, and show the floor —
+	// not vanish.
+	data := &marketRatesData{
+		Days: 7, ReachLadderJSON: "null",
+		ScopeLabel: "Cooking", FloorFrom: "$10.00",
+	}
+	var buf strings.Builder
+	if err := getPage(i18n.LangEN, "advertiser/campaigns.html").ExecuteTemplate(&buf, "market-rates-hint", data); err != nil {
+		t.Fatalf("hint fragment failed to render: %v", err)
+	}
+	out := buf.String()
+	for _, want := range []string{
+		"Context: Cooking",
+		"No cleared impressions in this context yet",
+		"Entry floors from $10.00",
+	} {
+		if !strings.Contains(out, want) {
+			t.Errorf("hint missing %q in:\n%s", want, out)
 		}
 	}
 }

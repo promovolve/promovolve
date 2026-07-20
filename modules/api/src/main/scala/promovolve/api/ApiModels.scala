@@ -449,7 +449,15 @@ object ApiModels {
        * answer "what share of impressions does a bid of $X reach?" locally,
        * for any bid, with no further round-trips. Absent below minSample.
        */
-      reachLadder: Option[Vector[Double]] = None
+      reachLadder: Option[Vector[Double]] = None,
+      /**
+       * Cheapest current entry floor in scope, INDEPENDENT of trade
+       * history: per-category floor decisions where the sweep has
+       * learned them, site-wide floors as fallback. A young context
+       * with zero clears still has an entry price — without this the
+       * scoped view collapsed to nothing.
+       */
+      floorFrom: Option[String] = None
   )
 
   /** One failure-reason bucket in the mount-health summary. */

@@ -1050,8 +1050,13 @@ func (h *Handler) fetchMarketRates(claims *model.Claims, categories string) *mar
 			Floor       *string `json:"floor"`
 		} `json:"sites"`
 		ReachLadder []float64 `json:"reachLadder"`
+		FloorFrom   *string   `json:"floorFrom"`
 	}
-	if json.Unmarshal(mrBody, &mr) != nil || (mr.Overall == nil && len(mr.Sites) == 0) {
+	// A scope with no cleared impressions still has an entry price —
+	// floorFrom is independent of trade history, so its presence alone
+	// keeps the hint alive (rendered as "no trades yet" + the floor).
+	if json.Unmarshal(mrBody, &mr) != nil ||
+		(mr.Overall == nil && len(mr.Sites) == 0 && mr.FloorFrom == nil) {
 		return nil
 	}
 	deref := func(p *string) string {
@@ -1081,12 +1086,18 @@ func (h *Handler) fetchMarketRates(claims *model.Claims, categories string) *mar
 			Floor:       deref(srow.Floor),
 		})
 	}
-	for _, srow := range out.Sites {
-		if srow.Floor == "" {
-			continue
-		}
-		if out.FloorFrom == "" || srow.Floor < out.FloorFrom {
-			out.FloorFrom = srow.Floor
+	if mr.FloorFrom != nil {
+		out.FloorFrom = *mr.FloorFrom
+	} else {
+		// Older core without floorFrom: fall back to the cheapest
+		// per-site floor riding on the trade rows.
+		for _, srow := range out.Sites {
+			if srow.Floor == "" {
+				continue
+			}
+			if out.FloorFrom == "" || srow.Floor < out.FloorFrom {
+				out.FloorFrom = srow.Floor
+			}
 		}
 	}
 	if categories != "" {

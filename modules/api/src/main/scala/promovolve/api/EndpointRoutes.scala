@@ -4675,6 +4675,19 @@ class EndpointRoutes(
             WHERE category IS NULL
             ORDER BY site_id, ts DESC
           """.as[(String, Double)]
+          // Scoped entry floor: per-category sweep decisions where learned
+          // (the sweep only prices categories with targeted demand), else
+          // the site-wide fallback floors. min() over latest per key.
+          val catFloorQ =
+            if (cats.isEmpty) DBIO.successful(Option.empty[Double])
+            else sql"""
+              SELECT MIN(f.argmax_floor)::double precision FROM (
+                SELECT DISTINCT ON (site_id, category) argmax_floor
+                FROM floor_decisions
+                WHERE category IN (#${cats.map(c => s"'${c.replace("'", "")}'").mkString(",")})
+                ORDER BY site_id, category, ts DESC
+              ) f
+            """.as[Option[Double]].head
           // 19-point quantile ladder (5% steps) — the reach indicator's
           // whole dataset. Cast to text and parse: Slick has no native
           // GetResult for double precision[].
@@ -4691,6 +4704,7 @@ class EndpointRoutes(
             perSite <- db.run(perSiteQ)
             overall <- db.run(overallQ)
             floors <- db.run(floorsQ)
+            catFloor <- db.run(catFloorQ)
             ladder <- db.run(ladderQ)
           } yield {
             val floorMap = floors.toMap
@@ -4718,7 +4732,10 @@ class EndpointRoutes(
                 ladder.map(_.stripPrefix("{").stripSuffix("}").split(',').toVector
                   .flatMap(v => v.toDoubleOption)).filter(_.nonEmpty)
               else None
-            Right(MarketRatesResponse(days, MinSample, overallRow, siteRows, reachLadder)): Either[
+            val floorFrom = catFloor
+              .orElse(if (floors.nonEmpty) Some(floors.map(_._2).min) else None)
+              .map(money)
+            Right(MarketRatesResponse(days, MinSample, overallRow, siteRows, reachLadder, floorFrom)): Either[
               ErrorResponse, MarketRatesResponse]
           }
           f.recover { case ex => Left(ErrorResponse("market_rates_failed", ex.getMessage)) }

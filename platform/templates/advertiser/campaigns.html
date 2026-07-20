@@ -680,6 +680,8 @@
   <p class="text-gray-400">{{if .ScopeLabel}}{{t "Context: %s" .ScopeLabel}}{{else}}{{t "Context: all topics — narrows when you pick target topics"}}{{end}}</p>
   {{if .OverallMedian}}
   <p title="{{t "Computed from the price every billed impression actually cleared at across the whole network — all advertisers, all sites. Median: half of all impressions were won at or below this. Typical range: the middle half of impressions cleared inside this band. Bids stay private; only charged prices are counted, and unbilled pin re-views are excluded."}}">{{t "Going rate (last %d days): median %s, typical range %s–%s" .Days .OverallMedian .OverallP25 .OverallP75}}</p>
+  {{else}}
+  <p>{{t "No cleared impressions in this context yet — the going rate appears once ads serve here."}}</p>
   {{end}}
   {{/* Live reach: filled by the maxCpm input listener below (script sits
        once at the end of the page content; this element is per-instance).

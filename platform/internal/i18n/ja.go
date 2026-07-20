@@ -358,7 +358,8 @@ var ja = map[string]string{
 	// Going-rate hint beside Max CPM (campaigns page)
 	"Going rate (last %d days): median %s, typical range %s–%s": "実勢価格(過去%d日間): 中央値 %s、通常レンジ %s〜%s",
 	"Entry floors from %s": "参入フロアは%sから",
-	"Context: %s":          "コンテキスト: %s",
+	"No cleared impressions in this context yet — the going rate appears once ads serve here.": "このコンテキストではまだ落札されたインプレッションがありません — 広告が配信されると実勢価格が表示されます。",
+	"Context: %s": "コンテキスト: %s",
 	"Context: all topics — narrows when you pick target topics": "コンテキスト: 全トピック — ターゲットトピックを選ぶと絞り込まれます",
 	"Computed from the price every billed impression actually cleared at across the whole network — all advertisers, all sites. Median: half of all impressions were won at or below this. Typical range: the middle half of impressions cleared inside this band. Bids stay private; only charged prices are counted, and unbilled pin re-views are excluded.": "ネットワーク全体(全広告主・全サイト)で課金された各インプレッションの実際の落札価格から算出しています。中央値: 全インプレッションの半数がこの額以下で落札。通常レンジ: 中央の半数がこの範囲内で落札。入札額は非公開で、課金された価格のみを集計し、課金対象外のピン再表示は除外しています。",
 	"A bid this high reaches roughly %s of all network impressions (last %d days)": "この上限額で、ネットワーク全体のインプレッションの約%sに届きます(過去%d日間)",

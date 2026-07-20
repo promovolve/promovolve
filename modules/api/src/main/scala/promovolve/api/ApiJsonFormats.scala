@@ -100,7 +100,7 @@ trait ApiJsonFormats extends DefaultJsonProtocol {
   given RootJsonFormat[CategoryDemandResponse] = jsonFormat2(CategoryDemandResponse.apply)
   given RootJsonFormat[SiteRevenueTodayResponse] = jsonFormat5(SiteRevenueTodayResponse.apply)
   given RootJsonFormat[MarketRateRow] = jsonFormat7(MarketRateRow.apply)
-  given RootJsonFormat[MarketRatesResponse] = jsonFormat5(MarketRatesResponse.apply)
+  given RootJsonFormat[MarketRatesResponse] = jsonFormat6(MarketRatesResponse.apply)
   given RootJsonFormat[MountHealthReason] = jsonFormat2(MountHealthReason.apply)
   given RootJsonFormat[SiteMountHealthResponse] = jsonFormat7(SiteMountHealthResponse.apply)
   given RootJsonFormat[AdvertiserSpendTodayResponse] = jsonFormat5(AdvertiserSpendTodayResponse.apply)

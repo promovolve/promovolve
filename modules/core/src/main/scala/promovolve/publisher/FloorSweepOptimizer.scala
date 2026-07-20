@@ -78,6 +78,19 @@ final class FloorSweepOptimizer(
   // state from a single odd cycle.
   private var minBidObserved: Double = 0.0
 
+  // Highest bid observed during the CURRENT candidate hold window
+  // (resets on every cursor advance). The mid-sweep contraction uses
+  // this — not the cycle-long `maxBidObserved` — as its ceiling,
+  // because the cycle max is a monotone high-water mark: a bidder that
+  // lowered its bid (or left) after being observed once early in the
+  // cycle would otherwise keep the contraction blind for the rest of
+  // the cycle, camping ticksPerCandidate on floors nobody can pay
+  // (observed live 2026-07-20: a $12→$10 bid cut mid-cycle left the
+  // sweep probing $10.29–$12.00 for hours of guaranteed no-fill).
+  // 0.0 = no auctions this window; the contraction then falls back to
+  // the cycle max, which is the best information available.
+  private var windowMaxBid: Double = 0.0
+
   def currentFloorCpm: Double = _currentFloor
 
   /**
@@ -120,6 +133,7 @@ final class FloorSweepOptimizer(
     _currentFloor = _minFloor
     maxBidObserved = 0.0
     minBidObserved = 0.0
+    windowMaxBid = 0.0
     results = Map.empty
     candidates = Vector.empty
     cursor = 0
@@ -164,6 +178,7 @@ final class FloorSweepOptimizer(
    */
   def recordObservedBid(bidCpm: Double): Unit = {
     if (bidCpm > maxBidObserved) maxBidObserved = bidCpm
+    if (bidCpm > windowMaxBid) windowMaxBid = bidCpm
   }
 
   /**
@@ -268,6 +283,7 @@ final class FloorSweepOptimizer(
       // sweep range.
       maxBidObserved = 0.0
       minBidObserved = 0.0
+      windowMaxBid = 0.0
       candidates = buildCandidates(candMin, candMax, config.candidateCount)
       results = Map.empty
       cursor = 0
@@ -299,7 +315,7 @@ final class FloorSweepOptimizer(
         ticksThisCandidate = 0
         cursor += 1
         // Mid-sweep contraction: once any bid has been observed (either
-        // a qualifying bid or a below-floor reject), we know the cycle's
+        // a qualifying bid or a below-floor reject), we know the market's
         // current ceiling. Fast-forward past any remaining candidates
         // above it — those produce zero revenue by construction, and
         // sitting on them just starves the only bidder for entire tick
@@ -307,10 +323,21 @@ final class FloorSweepOptimizer(
         // prior high bid that then vanished: the contraction skips the
         // now-dead upper candidates instead of camping ticksPerCandidate
         // on each.
-        if (maxBidObserved > 0.0) {
-          while (cursor < candidates.size && candidates(cursor) > maxBidObserved)
+        //
+        // The ceiling is the max bid seen during the just-finished hold
+        // window, NOT the cycle-long `maxBidObserved`: the cycle max is
+        // monotone, so a bid observed once early in the cycle and then
+        // lowered would pin the ceiling high and disable the contraction
+        // for the whole cycle. A window with no auctions (windowMaxBid
+        // == 0) carries no new information, so we fall back to the
+        // cycle max there.
+        val contractionCeiling =
+          if (windowMaxBid > 0.0) windowMaxBid else maxBidObserved
+        if (contractionCeiling > 0.0) {
+          while (cursor < candidates.size && candidates(cursor) > contractionCeiling)
             cursor += 1
         }
+        windowMaxBid = 0.0
         if (cursor < candidates.size) {
           val next = candidates(cursor)
           _currentFloor = next
@@ -368,7 +395,8 @@ final class FloorSweepOptimizer(
     previousResults = previousResults.toVector.map { case (f, (r, i)) => CandidateResult(f, r, i) },
     previousBestFloor = previousBestFloor,
     maxBidObserved = maxBidObserved,
-    minBidObserved = minBidObserved
+    minBidObserved = minBidObserved,
+    windowMaxBid = windowMaxBid
   )
 
   def restore(s: Snapshot): Unit = {
@@ -387,6 +415,7 @@ final class FloorSweepOptimizer(
     previousBestFloor = s.previousBestFloor
     maxBidObserved = s.maxBidObserved
     minBidObserved = s.minBidObserved
+    windowMaxBid = s.windowMaxBid
   }
 }
 
@@ -556,7 +585,12 @@ object FloorSweepOptimizer {
       // below-floor reject; resets at each Phase.Init). Used at the
       // next Init to raise the candidate-search lower bound. 0.0 =
       // sentinel "none observed"; optimizer falls back to _minFloor.
-      minBidObserved: Double = 0.0
+      minBidObserved: Double = 0.0,
+      // Highest bid observed during the current candidate hold window
+      // (resets on cursor advance). Ceiling for the mid-sweep
+      // contraction; see the field comment in the class. Defaulted so
+      // pre-existing snapshots restore cleanly.
+      windowMaxBid: Double = 0.0
   ) extends CborSerializable
 
   /**

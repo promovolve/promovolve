@@ -505,6 +505,49 @@ class FloorSweepOptimizerSpec extends AnyWordSpec with Matchers {
       opt.currentFloorCpm shouldBe 0.10 +- 0.05 // best (and only) measured floor
     }
 
+    "contract on the current window's max when a bid is LOWERED mid-cycle" in {
+      // Incident 2026-07-20 (Cooking/216 on publisher-programmer-llc): a
+      // cycle Init'd while one campaign bid $12 and another $10, building
+      // the grid [10.00..12.00]. The $12 bid was observed once early in
+      // the new cycle, then the advertiser cut it to $10. The cycle-long
+      // maxBidObserved is a monotone high-water mark, so it stayed 12 and
+      // the mid-sweep contraction never fired — the sweep camped a full
+      // hold window on each of $10.29..$12.00, all guaranteed no-fill.
+      // The contraction must key off the max observed in the most recent
+      // hold window instead.
+      val opt = new FloorSweepOptimizer(
+        siteId,
+        FloorSweepOptimizer.Config(candidateCount = 8, ticksPerCandidate = 1, exploitTicks = 1)
+      )
+      opt.setMinFloor(0.10)
+
+      // Prior cycle: bids span $10..$12.
+      opt.recordObservedBid(12.0)
+      opt.recordObservedMinBid(10.0)
+      opt.observe() // Init → Sweep, grid [10.00..12.00], 8 candidates
+      val snap0 = opt.snapshot()
+      snap0.candidates.head shouldBe 10.0 +- 0.01
+      snap0.candidates.last shouldBe 12.0 +- 0.01
+
+      // Candidate 1 window: the $12 bidder is still live — cycle max
+      // pins at 12, no contraction on advance.
+      opt.recordObservedBid(12.0); opt.recordObservedMinBid(10.0)
+      opt.observe() // advance to candidate 2 ($10.29)
+      opt.snapshot().cursor shouldBe 1
+
+      // Advertiser cuts the bid to $10. Candidate 2 window observes only
+      // $10 bids; the next advance must skip every remaining candidate
+      // above $10 — despite the cycle-long max still being 12 — which
+      // ends the sweep.
+      opt.recordObservedBid(10.0); opt.recordObservedMinBid(10.0)
+      opt.observe()
+      val snap1 = opt.snapshot()
+      snap1.phase shouldBe FloorSweepOptimizer.Phase.Exploit
+      // All measured candidates had zero revenue → argmax prefers the
+      // lowest, which is also the only floor the $10 market can fill.
+      opt.currentFloorCpm shouldBe 10.0 +- 0.01
+    }
+
     "collapse cold-start to a single candidate at _minFloor when no bids have been observed" in {
       // Previously the optimizer fell back to a static max ceiling when
       // it had no observations, blindly sweeping up to it. That produced

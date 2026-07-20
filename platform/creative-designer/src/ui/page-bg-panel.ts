@@ -840,7 +840,7 @@ function mutateTex(store: Store, fn: (bg: TextureBg) => TextureBg, commitNow: bo
 
 // ─── Controls ──────────────────────────────────────────────────────
 
-function uploadButton(store: Store, label: string): HTMLButtonElement {
+function uploadButton(store: Store, label: string): HTMLElement {
   const btn = document.createElement("button");
   btn.type = "button";
   btn.textContent = label;
@@ -889,6 +889,10 @@ function uploadButton(store: Store, label: string): HTMLButtonElement {
       }
     } catch (e) {
       console.error("[page-bg] upload failed:", e);
+      // Silent failure reads as a dead button — say it, in place. A 401
+      // here usually means the dashboard session expired (re-login).
+      errLine.textContent = `Upload failed: ${e instanceof Error ? e.message : String(e)} — if this is HTTP 401, your session expired; sign in again.`;
+      errLine.style.display = "block";
     } finally {
       btn.disabled = false;
       btn.textContent = orig;
@@ -896,9 +900,18 @@ function uploadButton(store: Store, label: string): HTMLButtonElement {
     }
   });
 
-  btn.addEventListener("click", () => input.click());
+  const errLine = document.createElement("p");
+  errLine.style.cssText = `color:#e0685f;font-size:10px;margin:6px 0 0;line-height:1.4;display:none;`;
+
+  btn.addEventListener("click", () => {
+    errLine.style.display = "none";
+    input.click();
+  });
   btn.appendChild(input);
-  return btn;
+  const wrap = document.createElement("div");
+  wrap.appendChild(btn);
+  wrap.appendChild(errLine);
+  return wrap;
 }
 
 interface AssetUploadResponse {

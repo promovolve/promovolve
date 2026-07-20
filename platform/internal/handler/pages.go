@@ -1021,6 +1021,7 @@ func (h *Handler) AdvertiserCampaigns(w http.ResponseWriter, r *http.Request) {
 				P75         *string `json:"p75"`
 				Floor       *string `json:"floor"`
 			} `json:"sites"`
+			ReachLadder []float64 `json:"reachLadder"`
 		}
 		if json.Unmarshal(mrBody, &mr) == nil && (mr.Overall != nil || len(mr.Sites) > 0) {
 			deref := func(p *string) string {
@@ -1029,7 +1030,12 @@ func (h *Handler) AdvertiserCampaigns(w http.ResponseWriter, r *http.Request) {
 				}
 				return *p
 			}
-			marketRates = &marketRatesData{Days: mr.Days}
+			marketRates = &marketRatesData{Days: mr.Days, ReachLadder: template.JS("null")}
+			if len(mr.ReachLadder) > 0 {
+				if lj, err := json.Marshal(mr.ReachLadder); err == nil {
+					marketRates.ReachLadder = template.JS(lj)
+				}
+			}
 			if mr.Overall != nil {
 				marketRates.OverallP25 = deref(mr.Overall.P25)
 				marketRates.OverallMedian = deref(mr.Overall.Median)
@@ -2434,6 +2440,10 @@ type marketRatesData struct {
 	OverallP25    string
 	OverallP75    string
 	Sites         []marketRateRow
+	// Clearing-price quantile ladder (5% steps, ascending) as JSON for
+	// the live reach indicator — "your bid reaches ~X% of impressions".
+	// Empty JS "null" when the sample was too small.
+	ReachLadder template.JS
 }
 
 // Chart.js payload for the creative × media stacked-bar chart: labels =

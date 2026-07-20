@@ -442,7 +442,14 @@ object ApiModels {
       days: Int,
       minSample: Int,
       overall: Option[MarketRateRow],
-      sites: Vector[MarketRateRow]
+      sites: Vector[MarketRateRow],
+      /**
+       * Clearing-price quantile ladder over the (category-filtered) market
+       * slice: cpm at 5%,10%,…,95% of impressions, ascending. Lets a client
+       * answer "what share of impressions does a bid of $X reach?" locally,
+       * for any bid, with no further round-trips. Absent below minSample.
+       */
+      reachLadder: Option[Vector[Double]] = None
   )
 
   /** One failure-reason bucket in the mount-health summary. */

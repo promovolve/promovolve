@@ -4675,10 +4675,23 @@ class EndpointRoutes(
             WHERE category IS NULL
             ORDER BY site_id, ts DESC
           """.as[(String, Double)]
+          // 19-point quantile ladder (5% steps) — the reach indicator's
+          // whole dataset. Cast to text and parse: Slick has no native
+          // GetResult for double precision[].
+          val ladderQ = sql"""
+            SELECT percentile_cont(ARRAY[0.05,0.10,0.15,0.20,0.25,0.30,0.35,0.40,0.45,0.50,
+                                         0.55,0.60,0.65,0.70,0.75,0.80,0.85,0.90,0.95])
+                   WITHIN GROUP (ORDER BY t.cpm)::text
+            FROM tracking_events t
+            WHERE t.event_type = 'impression' AND NOT t.dogeared AND t.cpm IS NOT NULL
+              AND t.event_time >= NOW() - make_interval(days => $days)
+              #$catFilter
+          """.as[Option[String]].head
           val f = for {
             perSite <- db.run(perSiteQ)
             overall <- db.run(overallQ)
             floors <- db.run(floorsQ)
+            ladder <- db.run(ladderQ)
           } yield {
             val floorMap = floors.toMap
             def money(v: Double): String = f"$$${v}%.2f"
@@ -4700,7 +4713,12 @@ class EndpointRoutes(
               if (oImps >= MinSample)
                 Some(MarketRateRow("", "", oImps, Some(money(o25)), Some(money(o50)), Some(money(o75)), None))
               else None
-            Right(MarketRatesResponse(days, MinSample, overallRow, siteRows)): Either[
+            val reachLadder =
+              if (oImps >= MinSample)
+                ladder.map(_.stripPrefix("{").stripSuffix("}").split(',').toVector
+                  .flatMap(v => v.toDoubleOption)).filter(_.nonEmpty)
+              else None
+            Right(MarketRatesResponse(days, MinSample, overallRow, siteRows, reachLadder)): Either[
               ErrorResponse, MarketRatesResponse]
           }
           f.recover { case ex => Left(ErrorResponse("market_rates_failed", ex.getMessage)) }

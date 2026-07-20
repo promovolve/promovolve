@@ -57,6 +57,7 @@ func TestSitesAndCreativesTemplatesRender(t *testing.T) {
 			// (nil-guard path runs in the all-pages smoke).
 			MarketRates: &marketRatesData{
 				Days: 7, OverallMedian: "$9.00", OverallP25: "$6.00", OverallP75: "$14.00",
+				ReachLadder: template.JS("[4,5,6,7,8,9,10,11,12,13,14,15,16,17,18,19,20,20,20]"),
 				Sites: []marketRateRow{
 					{SiteLabel: "site.example.com", Impressions: 1200, P25: "$6.00", Median: "$9.00", P75: "$14.00", Floor: "$4.00"},
 					{SiteLabel: "tiny.example.com", Impressions: 12, Floor: "$2.00"},

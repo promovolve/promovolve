@@ -358,9 +358,10 @@ var ja = map[string]string{
 	// Going-rate hint beside Max CPM (campaigns page)
 	"Going rate (last %d days): median %s, typical range %s–%s": "実勢価格(過去%d日間): 中央値 %s、通常レンジ %s〜%s",
 	"Rates by site": "サイト別の実勢価格",
-	"typical":       "通常レンジ",
-	"median":        "中央値",
-	"floor":         "フロア",
+	"A bid this high reaches roughly %s of matched impressions (last %d days)": "この上限額で、マッチしたインプレッションの約%sに届きます(過去%d日間)",
+	"typical": "通常レンジ",
+	"median":  "中央値",
+	"floor":   "フロア",
 	"A dash means too little traffic to quote fairly — the floor is the entry price there.": "ダッシュは公正に提示できるだけの配信量がないことを意味します。その場合はフロアが参入価格です。",
 	"Budget Used":     "予算使用率",
 	"Effective CPM:":  "実効CPM:",

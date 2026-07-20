@@ -596,18 +596,58 @@
 </div>
 {{template "list-pagination" .}}
 {{end}}
+{{/* Reach indicator: interpolates the clearing-price quantile ladder
+     (5% steps) against whatever the author types into ANY maxCpm field —
+     event delegation covers the create form and every edit panel. */}}
+{{if .MarketRates}}
+<script>
+(function(){
+  var ladder = {{.MarketRates.ReachLadder}};
+  if (!ladder || !ladder.length) return;
+  var fmtShare = function(bid){
+    if (bid < ladder[0]) return "<5%";
+    var i = ladder.length - 1;
+    while (i >= 0 && ladder[i] > bid) i--;
+    var pct = 5 * (i + 1);
+    return pct >= 95 ? "~100%" : "~" + pct + "%";
+  };
+  var update = function(input){
+    var box = input.closest("div");
+    var line = box ? box.querySelector("[data-reach]") : null;
+    if (!line) return;
+    var bid = parseFloat(input.value);
+    if (!isFinite(bid) || bid <= 0) { line.classList.add("hidden"); return; }
+    line.textContent = line.getAttribute("data-fmt").replace("%s", fmtShare(bid));
+    line.classList.remove("hidden");
+  };
+  document.addEventListener("input", function(e){
+    var t = e.target;
+    if (t && t.name === "maxCpm") update(t);
+  });
+  // Prefilled edit panels get their line on load.
+  document.querySelectorAll('input[name="maxCpm"]').forEach(update);
+})();
+</script>
+{{end}}
 {{end}}
 
 {{/* Going rates beside Max CPM: what impressions actually CLEAR at,
      per site, across all advertisers (individual bids never shown),
      plus each site's current floor — the entry ticket. Without this
      the Max CPM field is a guess. */}}
+
+
 {{define "market-rates-hint"}}
 {{if .}}
 <div class="mt-1.5 text-xs text-gray-500">
   {{if .OverallMedian}}
   <p>{{t "Going rate (last %d days): median %s, typical range %s–%s" .Days .OverallMedian .OverallP25 .OverallP75}}</p>
   {{end}}
+  {{/* Live reach: filled by the maxCpm input listener below (script sits
+       once at the end of the page content; this element is per-instance).
+       data-fmt carries the translated sentence; %s becomes the share. */}}
+  <p data-reach class="hidden font-medium text-gray-600"
+     data-fmt="{{t "A bid this high reaches roughly %s of matched impressions (last %d days)" "%s" .Days}}"></p>
   {{if .Sites}}
   <details class="mt-1">
     <summary class="cursor-pointer text-gray-400 hover:text-gray-600 select-none">{{t "Rates by site"}}</summary>

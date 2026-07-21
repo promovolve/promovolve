@@ -74,6 +74,19 @@ describe("collectExpandedFonts", () => {
     expect(faces[0].url).toBe("https://cdn.example.com/fonts/playfair-display-400-latin.woff2");
   });
 
+  it("registers EVERY non-generic family in a multi-family stack (CJK companion case)", () => {
+    // A Japanese LP's stack: Inter takes the Latin glyphs, Noto Sans JP
+    // the kanji. Both faces must register or the browser falls back to
+    // the platform's system CJK font (live incident 2026-07-21).
+    const faces = collectExpandedFonts(
+      [page([{ type: "text", text: "珈琲の深淵", fontFamily: "Inter, Noto Sans JP, sans-serif", fontWeight: 700 }])],
+      origin,
+    );
+    expect(faces.map((f) => f.family)).toEqual(["Inter", "Noto Sans JP"]);
+    expect(faces.map((f) => f.weight)).toEqual([700, 700]);
+    expect(faces[1].url).toMatch(/\/fonts\/noto-sans-jp-700-[0-9a-f]{8}\.woff2$/);
+  });
+
   it("skips generic / system families (system fallback)", () => {
     expect(collectExpandedFonts([page([{ type: "text", fontFamily: "Helvetica Neue, sans-serif" }])], origin)).toEqual([]);
     expect(collectExpandedFonts([page([{ type: "text", fontFamily: "sans-serif" }])], origin)).toEqual([]);

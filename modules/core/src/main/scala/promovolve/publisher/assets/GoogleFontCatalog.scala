@@ -122,6 +122,87 @@ object GoogleFontCatalog {
   }
 
   /**
+   * Every family literal in a stack, in order, quotes stripped. The
+   * pipeline historically consumed only the FIRST family of a stack —
+   * which silently discarded the CJK companion an LP like
+   * `Inter, "Noto Sans JP", sans-serif` deliberately carries (live
+   * 2026-07-21: Japanese headline rendered in the platform's system
+   * font because Noto was never provisioned or registered). Multi-family
+   * consumers iterate this instead.
+   */
+  def familyLiterals(stack: String): Vector[String] =
+    stack.split(",").toVector
+      .map(_.trim.stripPrefix("\"").stripSuffix("\"").stripPrefix("'").stripSuffix("'").trim)
+      .filter(_.nonEmpty)
+
+  // Google families known to carry CJK glyph coverage (lookup keys).
+  // Used only to decide whether a stack already handles CJK text — the
+  // insertion pass adds a Noto companion when none of these appear. NOT
+  // an allow-list: any family still self-hosts via the derived-slug
+  // path; this set only spares creatives a redundant companion.
+  private val cjkCapableKeys = Set(
+    "noto sans jp", "noto serif jp", "noto sans kr", "noto serif kr",
+    "noto sans sc", "noto serif sc", "noto sans tc", "noto serif tc",
+    "noto sans hk", "m plus 1p", "m plus rounded 1c", "m plus 2",
+    "zen kaku gothic new", "zen kaku gothic antique", "zen maru gothic",
+    "zen old mincho", "shippori mincho", "shippori mincho b1",
+    "sawarabi gothic", "sawarabi mincho", "kosugi", "kosugi maru",
+    "biz udgothic", "biz udpgothic", "biz udmincho", "biz udpmincho",
+    "kiwi maru", "dela gothic one", "yuji syuku", "yuji boku", "yuji mai",
+    "kaisei decol", "kaisei opti", "kaisei tokumin", "kaisei haruno umi",
+    "nanum gothic", "nanum myeongjo", "ibm plex sans jp"
+  )
+
+  /** True when any family in the stack is known to cover CJK. */
+  def stackHasCjkFamily(stack: String): Boolean =
+    familyLiterals(stack).exists(lit => cjkCapableKeys(normalize(lit)._1))
+
+  // Serif-leaning signals for picking the companion's bucket: the stack's
+  // generic tail, or a first family that is itself a serif face.
+  private val serifKeys = Set(
+    "georgia", "times", "times new roman", "playfair display", "merriweather",
+    "lora", "roboto slab", "pt serif", "noto serif", "crimson text", "eb garamond",
+    "libre baskerville", "source serif pro", "source serif 4", "prata", "cormorant garamond"
+  )
+
+  /**
+   * Rewrite a stack to guarantee CJK coverage for the given text: when the
+   * text has CJK code points and no family in the stack covers them, insert
+   * the bucket-matched Noto companion (sans → Noto Sans JP/KR, serif →
+   * Noto Serif JP/KR; hangul picks KR, else JP) before the first generic
+   * family — so it takes over exactly where the system fallback would have.
+   * A stack that already names a CJK family comes back unchanged, as does
+   * one paired with non-CJK text. Deterministic: this is the correctness
+   * half of font selection — the layout model picks the look, this
+   * guarantees the glyphs.
+   */
+  def withCjkCompanion(stack: String, text: String): String = {
+    if (!hasCjk(text) || stackHasCjkFamily(stack)) stack
+    else {
+      val literals = familyLiterals(stack)
+      if (literals.isEmpty) stack
+      else {
+        val hangul = text.codePoints().anyMatch { cp =>
+          (cp >= 0xAC00 && cp <= 0xD7A3) || (cp >= 0x1100 && cp <= 0x11FF)
+        }
+        val serif = literals.exists(lit => lit.equalsIgnoreCase("serif")) ||
+          serifKeys(normalize(literals.head)._1)
+        val companion = (serif, hangul) match {
+          case (true, true)   => "Noto Serif KR"
+          case (true, false)  => "Noto Serif JP"
+          case (false, true)  => "Noto Sans KR"
+          case (false, false) => "Noto Sans JP"
+        }
+        val genericIdx = literals.indexWhere(lit => isGeneric(normalize(lit)._1))
+        val rebuilt =
+          if (genericIdx < 0) literals :+ companion
+          else literals.patch(genericIdx, Vector(companion), 0)
+        rebuilt.mkString(", ")
+      }
+    }
+  }
+
+  /**
    * Whether text contains CJK (Japanese/Korean/Chinese) code points — the
    * signal that a font must be `text=`-subset rather than served whole. A
    * property of the TEXT, so the server and banner agree without a font list.

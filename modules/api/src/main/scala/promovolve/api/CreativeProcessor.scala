@@ -402,8 +402,15 @@ object CreativeProcessor {
                 p.imgEmoji, p.caption, p.img,
                 p.layout, p.banners, p.designAspect, p.videoBg, p.textureBg)
             ).toJson.compactPrint
-            ImagesDownloaded(creativeId, advertiserId, campaignId, name, landingUrl, updatedPages, json, originalHash,
-              width, height, skipVerify, lpFonts)
+            // CJK glyph guarantee: a creative whose text has CJK code points
+            // gets a Noto companion inserted into any text stack that lacks
+            // CJK coverage (the layout model picks the look; this pass
+            // guarantees the glyphs). Runs BEFORE provisioning + render so
+            // the companion face is hosted, snapshotted, and persisted for
+            // every later visitor. No-op for Latin creatives.
+            val fontFixedJson = withCjkFontCompanions(json)
+            ImagesDownloaded(creativeId, advertiserId, campaignId, name, landingUrl, updatedPages, fontFixedJson,
+              originalHash, width, height, skipVerify, lpFonts)
           case Failure(e) =>
             StepFailed(creativeId, "image-download", e.getMessage)
         }
@@ -823,6 +830,54 @@ object CreativeProcessor {
    * The weight lets the provisioner fetch the exact face (e.g. Montserrat
    * Thin = 100) instead of the family's default 400.
    */
+  /**
+   * Rewrite every text item's fontFamily so CJK text is guaranteed a
+   * CJK-capable face (GoogleFontCatalog.withCjkCompanion): when the
+   * creative's collected text contains CJK code points, stacks without a
+   * known CJK family gain the bucket-matched Noto companion before their
+   * generic tail. Structure-preserving; on any parse hiccup the original
+   * JSON comes back untouched — this pass can improve a creative but
+   * never break one.
+   */
+  private[api] def withCjkFontCompanions(pagesJson: String): String = {
+    import spray.json.*
+    import promovolve.publisher.assets.GoogleFontCatalog
+    val subset = subsetTextFromPagesJson(pagesJson)
+    if (!GoogleFontCatalog.hasCjk(subset)) pagesJson
+    else
+      scala.util.Try {
+        def fixItems(v: JsValue): JsValue = v match {
+          case JsArray(items) =>
+            JsArray(items.map {
+              case o: JsObject =>
+                (o.fields.get("type"), o.fields.get("fontFamily")) match {
+                  case (Some(JsString("text")), Some(JsString(ff))) if ff.trim.nonEmpty =>
+                    JsObject(o.fields.updated("fontFamily", JsString(GoogleFontCatalog.withCjkCompanion(ff, subset))))
+                  case _ => o
+                }
+              case x => x
+            })
+          case x => x
+        }
+        pagesJson.parseJson match {
+          case JsArray(pages) =>
+            JsArray(pages.map {
+              case p: JsObject =>
+                var f = p.fields
+                f.get("layout").foreach(l => f = f.updated("layout", fixItems(l)))
+                f.get("banners").foreach {
+                  case b: JsObject =>
+                    f = f.updated("banners", JsObject(b.fields.map { case (k, v) => k -> fixItems(v) }))
+                  case _ => ()
+                }
+                JsObject(f)
+              case x => x
+            }).compactPrint
+          case _ => pagesJson
+        }
+      }.getOrElse(pagesJson)
+  }
+
   private[api] def fontsFromPagesJson(pagesJson: String): Set[(String, Option[Int])] = {
     import spray.json.*
     def weightOf(v: Option[JsValue]): Option[Int] = v.flatMap {

@@ -203,4 +203,72 @@ class FontProvisionSpec extends AnyWordSpec with Matchers {
       GoogleFontProvisioner.firstFontUrl("/* empty */") shouldBe None
     }
   }
+
+  "GoogleFontCatalog.familyLiterals" should {
+    "return every family in the stack, quotes stripped, in order" in {
+      GoogleFontCatalog.familyLiterals("Inter, \"Noto Sans JP\", sans-serif") shouldBe
+      Vector("Inter", "Noto Sans JP", "sans-serif")
+    }
+    "handle a single family and empty segments" in {
+      GoogleFontCatalog.familyLiterals("Montserrat") shouldBe Vector("Montserrat")
+      GoogleFontCatalog.familyLiterals("Inter, , sans-serif") shouldBe Vector("Inter", "sans-serif")
+    }
+  }
+
+  "GoogleFontCatalog.withCjkCompanion" should {
+    val jaText = "珈琲の深淵"
+    "insert Noto Sans JP before the generic for a CJK creative on a Latin sans stack" in {
+      // The live incident (2026-07-21): a Japanese LP's `Inter, "Noto Sans
+      // JP", sans-serif` was flattened to `Inter, sans-serif` at layout
+      // authoring, so the kanji rendered in each device's system font.
+      GoogleFontCatalog.withCjkCompanion("Inter, sans-serif", jaText) shouldBe
+      "Inter, Noto Sans JP, sans-serif"
+    }
+    "respect a weight-suffixed first family" in {
+      GoogleFontCatalog.withCjkCompanion("Inter Bold, sans-serif", jaText) shouldBe
+      "Inter Bold, Noto Sans JP, sans-serif"
+    }
+    "pick the serif companion for serif stacks" in {
+      GoogleFontCatalog.withCjkCompanion("Playfair Display, serif", jaText) shouldBe
+      "Playfair Display, Noto Serif JP, serif"
+    }
+    "pick the Korean companion for hangul text" in {
+      GoogleFontCatalog.withCjkCompanion("Inter, sans-serif", "\uCEE4\uD53C") shouldBe
+      "Inter, Noto Sans KR, sans-serif"
+    }
+    "leave a stack that already names a CJK family untouched" in {
+      GoogleFontCatalog.withCjkCompanion("Inter, Noto Sans JP, sans-serif", jaText) shouldBe
+      "Inter, Noto Sans JP, sans-serif"
+      GoogleFontCatalog.withCjkCompanion("Zen Kaku Gothic New, sans-serif", jaText) shouldBe
+      "Zen Kaku Gothic New, sans-serif"
+    }
+    "leave Latin creatives untouched" in {
+      GoogleFontCatalog.withCjkCompanion("Inter, sans-serif", "Deep coffee") shouldBe
+      "Inter, sans-serif"
+    }
+    "append when the stack has no generic tail" in {
+      GoogleFontCatalog.withCjkCompanion("Inter", jaText) shouldBe "Inter, Noto Sans JP"
+    }
+  }
+
+  "CreativeProcessor.withCjkFontCompanions" should {
+    "rewrite text-item stacks in layout and banner buckets for a CJK creative" in {
+      val pages =
+        """[{"headline":"珈琲の深淵","layout":[
+          |{"type":"text","text":"珈琲の深淵","fontFamily":"Inter Bold, sans-serif"},
+          |{"type":"image","src":"x.png"}],
+          |"banners":{"300x250":[{"type":"text","text":"珈琲","fontFamily":"Inter, sans-serif"}]}}]"""
+          .stripMargin.replace("\n", "")
+      val out = CreativeProcessor.withCjkFontCompanions(pages)
+      out should include("Inter Bold, Noto Sans JP, sans-serif")
+      out should include("Inter, Noto Sans JP, sans-serif")
+    }
+    "return Latin creatives byte-identical" in {
+      val pages = """[{"headline":"Deep","layout":[{"type":"text","text":"Deep","fontFamily":"Inter, sans-serif"}]}]"""
+      CreativeProcessor.withCjkFontCompanions(pages) shouldBe pages
+    }
+    "return the original JSON on malformed input" in {
+      CreativeProcessor.withCjkFontCompanions("not json") shouldBe "not json"
+    }
+  }
 }

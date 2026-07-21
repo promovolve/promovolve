@@ -49,24 +49,30 @@ final class GoogleFontProvisioner(imageStorage: ImageStorage)(using system: Acto
       cssWeight: Option[Int] = None,
       subsetText: Option[String] = None
   ): Future[Unit] = {
-    GoogleFontCatalog.resolve(familyStack, cssWeight) match {
-      case None                         => Future.unit // generic/system family → system fallback
-      case Some((slug, weight, family)) =>
-        // The creative is CJK if its text has CJK code points; then every font
-        // is fetched as a `text=` subset (CJK is too big to ship whole), keyed
-        // by subsetKey. Latin creatives use the deduped latin block.
-        val text = subsetText.map(_.trim).filter(_.nonEmpty)
-        val cjk = text.exists(GoogleFontCatalog.hasCjk)
-        val variant = if (cjk) GoogleFontCatalog.subsetKey(text.get) else "latin"
-        imageStorage.fontExists(slug, variant).flatMap {
-          case true  => Future.unit // already self-hosted (this slug+variant) — dedup
-          case false => fetchAndStore(family, weight, slug, variant, if (cjk) text else None)
-        }.recover { case e =>
-          // Most failures here are "not a Google font" (licensed / non-OFL) →
-          // the creative just keeps its system fallback. Info, not warn.
-          log.info("font not self-hosted: {} w{} ({}/{}): {}", familyStack, weight, slug, variant, e.getMessage)
-        }
-    }
+    // EVERY family in the stack self-hosts, not just the first — a stack
+    // like `Inter, Noto Sans JP, sans-serif` needs both faces in R2 so
+    // the browser can pull Latin glyphs from Inter and CJK from Noto.
+    // Consuming only the head silently dropped the CJK companion.
+    Future.traverse(GoogleFontCatalog.familyLiterals(familyStack)) { literal =>
+      GoogleFontCatalog.resolve(literal, cssWeight) match {
+        case None                         => Future.unit // generic/system family → system fallback
+        case Some((slug, weight, family)) =>
+          // The creative is CJK if its text has CJK code points; then every font
+          // is fetched as a `text=` subset (CJK is too big to ship whole), keyed
+          // by subsetKey. Latin creatives use the deduped latin block.
+          val text = subsetText.map(_.trim).filter(_.nonEmpty)
+          val cjk = text.exists(GoogleFontCatalog.hasCjk)
+          val variant = if (cjk) GoogleFontCatalog.subsetKey(text.get) else "latin"
+          imageStorage.fontExists(slug, variant).flatMap {
+            case true  => Future.unit // already self-hosted (this slug+variant) — dedup
+            case false => fetchAndStore(family, weight, slug, variant, if (cjk) text else None)
+          }.recover { case e =>
+            // Most failures here are "not a Google font" (licensed / non-OFL) →
+            // the creative just keeps its system fallback. Info, not warn.
+            log.info("font not self-hosted: {} w{} ({}/{}): {}", literal, weight, slug, variant, e.getMessage)
+          }
+      }
+    }.map(_ => ())
   }
 
   private def fetchAndStore(

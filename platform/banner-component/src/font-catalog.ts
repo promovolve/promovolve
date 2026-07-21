@@ -67,6 +67,18 @@ function firstFamilyLiteral(stack: string | undefined): string {
   return String(stack).split(",")[0].trim().replace(/^["']|["']$/g, "");
 }
 
+/** Every family literal in a stack, in order, quotes stripped. Mirrors
+  * GoogleFontCatalog.familyLiterals — the pipeline used to consume only
+  * the first family, which silently dropped the CJK companion a stack
+  * like `Inter, Noto Sans JP, sans-serif` carries. */
+function familyLiterals(stack: string | undefined): string[] {
+  if (!stack) return [];
+  return String(stack)
+    .split(",")
+    .map((s) => s.trim().replace(/^["']|["']$/g, "").trim())
+    .filter(Boolean);
+}
+
 /** Split the first family into base lookup-key, base display name, and an
   * optional weight parsed from a trailing descriptor. Mirrors
   * GoogleFontCatalog.normalize. */
@@ -221,24 +233,31 @@ export function collectExpandedFonts(pages: Page[], origin: string): FontFaceRef
     for (const raw of items) {
       const it = raw as { type?: string; fontFamily?: string; fontWeight?: string | number };
       if (it?.type !== "text") continue;
-      const norm = normalizeFamily(it.fontFamily);
-      if (!norm.key || isGeneric(norm.key)) continue; // generic/system → system fallback
-      // weight precedence: descriptor in the name > CSS font-weight > 400
-      const weight = norm.weight ?? cssWeight(it.fontWeight) ?? 400;
-      const dedup = `${norm.key}:${weight}`;
-      if (seen.has(dedup)) continue;
-      seen.add(dedup);
-      const slug = slugify(norm.key); // derived, no list — server self-hosts it if Google serves it
-      out.push({
-        // FontFace family = the LITERAL first family the layout references
-        // (e.g. "Montserrat Thin"), so the renderer's `font-family:<stack>`
-        // resolves to this face. The R2 slug/weight come from the BASE
-        // family normalization (montserrat-100), since Google serves the
-        // weight via the `wght@` axis of the base family.
-        family: firstFamilyLiteral(it.fontFamily),
-        weight,
-        url: `${origin}/fonts/${slug}-${weight}-${variant}.woff2`,
-      });
+      // EVERY family in the stack gets a face, not just the first — the
+      // browser resolves `font-family: Inter, Noto Sans JP, sans-serif`
+      // per glyph, so the CJK companion only works if its face is
+      // registered too. Consuming only the head silently dropped it.
+      for (const literal of familyLiterals(it.fontFamily)) {
+        const norm = normalizeFamily(literal);
+        if (!norm.key || isGeneric(norm.key)) continue; // generic/system → system fallback
+        // weight precedence: descriptor in the name > CSS font-weight > 400
+        const weight = norm.weight ?? cssWeight(it.fontWeight) ?? 400;
+        const dedup = `${norm.key}:${weight}`;
+        if (seen.has(dedup)) continue;
+        seen.add(dedup);
+        const slug = slugify(norm.key); // derived, no list — server self-hosts it if Google serves it
+        out.push({
+          // FontFace family = the LITERAL family as the layout's stack
+          // references it (e.g. "Montserrat Thin", "Noto Sans JP"), so the
+          // renderer's `font-family:<stack>` resolves to this face. The R2
+          // slug/weight come from the BASE family normalization
+          // (montserrat-100), since Google serves the weight via the
+          // `wght@` axis of the base family.
+          family: literal,
+          weight,
+          url: `${origin}/fonts/${slug}-${weight}-${variant}.woff2`,
+        });
+      }
     }
   };
   for (const page of pages) {

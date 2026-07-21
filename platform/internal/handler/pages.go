@@ -1335,6 +1335,20 @@ func (h *Handler) accountTimeContext(ctx context.Context, entityID string) (stri
 	return tz, loc
 }
 
+// displayZone is the zone for RENDERING-ONLY surfaces (chart axes, hour
+// labels): the viewer's preference timezone when set, else the org's
+// account timezone, else UTC. Never used for bucketing or money — those
+// take accountTimeContext directly.
+func (h *Handler) displayZone(r *http.Request, u *model.User, entityID string) *time.Location {
+	if u != nil && u.Timezone != "" {
+		if loc, err := time.LoadLocation(u.Timezone); err == nil {
+			return loc
+		}
+	}
+	_, loc := h.accountTimeContext(r.Context(), entityID)
+	return loc
+}
+
 // parseScheduleInput converts a datetime-local form value (no zone suffix)
 // to RFC 3339 UTC, interpreting the wall-clock time in the advertiser's
 // account zone. Values that already carry a zone (Z or offset) pass
@@ -1517,14 +1531,15 @@ type argmaxStability struct {
 type shapeBar struct {
 	Hour      int
 	HeightPct int    // 4..100, scaled to the max volume across both shapes
-	Title     string // tooltip: "14:00 UTC · 1.42× average"
-	IsNow     bool   // current UTC hour on today's day-type row
+	Title     string // tooltip: "14:00 JST · 1.42× average"
+	IsNow     bool   // current display-zone hour on today's day-type row
 }
 
 type trafficShapeView struct {
 	Weekday  []shapeBar
 	Weekend  []shapeBar
-	Learning bool // both shapes ≈ uniform → tracker still converging
+	Learning bool   // both shapes ≈ uniform → tracker still converging
+	TzLabel  string // zone the bars are ROTATED to for display (e.g. "Asia/Tokyo")
 }
 
 type floorObservationsData struct {
@@ -2093,7 +2108,7 @@ func (h *Handler) FloorObservations(w http.ResponseWriter, r *http.Request) {
 		FloorRange:           floorRange,
 		ActiveCategories:     activeCats,
 		HistoricalCategories: historicalCats,
-		TrafficShape:         h.fetchTrafficShape(siteID, claims),
+		TrafficShape:         h.fetchTrafficShape(siteID, claims, h.displayZone(r, user, claims.PublisherID)),
 	}
 	h.render(w, r, "publisher/site-observations.html", pageData{
 		Title:             i18n.T(h.lang(r, user), "Floor Decisions · %s", siteID),
@@ -2107,7 +2122,7 @@ func (h *Handler) FloorObservations(w http.ResponseWriter, r *http.Request) {
 // from the site stats endpoint and turns them into renderable bars.
 // Returns nil (section omitted) when the fetch fails or the tracker
 // hasn't reported shapes.
-func (h *Handler) fetchTrafficShape(siteID string, claims *model.Claims) *trafficShapeView {
+func (h *Handler) fetchTrafficShape(siteID string, claims *model.Claims, loc *time.Location) *trafficShapeView {
 	body, err := h.coreGet(fmt.Sprintf("/v1/publishers/me/sites/%s/stats", siteID), claims)
 	if err != nil {
 		return nil
@@ -2146,21 +2161,32 @@ func (h *Handler) fetchTrafficShape(siteID string, claims *model.Claims) *traffi
 		return lo > 0 && hi/lo < 1.05
 	}
 
-	now := time.Now().UTC()
+	// Bars are LEARNED per UTC hour but ROTATED for display into the
+	// viewer's zone — the curve is absolute, so relabeling hours is pure
+	// rendering (the preference timezone's whole job). Fractional-hour
+	// zones round to the nearest hour. The weekday/weekend split itself
+	// stays UTC-learned (see docs/design/TIME_AND_TIMEZONES.md, "The
+	// third clock") — amber marks today's row by the viewer's calendar.
+	now := time.Now().In(loc)
+	_, offSec := now.Zone()
+	offHours := int(math.Round(float64(offSec)/3600.0)) % 24
+	zoneAbbrev := now.Format("MST")
 	wd := now.Weekday()
 	todayIsWeekend := wd == time.Saturday || wd == time.Sunday
 	bars := func(vs []float64, markNow bool) []shapeBar {
 		out := make([]shapeBar, 24)
-		for i, v := range vs {
+		for local := 0; local < 24; local++ {
+			utcHour := ((local-offHours)%24 + 24) % 24
+			v := vs[utcHour]
 			pct := int(v/globalMax*100 + 0.5)
 			if pct < 4 {
 				pct = 4 // a zero-height bar reads as missing data
 			}
-			out[i] = shapeBar{
-				Hour:      i,
+			out[local] = shapeBar{
+				Hour:      local,
 				HeightPct: pct,
-				Title:     fmt.Sprintf("%02d:00 UTC · %.2f× average", i, v),
-				IsNow:     markNow && i == now.Hour(),
+				Title:     fmt.Sprintf("%02d:00 %s · %.2f× average", local, zoneAbbrev, v),
+				IsNow:     markNow && local == now.Hour(),
 			}
 		}
 		return out
@@ -2169,6 +2195,7 @@ func (h *Handler) fetchTrafficShape(siteID string, claims *model.Claims) *traffi
 		Weekday:  bars(resp.WeekdayShapeVolumes, !todayIsWeekend),
 		Weekend:  bars(resp.WeekendShapeVolumes, todayIsWeekend),
 		Learning: flat(resp.WeekdayShapeVolumes) && flat(resp.WeekendShapeVolumes),
+		TzLabel:  zoneAbbrev,
 	}
 }
 

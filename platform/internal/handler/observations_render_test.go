@@ -34,8 +34,8 @@ func TestObservationsTrafficShapeRenders(t *testing.T) {
 		shape *trafficShapeView
 		want  string
 	}{
-		{"learned", &trafficShapeView{Weekday: shapeBars(14, 14), Weekend: shapeBars(20, -1)}, "Traffic shape (learned)"},
-		{"learning", &trafficShapeView{Weekday: shapeBars(0, 0), Weekend: shapeBars(0, -1), Learning: true}, "Still learning"},
+		{"learned", &trafficShapeView{Weekday: shapeBars(14, 14), Weekend: shapeBars(20, -1), TzLabel: "JST"}, "23&nbsp;JST"},
+		{"learning", &trafficShapeView{Weekday: shapeBars(0, 0), Weekend: shapeBars(0, -1), Learning: true, TzLabel: "UTC"}, "Still learning"},
 		{"absent", nil, ""},
 	} {
 		data := pageData{

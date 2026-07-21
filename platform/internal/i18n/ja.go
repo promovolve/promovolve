@@ -717,7 +717,7 @@ var ja = map[string]string{
 	"Traffic shape (learned)": "トラフィック形状(学習済み)",
 	"Weekdays":                "平日",
 	"Weekends":                "週末",
-	"relative request volume per UTC hour · amber = current hour":                                                     "UTC 時間別の相対リクエスト量 · 琥珀色 = 現在の時間",
+	"relative request volume per hour (%s) · amber = current hour":                                                    "時間別の相対リクエスト量(%s) · 琥珀色 = 現在の時間",
 	"Still learning — the shape is uniform, so budget pacing behaves linearly. It converges over ~5 days of traffic.": "まだ学習中です。形状が一様なため、予算ペーシングは線形に振る舞います。約5日分のトラフィックで収束します。",
 	"Per-category floors (live demand)":                                                                               "カテゴリー別フロア(ライブ需要)",
 	"These are what your targeted advertisers actually pay against. The site-wide sweep at the bottom is only a fallback for categories that don't have their own floor yet.": "ターゲット広告主が実際に支払いの基準にするのはこちらです。下部のサイト全体スイープは、まだ独自フロアを持たないカテゴリーのためのフォールバックにすぎません。",
@@ -810,7 +810,7 @@ var ja = map[string]string{
 
 	// ── publisher report ──
 	"Category earnings per site · report days follow your account timezone — the same days as your Earnings statements": "サイト別カテゴリー収益 · レポートの日はアカウントのタイムゾーンに従います — 収益明細と同じ日付です",
-	"Breakdown data is available from %s — earlier days in this range are not included.":                                                       "内訳データは %s 以降が利用可能です。この期間のそれより前の日は含まれません。",
+	"Breakdown data is available from %s — earlier days in this range are not included.":                                "内訳データは %s 以降が利用可能です。この期間のそれより前の日は含まれません。",
 	"Daily revenue by site":         "サイト別の日次収益",
 	"Daily revenue by category":     "カテゴリー別の日次収益",
 	"Daily impressions by site":     "サイト別の日次インプレッション",

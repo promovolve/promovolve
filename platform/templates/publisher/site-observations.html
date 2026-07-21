@@ -17,7 +17,7 @@
 <div class="bg-white border rounded-lg mb-6 px-5 py-4">
   <div class="flex items-baseline justify-between">
     <h2 class="text-sm font-semibold">{{t "Traffic shape (learned)"}}</h2>
-    <p class="text-xs text-gray-400">{{t "relative request volume per UTC hour · amber = current hour"}}</p>
+    <p class="text-xs text-gray-400">{{t "relative request volume per hour (%s) · amber = current hour" $fo.TrafficShape.TzLabel}}</p>
   </div>
   {{if $fo.TrafficShape.Learning}}
   <p class="text-xs text-gray-500 mt-1">{{t "Still learning — the shape is uniform, so budget pacing behaves linearly. It converges over ~5 days of traffic."}}</p>
@@ -40,7 +40,7 @@
       </div>
     </div>
     <div class="flex justify-between text-[10px] text-gray-400 -mt-2 px-0.5">
-      <span>00</span><span>06</span><span>12</span><span>18</span><span>23&nbsp;UTC</span>
+      <span>00</span><span>06</span><span>12</span><span>18</span><span>23&nbsp;{{$fo.TrafficShape.TzLabel}}</span>
     </div>
   </div>
 </div>

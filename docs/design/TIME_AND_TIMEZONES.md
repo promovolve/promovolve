@@ -80,10 +80,34 @@ never move a bucket, a budget, or a schedule.
 | Surface | Why |
 |---|---|
 | All stored timestamps (`event_time`, `hour_bucket`, `*_at`) | Instants are zone-free; UTC is the storage convention |
-| Traffic-shape learning | Engine-internal; shapes are learned per UTC hour |
+| Traffic-shape learning | Really the VIEWERS' clock — see "The third clock" below; UTC is the neutral stand-in |
 | Floor decision journal / site-observations hourly profile | Operator-facing diagnostics, labeled UTC in the UI |
 | Market-rate "last N days" | Rolling window over instants — timezone-irrelevant |
 | Admin/ops tooling | Operators correlate across orgs; one clock |
+
+### The third clock: the audience's timezone
+
+Traffic shapes describe when a site's *viewers* browse. That is a third
+clock, belonging to neither org: a Japanese company can run an
+English-language site whose readers are in New York, and neither the
+advertiser's nor the publisher's account timezone says anything about
+when that audience's "Saturday morning" is.
+
+The intra-day curve is safe under any labeling — hours are absolute,
+and relabeling only rotates the index. The **weekday/weekend split** is
+the part that needs a calendar, and today it uses the UTC calendar
+(`AdServer` classifies the day via `LocalDate.now(ZoneOffset.UTC)`).
+For a JST audience that mislabels 9 of every boundary day's 24 hours
+(JST Saturday 00:00–09:00 is UTC Friday). This is currently harmless:
+shapes are **learn-only** and drive no decisions.
+
+If shapes ever feed pacing or dayparting, the day-type should be
+classified in the audience's zone — inferred from the traffic itself
+(where the curve's nightly trough sits) or approximated by the
+publisher org's zone, in that order of preference. Do NOT reach for the
+org account timezone by reflex; it answers a money question, not a
+viewer question. (Meta's "use viewer's time zone" ad-scheduling option
+is this same concept on the delivery side.)
 
 ## Report buckets: why write-time, and why two day columns
 

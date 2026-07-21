@@ -415,6 +415,9 @@ type pageData struct {
 	MediaChart *creativeMediaChart
 	// Going rates beside Max CPM (campaigns page); nil = no data yet.
 	MarketRates *marketRatesData
+	// IANA zone the campaign schedule inputs/displays are denominated
+	// in — the advertiser's account timezone, "UTC" when unset.
+	ScheduleTz string
 	LandingURL string
 	// CDN URL for the <expandable-magazine-banner> web component.
 	// Used by templates that need to load the banner script to render

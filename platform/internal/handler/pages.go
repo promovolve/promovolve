@@ -2,6 +2,7 @@ package handler
 
 import (
 	"bytes"
+	"context"
 	"encoding/base64"
 	"encoding/json"
 	"errors"
@@ -868,23 +869,27 @@ func (h *Handler) AdvertiserCampaigns(w http.ResponseWriter, r *http.Request) {
 	var sumImps, sumClicks, sumBids int
 	var sumWins float64
 
+	// Schedule wall-clock rendering follows the account timezone — the
+	// same boundary the budget day rolls on. Stored instants are
+	// unchanged; only their interpretation and display shift.
+	schedTz, schedLoc := h.advertiserTimeContext(r.Context(), claims.AdvertiserID)
 	for _, c := range campResp.Data {
 		var startLocal, startDisplay string
 		var startFuture bool
 		if t, err := time.Parse(time.RFC3339, c.Schedule.StartAt); err == nil {
 			// datetime-local needs "YYYY-MM-DDTHH:MM" with no timezone
-			// suffix; we render in UTC for simplicity (the user picks
-			// UTC when they fill the form, server stores UTC).
-			startLocal = t.UTC().Format("2006-01-02T15:04")
-			startDisplay = t.UTC().Format("Jan 2, 2006 15:04 UTC")
+			// suffix; rendered in the account zone so the round trip
+			// through parseScheduleInput is the identity.
+			startLocal = t.In(schedLoc).Format("2006-01-02T15:04")
+			startDisplay = t.In(schedLoc).Format("Jan 2, 2006 15:04 MST")
 			startFuture = time.Now().Before(t)
 		}
 		var endLocal, endDisplay string
 		var endPassed bool
 		if c.Schedule.EndAt != nil {
 			if t, err := time.Parse(time.RFC3339, *c.Schedule.EndAt); err == nil {
-				endLocal = t.UTC().Format("2006-01-02T15:04")
-				endDisplay = t.UTC().Format("Jan 2, 2006 15:04 UTC")
+				endLocal = t.In(schedLoc).Format("2006-01-02T15:04")
+				endDisplay = t.In(schedLoc).Format("Jan 2, 2006 15:04 MST")
 				endPassed = time.Now().After(t)
 			}
 		}
@@ -1020,6 +1025,7 @@ func (h *Handler) AdvertiserCampaigns(w http.ResponseWriter, r *http.Request) {
 		NoCampaigns:    totalCampaigns == 0,
 		ListNav:        nav,
 		MarketRates:    marketRates,
+		ScheduleTz:     schedTz,
 	})
 }
 
@@ -1218,22 +1224,21 @@ func (h *Handler) CreateCampaign(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	r.ParseForm()
-	// Schedule. The form's <input type="datetime-local"> sends a local-
-	// time string like "2026-12-31T17:00" — append ":00Z" to get a
-	// parseable ISO 8601 (we treat the picker value as UTC). Empty
-	// startAt = "start now"; empty endAt = open-ended campaign.
+	// Schedule. The form's <input type="datetime-local"> sends a zoneless
+	// wall-clock string like "2026-12-31T17:00" — interpreted in the
+	// advertiser's account timezone (the budget-rollover boundary), then
+	// stored as a UTC instant. Empty startAt = "start now"; empty endAt =
+	// open-ended campaign.
+	_, loc := h.advertiserTimeContext(r.Context(), claims.AdvertiserID)
 	startAt := r.FormValue("startAt")
 	if startAt == "" {
 		startAt = time.Now().UTC().Format(time.RFC3339)
-	} else if !strings.Contains(startAt, "Z") && !strings.Contains(startAt, "+") {
-		startAt = startAt + ":00Z"
+	} else {
+		startAt = parseScheduleInput(startAt, loc)
 	}
 	schedule := map[string]string{"startAt": startAt}
 	if endAt := r.FormValue("endAt"); endAt != "" {
-		if !strings.Contains(endAt, "Z") && !strings.Contains(endAt, "+") {
-			endAt = endAt + ":00Z"
-		}
-		schedule["endAt"] = endAt
+		schedule["endAt"] = parseScheduleInput(endAt, loc)
 	}
 	// Server-side guard mirroring the form's `required` (and the core's
 	// own invalid_name rejection): never create a nameless campaign.
@@ -1297,22 +1302,52 @@ func (h *Handler) UpdateCampaignSchedule(w http.ResponseWriter, r *http.Request)
 	}
 	r.ParseForm()
 	campID := r.FormValue("campaignId")
+	_, loc := h.advertiserTimeContext(r.Context(), claims.AdvertiserID)
 	startAt := r.FormValue("startAt")
 	if startAt == "" {
 		startAt = time.Now().UTC().Format(time.RFC3339)
-	} else if !strings.Contains(startAt, "Z") && !strings.Contains(startAt, "+") {
-		startAt = startAt + ":00Z"
+	} else {
+		startAt = parseScheduleInput(startAt, loc)
 	}
 	schedule := map[string]any{"startAt": startAt}
 	if endAt := r.FormValue("endAt"); endAt != "" {
-		if !strings.Contains(endAt, "Z") && !strings.Contains(endAt, "+") {
-			endAt = endAt + ":00Z"
-		}
-		schedule["endAt"] = endAt
+		schedule["endAt"] = parseScheduleInput(endAt, loc)
 	}
 	body, _ := json.Marshal(map[string]any{"schedule": schedule})
 	h.corePatch(fmt.Sprintf("/v1/advertisers/me/campaigns/%s", campID), claims, string(body))
 	http.Redirect(w, r, "/advertiser/campaigns", http.StatusSeeOther)
+}
+
+// advertiserTimeContext resolves the advertiser org's IANA timezone for
+// schedule input and display — the same account timezone the budget day
+// rolls on. Unset or unloadable zones fall back to UTC, matching the
+// core's own Timezones.zoneOf fallback.
+func (h *Handler) advertiserTimeContext(ctx context.Context, advertiserID string) (string, *time.Location) {
+	tz, err := h.orgRepo.TimezoneByEntity(ctx, advertiserID)
+	if err != nil || tz == "" {
+		return "UTC", time.UTC
+	}
+	loc, lerr := time.LoadLocation(tz)
+	if lerr != nil {
+		return "UTC", time.UTC
+	}
+	return tz, loc
+}
+
+// parseScheduleInput converts a datetime-local form value (no zone suffix)
+// to RFC 3339 UTC, interpreting the wall-clock time in the advertiser's
+// account zone. Values that already carry a zone (Z or offset) pass
+// through untouched.
+func parseScheduleInput(v string, loc *time.Location) string {
+	if strings.Contains(v, "Z") || strings.Contains(v, "+") {
+		return v
+	}
+	for _, layout := range []string{"2006-01-02T15:04", "2006-01-02T15:04:05"} {
+		if t, err := time.ParseInLocation(layout, v, loc); err == nil {
+			return t.UTC().Format(time.RFC3339)
+		}
+	}
+	return v + ":00Z"
 }
 
 // splitCSV turns a comma-separated chip value (from the type-ahead pickers)
@@ -1373,17 +1408,12 @@ func (h *Handler) UpdateCampaign(w http.ResponseWriter, r *http.Request) {
 	}
 	// Schedule: only when a start is provided (CampaignSchedule.startAt is
 	// required to also set endAt). Mirrors CreateCampaign's datetime-local
-	// → ISO-8601 (treated as UTC) conversion.
+	// → account-zone → UTC-instant conversion.
 	if startAt := r.FormValue("startAt"); startAt != "" {
-		if !strings.Contains(startAt, "Z") && !strings.Contains(startAt, "+") {
-			startAt = startAt + ":00Z"
-		}
-		schedule := map[string]string{"startAt": startAt}
+		_, loc := h.advertiserTimeContext(r.Context(), claims.AdvertiserID)
+		schedule := map[string]string{"startAt": parseScheduleInput(startAt, loc)}
 		if endAt := r.FormValue("endAt"); endAt != "" {
-			if !strings.Contains(endAt, "Z") && !strings.Contains(endAt, "+") {
-				endAt = endAt + ":00Z"
-			}
-			schedule["endAt"] = endAt
+			schedule["endAt"] = parseScheduleInput(endAt, loc)
 		}
 		payload["schedule"] = schedule
 	}

@@ -297,9 +297,9 @@ var ja = map[string]string{
 	"Search registered sites by domain":               "登録済みサイトをドメインで検索",
 	"Remove all to run everywhere your topics match.": "すべて外すと、トピックが一致するすべての場所で配信されます。",
 	"A campaign's landing page can't be changed after it's created. To promote a different page, create a new campaign.": "キャンペーンのランディングページは作成後に変更できません。別のページを宣伝するには、新しいキャンペーンを作成してください。",
-	"(UTC)":                "(UTC)",
 	"(blank = open-ended)": "(空欄 = 無期限)",
-	"Save Changes":         "変更を保存",
+	"Times are in your account timezone (%s) — the same boundary your daily budget resets at.": "時刻はアカウントのタイムゾーン(%s)です — 日予算がリセットされる境界と同じです。",
+	"Save Changes": "変更を保存",
 
 	// ── creatives ──
 	"%d creatives":                             "クリエイティブ %d 件",

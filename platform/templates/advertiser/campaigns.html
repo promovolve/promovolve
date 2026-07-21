@@ -297,7 +297,7 @@
         <p class="font-medium">{{if .CTR}}{{.CTR}}{{else}}&mdash;{{end}}</p>
         <p class="text-xs text-gray-500">{{t "CTR"}}</p>
       </div>
-      <div class="text-right text-sm w-20">
+      <div class="text-right text-sm w-20" title="{{t "This campaign's share of every impression served across the whole network today. The day follows your account timezone — the same boundary your daily budget resets at — so it returns to 0% at your midnight."}}">
         <p class="font-medium {{if .WinRateClass}}{{.WinRateClass}}{{end}}">{{if .WinRate}}{{.WinRate}}{{else}}&mdash;{{end}}</p>
         <p class="text-xs text-gray-500">{{t "imp share"}}</p>
       </div>

@@ -1769,30 +1769,36 @@ class EndpointRoutes(
           import slick.jdbc.PostgresProfile.api.*
           val statsF: Future[CampaignEntity.CampaignStats] =
             campaignRef(advertiserId, campaignId).ask(CampaignEntity.GetCampaignStats(_))
-          // Query today's impressions (not cumulative) to match bidsToday which resets daily
-          val impressionsF: Future[Long] = dashboardDb match {
-            case Some(db) =>
-              db.run(
-                sql"SELECT COALESCE(impressions, 0) FROM campaign_daily_stats WHERE campaign_id = $campaignId AND day_bucket = CURRENT_DATE"
-                  .as[Long].headOption
-              ).map(_.getOrElse(0L))
-            case None => Future.successful(0L)
-          }
-
-          // Total impressions across ALL campaigns today (for impression share)
-          val totalImpsF: Future[Long] = dashboardDb match {
-            case Some(db) =>
-              db.run(
-                sql"SELECT COALESCE(SUM(impressions), 0) FROM campaign_daily_stats WHERE day_bucket = CURRENT_DATE"
-                  .as[Long].headOption
-              ).map(_.getOrElse(0L))
-            case None => Future.successful(0L)
-          }
+          // "Today" = the advertiser's local day (budget-rollover boundary),
+          // counted from tracking_events — see getAdvertiserWinRatesLogic.
+          val windowF = advertiserTodayWindow(advertiserId)
+          def countSince(dayStartStr: String, campaign: Option[String]): Future[Long] =
+            dashboardDb match {
+              case Some(db) =>
+                val q = campaign match {
+                  case Some(c) =>
+                    sql"""
+                      SELECT COUNT(*)::bigint FROM tracking_events
+                      WHERE event_type = 'impression' AND NOT dogeared
+                        AND event_time >= $dayStartStr::timestamptz
+                        AND campaign_id = $c
+                    """.as[Long]
+                  case None =>
+                    sql"""
+                      SELECT COUNT(*)::bigint FROM tracking_events
+                      WHERE event_type = 'impression' AND NOT dogeared
+                        AND event_time >= $dayStartStr::timestamptz
+                    """.as[Long]
+                }
+                db.run(q.headOption).map(_.getOrElse(0L))
+              case None => Future.successful(0L)
+            }
 
           (for {
             stats <- statsF
-            impressions <- impressionsF
-            totalImps <- totalImpsF
+            (_, dayStart) <- windowF
+            impressions <- countSince(dayStart.toString, Some(campaignId))
+            totalImps <- countSince(dayStart.toString, None)
           } yield {
             // Impression share: this campaign's impressions / total impressions today
             val winRate = if (totalImps > 0) impressions.toDouble / totalImps else 0.0
@@ -4017,9 +4023,10 @@ class EndpointRoutes(
   private val getAdvertiserWinRatesLogic: String => Future[Either[ErrorResponse, AdvertiserWinRatesResponse]] = {
     advertiserId =>
       // One entity fan-out (bidsToday lives on each CampaignEntity) +
-      // one projection query (per-campaign impressions today, plus the
-      // global total as the impression-share denominator — the same
-      // denominator the single-campaign endpoint uses).
+      // one tracking_events query (per-campaign impressions for the
+      // advertiser's local day, plus the global total as the
+      // impression-share denominator — the same window the
+      // single-campaign endpoint uses).
       val infoF: Future[AdvertiserEntity.AdvertiserInfo] =
         advertiserRef(advertiserId).ask(AdvertiserEntity.GetAdvertiserInfo(_))
       infoF.flatMap { info =>
@@ -4036,14 +4043,27 @@ class EndpointRoutes(
         import slick.jdbc.PostgresProfile.api.*
         import slick.jdbc.GetResult
         given GetResult[(String, Long)] = GetResult(using r => (r.nextString(), r.nextLong()))
-        // All of today's rows, filtered to this advertiser in memory —
-        // campaign_daily_stats holds one row per campaign per day, and
-        // the global SUM is needed anyway for the share denominator.
+        // "Today" is the advertiser's local day — the same boundary the
+        // budget rollover uses — so the card's spend, budget, and share
+        // all describe one day. campaign_daily_stats can't serve this
+        // (pre-bucketed by UTC day), so count tracking_events directly
+        // over the zone-shifted window; NOT dogeared matches what the
+        // daily rollup counted. All campaigns, not just this
+        // advertiser's — the global total is the share denominator.
+        val zone = promovolve.common.Timezones.zoneOf(info.timezone)
+        val dayStartStr =
+          java.time.LocalDate.now(zone).atStartOfDay(zone).toInstant.toString
         val impsF: Future[Vector[(String, Long)]] = dashboardDb match {
           case Some(db) =>
             db.run(
-              sql"SELECT campaign_id, COALESCE(impressions, 0) FROM campaign_daily_stats WHERE day_bucket = CURRENT_DATE"
-                .as[(String, Long)]
+              sql"""
+                SELECT campaign_id, COUNT(*)::bigint
+                FROM tracking_events
+                WHERE event_type = 'impression' AND NOT dogeared
+                  AND campaign_id IS NOT NULL
+                  AND event_time >= $dayStartStr::timestamptz
+                GROUP BY campaign_id
+              """.as[(String, Long)]
             ).map(_.toVector)
           case None => Future.successful(Vector.empty)
         }

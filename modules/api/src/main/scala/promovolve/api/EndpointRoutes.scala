@@ -4820,17 +4820,20 @@ class EndpointRoutes(
   }
 
   private val getFloorSweepHistoryLogic
-      : ((String, String, Int, Option[String])) => Future[Either[ErrorResponse, FloorSweepHistoryResponse]] = {
-    case (_publisherId, siteId, limit, dateOpt) =>
+      : ((String, String, Int, Option[String], Option[String])) => Future[
+        Either[ErrorResponse, FloorSweepHistoryResponse]] = {
+    case (_publisherId, siteId, limit, dateOpt, tzOpt) =>
       floorDecisionJournal match {
         case None =>
           Future.successful(Right(FloorSweepHistoryResponse(siteId = siteId, decisions = Vector.empty)))
         case Some(journal) =>
-          // When a date is provided, scope to that UTC calendar day and
+          // When a date is provided, scope to that calendar day in the
+          // caller's zone (the viewer's display zone; unset = UTC) and
           // bump the effective limit so we return the whole day's cycles
           // (a fast-sim day = ~360 cycles, well under the 1000 cap).
+          val zone = promovolve.common.Timezones.zoneOf(tzOpt.getOrElse(""))
           val fetchF = dateOpt.flatMap { d => scala.util.Try(java.time.LocalDate.parse(d)).toOption } match {
-            case Some(date) => journal.recentInDay(siteId, date, 1000)
+            case Some(date) => journal.recentInDay(siteId, date, zone, 1000)
             case None       => journal.recent(siteId, limit)
           }
           fetchF.map { decisions =>
@@ -5406,7 +5409,7 @@ class EndpointRoutes(
     PekkoHttpServerInterpreter().toRoute(
       Endpoints.getFloorSweepEvidence.serverLogic(gateSite2(getFloorSweepEvidenceLogic))),
     PekkoHttpServerInterpreter().toRoute(
-      Endpoints.getFloorSweepHistory.serverLogic(gateSite4(getFloorSweepHistoryLogic))),
+      Endpoints.getFloorSweepHistory.serverLogic(gateSite5(getFloorSweepHistoryLogic))),
     PekkoHttpServerInterpreter().toRoute(Endpoints.getCategoryDemand.serverLogic(gateSite2(getCategoryDemandLogic))),
     PekkoHttpServerInterpreter().toRoute(
       Endpoints.getSiteRevenueToday.serverLogic(gateSite3(getSiteRevenueTodayLogic))),
@@ -5723,6 +5726,9 @@ class EndpointRoutes(
     in => withOwnedSite(in._1, in._2)(f(in))
   private def gateSite4[B, C, O](f: ((String, String, B, C)) => Future[Either[ErrorResponse, O]])
       : ((String, String, B, C)) => Future[Either[ErrorResponse, O]] =
+    in => withOwnedSite(in._1, in._2)(f(in))
+  private def gateSite5[B, C, D, O](f: ((String, String, B, C, D)) => Future[Either[ErrorResponse, O]])
+      : ((String, String, B, C, D)) => Future[Either[ErrorResponse, O]] =
     in => withOwnedSite(in._1, in._2)(f(in))
 
   private def adServerRef(siteId: String) =

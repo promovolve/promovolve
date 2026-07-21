@@ -159,7 +159,7 @@ var ja = map[string]string{
 	"Cannot be changed: the email domain is what binds this account to your organization (and your passkeys to this account). Moving to a new address means an admin invites it and you register a passkey there.": "変更できません。メールアドレスのドメインがこのアカウントと組織(およびパスキーとこのアカウント)を結びつけています。新しいアドレスに移るには、管理者がそのアドレスを招待し、そこでパスキーを登録し直します。",
 	"Timezone":      "タイムゾーン",
 	"UTC (default)": "UTC(デフォルト)",
-	"Changes how dates and times are displayed. Stored data and billing days stay in UTC.": "日時の表示方法が変わります。保存データと請求日は UTC のままです。",
+	"Changes how dates and times are displayed to you. Budget, billing, and report days follow your organization's timezone, set by the platform operator.": "あなたに表示される日時の形式が変わります。予算・請求・レポートの日付は、プラットフォーム運営者が設定した組織のタイムゾーンに従います。",
 	"Language":              "言語",
 	"Auto (follow browser)": "自動(ブラウザに従う)",
 	"Dashboard language. Auto follows your browser.": "ダッシュボードの言語です。「自動」はブラウザの言語に従います。",

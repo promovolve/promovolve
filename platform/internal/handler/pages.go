@@ -1660,6 +1660,11 @@ func (h *Handler) FloorObservations(w http.ResponseWriter, r *http.Request) {
 	}
 	obsLang := h.lang(r, user)
 	siteID := r.PathValue("siteId")
+	// Every timestamp on this page renders in the viewer's display zone
+	// (preference -> org -> UTC); the date picker's "day" uses the same
+	// zone end to end (the core windows the query on it via ?tz=).
+	obsLoc := h.displayZone(r, user, claims.PublisherID)
+	obsTzAbbrev := time.Now().In(obsLoc).Format("MST")
 
 	// Fetch the sweep optimizer's evidence table.
 	evBody, _ := h.coreGet(fmt.Sprintf("/v1/publishers/me/sites/%s/sweep-evidence", siteID), claims)
@@ -1824,7 +1829,7 @@ func (h *Handler) FloorObservations(w http.ResponseWriter, r *http.Request) {
 		selectedDate := r.URL.Query().Get("date")
 		histURL := fmt.Sprintf("/v1/publishers/me/sites/%s/sweep-history?limit=200", siteID)
 		if selectedDate != "" {
-			histURL += "&date=" + url.QueryEscape(selectedDate)
+			histURL += "&date=" + url.QueryEscape(selectedDate) + "&tz=" + url.QueryEscape(obsLoc.String())
 		}
 		histBody, _ := h.coreGet(histURL, claims)
 		var histResp struct {
@@ -1933,7 +1938,7 @@ func (h *Handler) FloorObservations(w http.ResponseWriter, r *http.Request) {
 		for cat, pt := range catLatest {
 			lastUpdate := pt.TS
 			if t, err := time.Parse(time.RFC3339Nano, pt.TS); err == nil {
-				lastUpdate = t.UTC().Format("01-02 15:04") + " UTC"
+				lastUpdate = t.In(obsLoc).Format("01-02 15:04") + " " + obsTzAbbrev
 			}
 			row := categoryFloorRow{
 				Category:     cat,
@@ -2019,7 +2024,9 @@ func (h *Handler) FloorObservations(w http.ResponseWriter, r *http.Request) {
 
 		// Build date-picker nav state. Today and prev/next anchors are
 		// always available; the template decides whether to enable them.
-		today := time.Now().UTC().Format("2006-01-02")
+		// "Today" is the display zone's current day, matching the ?tz=
+		// window the core applies to the picked date.
+		today := time.Now().In(obsLoc).Format("2006-01-02")
 		nav := &argmaxHistoryNav{
 			SelectedDate: selectedDate,
 			Today:        today,
@@ -2081,7 +2088,7 @@ func (h *Handler) FloorObservations(w http.ResponseWriter, r *http.Request) {
 		last, errL := time.Parse(time.RFC3339Nano, argmaxHistory[len(argmaxHistory)-1].TS)
 		if errF == nil && errL == nil {
 			span := last.Sub(first)
-			sameDay := first.UTC().Format("2006-01-02") == last.UTC().Format("2006-01-02")
+			sameDay := first.In(obsLoc).Format("2006-01-02") == last.In(obsLoc).Format("2006-01-02")
 			layout := "15:04"
 			if !sameDay {
 				layout = "01-02"
@@ -2091,7 +2098,7 @@ func (h *Handler) FloorObservations(w http.ResponseWriter, r *http.Request) {
 				t := first.Add(time.Duration(float64(span) * frac))
 				argmaxXTicks = append(argmaxXTicks, xAxisTick{
 					X:     int(frac * 100),
-					Label: t.Format(layout),
+					Label: t.In(obsLoc).Format(layout),
 				})
 			}
 		}
@@ -2108,7 +2115,7 @@ func (h *Handler) FloorObservations(w http.ResponseWriter, r *http.Request) {
 		FloorRange:           floorRange,
 		ActiveCategories:     activeCats,
 		HistoricalCategories: historicalCats,
-		TrafficShape:         h.fetchTrafficShape(siteID, claims, h.displayZone(r, user, claims.PublisherID)),
+		TrafficShape:         h.fetchTrafficShape(siteID, claims, obsLoc),
 	}
 	h.render(w, r, "publisher/site-observations.html", pageData{
 		Title:             i18n.T(h.lang(r, user), "Floor Decisions · %s", siteID),

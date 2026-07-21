@@ -5,10 +5,9 @@ package handler
 // table, and site/category/publisher breakdown tabs with CSV export.
 // Data comes from the core report endpoints (campaign_daily_stats +
 // campaign_dim_daily_stats).
-// All days are UTC buckets (day_bucket is computed at projection-write
-// time). Billing statements use the account's LOCAL days, so report days
-// and statement days can differ near midnight — the report page labels
-// its UTC bucketing.
+// Days are the ADVERTISER's account-timezone days (bucketed at
+// projection write since 2026-07-21) — the same days as budget rollover
+// and wallet statements. See docs/design/TIME_AND_TIMEZONES.md.
 
 import (
 	"encoding/csv"
@@ -29,7 +28,7 @@ import (
 
 const reportDayLayout = "2006-01-02"
 
-// reportRow is one (UTC day, campaign) row from the core report.
+// reportRow is one (account-local day, campaign) row from the core report.
 type reportRow struct {
 	Day          string
 	CampaignID   string
@@ -193,7 +192,7 @@ func (h *Handler) AdvertiserReport(w http.ResponseWriter, r *http.Request) {
 	rep := &reportPageData{
 		From: from, To: to, Today: todayS, Preset: preset,
 		Presets:        reportPresets("/advertiser/report", loc),
-		Days:           groupReportDays(rows),
+		Days:           groupReportDays(rows, loc),
 		Publishers:     publishers,
 		SiteGroups:     h.fetchBreakdownByCampaign(rangeQS, "site", names, taxonomy, claims),
 		CategoryGroups: h.fetchBreakdownByCampaign(rangeQS, "category", names, taxonomy, claims),
@@ -635,9 +634,11 @@ func funnelDisplay(spend float64, imps, clicks int64) (spendDisp, ctr, ecpm stri
 }
 
 // groupReportDays folds the core's day-DESC row stream into per-day groups
-// with a subtotal when a day spans more than one campaign.
-func groupReportDays(rows []reportRow) []reportDayGroup {
-	todayS := time.Now().UTC().Format(reportDayLayout)
+// with a subtotal when a day spans more than one campaign. Day labels
+// are account-local, so "today" must be computed in the same zone — a
+// UTC today would mislabel the newest group for non-UTC accounts.
+func groupReportDays(rows []reportRow, loc *time.Location) []reportDayGroup {
+	todayS := time.Now().In(loc).Format(reportDayLayout)
 	var groups []reportDayGroup
 	for _, row := range rows {
 		if len(groups) == 0 || groups[len(groups)-1].Day != row.Day {

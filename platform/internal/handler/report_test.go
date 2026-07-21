@@ -49,7 +49,7 @@ func TestReportTemplateRenders(t *testing.T) {
 		From: "2026-06-30", To: "2026-07-06", Preset: "7d",
 		Presets:    reportPresets("/advertiser/report", time.UTC),
 		Totals:     sumReportTotals(rows),
-		Days:       groupReportDays(rows),
+		Days:       groupReportDays(rows, time.UTC),
 		Campaigns:  campaigns,
 		Publishers: bd,
 		SiteGroups: []reportDimCampaignGroup{{

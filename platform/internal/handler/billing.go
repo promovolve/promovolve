@@ -697,7 +697,7 @@ func (h *Handler) AdminBillingAccount(w http.ResponseWriter, r *http.Request) {
 	if activity, err := h.billingSvc.ListAccountActivity(ctx, ownerType, ownerID, 20); err == nil {
 		for _, a := range activity {
 			data.Activity = append(data.Activity, walletActivityRow{
-				Date:      a.CreatedAt.Format("2006-01-02 15:04"),
+				Date:      a.CreatedAt.In(user.Location()).Format("2006-01-02 15:04"),
 				Kind:      string(a.Kind),
 				KindBadge: kindBadge(a.Kind),
 				Memo:      a.Memo,
@@ -1176,7 +1176,7 @@ func (h *Handler) AdvertiserWallet(w http.ResponseWriter, r *http.Request) {
 	if activity, err := h.billingSvc.ListAccountActivity(ctx, billing.OwnerAdvertiser, advertiserID, 20); err == nil {
 		for _, a := range activity {
 			data.Activity = append(data.Activity, walletActivityRow{
-				Date:      a.CreatedAt.Format("2006-01-02 15:04"),
+				Date:      a.CreatedAt.In(user.Location()).Format("2006-01-02 15:04"),
 				Kind:      string(a.Kind),
 				KindBadge: kindBadge(a.Kind),
 				Memo:      a.Memo,

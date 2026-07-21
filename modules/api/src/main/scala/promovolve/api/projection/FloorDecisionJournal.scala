@@ -151,13 +151,20 @@ class FloorDecisionJournal(db: slick.jdbc.JdbcBackend#Database)(
   }
 
   /**
-   * Read all decisions for a site within a single UTC calendar day,
-   * newest-first, capped at `limit`. Used by the dashboard's
-   * date-picker filter.
+   * Read all decisions for a site within a single calendar day of the
+   * given zone, newest-first, capped at `limit`. Used by the dashboard's
+   * date-picker filter (the platform passes the viewer's display zone).
    */
-  def recentInDay(siteId: String, date: java.time.LocalDate, limit: Int): Future[Seq[FloorDecision]] = {
-    val dayStart = date.atStartOfDay(java.time.ZoneOffset.UTC).toInstant
-    val dayEnd = date.plusDays(1).atStartOfDay(java.time.ZoneOffset.UTC).toInstant
+  def recentInDay(
+      siteId: String,
+      date: java.time.LocalDate,
+      zone: java.time.ZoneId,
+      limit: Int
+  ): Future[Seq[FloorDecision]] = {
+    // The caller's calendar day — the dashboard passes the viewer's
+    // display zone so the date picker means the viewer's day, not UTC's.
+    val dayStart = date.atStartOfDay(zone).toInstant
+    val dayEnd = date.plusDays(1).atStartOfDay(zone).toInstant
     db.run(
       floorDecisions
         .filter(_.siteId === siteId)

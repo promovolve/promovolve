@@ -346,17 +346,20 @@ object Endpoints extends ApiJsonFormats {
       .errorOut(jsonBody[ErrorResponse])
 
   val getFloorSweepHistory
-      : PublicEndpoint[(String, String, Int, Option[String]), ErrorResponse, FloorSweepHistoryResponse, Any] =
+      : PublicEndpoint[(String, String, Int, Option[String], Option[String]), ErrorResponse, FloorSweepHistoryResponse,
+        Any] =
     endpoint
       .tag("Sites")
       .summary("Get persisted argmax history for the sweep optimizer")
       .description(
-        "Returns one row per completed sweep cycle from the floor_decisions table, newest-first. Backed by persistent storage so history survives cluster restarts. Default limit 200. Optional `date` (YYYY-MM-DD UTC) filters to a single day; when set, limit is effectively unbounded for that day's cycles.")
+        "Returns one row per completed sweep cycle from the floor_decisions table, newest-first. Backed by persistent storage so history survives cluster restarts. Default limit 200. Optional `date` (YYYY-MM-DD) filters to a single calendar day in `tz` (unset/invalid = UTC); when set, limit is effectively unbounded for that day's cycles.")
       .get
       .in(sitesBase / path[String]("siteId") / "sweep-history")
       .in(query[Int]("limit").default(200))
       .in(query[Option[String]]("date").description(
-        "UTC date in YYYY-MM-DD format. When set, returns all cycles from that calendar day instead of the most-recent N."))
+        "Date in YYYY-MM-DD format. When set, returns all cycles from that calendar day (in `tz`) instead of the most-recent N."))
+      .in(query[Option[String]]("tz").description(
+        "IANA timezone the `date` is interpreted in; unset/invalid = UTC. Ignored without `date`."))
       .out(jsonBody[FloorSweepHistoryResponse])
       .errorOut(jsonBody[ErrorResponse])
 

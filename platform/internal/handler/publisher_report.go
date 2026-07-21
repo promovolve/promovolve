@@ -1,7 +1,9 @@
 package handler
 
 // publisher_report.go — the publisher report page (/publisher/report):
-// category breakdown per site over a UTC date range, with CSV export.
+// category breakdown per site over a date range of publisher-local days
+// (account timezone — the same days as earnings statements), with CSV
+// export.
 // Data = GET /v1/publishers/me/report/site-categories (one row per
 // site x category from campaign_dim_daily_stats). The core returns
 // gross advertiser spend; the platform margin is deducted here at
@@ -16,6 +18,7 @@ import (
 	"net/url"
 	"sort"
 	"strconv"
+	"time"
 
 	"github.com/hanishi/promovolve/platform/internal/model"
 	"github.com/hanishi/promovolve/platform/internal/settings"
@@ -47,6 +50,7 @@ type publisherReportSite struct {
 
 type publisherReportPageData struct {
 	From, To string
+	Today    string // account-zone current day; bounds the range picker
 	Preset   string
 	Presets  []reportPresetLink
 	Totals   reportTotals
@@ -72,7 +76,8 @@ func (h *Handler) PublisherReport(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	from, to, preset := reportRange(r)
+	_, loc := h.accountTimeContext(r.Context(), claims.PublisherID)
+	from, to, preset := reportRange(r, loc)
 	rangeQS := "from=" + url.QueryEscape(from) + "&to=" + url.QueryEscape(to)
 
 	marginBps := h.settingsSvc.CurrentMarginBps(r.Context())
@@ -85,8 +90,8 @@ func (h *Handler) PublisherReport(w http.ResponseWriter, r *http.Request) {
 	}
 
 	rep := &publisherReportPageData{
-		From: from, To: to, Preset: preset,
-		Presets: reportPresets("/publisher/report"),
+		From: from, To: to, Today: time.Now().In(loc).Format(reportDayLayout), Preset: preset,
+		Presets: reportPresets("/publisher/report", loc),
 		Sites:   groupPublisherReportSites(rows, names),
 		RangeQS: rangeQS,
 		CSVURL:  "/publisher/report?" + rangeQS + "&format=csv",

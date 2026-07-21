@@ -872,7 +872,7 @@ func (h *Handler) AdvertiserCampaigns(w http.ResponseWriter, r *http.Request) {
 	// Schedule wall-clock rendering follows the account timezone — the
 	// same boundary the budget day rolls on. Stored instants are
 	// unchanged; only their interpretation and display shift.
-	schedTz, schedLoc := h.advertiserTimeContext(r.Context(), claims.AdvertiserID)
+	schedTz, schedLoc := h.accountTimeContext(r.Context(), claims.AdvertiserID)
 	for _, c := range campResp.Data {
 		var startLocal, startDisplay string
 		var startFuture bool
@@ -1229,7 +1229,7 @@ func (h *Handler) CreateCampaign(w http.ResponseWriter, r *http.Request) {
 	// advertiser's account timezone (the budget-rollover boundary), then
 	// stored as a UTC instant. Empty startAt = "start now"; empty endAt =
 	// open-ended campaign.
-	_, loc := h.advertiserTimeContext(r.Context(), claims.AdvertiserID)
+	_, loc := h.accountTimeContext(r.Context(), claims.AdvertiserID)
 	startAt := r.FormValue("startAt")
 	if startAt == "" {
 		startAt = time.Now().UTC().Format(time.RFC3339)
@@ -1302,7 +1302,7 @@ func (h *Handler) UpdateCampaignSchedule(w http.ResponseWriter, r *http.Request)
 	}
 	r.ParseForm()
 	campID := r.FormValue("campaignId")
-	_, loc := h.advertiserTimeContext(r.Context(), claims.AdvertiserID)
+	_, loc := h.accountTimeContext(r.Context(), claims.AdvertiserID)
 	startAt := r.FormValue("startAt")
 	if startAt == "" {
 		startAt = time.Now().UTC().Format(time.RFC3339)
@@ -1318,12 +1318,13 @@ func (h *Handler) UpdateCampaignSchedule(w http.ResponseWriter, r *http.Request)
 	http.Redirect(w, r, "/advertiser/campaigns", http.StatusSeeOther)
 }
 
-// advertiserTimeContext resolves the advertiser org's IANA timezone for
-// schedule input and display — the same account timezone the budget day
-// rolls on. Unset or unloadable zones fall back to UTC, matching the
+// accountTimeContext resolves the org's IANA timezone for a core entity
+// id (either side) — the account timezone that budget rollover and
+// settlement days follow. Used for schedule input/display and report
+// ranges. Unset or unloadable zones fall back to UTC, matching the
 // core's own Timezones.zoneOf fallback.
-func (h *Handler) advertiserTimeContext(ctx context.Context, advertiserID string) (string, *time.Location) {
-	tz, err := h.orgRepo.TimezoneByEntity(ctx, advertiserID)
+func (h *Handler) accountTimeContext(ctx context.Context, entityID string) (string, *time.Location) {
+	tz, err := h.orgRepo.TimezoneByEntity(ctx, entityID)
 	if err != nil || tz == "" {
 		return "UTC", time.UTC
 	}
@@ -1410,7 +1411,7 @@ func (h *Handler) UpdateCampaign(w http.ResponseWriter, r *http.Request) {
 	// required to also set endAt). Mirrors CreateCampaign's datetime-local
 	// → account-zone → UTC-instant conversion.
 	if startAt := r.FormValue("startAt"); startAt != "" {
-		_, loc := h.advertiserTimeContext(r.Context(), claims.AdvertiserID)
+		_, loc := h.accountTimeContext(r.Context(), claims.AdvertiserID)
 		schedule := map[string]string{"startAt": parseScheduleInput(startAt, loc)}
 		if endAt := r.FormValue("endAt"); endAt != "" {
 			schedule["endAt"] = parseScheduleInput(endAt, loc)

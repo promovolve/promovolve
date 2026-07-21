@@ -39,7 +39,7 @@ From **Campaigns → New campaign** you provide:
 | Max CPM | The most you're willing to pay per 1000 impressions — see [What you pay](#what-you-pay) |
 | Target categories | Optional; auto-derived from your landing page if left empty |
 | Sites | Optional allowlist; empty = eligible everywhere |
-| Schedule | Optional start/end. **Times are interpreted as UTC**, not your local timezone |
+| Schedule | Optional start/end, in your account timezone (the form says which) |
 
 **Why the landing page is permanent:** your creative is generated *from*
 the landing page and the system's learning about the creative is anchored
@@ -173,10 +173,10 @@ Three honesty rules apply throughout:
 Your daily budget is paced: serving is throttled through the day so the
 budget lasts rather than exhausting in the first hour. Budgets reset at
 midnight in your account's timezone (set by the platform operator; UTC by
-default — ask the operator to change it). Billing uses the same day: your
-wallet statement's daily charges roll at the same local midnight your
-budget does. (Historical delivery reports are the one exception — their
-day buckets are UTC, and the report page says so.)
+default — ask the operator to change it). Everything dated follows that
+same day: your wallet statement's daily charges, the delivery report's
+day buckets, and your campaign schedule all roll at the same local
+midnight your budget does.
 
 ## 7. Reading your metrics
 

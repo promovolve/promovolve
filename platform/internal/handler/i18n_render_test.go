@@ -4,6 +4,7 @@ import (
 	"io"
 	"strings"
 	"testing"
+	"time"
 
 	platform "github.com/hanishi/promovolve/platform"
 	"github.com/hanishi/promovolve/platform/internal/i18n"
@@ -32,7 +33,7 @@ func TestI18nSweptPagesRenderBothLangs(t *testing.T) {
 		{"advertiser/wallet.html", pageData{Title: "Wallet", User: user}},
 		{"advertiser/account.html", pageData{Title: "Account", User: user}},
 		{"advertiser/report.html", pageData{Title: "Report", User: user,
-			Report: &reportPageData{From: "2026-06-30", To: "2026-07-06", Preset: "custom", Presets: reportPresets("/advertiser/report")}}},
+			Report: &reportPageData{From: "2026-06-30", To: "2026-07-06", Preset: "custom", Presets: reportPresets("/advertiser/report", time.UTC)}}},
 		{"publisher/trusted.html", pageData{Title: "Trusted Advertisers", User: user}},
 		{"publisher/earnings.html", pageData{Title: "Earnings", User: user}},
 		{"publisher/stats.html", pageData{Title: "Stats", User: user}},

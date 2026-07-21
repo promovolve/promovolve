@@ -262,12 +262,12 @@
      the browser's own date popup follows the browser/OS theme and looks
      different everywhere; this one is ours and matches the design
      system. Click once for the start day, again for the end day. */}}
-<div class="card card-tight mb-6" x-data="reportRangeCal('{{.From}}', '{{.To}}')">
+<div class="card card-tight mb-6" x-data="reportRangeCal('{{.From}}', '{{.To}}', '{{.Today}}')">
   <form method="get" class="flex flex-wrap items-end gap-3">
     <input type="hidden" name="from" :value="from">
     <input type="hidden" name="to" :value="to">
     <div class="relative">
-      <label class="form-label">{{t "Range (UTC)"}}</label>
+      <label class="form-label">{{t "Range"}}</label>
       <button type="button" @click="toggle()" class="form-input inline-flex items-center gap-2 whitespace-nowrap cursor-pointer bg-white hover:bg-gray-50" style="width:auto">
         <svg class="w-4 h-4 text-gray-500" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24"><rect x="3" y="5" width="18" height="16" rx="2"/><path d="M8 3v4M16 3v4M3 11h18"/></svg>
         <span x-text="from + ' → ' + to">{{.From}} → {{.To}}</span>
@@ -301,11 +301,13 @@
   </form>
 </div>
 <script>
-// Range calendar state for the report pages' shared picker. All days are
-// UTC strings (YYYY-MM-DD) end to end — no local-timezone Date math.
-function reportRangeCal(from, to) {
+// Range calendar state for the report pages' shared picker. Days are
+// plain YYYY-MM-DD strings in the ACCOUNT timezone — the server passes
+// its idea of "today" (the account zone's current day, which bounds the
+// pickable range) so no client-side timezone math is needed.
+function reportRangeCal(from, to, todayArg) {
   const iso = d => d.toISOString().slice(0, 10);
-  const today = iso(new Date()); // toISOString is UTC — matches the server's UTC buckets
+  const today = todayArg || iso(new Date());
   return {
     open: false, from, to, sel: 'from',
     vy: +to.slice(0, 4), vm: +to.slice(5, 7) - 1,

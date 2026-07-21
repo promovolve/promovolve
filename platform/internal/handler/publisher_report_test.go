@@ -5,6 +5,7 @@ import (
 	"io"
 	"strings"
 	"testing"
+	"time"
 
 	platform "github.com/hanishi/promovolve/platform"
 	"github.com/hanishi/promovolve/platform/internal/model"
@@ -23,7 +24,7 @@ func TestPublisherReportTemplateRenders(t *testing.T) {
 	names := map[string]string{"483": "Sports", "682": "Healthy Living"}
 	rep := &publisherReportPageData{
 		From: "2026-06-30", To: "2026-07-06", Preset: "7d",
-		Presets:      reportPresets("/publisher/report"),
+		Presets:      reportPresets("/publisher/report", time.UTC),
 		Sites:        groupPublisherReportSites(publisherReportFixtureRows(), names),
 		FeePct:       "15",
 		CoverageNote: "2026-07-03",
@@ -50,7 +51,7 @@ func TestPublisherReportTemplateRenders(t *testing.T) {
 	}
 
 	// Empty state renders too.
-	data.PubReport = &publisherReportPageData{From: "2026-06-30", To: "2026-07-06", Preset: "custom", Presets: reportPresets("/publisher/report")}
+	data.PubReport = &publisherReportPageData{From: "2026-06-30", To: "2026-07-06", Preset: "custom", Presets: reportPresets("/publisher/report", time.UTC)}
 	for _, tlang := range []string{i18n.LangEN, i18n.LangJA} {
 		if err := getPage(tlang, "publisher/report.html").ExecuteTemplate(io.Discard, "layout", data); err != nil {
 			t.Fatalf("publisher report empty state failed to render: %v", err)

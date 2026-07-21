@@ -65,7 +65,7 @@ var ja = map[string]string{
 	"Prev":             "前へ",
 	"Next":             "次へ",
 	"Page %d / %d":     "%d / %d ページ",
-	"Range (UTC)":      "期間(UTC)",
+	"Range":            "期間",
 	"Previous month":   "前の月",
 	"Next month":       "次の月",
 	"Su":               "日",
@@ -412,7 +412,7 @@ var ja = map[string]string{
 	"Changes apply immediately. Today's spend is not reset.": "変更はすぐに適用されます。本日の消化額はリセットされません。",
 
 	// ── report ──
-	"Daily delivery and spend per campaign · report days are UTC buckets (your Wallet statements and budget day use your account timezone, so days can differ near midnight)": "キャンペーン別の日次配信と消化額 · レポートの日は UTC 区切りです(ウォレット明細と予算日はアカウントのタイムゾーンを使うため、深夜前後で日付がずれることがあります)",
+	"Daily delivery and spend per campaign · report days follow your account timezone — the same days as your budget and Wallet statements": "キャンペーン別の日次配信と消化額 · レポートの日はアカウントのタイムゾーンに従います — 予算やウォレット明細と同じ日付です",
 	"No delivery in this range.": "この期間の配信はありません。",
 	"+%d dog-eared":              "+%d ドッグイヤー",
 	"CTA clicks":                 "CTAクリック",
@@ -421,7 +421,7 @@ var ja = map[string]string{
 	"ROAS":                       "ROAS",
 	"No conversions reported for this range — add them to see CPA/ROAS.": "この期間のコンバージョン報告はありません。追加すると CPA/ROAS が表示されます。",
 	"Report conversions":                    "コンバージョンを報告",
-	"Date (UTC)":                            "日付(UTC)",
+	"Date":                                  "日付",
 	"Value ($, optional)":                   "金額($、任意)",
 	"for ROAS":                              "ROAS 用",
 	"Note (optional)":                       "メモ(任意)",
@@ -442,7 +442,6 @@ var ja = map[string]string{
 	"Breakdown data is available from %s — earlier days in this range appear only in the Daily tab.": "内訳データは %s 以降が利用可能です。それより前の日はこの期間では「日次」タブにのみ表示されます。",
 	"Daily spend":                      "日次消化額",
 	"Daily impressions":                "日次インプレッション",
-	"Day (UTC)":                        "日(UTC)",
 	"CTA":                              "CTA",
 	"partial":                          "途中経過",
 	"(+%d dog-eared)":                  "(+%d ドッグイヤー)",
@@ -810,7 +809,7 @@ var ja = map[string]string{
 	"fold": "フォールド",
 
 	// ── publisher report ──
-	"Category earnings per site · report days are UTC buckets (your Earnings statements use your local day, so days can differ near midnight)": "サイト別カテゴリー収益 · レポートの日は UTC 区切りです(収益明細はローカル日を使うため、深夜前後で日付がずれることがあります)",
+	"Category earnings per site · report days follow your account timezone — the same days as your Earnings statements": "サイト別カテゴリー収益 · レポートの日はアカウントのタイムゾーンに従います — 収益明細と同じ日付です",
 	"Breakdown data is available from %s — earlier days in this range are not included.":                                                       "内訳データは %s 以降が利用可能です。この期間のそれより前の日は含まれません。",
 	"Daily revenue by site":         "サイト別の日次収益",
 	"Daily revenue by category":     "カテゴリー別の日次収益",

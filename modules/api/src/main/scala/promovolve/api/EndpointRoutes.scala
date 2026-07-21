@@ -4505,15 +4505,15 @@ class EndpointRoutes(
               // publisher_id. Ordered site-first so the platform can group
               // per site in one pass.
               val q = sql"""
-                SELECT s.day_bucket::text, s.site_id, ps.host, s.category,
+                SELECT s.pub_day_bucket::text, s.site_id, ps.host, s.category,
                        SUM(s.impressions), SUM(s.clicks), SUM(s.cta_clicks),
                        SUM(s.spend)::double precision, SUM(s.dogeared_impressions)
                 FROM campaign_dim_daily_stats s
                 JOIN publisher_sites ps
                   ON ps.site_id = s.site_id AND ps.publisher_id = $publisherId
-                WHERE s.day_bucket BETWEEN $from::date AND $to::date
-                GROUP BY s.day_bucket, s.site_id, ps.host, s.category
-                ORDER BY s.site_id, s.day_bucket
+                WHERE s.pub_day_bucket BETWEEN $from::date AND $to::date
+                GROUP BY s.pub_day_bucket, s.site_id, ps.host, s.category
+                ORDER BY s.site_id, s.pub_day_bucket
               """.as[(String, String, String, String, Long, Long, Long, Double, Long)]
               db.run(q).map { rows =>
                 Right(PublisherSiteCategoryDailyReportResponse(
@@ -4558,12 +4558,12 @@ class EndpointRoutes(
                 FROM campaign_dim_daily_stats s
                 JOIN publisher_sites ps
                   ON ps.site_id = s.site_id AND ps.publisher_id = $publisherId
-                WHERE s.day_bucket BETWEEN $from::date AND $to::date
+                WHERE s.pub_day_bucket BETWEEN $from::date AND $to::date
                 GROUP BY s.site_id, ps.host, s.category
                 ORDER BY s.site_id, SUM(s.spend) DESC, SUM(s.impressions) DESC
               """.as[(String, String, String, Long, Long, Long, Double, Long)]
               val coverageQ = sql"""
-                SELECT COALESCE(MIN(s.day_bucket)::text, '')
+                SELECT COALESCE(MIN(s.pub_day_bucket)::text, '')
                 FROM campaign_dim_daily_stats s
                 JOIN publisher_sites ps
                   ON ps.site_id = s.site_id AND ps.publisher_id = $publisherId

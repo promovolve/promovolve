@@ -459,13 +459,13 @@ object Endpoints extends ApiJsonFormats {
       : PublicEndpoint[(String, Option[String], Option[String]), ErrorResponse, AdvertiserReportResponse, Any] =
     endpoint
       .tag("Advertisers")
-      .summary("Date-ranged daily report, one row per (UTC day, campaign)")
+      .summary("Date-ranged daily report, one row per (advertiser-local day, campaign)")
       .description(
-        "Funnel rows from campaign_daily_stats for the inclusive UTC date range. Defaults to the last 7 days including today; the range is capped at 92 days. Days without delivery have no row. Drives the advertiser report page and its CSV export.")
+        "Funnel rows from campaign_daily_stats for the inclusive date range. Days are the advertiser's account-timezone days (bucketed at projection write; UTC for org-less entities) — the same boundary as budget rollover and spend-today. Defaults to the last 7 days including today; the range is capped at 92 days. Days without delivery have no row. Drives the advertiser report page and its CSV export.")
       .get
       .in(advertisersBase / path[String]("advertiserId") / "report")
-      .in(query[Option[String]]("from").description("UTC day, YYYY-MM-DD, inclusive"))
-      .in(query[Option[String]]("to").description("UTC day, YYYY-MM-DD, inclusive"))
+      .in(query[Option[String]]("from").description("Owner-local day, YYYY-MM-DD, inclusive"))
+      .in(query[Option[String]]("to").description("Owner-local day, YYYY-MM-DD, inclusive"))
       .out(jsonBody[AdvertiserReportResponse])
       .errorOut(jsonBody[ErrorResponse])
 
@@ -475,11 +475,11 @@ object Endpoints extends ApiJsonFormats {
       .tag("Advertisers")
       .summary("Range report broken down by site, category, or publisher")
       .description(
-        "Aggregates campaign_dim_daily_stats over the inclusive UTC range per dimension value. The rollup accrues from its ship date plus a bounded backfill, so coverageFrom reports the earliest day with data for this advertiser — the platform surfaces it when later than the requested from.")
+        "Aggregates campaign_dim_daily_stats over the inclusive range of advertiser-local days per dimension value. The rollup accrues from its ship date plus a bounded backfill, so coverageFrom reports the earliest day with data for this advertiser — the platform surfaces it when later than the requested from.")
       .get
       .in(advertisersBase / path[String]("advertiserId") / "report" / "breakdown")
-      .in(query[Option[String]]("from").description("UTC day, YYYY-MM-DD, inclusive"))
-      .in(query[Option[String]]("to").description("UTC day, YYYY-MM-DD, inclusive"))
+      .in(query[Option[String]]("from").description("Owner-local day, YYYY-MM-DD, inclusive"))
+      .in(query[Option[String]]("to").description("Owner-local day, YYYY-MM-DD, inclusive"))
       .in(query[String]("dim").description("site | category | publisher"))
       .out(jsonBody[AdvertiserReportBreakdownResponse])
       .errorOut(jsonBody[ErrorResponse])
@@ -490,11 +490,11 @@ object Endpoints extends ApiJsonFormats {
       .tag("Advertisers")
       .summary("Range breakdown split by campaign within each dimension value")
       .description(
-        "One row per (site|category value, campaign) aggregated over the inclusive UTC range — drives the nested site→campaign and category→campaign report tables. Groups are ordered by total dimension spend, campaigns within a group by spend.")
+        "One row per (site|category value, campaign) aggregated over the inclusive range of advertiser-local days — drives the nested site→campaign and category→campaign report tables. Groups are ordered by total dimension spend, campaigns within a group by spend.")
       .get
       .in(advertisersBase / path[String]("advertiserId") / "report" / "breakdown-by-campaign")
-      .in(query[Option[String]]("from").description("UTC day, YYYY-MM-DD, inclusive"))
-      .in(query[Option[String]]("to").description("UTC day, YYYY-MM-DD, inclusive"))
+      .in(query[Option[String]]("from").description("Owner-local day, YYYY-MM-DD, inclusive"))
+      .in(query[Option[String]]("to").description("Owner-local day, YYYY-MM-DD, inclusive"))
       .in(query[String]("dim").description("site | category"))
       .out(jsonBody[AdvertiserReportBreakdownByCampaignResponse])
       .errorOut(jsonBody[ErrorResponse])
@@ -508,8 +508,8 @@ object Endpoints extends ApiJsonFormats {
         "Same aggregation as the range breakdown but keyed by (UTC day, dimension value) — one row per day per value with delivery. Days without delivery have no row; the platform zero-fills the calendar. Same range semantics as the range breakdown.")
       .get
       .in(advertisersBase / path[String]("advertiserId") / "report" / "breakdown-daily")
-      .in(query[Option[String]]("from").description("UTC day, YYYY-MM-DD, inclusive"))
-      .in(query[Option[String]]("to").description("UTC day, YYYY-MM-DD, inclusive"))
+      .in(query[Option[String]]("from").description("Owner-local day, YYYY-MM-DD, inclusive"))
+      .in(query[Option[String]]("to").description("Owner-local day, YYYY-MM-DD, inclusive"))
       .in(query[String]("dim").description("site | category | publisher"))
       .out(jsonBody[AdvertiserReportBreakdownDailyResponse])
       .errorOut(jsonBody[ErrorResponse])
@@ -520,11 +520,11 @@ object Endpoints extends ApiJsonFormats {
       .tag("Publishers")
       .summary("Day-level (site, category) rows for the publisher report's time-series charts")
       .description(
-        "Same aggregation as the range site-category report but keyed by (UTC day, site, category). Days without delivery have no row; the platform zero-fills the calendar. Revenue is gross advertiser spend.")
+        "Same aggregation as the range site-category report but keyed by (publisher-local day, site, category) — the publisher's account-timezone days, matching their earnings statements. Days without delivery have no row; the platform zero-fills the calendar. Revenue is gross advertiser spend.")
       .get
       .in(publishersBase / path[String]("publisherId") / "report" / "site-categories-daily")
-      .in(query[Option[String]]("from").description("UTC day, YYYY-MM-DD, inclusive"))
-      .in(query[Option[String]]("to").description("UTC day, YYYY-MM-DD, inclusive"))
+      .in(query[Option[String]]("from").description("Owner-local day, YYYY-MM-DD, inclusive"))
+      .in(query[Option[String]]("to").description("Owner-local day, YYYY-MM-DD, inclusive"))
       .out(jsonBody[PublisherSiteCategoryDailyReportResponse])
       .errorOut(jsonBody[ErrorResponse])
 
@@ -534,11 +534,11 @@ object Endpoints extends ApiJsonFormats {
       .tag("Publishers")
       .summary("Range report per (site, category) for a publisher's sites")
       .description(
-        "Aggregates campaign_dim_daily_stats over the inclusive UTC range for every site owned by the publisher, one row per (site, category). Revenue is gross advertiser spend — the platform applies its margin for display. Same range semantics and coverageFrom caveat as the advertiser report breakdown.")
+        "Aggregates campaign_dim_daily_stats over the inclusive range of publisher-local days for every site owned by the publisher, one row per (site, category). Revenue is gross advertiser spend — the platform applies its margin for display. Same range semantics and coverageFrom caveat as the advertiser report breakdown.")
       .get
       .in(publishersBase / path[String]("publisherId") / "report" / "site-categories")
-      .in(query[Option[String]]("from").description("UTC day, YYYY-MM-DD, inclusive"))
-      .in(query[Option[String]]("to").description("UTC day, YYYY-MM-DD, inclusive"))
+      .in(query[Option[String]]("from").description("Owner-local day, YYYY-MM-DD, inclusive"))
+      .in(query[Option[String]]("to").description("Owner-local day, YYYY-MM-DD, inclusive"))
       .out(jsonBody[PublisherSiteCategoryReportResponse])
       .errorOut(jsonBody[ErrorResponse])
 

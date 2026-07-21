@@ -243,7 +243,12 @@ CREATE TABLE IF NOT EXISTS campaign_hourly_stats (
 
 CREATE INDEX IF NOT EXISTS idx_campaign_hourly_stats_time ON campaign_hourly_stats(hour_bucket);
 
--- Daily aggregations for longer-term trends
+-- Daily aggregations for longer-term trends.
+-- day_bucket is the ADVERTISER's local day (account timezone at
+-- projection-write time; UTC for org-less entities) — the same boundary
+-- the budget rollover and spend-today use, so the report's days match
+-- the advertiser's wallet. A timezone change re-buckets only future
+-- rows; history keeps the days it was written under.
 CREATE TABLE IF NOT EXISTS campaign_daily_stats (
     campaign_id     VARCHAR(100) NOT NULL,
     day_bucket      DATE NOT NULL,
@@ -265,13 +270,22 @@ CREATE INDEX IF NOT EXISTS idx_campaign_daily_stats_day ON campaign_daily_stats(
 
 -- Dimensional daily rollup: campaign x day x site x category.
 -- Serves the advertiser report's by-site / by-category / by-publisher cuts
--- (publisher via publisher_sites join). Durable — outlives the 30-day
--- tracking_events retention. category '' = serve with no matched category.
--- Written by DashboardProjectionHandler with the same spend derivation
--- (cpm/1000, dogeared excluded) so splits reconcile with campaign_daily_stats.
+-- AND the publisher report (via publisher_sites join). Durable — outlives
+-- the 30-day tracking_events retention. category '' = serve with no
+-- matched category. Written by DashboardProjectionHandler with the same
+-- spend derivation (cpm/1000, dogeared excluded) so splits reconcile with
+-- campaign_daily_stats.
+--
+-- One event, two owners, two local days: day_bucket is the ADVERTISER's
+-- local day, pub_day_bucket the PUBLISHER's. Advertiser report queries
+-- group by day_bucket, publisher report queries by pub_day_bucket — each
+-- side sees its own account-timezone days (matching its wallet/earnings
+-- statements). Both in the PK: one event near a midnight can split keys
+-- that share the other side's day.
 CREATE TABLE IF NOT EXISTS campaign_dim_daily_stats (
     campaign_id  VARCHAR(100) NOT NULL,
     day_bucket   DATE NOT NULL,
+    pub_day_bucket DATE NOT NULL,
     site_id      VARCHAR(100) NOT NULL,
     category     VARCHAR(100) NOT NULL DEFAULT '',
     impressions  BIGINT NOT NULL DEFAULT 0,
@@ -280,10 +294,11 @@ CREATE TABLE IF NOT EXISTS campaign_dim_daily_stats (
     spend        DECIMAL(12, 4) NOT NULL DEFAULT 0,
     dogeared_impressions BIGINT NOT NULL DEFAULT 0,
     updated_at   TIMESTAMP WITH TIME ZONE NOT NULL DEFAULT NOW(),
-    PRIMARY KEY (campaign_id, day_bucket, site_id, category)
+    PRIMARY KEY (campaign_id, day_bucket, pub_day_bucket, site_id, category)
 );
 
 CREATE INDEX IF NOT EXISTS idx_campaign_dim_daily_stats_day ON campaign_dim_daily_stats(day_bucket);
+CREATE INDEX IF NOT EXISTS idx_campaign_dim_daily_stats_pub_day ON campaign_dim_daily_stats(pub_day_bucket);
 
 -- Advertiser-level rollup
 CREATE TABLE IF NOT EXISTS advertiser_summary (

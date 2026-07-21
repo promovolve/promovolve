@@ -124,6 +124,7 @@ type reportDimCampaignGroup struct {
 
 type reportPageData struct {
 	From, To   string
+	Today      string // account-zone current day; bounds the range picker
 	Preset     string // "7d" | "30d" | "month" | "custom"
 	Presets    []reportPresetLink
 	Totals     reportTotals
@@ -155,7 +156,9 @@ func (h *Handler) AdvertiserReport(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	from, to, preset := reportRange(r)
+	_, loc := h.accountTimeContext(r.Context(), claims.AdvertiserID)
+	from, to, preset := reportRange(r, loc)
+	todayS := time.Now().In(loc).Format(reportDayLayout)
 	rangeQS := "from=" + url.QueryEscape(from) + "&to=" + url.QueryEscape(to)
 
 	// CSV export — same handler, same range; dim picks the tab.
@@ -188,8 +191,8 @@ func (h *Handler) AdvertiserReport(w http.ResponseWriter, r *http.Request) {
 	publishers, _ := h.fetchReportBreakdown(rangeQS, "publisher", claims)
 
 	rep := &reportPageData{
-		From: from, To: to, Preset: preset,
-		Presets:        reportPresets("/advertiser/report"),
+		From: from, To: to, Today: todayS, Preset: preset,
+		Presets:        reportPresets("/advertiser/report", loc),
 		Days:           groupReportDays(rows),
 		Publishers:     publishers,
 		SiteGroups:     h.fetchBreakdownByCampaign(rangeQS, "site", names, taxonomy, claims),
@@ -296,16 +299,19 @@ func (h *Handler) AdvertiserReportConversions(w http.ResponseWriter, r *http.Req
 }
 
 // reportRange resolves ?from/?to with the same semantics as the core
-// endpoint (default last 7 days including today, UTC, 92-day cap) so the
-// page never renders a range the API would reject.
-func reportRange(r *http.Request) (from, to, preset string) {
-	today := time.Now().UTC().Truncate(24 * time.Hour)
+// endpoint (default last 7 days including today, 92-day cap). "Today"
+// is the account timezone's current day — report buckets are written in
+// the owner's local day, so the default range must end on the same
+// clock the buckets follow.
+func reportRange(r *http.Request, loc *time.Location) (from, to, preset string) {
+	now := time.Now().In(loc)
+	today := time.Date(now.Year(), now.Month(), now.Day(), 0, 0, 0, 0, loc)
 	toD := today
-	if t, err := time.Parse(reportDayLayout, r.URL.Query().Get("to")); err == nil {
+	if t, err := time.ParseInLocation(reportDayLayout, r.URL.Query().Get("to"), loc); err == nil {
 		toD = t
 	}
 	fromD := toD.AddDate(0, 0, -6)
-	if f, err := time.Parse(reportDayLayout, r.URL.Query().Get("from")); err == nil {
+	if f, err := time.ParseInLocation(reportDayLayout, r.URL.Query().Get("from"), loc); err == nil {
 		fromD = f
 	}
 	if fromD.After(toD) {
@@ -322,7 +328,7 @@ func reportRange(r *http.Request) (from, to, preset string) {
 		preset = "7d"
 	case to == todayS && from == today.AddDate(0, 0, -29).Format(reportDayLayout):
 		preset = "30d"
-	case to == todayS && from == time.Date(today.Year(), today.Month(), 1, 0, 0, 0, 0, time.UTC).Format(reportDayLayout):
+	case to == todayS && from == time.Date(today.Year(), today.Month(), 1, 0, 0, 0, 0, loc).Format(reportDayLayout):
 		preset = "month"
 	default:
 		preset = "custom"
@@ -330,8 +336,8 @@ func reportRange(r *http.Request) (from, to, preset string) {
 	return
 }
 
-func reportPresets(basePath string) []reportPresetLink {
-	today := time.Now().UTC()
+func reportPresets(basePath string, loc *time.Location) []reportPresetLink {
+	today := time.Now().In(loc)
 	link := func(from time.Time) string {
 		return basePath + "?from=" + from.Format(reportDayLayout) +
 			"&to=" + today.Format(reportDayLayout)
@@ -339,7 +345,7 @@ func reportPresets(basePath string) []reportPresetLink {
 	return []reportPresetLink{
 		{Key: "7d", Label: "7d", URL: link(today.AddDate(0, 0, -6))},
 		{Key: "30d", Label: "30d", URL: link(today.AddDate(0, 0, -29))},
-		{Key: "month", Label: "This month", URL: link(time.Date(today.Year(), today.Month(), 1, 0, 0, 0, 0, time.UTC))},
+		{Key: "month", Label: "This month", URL: link(time.Date(today.Year(), today.Month(), 1, 0, 0, 0, 0, loc))},
 	}
 }
 

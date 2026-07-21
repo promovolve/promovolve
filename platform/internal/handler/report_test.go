@@ -4,6 +4,7 @@ import (
 	"github.com/hanishi/promovolve/platform/internal/i18n"
 	"io"
 	"testing"
+	"time"
 
 	platform "github.com/hanishi/promovolve/platform"
 	"github.com/hanishi/promovolve/platform/internal/model"
@@ -46,7 +47,7 @@ func TestReportTemplateRenders(t *testing.T) {
 	campaigns, campPts := campaignBreakdown(rows)
 	rep := &reportPageData{
 		From: "2026-06-30", To: "2026-07-06", Preset: "7d",
-		Presets:    reportPresets("/advertiser/report"),
+		Presets:    reportPresets("/advertiser/report", time.UTC),
 		Totals:     sumReportTotals(rows),
 		Days:       groupReportDays(rows),
 		Campaigns:  campaigns,
@@ -81,7 +82,7 @@ func TestReportTemplateRenders(t *testing.T) {
 	}
 
 	// Empty state renders too (HasData=false skips the tables + chart).
-	data.Report = &reportPageData{From: "2026-06-30", To: "2026-07-06", Preset: "custom", Presets: reportPresets("/advertiser/report")}
+	data.Report = &reportPageData{From: "2026-06-30", To: "2026-07-06", Preset: "custom", Presets: reportPresets("/advertiser/report", time.UTC)}
 	for _, tlang := range []string{i18n.LangEN, i18n.LangJA} {
 		if err := getPage(tlang, "advertiser/report.html").ExecuteTemplate(io.Discard, "layout", data); err != nil {
 			t.Fatalf("report empty state failed to render: %v", err)

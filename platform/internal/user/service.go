@@ -48,7 +48,7 @@ func (s *Service) Register(ctx context.Context, email, password, displayName str
 
 	// Dev-only path: provision (or reuse the domain org's) entity, then
 	// attach to the org like the approval flow does.
-	o, entityID, err := s.ensureOrgSide(ctx, email, displayName, side)
+	o, entityID, err := s.ensureOrgSide(ctx, email, displayName, side, "")
 	if err != nil {
 		return nil, err
 	}
@@ -71,8 +71,11 @@ func (s *Service) Register(ctx context.Context, email, password, displayName str
 // sure it holds the requested side, provisioning the core entity when the
 // side is new. Returns the org and the side's entity id. Idempotent — safe
 // to retry after partial failures (core auto-create is idempotent per email,
-// SetSideEntity only fills an empty side).
-func (s *Service) ensureOrgSide(ctx context.Context, email, name string, side model.Role) (*model.Org, string, error) {
+// SetSideEntity only fills an empty side). seedTz (validated IANA or "")
+// seeds a NEWLY created org's account timezone — the requester's browser
+// zone captured at signup; "" falls back to the platform default. An
+// existing org's timezone is never touched here.
+func (s *Service) ensureOrgSide(ctx context.Context, email, name string, side model.Role, seedTz string) (*model.Org, string, error) {
 	domain := org.DomainOf(email)
 	if domain == "" {
 		return nil, "", fmt.Errorf("invalid email %q", email)
@@ -82,7 +85,7 @@ func (s *Service) ensureOrgSide(ctx context.Context, email, name string, side mo
 		if !errors.Is(err, org.ErrNotFound) {
 			return nil, "", err
 		}
-		if o, err = s.orgs.Create(ctx, domain, name); err != nil {
+		if o, err = s.orgs.Create(ctx, domain, name, seedTz); err != nil {
 			return nil, "", err
 		}
 	}
@@ -168,7 +171,7 @@ func (s *Service) Approve(ctx context.Context, userID, reviewerID string) error 
 	// The org (keyed by email domain) owns the entity, not the user; the
 	// approved account becomes the org's first admin — or joins an existing
 	// org (only possible for requests that predate the org) as a member.
-	o, entityID, err := s.ensureOrgSide(ctx, u.Email, u.CompanyName, side)
+	o, entityID, err := s.ensureOrgSide(ctx, u.Email, u.CompanyName, side, u.Timezone)
 	if err != nil {
 		return err
 	}

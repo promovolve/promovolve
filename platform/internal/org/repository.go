@@ -150,13 +150,19 @@ func (r *Repository) GetByDomain(ctx context.Context, domain string) (*model.Org
 }
 
 // Create inserts a new org; the UNIQUE(domain) constraint is the one-org-per-
-// domain rule, so a concurrent duplicate surfaces as an error here. New rows
-// are born with the operator's default advertiser timezone — an INSERT-time
-// seed only, so a later default change never touches existing orgs.
-func (r *Repository) Create(ctx context.Context, domain, name string) (*model.Org, error) {
+// domain rule, so a concurrent duplicate surfaces as an error here. seedTz
+// (a validated IANA id, or "") is the requester's browser zone captured at
+// signup; empty falls back to the operator's default advertiser timezone.
+// Either way it's an INSERT-time seed only — later default changes never
+// touch existing orgs, and per-org changes stay operator-only.
+func (r *Repository) Create(ctx context.Context, domain, name, seedTz string) (*model.Org, error) {
+	tz := seedTz
+	if tz == "" {
+		tz = r.DefaultTimezone(ctx)
+	}
 	return scanOrg(r.pool.QueryRow(ctx, `
 		INSERT INTO orgs (domain, name, timezone) VALUES ($1, $2, $3)
-		RETURNING `+orgColumns, strings.ToLower(domain), name, r.DefaultTimezone(ctx)))
+		RETURNING `+orgColumns, strings.ToLower(domain), name, tz))
 }
 
 // SetSideEntity records a provisioned core entity on the org. It only fills

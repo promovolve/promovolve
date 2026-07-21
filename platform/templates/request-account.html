@@ -82,6 +82,10 @@
               contactName: document.getElementById('req-contact').value,
               email: document.getElementById('req-email').value,
               message: document.getElementById('req-message').value,
+              // Browser timezone seeds the org's account timezone on
+              // approval — budget days, statements, and report days all
+              // roll on it. Server-validated; operators can override.
+              timezone: (Intl.DateTimeFormat().resolvedOptions().timeZone) || '',
             });
             document.getElementById('request-card').classList.add('hidden');
             document.getElementById('request-done').classList.remove('hidden');

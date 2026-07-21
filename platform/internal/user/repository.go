@@ -74,10 +74,10 @@ func (r *Repository) create(ctx context.Context, db execer, u *model.User) error
 	}
 	_, err := db.Exec(ctx, `
 		INSERT INTO platform_users (id, email, password_hash, role, display_name, advertiser_id, publisher_id,
-			requested_side, status, company_name, website_url, contact_name, request_message)
-		VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13)`,
+			requested_side, status, company_name, website_url, contact_name, request_message, timezone)
+		VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14)`,
 		u.ID, u.Email, hash, u.Role, u.DisplayName, u.AdvertiserID, u.PublisherID,
-		requestedSide, u.Status, u.CompanyName, u.WebsiteURL, u.ContactName, u.RequestMessage,
+		requestedSide, u.Status, u.CompanyName, u.WebsiteURL, u.ContactName, u.RequestMessage, u.Timezone,
 	)
 	if err != nil && isDuplicateKey(err) {
 		return ErrDuplicateEmail

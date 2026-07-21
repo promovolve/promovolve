@@ -8,6 +8,7 @@ import (
 	"net/http"
 	"net/mail"
 	"strings"
+	"time"
 
 	"github.com/google/uuid"
 	"github.com/jackc/pgx/v5"
@@ -145,6 +146,11 @@ type requestAccountRequest struct {
 	ContactName string `json:"contactName"`
 	Email       string `json:"email"`
 	Message     string `json:"message"`
+	// Browser-detected IANA zone; seeds the org's account timezone at
+	// approval (one-time — later changes are operator-only). Invalid or
+	// missing values fall back to the platform default silently: the
+	// requester never sees a timezone error for a hint they didn't type.
+	Timezone string `json:"timezone"`
 }
 
 func (h *Handler) RequestAccountBegin(w http.ResponseWriter, r *http.Request) {
@@ -192,6 +198,13 @@ func (h *Handler) RequestAccountBegin(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
+	tz := strings.TrimSpace(req.Timezone)
+	if tz != "" {
+		if _, err := time.LoadLocation(tz); err != nil {
+			tz = ""
+		}
+	}
+
 	pending := &model.User{
 		ID:             uuid.New().String(),
 		Email:          email,
@@ -203,6 +216,7 @@ func (h *Handler) RequestAccountBegin(w http.ResponseWriter, r *http.Request) {
 		WebsiteURL:     website,
 		ContactName:    contact,
 		RequestMessage: strings.TrimSpace(req.Message),
+		Timezone:       tz,
 	}
 
 	creation, token, err := h.passkeySvc.BeginRegistration(r.Context(), pending, requestPayload{User: pending})

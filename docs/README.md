@@ -29,6 +29,7 @@ Deep dives into why the system works the way it does, in `design/`:
 | Publisher identity | [SITE_VERIFICATION](design/SITE_VERIFICATION.md) |
 | Creatives | [TEXT_COLOR_PIPELINE](design/TEXT_COLOR_PIPELINE.md) |
 | Billing | [BILLING](design/BILLING.md) |
+| Time & timezones | [TIME_AND_TIMEZONES](design/TIME_AND_TIMEZONES.md) |
 
 ## Developer notes
 

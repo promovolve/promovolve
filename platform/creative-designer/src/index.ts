@@ -5,6 +5,7 @@ import type {BannerConfig, DesignerContext, LayoutItem, Page } from "./types";
 import { applyBrandKitFontsToText, inheritBannerColors, initialState, setZoom, syncTypographyFromPage1 } from "./state";
 import { looksLikePercentLayout, normalizePages } from "./normalize";
 import { loadBrandKit, subscribeBrandKit } from "./brand-kit";
+import { syncCanvasFonts } from "./canvas-fonts";
 import { Store } from "./store";
 import { mountCanvas, fitZoomForMode } from "./render/canvas";
 import { mountOverlay } from "./render/overlay";
@@ -303,6 +304,21 @@ function boot(ctx: DesignerContext): void {
   };
   syncPage1Typography();
   store.subscribe(syncPage1Typography);
+
+  // Register the draft's self-hosted web fonts so the canvas draws with
+  // the faces that actually ship (see canvas-fonts.ts). Once up front,
+  // then debounced on state changes — font choices change rarely, and
+  // for CJK drafts the derived subset URL tracks the text, so per-
+  // keystroke recomputation would spray pointless fetch attempts.
+  syncCanvasFonts(store.state.pages, ctx.bannerScriptUrl);
+  let fontSyncTimer: number | undefined;
+  store.subscribe((state) => {
+    if (fontSyncTimer !== undefined) window.clearTimeout(fontSyncTimer);
+    fontSyncTimer = window.setTimeout(
+      () => syncCanvasFonts(state.pages, ctx.bannerScriptUrl),
+      800
+    );
+  });
 
   // Fit-to-window on format switch. 1× is the banner's true size, so a fresh
   // format would otherwise either overflow (large) or sit tiny (small); fit it

@@ -171,7 +171,7 @@ func Migrate(pool *pgxpool.Pool) error {
 		-- Corrections are new 'adjustment' rows, never updates or deletes.
 		CREATE TABLE IF NOT EXISTS ledger_transactions (
 			id              UUID PRIMARY KEY DEFAULT gen_random_uuid(),
-			kind            TEXT NOT NULL CHECK (kind IN ('topup', 'settlement', 'payout', 'adjustment', 'refund')),
+			kind            TEXT NOT NULL CHECK (kind IN ('topup', 'settlement', 'payout', 'adjustment', 'refund', 'clawback')),
 			idempotency_key TEXT NOT NULL UNIQUE,
 			memo            TEXT NOT NULL DEFAULT '',
 			created_by      UUID REFERENCES platform_users(id),
@@ -286,6 +286,39 @@ func Migrate(pool *pgxpool.Pool) error {
 		);
 		CREATE INDEX IF NOT EXISTS idx_publisher_settlements_day
 			ON publisher_settlements(publisher_id, local_date DESC);
+
+		-- Fraud settlement holds (docs/design/FRAUD_PREVENTION.md Layer 3.1).
+		-- When a site has an open fraud flag, the settler does NOT drain its
+		-- gross out of clearing to the publisher — it parks the cell here in a
+		-- 'held' state (the clearing account already models money-in-transit,
+		-- so the money simply stays there). One row per held publisher cell,
+		-- carrying everything Release/Clawback needs so neither re-queries
+		-- metering. Resolution: 'released' (false positive → pay the publisher
+		-- normally) or 'clawed_back' (confirmed fraud → refund the advertiser).
+		CREATE TABLE IF NOT EXISTS fraud_holds (
+			id            UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+			site_id       TEXT NOT NULL,
+			publisher_id  TEXT NOT NULL,
+			campaign_id   TEXT NOT NULL,
+			advertiser_id TEXT NOT NULL,
+			window_from   TIMESTAMPTZ NOT NULL,
+			window_to     TIMESTAMPTZ NOT NULL,
+			local_date    DATE NOT NULL,
+			timezone      TEXT NOT NULL DEFAULT '',
+			impressions   BIGINT NOT NULL,
+			gross_micros  BIGINT NOT NULL,
+			margin_bps    INTEGER NOT NULL,
+			status        TEXT NOT NULL DEFAULT 'held',   -- held | released | clawed_back
+			created_at    TIMESTAMPTZ NOT NULL DEFAULT NOW(),
+			resolved_at   TIMESTAMPTZ,
+			resolved_by   TEXT,
+			-- txn booked at resolution: the publisher settlement (release) or
+			-- the clawback (confirm). NULL while held (no ledger movement yet).
+			txn_id        UUID REFERENCES ledger_transactions(id),
+			UNIQUE (publisher_id, window_from, site_id, campaign_id, advertiser_id)
+		);
+		CREATE INDEX IF NOT EXISTS idx_fraud_holds_site
+			ON fraud_holds(site_id, status);
 
 		-- Advertiser-self-reported conversions → CPA/ROAS on the report page.
 		-- Aggregate counts the advertiser attributes to a campaign on a day;
@@ -484,6 +517,12 @@ func Migrate(pool *pgxpool.Pool) error {
 		WHERE u.status = 'active' AND u.role IN ('advertiser', 'publisher')
 		  AND (u.advertiser_id IS NOT NULL OR u.publisher_id IS NOT NULL)
 		ON CONFLICT DO NOTHING;
+
+		-- Fraud clawback (L3.1) adds a ledger transaction kind; widen the
+		-- CHECK on existing databases (fresh installs get it inline above).
+		ALTER TABLE ledger_transactions DROP CONSTRAINT IF EXISTS ledger_transactions_kind_check;
+		ALTER TABLE ledger_transactions ADD CONSTRAINT ledger_transactions_kind_check
+			CHECK (kind IN ('topup', 'settlement', 'payout', 'adjustment', 'refund', 'clawback'));
 	`)
 	return err
 }

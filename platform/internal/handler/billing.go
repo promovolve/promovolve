@@ -39,7 +39,11 @@ type adminBillingData struct {
 	// Clearing is settlement gross in transit between advertiser and
 	// publisher local billing days — normally near zero; a balance that
 	// never drains means unmapped traffic awaiting an operator fix.
-	Clearing     string
+	Clearing string
+	// Held is fraud-flagged publisher earnings parked in clearing pending an
+	// operator's release or clawback (fraud Layer 3.1) — a subset of
+	// Clearing, shown separately. Empty when nothing is held.
+	Held         string
 	ReconOK      bool
 	DriftCount   int
 	Cursors      []settlementCursorRow
@@ -319,6 +323,11 @@ func (h *Handler) renderAdminBilling(w http.ResponseWriter, r *http.Request, err
 		data.Clearing = usdTile(rec.ClearingMicros)
 		data.ReconOK = rec.OK
 		data.DriftCount = len(rec.Drift)
+	}
+	if held, err := h.billingSvc.HeldTotalMicros(ctx); err != nil {
+		slog.Error("held total lookup failed", "error", err)
+	} else if held != 0 {
+		data.Held = usdTile(held)
 	}
 
 	labels := h.ownerLabels(ctx)

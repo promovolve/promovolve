@@ -232,6 +232,7 @@ func (h *Handler) FraudFlagDecision(action string) http.HandlerFunc {
 		r.ParseForm()
 		idStr := r.FormValue("flagId")
 		siteID := r.FormValue("siteId")
+		windowDay := r.FormValue("windowDay") // "2006-01-02"; scopes the settled clawback
 		id, perr := strconv.ParseInt(idStr, 10, 64)
 		if perr != nil || idStr == "" {
 			h.renderAdminFraudFlags(w, r, "missing or bad flag id")
@@ -258,11 +259,83 @@ func (h *Handler) FraudFlagDecision(action string) http.HandlerFunc {
 				return
 			}
 		}
+
+		// Money reversal (fraud Layer 3.1). Release pays the held cells to
+		// the publisher; Confirm claws them back to the advertiser. A failure
+		// here leaves the flag resolved + (for confirm) the site suspended —
+		// the operator retries the money step; nothing is double-applied
+		// because both paths are idempotent on the settlement/clawback key.
+		if siteID != "" && h.billingSvc != nil {
+			if msg := h.resolveFraudMoney(r.Context(), action, siteID, windowDay, admin.Email); msg != "" {
+				h.renderAdminFraudFlags(w, r, msg)
+				return
+			}
+		}
+
 		if h.auditRepo != nil {
 			h.auditRepo.Log(r.Context(), admin.ID, admin.Email, "", "fraud_flag_"+action, siteID, idStr)
 		}
 		http.Redirect(w, r, "/admin/fraud", http.StatusSeeOther)
 	}
+}
+
+// resolveFraudMoney applies the L3.1 money reversal for a fraud decision.
+// Release drains every held cell for the site to the publisher (false
+// positive → pay normally); Confirm claws the held cells back to the
+// advertiser AND reverses any cells that had already settled before the
+// flag landed (a Layer-2 catch that arrived post-settlement). Returns a
+// non-empty operator message only on failure.
+func (h *Handler) resolveFraudMoney(ctx context.Context, action, siteID, windowDay, by string) string {
+	switch action {
+	case "release":
+		n, err := h.billingSvc.ReleaseSiteHolds(ctx, siteID, by)
+		if err != nil {
+			slog.Error("release fraud holds failed", "siteId", siteID, "error", err)
+			return fmt.Sprintf("flag released, but paying out held earnings failed: %v — retry", err)
+		}
+		if n > 0 {
+			slog.Info("released fraud holds", "siteId", siteID, "cells", n)
+		}
+	case "confirm":
+		held, err := h.billingSvc.ClawbackSiteHolds(ctx, siteID, by)
+		if err != nil {
+			slog.Error("clawback fraud holds failed", "siteId", siteID, "error", err)
+			return fmt.Sprintf("flag confirmed + site suspended, but clawing back held earnings failed: %v — retry", err)
+		}
+		// Also reverse anything that settled before the hold could catch it
+		// (a Layer-2 catch that landed after the publisher window settled).
+		// Scope this to the flagged day ±1 (a generous margin covering any
+		// single timezone offset) rather than a broad sweep, so a site that
+		// was honest for weeks and fraudulent for one day is not stripped of
+		// its legitimate earnings. The precise, common case is the held path;
+		// this only backstops the post-settlement race.
+		var settled int
+		if from, to, ok := flagDayRange(windowDay); ok {
+			settled, err = h.billingSvc.ClawbackSettledWindow(ctx, siteID, from, to, by)
+			if err != nil {
+				slog.Error("clawback settled window failed", "siteId", siteID, "error", err)
+				return fmt.Sprintf("flag confirmed + site suspended; held cells clawed back, but reversing already-settled earnings failed: %v — retry", err)
+			}
+		}
+		if held+settled > 0 {
+			slog.Info("clawed back fraud earnings", "siteId", siteID, "heldCells", held, "settledCells", settled)
+		}
+	}
+	return ""
+}
+
+// flagDayRange turns a flag's window day ("2006-01-02") into the instant
+// range [day-1, day+2) UTC — the flagged local day plus a one-day margin on
+// each side so any single-timezone-offset settlement window that carried
+// the fraudulent traffic is covered. Returns ok=false for an unparseable
+// day (older flags without the field), which simply skips the settled
+// backstop and relies on the held path.
+func flagDayRange(windowDay string) (from, to time.Time, ok bool) {
+	d, err := time.Parse("2006-01-02", windowDay)
+	if err != nil {
+		return time.Time{}, time.Time{}, false
+	}
+	return d.AddDate(0, 0, -1), d.AddDate(0, 0, 2), true
 }
 
 func (h *Handler) AdminSiteRequests(w http.ResponseWriter, r *http.Request) {

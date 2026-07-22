@@ -39,12 +39,14 @@
           onsubmit="return confirm('{{t "Release %s? Marks this flag a false positive and leaves serving untouched." .SiteID}}')">
           <input type="hidden" name="flagId" value="{{.ID}}">
           <input type="hidden" name="siteId" value="{{.SiteID}}">
+          <input type="hidden" name="windowDay" value="{{.WindowDay}}">
           <button type="submit" class="btn btn-secondary">{{t "Release (false positive)"}}</button>
         </form>
         <form method="POST" action="/admin/fraud/confirm"
           onsubmit="return confirm('{{t "Confirm fraud on %s? Serving on this site stops immediately." .SiteID}}')">
           <input type="hidden" name="flagId" value="{{.ID}}">
           <input type="hidden" name="siteId" value="{{.SiteID}}">
+          <input type="hidden" name="windowDay" value="{{.WindowDay}}">
           <button type="submit" class="btn btn-danger">{{t "Confirm fraud & suspend site"}}</button>
         </form>
       </div>

@@ -50,6 +50,9 @@ const (
 	TxnPayout     TxnKind = "payout"
 	TxnAdjustment TxnKind = "adjustment"
 	TxnRefund     TxnKind = "refund"
+	// TxnClawback reverses a fraudulent site's held (or already-settled)
+	// gross back to the advertiser (docs/design/FRAUD_PREVENTION.md L3.1).
+	TxnClawback TxnKind = "clawback"
 )
 
 type AccountStatus string
@@ -154,6 +157,42 @@ type PublisherSettlement struct {
 	CreatedAt    time.Time
 }
 
+// FraudHoldStatus is the lifecycle of a held publisher cell.
+type FraudHoldStatus string
+
+const (
+	HoldHeld       FraudHoldStatus = "held"
+	HoldReleased   FraudHoldStatus = "released"
+	HoldClawedBack FraudHoldStatus = "clawed_back"
+)
+
+// FraudHold is one publisher-side settlement cell whose gross was NOT
+// drained to the publisher because the site had an open fraud flag
+// (docs/design/FRAUD_PREVENTION.md L3.1). While `held` the gross sits in
+// the clearing account (the advertiser was charged; the publisher was
+// not paid). Release books the deferred publisher settlement; Clawback
+// refunds the advertiser. It carries the full cell so neither path
+// re-queries metering.
+type FraudHold struct {
+	ID           string
+	SiteID       string
+	PublisherID  string
+	CampaignID   string
+	AdvertiserID string
+	WindowFrom   time.Time
+	WindowTo     time.Time
+	LocalDate    time.Time
+	Timezone     string
+	Impressions  int64
+	GrossMicros  int64
+	MarginBps    int
+	Status       FraudHoldStatus
+	CreatedAt    time.Time
+	ResolvedAt   *time.Time
+	ResolvedBy   string
+	TxnID        string
+}
+
 type Payout struct {
 	ID           string
 	PublisherID  string
@@ -217,6 +256,15 @@ func AdvSettlementKey(advertiserID string, windowFrom time.Time, campaignID, sit
 // PubSettlementKey is the publisher-side analog of AdvSettlementKey.
 func PubSettlementKey(publisherID string, windowFrom time.Time, siteID, campaignID, advertiserID string) string {
 	return fmt.Sprintf("settle:pub:%s:%s:%s:%s:%s",
+		publisherID, windowFrom.UTC().Format(time.RFC3339), siteID, campaignID, advertiserID)
+}
+
+// ClawbackKey is the idempotency key for the advertiser refund of one
+// clawed-back cell — same (window start, cell) coordinates as the
+// publisher settlement it reverses, so a re-run of a confirm collides
+// and never double-refunds.
+func ClawbackKey(publisherID string, windowFrom time.Time, siteID, campaignID, advertiserID string) string {
+	return fmt.Sprintf("clawback:%s:%s:%s:%s:%s",
 		publisherID, windowFrom.UTC().Format(time.RFC3339), siteID, campaignID, advertiserID)
 }
 

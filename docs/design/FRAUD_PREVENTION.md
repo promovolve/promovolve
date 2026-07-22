@@ -179,13 +179,24 @@ the projection tier — no new infrastructure.
 > queue) renders each flag's evidence with **Release** (false-positive
 > label) and **Confirm fraud & suspend site** (resolve + surgical suspend,
 > composed platform-side like the operator org-suspend). EN/JA + render
-> test. **Deferred (Phase 3.1):** the automatic settlement HOLD-in-CLEARING
-> on flag and the monetary clawback of already-settled legs — those ride
-> the BILLING.md settlement engine and are the remaining money-reversal
-> work. Today "Confirm" stops future serving on the site; it does not yet
-> reverse past payouts.
+> test. **Phase 3.1 BUILT 2026-07-22:** the automatic settlement
+> HOLD-in-CLEARING on flag and the monetary clawback (held and
+> already-settled legs) now ship — see the Layer 3 section below. "Confirm"
+> both stops future serving AND reverses the fraudulent earnings.
 
 ## Layer 3 — Money controls (rides existing settlement machinery)
+
+> **BUILT 2026-07-22 (Phase 3.1).** The hold, release, and clawback are
+> implemented in the platform billing engine (`platform/internal/billing/
+> fraud_holds.go`): the settler consults the open-flag set and, for a
+> flagged site, records a `fraud_holds` row instead of draining clearing to
+> the publisher; `/admin/fraud` **Release** pays the held cells out and
+> **Confirm** claws them back to the advertiser (plus a day-scoped reversal
+> of any cells that settled before the flag landed). An admin-billing
+> "Held" tile surfaces the held total. Five integration tests assert the
+> reconciliation identity after hold / release / clawback / clawback-after-
+> settle / day-scoping. The only follow-on is Stripe-style external payout
+> reversal, which does not exist yet (payouts are still operator-manual).
 
 - **Hold-then-release.** A flagged site's local-day settlement routes to a
   HELD state instead of payable — the CLEARING-account double-entry design

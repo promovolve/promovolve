@@ -12,7 +12,7 @@
   {{with .AdminBilling}}
 
   <!-- Overview -->
-  <div class="grid grid-cols-5 gap-6 mt-6">
+  <div class="grid {{if .Held}}grid-cols-3 lg:grid-cols-6{{else}}grid-cols-5{{end}} gap-6 mt-6">
     <div class="bg-white p-6 rounded-lg border" title="{{t "External money received minus money sent (top-ups − payouts − refunds)"}}">
       <p class="text-sm text-gray-500">{{t "Cash position"}}</p>
       <p class="text-3xl font-semibold mt-2">{{.Cash}}</p>
@@ -33,6 +33,12 @@
       <p class="text-sm text-gray-500">{{t "In transit"}}</p>
       <p class="text-3xl font-semibold mt-2">{{.Clearing}}</p>
     </div>
+    {{if .Held}}
+    <div class="bg-white p-6 rounded-lg border border-amber-300" title="{{t "Publisher earnings on fraud-flagged sites, held in clearing instead of paid out. An operator releases them (false positive → pay the publisher) or confirms fraud (claws them back to the advertiser) from the Fraud Review queue. Part of In-transit, shown here so held money is never mistaken for benign settlement float."}}">
+      <p class="text-sm text-amber-700">{{t "Held (fraud review)"}}</p>
+      <p class="text-3xl font-semibold mt-2 text-amber-700">{{.Held}}</p>
+    </div>
+    {{end}}
   </div>
   <p class="mt-3 text-sm">
     {{if .ReconOK}}

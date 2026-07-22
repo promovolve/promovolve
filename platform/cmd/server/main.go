@@ -110,6 +110,9 @@ func main() {
 	// Both sides' local billing days come from the owning org's timezone —
 	// the same zone that drives budget rollover (budget day == billing day).
 	settler.SetEntityTimezoneLookup(orgRepo.TimezoneByEntity)
+	// Fraud-held sites (Layer 3.1): their publisher earnings stay in clearing
+	// instead of paying out until an operator releases or claws them back.
+	settler.SetHeldSitesLookup(heldSitesLookup(coreInternal))
 	settleCtx, stopSettler := context.WithCancel(context.Background())
 	defer stopSettler()
 	go settler.Run(settleCtx)
@@ -548,14 +551,16 @@ func runSettleEntity(cfg config.Config, args []string) int {
 
 	billingSvc := billing.NewService(pool)
 	settingsSvc := settings.NewService(pool)
+	cliCore := billing.NewHTTPCoreClient(cfg.CoreAPIURL, cfg.InternalAPIKey)
 	settler := billing.NewSettler(
 		billingSvc, pool,
-		billing.NewHTTPCoreClient(cfg.CoreAPIURL, cfg.InternalAPIKey),
+		cliCore,
 		settingsSvc.MarginBpsAt,
 	)
 	orgRepo := org.NewRepository(pool)
 	settler.SetEntitySuspendedLookup(orgRepo.IsEntitySuspended)
 	settler.SetEntityTimezoneLookup(orgRepo.TimezoneByEntity)
+	settler.SetHeldSitesLookup(heldSitesLookup(cliCore))
 
 	ctx := context.Background()
 	if err := settler.SettleEntity(ctx, ownerType, *id, *throughNow); err != nil {
@@ -572,4 +577,21 @@ func runSettleEntity(cfg config.Config, args []string) int {
 	fmt.Printf("Settled %s %s: %d windows on record, %d cells booked, %d skipped (no publisher mapping), gross $%.2f\n",
 		ownerType, *id, windows, rows, skipped, float64(grossMicros)/1e6)
 	return 0
+}
+
+// heldSitesLookup adapts the core fraud-flag list into the settler's
+// held-site set (fraud Layer 3.1): a site with any open flag has its
+// publisher earnings held in clearing rather than paid out.
+func heldSitesLookup(core *billing.HTTPCoreClient) func(context.Context) (map[string]bool, error) {
+	return func(ctx context.Context) (map[string]bool, error) {
+		flags, err := core.ListFraudFlags(ctx)
+		if err != nil {
+			return nil, err
+		}
+		held := make(map[string]bool, len(flags))
+		for _, f := range flags {
+			held[f.SiteID] = true
+		}
+		return held, nil
+	}
 }

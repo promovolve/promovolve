@@ -49,6 +49,15 @@ type Settler struct {
 	// (tests): UTC.
 	entityTimezone func(ctx context.Context, entityID string) (string, error)
 
+	// heldSitesFn returns the set of site ids under an open fraud flag
+	// (docs/design/FRAUD_PREVENTION.md L3.1). The publisher side holds those
+	// cells in clearing instead of draining them to payable. Nil = no fraud
+	// layer (tests): nothing held. A lookup error fails OPEN (settle
+	// normally) with an alert — the design forbids global payout delays, and
+	// a flag that arrives after settlement is still recovered by the
+	// confirm-time ClawbackSettledWindow, so nothing is lost by not holding.
+	heldSitesFn func(ctx context.Context) (map[string]bool, error)
+
 	interval time.Duration
 	// maxLookbackDays bounds catch-up to the core's tracking_events
 	// retention; gaps older than this are unrecoverable and alerted.
@@ -66,6 +75,26 @@ func (s *Settler) SetEntitySuspendedLookup(f func(ctx context.Context, entityID 
 // Called once at startup.
 func (s *Settler) SetEntityTimezoneLookup(f func(ctx context.Context, entityID string) (string, error)) {
 	s.entityTimezone = f
+}
+
+// SetHeldSitesLookup wires the fraud-held-site set (see heldSitesFn).
+// Called once at startup.
+func (s *Settler) SetHeldSitesLookup(f func(ctx context.Context) (map[string]bool, error)) {
+	s.heldSitesFn = f
+}
+
+// heldSites is the nil-safe read of heldSitesFn. Nil or error → empty set
+// (fail open: settle normally, alert on error).
+func (s *Settler) heldSites(ctx context.Context) map[string]bool {
+	if s.heldSitesFn == nil {
+		return nil
+	}
+	held, err := s.heldSitesFn(ctx)
+	if err != nil {
+		slog.Error("fraud-held-site lookup failed; settling without holds", "error", err)
+		return nil
+	}
+	return held
 }
 
 // operatorSuspended is the nil-safe read of entitySuspended; lookup errors
@@ -448,8 +477,29 @@ func (s *Settler) settleWindow(ctx context.Context, ownerType OwnerType, ownerID
 		if err != nil {
 			return fmt.Errorf("margin lookup: %w", err)
 		}
+		// Sites under an open fraud flag are held: their gross stays in
+		// clearing (a fraud_holds row) instead of draining to the publisher,
+		// until an operator releases or claws it back (fraud Layer 3.1).
+		held := s.heldSites(ctx)
+		var heldCells int
 		for _, r := range rows {
 			if r.GrossMicros <= 0 {
+				continue
+			}
+			if held[r.SiteID] {
+				if _, _, err := s.svc.RecordFraudHold(ctx, PubSettlementParams{
+					Window:       window,
+					PublisherID:  ownerID,
+					SiteID:       r.SiteID,
+					CampaignID:   r.CampaignID,
+					AdvertiserID: r.AdvertiserID,
+					Impressions:  r.Impressions,
+					GrossMicros:  r.GrossMicros,
+					MarginBps:    bps,
+				}); err != nil {
+					return fmt.Errorf("record fraud hold %s/%s: %w", r.SiteID, r.CampaignID, err)
+				}
+				heldCells++
 				continue
 			}
 			if _, err := s.svc.RecordPublisherSettlement(ctx, PubSettlementParams{
@@ -464,6 +514,10 @@ func (s *Settler) settleWindow(ctx context.Context, ownerType OwnerType, ownerID
 			}); err != nil {
 				return fmt.Errorf("record publisher settlement %s/%s: %w", r.SiteID, r.CampaignID, err)
 			}
+		}
+		if heldCells > 0 {
+			slog.Warn("publisher window has fraud-held cells (gross retained in clearing)",
+				"publisherId", ownerID, "localDay", localDay, "heldCells", heldCells)
 		}
 	default:
 		return fmt.Errorf("billing: cannot settle owner type %q", ownerType)

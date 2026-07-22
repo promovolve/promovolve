@@ -81,6 +81,32 @@ spec:
                   matchLabels:
                     app: promovolve-api
                     tier: app
+      # Fraud Layer-0 request hygiene (docs/design/FRAUD_PREVENTION.md):
+      # fetch the iptoasn ASN database into a shared emptyDir before the app
+      # starts, so IpClassifier can flag datacenter traffic. BEST-EFFORT by
+      # design — the download exits 0 even on failure, and the app fails open
+      # (rate gate + bot-UA matcher still run) when the file is absent or
+      # corrupt. Re-downloads on every pod start → self-refreshing, no image
+      # bloat, no stale-baked db.
+      initContainers:
+        - name: fetch-asn-db
+          image: curlimages/curl:8.11.1
+          command:
+            - sh
+            - -c
+            - >-
+              curl -fsSL --max-time 90 https://iptoasn.com/data/ip2asn-combined.tsv.gz
+              -o /asn/ip2asn-combined.tsv.gz
+              || echo "ASN db download failed — request hygiene fails open (rate gate + UA still active)"
+          volumeMounts:
+            - name: asn-db
+              mountPath: /asn
+          resources:
+            requests:
+              cpu: "50m"
+              memory: 32Mi
+            limits:
+              memory: 64Mi
       containers:
         - name: api
           image: promovolve/api:dev
@@ -155,6 +181,10 @@ spec:
               value: "$(POD_IP)"
             - name: PEKKO_CLUSTER_BOOTSTRAP
               value: "on"
+            # Points request-hygiene at the ASN db the init container fetched.
+            # Absent/corrupt → HttpBootstrap fails open (see FRAUD_PREVENTION.md).
+            - name: FRAUD_ASN_DB_PATH
+              value: /asn/ip2asn-combined.tsv.gz
             # PEKKO_BOOTSTRAP_REQUIRED_CONTACT_POINTS comes from api-config
             # (=2: both api pods must see each other before a NEW cluster
             # forms, so a lone pod can never form a split cluster).
@@ -170,6 +200,9 @@ spec:
               mountPath: /dev/shm
             - name: app-conf
               mountPath: /conf
+              readOnly: true
+            - name: asn-db
+              mountPath: /asn
               readOnly: true
           startupProbe:
             # /alive (process up), NOT /ready (cluster membership). Gating
@@ -220,6 +253,11 @@ spec:
           emptyDir:
             medium: Memory
             sizeLimit: 1Gi
+        # ASN db fetched by the fetch-asn-db init container (fraud Layer 0).
+        # Ephemeral: re-downloaded on every pod start.
+        - name: asn-db
+          emptyDir:
+            sizeLimit: 64Mi
         # Role overlay (roles=[entity,api], no singleton). Replaces the old
         # application-k8s.conf resource — see application-app.conf.
         - name: app-conf

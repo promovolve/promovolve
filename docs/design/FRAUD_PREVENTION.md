@@ -195,7 +195,15 @@ the projection tier — no new infrastructure.
 > of any cells that settled before the flag landed). An admin-billing
 > "Held" tile surfaces the held total. Five integration tests assert the
 > reconciliation identity after hold / release / clawback / clawback-after-
-> settle / day-scoping. The only follow-on is Stripe-style external payout
+> settle / day-scoping.
+>
+> **E2E-verified on GKE prod 2026-07-23.** An isolated synthetic site (no
+> real accounts, self-reversing) was seeded with billable impressions and a
+> fraud flag, then settled through the deployed `settle-entity` job: the
+> publisher window held the gross in clearing (0 cells paid, "Held" tile
+> lit, books balanced), and `/admin/fraud` **Confirm** clawed it back to the
+> advertiser, suspended the site, and left the books balanced with the
+> platform taking no fee. The only follow-on is Stripe-style external payout
 > reversal, which does not exist yet (payouts are still operator-manual).
 
 - **Hold-then-release.** A flagged site's local-day settlement routes to a

@@ -107,18 +107,32 @@ Marks travel with the request into the tracking event (new nullable
 carry it; see the journal-field audit discipline). Billing, projections, and
 learning filter on `suspect_reason IS NULL`.
 
-## Layer 1 — Protocol invariants (mostly already built)
+## Layer 1 — Protocol invariants
 
-- **Replay protection** exists: tracking URLs are signed and
-  replay-protected. Extend the same token to bind the event chain:
-  an EXPAND is only billable/countable against a rendered impression's
-  token; a tap-through only against an EXPAND. Chain violations are marked
-  `suspect(chain)`.
-- **Timing sanity.** Record render→event deltas. Sub-human deltas (an EXPAND
-  milliseconds after paint; configurable floor) mark the event
-  `suspect(timing)`. Deltas also feed Layer 2 as a per-site distribution —
-  uniform robotic timing is a stronger signal than any single fast event.
-- **Dedup** stays as-is (one billable impression per token).
+> **Status: BUILT 2026-07-22.** `EngagementGuard` (sharded by `rid`, the
+> reservation id signed into all three of a serve's imp/click/cta tokens
+> — so `rid` IS the chain key) + `EngagementChecker` (routing facade,
+> fail-open). Records each beacon's SERVER-arrival time; a click checks
+> against its impression, a CTA against its click. Pure decision core
+> (`onClick`/`onCta`) unit-tested. Wired into `TrackRoutes`: impression
+> records, click/cta check, and the verdict folds into `suspect_reason`
+> (`hygiene.orElse(chain)` — Layer 0 wins if it already marked). In-memory,
+> TTL-evicted (30min) + per-partition size cap; fail-open on pod restart
+> or guard error. **Off by default** (`promovolve.fraud.engagement-guard.enabled`);
+> ships dark until Layer 0 proves stable.
+
+- **Chain**: a beacon whose predecessor never arrived is marked
+  `suspect(chain)`. (Soft signal — a lost impression beacon also trips it;
+  Layer 2's ratios separate that noise from systematic abuse.)
+- **Timing**: SERVER-side predecessor→event delta below a conservative
+  floor (100ms default, well under any human) marks `suspect(timing)` —
+  unforgeable, since the client never supplies the timestamps. Deltas will
+  also feed Layer 2 as a per-site distribution (uniform robotic timing is a
+  stronger signal than any single fast event).
+- **Dedup** stays as-is (the replay guard — one billable event per token).
+- **Deferred**: folds use a different token (hash, not `rid`) and are left
+  out of chain/timing for now; the per-site timing distribution feed to
+  Layer 2 lands with Layer 2.
 
 ## Layer 2 — Economics detector (batch, the layer that catches humans)
 

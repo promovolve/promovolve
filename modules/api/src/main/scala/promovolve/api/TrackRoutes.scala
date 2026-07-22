@@ -65,7 +65,10 @@ final class TrackRoutes(
     // the beacon's own IP/UA — the real reader's — and marks money/learning
     // events from datacenter/bot/over-rate sources. Default = disabled
     // (fail-open) until the ASN db is provisioned.
-    hygiene: promovolve.fraud.RequestHygiene = promovolve.fraud.RequestHygiene.disabled
+    hygiene: promovolve.fraud.RequestHygiene = promovolve.fraud.RequestHygiene.disabled,
+    // Layer-1 engagement-chain guard (fraud): impression→click→cta ordering +
+    // sub-human server-side timing. None = off (chain/timing marking absent).
+    engagement: Option[promovolve.api.guard.EngagementChecker] = None
 )(using system: ActorSystem[?]) extends DogearEventJson with MountBeaconJson {
 
   val routes: Route =
@@ -99,6 +102,13 @@ final class TrackRoutes(
                     onSuccess(checkReplay(canonical)) {
                       case false => complete(StatusCodes.Conflict)
                       case true  =>
+                        // Record the impression's server-arrival so a later
+                        // click/cta on this rid can be timing/chain-checked
+                        // (Layer 1). The impression itself is the chain root —
+                        // no predecessor to check — so it carries only the
+                        // Layer-0 hygiene mark.
+                        val impAt = System.currentTimeMillis()
+                        rid.foreach(r => engagement.foreach(_.recordImpression(r, impAt)))
                         events.logImpression(
                           TrackEvent(
                             pub = pub,
@@ -107,7 +117,7 @@ final class TrackRoutes(
                             cid = cid,
                             version = v,
                             bucket = b,
-                            ts = System.currentTimeMillis(),
+                            ts = impAt,
                             ip = ip.toOption.map(_.getHostAddress).getOrElse(""),
                             ua = ua,
                             campaignId = camp,
@@ -140,28 +150,39 @@ final class TrackRoutes(
                       onSuccess(checkReplay(canonical)) {
                         case false => complete(StatusCodes.Conflict)
                         case true  =>
-                          events.logClick(
-                            TrackEvent(
-                              pub = pub,
-                              url = url,
-                              slot = slot,
-                              cid = cid,
-                              version = v,
-                              bucket = b,
-                              ts = System.currentTimeMillis(),
-                              ip = ip.toOption.map(_.getHostAddress).getOrElse(""),
-                              ua = ua,
-                              category = cat,
-                              campaignId = camp,
-                              advertiserId = adv,
-                              requestId = rid,
-                              adProductCategory = apc,
-                              pageCategories = pcats,
-                              dogeared = dogeared.getOrElse(false),
-                              suspectReason = suspectReason
+                          // Layer-1 chain/timing check against this rid's
+                          // recorded impression. Hygiene (Layer 0) wins if it
+                          // already marked; else the chain/timing verdict
+                          // applies. Fail-open when the guard is off / errors.
+                          val clickAt = System.currentTimeMillis()
+                          val chainF = rid match {
+                            case Some(r) => engagement.map(_.checkClick(r, clickAt)).getOrElse(Future.successful(None))
+                            case None    => Future.successful(None)
+                          }
+                          onSuccess(chainF) { chainReason =>
+                            events.logClick(
+                              TrackEvent(
+                                pub = pub,
+                                url = url,
+                                slot = slot,
+                                cid = cid,
+                                version = v,
+                                bucket = b,
+                                ts = clickAt,
+                                ip = ip.toOption.map(_.getHostAddress).getOrElse(""),
+                                ua = ua,
+                                category = cat,
+                                campaignId = camp,
+                                advertiserId = adv,
+                                requestId = rid,
+                                adProductCategory = apc,
+                                pageCategories = pcats,
+                                dogeared = dogeared.getOrElse(false),
+                                suspectReason = suspectReason.orElse(chainReason)
+                              )
                             )
-                          )
-                          complete(StatusCodes.NoContent)
+                            complete(StatusCodes.NoContent)
+                          }
                       }
                   }
               }
@@ -286,28 +307,36 @@ final class TrackRoutes(
                       onSuccess(checkReplay(canonical)) {
                         case false => complete(StatusCodes.Conflict)
                         case true  =>
-                          events.logCTAClick(
-                            TrackEvent(
-                              pub = pub,
-                              url = url,
-                              slot = slot,
-                              cid = cid,
-                              version = v,
-                              bucket = b,
-                              ts = System.currentTimeMillis(),
-                              ip = ip.toOption.map(_.getHostAddress).getOrElse(""),
-                              ua = ua,
-                              category = cat,
-                              campaignId = camp,
-                              advertiserId = adv,
-                              requestId = rid,
-                              adProductCategory = apc,
-                              pageCategories = pcats,
-                              dogeared = dogeared.getOrElse(false),
-                              suspectReason = suspectReason
+                          // Layer-1: a CTA must follow this rid's click.
+                          val ctaAt = System.currentTimeMillis()
+                          val chainF = rid match {
+                            case Some(r) => engagement.map(_.checkCta(r, ctaAt)).getOrElse(Future.successful(None))
+                            case None    => Future.successful(None)
+                          }
+                          onSuccess(chainF) { chainReason =>
+                            events.logCTAClick(
+                              TrackEvent(
+                                pub = pub,
+                                url = url,
+                                slot = slot,
+                                cid = cid,
+                                version = v,
+                                bucket = b,
+                                ts = ctaAt,
+                                ip = ip.toOption.map(_.getHostAddress).getOrElse(""),
+                                ua = ua,
+                                category = cat,
+                                campaignId = camp,
+                                advertiserId = adv,
+                                requestId = rid,
+                                adProductCategory = apc,
+                                pageCategories = pcats,
+                                dogeared = dogeared.getOrElse(false),
+                                suspectReason = suspectReason.orElse(chainReason)
+                              )
                             )
-                          )
-                          complete(StatusCodes.NoContent)
+                            complete(StatusCodes.NoContent)
+                          }
                       }
                   }
               }

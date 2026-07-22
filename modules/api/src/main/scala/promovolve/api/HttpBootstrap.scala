@@ -234,13 +234,32 @@ object HttpBootstrap {
         }
       }
 
+      // Engagement chain guard (fraud Layer 1): enforces impression→click→cta
+      // ordering + sub-human server-side timing. Off by default (ships dark);
+      // enable via promovolve.fraud.engagement-guard.enabled once Layer 0 is
+      // proven stable. Sharded by rid across the same partition count as the
+      // replay guard.
+      val engagementChecker: Option[promovolve.api.guard.EngagementChecker] =
+        if (Try(appConfig.getBoolean("fraud.engagement-guard.enabled")).getOrElse(false)) {
+          val cfg = promovolve.api.guard.EngagementGuard.Config()
+          sharding.init(org.apache.pekko.cluster.sharding.typed.scaladsl.Entity(
+            promovolve.api.guard.EngagementGuard.TypeKey
+          )(ctx => promovolve.api.guard.EngagementGuard.initBehavior(ctx, cfg)))
+          system.log.info("EngagementGuard enabled (fraud Layer 1): {} partitions", partitions: Integer)
+          Some(new promovolve.api.guard.EngagementChecker(sharding, partitions, askTimeout = 300.millis)(using system))
+        } else {
+          system.log.info("EngagementGuard disabled (fraud Layer 1 off)")
+          None
+        }
+
       val trackRoutes = new TrackRoutes(
         secretsRepo,
         eventLog,
         maxSkew = urlValidityWindow, // Same source of truth
         replayGuard = replayGuard,
         mountBeacons = Some(mountBeaconRepo),
-        hygiene = requestHygiene
+        hygiene = requestHygiene,
+        engagement = engagementChecker
       )(using system)
 
       val enableTestRoutes = Try(config.getBoolean("promovolve.enable-test-routes")).getOrElse(false)

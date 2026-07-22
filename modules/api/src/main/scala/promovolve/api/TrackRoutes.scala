@@ -60,13 +60,26 @@ final class TrackRoutes(
     bucketMs: Long = 60 * 1000L,
     maxSkew: FiniteDuration = 3.minutes,
     replayGuard: Option[ActorRef[TrackingReplayGuard.Command]] = None,
-    mountBeacons: Option[promovolve.publisher.MountBeaconRepo] = None
+    mountBeacons: Option[promovolve.publisher.MountBeaconRepo] = None,
+    // Layer-0 request hygiene (docs/design/FRAUD_PREVENTION.md): classifies
+    // the beacon's own IP/UA — the real reader's — and marks money/learning
+    // events from datacenter/bot/over-rate sources. Default = disabled
+    // (fail-open) until the ASN db is provisioned.
+    hygiene: promovolve.fraud.RequestHygiene = promovolve.fraud.RequestHygiene.disabled
 )(using system: ActorSystem[?]) extends DogearEventJson with MountBeaconJson {
 
   val routes: Route =
     pathPrefix("v1") {
       extractClientIP { ip =>
         headerValueByName("User-Agent") { ua =>
+          // Classify the beacon's own client ONCE per request (the rate
+          // gate consumes a token per call). This is the real reader's
+          // IP/UA — a datacenter/bot/over-rate source here marks every
+          // billable + learnable event it fires as suspect, excluding it
+          // from money and Thompson/floor learning downstream. Mount
+          // beacons ignore the mark (they're the honest denominator).
+          val ipAddr = ip.toOption.map(_.getHostAddress).getOrElse("")
+          val suspectReason = hygiene.classify(ipAddr, Some(ua))
           pathPrefix("imp") {
             get {
               parameters(
@@ -104,7 +117,8 @@ final class TrackRoutes(
                             requestId = rid,
                             adProductCategory = apc,
                             pageCategories = pcats,
-                            dogeared = dogeared.getOrElse(false)
+                            dogeared = dogeared.getOrElse(false),
+                            suspectReason = suspectReason
                           )
                         )
                         complete(StatusCodes.NoContent)
@@ -143,7 +157,8 @@ final class TrackRoutes(
                               requestId = rid,
                               adProductCategory = apc,
                               pageCategories = pcats,
-                              dogeared = dogeared.getOrElse(false)
+                              dogeared = dogeared.getOrElse(false),
+                              suspectReason = suspectReason
                             )
                           )
                           complete(StatusCodes.NoContent)
@@ -189,7 +204,8 @@ final class TrackRoutes(
                                 ua = "",
                                 campaignId = Some(ctx.camp),
                                 advertiserId = Some(ctx.adv),
-                                requestId = Some(tokenHash)
+                                requestId = Some(tokenHash),
+                                suspectReason = suspectReason
                               )
                             )
                             complete(StatusCodes.NoContent)
@@ -209,7 +225,8 @@ final class TrackRoutes(
                         bucket = 0L,
                         ts = System.currentTimeMillis(),
                         ip = "",
-                        ua = ""
+                        ua = "",
+                        suspectReason = suspectReason
                       )
                     )
                     complete(StatusCodes.NoContent)
@@ -286,7 +303,8 @@ final class TrackRoutes(
                               requestId = rid,
                               adProductCategory = apc,
                               pageCategories = pcats,
-                              dogeared = dogeared.getOrElse(false)
+                              dogeared = dogeared.getOrElse(false),
+                              suspectReason = suspectReason
                             )
                           )
                           complete(StatusCodes.NoContent)

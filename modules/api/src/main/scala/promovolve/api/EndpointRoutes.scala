@@ -1802,14 +1802,14 @@ class EndpointRoutes(
                   case Some(c) =>
                     sql"""
                       SELECT COUNT(*)::bigint FROM tracking_events
-                      WHERE event_type = 'impression' AND NOT dogeared
+                      WHERE event_type = 'impression' AND NOT dogeared AND suspect_reason IS NULL
                         AND event_time >= $dayStartStr::timestamptz
                         AND campaign_id = $c
                     """.as[Long]
                   case None =>
                     sql"""
                       SELECT COUNT(*)::bigint FROM tracking_events
-                      WHERE event_type = 'impression' AND NOT dogeared
+                      WHERE event_type = 'impression' AND NOT dogeared AND suspect_reason IS NULL
                         AND event_time >= $dayStartStr::timestamptz
                     """.as[Long]
                 }
@@ -4082,7 +4082,7 @@ class EndpointRoutes(
               sql"""
                 SELECT campaign_id, COUNT(*)::bigint
                 FROM tracking_events
-                WHERE event_type = 'impression' AND NOT dogeared
+                WHERE event_type = 'impression' AND NOT dogeared AND suspect_reason IS NULL
                   AND campaign_id IS NOT NULL
                   AND event_time >= $dayStartStr::timestamptz
                 GROUP BY campaign_id
@@ -4641,6 +4641,8 @@ class EndpointRoutes(
             FROM tracking_events
             WHERE site_id = $siteId
               AND event_type = 'impression'
+              AND NOT dogeared
+              AND suspect_reason IS NULL
               AND event_time >= $dayStartStr::timestamptz
           """.as[(Long, Double)].headOption
           db.run(q).map { opt =>
@@ -4702,7 +4704,7 @@ class EndpointRoutes(
                    percentile_cont(0.75) WITHIN GROUP (ORDER BY t.cpm)::double precision
             FROM tracking_events t
             LEFT JOIN publisher_sites ps ON ps.site_id = t.site_id
-            WHERE t.event_type = 'impression' AND NOT t.dogeared AND t.cpm IS NOT NULL
+            WHERE t.event_type = 'impression' AND NOT t.dogeared AND t.suspect_reason IS NULL AND t.cpm IS NOT NULL
               AND t.event_time >= NOW() - make_interval(days => $days)
               #$catFilter
             GROUP BY t.site_id, ps.host
@@ -4715,7 +4717,7 @@ class EndpointRoutes(
                    COALESCE(percentile_cont(0.5)  WITHIN GROUP (ORDER BY t.cpm), 0)::double precision,
                    COALESCE(percentile_cont(0.75) WITHIN GROUP (ORDER BY t.cpm), 0)::double precision
             FROM tracking_events t
-            WHERE t.event_type = 'impression' AND NOT t.dogeared AND t.cpm IS NOT NULL
+            WHERE t.event_type = 'impression' AND NOT t.dogeared AND t.suspect_reason IS NULL AND t.cpm IS NOT NULL
               AND t.event_time >= NOW() - make_interval(days => $days)
               #$catFilter
           """.as[(Long, Double, Double, Double)].head
@@ -4749,7 +4751,7 @@ class EndpointRoutes(
                                          0.55,0.60,0.65,0.70,0.75,0.80,0.85,0.90,0.95])
                    WITHIN GROUP (ORDER BY t.cpm)::text
             FROM tracking_events t
-            WHERE t.event_type = 'impression' AND NOT t.dogeared AND t.cpm IS NOT NULL
+            WHERE t.event_type = 'impression' AND NOT t.dogeared AND t.suspect_reason IS NULL AND t.cpm IS NOT NULL
               AND t.event_time >= NOW() - make_interval(days => $days)
               #$catFilter
           """.as[Option[String]].head
@@ -4827,7 +4829,7 @@ class EndpointRoutes(
             val q = sql"""
               SELECT category, COUNT(*)::bigint
               FROM tracking_events
-              WHERE event_type = 'impression' AND NOT dogeared
+              WHERE event_type = 'impression' AND NOT dogeared AND suspect_reason IS NULL
                 AND category IS NOT NULL AND category <> ''
                 AND event_time >= NOW() - make_interval(days => $days)
               GROUP BY category
@@ -5190,7 +5192,7 @@ class EndpointRoutes(
                             FROM tracking_events te
                             LEFT JOIN publisher_sites ps ON ps.site_id = te.site_id
                             WHERE te.event_type = 'impression'
-                              AND NOT te.dogeared
+                              AND NOT te.dogeared AND te.suspect_reason IS NULL
                               AND te.advertiser_id = $adv
                               AND te.campaign_id IS NOT NULL
                               AND te.event_time >= $fromB::timestamptz
@@ -5207,7 +5209,7 @@ class EndpointRoutes(
                             FROM tracking_events te
                             JOIN publisher_sites ps ON ps.site_id = te.site_id
                             WHERE te.event_type = 'impression'
-                              AND NOT te.dogeared
+                              AND NOT te.dogeared AND te.suspect_reason IS NULL
                               AND te.advertiser_id IS NOT NULL
                               AND te.campaign_id IS NOT NULL
                               AND ps.publisher_id = $pub
@@ -5275,7 +5277,7 @@ class EndpointRoutes(
                       LEFT JOIN tracking_events te
                         ON te.advertiser_id = v.advertiser_id
                        AND te.event_type = 'impression'
-                       AND NOT te.dogeared
+                       AND NOT te.dogeared AND te.suspect_reason IS NULL
                        AND te.campaign_id IS NOT NULL
                        AND te.event_time >= v.since
                       GROUP BY v.advertiser_id
@@ -5323,7 +5325,7 @@ class EndpointRoutes(
                     SELECT te.advertiser_id, MIN(te.event_time)
                     FROM tracking_events te
                     WHERE te.event_type = 'impression'
-                      AND NOT te.dogeared
+                      AND NOT te.dogeared AND te.suspect_reason IS NULL
                       AND te.advertiser_id IS NOT NULL
                       AND te.campaign_id IS NOT NULL
                       AND te.event_time >= $sinceB::timestamptz
@@ -5334,7 +5336,7 @@ class EndpointRoutes(
                     FROM tracking_events te
                     JOIN publisher_sites ps ON ps.site_id = te.site_id
                     WHERE te.event_type = 'impression'
-                      AND NOT te.dogeared
+                      AND NOT te.dogeared AND te.suspect_reason IS NULL
                       AND te.advertiser_id IS NOT NULL
                       AND te.campaign_id IS NOT NULL
                       AND te.event_time >= $sinceB::timestamptz

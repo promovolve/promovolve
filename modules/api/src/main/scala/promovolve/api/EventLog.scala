@@ -41,5 +41,10 @@ final case class TrackEvent(
     pageCategories: Option[String] = None,
     // True when this impression was served because the slot was pinned by a
     // prior fold (dog-ear re-encounter). Telemetry only; not billed via CPM.
-    dogeared: Boolean = false
+    dogeared: Boolean = false,
+    // Request-hygiene mark (fraud Layer 0/1). Set from the serve-time code
+    // carried in the signed token, or by beacon-side classification. A
+    // suspect event is journaled as evidence but excluded from money AND
+    // learning — same dispatch gates dogeared uses. See promovolve.fraud.Suspect.
+    suspectReason: Option[String] = None
 )

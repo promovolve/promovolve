@@ -192,6 +192,8 @@ final class TimescaleCreativeStatsRepo(db: Database)(using ec: ExecutionContext)
              0 AS folds
       FROM tracking_events
       WHERE site_id = $siteId
+        AND NOT dogeared
+        AND suspect_reason IS NULL
         AND event_time > NOW() - make_interval(mins => $windowMinutes)
       GROUP BY creative_id, minute_key
     """.as[(String, Long, Int, Int, Int)]

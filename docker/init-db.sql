@@ -98,6 +98,11 @@ CREATE TABLE IF NOT EXISTS tracking_events (
     advertiser_id  VARCHAR(100),
     creative_id    VARCHAR(100) NOT NULL,
     category       VARCHAR(100),
+    -- Request-hygiene mark (fraud Layer 0/1): why this event is excluded
+    -- from money and learning. NULL = clean; consumers filter
+    -- `suspect_reason IS NULL`. Existing DBs:
+    -- ALTER TABLE tracking_events ADD COLUMN suspect_reason VARCHAR(20);
+    suspect_reason VARCHAR(20),
     cpm            DECIMAL(10, 4),
     dogeared       BOOLEAN NOT NULL DEFAULT FALSE, -- impression served because slot was pinned
     url            TEXT,

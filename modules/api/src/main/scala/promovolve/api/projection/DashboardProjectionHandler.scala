@@ -37,7 +37,13 @@ class DashboardProjectionHandler extends SlickHandler[TrackingEvent] {
     log.debug("Processing {} event: seq={} campaign={}", event.eventType, event.sequenceNr,
       event.campaignId.getOrElse("-"))
 
-    event.eventType match {
+    // Hygiene-marked (suspect) events are fraud evidence, not delivery:
+    // they exist only in tracking_events for the Layer-2 economics
+    // detector and never move a dashboard counter — not the primary
+    // totals, not even the dogeared_* parallel counters
+    // (docs/design/FRAUD_PREVENTION.md).
+    if (event.suspectReason.isDefined) DBIO.successful(Done)
+    else event.eventType match {
       case "impression" => processImpression(event)
       case "click"      => processClick(event)
       case "cta_click"  => processCTAClick(event)

@@ -91,13 +91,17 @@ final class LearningEventLog(
   ): Unit = {
     val siteId = SiteId(e.pub)
 
-    if (e.dogeared) {
-      // Re-encounter via honored pin: silent on the auction + billing,
-      // visible only on the dogeared_* counters via the journal write.
+    if (e.dogeared || e.suspectReason.isDefined) {
+      // Re-encounter via honored pin, OR a hygiene-marked (suspect)
+      // event: silent on the auction, billing, AND learning — the
+      // journal write is the only trace (evidence for the economics
+      // detector). Suspect traffic must not train Thompson sampling,
+      // floors, or affinities: unpaid fraud that shapes the auction
+      // still pays the fraudster (docs/design/FRAUD_PREVENTION.md).
       trackingJournal.foreach(_.writeImpression(e))
       system.log.debug(
-        "Dogeared impression (silent): pub={} cid={} campaign={}",
-        e.pub, e.cid, campaignId
+        "Silent impression (dogeared={} suspect={}): pub={} cid={} campaign={}",
+        e.dogeared, e.suspectReason.getOrElse("-"), e.pub, e.cid, campaignId
       )
     } else {
       // 1. Send impression to TaxonomyRankerEntity for category-level CTR learning
@@ -189,15 +193,15 @@ final class LearningEventLog(
   private def processClick(e: TrackEvent, category: String): Unit = {
     val siteId = SiteId(e.pub)
 
-    if (e.dogeared) {
-      // Re-encounter click via honored pin: same user re-engaging with
-      // a creative they already folded. Not a fresh CTR signal — skip
-      // every entity-level dispatch and write only the journal so the
-      // dogeared_clicks counter still moves.
+    if (e.dogeared || e.suspectReason.isDefined) {
+      // Re-encounter click via honored pin, or a hygiene-marked event:
+      // not a fresh CTR signal — skip every entity-level dispatch and
+      // write only the journal (dogeared_clicks counter / fraud
+      // evidence respectively).
       trackingJournal.foreach(_.writeClick(e))
       system.log.debug(
-        "Dogeared click (silent): pub={} cid={} category={}",
-        e.pub, e.cid, category
+        "Silent click (dogeared={} suspect={}): pub={} cid={} category={}",
+        e.dogeared, e.suspectReason.getOrElse("-"), e.pub, e.cid, category
       )
     } else {
       // 1. Send click to TaxonomyRankerEntity for category-level CTR learning
@@ -278,14 +282,18 @@ final class LearningEventLog(
       case (Some(campId), Some(advId), Some(rid)) if campId.nonEmpty && advId.nonEmpty =>
         // Folds are an engagement signal, not a billing event.
         trackingJournal.foreach(_.writeFold(e))
-        // Feed AdServer's per-creative Thompson Sampling posterior. Folds are
-        // sampled as an independent Beta alongside CTR — see
-        // ThompsonSampling.scoreCandidate.
-        val adServerRef = sharding.entityRefFor(AdServer.TypeKey, e.pub)
-        adServerRef ! AdServer.RecordFold(CreativeId(e.cid))
+        // Feed AdServer's per-creative Thompson Sampling posterior — but
+        // never from hygiene-marked traffic: folds carry a 2× weight in
+        // the quality score, which makes them the cheapest lever a
+        // scripted publisher could pull. Suspect folds are journal-only
+        // evidence.
+        if (e.suspectReason.isEmpty) {
+          val adServerRef = sharding.entityRefFor(AdServer.TypeKey, e.pub)
+          adServerRef ! AdServer.RecordFold(CreativeId(e.cid))
+        }
         log.debug(
-          "Recorded fold (free, signal-only): pub={} cid={} campaign={}",
-          e.pub, e.cid, campId
+          "Recorded fold (free, signal-only, suspect={}): pub={} cid={} campaign={}",
+          e.suspectReason.getOrElse("-"), e.pub, e.cid, campId
         )
       case _ =>
         log.error(

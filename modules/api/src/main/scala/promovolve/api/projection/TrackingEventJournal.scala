@@ -29,7 +29,11 @@ case class TrackingEvent(
     url: Option[String],
     slot: Option[String],
     requestId: Option[String], // UUID (batch path) or 16-char hex hash (fold tokens)
-    dogeared: Boolean = false // True for impressions served because of an honored pin
+    dogeared: Boolean = false, // True for impressions served because of an honored pin
+    // Request-hygiene mark (fraud Layer 0/1): why this event is excluded
+    // from money and learning. NULL = clean; every billing/stats consumer
+    // filters `suspect_reason IS NULL`. Vocabulary: promovolve.fraud.Suspect.
+    suspectReason: Option[String] = None
 )
 
 /**
@@ -80,7 +84,8 @@ class TrackingEventJournal(db: slick.jdbc.JdbcBackend#Database)(
       url = Some(e.url),
       slot = Some(e.slot),
       requestId = e.requestId,
-      dogeared = e.dogeared
+      dogeared = e.dogeared,
+      suspectReason = e.suspectReason
     )
 
     queue.offer(event) match {
@@ -107,7 +112,8 @@ class TrackingEventJournal(db: slick.jdbc.JdbcBackend#Database)(
       url = Some(e.url),
       slot = Some(e.slot),
       requestId = e.requestId,
-      dogeared = e.dogeared
+      dogeared = e.dogeared,
+      suspectReason = e.suspectReason
     )
 
     queue.offer(event) match {
@@ -136,7 +142,8 @@ class TrackingEventJournal(db: slick.jdbc.JdbcBackend#Database)(
       cpm = None,
       url = Some(e.url),
       slot = Some(e.slot),
-      requestId = e.requestId
+      requestId = e.requestId,
+      suspectReason = e.suspectReason
     )
 
     queue.offer(event) match {
@@ -162,7 +169,8 @@ class TrackingEventJournal(db: slick.jdbc.JdbcBackend#Database)(
       cpm = None,
       url = Some(e.url),
       slot = Some(e.slot),
-      requestId = e.requestId
+      requestId = e.requestId,
+      suspectReason = e.suspectReason
     )
 
     queue.offer(event) match {
@@ -188,7 +196,8 @@ class TrackingEventJournal(db: slick.jdbc.JdbcBackend#Database)(
       url = Some(e.url),
       slot = Some(e.slot),
       requestId = e.requestId,
-      dogeared = e.dogeared
+      dogeared = e.dogeared,
+      suspectReason = e.suspectReason
     )
 
     queue.offer(event) match {
@@ -284,6 +293,7 @@ object TrackingEventJournal {
     def slot = column[Option[String]]("slot")
     def requestId = column[Option[String]]("request_id") // UUID or hashed token
     def dogeared = column[Boolean]("dogeared") // Impression served via honored pin
+    def suspectReason = column[Option[String]]("suspect_reason") // NULL = clean (fraud hygiene mark)
 
     def * = (
       sequenceNr,
@@ -298,7 +308,8 @@ object TrackingEventJournal {
       url,
       slot,
       requestId,
-      dogeared
+      dogeared,
+      suspectReason
     ).mapTo[TrackingEvent]
   }
 

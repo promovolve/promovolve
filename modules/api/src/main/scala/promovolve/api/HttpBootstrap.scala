@@ -203,12 +203,44 @@ object HttpBootstrap {
       }
 
       val eventLog = new LearningEventLog(sharding, trackingJournal, affinityRegistry, Some(creativeRepo))(using system)
+
+      // Layer-0 request hygiene (docs/design/FRAUD_PREVENTION.md). The ASN
+      // database is loaded from FRAUD_ASN_DB_PATH (gzipped iptoasn TSV) when
+      // present; absent, hygiene fails open (every request clean) so an
+      // un-provisioned deploy serves normally. Marking is on whenever the db
+      // loads — the rate gate always runs.
+      val requestHygiene: promovolve.fraud.RequestHygiene = {
+        val rateGate = new promovolve.fraud.RequestRateGate(
+          ratePerSec = Try(appConfig.getDouble("fraud.rate-per-sec")).getOrElse(20.0),
+          burst = Try(appConfig.getDouble("fraud.rate-burst")).getOrElse(60.0)
+        )
+        sys.env.get("FRAUD_ASN_DB_PATH").filter(_.nonEmpty) match {
+          case Some(path) =>
+            Try {
+              val in = new java.io.FileInputStream(path)
+              try promovolve.fraud.IpClassifier.loadGzip(in)
+              finally in.close()
+            } match {
+              case scala.util.Success(db) =>
+                system.log.info("Request hygiene: loaded ASN db from {} ({} ranges)", path, db.size: Integer)
+                new promovolve.fraud.RequestHygiene(db, rateGate)
+              case scala.util.Failure(ex) =>
+                system.log.warn("Request hygiene: ASN db load failed ({}), failing open: {}", path, ex.toString)
+                new promovolve.fraud.RequestHygiene(promovolve.fraud.IpClassifier.empty, rateGate)
+            }
+          case None =>
+            system.log.info("Request hygiene: no FRAUD_ASN_DB_PATH — ASN marking off, rate gate active")
+            new promovolve.fraud.RequestHygiene(promovolve.fraud.IpClassifier.empty, rateGate)
+        }
+      }
+
       val trackRoutes = new TrackRoutes(
         secretsRepo,
         eventLog,
         maxSkew = urlValidityWindow, // Same source of truth
         replayGuard = replayGuard,
-        mountBeacons = Some(mountBeaconRepo)
+        mountBeacons = Some(mountBeaconRepo),
+        hygiene = requestHygiene
       )(using system)
 
       val enableTestRoutes = Try(config.getBoolean("promovolve.enable-test-routes")).getOrElse(false)

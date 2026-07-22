@@ -201,8 +201,6 @@ object ApiSchemas {
   given Schema[RewriteCopyResponse] = Schema.derived
   given Schema[AdvertiserAssetView] = Schema.derived
   given Schema[AdvertiserAssetListResponse] = Schema.derived
-  given Schema[UploadAssetRequest] = Schema.derived
-  given Schema[UploadAssetResponse] = Schema.derived
   given Schema[PresignedUploadRequest] = Schema.derived
   given Schema[PresignedUploadResponse] = Schema.derived
   given Schema[RegisterAssetRequest] = Schema.derived

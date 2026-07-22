@@ -355,7 +355,6 @@ func main() {
 	mux.HandleFunc("POST /advertiser/creatives/rewrite-copy", adv(h.RewriteCopy))
 	mux.HandleFunc("GET /advertiser/creatives/layout-templates", adv(h.LayoutTemplates))
 	mux.HandleFunc("GET /advertiser/assets", adv(h.ListAdvertiserAssets))
-	mux.HandleFunc("POST /advertiser/assets", adv(h.UploadAdvertiserAsset))
 	mux.HandleFunc("POST /advertiser/assets/import-urls", adv(h.ImportAdvertiserAssetUrls))
 	mux.HandleFunc("POST /advertiser/assets/presigned-upload", adv(h.PresignAdvertiserAsset))
 	mux.HandleFunc("POST /advertiser/assets/register", adv(h.RegisterAdvertiserAsset))

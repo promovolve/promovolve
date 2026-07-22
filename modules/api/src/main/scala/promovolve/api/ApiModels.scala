@@ -931,21 +931,9 @@ object ApiModels {
       assets: Vector[AdvertiserAssetView]
   )
 
-  case class UploadAssetRequest(
-      filename: String,
-      mimeType: String,
-      imageBase64: String,
-      width: Option[Int] = None,
-      height: Option[Int] = None
-  )
-
-  case class UploadAssetResponse(
-      asset: AdvertiserAssetView
-  )
-
   // ─── Presigned (browser-direct) upload flow ─────────────────────
   //
-  // Two-step replacement for the byte-shipping UploadAssetRequest path:
+  // THE upload path (the base64 byte-shipping POST was removed):
   //   1. Browser hashes file → POST /presigned-upload → server returns
   //      (uploadUrl, s3Key, alreadyExists).
   //   2. If !alreadyExists, browser PUTs bytes directly to uploadUrl

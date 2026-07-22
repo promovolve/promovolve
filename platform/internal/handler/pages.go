@@ -3729,66 +3729,6 @@ func (h *Handler) ListAdvertiserAssets(w http.ResponseWriter, r *http.Request) {
 	w.Write(body)
 }
 
-// UploadAdvertiserAsset accepts a multipart upload, base64-encodes it, and
-// forwards to core as JSON so the core side owns R2 + dedup logic.
-func (h *Handler) UploadAdvertiserAsset(w http.ResponseWriter, r *http.Request) {
-	_, claims := h.sessionUser(r)
-	if claims == nil {
-		http.Error(w, `{"error":"unauthorized"}`, http.StatusUnauthorized)
-		return
-	}
-	// Hard cap: this path buffers the file in RAM (ReadAll + base64 +
-	// JSON marshal ≈ 3-4× the file size) inside a 256Mi pod, so big
-	// bodies must be refused, not attempted — a 50MB video through here
-	// OOM-killed the pod and the LB surfaced every upload as a 502.
-	// Large assets (video backgrounds) go browser→R2 via the presigned
-	// flow (/advertiser/assets/presigned-upload + /register) and never
-	// touch this process.
-	const maxMultipartUpload = 20 << 20 // 20 MB
-	r.Body = http.MaxBytesReader(w, r.Body, maxMultipartUpload+(1<<20))
-	if err := r.ParseMultipartForm(maxMultipartUpload); err != nil {
-		w.Header().Set("Content-Type", "application/json")
-		w.WriteHeader(http.StatusRequestEntityTooLarge)
-		json.NewEncoder(w).Encode(map[string]string{
-			"error": "file too large for this endpoint — use the presigned direct upload",
-		})
-		return
-	}
-	file, header, err := r.FormFile("file")
-	if err != nil {
-		http.Error(w, `{"error":"no file"}`, http.StatusBadRequest)
-		return
-	}
-	defer file.Close()
-	fileBytes, err := io.ReadAll(file)
-	if err != nil {
-		http.Error(w, `{"error":"read failed"}`, http.StatusInternalServerError)
-		return
-	}
-	mime := header.Header.Get("Content-Type")
-	if mime == "" {
-		mime = "image/png"
-	}
-	imgCfg, _, _ := image.DecodeConfig(bytes.NewReader(fileBytes))
-	reqBody, _ := json.Marshal(map[string]any{
-		"filename":    header.Filename,
-		"mimeType":    mime,
-		"imageBase64": base64.StdEncoding.EncodeToString(fileBytes),
-		"width":       imgCfg.Width,
-		"height":      imgCfg.Height,
-	})
-	body, err := h.corePost("/v1/advertisers/me/assets", claims, string(reqBody))
-	if err != nil {
-		slog.Error("UploadAdvertiserAsset: core call failed", "err", err)
-		w.Header().Set("Content-Type", "application/json")
-		w.WriteHeader(http.StatusBadGateway)
-		json.NewEncoder(w).Encode(map[string]string{"error": err.Error()})
-		return
-	}
-	w.Header().Set("Content-Type", "application/json")
-	w.Write(body)
-}
-
 // ImportAdvertiserAssetUrls proxies POST /v1/advertisers/me/assets/import-urls.
 // Body is forwarded as-is; expected shape: {"urls":[{"url":"...","filename":"..."}]}
 func (h *Handler) ImportAdvertiserAssetUrls(w http.ResponseWriter, r *http.Request) {

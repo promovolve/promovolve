@@ -195,13 +195,14 @@ function buildModal(): Modal {
   //      hash is already in image_asset, in which case we skip the PUT).
   //   3. PUT bytes directly to R2 — they never touch the dashboard
   //      or the core API. Saves bandwidth + base64 overhead, and
-  //      makes large uploads (video bg up to 200 MB) tractable.
+  //      makes large uploads (video bg, capped at 500 MB) tractable.
   //   4. POST /advertiser/assets/register → server inserts the
   //      advertiser_asset row (and image_asset if the hash is new).
   //
-  // Falls back to the byte-shipping POST /advertiser/assets if any
-  // step fails — old path stays as a safety net for environments
-  // without R2 (in-memory ImageStorage).
+  // This is THE upload path — the byte-shipping POST /advertiser/assets
+  // was removed (its in-memory-storage rationale died with the R2-only
+  // backend). On failure the dev harness falls back to a local data-URL;
+  // production surfaces the error.
   const uploadFiles = async (files: FileList | File[]): Promise<void> => {
     for (const raw of Array.from(files)) {
       if (!raw.type.startsWith("image/")) continue;

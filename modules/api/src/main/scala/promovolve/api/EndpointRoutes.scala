@@ -910,7 +910,11 @@ class EndpointRoutes(
               ErrorResponse("not_configured", "Advertiser asset repository not configured"))
           case Some(repo) =>
             concat(
-              // GET: list this advertiser's assets
+              // GET: list this advertiser's assets. (Uploads have no POST
+              // here anymore: bytes go browser→R2 via /presigned-upload +
+              // /register below — the base64 byte-shipping path was
+              // removed once its last caller, the designer video button,
+              // moved to the presigned flow.)
               pathEndOrSingleSlash {
                 get {
                   val f = repo.list(advertiserId).flatMap { rows =>
@@ -921,34 +925,6 @@ class EndpointRoutes(
                     case scala.util.Failure(e) =>
                       complete(StatusCodes.InternalServerError,
                         ErrorResponse("list_failed", e.getMessage))
-                  }
-                } ~
-                // POST: upload base64-encoded image
-                post {
-                  entity(as[UploadAssetRequest]) { req =>
-                    val bytes = java.util.Base64.getDecoder.decode(req.imageBase64)
-                    val f = storeIfNew(bytes, req.mimeType).flatMap { case (hash, s3Key, w, h) =>
-                      repo.existsForHash(advertiserId, hash).flatMap {
-                        case Some(existing) =>
-                          Future.successful(UploadAssetResponse(viewOf(existing, s3Key, req.mimeType, w, h)))
-                        case None =>
-                          val a = promovolve.publisher.AdvertiserAsset(
-                            id = promovolve.publisher.AdvertiserAsset.newId(),
-                            advertiserId = advertiserId,
-                            imageHash = hash,
-                            filename = req.filename,
-                            createdAt = Instant.now()
-                          )
-                          repo.put(a).map(_ =>
-                            UploadAssetResponse(viewOf(a, s3Key, req.mimeType, w, h)))
-                      }
-                    }
-                    onComplete(f) {
-                      case scala.util.Success(r) => complete(r)
-                      case scala.util.Failure(e) =>
-                        complete(StatusCodes.InternalServerError,
-                          ErrorResponse("upload_failed", e.getMessage))
-                    }
                   }
                 }
               },

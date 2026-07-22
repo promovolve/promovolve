@@ -23,12 +23,15 @@ class BotUaMatcherSpec extends AnyWordSpec with Matchers {
 
     "pass real browsers and webviews" in {
       BotUaMatcher.isBot(Some(
-        "Mozilla/5.0 (iPhone; CPU iPhone OS 17_5 like Mac OS X) AppleWebKit/605.1.15 (KHTML, like Gecko) Version/17.5 Mobile/15E148 Safari/604.1")) shouldBe false
+        "Mozilla/5.0 (iPhone; CPU iPhone OS 17_5 like Mac OS X) AppleWebKit/605.1.15 (KHTML, like Gecko) Version/17.5 Mobile/15E148 Safari/604.1")) shouldBe
+      false
       BotUaMatcher.isBot(Some(
-        "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/126.0.0.0 Safari/537.36")) shouldBe false
+        "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/126.0.0.0 Safari/537.36")) shouldBe
+      false
       // In-app webview (Line, common in JP) — must not match.
       BotUaMatcher.isBot(Some(
-        "Mozilla/5.0 (Linux; Android 14) AppleWebKit/537.36 (KHTML, like Gecko) Version/4.0 Chrome/126.0.0.0 Mobile Safari/537.36 Line/14.0.0")) shouldBe false
+        "Mozilla/5.0 (Linux; Android 14) AppleWebKit/537.36 (KHTML, like Gecko) Version/4.0 Chrome/126.0.0.0 Mobile Safari/537.36 Line/14.0.0")) shouldBe
+      false
     }
 
     "not substring-match 'bot' inside ordinary words" in {

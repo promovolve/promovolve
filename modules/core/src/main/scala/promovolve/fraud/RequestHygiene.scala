@@ -51,8 +51,10 @@ final class RequestHygiene(
 
 object RequestHygiene {
 
-  /** A permissive instance: everything clean. For tests and for
-    * deployments that haven't provisioned the ASN database yet. */
+  /**
+   * A permissive instance: everything clean. For tests and for
+   * deployments that haven't provisioned the ASN database yet.
+   */
   def disabled: RequestHygiene =
     new RequestHygiene(IpClassifier.empty, new RequestRateGate(Double.MaxValue, Double.MaxValue), enabled = false)
 }

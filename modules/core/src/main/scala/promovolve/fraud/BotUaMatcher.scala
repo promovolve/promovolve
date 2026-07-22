@@ -14,10 +14,10 @@ object BotUaMatcher {
 
   private val Pattern =
     ("(?i)(bot\\b|crawler|spider|scrape|headless|phantomjs|slimerjs|selenium|puppeteer|playwright" +
-      "|curl/|wget/|python-requests|python-urllib|aiohttp|httpx/|go-http-client|okhttp|apache-httpclient" +
-      "|java/|libwww|lighthouse|pagespeed|pingdom|uptimerobot|statuscake|site24x7|newrelicpinger" +
-      "|facebookexternalhit|slackbot|twitterbot|discordbot|telegrambot|whatsapp|skypeuripreview" +
-      "|googlebot|bingbot|yandex|baiduspider|duckduckbot|applebot|semrush|ahrefs|mj12bot|dotbot|petalbot)").r
+    "|curl/|wget/|python-requests|python-urllib|aiohttp|httpx/|go-http-client|okhttp|apache-httpclient" +
+    "|java/|libwww|lighthouse|pagespeed|pingdom|uptimerobot|statuscake|site24x7|newrelicpinger" +
+    "|facebookexternalhit|slackbot|twitterbot|discordbot|telegrambot|whatsapp|skypeuripreview" +
+    "|googlebot|bingbot|yandex|baiduspider|duckduckbot|applebot|semrush|ahrefs|mj12bot|dotbot|petalbot)").r
 
   /**
    * True when the UA self-identifies as automation. Absent or

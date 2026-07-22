@@ -80,8 +80,8 @@ object IpClassifier {
 
     def classify(ip: String): IpClass =
       parseIp(ip) match {
-        case None             => IpClass.Unknown
-        case Some(Left(v4))   =>
+        case None           => IpClass.Unknown
+        case Some(Left(v4)) =>
           val i = floorIndex(v4Start, v4)
           if (i >= 0 && v4 <= v4End(i)) toClass(v4Dc(i)) else IpClass.Unknown
         case Some(Right(v6)) =>
@@ -151,8 +151,7 @@ object IpClassifier {
       } catch { case _: Exception => None }
   }
 
-  private def isHexLetter(c: Char): Boolean =
-    (c >= 'a' && c <= 'f') || (c >= 'A' && c <= 'F')
+  private def isHexLetter(c: Char): Boolean = (c >= 'a' && c <= 'f') || (c >= 'A' && c <= 'F')
 
   /** Index of the greatest start <= key, or -1. */
   private def floorIndex(starts: Array[Long], key: Long): Int = {
@@ -184,7 +183,7 @@ object IpClassifier {
     var i = 0
     var cmp = 0
     while (cmp == 0 && i < a.length && i < b.length) {
-      cmp = java.lang.Integer.compare(a(i) & 0xff, b(i) & 0xff)
+      cmp = java.lang.Integer.compare(a(i) & 0xFF, b(i) & 0xFF)
       i += 1
     }
     if (cmp != 0) cmp else java.lang.Integer.compare(a.length, b.length)

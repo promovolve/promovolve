@@ -264,11 +264,23 @@ Layers 0–2 catch it (exit 0/1):
    scenario polls `GET /v1/internal/fraud-flags` until the detector
    writes the `suspect_share` flag.
 
-Dev cluster prerequisites: `FRAUD_ENGAGEMENT_GUARD_ENABLED=true`,
+Cluster prerequisites: `FRAUD_ENGAGEMENT_GUARD_ENABLED=true`,
 `FRAUD_DETECTOR_ENABLED=true`, and a short sweep cadence
 (`FRAUD_DETECTOR_INTERVAL_SECONDS=30`) so the flag lands within the
 scenario's `-flag-timeout`. `-expect-l1=false` / `-expect-flag=false`
 skip the corresponding assertions when a layer is deliberately dark.
+
+The `rate_cap` mark is **observational, not a hard gate**, in the live
+scenario: `RequestRateGate` is a per-pod, per-IP token bucket, so behind
+a multi-pod load balancer a single client's burst splits across pods and
+the refill outpaces it — `rate_cap` marks are non-deterministic from one
+driver. The authoritative rate-cap test is `RequestRateGateSpec`; the
+scenario reports whether marks appeared without failing on their absence.
+
+Verified end-to-end against GKE prod 2026-07-22 (demo site
+publisher-programmer-llc): bot_ua, chain, and timing marks landed and the
+detector wrote the `suspect_share` flag (35.7% of the day's events) — all
+through the real serve→beacon→detector path on live traffic.
 
 The `imp_per_pageview` and `ctr_spike` signals need ≥5 days of per-site
 history, so they can't be exercised by a bounded live-traffic run;

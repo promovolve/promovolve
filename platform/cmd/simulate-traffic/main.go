@@ -443,8 +443,21 @@ func runCheat(client *http.Client, o cheatOpts) int {
 		}
 		fmt.Printf("      [%s] %s\n", status, label)
 	}
-	check(counts["bot"] > 0, "Layer 0: bot-UA impressions marked suspect(bot)")
-	check(counts["rate"] > 0, "Layer 0: burst impressions marked suspect(rate)")
+	// Suspect-reason values are the long names from Suspect.scala
+	// (bot_ua, rate_cap, chain, timing) — the same strings stored in
+	// tracking_events.suspect_reason.
+	check(counts["bot_ua"] > 0, "Layer 0: bot-UA impressions marked suspect(bot_ua)")
+	// Rate cap is OBSERVATIONAL, not a hard gate: RequestRateGate is a
+	// per-pod, per-IP token bucket. Behind a multi-pod load balancer a
+	// single WAN client's burst splits across pods and the 20/s refill
+	// outpaces it, so rate_cap marks are non-deterministic from here —
+	// the authoritative rate-cap test is RequestRateGateSpec. We report
+	// whether they showed up without failing the run on their absence.
+	if counts["rate_cap"] > 0 {
+		fmt.Printf("      [PASS] Layer 0: burst impressions marked suspect(rate_cap) (%d)\n", counts["rate_cap"])
+	} else {
+		fmt.Println("      [OBS ] Layer 0: no rate_cap marks — expected from a single client vs a multi-pod per-pod bucket; see RequestRateGateSpec")
+	}
 	if o.expectL1 {
 		check(counts["chain"] > 0, "Layer 1: click-without-impression marked suspect(chain)")
 		check(counts["timing"] > 0, "Layer 1: sub-100ms click marked suspect(timing)")

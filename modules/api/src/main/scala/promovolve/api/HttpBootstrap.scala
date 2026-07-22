@@ -341,6 +341,22 @@ object HttpBootstrap {
           None
       }
 
+      // Fraud Layer-2 economics detector: a cluster singleton that
+      // periodically scans tracking_events × mount_beacons for
+      // publisher-self-inflation shapes and writes fraud_flags. Off by
+      // default; needs the dashboard DB. Read-only over traffic +
+      // append-only to fraud_flags — never touches serving or payout.
+      if (Try(appConfig.getBoolean("fraud.detector.enabled")).getOrElse(false)) {
+        dashboardDbConfig.map(_.db.asInstanceOf[slick.jdbc.PostgresProfile.backend.Database]) match {
+          case Some(fdb) =>
+            val repo = new promovolve.api.fraud.FraudFlagRepo(fdb)(using system.executionContext)
+            promovolve.api.fraud.FraudDetector.init(system, repo, promovolve.api.fraud.FraudDetector.Config())
+            system.log.info("FraudDetector enabled (Layer 2)")
+          case None =>
+            system.log.warn("fraud.detector.enabled=true but no dashboard DB — detector NOT started")
+        }
+      }
+
       val lpWorkerEnabled =
         appConfig.hasPath("crawler.lp-workers.enabled") && appConfig.getBoolean("crawler.lp-workers.enabled")
       val lpWorkerNumWorkers =

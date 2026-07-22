@@ -184,6 +184,29 @@ ALTER TABLE floor_decisions SET (
 SELECT add_compression_policy('floor_decisions', INTERVAL '30 days', if_not_exists => TRUE);
 
 -- ========================================
+-- Fraud flags (docs/design/FRAUD_PREVENTION.md, Layer 2)
+-- ========================================
+-- One row per (site, signal, day) the economics detector tripped. The
+-- UNIQUE constraint makes re-running the detector idempotent — the same
+-- day upserts rather than duplicating. status drives the Phase-3 review
+-- queue (open → released | confirmed).
+CREATE TABLE IF NOT EXISTS fraud_flags (
+    id            BIGSERIAL PRIMARY KEY,
+    site_id       VARCHAR(100) NOT NULL,
+    signal        VARCHAR(40)  NOT NULL,   -- suspect_share | imp_per_pageview | ctr_spike
+    severity      DOUBLE PRECISION NOT NULL,
+    window_day    DATE NOT NULL,
+    evidence      TEXT NOT NULL,           -- human-readable metric snapshot
+    status        VARCHAR(20) NOT NULL DEFAULT 'open',  -- open | released | confirmed
+    flagged_at    TIMESTAMP WITH TIME ZONE NOT NULL DEFAULT NOW(),
+    resolved_at   TIMESTAMP WITH TIME ZONE,
+    resolved_by   VARCHAR(200),
+    UNIQUE (site_id, signal, window_day)
+);
+CREATE INDEX IF NOT EXISTS idx_fraud_flags_status ON fraud_flags (status, flagged_at DESC);
+CREATE INDEX IF NOT EXISTS idx_fraud_flags_site ON fraud_flags (site_id, window_day DESC);
+
+-- ========================================
 -- Dashboard Read Tables (Pekko Projection)
 -- ========================================
 -- Real-time campaign statistics

@@ -134,6 +134,20 @@ learning filter on `suspect_reason IS NULL`.
   out of chain/timing for now; the per-site timing distribution feed to
   Layer 2 lands with Layer 2.
 
+> **Status: BUILT 2026-07-22.** Pure core `promovolve.fraud.FraudDetection`
+> (robust median/MAD z-scores, `evaluate` + `assembleMetrics`, unit-tested)
+> + `FraudFlagRepo` (two per-site/day SQL rollups over
+> `tracking_events` × `mount_beacons`, idempotent flag upsert, review-queue
+> reads) + `FraudDetector` cluster singleton (hourly timer, read-only over
+> traffic, append-only to `fraud_flags`). Signals live now: suspect-share
+> (hard threshold on Layer 0/1 marks), imp/pageview spike, CTR spike (both
+> one-directional robust-z vs the site's OWN trailing history — a drop is
+> never fraud). Every signal volume-gated so low-traffic sites can't trip.
+> **Off by default** (`promovolve.fraud.detector.enabled`); needs the
+> dashboard DB. `fraud_flags` table added (init-db + migration). Deferred to
+> a later pass: network-percentile comparison, traffic-shape-deviation and
+> event-timing-distribution signals, and local-day (vs UTC-day) bucketing.
+
 ## Layer 2 — Economics detector (batch, the layer that catches humans)
 
 The publisher-self-inflation adversary uses real browsers; request hygiene

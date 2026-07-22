@@ -38,9 +38,11 @@ object EngagementGuard {
 
   val TypeKey: EntityTypeKey[Command] = EntityTypeKey[Command]("engagement-guard")
 
-  /** Tunables. Floors are deliberately conservative — a real human is
-    * always well above them, so a mark is proof of automation, not a
-    * borderline call (the design's "never poison honest stats" rule). */
+  /**
+   * Tunables. Floors are deliberately conservative — a real human is
+   * always well above them, so a mark is proof of automation, not a
+   * borderline call (the design's "never poison honest stats" rule).
+   */
   final case class Config(
       impToClickFloor: FiniteDuration = 100.millis,
       clickToCtaFloor: FiniteDuration = 100.millis,

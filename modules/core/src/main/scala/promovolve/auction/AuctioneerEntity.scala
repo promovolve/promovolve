@@ -854,6 +854,18 @@ private final class AuctioneerEntity private (
 
       // Clean up awardedCampaigns - remove stale URLs and empty entries
       if (removedUrls.nonEmpty) {
+        // Keep the serve side in sync with the eviction. Dropping a page from
+        // the auction cache without also invalidating the AdServer freshness
+        // token leaves serving reporting the page CLASSIFIED (reclassifyInMs >
+        // 0), so the ad tag never re-sends text — the page becomes a no-fill
+        // dead-end until the token expires on its own. That two-sided-
+        // freshness desync darkened the demo site 2026-07-22 (auction expired
+        // the page at 48h while the serve token still called it fresh, and the
+        // serve-miss self-heal only fires when SiteEntity ALSO has nothing).
+        // Invalidating here means the next visit re-classifies immediately,
+        // repopulating both sides.
+        removedUrls.foreach(url => adServer ! AdServer.InvalidateClassification(url))
+
         val campaignsBefore = awardedCampaigns.keySet
         awardedCampaigns = awardedCampaigns.view
           .mapValues(urls => urls -- removedUrls)

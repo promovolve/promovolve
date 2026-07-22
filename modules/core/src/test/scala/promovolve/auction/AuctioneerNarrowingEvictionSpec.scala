@@ -74,6 +74,14 @@ class AuctioneerNarrowingEvictionSpec extends AnyWordSpec with Matchers with Bef
     }
   ))
 
+  // Stub the SiteEntity shard: the auctioneer's startup sends
+  // SiteEntity.AuctioneerStarted, and without the shard started the resulting
+  // "must be started first" error destabilizes the entity under test. A no-op
+  // sink is enough — these tests drive classifications in directly.
+  sharding.init(Entity(promovolve.publisher.SiteEntity.TypeKey)(_ =>
+    Behaviors.receiveMessage[promovolve.publisher.SiteEntity.Command](_ => Behaviors.same)
+  ))
+
   private val budgetTopic: ActorRef[Topic.Command[BudgetEvent]] =
     testKit.spawn(Behaviors.ignore[Topic.Command[BudgetEvent]])
 
@@ -154,6 +162,58 @@ class AuctioneerNarrowingEvictionSpec extends AnyWordSpec with Matchers with Bef
         siteAllowlist = Set("site-a")
       ))
       adServerProbe.expectNoMessage(1.second)
+    }
+  }
+
+  // Freshness-eviction ↔ serve-token sync (the two-sided-freshness deadlock
+  // that darkened the demo site 2026-07-22). When CleanupStaleContent evicts a
+  // classification from the auction cache, it MUST also invalidate the
+  // AdServer freshness token — otherwise serving keeps reporting the page
+  // classified, the ad tag never re-sends text, and the page is a no-fill
+  // dead-end until the token expires on its own.
+  "AuctioneerEntity classification-freshness cleanup" should {
+
+    "invalidate the AdServer freshness token for pages it evicts as stale" in {
+      import java.time.Instant
+      import promovolve.publisher.SiteEntity.{ ClassificationEntry, PersistedSlot }
+
+      // Short windows so the cleanup timer fires immediately and the seeded
+      // page is already older than the freshness TTL.
+      val ref = testKit.spawn(
+        AuctioneerEntity(
+          SiteId(thisSite),
+          sharding,
+          budgetTopic,
+          testKit.spawn(Topic[CampaignEntity.CampaignChanged](s"cc-${java.util.UUID.randomUUID()}")),
+          settings = AuctioneerEntity.Settings(
+            classificationFreshnessWindow = 1.second,
+            cleanupInterval = 300.millis
+          )
+        )
+      )
+
+      Thread.sleep(300) // let the entity finish setup + subscriptions
+
+      val staleUrl = "https://pub.example/stale-page"
+      val staleTs = Instant.now().minusSeconds(60).toEpochMilli // well past a 1s TTL
+      ref ! AuctioneerEntity.RestoreClassifications(
+        Map(staleUrl -> ClassificationEntry(
+          categories = Map("100" -> 0.9),
+          slots = Vector(PersistedSlot("SLOT-A", 300, 250, Vector.empty, None, None)),
+          classifiedAt = staleTs
+        ))
+      )
+
+      // Restore marks it classified; the cleanup tick then evicts it and, with
+      // the fix, invalidates the token. Fish past the MarkClassified.
+      adServerProbe.fishForMessage(3.seconds) {
+        case AdServer.InvalidateClassification(u) if u.value == staleUrl =>
+          org.apache.pekko.actor.testkit.typed.scaladsl.FishingOutcomes.complete
+        case _ =>
+          org.apache.pekko.actor.testkit.typed.scaladsl.FishingOutcomes.continueAndIgnore
+      }
+
+      testKit.stop(ref)
     }
   }
 

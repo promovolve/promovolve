@@ -20,6 +20,16 @@ trait ImageStorage {
   /** Fetch image bytes by hash. */
   def fetch(hash: String): Future[Option[Array[Byte]]]
 
+  /**
+   * Fetch bytes by exact storage key. `fetch(hash)` probes image
+   * extensions only; callers that already know the key (register-time
+   * video normalization knows `assets/{hash}.{ext}` from the presign)
+   * use this. Default: not found — non-R2 dev backends don't take the
+   * presigned-upload path that produces these keys.
+   */
+  def fetchObject(s3Key: String): Future[Option[Array[Byte]]] =
+    Future.successful(None)
+
   /** Check if image exists. */
   def exists(hash: String): Future[Boolean]
 
@@ -146,6 +156,13 @@ final class R2ImageStorage(
 
   def exists(hash: String): Future[Boolean] =
     fetch(hash).map(_.isDefined)
+
+  override def fetchObject(s3Key: String): Future[Option[Array[Byte]]] =
+    S3.getObject(bucket, s3Key)
+      .withAttributes(s3Attributes)
+      .runWith(Sink.fold(ByteString.empty)(_ ++ _))
+      .map(bs => Some(bs.toArray))
+      .recover { case _ => None }
 
   override def deleteObject(s3Key: String): Future[Unit] =
     S3.deleteObject(bucket, s3Key)

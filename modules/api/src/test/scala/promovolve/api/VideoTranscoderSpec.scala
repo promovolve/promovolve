@@ -76,5 +76,37 @@ class VideoTranscoderSpec extends AnyWordSpec with Matchers {
         "ffprobe", "-v", "error", "-show_entries", "format=duration", "-of", "csv=p=0", out.toString)
       duration.trim.toDouble should be(3.0 +- 0.5)
     }
+
+    "normalizeSource keeps the full duration but strips audio and shrinks" in {
+      assume(VideoTranscoder.available, "ffmpeg not on PATH — skipping")
+      val dir = Files.createTempDirectory("vtx-spec-src")
+      val src = dir.resolve("src.mp4")
+      // 20 s WITH audio: normalization must keep all 20 s (the author
+      // trims later in the designer) while stripping the audio track.
+      val (gen, genOut) = run(
+        "ffmpeg", "-y", "-nostdin",
+        "-f", "lavfi", "-i", "testsrc=duration=20:size=1920x1080:rate=15",
+        "-f", "lavfi", "-i", "sine=frequency=440:duration=20",
+        "-shortest", "-c:v", "libx264", "-pix_fmt", "yuv420p", "-c:a", "aac",
+        src.toString
+      )
+      withClue(genOut.takeRight(300)) { gen shouldBe 0 }
+      val srcBytes = Files.readAllBytes(src)
+
+      val r = VideoTranscoder.normalizeSource(srcBytes, "video/mp4").get
+      r.videoMime shouldBe "video/mp4"
+      val out = dir.resolve("out.mp4")
+      Files.write(out, r.video)
+      val (_, streams) = run(
+        "ffprobe", "-v", "error", "-show_entries", "stream=codec_type", "-of", "csv=p=0", out.toString)
+      streams.trim.linesIterator.toSeq shouldBe Seq("video")
+      val (_, duration) = run(
+        "ffprobe", "-v", "error", "-show_entries", "format=duration", "-of", "csv=p=0", out.toString)
+      duration.trim.toDouble should be(20.0 +- 0.5)
+      // 1080p source must come out downscaled to the MaxWidth ceiling.
+      val (_, width) = run(
+        "ffprobe", "-v", "error", "-show_entries", "stream=width", "-of", "csv=p=0", out.toString)
+      width.trim.toInt should be <= 1280
+    }
   }
 }

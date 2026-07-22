@@ -9,6 +9,7 @@
 // go through store.replace for live preview; `change` events (blur,
 // slider release, select close) commit a single undo step.
 
+import { uploadImageDirect } from "../api/upload-asset";
 import { isSized } from "../modes";
 import { currentPage, setPageBg, setSyncPageBg, setTextureBg, setTextureSrc, setVideoBg } from "../state";
 import type { Store } from "../store";
@@ -934,18 +935,16 @@ function uploadButton(store: Store, label: string): HTMLElement {
   return wrap;
 }
 
-interface AssetUploadResponse {
-  asset?: { cdnUrl?: string };
-}
-
 async function uploadVideo(file: File): Promise<string | null> {
   try {
-    const fd = new FormData();
-    fd.append("file", file, file.name);
-    const resp = await fetch("/advertiser/assets", { method: "POST", body: fd });
-    if (!resp.ok) throw new Error(`HTTP ${resp.status}`);
-    const data = (await resp.json()) as AssetUploadResponse;
-    return data.asset?.cdnUrl ?? null;
+    // Browser-direct presigned upload, same flow images use: hash →
+    // presign → PUT to R2 → register. Videos are the LARGEST assets we
+    // accept, so they must never ride the multipart proxy — buffering a
+    // 50MB file (plus base64 + JSON copies) inside the dashboard pod
+    // OOM-killed it at its 256Mi limit and every upload died as a
+    // gateway 502. Core's register already speaks video/mp4 + video/webm.
+    const asset = await uploadImageDirect(file);
+    return asset.cdnUrl ?? null;
   } catch (e) {
     // Dev harness (vite serve without the :9091 dashboard): fall back to
     // a local object URL so the video still lands on the page and the

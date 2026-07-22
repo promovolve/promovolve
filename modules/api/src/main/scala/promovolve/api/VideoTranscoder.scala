@@ -135,6 +135,68 @@ object VideoTranscoder {
       }
     }
 
+  /**
+   * Upload-time source normalization: the same living-paper constraints
+   * as [[transcode]] — audio stripped, downscaled, H.264/faststart —
+   * but WITHOUT the loop trim. The author picks the 15s window in the
+   * designer AFTER upload, so the stored source must keep its full
+   * duration; publish runs the trimming pass on this already-small
+   * file. Turns a phone-camera hero into preview-weight bytes at
+   * register time instead of parking the original in R2.
+   *
+   * Same contract as transcode: synchronous, blocking-dispatcher-only,
+   * None on any failure (caller keeps the uploaded bytes).
+   */
+  def normalizeSource(bytes: Array[Byte], mime: String): Option[Result] =
+    if (!available) {
+      log.warn("ffmpeg not available — video source kept as uploaded ({} bytes, {})", bytes.length, mime)
+      None
+    } else {
+      val dir = Files.createTempDirectory("vtx-src")
+      val ext = if (mime.contains("webm")) "webm" else "mp4"
+      val in = dir.resolve(s"in.$ext")
+      val out = dir.resolve("out.mp4")
+      try {
+        Files.write(in, bytes)
+        val ok = run(
+          dir,
+          "ffmpeg", "-y", "-nostdin",
+          "-i", in.toString,
+          "-an",
+          "-vf", s"scale=min($MaxWidth\\,iw):-2",
+          "-c:v", "libx264",
+          "-preset", "veryfast",
+          "-crf", "27",
+          "-pix_fmt", "yuv420p",
+          "-movflags", "+faststart",
+          out.toString
+        )
+        if (!ok) None
+        else {
+          val videoBytes = Files.readAllBytes(out)
+          if (videoBytes.isEmpty) None
+          else {
+            log.info(
+              "video source normalized: {} bytes ({}) → {} bytes mp4",
+              Integer.valueOf(bytes.length), mime,
+              Integer.valueOf(videoBytes.length)
+            )
+            Some(Result(videoBytes, "video/mp4", Array.emptyByteArray, "image/jpeg"))
+          }
+        }
+      } catch {
+        case e: Exception =>
+          log.warn("video source normalization failed: {}", e.toString)
+          None
+      } finally {
+        try {
+          Files.deleteIfExists(out)
+          Files.deleteIfExists(in)
+          Files.deleteIfExists(dir)
+        } catch { case _: Exception => () }
+      }
+    }
+
   private def run(cwd: Path, cmd: String*): Boolean = {
     val p = new ProcessBuilder(cmd*).directory(cwd.toFile).redirectErrorStream(true).start()
     // Drain output so ffmpeg can't block on a full pipe; keep the tail

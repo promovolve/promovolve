@@ -1085,7 +1085,16 @@ class EndpointRoutes(
               path("presigned-upload") {
                 post {
                   entity(as[PresignedUploadRequest]) { req =>
-                    (imageStorage, imageAssetRepo) match {
+                    // Quota sanity: video sources get normalized at register
+                    // time (download + ffmpeg on this pod), so cap what a
+                    // single presign will admit. 500 MB is generous for a
+                    // 15s-loop source and blocks parking gigabytes in R2.
+                    val MaxUploadBytes = 500L * 1024 * 1024
+                    if (req.sizeBytes > MaxUploadBytes)
+                      complete(StatusCodes.ContentTooLarge,
+                        ErrorResponse("file_too_large",
+                          s"upload exceeds ${MaxUploadBytes / (1024 * 1024)} MB limit"))
+                    else (imageStorage, imageAssetRepo) match {
                       case (Some(storage), Some(imgRepo)) =>
                         val f = imgRepo.get(req.hash).flatMap {
                           case Some(existing) =>
@@ -1139,9 +1148,44 @@ class EndpointRoutes(
                         val s3Key = s"assets/${req.hash}.$ext"
                         val w = req.width.getOrElse(0)
                         val h = req.height.getOrElse(0)
+                        // Videos: normalize the just-uploaded source NOW
+                        // (full duration — the author trims in the designer
+                        // afterwards; audio stripped, downscaled, CRF 27) so
+                        // drafts preview a small file and R2 never keeps the
+                        // phone-camera original. Best-effort like the publish
+                        // pass: any failure keeps the uploaded bytes and
+                        // publish still normalizes the delivered loop.
+                        def recordVideo(): Future[(String, String, Int, Int)] =
+                          imageStorage.get.fetchObject(s3Key).flatMap {
+                            case Some(orig) =>
+                              Future(scala.concurrent.blocking(
+                                VideoTranscoder.normalizeSource(orig, req.mimeType))).flatMap {
+                                case Some(res) if res.video.length < orig.length =>
+                                  imageStorage.get.store(req.hash, res.video, res.videoMime).flatMap { key =>
+                                    // A webm original lives at a different key
+                                    // than the normalized mp4 — reclaim it
+                                    // (best-effort, like creative-delete cleanup).
+                                    if (key != s3Key) imageStorage.get.deleteObject(s3Key)
+                                    imgRepo.put(promovolve.publisher.ImageAsset(req.hash, key, res.videoMime,
+                                      w, h, Instant.now()))
+                                      .map(_ => (key, res.videoMime, w, h))
+                                  }
+                                case _ =>
+                                  imgRepo.put(promovolve.publisher.ImageAsset(req.hash, s3Key, req.mimeType,
+                                    w, h, Instant.now()))
+                                    .map(_ => (s3Key, req.mimeType, w, h))
+                              }
+                            case None =>
+                              // PUT never landed (or wrong key) — refuse the
+                              // row rather than register a dangling asset.
+                              Future.failed(new RuntimeException(
+                                s"uploaded object not found at $s3Key — did the PUT succeed?"))
+                          }
                         val f = imgRepo.get(req.hash).flatMap {
                           case Some(existing) =>
                             Future.successful((existing.s3Key, existing.mime, existing.width, existing.height))
+                          case None if req.mimeType.startsWith("video/") =>
+                            recordVideo()
                           case None =>
                             imgRepo.put(promovolve.publisher.ImageAsset(req.hash, s3Key, req.mimeType, w, h,
                               Instant.now()))

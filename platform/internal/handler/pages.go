@@ -3737,10 +3737,23 @@ func (h *Handler) UploadAdvertiserAsset(w http.ResponseWriter, r *http.Request) 
 		http.Error(w, `{"error":"unauthorized"}`, http.StatusUnauthorized)
 		return
 	}
-	// 200 MB — sized for video background uploads. Static images are
-	// typically <5 MB even before client-side compression; video
-	// backgrounds are routinely 2–50 MB depending on codec and length.
-	r.ParseMultipartForm(200 << 20)
+	// Hard cap: this path buffers the file in RAM (ReadAll + base64 +
+	// JSON marshal ≈ 3-4× the file size) inside a 256Mi pod, so big
+	// bodies must be refused, not attempted — a 50MB video through here
+	// OOM-killed the pod and the LB surfaced every upload as a 502.
+	// Large assets (video backgrounds) go browser→R2 via the presigned
+	// flow (/advertiser/assets/presigned-upload + /register) and never
+	// touch this process.
+	const maxMultipartUpload = 20 << 20 // 20 MB
+	r.Body = http.MaxBytesReader(w, r.Body, maxMultipartUpload+(1<<20))
+	if err := r.ParseMultipartForm(maxMultipartUpload); err != nil {
+		w.Header().Set("Content-Type", "application/json")
+		w.WriteHeader(http.StatusRequestEntityTooLarge)
+		json.NewEncoder(w).Encode(map[string]string{
+			"error": "file too large for this endpoint — use the presigned direct upload",
+		})
+		return
+	}
 	file, header, err := r.FormFile("file")
 	if err != nil {
 		http.Error(w, `{"error":"no file"}`, http.StatusBadRequest)

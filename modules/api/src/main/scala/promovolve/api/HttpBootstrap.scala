@@ -350,8 +350,12 @@ object HttpBootstrap {
         dashboardDbConfig.map(_.db.asInstanceOf[slick.jdbc.PostgresProfile.backend.Database]) match {
           case Some(fdb) =>
             val repo = new promovolve.api.fraud.FraudFlagRepo(fdb)(using system.executionContext)
-            promovolve.api.fraud.FraudDetector.init(system, repo, promovolve.api.fraud.FraudDetector.Config())
-            system.log.info("FraudDetector enabled (Layer 2)")
+            val fdIntervalSec = Try(appConfig.getInt("fraud.detector.interval-seconds")).getOrElse(3600)
+            promovolve.api.fraud.FraudDetector.init(
+              system,
+              repo,
+              promovolve.api.fraud.FraudDetector.Config(interval = fdIntervalSec.seconds))
+            system.log.info("FraudDetector enabled (Layer 2, every {}s)", fdIntervalSec: Integer)
           case None =>
             system.log.warn("fraud.detector.enabled=true but no dashboard DB — detector NOT started")
         }

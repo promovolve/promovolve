@@ -80,6 +80,22 @@ final class FraudFlagRepo(db: slick.jdbc.PostgresProfile.backend.Database)(using
       db.run(DBIO.sequence(actions).transactionally).map(_.sum)
     }
 
+  /**
+   * Per-reason event counts for one site's current UTC day ('clean' =
+   * unmarked). Layer 0/1 observability: the cheating-publisher
+   * regression asserts marks landed without needing DB access.
+   */
+  def suspectCountsToday(siteId: String): Future[Vector[(String, Long)]] = {
+    val q = sql"""
+      SELECT COALESCE(suspect_reason, 'clean'), COUNT(*)::bigint
+      FROM tracking_events
+      WHERE site_id = $siteId
+        AND event_time >= date_trunc('day', NOW() AT TIME ZONE 'UTC') AT TIME ZONE 'UTC'
+      GROUP BY 1
+    """.as[(String, Long)]
+    db.run(q).map(_.toVector)
+  }
+
   /** Open flags for the review queue, newest first. */
   def listOpen(limit: Int = 200): Future[Vector[FraudFlagRow]] = {
     val q = sql"""
@@ -109,6 +125,9 @@ object FraudFlagRepo {
 
   given GetResult[(String, LocalDate, Long)] =
     GetResult(r => (r.nextString(), r.nextDate().toLocalDate, r.nextLong()))
+
+  given GetResult[(String, Long)] =
+    GetResult(r => (r.nextString(), r.nextLong()))
 
   given GetResult[FraudFlagRow] = GetResult(r =>
     FraudFlagRow(

@@ -70,6 +70,8 @@ object ApiSchemas {
   given Schema[FraudFlagView] = Schema.derived
   given Schema[FraudFlagListResponse] = Schema.derived
   given Schema[ResolveFraudFlagRequest] = Schema.derived
+  given Schema[FraudSuspectCount] = Schema.derived
+  given Schema[FraudSuspectSummary] = Schema.derived
   given Schema[MountHealthReason] = Schema.derived
   given Schema[SiteMountHealthResponse] = Schema.derived
   given Schema[AdvertiserSpendTodayResponse] = Schema.derived

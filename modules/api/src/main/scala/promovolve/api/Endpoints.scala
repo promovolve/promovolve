@@ -708,6 +708,18 @@ object Endpoints extends ApiJsonFormats {
       .out(statusCode(sttp.model.StatusCode.NoContent))
       .errorOut(jsonBody[ErrorResponse])
 
+  val getFraudSuspects: PublicEndpoint[(String, Option[String]), ErrorResponse, FraudSuspectSummary, Any] =
+    endpoint
+      .tag("Internal")
+      .summary("Per-reason suspect-mark counts for one site's current UTC day")
+      .description(
+        "Layer 0/1 observability: how many of the site's tracking events today carry each suspect mark ('clean' = unmarked). Read by the cheating-publisher regression (simulate-traffic -mode cheat) to assert hygiene/chain marking landed without DB access.")
+      .get
+      .in(v1 / "internal" / "fraud-suspects" / path[String]("siteId"))
+      .in(header[Option[String]]("X-Internal-Key"))
+      .out(jsonBody[FraudSuspectSummary])
+      .errorOut(jsonBody[ErrorResponse])
+
   val suspendSite: PublicEndpoint[(String, Option[String]), ErrorResponse, Unit, Any] =
     endpoint
       .tag("Internal")

@@ -106,6 +106,8 @@ trait ApiJsonFormats extends DefaultJsonProtocol {
   given RootJsonFormat[FraudFlagView] = jsonFormat8(FraudFlagView.apply)
   given RootJsonFormat[FraudFlagListResponse] = jsonFormat1(FraudFlagListResponse.apply)
   given RootJsonFormat[ResolveFraudFlagRequest] = jsonFormat2(ResolveFraudFlagRequest.apply)
+  given RootJsonFormat[FraudSuspectCount] = jsonFormat2(FraudSuspectCount.apply)
+  given RootJsonFormat[FraudSuspectSummary] = jsonFormat3(FraudSuspectSummary.apply)
   given RootJsonFormat[MountHealthReason] = jsonFormat2(MountHealthReason.apply)
   given RootJsonFormat[SiteMountHealthResponse] = jsonFormat7(SiteMountHealthResponse.apply)
   given RootJsonFormat[AdvertiserSpendTodayResponse] = jsonFormat5(AdvertiserSpendTodayResponse.apply)

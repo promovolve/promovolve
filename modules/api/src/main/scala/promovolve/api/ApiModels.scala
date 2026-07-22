@@ -503,6 +503,15 @@ object ApiModels {
   /** Resolve action: status ∈ {"released","confirmed"}. */
   case class ResolveFraudFlagRequest(status: String, resolvedBy: Option[String] = None)
 
+  /**
+   * Per-reason suspect-mark counts for one site's current UTC day
+   * ('clean' = unmarked). Layer 0/1 observability for the
+   * cheating-publisher regression (simulate-traffic -mode cheat).
+   */
+  case class FraudSuspectCount(reason: String, count: Long)
+
+  case class FraudSuspectSummary(siteId: String, total: Long, byReason: Vector[FraudSuspectCount])
+
   /** One failure-reason bucket in the mount-health summary. */
   case class MountHealthReason(reason: String, count: Long)
 

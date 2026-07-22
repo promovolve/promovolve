@@ -5517,6 +5517,26 @@ class EndpointRoutes(
     }
   }
 
+  private val getFraudSuspectsLogic
+      : ((String, Option[String])) => Future[Either[ErrorResponse, FraudSuspectSummary]] = {
+    case (siteId, key) =>
+      requireInternalKey(key) match {
+        case Left(err) => Future.successful(Left(err))
+        case Right(()) =>
+          fraudFlagRepo match {
+            case None       => Future.successful(Right(FraudSuspectSummary(siteId, 0L, Vector.empty)))
+            case Some(repo) =>
+              repo.suspectCountsToday(siteId).map { rows =>
+                Right(FraudSuspectSummary(
+                  siteId = siteId,
+                  total = rows.map(_._2).sum,
+                  byReason = rows.sortBy(-_._2).map { case (reason, n) => FraudSuspectCount(reason, n) }
+                ))
+              }.recover { case ex => Left(ErrorResponse("fraud_suspects_failed", ex.getMessage)) }
+          }
+      }
+  }
+
   private val resolveFraudFlagLogic
       : ((Long, ResolveFraudFlagRequest, Option[String])) => Future[Either[ErrorResponse, Unit]] = {
     case (id, req, key) =>
@@ -5570,6 +5590,7 @@ class EndpointRoutes(
     PekkoHttpServerInterpreter().toRoute(Endpoints.suspendPublisher.serverLogic(suspendPublisherLogic)),
     PekkoHttpServerInterpreter().toRoute(Endpoints.resumePublisher.serverLogic(resumePublisherLogic)),
     PekkoHttpServerInterpreter().toRoute(Endpoints.getFraudFlags.serverLogic(getFraudFlagsLogic)),
+    PekkoHttpServerInterpreter().toRoute(Endpoints.getFraudSuspects.serverLogic(getFraudSuspectsLogic)),
     PekkoHttpServerInterpreter().toRoute(Endpoints.resolveFraudFlag.serverLogic(resolveFraudFlagLogic)),
     PekkoHttpServerInterpreter().toRoute(Endpoints.suspendSite.serverLogic(suspendSiteLogic)),
     PekkoHttpServerInterpreter().toRoute(Endpoints.resumeSite.serverLogic(resumeSiteLogic))

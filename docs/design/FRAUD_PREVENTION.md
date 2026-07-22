@@ -238,6 +238,40 @@ this network for a long time.
 Phase 0 alone removes the commodity-bot category; Phase 2+3 close the
 publisher-inflation loop. Each phase is independently shippable and
 independently verifiable (Layer 0/1 via synthetic traffic in the dev
-cluster; Layer 2/3 via the RunScenario harness with a scripted "cheating
-publisher" scenario — which should be written alongside Phase 2 as its
-regression test).
+cluster; Layer 2/3 via the scripted "cheating publisher" scenario — its
+regression test, below).
+
+## The "cheating publisher" regression
+
+`platform/cmd/simulate-traffic -mode cheat` drives fraud-shaped traffic
+through the real serve→beacon path against a dev cluster and asserts
+Layers 0–2 catch it (exit 0/1):
+
+1. **Baseline** — honest pageviews: browser UA, human-paced clicks,
+   one mount beacon per pageview.
+2. **Chain violations** (Layer 1) — clicks with no prior impression
+   (`suspect(chain)`) and sub-100ms impression→click deltas
+   (`suspect(timing)`). Runs before the burst so a drained rate bucket
+   can't mask the chain marks (hygiene wins over chain).
+3. **Bot traffic** (Layer 0) — a `curl/` UA; bot marking short-circuits
+   before the rate gate, so this never drains the bucket.
+4. **Rate burst** (Layer 0) — unpaced impressions past the per-IP cap.
+5. **Top-up** — more bot impressions until the day clears the Layer-2
+   `suspect_share` gates (≥500 events, ≥30% marked), adapting to
+   whatever honest traffic the site already had today.
+6. **Verify** — `GET /v1/internal/fraud-suspects/{site}` must show
+   bot/rate (+chain/timing when the guard is on) marks, then the
+   scenario polls `GET /v1/internal/fraud-flags` until the detector
+   writes the `suspect_share` flag.
+
+Dev cluster prerequisites: `FRAUD_ENGAGEMENT_GUARD_ENABLED=true`,
+`FRAUD_DETECTOR_ENABLED=true`, and a short sweep cadence
+(`FRAUD_DETECTOR_INTERVAL_SECONDS=30`) so the flag lands within the
+scenario's `-flag-timeout`. `-expect-l1=false` / `-expect-flag=false`
+skip the corresponding assertions when a layer is deliberately dark.
+
+The `imp_per_pageview` and `ctr_spike` signals need ≥5 days of per-site
+history, so they can't be exercised by a bounded live-traffic run;
+they're covered by seeding shaped history directly into
+`tracking_events`/`mount_beacons` (see the FraudDetection unit specs
+for the shapes) plus the pure-core tests.

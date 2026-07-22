@@ -413,6 +413,21 @@ object Endpoints extends ApiJsonFormats {
       .out(jsonBody[MarketRatesResponse])
       .errorOut(jsonBody[ErrorResponse])
 
+  val getAdvertiserCategoryAvailability
+      : PublicEndpoint[(String, Option[Int], Option[String]), ErrorResponse, CategoryAvailabilityResponse, Any] =
+    endpoint
+      .tag("Advertisers")
+      .summary("Inventory availability per demand category")
+      .description(
+        "Honest availability marking for targeting chips: for each requested category, whether publisher inventory actually exists. Subtree-aware — a category counts cleared impressions and publisher declarations from itself and its taxonomy descendants, mirroring the auction's ancestor fan-out. status=live (cleared impressions in the window), declared (publishers declare matching content but nothing traded yet — targeting it creates the demand that lets pages classify into it), none (no publisher inventory matches).")
+      .get
+      .in(advertisersBase / path[String]("advertiserId") / "category-availability")
+      .in(query[Option[Int]]("days").description("Trailing window in days, clamped 1-30; default 30"))
+      .in(query[Option[String]]("categories").description(
+        "Comma-separated demand category ids (required in practice; empty = empty response)"))
+      .out(jsonBody[CategoryAvailabilityResponse])
+      .errorOut(jsonBody[ErrorResponse])
+
   val getAdvertiserSpendToday: PublicEndpoint[String, ErrorResponse, AdvertiserSpendTodayResponse, Any] =
     endpoint
       .tag("Advertisers")

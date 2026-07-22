@@ -120,13 +120,22 @@
           this.selected = this.selected.filter(x => x.id !== id);
           document.dispatchEvent(new CustomEvent('market-scope', { detail: { ids: this.ids() } }));
         },
-        ids() { return this.selected.map(c => c.id).join(','); }
+        ids() { return this.selected.map(c => c.id).join(','); },
+        mark(list) {
+          var ids = list.filter(c => !c.inv).map(c => c.id).join(',');
+          if (!ids) return;
+          fetch('/advertiser/category-availability?categories=' + encodeURIComponent(ids))
+            .then(r => r.json())
+            .then(d => { list.forEach(c => { var a = (d.data || {})[c.id]; if (a) c.inv = a.status; }); })
+            .catch(() => { /* unknown stays unmarked — never guess */ });
+        }
       }">
       <label class="form-label">{{t "Target content topics (optional)"}}</label>
       <input type="hidden" name="targetCategories" :value="ids()">
       <div class="flex flex-wrap gap-1 mb-1" x-show="selected.length > 0">
         <template x-for="c in selected" :key="c.id">
           <span class="badge badge-info">
+            {{template "inv-dot" "c"}}
             <span x-text="c.name"></span>
             <span class="font-mono text-gray-500 ml-1" x-text="'(' + c.id + ')'"></span>
             <button type="button" @click="remove(c.id)" class="ml-1.5 text-brand hover:text-blue-900 font-bold">×</button>
@@ -138,7 +147,7 @@
           @input="if (query.length > 0) {
               fetch('/api/taxonomy/categories?q=' + encodeURIComponent(query))
                 .then(r => r.json())
-                .then(d => { results = (d.data || []).filter(c => !selected.find(s => s.id === c.id)); open = results.length > 0; });
+                .then(d => { results = (d.data || []).filter(c => !selected.find(s => s.id === c.id)); open = results.length > 0; mark(results); });
             } else { results = []; open = false; }"
           @click.outside="open = false"
           placeholder="{{t "Search topics (e.g., Sports, Food, Healthy Cooking)"}}"
@@ -149,12 +158,16 @@
             <button type="button" @click="add(cat)"
               class="w-full text-left px-3 py-2 hover:bg-gray-50 text-sm">
               <span class="font-mono text-xs text-gray-400 mr-2" x-text="cat.id"></span>
+              {{template "inv-dot" "cat"}}
               <span x-text="cat.name"></span>
+              <span x-show="cat.inv === 'none'" class="text-xs text-gray-400 ml-1">{{t "no inventory yet"}}</span>
+              <span x-show="cat.inv === 'declared'" class="text-xs text-amber-600 ml-1">{{t "declared only"}}</span>
             </button>
           </template>
         </div>
       </div>
       <p class="text-xs text-gray-400 mt-1">{{t "Leave empty to auto-derive from your creative's landing-page content. Set explicitly when you want the campaign to bid only on specific topics, or as a fallback when LLM verification can't suggest a topic confidently."}}</p>
+      <p class="text-xs text-gray-400 mt-1">{{t "Dots show real inventory: green = publishers are serving ads on this topic now, amber = publishers declare matching content but nothing has traded yet, gray = no publisher inventory matches yet."}}</p>
     </div>
     <div class="mb-4" x-data="{
         query: '',
@@ -473,16 +486,28 @@
               selected: JSON.parse($el.dataset.chips || '[]').filter(e => !JSON.parse($el.dataset.suggested || '[]').find(s => s.id === e.id)),
               add(c) { if (!this.locked.find(x => x.id === c.id) && !this.selected.find(x => x.id === c.id)) this.selected.push(c); this.query=''; this.results=[]; this.open=false; },
               remove(id) { this.selected = this.selected.filter(x => x.id !== id); },
-              ids() { return [...this.locked, ...this.selected].map(c => c.id).join(','); }
+              ids() { return [...this.locked, ...this.selected].map(c => c.id).join(','); },
+              mark(list) {
+                var ids = list.filter(c => !c.inv).map(c => c.id).join(',');
+                if (!ids) return;
+                fetch('/advertiser/category-availability?categories=' + encodeURIComponent(ids))
+                  .then(r => r.json())
+                  .then(d => { list.forEach(c => { var a = (d.data || {})[c.id]; if (a) c.inv = a.status; }); })
+                  .catch(() => { /* unknown stays unmarked — never guess */ });
+              }
             }">
             <label class="form-label">{{t "Target content topics"}}</label>
             <input type="hidden" name="targetCategories" :value="ids()">
             <div class="flex flex-wrap gap-1 mb-1" x-show="locked.length > 0 || selected.length > 0">
-              <!-- Auto-derived: locked, always targeted, can't be removed -->
+              <!-- Auto-derived: locked, always targeted, can't be removed.
+                   The inventory dot keeps the LLM honest: an auto-derived
+                   topic no publisher inventory matches is marked, not
+                   silently presented as reach. -->
               <template x-for="c in locked" :key="c.id">
                 <span class="badge badge-neutral"
                       title="{{t "Auto-derived from your landing page — always targeted"}}">
                   <span class="mr-1">✨</span>
+                  {{template "inv-dot" "c"}}
                   <span x-text="c.name"></span>
                   <span class="ml-1.5 text-gray-400" title="{{t "Always targeted (auto-derived)"}}">🔒</span>
                 </span>
@@ -490,6 +515,7 @@
               <!-- Advertiser-added: removable -->
               <template x-for="c in selected" :key="c.id">
                 <span class="badge badge-info">
+                  {{template "inv-dot" "c"}}
                   <span x-text="c.name"></span>
                   <button type="button" @click="remove(c.id)" class="ml-1.5 text-brand hover:text-blue-900 font-bold">×</button>
                 </span>
@@ -499,7 +525,7 @@
               <input type="text" x-model="query"
                 @input="if (query.length > 0) {
                     fetch('/api/taxonomy/categories?q=' + encodeURIComponent(query))
-                      .then(r => r.json()).then(d => { results = (d.data || []).filter(c => !locked.find(s => s.id === c.id) && !selected.find(s => s.id === c.id)); open = results.length > 0; });
+                      .then(r => r.json()).then(d => { results = (d.data || []).filter(c => !locked.find(s => s.id === c.id) && !selected.find(s => s.id === c.id)); open = results.length > 0; mark(results); });
                   } else { results = []; open = false; }"
                 @click.outside="open = false"
                 placeholder="{{t "Search topics (e.g., Sports, Food)"}}"
@@ -507,7 +533,11 @@
               <div x-show="open" x-transition class="absolute z-10 w-full mt-1 bg-white border rounded-md shadow-lg max-h-48 overflow-y-auto">
                 <template x-for="cat in results" :key="cat.id">
                   <button type="button" @click="add(cat)" class="w-full text-left px-3 py-2 hover:bg-gray-50 text-sm">
-                    <span class="font-mono text-xs text-gray-400 mr-2" x-text="cat.id"></span><span x-text="cat.name"></span>
+                    <span class="font-mono text-xs text-gray-400 mr-2" x-text="cat.id"></span>
+                    {{template "inv-dot" "cat"}}
+                    <span x-text="cat.name"></span>
+                    <span x-show="cat.inv === 'none'" class="text-xs text-gray-400 ml-1">{{t "no inventory yet"}}</span>
+                    <span x-show="cat.inv === 'declared'" class="text-xs text-amber-600 ml-1">{{t "declared only"}}</span>
                   </button>
                 </template>
               </div>
@@ -515,6 +545,7 @@
             <p class="text-xs text-gray-400 mt-1">
               <span x-show="locked.length > 0">✨ {{t "Topics auto-derived from your landing page are always targeted and can't be removed. Add more above to broaden targeting."}}</span>
               <span x-show="locked.length === 0">{{t "Add the content topics this campaign should target. Leave empty to auto-derive from your landing page."}}</span>
+              <span class="block">{{t "Dots show real inventory: green = publishers are serving ads on this topic now, amber = publishers declare matching content but nothing has traded yet, gray = no publisher inventory matches yet."}}</span>
             </p>
           </div>
 
@@ -676,10 +707,32 @@
      the Max CPM field is a guess. */}}
 
 
+{{/* inv-dot: the inventory-availability marker on a topic chip or picker
+     row. Dot color = honest availability (green live / amber declared /
+     gray none); absent inv = unknown and renders nothing — an unmarked
+     chip is honest, a wrong "none" is not. The argument is the NAME of
+     the Alpine loop variable holding the chip object. */}}
+{{define "inv-dot"}}<span x-show="{{.}}.inv" class="inline-block w-1.5 h-1.5 rounded-full mr-1 shrink-0" :class="{{.}}.inv === 'live' ? 'bg-green-500' : ({{.}}.inv === 'declared' ? 'bg-amber-400' : 'bg-gray-300')" :title="{{.}}.inv === 'live' ? '{{t "Live inventory — publishers are serving ads on this topic now"}}' : ({{.}}.inv === 'declared' ? '{{t "Publishers declare matching content — nothing has traded yet"}}' : '{{t "No publisher inventory matches this topic yet"}}')"></span>{{end}}
+
 {{define "market-rates-hint"}}
 {{if .}}
 <div class="mt-1.5 text-xs text-gray-500" data-market-hint data-ladder="{{.ReachLadderJSON}}">
   <p class="text-gray-400">{{if .ScopeLabel}}{{t "Context: %s" .ScopeLabel}}{{else}}{{t "Context: all topics — narrows when you pick target topics"}}{{end}}</p>
+  {{/* Inventory honesty: rates only ever come from topics that actually
+       traded, so say how many of the selected topics that is. Silence
+       when everything is live (the numbers speak) or when availability
+       is unknown (never guess "none"). */}}
+  {{if and .AvailabilityKnown (gt .TotalTopics 0)}}
+    {{if eq .LiveTopics 0}}
+      {{if gt .DeclaredTopics 0}}
+  <p class="text-amber-600">{{t "No live trading in these topics yet — publisher sites declare matching content, so serving can begin once campaigns create demand here."}}</p>
+      {{else}}
+  <p class="text-amber-600">{{t "No publisher inventory matches these topics yet — a campaign targeting only these topics will not serve today."}}</p>
+      {{end}}
+    {{else if lt .LiveTopics .TotalTopics}}
+  <p>{{t "%d of %d selected topics have live inventory — the going rate reflects only those." .LiveTopics .TotalTopics}}</p>
+    {{end}}
+  {{end}}
   {{if .OverallMedian}}
   <p title="{{t "Computed from the price every billed impression actually cleared at across the whole network — all advertisers, all sites. Median: half of all impressions were won at or below this. Typical range: the middle half of impressions cleared inside this band. Bids stay private; only charged prices are counted, and unbilled pin re-views are excluded."}}">{{t "Going rate (last %d days): median %s, typical range %s–%s" .Days .OverallMedian .OverallP25 .OverallP75}}</p>
   {{else}}

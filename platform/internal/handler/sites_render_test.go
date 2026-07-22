@@ -131,3 +131,57 @@ func TestMarketRatesHintScopedNoTrades(t *testing.T) {
 		}
 	}
 }
+
+func TestMarketRatesHintInventoryHonesty(t *testing.T) {
+	SetFS(platform.Templates, platform.Static)
+
+	render := func(data *marketRatesData) string {
+		var buf strings.Builder
+		if err := getPage(i18n.LangEN, "advertiser/campaigns.html").ExecuteTemplate(&buf, "market-rates-hint", data); err != nil {
+			t.Fatalf("hint fragment failed to render: %v", err)
+		}
+		return buf.String()
+	}
+
+	base := marketRatesData{Days: 7, ReachLadderJSON: "null", ScopeLabel: "Cooking", FloorFrom: "$10.00"}
+
+	// Some selected topics live, some not → the partial-coverage line.
+	partial := base
+	partial.AvailabilityKnown, partial.LiveTopics, partial.DeclaredTopics, partial.TotalTopics = true, 1, 1, 3
+	if out := render(&partial); !strings.Contains(out, "1 of 3 selected topics have live inventory") {
+		t.Errorf("partial coverage line missing in:\n%s", out)
+	}
+
+	// Nothing live but publishers declare matching content → hopeful-but-
+	// honest line.
+	declared := base
+	declared.AvailabilityKnown, declared.DeclaredTopics, declared.TotalTopics = true, 2, 2
+	if out := render(&declared); !strings.Contains(out, "No live trading in these topics yet") {
+		t.Errorf("declared-only line missing in:\n%s", out)
+	}
+
+	// Nothing live, nothing declared → the blunt line.
+	none := base
+	none.AvailabilityKnown, none.TotalTopics = true, 2
+	if out := render(&none); !strings.Contains(out, "No publisher inventory matches these topics yet") {
+		t.Errorf("no-inventory line missing in:\n%s", out)
+	}
+
+	// All topics live → no honesty line at all (the rates speak), and
+	// unknown availability must also render silence — never guess "none".
+	for name, data := range map[string]marketRatesData{
+		"all live": func() marketRatesData {
+			d := base
+			d.AvailabilityKnown, d.LiveTopics, d.TotalTopics = true, 2, 2
+			return d
+		}(),
+		"unknown": base,
+	} {
+		out := render(&data)
+		for _, absent := range []string{"selected topics have live inventory", "No live trading", "No publisher inventory matches"} {
+			if strings.Contains(out, absent) {
+				t.Errorf("%s: unexpected %q in:\n%s", name, absent, out)
+			}
+		}
+	}
+}

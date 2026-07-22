@@ -132,6 +132,32 @@ A dash or a missing rate isn't an error — it means that context is
 young and hasn't traded enough to quote honestly. Bid the floor and
 you're the market.
 
+### Which topics actually have inventory
+
+The AI reads your landing page and suggests topics your product should
+target — but a topic is only worth targeting if publishers actually
+have matching pages. So every topic chip carries an honest inventory
+mark:
+
+- **Green dot** — live inventory: publishers are serving ads on this
+  topic (or a more specific sub-topic) right now.
+- **Amber dot** — declared only: publisher sites say they have matching
+  content, but nothing has traded there yet. Pages get matched against
+  topics campaigns actually demand, so targeting a declared topic is
+  exactly how it comes alive — you'd just be first, paying floor
+  prices in an untested market.
+- **Gray dot** — no publisher inventory matches yet. A campaign
+  targeting only gray topics won't serve today.
+
+A sub-topic counts toward its parent: inventory trading under
+"Baseball" lights up a "Sports" chip, because a Sports campaign
+reaches those pages. The reverse is not true — broad publisher
+declarations don't light up narrow topics.
+
+The going-rate hint under Max CPM says the same thing in words: when
+only some of your chosen topics are live, it tells you how many, so
+you know the quoted rate describes those topics and not the rest.
+
 #### How the numbers are made
 
 Every time an ad is actually shown, the system records two things about
@@ -169,6 +195,9 @@ Three honesty rules apply throughout:
 3. **The numbers always name their scope.** "Context: Soccer" means
    soccer impressions only; before you pick topics, the label says the
    figures cover the whole network.
+4. **Unknown is not "none".** If the inventory lookup fails, chips
+   simply show no dot rather than guessing — a missing mark means
+   "couldn't check", never "no inventory".
 
 Your daily budget is paced: serving is throttled through the day so the
 budget lasts rather than exhausting in the first hour. Budgets reset at

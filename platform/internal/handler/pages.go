@@ -609,10 +609,83 @@ func (h *Handler) PublisherStats(w http.ResponseWriter, r *http.Request) {
 // --- Advertiser Campaigns ---
 
 // chip is an id+label pair for the edit form's pre-filled type-ahead
-// chips — the label is shown, the id is submitted.
+// chips — the label is shown, the id is submitted. Inv is the inventory
+// availability mark ("live" | "declared" | "none"); empty = unknown
+// (availability lookup failed or wasn't attempted) and MUST render as
+// no mark at all — an unmarked chip is honest, a wrong "none" is not.
 type chip struct {
 	ID   string `json:"id"`
 	Name string `json:"name"`
+	Inv  string `json:"inv,omitempty"`
+}
+
+// catAvail is one category's inventory availability as reported by core:
+// whether the category (or any taxonomy descendant — the auction fans
+// pages out to ancestors, so descendants are reachable inventory) has
+// cleared impressions, or is at least declared by publisher sites.
+type catAvail struct {
+	Status      string `json:"status"` // "live" | "declared" | "none"
+	Impressions int64  `json:"impressions"`
+	Publishers  int    `json:"publishers"`
+}
+
+// fetchCategoryAvailability resolves inventory availability for the
+// given category ids. Returns nil on any failure so callers fall back
+// to unmarked chips rather than lying.
+func (h *Handler) fetchCategoryAvailability(claims *model.Claims, ids []string) map[string]catAvail {
+	var clean []string
+	seen := map[string]bool{}
+	for _, id := range ids {
+		id = strings.TrimSpace(id)
+		if id == "" || seen[id] {
+			continue
+		}
+		seen[id] = true
+		clean = append(clean, id)
+	}
+	if len(clean) == 0 {
+		return nil
+	}
+	body, err := h.coreGet("/v1/advertisers/me/category-availability?categories="+url.QueryEscape(strings.Join(clean, ",")), claims)
+	if err != nil {
+		return nil
+	}
+	var resp struct {
+		Categories []struct {
+			CategoryID  string `json:"categoryId"`
+			Status      string `json:"status"`
+			Impressions int64  `json:"impressions"`
+			Publishers  int    `json:"publishers"`
+		} `json:"categories"`
+	}
+	if json.Unmarshal(body, &resp) != nil || len(resp.Categories) == 0 {
+		return nil
+	}
+	out := make(map[string]catAvail, len(resp.Categories))
+	for _, c := range resp.Categories {
+		out[c.CategoryID] = catAvail{Status: c.Status, Impressions: c.Impressions, Publishers: c.Publishers}
+	}
+	return out
+}
+
+// CategoryAvailability proxies core's inventory-availability lookup for
+// the topic pickers (create form + edit panels), which mark search
+// results and freshly added chips client-side.
+func (h *Handler) CategoryAvailability(w http.ResponseWriter, r *http.Request) {
+	user, claims := h.sessionUser(r)
+	if user == nil {
+		http.Error(w, "unauthorized", http.StatusUnauthorized)
+		return
+	}
+	avail := h.fetchCategoryAvailability(claims, strings.Split(r.URL.Query().Get("categories"), ","))
+	w.Header().Set("Content-Type", "application/json")
+	if avail == nil {
+		// Unknown ≠ none: an empty data object tells the client to
+		// leave chips unmarked.
+		w.Write([]byte(`{"data":{}}`))
+		return
+	}
+	json.NewEncoder(w).Encode(map[string]any{"data": avail})
 }
 
 type campaignData struct {
@@ -1005,6 +1078,42 @@ func (h *Handler) AdvertiserCampaigns(w http.ResponseWriter, r *http.Request) {
 	start, end, nav := buildListNav(r, len(campaigns), 10)
 	campaigns = campaigns[start:end]
 
+	// Honest chip marking: resolve inventory availability for every topic
+	// chip on the visible page in one lookup, so the edit panels show
+	// which targeted/auto-derived topics publisher inventory actually
+	// backs. Lookup failure leaves chips unmarked (unknown ≠ none).
+	var chipIDs []string
+	for i := range campaigns {
+		for _, c := range campaigns[i].TargetCategoryChips {
+			chipIDs = append(chipIDs, c.ID)
+		}
+		for _, c := range campaigns[i].SuggestedCategoryChips {
+			chipIDs = append(chipIDs, c.ID)
+		}
+	}
+	if avail := h.fetchCategoryAvailability(claims, chipIDs); avail != nil {
+		mark := func(chips []chip) ([]chip, string) {
+			for j := range chips {
+				if a, ok := avail[chips[j].ID]; ok {
+					chips[j].Inv = a.Status
+				}
+			}
+			b, err := json.Marshal(chips)
+			if err != nil {
+				return chips, "[]"
+			}
+			return chips, string(b)
+		}
+		for i := range campaigns {
+			if len(campaigns[i].TargetCategoryChips) > 0 {
+				campaigns[i].TargetCategoryChips, campaigns[i].TargetCategoryChipsJSON = mark(campaigns[i].TargetCategoryChips)
+			}
+			if len(campaigns[i].SuggestedCategoryChips) > 0 {
+				campaigns[i].SuggestedCategoryChips, campaigns[i].SuggestedCategoryChipsJSON = mark(campaigns[i].SuggestedCategoryChips)
+			}
+		}
+	}
+
 	// Going rates beside the Max CPM inputs — without market visibility
 	// the Max CPM field is a guess, not a decision. Unfiltered here (the
 	// whole network); the topic picker and edit panels re-fetch the hint
@@ -1061,8 +1170,12 @@ func (h *Handler) fetchMarketRates(claims *model.Claims, categories string) *mar
 	// A scope with no cleared impressions still has an entry price —
 	// floorFrom is independent of trade history, so its presence alone
 	// keeps the hint alive (rendered as "no trades yet" + the floor).
-	if json.Unmarshal(mrBody, &mr) != nil ||
-		(mr.Overall == nil && len(mr.Sites) == 0 && mr.FloorFrom == nil) {
+	// A scoped view stays alive even with NO market data at all: the
+	// inventory-availability line ("no publisher inventory matches
+	// these topics") is the most important thing to say right then.
+	marketEmpty := json.Unmarshal(mrBody, &mr) != nil ||
+		(mr.Overall == nil && len(mr.Sites) == 0 && mr.FloorFrom == nil)
+	if marketEmpty && categories == "" {
 		return nil
 	}
 	deref := func(p *string) string {
@@ -1121,6 +1234,26 @@ func (h *Handler) fetchMarketRates(claims *model.Claims, categories string) *mar
 			}
 		}
 		out.ScopeLabel = strings.Join(labels, ", ")
+		// Inventory honesty line: the rate numbers only ever come from
+		// topics that actually traded, so say how many of the selected
+		// topics that is — and when none are even declared, say plainly
+		// that targeting only these topics buys nothing today.
+		if avail := h.fetchCategoryAvailability(claims, strings.Split(categories, ",")); avail != nil {
+			out.AvailabilityKnown = true
+			for _, a := range avail {
+				out.TotalTopics++
+				switch a.Status {
+				case "live":
+					out.LiveTopics++
+				case "declared":
+					out.DeclaredTopics++
+				}
+			}
+		}
+		// Nothing to quote AND nothing to say about inventory → no hint.
+		if marketEmpty && !out.AvailabilityKnown {
+			return nil
+		}
 	}
 	return out
 }
@@ -2581,6 +2714,13 @@ type marketRatesData struct {
 	// network. Context is the unit of value on this network; the hint
 	// must always name which market it is quoting.
 	ScopeLabel string
+	// Inventory honesty for the scoped topics: how many of them publisher
+	// inventory actually backs. AvailabilityKnown=false (lookup failed or
+	// unscoped view) renders nothing — unknown must not read as "none".
+	AvailabilityKnown bool
+	LiveTopics        int // topics with cleared impressions in the window
+	DeclaredTopics    int // topics only declared by publishers (no trades)
+	TotalTopics       int
 }
 
 // Chart.js payload for the creative × media stacked-bar chart: labels =

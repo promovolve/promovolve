@@ -139,6 +139,10 @@ object CategoryRegistry {
           replyTo ! AllCategories(state.allCategories.map(decodeCategory))
           Behaviors.same
 
+        case GetCategoryCoverage(categories, replyTo) =>
+          replyTo ! CategoryCoverage(coverageRows(state.publisherCategories, categories))
+          Behaviors.same
+
         case GetCategoryStats(replyTo) =>
           val stats = state.categoryToPublishers.map { case (cat, pubs) =>
             CategorySummary(decodeCategory(cat), pubs.size)
@@ -202,6 +206,25 @@ object CategoryRegistry {
     active(DerivedState.empty)
   }
 
+  /**
+   * Pure core of [[GetCategoryCoverage]]: subtree-aware declared
+   * coverage. A publisher declaring "Baseball" IS inventory for a
+   * campaign targeting "Sports" (the auctioneer fans page categories
+   * out to their ancestors), so each requested category counts the
+   * publishers declaring it OR any taxonomy descendant. The reverse
+   * does not hold: a parent-only declaration never credits a child
+   * request. Declared ids are normalized at registration time.
+   */
+  private[taxonomy] def coverageRows(
+      publisherCategories: Map[String, Set[String]],
+      categories: Set[CategoryId]
+  ): Vector[CategorySummary] =
+    categories.toVector.map { c =>
+      val subtree = (TieredCategory.normalize(c.value) :: TieredCategory.getAllDescendants(c.value).map(_.id)).toSet
+      val pubs = publisherCategories.count { case (_, cats) => cats.exists(subtree.contains) }
+      CategorySummary(c, pubs)
+    }.sortBy(_.categoryId.value)
+
   private def encodePublisher(siteId: SiteId): String = siteId.value
   private def decodePublisher(s: String): SiteId = SiteId(s)
   private def encodeCategories(cats: Set[CategoryId]): Set[String] = cats.map(_.value)
@@ -232,6 +255,17 @@ object CategoryRegistry {
   /** Get all available categories (lightweight, for dropdowns/autocomplete) */
   final case class GetAllCategories(replyTo: ActorRef[AllCategories]) extends Command
 
+  /**
+   * Declared-inventory coverage for specific categories: how many
+   * publishers declare each requested category or any of its taxonomy
+   * descendants. Backs the advertiser-facing "does this topic have
+   * inventory?" chip marking.
+   */
+  final case class GetCategoryCoverage(
+      categories: Set[CategoryId],
+      replyTo: ActorRef[CategoryCoverage]
+  ) extends Command
+
   // ---------- Type Encode/Decode Helpers ----------
   // Centralized conversion to prevent encoding mistakes from spreading
 
@@ -248,6 +282,11 @@ object CategoryRegistry {
       categories: Vector[CategorySummary],
       totalPublishers: Int,
       totalCategories: Int
+  ) extends promovolve.CborSerializable
+
+  /** Reply to [[GetCategoryCoverage]] — one row per requested category. */
+  final case class CategoryCoverage(
+      rows: Vector[CategorySummary]
   ) extends promovolve.CborSerializable
 
   /** Publishers for a single category (for detail view) */

@@ -460,6 +460,28 @@ object ApiModels {
       floorFrom: Option[String] = None
   )
 
+  /**
+   * Inventory availability for one demand category, subtree-aware (a
+   * category counts trades/declarations from itself and its taxonomy
+   * descendants — mirroring the auctioneer's ancestor fan-out, so the
+   * answer matches what a campaign targeting it would actually reach).
+   *
+   * status: "live"     — cleared impressions in the window
+   *         "declared" — publishers declare matching content, no trades yet
+   *         "none"     — no publisher inventory matches
+   */
+  case class CategoryAvailability(
+      categoryId: String,
+      status: String,
+      impressions: Long, // cleared imps in the window, subtree total
+      publishers: Int // publishers declaring the category or a descendant
+  )
+
+  case class CategoryAvailabilityResponse(
+      days: Int,
+      categories: Vector[CategoryAvailability]
+  )
+
   /** One failure-reason bucket in the mount-health summary. */
   case class MountHealthReason(reason: String, count: Long)
 

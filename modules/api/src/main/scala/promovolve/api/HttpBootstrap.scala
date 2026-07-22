@@ -320,7 +320,8 @@ object HttpBootstrap {
         trackingEventJournal = trackingJournal,
         lpWorkerEnabled = lpWorkerEnabled,
         lpWorkerNumWorkers = lpWorkerNumWorkers,
-        pendingSelectionStore = Some(pendingSelectionStore)
+        pendingSelectionStore = Some(pendingSelectionStore),
+        categoryRegistry = Some(categoryRegistry)
       )(using system)
 
       // Dashboard routes for advertiser performance data

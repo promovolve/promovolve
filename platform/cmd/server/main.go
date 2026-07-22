@@ -319,6 +319,7 @@ func main() {
 	mux.HandleFunc("GET /advertiser/account", adv(h.AdvertiserAccount))
 	mux.HandleFunc("GET /advertiser/campaigns", adv(h.AdvertiserCampaigns))
 	mux.HandleFunc("GET /advertiser/market-rates-hint", adv(h.MarketRatesHint))
+	mux.HandleFunc("GET /advertiser/category-availability", adv(h.CategoryAvailability))
 	// Stats existed as a handler+template but was never routed (nor
 	// linked in the nav) — the page was unreachable dead code.
 	mux.HandleFunc("GET /advertiser/stats", adv(h.AdvertiserStats))

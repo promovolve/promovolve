@@ -43,7 +43,10 @@ class EndpointRoutes(
     // crawler-tier LPWorker instead of the in-process LPAnalyzer.
     lpWorkerEnabled: Boolean = false,
     lpWorkerNumWorkers: Int = 4,
-    pendingSelectionStore: Option[promovolve.publisher.PendingSelectionStore] = None
+    pendingSelectionStore: Option[promovolve.publisher.PendingSelectionStore] = None,
+    // Declared publisher inventory (site taxonomyIds) — backs the
+    // advertiser-facing category-availability endpoint.
+    categoryRegistry: Option[ActorRef[promovolve.taxonomy.CategoryRegistry.Command]] = None
 )(using system: ActorSystem[?])
     extends ApiJsonFormats {
 
@@ -4646,8 +4649,18 @@ class EndpointRoutes(
       // only the floor speaks — small samples both mislead and leak.
       val days = daysOpt.getOrElse(7).max(1).min(30)
       val MinSample = 100
+      // Expand each requested category to (itself ∪ its descendants):
+      // the auctioneer fans page categories out to their ancestors, so a
+      // campaign targeting "Sports" also clears on pages trading under
+      // "Baseball" — exact-id filtering under-reported the market a
+      // parent-tier target actually reaches, and the Max CPM guidance
+      // must price the inventory the campaign would really compete for.
       val cats: Vector[String] =
         categoriesOpt.map(_.split(',').map(_.trim).filter(_.nonEmpty).toVector).getOrElse(Vector.empty)
+          .flatMap { c =>
+            val n = promovolve.taxonomy.TieredCategory.normalize(c)
+            n +: promovolve.taxonomy.TieredCategory.getAllDescendants(n).map(_.id)
+          }.distinct
       dashboardDb match {
         case None     => Future.successful(Right(MarketRatesResponse(days, MinSample, None, Vector.empty)))
         case Some(db) =>
@@ -4759,6 +4772,73 @@ class EndpointRoutes(
               ErrorResponse, MarketRatesResponse]
           }
           f.recover { case ex => Left(ErrorResponse("market_rates_failed", ex.getMessage)) }
+      }
+  }
+
+  private val getAdvertiserCategoryAvailabilityLogic
+      : ((String, Option[Int], Option[String])) => Future[Either[ErrorResponse, CategoryAvailabilityResponse]] = {
+    case (_advertiserId, daysOpt, categoriesOpt) =>
+      // Honest chip marking: does publisher inventory actually exist for
+      // this demand category? Subtree-aware on both signals (the auction
+      // fans page categories out to their ancestors, so descendants ARE
+      // reachable inventory for a parent-tier target). Errors propagate
+      // rather than degrade — a chip wrongly marked "none" is a lie, so
+      // the UI shows no mark at all when this endpoint fails.
+      import promovolve.taxonomy.{ CategoryRegistry, TieredCategory }
+      val days = daysOpt.getOrElse(30).max(1).min(30)
+      val cats: Vector[String] =
+        categoriesOpt.map(_.split(',').map(_.trim).filter(_.nonEmpty).toVector).getOrElse(Vector.empty)
+          .map(TieredCategory.normalize).distinct
+      if (cats.isEmpty) Future.successful(Right(CategoryAvailabilityResponse(days, Vector.empty)))
+      else {
+        val subtrees: Map[String, Set[String]] = cats.map { c =>
+          c -> (c :: TieredCategory.getAllDescendants(c).map(_.id)).toSet
+        }.toMap
+        // Cleared impressions per event category over the window; credit
+        // is assigned to every requested category whose subtree contains
+        // the event's category. One GROUP BY, mapped in memory — the
+        // taxonomy bounds the row count, not traffic.
+        val tradedF: Future[Map[String, Long]] = dashboardDb match {
+          case None     => Future.successful(Map.empty)
+          case Some(db) =>
+            import slick.jdbc.PostgresProfile.api.*
+            import slick.jdbc.GetResult
+            given GetResult[(String, Long)] = GetResult(using r => (r.nextString(), r.nextLong()))
+            val q = sql"""
+              SELECT category, COUNT(*)::bigint
+              FROM tracking_events
+              WHERE event_type = 'impression' AND NOT dogeared
+                AND category IS NOT NULL AND category <> ''
+                AND event_time >= NOW() - make_interval(days => $days)
+              GROUP BY category
+            """.as[(String, Long)]
+            db.run(q).map(_.toMap)
+        }
+        val declaredF: Future[Map[String, Int]] = categoryRegistry match {
+          case None      => Future.successful(Map.empty)
+          case Some(reg) =>
+            given Timeout = Timeout(5.seconds)
+            reg
+              .ask[CategoryRegistry.CategoryCoverage](
+                CategoryRegistry.GetCategoryCoverage(cats.map(CategoryId(_)).toSet, _))
+              .map(_.rows.map(r => r.categoryId.value -> r.publisherCount).toMap)
+        }
+        val f = for {
+          traded <- tradedF
+          declared <- declaredF
+        } yield {
+          val rows = cats.map { c =>
+            val subtree = subtrees(c)
+            val imps = traded.collect {
+              case (eventCat, n) if subtree.contains(TieredCategory.normalize(eventCat)) => n
+            }.sum
+            val pubs = declared.getOrElse(c, 0)
+            val status = if (imps > 0L) "live" else if (pubs > 0) "declared" else "none"
+            CategoryAvailability(categoryId = c, status = status, impressions = imps, publishers = pubs)
+          }
+          Right(CategoryAvailabilityResponse(days, rows)): Either[ErrorResponse, CategoryAvailabilityResponse]
+        }
+        f.recover { case ex => Left(ErrorResponse("category_availability_failed", ex.getMessage)) }
       }
   }
 
@@ -5418,6 +5498,8 @@ class EndpointRoutes(
     PekkoHttpServerInterpreter().toRoute(Endpoints.getAdvertiserSpendToday.serverLogic(getAdvertiserSpendTodayLogic)),
     PekkoHttpServerInterpreter().toRoute(
       Endpoints.getAdvertiserMarketRates.serverLogic(getAdvertiserMarketRatesLogic)),
+    PekkoHttpServerInterpreter().toRoute(
+      Endpoints.getAdvertiserCategoryAvailability.serverLogic(getAdvertiserCategoryAvailabilityLogic)),
     PekkoHttpServerInterpreter().toRoute(Endpoints.getAdvertiserWinRates.serverLogic(getAdvertiserWinRatesLogic)),
     PekkoHttpServerInterpreter().toRoute(
       Endpoints.getAdvertiserCampaignSpendToday.serverLogic(getAdvertiserCampaignSpendTodayLogic)),

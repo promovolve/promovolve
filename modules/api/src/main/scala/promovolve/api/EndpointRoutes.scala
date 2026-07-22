@@ -5487,6 +5487,79 @@ class EndpointRoutes(
       }
   }
 
+  // ── Fraud review queue (Layer 3, docs/design/FRAUD_PREVENTION.md) ──
+  // One repo instance over the dashboard DB (None → endpoints return
+  // empty / a friendly error rather than 500).
+  private lazy val fraudFlagRepo: Option[promovolve.api.fraud.FraudFlagRepo] =
+    dashboardDb.map(db => new promovolve.api.fraud.FraudFlagRepo(db)(using system.executionContext))
+
+  private val getFraudFlagsLogic: Option[String] => Future[Either[ErrorResponse, FraudFlagListResponse]] = { key =>
+    requireInternalKey(key) match {
+      case Left(err) => Future.successful(Left(err))
+      case Right(()) =>
+        fraudFlagRepo match {
+          case None       => Future.successful(Right(FraudFlagListResponse(Vector.empty)))
+          case Some(repo) =>
+            repo.listOpen().map { rows =>
+              Right(FraudFlagListResponse(rows.map(r =>
+                FraudFlagView(
+                  id = r.id,
+                  siteId = r.siteId,
+                  signal = r.signal,
+                  severity = r.severity,
+                  windowDay = r.windowDay.toString,
+                  evidence = r.evidence,
+                  status = r.status,
+                  flaggedAt = r.flaggedAt.toString
+                ))))
+            }.recover { case ex => Left(ErrorResponse("fraud_flags_failed", ex.getMessage)) }
+        }
+    }
+  }
+
+  private val resolveFraudFlagLogic
+      : ((Long, ResolveFraudFlagRequest, Option[String])) => Future[Either[ErrorResponse, Unit]] = {
+    case (id, req, key) =>
+      requireInternalKey(key) match {
+        case Left(err) => Future.successful(Left(err))
+        case Right(()) =>
+          if (req.status != "released" && req.status != "confirmed")
+            Future.successful(Left(ErrorResponse("bad_status", "status must be 'released' or 'confirmed'")))
+          else
+            fraudFlagRepo match {
+              case None       => Future.successful(Left(ErrorResponse("not_configured", "no dashboard DB")))
+              case Some(repo) =>
+                repo.resolve(id, req.status, req.resolvedBy.getOrElse("operator"))
+                  .map(_ => Right(()))
+                  .recover { case ex => Left(ErrorResponse("resolve_failed", ex.getMessage)) }
+            }
+      }
+  }
+
+  private val suspendSiteLogic: ((String, Option[String])) => Future[Either[ErrorResponse, Unit]] = {
+    case (siteId, key) =>
+      requireInternalKey(key) match {
+        case Left(err) => Future.successful(Left(err))
+        case Right(()) =>
+          siteRef(siteId)
+            .ask[SiteEntity.SiteSuspendedUpdated](SiteEntity.SetSuspended(true, _))
+            .map(_ => Right(()))
+            .recover { case ex => Left(ErrorResponse("suspend_site_failed", ex.getMessage)) }
+      }
+  }
+
+  private val resumeSiteLogic: ((String, Option[String])) => Future[Either[ErrorResponse, Unit]] = {
+    case (siteId, key) =>
+      requireInternalKey(key) match {
+        case Left(err) => Future.successful(Left(err))
+        case Right(()) =>
+          siteRef(siteId)
+            .ask[SiteEntity.SiteSuspendedUpdated](SiteEntity.SetSuspended(false, _))
+            .map(_ => Right(()))
+            .recover { case ex => Left(ErrorResponse("resume_site_failed", ex.getMessage)) }
+      }
+  }
+
   private val internalRoutes: List[Route] = List(
     PekkoHttpServerInterpreter().toRoute(Endpoints.getMeteringRange.serverLogic(getMeteringRangeLogic)),
     PekkoHttpServerInterpreter().toRoute(Endpoints.postMeteringUnsettled.serverLogic(postMeteringUnsettledLogic)),
@@ -5495,7 +5568,11 @@ class EndpointRoutes(
     PekkoHttpServerInterpreter().toRoute(Endpoints.resumeAdvertiser.serverLogic(resumeAdvertiserLogic)),
     PekkoHttpServerInterpreter().toRoute(Endpoints.setAdvertiserTimezone.serverLogic(setAdvertiserTimezoneLogic)),
     PekkoHttpServerInterpreter().toRoute(Endpoints.suspendPublisher.serverLogic(suspendPublisherLogic)),
-    PekkoHttpServerInterpreter().toRoute(Endpoints.resumePublisher.serverLogic(resumePublisherLogic))
+    PekkoHttpServerInterpreter().toRoute(Endpoints.resumePublisher.serverLogic(resumePublisherLogic)),
+    PekkoHttpServerInterpreter().toRoute(Endpoints.getFraudFlags.serverLogic(getFraudFlagsLogic)),
+    PekkoHttpServerInterpreter().toRoute(Endpoints.resolveFraudFlag.serverLogic(resolveFraudFlagLogic)),
+    PekkoHttpServerInterpreter().toRoute(Endpoints.suspendSite.serverLogic(suspendSiteLogic)),
+    PekkoHttpServerInterpreter().toRoute(Endpoints.resumeSite.serverLogic(resumeSiteLogic))
   )
 
   private val pacingRoutes: List[Route] = List(

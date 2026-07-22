@@ -170,6 +170,21 @@ thresholds on any signal (or a combined score) writes a row to a new
 `fraud_flags` table with the evidence snapshot inline. This is a SQL job in
 the projection tier — no new infrastructure.
 
+> **Status: PARTIAL 2026-07-22.** The **review queue + enforcement** are
+> built: core internal endpoints `GET /v1/internal/fraud-flags`,
+> `POST .../fraud-flags/{id}/resolve` (released|confirmed), and a new
+> surgical `POST /v1/internal/sites/{siteId}/suspend|resume`
+> (`SiteEntity.SetSuspended` — freezes ONE site, not the whole publisher).
+> Admin page `/admin/fraud` (RoleAdmin-gated, mirrors the site-approval
+> queue) renders each flag's evidence with **Release** (false-positive
+> label) and **Confirm fraud & suspend site** (resolve + surgical suspend,
+> composed platform-side like the operator org-suspend). EN/JA + render
+> test. **Deferred (Phase 3.1):** the automatic settlement HOLD-in-CLEARING
+> on flag and the monetary clawback of already-settled legs — those ride
+> the BILLING.md settlement engine and are the remaining money-reversal
+> work. Today "Confirm" stops future serving on the site; it does not yet
+> reverse past payouts.
+
 ## Layer 3 — Money controls (rides existing settlement machinery)
 
 - **Hold-then-release.** A flagged site's local-day settlement routes to a

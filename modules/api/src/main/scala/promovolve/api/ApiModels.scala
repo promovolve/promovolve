@@ -482,6 +482,27 @@ object ApiModels {
       categories: Vector[CategoryAvailability]
   )
 
+  /**
+   * One open fraud flag for the admin review queue (Layer 3,
+   * docs/design/FRAUD_PREVENTION.md). Dates/timestamps are ISO strings
+   * for the platform to render in the operator's timezone.
+   */
+  case class FraudFlagView(
+      id: Long,
+      siteId: String,
+      signal: String, // suspect_share | imp_per_pageview | ctr_spike
+      severity: Double,
+      windowDay: String, // ISO date the detector evaluated
+      evidence: String, // human-readable metric snapshot
+      status: String, // open | released | confirmed
+      flaggedAt: String // ISO instant
+  )
+
+  case class FraudFlagListResponse(flags: Vector[FraudFlagView])
+
+  /** Resolve action: status ∈ {"released","confirmed"}. */
+  case class ResolveFraudFlagRequest(status: String, resolvedBy: Option[String] = None)
+
   /** One failure-reason bucket in the mount-health summary. */
   case class MountHealthReason(reason: String, count: Long)
 

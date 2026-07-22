@@ -31,8 +31,10 @@ object FraudDetector {
       detection: FraudDetection.Config = FraudDetection.Config()
   )
 
-  /** Init as a cluster singleton on the singleton role. No-op-safe: if
-    * the dashboard DB isn't configured the caller passes None and skips. */
+  /**
+   * Init as a cluster singleton on the singleton role. No-op-safe: if
+   * the dashboard DB isn't configured the caller passes None and skips.
+   */
   def init(system: ActorSystem[?], repo: FraudFlagRepo, config: Config): ActorRef[Command] =
     ClusterSingleton(system).init(
       SingletonActor(apply(repo, config), "fraud-detector")

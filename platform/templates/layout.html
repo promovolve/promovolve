@@ -115,6 +115,7 @@
         {{else if eq .User.Role "admin"}}
         <a href="/admin/requests" class="block px-3 py-2 rounded text-sm {{if eq .Nav "admin-requests"}}bg-gray-700 text-white{{else}}text-gray-300 hover:bg-gray-800{{end}}">{{t "Requests"}}</a>
         <a href="/admin/sites" class="block px-3 py-2 rounded text-sm {{if eq .Nav "admin-sites"}}bg-gray-700 text-white{{else}}text-gray-300 hover:bg-gray-800{{end}}">{{t "Site Requests"}}</a>
+        <a href="/admin/fraud" class="block px-3 py-2 rounded text-sm {{if eq .Nav "admin-fraud"}}bg-gray-700 text-white{{else}}text-gray-300 hover:bg-gray-800{{end}}">{{t "Fraud Review"}}</a>
         <a href="/admin/users" class="block px-3 py-2 rounded text-sm {{if eq .Nav "admin-users"}}bg-gray-700 text-white{{else}}text-gray-300 hover:bg-gray-800{{end}}">{{t "Users"}}</a>
         <a href="/admin/settings" class="block px-3 py-2 rounded text-sm {{if eq .Nav "admin-settings"}}bg-gray-700 text-white{{else}}text-gray-300 hover:bg-gray-800{{end}}">{{t "Settings"}}</a>
         <a href="/admin/billing" class="block px-3 py-2 rounded text-sm {{if eq .Nav "admin-billing"}}bg-gray-700 text-white{{else}}text-gray-300 hover:bg-gray-800{{end}}">{{t "Billing"}}</a>

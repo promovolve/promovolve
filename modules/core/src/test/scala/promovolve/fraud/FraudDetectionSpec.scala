@@ -34,25 +34,26 @@ class FraudDetectionSpec extends AnyWordSpec with Matchers {
 
     "stay silent on a healthy site" in {
       val hist = Vector.fill(10)(steady(1000, 20, 400))
-      evaluate(SiteMetrics("s", java.time.LocalDate.of(2026,7,22), steady(1050, 21, 420), hist), cfg) shouldBe empty
+      evaluate(SiteMetrics("s", java.time.LocalDate.of(2026, 7, 22), steady(1050, 21, 420), hist), cfg) shouldBe empty
     }
 
     "flag a high suspect share" in {
       val day = SiteDay(impressions = 1000, clicks = 20, pageviews = 400, suspect = 500, total = 1520)
-      val flags = evaluate(SiteMetrics("s", java.time.LocalDate.of(2026,7,22), day, Vector.empty), cfg)
+      val flags = evaluate(SiteMetrics("s", java.time.LocalDate.of(2026, 7, 22), day, Vector.empty), cfg)
       flags.map(_.signal) should contain(SigSuspectShare)
     }
 
     "NOT flag suspect share below the volume floor" in {
       val day = SiteDay(impressions = 100, clicks = 2, pageviews = 40, suspect = 90, total = 102)
-      evaluate(SiteMetrics("s", java.time.LocalDate.of(2026,7,22), day, Vector.empty), cfg).map(_.signal) should not contain SigSuspectShare
+      evaluate(SiteMetrics("s", java.time.LocalDate.of(2026, 7, 22), day, Vector.empty), cfg).map(_.signal) should
+      not contain SigSuspectShare
     }
 
     "flag an impressions-per-pageview spike vs the site's own history" in {
       // History: ~2.5 imp/pageview, rock steady. Latest: 25 imp/pageview.
       val hist = Vector.tabulate(10)(i => steady(1000 + i, 20, 400))
       val spike = steady(10000, 20, 400) // 25 imp/pv
-      val flags = evaluate(SiteMetrics("s", java.time.LocalDate.of(2026,7,22), spike, hist), cfg)
+      val flags = evaluate(SiteMetrics("s", java.time.LocalDate.of(2026, 7, 22), spike, hist), cfg)
       flags.map(_.signal) should contain(SigImpPerPageview)
       flags.find(_.signal == SigImpPerPageview).get.severity should be > cfg.zThreshold
     }
@@ -60,19 +61,22 @@ class FraudDetectionSpec extends AnyWordSpec with Matchers {
     "flag a CTR spike vs the site's own history" in {
       val hist = Vector.tabulate(10)(i => steady(1000, 20 + (i % 3), 400)) // ~2% CTR
       val spike = steady(1000, 400, 400) // 40% CTR
-      evaluate(SiteMetrics("s", java.time.LocalDate.of(2026,7,22), spike, hist), cfg).map(_.signal) should contain(SigCtrSpike)
+      evaluate(SiteMetrics("s", java.time.LocalDate.of(2026, 7, 22), spike, hist), cfg).map(_.signal) should
+      contain(SigCtrSpike)
     }
 
     "NOT flag a DROP in impressions/pageview (one-directional)" in {
       val hist = Vector.fill(10)(steady(10000, 20, 400)) // high imp/pv
       val drop = steady(400, 20, 400) // 1 imp/pv — lower, not fraud
-      evaluate(SiteMetrics("s", java.time.LocalDate.of(2026,7,22), drop, hist), cfg).map(_.signal) should not contain SigImpPerPageview
+      evaluate(SiteMetrics("s", java.time.LocalDate.of(2026, 7, 22), drop, hist), cfg).map(_.signal) should not contain
+      SigImpPerPageview
     }
 
     "NOT flag a spike when history is too short to trust" in {
       val hist = Vector(steady(1000, 20, 400), steady(1000, 20, 400)) // 2 days < minHistory
       val spike = steady(10000, 20, 400)
-      evaluate(SiteMetrics("s", java.time.LocalDate.of(2026,7,22), spike, hist), cfg).map(_.signal) should not contain SigImpPerPageview
+      evaluate(SiteMetrics("s", java.time.LocalDate.of(2026, 7, 22), spike, hist), cfg).map(_.signal) should not contain
+      SigImpPerPageview
     }
   }
 

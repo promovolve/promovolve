@@ -1,0 +1,55 @@
+{{define "content"}}
+<div class="max-w-4xl">
+  <h1 class="page-title">{{t "Fraud Review"}}</h1>
+  <p class="page-sub">{{t "Sites the economics detector flagged for review. Release a false positive (it tunes the thresholds); confirm real fraud to stop serving on that one site. Nothing here is charged or paid until you act."}}</p>
+
+  {{if .Error}}
+  <div class="bg-red-50 border border-red-200 text-red-700 rounded-lg p-3 mt-6 text-sm">{{.Error}}</div>
+  {{end}}
+
+  {{if not .AdminFraudFlags}}
+  <div class="card mt-6 text-center text-gray-500">
+    <p class="text-3xl mb-2">&#10003;</p>
+    <p>{{t "No open fraud flags."}}</p>
+  </div>
+  {{end}}
+
+  <div class="space-y-4 mt-6">
+    {{range .AdminFraudFlags}}
+    <div class="card">
+      <div class="flex items-start justify-between gap-4">
+        <div>
+          <div class="flex items-center gap-2 mb-1">
+            <h2 class="font-semibold text-lg font-mono">{{.SiteID}}</h2>
+            <span class="badge badge-warning">{{.SignalLbl}}</span>
+          </div>
+          <p class="text-sm text-gray-600">{{.Evidence}}</p>
+        </div>
+        <span class="text-xs text-gray-400 whitespace-nowrap">{{.FlaggedAt}}</span>
+      </div>
+
+      <dl class="grid grid-cols-3 gap-x-6 gap-y-2 mt-4 text-sm">
+        <div><dt class="text-gray-400">{{t "Signal"}}</dt><dd class="font-mono text-xs">{{.Signal}}</dd></div>
+        <div><dt class="text-gray-400">{{t "Severity"}}</dt><dd>{{.Severity}}</dd></div>
+        <div><dt class="text-gray-400">{{t "Day"}}</dt><dd>{{.WindowDay}}</dd></div>
+      </dl>
+
+      <div class="flex flex-wrap items-end gap-3 mt-4">
+        <form method="POST" action="/admin/fraud/release"
+          onsubmit="return confirm('{{t "Release %s? Marks this flag a false positive and leaves serving untouched." .SiteID}}')">
+          <input type="hidden" name="flagId" value="{{.ID}}">
+          <input type="hidden" name="siteId" value="{{.SiteID}}">
+          <button type="submit" class="btn btn-secondary">{{t "Release (false positive)"}}</button>
+        </form>
+        <form method="POST" action="/admin/fraud/confirm"
+          onsubmit="return confirm('{{t "Confirm fraud on %s? Serving on this site stops immediately." .SiteID}}')">
+          <input type="hidden" name="flagId" value="{{.ID}}">
+          <input type="hidden" name="siteId" value="{{.SiteID}}">
+          <button type="submit" class="btn btn-danger">{{t "Confirm fraud & suspend site"}}</button>
+        </form>
+      </div>
+    </div>
+    {{end}}
+  </div>
+</div>
+{{end}}

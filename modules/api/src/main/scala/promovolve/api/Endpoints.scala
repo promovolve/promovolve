@@ -682,6 +682,55 @@ object Endpoints extends ApiJsonFormats {
       .out(statusCode(sttp.model.StatusCode.NoContent))
       .errorOut(jsonBody[ErrorResponse])
 
+  // ── Fraud review queue (Layer 3, docs/design/FRAUD_PREVENTION.md) ──
+  val getFraudFlags: PublicEndpoint[Option[String], ErrorResponse, FraudFlagListResponse, Any] =
+    endpoint
+      .tag("Internal")
+      .summary("List open fraud flags for the admin review queue")
+      .description(
+        "Returns the economics detector's open flags (site, signal, severity, day, evidence), newest first. Read-only; the operator releases (false positive) or confirms (fraud) each. Empty when the dashboard DB isn't configured.")
+      .get
+      .in(v1 / "internal" / "fraud-flags")
+      .in(header[Option[String]]("X-Internal-Key"))
+      .out(jsonBody[FraudFlagListResponse])
+      .errorOut(jsonBody[ErrorResponse])
+
+  val resolveFraudFlag: PublicEndpoint[(Long, ResolveFraudFlagRequest, Option[String]), ErrorResponse, Unit, Any] =
+    endpoint
+      .tag("Internal")
+      .summary("Resolve a fraud flag (release | confirm)")
+      .description(
+        "Sets a flag's status to 'released' (false positive — a threshold-tuning label) or 'confirmed' (real fraud). Confirming does NOT itself suspend — the platform composes this with a site suspend, mirroring the operator org-suspend flow.")
+      .post
+      .in(v1 / "internal" / "fraud-flags" / path[Long]("id") / "resolve")
+      .in(jsonBody[ResolveFraudFlagRequest])
+      .in(header[Option[String]]("X-Internal-Key"))
+      .out(statusCode(sttp.model.StatusCode.NoContent))
+      .errorOut(jsonBody[ErrorResponse])
+
+  val suspendSite: PublicEndpoint[(String, Option[String]), ErrorResponse, Unit, Any] =
+    endpoint
+      .tag("Internal")
+      .summary("Suspend ONE site — surgical serving freeze")
+      .description(
+        "Freezes serving on a single site (SiteEntity.SetSuspended) without touching the rest of the owning publisher's sites. The Layer-3 'confirm fraud' enforcement lever. Reversible via /resume.")
+      .post
+      .in(v1 / "internal" / "sites" / path[String]("siteId") / "suspend")
+      .in(header[Option[String]]("X-Internal-Key"))
+      .out(statusCode(sttp.model.StatusCode.NoContent))
+      .errorOut(jsonBody[ErrorResponse])
+
+  val resumeSite: PublicEndpoint[(String, Option[String]), ErrorResponse, Unit, Any] =
+    endpoint
+      .tag("Internal")
+      .summary("Resume ONE suspended site")
+      .description("Lifts a single site's serving freeze (SiteEntity.SetSuspended false). Reverses suspendSite.")
+      .post
+      .in(v1 / "internal" / "sites" / path[String]("siteId") / "resume")
+      .in(header[Option[String]]("X-Internal-Key"))
+      .out(statusCode(sttp.model.StatusCode.NoContent))
+      .errorOut(jsonBody[ErrorResponse])
+
   val listTaxonomyCategories: PublicEndpoint[(Option[String], Int, Int), ErrorResponse, TaxonomyCategoryList, Any] =
     endpoint
       .tag("Taxonomy")

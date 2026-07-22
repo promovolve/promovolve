@@ -151,6 +151,120 @@ type adminSiteRequestRow struct {
 	RequestedAt string
 }
 
+// adminFraudFlagRow is one open fraud flag on /admin/fraud
+// (docs/design/FRAUD_PREVENTION.md, Layer 3).
+type adminFraudFlagRow struct {
+	ID        int64
+	SiteID    string
+	Signal    string // human-labeled below
+	SignalLbl string
+	Severity  string // formatted
+	WindowDay string
+	Evidence  string
+	FlaggedAt string
+}
+
+// fraudSignalLabel gives the operator a plain-English name for a signal id.
+func fraudSignalLabel(signal string) string {
+	switch signal {
+	case "suspect_share":
+		return "Bot / suspect traffic share"
+	case "imp_per_pageview":
+		return "Impressions without pageviews"
+	case "ctr_spike":
+		return "Click-rate spike"
+	default:
+		return signal
+	}
+}
+
+// AdminFraudFlags renders the fraud review queue.
+func (h *Handler) AdminFraudFlags(w http.ResponseWriter, r *http.Request) {
+	h.renderAdminFraudFlags(w, r, "")
+}
+
+func (h *Handler) renderAdminFraudFlags(w http.ResponseWriter, r *http.Request, errMsg string) {
+	user, _, ok := h.requireRole(w, r, model.RoleAdmin)
+	if !ok {
+		return
+	}
+	flags, err := h.orgCore.ListFraudFlags(r.Context())
+	if err != nil {
+		slog.Error("list fraud flags failed", "error", err)
+		errMsg = "could not load fraud flags"
+	}
+	rows := make([]adminFraudFlagRow, 0, len(flags))
+	for _, f := range flags {
+		flaggedAt := f.FlaggedAt
+		if t, perr := time.Parse(time.RFC3339, f.FlaggedAt); perr == nil {
+			flaggedAt = t.In(user.Location()).Format("2006-01-02 15:04")
+		}
+		rows = append(rows, adminFraudFlagRow{
+			ID:        f.ID,
+			SiteID:    f.SiteID,
+			Signal:    f.Signal,
+			SignalLbl: fraudSignalLabel(f.Signal),
+			Severity:  fmt.Sprintf("%.1f", f.Severity),
+			WindowDay: f.WindowDay,
+			Evidence:  f.Evidence,
+			FlaggedAt: flaggedAt,
+		})
+	}
+	h.render(w, r, "admin/fraud.html", pageData{
+		Title:           "Fraud Review",
+		Nav:             "admin-fraud",
+		User:            user,
+		Error:           errMsg,
+		AdminFraudFlags: rows,
+	})
+}
+
+// FraudFlagDecision handles release (false positive) and confirm (real
+// fraud) POSTs. Confirm composes the resolve with a surgical single-site
+// suspend — the same "resolve locally, enforce on core" shape AdminSuspendOrg
+// uses. Release only labels the flag for threshold tuning.
+func (h *Handler) FraudFlagDecision(action string) http.HandlerFunc {
+	return func(w http.ResponseWriter, r *http.Request) {
+		admin, _, ok := h.requireRole(w, r, model.RoleAdmin)
+		if !ok {
+			return
+		}
+		r.ParseForm()
+		idStr := r.FormValue("flagId")
+		siteID := r.FormValue("siteId")
+		id, perr := strconv.ParseInt(idStr, 10, 64)
+		if perr != nil || idStr == "" {
+			h.renderAdminFraudFlags(w, r, "missing or bad flag id")
+			return
+		}
+
+		status := "released"
+		if action == "confirm" {
+			status = "confirmed"
+		}
+		if err := h.orgCore.ResolveFraudFlag(r.Context(), id, status, admin.Email); err != nil {
+			slog.Error("resolve fraud flag failed", "action", action, "flagId", id, "error", err)
+			h.renderAdminFraudFlags(w, r, fmt.Sprintf("could not %s the flag: %v", action, err))
+			return
+		}
+		if action == "confirm" && siteID != "" {
+			// Enforcement: stop serving on the one fraudulent site. A
+			// failure here is logged but the flag stays confirmed — the
+			// operator can retry the suspend from the sites admin.
+			if err := h.orgCore.SuspendSite(r.Context(), siteID); err != nil {
+				slog.Error("suspend site after fraud confirm failed", "siteId", siteID, "error", err)
+				h.renderAdminFraudFlags(w, r,
+					fmt.Sprintf("flag confirmed, but suspending %s failed: %v — retry from Sites", siteID, err))
+				return
+			}
+		}
+		if h.auditRepo != nil {
+			h.auditRepo.Log(r.Context(), admin.ID, admin.Email, "", "fraud_flag_"+action, siteID, idStr)
+		}
+		http.Redirect(w, r, "/admin/fraud", http.StatusSeeOther)
+	}
+}
+
 func (h *Handler) AdminSiteRequests(w http.ResponseWriter, r *http.Request) {
 	h.renderAdminSiteRequests(w, r, "")
 }

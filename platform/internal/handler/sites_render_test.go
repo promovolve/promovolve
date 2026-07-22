@@ -52,6 +52,15 @@ func TestSitesAndCreativesTemplatesRender(t *testing.T) {
 				RequestedAt: "2026-07-07 10:00",
 			}},
 		}},
+		{"admin/fraud.html", pageData{
+			Title: "Fraud Review", Nav: "admin-fraud", User: admin, Error: "an error banner",
+			AdminFraudFlags: []adminFraudFlagRow{{
+				ID: 1, SiteID: "shady-example-com", Signal: "imp_per_pageview",
+				SignalLbl: "Impressions without pageviews", Severity: "7.2",
+				WindowDay: "2026-07-22", Evidence: "imp/pageview 25.0 is z=7.2 above the site's own median (2.5)",
+				FlaggedAt: "2026-07-22 09:00",
+			}},
+		}},
 		{"advertiser/campaigns.html", pageData{
 			Title: "Campaigns", Nav: "campaigns", User: adv,
 			// Going-rate hint: exercises the market-rates define with data

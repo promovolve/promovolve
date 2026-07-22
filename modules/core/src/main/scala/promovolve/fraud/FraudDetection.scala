@@ -15,10 +15,12 @@ package promovolve.fraud
  */
 object FraudDetection {
 
-  /** One site's activity for a single local day. `pageviews` is the
-    * mount-beacon row count — a per-pageview-PROPORTIONAL proxy (the
-    * tag fires a few beacons per view), used only in ratios compared
-    * against the site's own history, where the constant cancels. */
+  /**
+   * One site's activity for a single local day. `pageviews` is the
+   * mount-beacon row count — a per-pageview-PROPORTIONAL proxy (the
+   * tag fires a few beacons per view), used only in ratios compared
+   * against the site's own history, where the constant cancels.
+   */
   final case class SiteDay(
       impressions: Long,
       clicks: Long,
@@ -84,7 +86,7 @@ object FraudDetection {
       .flatMap { case (siteId, rows) =>
         val byDayDesc = rows.sortBy(_.day.toEpochDay).reverse
         byDayDesc match {
-          case Nil => None
+          case Nil             => None
           case latest +: older =>
             def toSiteDay(e: EventDay): SiteDay =
               SiteDay(
@@ -108,8 +110,10 @@ object FraudDetection {
       Some(if (n % 2 == 1) s(n / 2) else (s(n / 2 - 1) + s(n / 2)) / 2.0)
     }
 
-  /** Median absolute deviation, scaled to be a consistent σ estimator
-    * for normal data (×1.4826). None when undefined. */
+  /**
+   * Median absolute deviation, scaled to be a consistent σ estimator
+   * for normal data (×1.4826). None when undefined.
+   */
   def mad(xs: Vector[Double]): Option[Double] =
     median(xs).flatMap { m =>
       median(xs.map(x => math.abs(x - m))).map(_ * 1.4826)

@@ -340,10 +340,12 @@ type pageData struct {
 	AdminRequests []adminRequestRow
 	// Admin site-request queue (/admin/sites)
 	AdminSiteRequests []adminSiteRequestRow
-	AdminUsers        []adminUserRow
-	AdminOrgs         []orgAdminRow
-	AdminOrgsNav      *listNav
-	AdminOrgsQ        string
+	// Admin fraud-review queue (/admin/fraud)
+	AdminFraudFlags []adminFraudFlagRow
+	AdminUsers      []adminUserRow
+	AdminOrgs       []orgAdminRow
+	AdminOrgsNav    *listNav
+	AdminOrgsQ      string
 	// Pending org side requests on /admin/requests (an existing org asking
 	// for its other side — advertiser or publisher).
 	AdminOrgSideRequests []model.OrgSideRequest

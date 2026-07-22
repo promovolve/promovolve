@@ -244,6 +244,54 @@ func (c *HTTPCoreClient) ResumePublisher(ctx context.Context, publisherID string
 	return err
 }
 
+// FraudFlag is one open flag from the Layer-2 economics detector
+// (docs/design/FRAUD_PREVENTION.md), for the admin review queue.
+type FraudFlag struct {
+	ID        int64   `json:"id"`
+	SiteID    string  `json:"siteId"`
+	Signal    string  `json:"signal"`
+	Severity  float64 `json:"severity"`
+	WindowDay string  `json:"windowDay"`
+	Evidence  string  `json:"evidence"`
+	Status    string  `json:"status"`
+	FlaggedAt string  `json:"flaggedAt"`
+}
+
+// ListFraudFlags returns the open fraud flags (newest first).
+func (c *HTTPCoreClient) ListFraudFlags(ctx context.Context) ([]FraudFlag, error) {
+	body, err := c.do(ctx, http.MethodGet, fmt.Sprintf("%s/v1/internal/fraud-flags", c.BaseURL))
+	if err != nil {
+		return nil, err
+	}
+	var resp struct {
+		Flags []FraudFlag `json:"flags"`
+	}
+	if err := json.Unmarshal(body, &resp); err != nil {
+		return nil, err
+	}
+	return resp.Flags, nil
+}
+
+// ResolveFraudFlag sets a flag's status to "released" (false positive) or
+// "confirmed" (real fraud). Confirming does not itself suspend — the caller
+// composes it with SuspendSite.
+func (c *HTTPCoreClient) ResolveFraudFlag(ctx context.Context, id int64, status, by string) error {
+	payload, err := json.Marshal(map[string]string{"status": status, "resolvedBy": by})
+	if err != nil {
+		return err
+	}
+	_, err = c.doJSON(ctx, http.MethodPost,
+		fmt.Sprintf("%s/v1/internal/fraud-flags/%d/resolve", c.BaseURL, id), payload)
+	return err
+}
+
+// SuspendSite freezes serving on one site (the Layer-3 confirm-fraud
+// enforcement lever) without touching the publisher's other sites.
+func (c *HTTPCoreClient) SuspendSite(ctx context.Context, siteID string) error {
+	_, err := c.do(ctx, http.MethodPost, fmt.Sprintf("%s/v1/internal/sites/%s/suspend", c.BaseURL, siteID))
+	return err
+}
+
 func (c *HTTPCoreClient) do(ctx context.Context, method, url string) ([]byte, error) {
 	return c.doJSON(ctx, method, url, nil)
 }

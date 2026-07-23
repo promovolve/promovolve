@@ -20,13 +20,16 @@ metadata:
   name: promovolve-singleton
 spec:
   serviceName: promovolve-singleton
-  # CONSOLIDATED (2026-07-02): the singleton role now runs on the api pods
-  # (application-app.conf) — the CampaignDirectory robustness fix (371e058b)
-  # made singleton migration on api rolls a self-healing blip, so this tier's
-  # cost (a 3rd JVM on the shared dev VM) outweighed its benefit there.
-  # Kept at 0 as the REAL-INFRA option: scale to 1 + drop "singleton" from
-  # application-app.conf roles for a stable singleton home + odd entity count.
-  replicas: 0
+  # SCALED TO 1 ON GKE (2026-07-23): a 2-member Pekko cluster loses DData
+  # majority during every api roll (majority-of-2 = both pods), which wedged
+  # category-bidder shards after the 2026-07-22 rolling deploy — auctions
+  # silently returned zero candidates until the stale pod was deleted. This
+  # third member keeps majority=2 satisfiable while one api pod rolls.
+  # Dev (docker-desktop) may still scale this to 0 — there the 3rd JVM's
+  # cost outweighs quorum on a single shared VM.
+  # Follow-up option: drop "singleton" from application-app.conf roles so the
+  # singletons pin here instead of hopping across api rolls.
+  replicas: 1
   podManagementPolicy: Parallel
   selector:
     matchLabels:
@@ -138,7 +141,10 @@ spec:
             failureThreshold: 6
           resources:
             requests:
-              cpu: "1000m"
+              # 250m: this pod is idle-by-design (no api role, no serve path —
+              # just the cluster singletons). The c4a-standard-4 node only has
+              # ~800m of unrequested CPU with both api pods at 1000m.
+              cpu: "250m"
               memory: 1024Mi
             limits:
               memory: 2048Mi

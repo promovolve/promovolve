@@ -8,6 +8,7 @@ import org.apache.pekko.http.scaladsl.server.Directives.*
 import org.apache.pekko.http.scaladsl.server.Route
 import org.apache.pekko.util.Timeout
 import promovolve.SiteId
+import promovolve.browser.UrlNormalizer
 import promovolve.common.{ FoldToken, PublisherSecretsRepo, Signer }
 import promovolve.publisher.delivery.AdServer
 import promovolve.publisher.PublisherSettings
@@ -234,6 +235,13 @@ final class ServeRoutes(
               case Some("1") => complete(StatusCodes.NoContent)
               case _         =>
                 entity(as[BatchServeReq]) { req =>
+                  // Canonical page identity: strip tracking params (fbclid,
+                  // gclid, utm_*, …) so referral variants of one article don't
+                  // fragment into separate classifications, auctions, placements,
+                  // or tracking rows. Used everywhere the page URL is a key —
+                  // the auction, the freshness token, and the signed click/imp/
+                  // cta/fold tokens (so beacons record the canonical URL too).
+                  val pageUrl = UrlNormalizer.normalize(req.url)
                   val pinByslot: Map[String, String] =
                     req.pins.fold(Map.empty[String, String])(_.iterator.map(p => p.slotId -> p.creativeId).toMap)
                   // Site-wide pin block: pins for slots NOT present on this
@@ -307,7 +315,7 @@ final class ServeRoutes(
                     )
                     _ = system.log.info(
                       "BatchServe pub={} url={} pins.size={} offPagePinCreatives={} excludedCreatives={} excludedCampaigns={}",
-                      req.pub, req.url,
+                      req.pub, pageUrl,
                       req.pins.fold(0)(_.size),
                       offPagePinCreatives.mkString(","),
                       excludedCreatives.map(_.value).mkString(","),
@@ -316,7 +324,7 @@ final class ServeRoutes(
                     adServer = sharding.entityRefFor(AdServer.TypeKey, req.pub)
                     batchResult <- adServer.ask[AdServer.BatchSelectResult] { replyTo =>
                       AdServer.BatchSelect(
-                        url = promovolve.URL(req.url),
+                        url = promovolve.URL(pageUrl),
                         slots = req.imp.map { i =>
                           AdServer.BatchSlotSpec(
                             slotId = promovolve.SlotId(i.id),
@@ -361,15 +369,15 @@ final class ServeRoutes(
                               if (outcome.clearingPrice > promovolve.CPM.zero) outcome.clearingPrice.toDouble
                               else cand.cpm.toDouble
                             for {
-                              click <- clickUrl(req.pub, req.url, outcome.slotId.value, cand.creativeId.value, version,
+                              click <- clickUrl(req.pub, pageUrl, outcome.slotId.value, cand.creativeId.value, version,
                                 cand.campaignId.value, cand.advertiserId.value, cand.category.value, outcome.requestId,
                                 apc, None)
                               imp <- impUrl(
-                                req.pub, req.url, outcome.slotId.value, cand.creativeId.value, version,
+                                req.pub, pageUrl, outcome.slotId.value, cand.creativeId.value, version,
                                 cand.campaignId.value, cand.advertiserId.value, cpmDollars, cand.category.value,
                                 outcome.requestId, apc, None
                               )
-                              cta <- ctaUrl(req.pub, req.url, outcome.slotId.value, cand.creativeId.value, version,
+                              cta <- ctaUrl(req.pub, pageUrl, outcome.slotId.value, cand.creativeId.value, version,
                                 cand.campaignId.value, cand.advertiserId.value, cand.category.value, outcome.requestId,
                                 apc, None)
                               // Fetch the Creative once to pluck both pagesJson
@@ -381,7 +389,7 @@ final class ServeRoutes(
                               // part of the magazine creative format, not a per-campaign
                               // opt-in. Folds are free (engagement signal, not billed).
                               foldToken <-
-                                foldTokenFor(req.pub, req.url, outcome.slotId.value, cand.creativeId.value, version,
+                                foldTokenFor(req.pub, pageUrl, outcome.slotId.value, cand.creativeId.value, version,
                                   cand.campaignId.value, cand.advertiserId.value)
                               pinExpiresAt <- campaignPinExpiresAt(cand.advertiserId.value, cand.campaignId.value)
                             } yield {
@@ -457,7 +465,9 @@ final class ServeRoutes(
             .entityRefFor(promovolve.publisher.SiteEntity.TypeKey, cReq.pub)
             .ask[promovolve.publisher.SiteEntity.ClassifyAck] { replyTo =>
               promovolve.publisher.SiteEntity.ClassifyUrl(
-                url = cReq.url,
+                // Canonicalize (strip tracking params) so a Facebook/Google/UTM
+                // referral variant classifies the same page as its clean URL.
+                url = UrlNormalizer.normalize(cReq.url),
                 text = cReq.text,
                 section = cReq.section,
                 slots = slots,

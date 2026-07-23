@@ -5,9 +5,25 @@ import scala.util.Try
 
 object UrlNormalizer:
 
+  // Query params that identify a click/campaign, never page content — safe to
+  // strip so referral variants of the same article collapse to one page.
+  // Compared case-insensitively (keys are lowercased before lookup), so keep
+  // these lowercase. Deliberately excludes ambiguous keys like `ref`/`id`
+  // that some sites use functionally.
   private val TrackingParams: Set[String] = Set(
+    // Google Analytics / GA4 UTM family
     "utm_source", "utm_medium", "utm_campaign", "utm_term", "utm_content",
-    "fbclid", "gclid", "msclkid", "mc_cid", "mc_eid"
+    "utm_id", "utm_source_platform", "utm_creative_format", "utm_marketing_tactic",
+    // Google Ads / DoubleClick click ids (gclid + the newer privacy ones)
+    "gclid", "gclsrc", "dclid", "wbraid", "gbraid", "gad_source",
+    // Meta / Facebook / Instagram
+    "fbclid", "igshid", "igsh",
+    // Microsoft / Bing
+    "msclkid",
+    // TikTok, Twitter/X, Snapchat, Reddit, Yandex
+    "ttclid", "twclid", "sccid", "rdt_cid", "yclid", "_openstat",
+    // Mailchimp, HubSpot, Marketo (email marketing)
+    "mc_cid", "mc_eid", "_hsenc", "_hsmi", "mkt_tok"
   )
 
   def normalize(url: String): String =

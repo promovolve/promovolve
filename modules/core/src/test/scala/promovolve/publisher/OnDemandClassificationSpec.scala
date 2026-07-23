@@ -66,5 +66,29 @@ class OnDemandClassificationSpec extends AnyWordSpec with Matchers {
       val two = UrlNormalizer.normalize("https://blog.example.com/?p=456")
       one should not be two
     }
+
+    "strip every known click/campaign tracker" in {
+      val clean = "https://news.example.com/food/farm-to-table.html"
+      val trackers = Seq(
+        "fbclid=IwY2xjawTN", "gclid=abc", "gclsrc=aw.ds", "dclid=xyz",
+        "wbraid=w1", "gbraid=g1", "gad_source=1", "msclkid=m1",
+        "ttclid=t1", "twclid=tw1", "igshid=ig1", "yclid=y1",
+        "mc_cid=c1", "mc_eid=e1", "_hsenc=h1", "mkt_tok=mt1",
+        "utm_source=fb", "utm_id=42"
+      )
+      trackers.foreach { p =>
+        withClue(s"param $p should be stripped: ") {
+          UrlNormalizer.normalize(s"$clean?$p") shouldBe clean
+        }
+      }
+    }
+
+    "strip trackers but keep a content param alongside them" in {
+      // ?id= is content; ?fbclid= is a Facebook referral tag. Keep the first,
+      // drop the second — so a shared-on-Facebook article is one page.
+      val withTracker = UrlNormalizer.normalize("https://shop.example.com/p?id=99&fbclid=IwABC")
+      val cleanOnly = UrlNormalizer.normalize("https://shop.example.com/p?id=99")
+      withTracker shouldBe cleanOnly
+    }
   }
 }

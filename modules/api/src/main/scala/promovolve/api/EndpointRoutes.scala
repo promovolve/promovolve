@@ -3492,6 +3492,10 @@ class EndpointRoutes(
   private val classifyPageLogic
       : ((String, String, ClassifyPageRequest)) => Future[Either[ErrorResponse, ClassifyPageResponse]] = {
     case (publisherId, siteId, req) =>
+      // Canonical page identity: strip tracking params so referral variants of
+      // one article share a single classification/auction. Used for the
+      // auction trigger, the pending-poll match, and the echoed response.
+      val canonicalUrl = promovolve.browser.UrlNormalizer.normalize(req.url)
       val slots = req.slots.map { s =>
         val sz = AdSize(s.width, s.height)
         // TODO multi-size source — ClassifyPageRequest.slots carries
@@ -3504,9 +3508,9 @@ class EndpointRoutes(
         )
       }.toList
 
-      // Trigger the auction
+      // Trigger the auction on the canonical URL (see canonicalUrl above).
       auctioneerRef(siteId) ! AuctioneerEntity.PageCategoriesClassified(
-        url = URL(req.url),
+        url = URL(canonicalUrl),
         categoryScores = req.categories,
         slots = slots,
         ts = Instant.now()
@@ -3524,7 +3528,7 @@ class EndpointRoutes(
           val pendingF = adServerRef(siteId)
             .ask[AdServer.PendingList](AdServer.ListPending(_))
             .map { pending =>
-              pending.items.exists(item => item.url == req.url && item.slotId == slotId)
+              pending.items.exists(item => item.url == canonicalUrl && item.slotId == slotId)
             }
             .recover { case _ => false }
 
@@ -3548,7 +3552,7 @@ class EndpointRoutes(
 
       pollForCandidates(0).map { status =>
         Right(ClassifyPageResponse(
-          url = req.url,
+          url = canonicalUrl,
           status = status,
           categoriesCount = req.categories.size,
           slotsCount = req.slots.size

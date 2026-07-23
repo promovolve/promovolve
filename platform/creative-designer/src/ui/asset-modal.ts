@@ -18,6 +18,7 @@ interface Asset {
   width?: number;
   height?: number;
   mime?: string;
+  thumbUrl?: string;
 }
 
 interface AssetsResponse {
@@ -187,7 +188,15 @@ function buildModal(): Modal {
     // reserved aspect-ratio box keeps offscreen cards genuinely offscreen.
     img.loading = "lazy";
     img.decoding = "async";
-    img.src = asset.cdnUrl;
+    // Prefer the small thumbnail; fall back to the full image once if it's
+    // missing (older / URL-imported assets have no thumb object yet).
+    const thumb = asset.thumbUrl;
+    if (thumb && thumb !== asset.cdnUrl) {
+      img.src = thumb;
+      img.addEventListener("error", () => { img.src = asset.cdnUrl; }, { once: true });
+    } else {
+      img.src = asset.cdnUrl;
+    }
     img.alt = asset.filename ?? "";
     // Natural aspect ratio — fill the column width, height follows the image.
     img.style.cssText = `width:100%;height:auto;display:block;aspect-ratio:${ratio};object-fit:cover;background:${tokens.ink900};`;

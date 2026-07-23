@@ -903,7 +903,13 @@ class EndpointRoutes(
         id = a.id, filename = a.filename,
         cdnUrl = s"$cdnBaseUrl/$s3Key",
         mime = mime, width = w, height = h,
-        createdAt = a.createdAt.toString
+        createdAt = a.createdAt.toString,
+        // By convention the browser uploads a thumbnail next to the original
+        // at assets/{hash}_thumb.webp. Only meaningful for images; the client
+        // falls back to cdnUrl if the object isn't there (older/URL-imported).
+        thumbUrl =
+          if (mime.startsWith("image/")) Some(s"$cdnBaseUrl/assets/${a.imageHash}_thumb.webp")
+          else None
       )
 
     def buildView(a: promovolve.publisher.AdvertiserAsset): Future[Option[AdvertiserAssetView]] =

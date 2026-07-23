@@ -954,7 +954,13 @@ object ApiModels {
       mime: String,
       width: Int,
       height: Int,
-      createdAt: String
+      createdAt: String,
+      // Convention URL for a small gallery thumbnail (assets/{hash}_thumb.webp),
+      // uploaded browser-side at register time. Best-effort: absent for videos
+      // and for images uploaded before thumbnails existed / via URL import —
+      // the client falls back to cdnUrl when it 404s. Option-with-default keeps
+      // spray's jsonFormatN back-compatible.
+      thumbUrl: Option[String] = None
   )
 
   case class AdvertiserAssetListResponse(

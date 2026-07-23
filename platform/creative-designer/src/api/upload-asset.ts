@@ -17,6 +17,8 @@ export interface UploadedAsset {
   filename?: string;
   width?: number;
   height?: number;
+  mime?: string;
+  thumbUrl?: string;
 }
 
 interface RegisterResponse {
@@ -73,7 +75,66 @@ export async function uploadImageDirect(file: File): Promise<UploadedAsset> {
   if (!registerResp.ok) throw new Error(`register HTTP ${registerResp.status}`);
   const data = (await registerResp.json()) as RegisterResponse;
   if (!data.asset) throw new Error("register response missing asset");
+
+  // Best-effort gallery thumbnail: upload a small WebP next to the original
+  // at assets/{hash}_thumb.webp (the server derives that URL by convention).
+  // Awaited so the returned asset's thumbUrl resolves immediately; any
+  // failure is swallowed — the gallery falls back to the full image.
+  await uploadThumbnail(file, hash).catch((e) =>
+    console.warn("[upload-asset] thumbnail upload failed (non-fatal):", e),
+  );
   return data.asset;
+}
+
+/** Downscale to a gallery thumbnail (long edge ≤ maxEdge) as WebP. Returns
+  * null if the browser can't decode — caller skips the thumb upload. */
+async function makeThumbnail(file: File, maxEdge = 400): Promise<Blob | null> {
+  try {
+    const bitmap = await createImageBitmap(file);
+    const scale = Math.min(1, maxEdge / Math.max(bitmap.width, bitmap.height));
+    const w = Math.max(1, Math.round(bitmap.width * scale));
+    const h = Math.max(1, Math.round(bitmap.height * scale));
+    const canvas = document.createElement("canvas");
+    canvas.width = w;
+    canvas.height = h;
+    const ctx = canvas.getContext("2d");
+    if (!ctx) return null;
+    ctx.drawImage(bitmap, 0, 0, w, h);
+    return await new Promise<Blob | null>((resolve) => canvas.toBlob(resolve, "image/webp", 0.7));
+  } catch {
+    return null;
+  }
+}
+
+/** Upload a thumbnail to the convention key assets/{parentHash}_thumb.webp
+  * via the normal presign→PUT flow (a bare R2 object — no register row, so
+  * no image_asset/advertiser_asset entry). Images only. */
+async function uploadThumbnail(file: File, parentHash: string): Promise<void> {
+  if (!file.type.startsWith("image/")) return;
+  const blob = await makeThumbnail(file);
+  if (!blob) return;
+  const presignResp = await fetch("/advertiser/assets/presigned-upload", {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    // hash = "{parentHash}_thumb" → server key assets/{parentHash}_thumb.webp.
+    body: JSON.stringify({
+      filename: "thumb.webp",
+      mimeType: "image/webp",
+      hash: `${parentHash}_thumb`,
+      sizeBytes: blob.size,
+    }),
+  });
+  if (!presignResp.ok) return;
+  const { uploadUrl, alreadyExists } = (await presignResp.json()) as {
+    uploadUrl: string;
+    alreadyExists: boolean;
+  };
+  if (alreadyExists || !uploadUrl) return;
+  await fetch(uploadUrl, {
+    method: "PUT",
+    body: blob,
+    headers: { "Content-Type": "image/webp" },
+  });
 }
 
 /** Compress then upload an image, returning its CDN URL + the stored

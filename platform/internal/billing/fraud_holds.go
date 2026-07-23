@@ -277,12 +277,12 @@ func (s *Service) ClawbackSettledWindow(ctx context.Context, siteID string, from
 	return clawed, nil
 }
 
-// SuspendedSiteFlag is one fraud flag whose site is currently frozen
-// (status 'open' = auto-suspended awaiting review, or 'confirmed' = fraud
-// upheld and still frozen). 'released' flags are excluded — those sites
-// were resumed. Read straight from the shared fraud_flags table so the
-// Site Requests page can show every currently-suspended site, including
-// confirmed ones that have left the open review queue.
+// SuspendedSiteFlag is one CONFIRMED-fraud flag whose site is still
+// frozen. Open (pending-review) flags are deliberately excluded here —
+// they live on the Fraud Review page as decisions to make, so a site is
+// never listed in two places at once. A confirmed flag that's later
+// resumed becomes 'released' and drops out. Read straight from the shared
+// fraud_flags table.
 type SuspendedSiteFlag struct {
 	FlagID    int64
 	SiteID    string
@@ -290,18 +290,20 @@ type SuspendedSiteFlag struct {
 	Severity  float64
 	WindowDay time.Time
 	Evidence  string
-	Status    string // open | confirmed
+	Status    string // confirmed
 	FlaggedAt time.Time
 }
 
-// ListSuspendedSites returns the flags for every currently-suspended site
-// (status open or confirmed), newest first. A site may appear more than
-// once (multiple signals/days); the caller groups by site.
+// ListSuspendedSites returns the flags for confirmed-fraud sites that are
+// still frozen (status 'confirmed'), newest first — the "manage frozen
+// sites" list on Site Requests. Pending-review (open) flags are handled on
+// Fraud Review, not here. A site may appear more than once (multiple
+// signals/days); the caller groups by site.
 func (s *Service) ListSuspendedSites(ctx context.Context) ([]SuspendedSiteFlag, error) {
 	rows, err := s.pool.Query(ctx, `
 		SELECT id, site_id, signal, severity, window_day, evidence, status, flagged_at
 		FROM fraud_flags
-		WHERE status IN ('open', 'confirmed')
+		WHERE status = 'confirmed'
 		ORDER BY flagged_at DESC`)
 	if err != nil {
 		return nil, err

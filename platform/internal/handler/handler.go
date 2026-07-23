@@ -342,6 +342,8 @@ type pageData struct {
 	AdminSiteRequests []adminSiteRequestRow
 	// Admin fraud-review queue (/admin/fraud)
 	AdminFraudFlags []adminFraudFlagRow
+	// Live per-site suspect-marked traffic today (also /admin/fraud)
+	AdminSuspectSites []adminSuspectSiteRow
 	AdminUsers      []adminUserRow
 	AdminOrgs       []orgAdminRow
 	AdminOrgsNav    *listNav

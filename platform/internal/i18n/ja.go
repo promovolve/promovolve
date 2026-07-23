@@ -46,6 +46,13 @@ var ja = map[string]string{
 	"Confirm fraud & suspend site": "不正を確定してサイトを停止",
 	"Release %s? Marks this flag a false positive and leaves serving untouched.": "%s をリリースしますか?このフラグを誤検知として記録し、配信はそのまま維持します。",
 	"Confirm fraud on %s? Serving on this site stops immediately.":               "%s の不正を確定しますか?このサイトの配信は直ちに停止します。",
+	// Live suspect-activity panel (/admin/fraud)
+	"Live suspect activity (today, UTC)": "不審トラフィックの状況(本日・UTC)",
+	"Hygiene and engagement-guard marks as they land, before any detector flag. Suspect events never earn, bill, or train — a flag appears above only when a site crosses the detector thresholds.": "検出器のフラグが立つ前の、ハイジーン層とエンゲージメントガードによるマークをそのまま表示します。不審イベントは収益・請求・学習のいずれにも計上されず、しきい値を超えたサイトだけが上のキューに現れます。",
+	"No suspect-marked traffic today.": "本日、不審とマークされたトラフィックはありません。",
+	"Suspect events":                   "不審イベント数",
+	"Share of site events":             "サイト全イベントに占める割合",
+	"By reason":                        "理由別",
 	"Team":        "チーム",
 	"Preferences": "環境設定",
 	"Passkeys":    "パスキー",

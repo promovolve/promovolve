@@ -22,6 +22,7 @@
           <div class="flex items-center gap-2 mb-1">
             <h2 class="font-semibold text-lg font-mono">{{.SiteID}}</h2>
             <span class="badge badge-warning">{{.SignalLbl}}</span>
+            {{if .Status}}<span class="badge badge-neutral">{{.Status}}</span>{{end}}
           </div>
           <p class="text-sm text-gray-600">{{.Evidence}}</p>
         </div>
@@ -53,5 +54,37 @@
     </div>
     {{end}}
   </div>
+
+  <h2 class="page-title mt-10">{{t "Live suspect activity (today, UTC)"}}</h2>
+  <p class="page-sub">{{t "Hygiene and engagement-guard marks as they land, before any detector flag. Suspect events never earn, bill, or train — a flag appears above only when a site crosses the detector thresholds."}}</p>
+
+  {{if not .AdminSuspectSites}}
+  <div class="card mt-6 text-center text-gray-500">
+    <p>{{t "No suspect-marked traffic today."}}</p>
+  </div>
+  {{else}}
+  <div class="card mt-6 overflow-x-auto">
+    <table class="w-full text-sm">
+      <thead>
+        <tr class="text-left text-gray-400">
+          <th class="py-2 pr-4">{{t "Site"}}</th>
+          <th class="py-2 pr-4 text-right">{{t "Suspect events"}}</th>
+          <th class="py-2 pr-4 text-right">{{t "Share of site events"}}</th>
+          <th class="py-2">{{t "By reason"}}</th>
+        </tr>
+      </thead>
+      <tbody>
+        {{range .AdminSuspectSites}}
+        <tr class="border-t border-gray-100">
+          <td class="py-2 pr-4 font-mono">{{.SiteID}}</td>
+          <td class="py-2 pr-4 text-right">{{.Suspect}}</td>
+          <td class="py-2 pr-4 text-right">{{.SharePct}}%</td>
+          <td class="py-2 font-mono text-xs text-gray-600">{{.Breakdown}}</td>
+        </tr>
+        {{end}}
+      </tbody>
+    </table>
+  </div>
+  {{end}}
 </div>
 {{end}}

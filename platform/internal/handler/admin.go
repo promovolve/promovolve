@@ -6,6 +6,7 @@ import (
 	"log/slog"
 	"net/http"
 	"net/mail"
+	"sort"
 	"strconv"
 	"strings"
 	"time"
@@ -162,6 +163,23 @@ type adminFraudFlagRow struct {
 	WindowDay string
 	Evidence  string
 	FlaggedAt string
+	// Status is "" for open flags (the only ones core lists today);
+	// rendered as a badge only when non-open, so a future core change
+	// that returns resolved rows is visible instead of silently blending
+	// in with the open queue.
+	Status string
+}
+
+// adminSuspectSiteRow is one site's live suspect-marked traffic for the
+// current UTC day on /admin/fraud — the Layer-0/1 hygiene and
+// engagement-guard marks as they land, before (and whether or not) the
+// Layer-2 detector trips a flag.
+type adminSuspectSiteRow struct {
+	SiteID    string
+	Total     int64  // all events today, clean + suspect
+	Suspect   int64  // suspect-marked events today
+	SharePct  string // suspect/total, formatted percent
+	Breakdown string // "bot_ua 120 / chain 40 / timing 12"
 }
 
 // fraudSignalLabel gives the operator a plain-English name for a signal id.
@@ -199,6 +217,10 @@ func (h *Handler) renderAdminFraudFlags(w http.ResponseWriter, r *http.Request, 
 		if t, perr := time.Parse(time.RFC3339, f.FlaggedAt); perr == nil {
 			flaggedAt = t.In(user.Location()).Format("2006-01-02 15:04")
 		}
+		status := f.Status
+		if status == "open" {
+			status = "" // the queue IS the open list; only surprises get a badge
+		}
 		rows = append(rows, adminFraudFlagRow{
 			ID:        f.ID,
 			SiteID:    f.SiteID,
@@ -208,15 +230,74 @@ func (h *Handler) renderAdminFraudFlags(w http.ResponseWriter, r *http.Request, 
 			WindowDay: f.WindowDay,
 			Evidence:  f.Evidence,
 			FlaggedAt: flaggedAt,
+			Status:    status,
 		})
 	}
 	h.render(w, r, "admin/fraud.html", pageData{
-		Title:           "Fraud Review",
-		Nav:             "admin-fraud",
-		User:            user,
-		Error:           errMsg,
-		AdminFraudFlags: rows,
+		Title:             "Fraud Review",
+		Nav:               "admin-fraud",
+		User:              user,
+		Error:             errMsg,
+		AdminFraudFlags:   rows,
+		AdminSuspectSites: h.suspectActivityRows(r.Context()),
 	})
+}
+
+// suspectActivityRows aggregates today's live suspect counts per site for
+// the /admin/fraud panel. Best-effort: on error it logs and returns nil —
+// the flag queue must render even if the activity query fails.
+func (h *Handler) suspectActivityRows(ctx context.Context) []adminSuspectSiteRow {
+	activity, err := h.billingSvc.SuspectActivityToday(ctx)
+	if err != nil {
+		slog.Error("suspect activity query failed", "error", err)
+		return nil
+	}
+	type agg struct {
+		total, suspect int64
+		byReason       map[string]int64
+	}
+	sites := map[string]*agg{}
+	for _, row := range activity {
+		a := sites[row.SiteID]
+		if a == nil {
+			a = &agg{byReason: map[string]int64{}}
+			sites[row.SiteID] = a
+		}
+		a.total += row.Count
+		if row.Reason != "clean" {
+			a.suspect += row.Count
+			a.byReason[row.Reason] += row.Count
+		}
+	}
+	out := make([]adminSuspectSiteRow, 0, len(sites))
+	for siteID, a := range sites {
+		if a.suspect == 0 {
+			continue // clean sites don't belong on a fraud page
+		}
+		reasons := make([]string, 0, len(a.byReason))
+		for reason := range a.byReason {
+			reasons = append(reasons, reason)
+		}
+		sort.Slice(reasons, func(i, j int) bool {
+			if a.byReason[reasons[i]] != a.byReason[reasons[j]] {
+				return a.byReason[reasons[i]] > a.byReason[reasons[j]]
+			}
+			return reasons[i] < reasons[j]
+		})
+		parts := make([]string, 0, len(reasons))
+		for _, reason := range reasons {
+			parts = append(parts, fmt.Sprintf("%s %d", reason, a.byReason[reason]))
+		}
+		out = append(out, adminSuspectSiteRow{
+			SiteID:    siteID,
+			Total:     a.total,
+			Suspect:   a.suspect,
+			SharePct:  fmt.Sprintf("%.1f", 100*float64(a.suspect)/float64(a.total)),
+			Breakdown: strings.Join(parts, " / "),
+		})
+	}
+	sort.Slice(out, func(i, j int) bool { return out[i].Suspect > out[j].Suspect })
+	return out
 }
 
 // FraudFlagDecision handles release (false positive) and confirm (real

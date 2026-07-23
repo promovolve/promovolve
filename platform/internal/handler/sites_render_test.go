@@ -59,6 +59,14 @@ func TestSitesAndCreativesTemplatesRender(t *testing.T) {
 				SignalLbl: "Impressions without pageviews", Severity: "7.2",
 				WindowDay: "2026-07-22", Evidence: "imp/pageview 25.0 is z=7.2 above the site's own median (2.5)",
 				FlaggedAt: "2026-07-22 09:00",
+				// Non-open status renders the defensive badge branch.
+				Status: "released",
+			}},
+			// Live suspect-activity panel with rows — proves the table
+			// branch renders (the all-pages smoke covers the empty state).
+			AdminSuspectSites: []adminSuspectSiteRow{{
+				SiteID: "shady-example-com", Total: 3400, Suspect: 1250,
+				SharePct: "36.8", Breakdown: "bot_ua 900 / chain 250 / timing 100",
 			}},
 		}},
 		{"advertiser/campaigns.html", pageData{

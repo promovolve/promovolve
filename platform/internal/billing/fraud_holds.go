@@ -276,3 +276,40 @@ func (s *Service) ClawbackSettledWindow(ctx context.Context, siteID string, from
 	}
 	return clawed, nil
 }
+
+// SuspectActivityRow is one (site, reason) event count for the current
+// UTC day. Reason "clean" = events with no suspect mark; the rest use the
+// core's suspect_reason vocabulary (bot_ua, chain, timing, rate_cap,
+// datacenter_asn).
+type SuspectActivityRow struct {
+	SiteID string
+	Reason string
+	Count  int64
+}
+
+// SuspectActivityToday reads today's per-site tracking-event counts
+// grouped by suspect reason — the live Layer-0/1 view an operator sees
+// BEFORE any Layer-2 flag trips. Clean traffic is included so callers can
+// compute each site's suspect share. UTC day buckets, matching the
+// detector's windows. Suspect events never reach the dashboard rollups
+// (the projection drops them), so this reads tracking_events directly.
+func (s *Service) SuspectActivityToday(ctx context.Context) ([]SuspectActivityRow, error) {
+	rows, err := s.pool.Query(ctx, `
+		SELECT site_id, COALESCE(suspect_reason, 'clean') AS reason, COUNT(*)::bigint
+		FROM tracking_events
+		WHERE event_time >= date_trunc('day', now() AT TIME ZONE 'utc') AT TIME ZONE 'utc'
+		GROUP BY site_id, COALESCE(suspect_reason, 'clean')`)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	var out []SuspectActivityRow
+	for rows.Next() {
+		var r SuspectActivityRow
+		if err := rows.Scan(&r.SiteID, &r.Reason, &r.Count); err != nil {
+			return nil, err
+		}
+		out = append(out, r)
+	}
+	return out, rows.Err()
+}

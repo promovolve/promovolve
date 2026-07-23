@@ -83,6 +83,14 @@ object Main {
             proxies.geminiRateLimiter, proxies.browserPool)
         }
 
+      // Fraud Layer-2 detector: singleton-role nodes WITHOUT the api role
+      // never run HttpBootstrap (where api nodes register this manager),
+      // so they must register it here — the manager has to exist on every
+      // singleton-role node or the singleton strands when such a node is
+      // oldest (bit the dedicated singleton tier 2026-07-23).
+      if (roles.contains("singleton") && !roles.contains("api"))
+        promovolve.api.fraud.FraudDetector.initFromConfig(system, config)
+
       // Content crawling has been removed — pages are classified on-demand from
       // real traffic (serve -> /v1/classify-page). The crawler-tier browser pool
       // remains, used only by the LP analysis worker below.

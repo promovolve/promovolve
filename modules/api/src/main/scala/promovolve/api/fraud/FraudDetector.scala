@@ -41,6 +41,38 @@ object FraudDetector {
         .withSettings(ClusterSingletonSettings(system).withRole("singleton"))
     )
 
+  /**
+   * Self-contained registration for nodes that don't run HttpBootstrap
+   * (the dedicated singleton tier). The singleton MANAGER must be
+   * registered on EVERY node carrying the "singleton" role: the actor
+   * runs only on the oldest such node, and if that node never
+   * registered the manager the singleton is stranded cluster-wide —
+   * younger managers wait on the oldest forever. That's exactly what
+   * happened when the singleton tier came up 2026-07-23: registration
+   * lived only in HttpBootstrap (api nodes), so the moment the api-less
+   * singleton pod became oldest, the detector silently stopped.
+   * Builds its own dashboard-DB pool, so api nodes (which already hold
+   * one for routes) should keep using the HttpBootstrap path instead.
+   */
+  def initFromConfig(system: ActorSystem[?], config: com.typesafe.config.Config): Unit = {
+    val appConfig = config.getConfig("promovolve")
+    if (scala.util.Try(appConfig.getBoolean("fraud.detector.enabled")).getOrElse(false)) {
+      scala.util.Try(
+        slick.basic.DatabaseConfig.forConfig[slick.jdbc.PostgresProfile]("dashboard-projection-db", config)
+      ).toOption match {
+        case Some(dbCfg) =>
+          val fdb = dbCfg.db.asInstanceOf[slick.jdbc.PostgresProfile.backend.Database]
+          val repo = new FraudFlagRepo(fdb)(using system.executionContext)
+          val intervalSec =
+            scala.util.Try(appConfig.getInt("fraud.detector.interval-seconds")).getOrElse(3600)
+          init(system, repo, Config(interval = intervalSec.seconds))
+          system.log.info("FraudDetector enabled (Layer 2, every {}s)", intervalSec: Integer)
+        case None =>
+          system.log.warn("fraud.detector.enabled=true but no dashboard DB — detector NOT started on this node")
+      }
+    }
+  }
+
   def apply(repo: FraudFlagRepo, config: Config): Behavior[Command] =
     Behaviors.setup { ctx =>
       Behaviors.withTimers { timers =>

@@ -17,6 +17,7 @@ interface Asset {
   filename?: string;
   width?: number;
   height?: number;
+  mime?: string;
 }
 
 interface AssetsResponse {
@@ -227,7 +228,12 @@ function buildModal(): Modal {
       const resp = await fetch(`/advertiser/assets?${params.toString()}`);
       if (!resp.ok) throw new Error(`HTTP ${resp.status}`);
       const data = (await resp.json()) as AssetsResponse;
-      const page = Array.isArray(data.assets) ? data.assets : [];
+      const rawPage = Array.isArray(data.assets) ? data.assets : [];
+      // This is the image library — every caller (main image, logo, texture,
+      // image element) wants a picture. Videos live in the same asset store
+      // (page-background video uploads) but must never be pickable here, so
+      // drop non-image mimes. Undefined mime = legacy image row, kept.
+      const page = rawPage.filter((a) => !a.mime || a.mime.startsWith("image/"));
       nextCursor = data.nextCursor ?? null;
       assets.push(...page);
       for (const asset of page) grid.appendChild(card(asset));

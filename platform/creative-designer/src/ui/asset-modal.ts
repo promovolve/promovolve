@@ -150,13 +150,25 @@ function buildModal(): Modal {
   };
 
   const card = (asset: Asset): HTMLElement => {
+    // Reserve each card's height up front (from the asset's known dimensions,
+    // else a 3:2 default) so the grid has real layout height BEFORE any image
+    // loads. Without this the height:auto imgs collapse to ~0, the whole grid
+    // sits inside the viewport, and `loading=lazy` defers nothing — every
+    // full-resolution original downloads and decodes at once, blowing up
+    // bitmap memory and crashing the tab on large libraries. `content-
+    // visibility:auto` additionally skips rendering work for offscreen cards.
+    const ratio = asset.width && asset.height ? `${asset.width} / ${asset.height}` : "3 / 2";
     const c = document.createElement("div");
-    c.style.cssText = `position:relative;background:${tokens.ink900};border:1px solid ${tokens.ink500};border-radius:4px;overflow:hidden;cursor:pointer;`;
+    c.style.cssText = `position:relative;background:${tokens.ink900};border:1px solid ${tokens.ink500};border-radius:4px;overflow:hidden;cursor:pointer;content-visibility:auto;contain-intrinsic-size:auto 150px;`;
     const img = document.createElement("img");
+    // lazy + async so only images scrolled into view fetch/decode; the
+    // reserved aspect-ratio box keeps offscreen cards genuinely offscreen.
+    img.loading = "lazy";
+    img.decoding = "async";
     img.src = asset.cdnUrl;
     img.alt = asset.filename ?? "";
     // Natural aspect ratio — fill the column width, height follows the image.
-    img.style.cssText = "width:100%;height:auto;display:block;";
+    img.style.cssText = `width:100%;height:auto;display:block;aspect-ratio:${ratio};object-fit:cover;background:${tokens.ink900};`;
     const fn = document.createElement("div");
     fn.textContent = asset.filename ?? "(unnamed)";
     fn.style.cssText = `position:absolute;left:0;right:0;bottom:0;background:rgba(0,0,0,0.7);color:${tokens.ink100};padding:4px 8px;font-size:11px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;`;

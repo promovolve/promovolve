@@ -58,22 +58,24 @@ final case class PacingContext(
    * so being "on pace" means matching the traffic-weighted target, not linear time.
    */
   def spendRatio: Double = {
-    val expected = expectedSpend
-    // Negligible-target floor: right after a budget-day rollover the
-    // traffic-shape expected spend can be micro-dollars (the learned shape
-    // has ~no traffic in the small hours), and dividing a few cents of real
-    // spend by it produced six-figure ratios that pinned the PI throttle at
-    // 100% — ads died at local midnight every night until the shape accrued
-    // (live 2026-07-24). Treat any target below 0.1% of the daily budget
-    // (min 1¢) exactly like the zero case: bounded 1.0/2.0, never explosive.
-    val negligible = (dailyBudget * 0.001).max(BigDecimal(0.01))
-    if (expected <= negligible) {
-      // - At/below the (tiny) target: on pace (1.0)
-      // - Spent past a negligible target: mildly ahead (cap at 2.0)
-      if (todaySpend <= expected || todaySpend <= 0) 1.0 else 2.0
-    } else {
-      (todaySpend / expected).toDouble
-    }
+    // Regularized ratio: floor the DENOMINATOR at a small absolute slack
+    // (1% of the daily budget, min 1¢) instead of letting a near-zero
+    // traffic-shape target blow the ratio up. Right after a budget-day
+    // rollover the shape-based expected spend is micro-dollars (the learned
+    // shape has ~no small-hours traffic); dividing a few cents of real spend
+    // by it produced six-figure ratios (492570 observed live 2026-07-24),
+    // error = 1-ratio saturated the PI, and ads died at local midnight every
+    // night until the shape accrued. Capping the RATIO instead is equally
+    // wrong — 2.0 still reads as hard over-pace and winds the integral up.
+    // With the slack floor, a trickle against a sleeping shape reads as
+    // UNDER-paced (serve), overnight spend beyond the slack throttles
+    // gently, and the floor is inert once the day's expected spend passes
+    // 1% of budget — mid-day pacing is untouched.
+    val slack = (dailyBudget * 0.01).max(BigDecimal(0.01))
+    val denominator = expectedSpend.max(slack)
+    if (todaySpend <= 0) {
+      if (expectedSpend <= 0) 1.0 else 0.0 // nothing spent: at/below pace
+    } else (todaySpend / denominator).toDouble
   }
 
   /** Expected spend based on traffic shape (or linear if unavailable) */

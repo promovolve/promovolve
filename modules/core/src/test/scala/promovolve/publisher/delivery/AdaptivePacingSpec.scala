@@ -156,18 +156,22 @@ class AdaptivePacingSpec extends AnyFlatSpec with Matchers {
     c.remainingHours shouldBe 18.0 +- 0.01
   }
 
-  it should "cap the spend ratio when the shape-based expected spend is negligible" in {
+  it should "read a trickle against a sleeping traffic shape as UNDER-paced (slack floor)" in {
     // Just after local midnight the traffic-shape expected spend can be
     // micro-dollars (the learned shape has ~no small-hours traffic). A few
     // cents of real spend divided by that produced six-figure ratios that
     // pinned the PI throttle at 100% — ads died at midnight nightly until
-    // the shape accrued (live 2026-07-24). A negligible target must behave
-    // like the zero case: bounded at 2.0, never explosive.
+    // the shape accrued (live 2026-07-24). The denominator is floored at 1%
+    // of daily budget, so cents of spend read as under-paced (serve), and
+    // only spend approaching the slack throttles.
     val c = ctx(hour = 1, spend = 0.04).copy(expectedSpendOverride = Some(BigDecimal("0.00000008")))
-    c.spendRatio shouldBe 2.0 +- 0.001
-    // And with no spend at all, on-pace.
+    c.spendRatio shouldBe 0.04 +- 0.001 // 0.04 / max(8e-8, 1% of $100) = 0.04/1.00
+    // Spend at the slack boundary reads as on-pace, not explosive.
+    val atSlack = ctx(hour = 1, spend = 1.0).copy(expectedSpendOverride = Some(BigDecimal("0.00000008")))
+    atSlack.spendRatio shouldBe 1.0 +- 0.001
+    // No spend at all: at/under pace, never throttled.
     val quiet = ctx(hour = 1, spend = 0).copy(expectedSpendOverride = Some(BigDecimal("0.00000008")))
-    quiet.spendRatio shouldBe 1.0 +- 0.001
+    quiet.spendRatio shouldBe 0.0 +- 0.001
   }
 
   it should "calculate spend ratio correctly" in {

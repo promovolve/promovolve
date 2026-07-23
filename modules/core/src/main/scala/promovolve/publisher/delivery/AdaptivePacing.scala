@@ -469,8 +469,14 @@ class RateAwarePacing(
       // Update state for next call
       lastTimestamp = Some(now)
 
-      // Clamp to valid probability range [0, 1]
-      math.max(0.0, math.min(1.0, adjustedThrottle))
+      // Output tolerance: normal PI control caps at MaxThrottleProb (0.99),
+      // honoring the contract documented on that constant — a true 1.0
+      // (serve NOTHING) is reserved for the hard stops at the top of this
+      // method (budget exhausted / day over). Clamping at 1.0 here let a
+      // wrong feedback signal (the exploded midnight spendRatio,
+      // 2026-07-24) black the site out completely instead of leaving the
+      // 1-in-100 trickle that keeps delivery observable and self-correcting.
+      math.max(0.0, math.min(PacingStrategy.MaxThrottleProb, adjustedThrottle))
     }
   }
 

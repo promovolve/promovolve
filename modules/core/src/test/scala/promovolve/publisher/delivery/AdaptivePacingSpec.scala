@@ -156,6 +156,21 @@ class AdaptivePacingSpec extends AnyFlatSpec with Matchers {
     c.remainingHours shouldBe 18.0 +- 0.01
   }
 
+  it should "never fully zero the site from PI control (output tolerance)" in {
+    // MaxThrottleProb's contract: a true 1.0 (serve NOTHING) is reserved for
+    // hard stops (budget exhausted / day over). PI control under even a
+    // wildly wrong feedback signal must leave the 1-in-100 trickle — that
+    // difference is 'barely-noticeable dip' vs the 2026-07-24 total
+    // blackout. Drive the controller with an absurd over-pace signal and
+    // assert the cap holds.
+    val strategy = AdaptivePacing()
+    val wild = ctx(hour = 1, spend = 99.0).copy(expectedSpendOverride = Some(BigDecimal(1.0)))
+    var p = 0.0
+    (1 to 25).foreach(_ => p = strategy.throttleProbability(wild)) // let the integral wind
+    p should be <= PacingStrategy.MaxThrottleProb
+    p should be > 0.5 // it IS heavily throttled — just never a full stop
+  }
+
   it should "read a trickle against a sleeping traffic shape as UNDER-paced (slack floor)" in {
     // Just after local midnight the traffic-shape expected spend can be
     // micro-dollars (the learned shape has ~no small-hours traffic). A few

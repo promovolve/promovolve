@@ -292,6 +292,15 @@ func (c *HTTPCoreClient) SuspendSite(ctx context.Context, siteID string) error {
 	return err
 }
 
+// ResumeSite un-freezes serving on one site — the counterpart to
+// SuspendSite. Used to reverse a fraud auto-suspension (false positive):
+// the detector freezes a site the moment it flags fraud, and this restores
+// serving once an operator clears it.
+func (c *HTTPCoreClient) ResumeSite(ctx context.Context, siteID string) error {
+	_, err := c.do(ctx, http.MethodPost, fmt.Sprintf("%s/v1/internal/sites/%s/resume", c.BaseURL, siteID))
+	return err
+}
+
 func (c *HTTPCoreClient) do(ctx context.Context, method, url string) ([]byte, error) {
 	return c.doJSON(ctx, method, url, nil)
 }

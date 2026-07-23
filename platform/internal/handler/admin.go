@@ -182,6 +182,18 @@ type adminSuspectSiteRow struct {
 	Breakdown string // "bot_ua 120 / chain 40 / timing 12"
 }
 
+// adminSuspendedSiteRow is one site the fraud detector auto-suspended,
+// shown on /admin/sites for the operator to resume (false positive) or
+// review in the fraud queue.
+type adminSuspendedSiteRow struct {
+	FlagID    int64
+	SiteID    string
+	SignalLbl string
+	Evidence  string
+	WindowDay string
+	FlaggedAt string
+}
+
 // fraudSignalLabel gives the operator a plain-English name for a signal id.
 func fraudSignalLabel(signal string) string {
 	switch signal {
@@ -330,13 +342,26 @@ func (h *Handler) FraudFlagDecision(action string) http.HandlerFunc {
 			return
 		}
 		if action == "confirm" && siteID != "" {
-			// Enforcement: stop serving on the one fraudulent site. A
-			// failure here is logged but the flag stays confirmed — the
-			// operator can retry the suspend from the sites admin.
+			// Enforcement: keep the one fraudulent site frozen. The detector
+			// already auto-suspended it when the flag fired, so this is
+			// normally a no-op reassertion (idempotent) — it also covers the
+			// case where that auto-suspend delivery was lost. A failure here
+			// is logged but the flag stays confirmed.
 			if err := h.orgCore.SuspendSite(r.Context(), siteID); err != nil {
 				slog.Error("suspend site after fraud confirm failed", "siteId", siteID, "error", err)
 				h.renderAdminFraudFlags(w, r,
 					fmt.Sprintf("flag confirmed, but suspending %s failed: %v — retry from Sites", siteID, err))
+				return
+			}
+		}
+		if action == "release" && siteID != "" {
+			// False positive: undo the detector's auto-suspend so the site
+			// serves again. (The flag is now 'released', so the detector
+			// won't re-suspend it for the same day.)
+			if err := h.orgCore.ResumeSite(r.Context(), siteID); err != nil {
+				slog.Error("resume site after fraud release failed", "siteId", siteID, "error", err)
+				h.renderAdminFraudFlags(w, r,
+					fmt.Sprintf("flag released, but resuming %s failed: %v — retry from Sites", siteID, err))
 				return
 			}
 		}
@@ -451,12 +476,42 @@ func (h *Handler) renderAdminSiteRequests(w http.ResponseWriter, r *http.Request
 		})
 	}
 	h.render(w, r, "admin/sites.html", pageData{
-		Title:             "Site Requests",
-		Nav:               "admin-sites",
-		User:              user,
-		Error:             errMsg,
-		AdminSiteRequests: rows,
+		Title:               "Site Requests",
+		Nav:                 "admin-sites",
+		User:                user,
+		Error:               errMsg,
+		AdminSiteRequests:   rows,
+		AdminSuspendedSites: h.suspendedSiteRows(r.Context(), user),
 	})
+}
+
+// suspendedSiteRows lists sites the fraud detector auto-suspended and that
+// are awaiting an operator decision. An open flag == an auto-suspended site
+// pending review (the detector freezes serving the moment it flags), so we
+// derive the list straight from the open flags. Best-effort: on error it
+// logs and returns nil so the site-request queue still renders.
+func (h *Handler) suspendedSiteRows(ctx context.Context, user *model.User) []adminSuspendedSiteRow {
+	flags, err := h.orgCore.ListFraudFlags(ctx)
+	if err != nil {
+		slog.Error("list fraud flags for suspended sites failed", "error", err)
+		return nil
+	}
+	rows := make([]adminSuspendedSiteRow, 0, len(flags))
+	for _, f := range flags {
+		flaggedAt := f.FlaggedAt
+		if t, perr := time.Parse(time.RFC3339, f.FlaggedAt); perr == nil {
+			flaggedAt = t.In(user.Location()).Format("2006-01-02 15:04")
+		}
+		rows = append(rows, adminSuspendedSiteRow{
+			FlagID:    f.ID,
+			SiteID:    f.SiteID,
+			SignalLbl: fraudSignalLabel(f.Signal),
+			Evidence:  f.Evidence,
+			WindowDay: f.WindowDay,
+			FlaggedAt: flaggedAt,
+		})
+	}
+	return rows
 }
 
 // SiteRequestDecision handles both approve and reject POSTs. Approval
@@ -489,6 +544,52 @@ func (h *Handler) SiteRequestDecision(action string) http.HandlerFunc {
 		}
 		http.Redirect(w, r, "/admin/sites", http.StatusSeeOther)
 	}
+}
+
+// ResumeSuspendedSite reinstates a fraud-auto-suspended site from the Site
+// Requests page — the "false positive" path. It resolves the flag as
+// released, un-freezes serving, and pays out any held earnings (a false
+// positive earned normally), then returns to /admin/sites. Mirrors the
+// fraud-page Release action but keeps the operator in the sites context.
+func (h *Handler) ResumeSuspendedSite(w http.ResponseWriter, r *http.Request) {
+	admin, _, ok := h.requireRole(w, r, model.RoleAdmin)
+	if !ok {
+		return
+	}
+	r.ParseForm()
+	siteID := r.FormValue("siteId")
+	windowDay := r.FormValue("windowDay")
+	if siteID == "" {
+		h.renderAdminSiteRequests(w, r, "missing site id")
+		return
+	}
+	// Release the flag (false positive) if we have its id, so the detector
+	// won't re-suspend the site for the same day.
+	if idStr := r.FormValue("flagId"); idStr != "" {
+		if id, perr := strconv.ParseInt(idStr, 10, 64); perr == nil {
+			if err := h.orgCore.ResolveFraudFlag(r.Context(), id, "released", admin.Email); err != nil {
+				slog.Error("resolve fraud flag on site resume failed", "flagId", id, "error", err)
+				h.renderAdminSiteRequests(w, r, fmt.Sprintf("could not release the flag: %v", err))
+				return
+			}
+		}
+	}
+	if err := h.orgCore.ResumeSite(r.Context(), siteID); err != nil {
+		slog.Error("resume suspended site failed", "siteId", siteID, "error", err)
+		h.renderAdminSiteRequests(w, r, fmt.Sprintf("could not resume %s: %v", siteID, err))
+		return
+	}
+	// False positive → pay out any held earnings, same as fraud-page Release.
+	if h.billingSvc != nil {
+		if msg := h.resolveFraudMoney(r.Context(), "release", siteID, windowDay, admin.Email); msg != "" {
+			h.renderAdminSiteRequests(w, r, msg)
+			return
+		}
+	}
+	if h.auditRepo != nil {
+		h.auditRepo.Log(r.Context(), admin.ID, admin.Email, "", "fraud_site_resume", siteID, r.FormValue("flagId"))
+	}
+	http.Redirect(w, r, "/admin/sites", http.StatusSeeOther)
 }
 
 func (h *Handler) AdminUsers(w http.ResponseWriter, r *http.Request) {

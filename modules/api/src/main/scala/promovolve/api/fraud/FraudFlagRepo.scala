@@ -62,22 +62,29 @@ final class FraudFlagRepo(db: slick.jdbc.PostgresProfile.backend.Database)(using
    * Persist flags idempotently: one row per (site, signal, day), each
    * carrying its own site's latest day. A re-run refreshes
    * severity/evidence on still-open rows and never re-opens a resolved
-   * one. Returns the number of rows inserted/updated.
+   * one. Returns the DISTINCT site ids whose flag was NEWLY created this
+   * run (`xmax = 0` ⇒ inserted, not updated) — the caller auto-suspends
+   * exactly those. A refresh of an already-open flag, or a conflict on a
+   * released/confirmed row (the WHERE blocks the update, so RETURNING is
+   * empty), yields nothing here — so a resumed site is never re-suspended
+   * for the same day.
    */
-  def upsertFlags(flags: Vector[(FraudDetection.Flag, LocalDate)]): Future[Int] =
-    if (flags.isEmpty) Future.successful(0)
+  def upsertFlags(flags: Vector[(FraudDetection.Flag, LocalDate)]): Future[Vector[String]] =
+    if (flags.isEmpty) Future.successful(Vector.empty)
     else {
       val actions = flags.map { case (f, day) =>
         val sqlDay = java.sql.Date.valueOf(day)
-        sqlu"""
+        sql"""
           INSERT INTO fraud_flags (site_id, signal, severity, window_day, evidence)
           VALUES (${f.siteId}, ${f.signal}, ${f.severity}, $sqlDay, ${f.evidence})
           ON CONFLICT (site_id, signal, window_day) DO UPDATE
             SET severity = EXCLUDED.severity, evidence = EXCLUDED.evidence
             WHERE fraud_flags.status = 'open'
-        """
+          RETURNING site_id, (xmax = 0) AS inserted
+        """.as[(String, Boolean)].headOption
       }
-      db.run(DBIO.sequence(actions).transactionally).map(_.sum)
+      db.run(DBIO.sequence(actions).transactionally)
+        .map(_.flatten.collect { case (site, inserted) if inserted => site }.distinct)
     }
 
   /**

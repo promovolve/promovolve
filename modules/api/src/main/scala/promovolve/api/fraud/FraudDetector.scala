@@ -35,11 +35,38 @@ object FraudDetector {
    * Init as a cluster singleton on the singleton role. No-op-safe: if
    * the dashboard DB isn't configured the caller passes None and skips.
    */
-  def init(system: ActorSystem[?], repo: FraudFlagRepo, config: Config): ActorRef[Command] =
+  /**
+   * @param suspend fired once per site whose flag was NEWLY created this
+   *                run — Layer-3 auto-enforcement: freeze serving the
+   *                moment fraud is detected (reversible). The irreversible
+   *                money clawback stays a human decision (admin Confirm).
+   */
+  def init(
+      system: ActorSystem[?],
+      repo: FraudFlagRepo,
+      config: Config,
+      suspend: String => Unit): ActorRef[Command] =
     ClusterSingleton(system).init(
-      SingletonActor(apply(repo, config), "fraud-detector")
+      SingletonActor(apply(repo, config, suspend), "fraud-detector")
         .withSettings(ClusterSingletonSettings(system).withRole("singleton"))
     )
+
+  /**
+   * Build the auto-suspend callback: tell the site's entity to freeze
+   * serving. Fire-and-forget (ignoreRef) — the detector doesn't await
+   * the ack; the next tick re-issues for any still-flagged site if a
+   * delivery is lost. Shared by both bootstrap paths.
+   */
+  def suspendViaSharding(system: ActorSystem[?]): String => Unit = {
+    import org.apache.pekko.cluster.sharding.typed.scaladsl.ClusterSharding
+    val sharding = ClusterSharding(system)
+    siteId =>
+      sharding
+        .entityRefFor(promovolve.publisher.SiteEntity.TypeKey, siteId)
+        .tell(promovolve.publisher.SiteEntity.SetSuspended(
+          true,
+          system.ignoreRef[promovolve.publisher.SiteEntity.SiteSuspendedUpdated]))
+  }
 
   /**
    * Self-contained registration for nodes that don't run HttpBootstrap
@@ -65,7 +92,7 @@ object FraudDetector {
           val repo = new FraudFlagRepo(fdb)(using system.executionContext)
           val intervalSec =
             scala.util.Try(appConfig.getInt("fraud.detector.interval-seconds")).getOrElse(3600)
-          init(system, repo, Config(interval = intervalSec.seconds))
+          init(system, repo, Config(interval = intervalSec.seconds), suspendViaSharding(system))
           system.log.info("FraudDetector enabled (Layer 2, every {}s)", intervalSec: Integer)
         case None =>
           system.log.warn("fraud.detector.enabled=true but no dashboard DB — detector NOT started on this node")
@@ -73,7 +100,7 @@ object FraudDetector {
     }
   }
 
-  def apply(repo: FraudFlagRepo, config: Config): Behavior[Command] =
+  def apply(repo: FraudFlagRepo, config: Config, suspend: String => Unit): Behavior[Command] =
     Behaviors.setup { ctx =>
       Behaviors.withTimers { timers =>
         // A short initial delay lets the node finish joining before the
@@ -81,7 +108,7 @@ object FraudDetector {
         timers.startTimerAtFixedRate(Tick, 2.minutes, config.interval)
         ctx.log.info("FraudDetector singleton started (window={}d, every={})",
           config.windowDays, config.interval)
-        running(ctx, repo, config, inFlight = false)
+        running(ctx, repo, config, suspend, inFlight = false)
       }
     }
 
@@ -89,6 +116,7 @@ object FraudDetector {
       ctx: ActorContext[Command],
       repo: FraudFlagRepo,
       config: Config,
+      suspend: String => Unit,
       inFlight: Boolean
   ): Behavior[Command] =
     Behaviors.receiveMessage {
@@ -98,29 +126,46 @@ object FraudDetector {
           ctx.log.warn("FraudDetector: previous run still in flight, skipping tick")
           Behaviors.same
         } else {
-          runOnce(ctx, repo, config)
-          running(ctx, repo, config, inFlight = true)
+          runOnce(ctx, repo, config, suspend)
+          running(ctx, repo, config, suspend, inFlight = true)
         }
 
       case RunComplete(flags, sites) =>
-        if (flags > 0) ctx.log.info("FraudDetector: {} flag(s) across {} sites", flags, sites)
+        if (flags > 0) ctx.log.info("FraudDetector: {} site(s) newly flagged + auto-suspended ({} scanned)",
+          flags, sites)
         else ctx.log.debug("FraudDetector: clean sweep ({} sites)", sites)
-        running(ctx, repo, config, inFlight = false)
+        running(ctx, repo, config, suspend, inFlight = false)
 
       case RunFailed(err) =>
         ctx.log.warn("FraudDetector run failed (will retry next tick): {}", err.toString)
-        running(ctx, repo, config, inFlight = false)
+        running(ctx, repo, config, suspend, inFlight = false)
     }
 
-  private def runOnce(ctx: ActorContext[Command], repo: FraudFlagRepo, config: Config): Unit = {
+  private def runOnce(
+      ctx: ActorContext[Command],
+      repo: FraudFlagRepo,
+      config: Config,
+      suspend: String => Unit): Unit = {
     given ec: scala.concurrent.ExecutionContext = ctx.system.executionContext
+    // Capture the logger (thread-safe) so the Future callback never touches
+    // the ActorContext off the actor thread (Pekko Future discipline).
+    val log = ctx.log
     val f = for {
       events <- repo.loadEventDays(config.windowDays)
       pvs <- repo.loadPageviews(config.windowDays)
       metrics = FraudDetection.assembleMetrics(events, pvs)
       flagged = metrics.flatMap(m => FraudDetection.evaluate(m, config.detection).map(_ -> m.latestDay))
-      written <- repo.upsertFlags(flagged)
-    } yield (written, metrics.size)
+      newlyFlagged <- repo.upsertFlags(flagged)
+    } yield {
+      // Layer-3 auto-enforcement: freeze serving on newly-flagged sites
+      // (reversible; the money clawback stays a human Confirm). `suspend`
+      // only closes over ClusterSharding, not the ActorContext.
+      newlyFlagged.foreach { siteId =>
+        log.warn("FraudDetector: auto-suspending {} — new fraud flag", siteId)
+        suspend(siteId)
+      }
+      (newlyFlagged.size, metrics.size)
+    }
     ctx.pipeToSelf(f) {
       case Success((flags, sites)) => RunComplete(flags, sites)
       case Failure(err)            => RunFailed(err)

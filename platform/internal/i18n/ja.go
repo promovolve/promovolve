@@ -53,6 +53,12 @@ var ja = map[string]string{
 	"Suspect events":                   "不審イベント数",
 	"Share of site events":             "サイト全イベントに占める割合",
 	"By reason":                        "理由別",
+	// Auto-suspended sites on /admin/sites
+	"Auto-suspended by fraud detection": "不正検出により自動停止",
+	"The detector froze serving on these sites the moment it flagged fraud. Resume a false positive to restore serving (held earnings are paid out); to confirm real fraud and reverse the earnings, review it in Fraud Review.": "検出器が不正をフラグした時点で、これらのサイトの配信を凍結しました。誤検知はリジュームで配信を再開します(保留中の収益は支払われます)。実際の不正を確定して収益を取り消すには、不正レビューで確認してください。",
+	"Resume (false positive)": "リジューム(誤検知)",
+	"Review & confirm fraud":  "確認して不正を確定",
+	"Resume %s? Restores serving and pays out any held earnings (treats the flag as a false positive).": "%s をリジュームしますか?配信を再開し、保留中の収益を支払います(フラグを誤検知として扱います)。",
 	"Team":        "チーム",
 	"Preferences": "環境設定",
 	"Passkeys":    "パスキー",

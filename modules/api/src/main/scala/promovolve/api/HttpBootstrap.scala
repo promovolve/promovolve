@@ -354,7 +354,8 @@ object HttpBootstrap {
             promovolve.api.fraud.FraudDetector.init(
               system,
               repo,
-              promovolve.api.fraud.FraudDetector.Config(interval = fdIntervalSec.seconds))
+              promovolve.api.fraud.FraudDetector.Config(interval = fdIntervalSec.seconds),
+              promovolve.api.fraud.FraudDetector.suspendViaSharding(system))
             system.log.info("FraudDetector enabled (Layer 2, every {}s)", fdIntervalSec: Integer)
           case None =>
             system.log.warn("fraud.detector.enabled=true but no dashboard DB — detector NOT started")

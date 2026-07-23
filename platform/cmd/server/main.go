@@ -252,6 +252,7 @@ func main() {
 	mux.HandleFunc("GET /admin/sites", adm(h.AdminSiteRequests))
 	mux.HandleFunc("POST /admin/sites/approve", adm(h.SiteRequestDecision("approve")))
 	mux.HandleFunc("POST /admin/sites/reject", adm(h.SiteRequestDecision("reject")))
+	mux.HandleFunc("POST /admin/sites/resume", adm(h.ResumeSuspendedSite))
 	mux.HandleFunc("GET /admin/fraud", adm(h.AdminFraudFlags))
 	mux.HandleFunc("POST /admin/fraud/release", adm(h.FraudFlagDecision("release")))
 	mux.HandleFunc("POST /admin/fraud/confirm", adm(h.FraudFlagDecision("confirm")))

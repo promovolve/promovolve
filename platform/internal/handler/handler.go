@@ -340,6 +340,9 @@ type pageData struct {
 	AdminRequests []adminRequestRow
 	// Admin site-request queue (/admin/sites)
 	AdminSiteRequests []adminSiteRequestRow
+	// Sites the fraud detector auto-suspended, pending operator review
+	// (also /admin/sites)
+	AdminSuspendedSites []adminSuspendedSiteRow
 	// Admin fraud-review queue (/admin/fraud)
 	AdminFraudFlags []adminFraudFlagRow
 	// Live per-site suspect-marked traffic today (also /admin/fraud)

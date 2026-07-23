@@ -52,5 +52,39 @@
     </div>
     {{end}}
   </div>
+
+  {{if .AdminSuspendedSites}}
+  <h2 class="page-title mt-10">{{t "Auto-suspended by fraud detection"}}</h2>
+  <p class="page-sub">{{t "The detector froze serving on these sites the moment it flagged fraud. Resume a false positive to restore serving (held earnings are paid out); to confirm real fraud and reverse the earnings, review it in Fraud Review."}}</p>
+
+  <div class="space-y-4 mt-6">
+    {{range .AdminSuspendedSites}}
+    <div class="card border-l-4 border-red-400">
+      <div class="flex items-start justify-between gap-4">
+        <div>
+          <div class="flex items-center gap-2 mb-1">
+            <h2 class="font-semibold text-lg font-mono">{{.SiteID}}</h2>
+            <span class="badge badge-warning">{{t "Suspended"}}</span>
+            <span class="badge badge-neutral">{{.SignalLbl}}</span>
+          </div>
+          <p class="text-sm text-gray-600">{{.Evidence}}</p>
+        </div>
+        <span class="text-xs text-gray-400 whitespace-nowrap">{{.FlaggedAt}}</span>
+      </div>
+
+      <div class="flex flex-wrap items-end gap-3 mt-4">
+        <form method="POST" action="/admin/sites/resume"
+          onsubmit="return confirm('{{t "Resume %s? Restores serving and pays out any held earnings (treats the flag as a false positive)." .SiteID}}')">
+          <input type="hidden" name="flagId" value="{{.FlagID}}">
+          <input type="hidden" name="siteId" value="{{.SiteID}}">
+          <input type="hidden" name="windowDay" value="{{.WindowDay}}">
+          <button type="submit" class="btn btn-secondary">{{t "Resume (false positive)"}}</button>
+        </form>
+        <a href="/admin/fraud" class="btn btn-danger">{{t "Review & confirm fraud"}}</a>
+      </div>
+    </div>
+    {{end}}
+  </div>
+  {{end}}
 </div>
 {{end}}

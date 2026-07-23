@@ -51,6 +51,12 @@ func TestSitesAndCreativesTemplatesRender(t *testing.T) {
 				PageURL: "https://pending.example.com/x", Publisher: "pub@test", Company: "Pub Co",
 				RequestedAt: "2026-07-07 10:00",
 			}},
+			// Auto-suspended section — exercises the fraud-suspend branch.
+			AdminSuspendedSites: []adminSuspendedSiteRow{{
+				FlagID: 7, SiteID: "shady-example-com", SignalLbl: "Bot / suspect traffic share",
+				Evidence: "suspect 503/686 = 73.3% of events (>= 30%)", WindowDay: "2026-07-23",
+				FlaggedAt: "2026-07-23 05:17",
+			}},
 		}},
 		{"admin/fraud.html", pageData{
 			Title: "Fraud Review", Nav: "admin-fraud", User: admin, Error: "an error banner",

@@ -79,7 +79,15 @@
           <input type="hidden" name="windowDay" value="{{.WindowDay}}">
           <button type="submit" class="btn btn-secondary">{{if .Confirmed}}{{t "Resume serving"}}{{else}}{{t "Resume (false positive)"}}{{end}}</button>
         </form>
-        {{if not .Confirmed}}<a href="/admin/fraud" class="btn btn-danger">{{t "Review & confirm fraud"}}</a>{{end}}
+        {{if .Confirmed}}
+        <form method="POST" action="/admin/sites/restore"
+          onsubmit="return confirm('{{t "Restore earnings for %s? Reverses the clawback (re-charges the advertiser, pays the publisher) and resumes serving — use only if the confirmation was a mistake." .SiteID}}')">
+          <input type="hidden" name="siteId" value="{{.SiteID}}">
+          <button type="submit" class="btn btn-success">{{t "Restore earnings & resume"}}</button>
+        </form>
+        {{else}}
+        <a href="/admin/fraud" class="btn btn-danger">{{t "Review & confirm fraud"}}</a>
+        {{end}}
       </div>
     </div>
     {{end}}

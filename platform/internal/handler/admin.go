@@ -608,6 +608,53 @@ func (h *Handler) ResumeSuspendedSite(w http.ResponseWriter, r *http.Request) {
 	http.Redirect(w, r, "/admin/sites", http.StatusSeeOther)
 }
 
+// RestoreSuspendedSiteEarnings is the "the confirm was wrong — this
+// publisher earned it" path for a confirmed-fraud site: it reverses the
+// clawback (re-charges the advertiser, pays the publisher net + platform
+// fee), then resumes serving and clears the flags. Distinct from plain
+// Resume, which reinstates serving but leaves a real fraud's earnings
+// reversed. Restore runs first so a failure there aborts before anything
+// is un-suspended.
+func (h *Handler) RestoreSuspendedSiteEarnings(w http.ResponseWriter, r *http.Request) {
+	admin, _, ok := h.requireRole(w, r, model.RoleAdmin)
+	if !ok {
+		return
+	}
+	r.ParseForm()
+	siteID := r.FormValue("siteId")
+	if siteID == "" {
+		h.renderAdminSiteRequests(w, r, "missing site id")
+		return
+	}
+	if h.billingSvc == nil {
+		h.renderAdminSiteRequests(w, r, "billing unavailable")
+		return
+	}
+	cells, gross, err := h.billingSvc.RestoreSiteEarnings(r.Context(), siteID, admin.Email)
+	if err != nil {
+		slog.Error("restore site earnings failed", "siteId", siteID, "error", err)
+		h.renderAdminSiteRequests(w, r, fmt.Sprintf("could not restore earnings for %s: %v — retry", siteID, err))
+		return
+	}
+	if cells > 0 {
+		slog.Info("restored fraud-clawed earnings", "siteId", siteID, "cells", cells, "grossMicros", gross)
+	}
+	if _, err := h.billingSvc.ResolveSiteFlags(r.Context(), siteID, admin.Email); err != nil {
+		slog.Error("resolve site flags on restore failed", "siteId", siteID, "error", err)
+		h.renderAdminSiteRequests(w, r, fmt.Sprintf("earnings restored, but clearing flags for %s failed: %v — retry", siteID, err))
+		return
+	}
+	if err := h.orgCore.ResumeSite(r.Context(), siteID); err != nil {
+		slog.Error("resume site after restore failed", "siteId", siteID, "error", err)
+		h.renderAdminSiteRequests(w, r, fmt.Sprintf("earnings restored, but resuming %s failed: %v — retry", siteID, err))
+		return
+	}
+	if h.auditRepo != nil {
+		h.auditRepo.Log(r.Context(), admin.ID, admin.Email, "", "fraud_site_restore", siteID, fmt.Sprintf("%d cells", cells))
+	}
+	http.Redirect(w, r, "/admin/sites", http.StatusSeeOther)
+}
+
 func (h *Handler) AdminUsers(w http.ResponseWriter, r *http.Request) {
 	h.renderAdminUsers(w, r, "", "", "")
 }

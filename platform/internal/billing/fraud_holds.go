@@ -337,6 +337,99 @@ func (s *Service) ResolveSiteFlags(ctx context.Context, siteID, by string) (int6
 	return tag.RowsAffected(), nil
 }
 
+// RestoreKey is the idempotency key for restoring one clawed-back cell —
+// distinct from ClawbackKey so a restore never collides with the clawback
+// it reverses, and re-running a restore is a no-op.
+func RestoreKey(publisherID string, windowFrom time.Time, siteID, campaignID, advertiserID string) string {
+	return fmt.Sprintf("restore:%s:%s:%s:%s:%s",
+		publisherID, windowFrom.UTC().Format(time.RFC3339), siteID, campaignID, advertiserID)
+}
+
+// RestoreSiteEarnings reverses a confirmed site's clawback — the "the
+// confirm was wrong, this publisher earned it" path. For every cell that
+// was clawed back (fraud_holds status 'clawed_back'), it re-charges the
+// advertiser the gross and credits the publisher net + platform fee in one
+// balanced transaction, reaching the same end state a normal settlement
+// would have. The hold is marked 'restored'. Idempotent via RestoreKey.
+// Returns the number of cells restored and the total gross re-charged.
+//
+// Only held-path clawbacks are reversed here; the rare already-settled
+// backstop (ClawbackSettledWindow, no fraud_holds row) is not auto-restored
+// — that leaves a recorded clawback the operator can adjust by hand.
+func (s *Service) RestoreSiteEarnings(ctx context.Context, siteID, by string) (cells int, grossMicros int64, err error) {
+	rows, qerr := s.pool.Query(ctx, `
+		SELECT id::text, publisher_id, campaign_id, advertiser_id,
+		       window_from, local_date, gross_micros, margin_bps
+		FROM fraud_holds
+		WHERE site_id = $1 AND status = 'clawed_back'
+		ORDER BY window_from ASC`, siteID)
+	if qerr != nil {
+		return 0, 0, qerr
+	}
+	type cell struct {
+		id, pub, camp, adv string
+		wFrom, localDt     time.Time
+		gross              int64
+		marginBps          int
+	}
+	var cs []cell
+	for rows.Next() {
+		var c cell
+		if serr := rows.Scan(&c.id, &c.pub, &c.camp, &c.adv, &c.wFrom, &c.localDt,
+			&c.gross, &c.marginBps); serr != nil {
+			rows.Close()
+			return 0, 0, serr
+		}
+		cs = append(cs, c)
+	}
+	rows.Close()
+	if rows.Err() != nil {
+		return 0, 0, rows.Err()
+	}
+
+	for _, c := range cs {
+		net, fee := SplitFee(c.gross, c.marginBps)
+		tx, terr := s.pool.Begin(ctx)
+		if terr != nil {
+			return cells, grossMicros, terr
+		}
+		// Re-charge the advertiser, pay the publisher, earn the fee — the
+		// inverse of the clawback's net effect. Positive debits (advertiser
+		// charged), negative credits (publisher + revenue paid). Sums to zero
+		// because gross == net + fee.
+		legs := []Leg{
+			{OwnerType: OwnerAdvertiser, OwnerID: c.adv, AmountMicros: c.gross},
+			{OwnerType: OwnerPublisher, OwnerID: c.pub, AmountMicros: -net},
+			{OwnerType: OwnerPlatform, OwnerID: PlatformRevenue, AmountMicros: -fee},
+		}
+		memo := fmt.Sprintf("fraud restore %s campaign %s on site %s",
+			c.localDt.Format("2006-01-02"), c.camp, siteID)
+		key := RestoreKey(c.pub, c.wFrom, siteID, c.camp, c.adv)
+		res, perr := post(ctx, tx, TxnSettlement, key, memo, nil, legs)
+		if perr != nil {
+			tx.Rollback(ctx)
+			return cells, grossMicros, fmt.Errorf("restore %s: %w", c.id, perr)
+		}
+		if _, uerr := tx.Exec(ctx, `
+			UPDATE fraud_holds
+			SET status = 'restored', resolved_at = NOW(), resolved_by = $2, txn_id = $3
+			WHERE id = $1 AND status = 'clawed_back'`,
+			c.id, by, res.TxnID,
+		); uerr != nil {
+			tx.Rollback(ctx)
+			return cells, grossMicros, uerr
+		}
+		if cerr := tx.Commit(ctx); cerr != nil {
+			return cells, grossMicros, cerr
+		}
+		if !res.Duplicate {
+			cells++
+			grossMicros += c.gross
+		}
+	}
+	return cells, grossMicros, nil
+}
+
 // SuspectActivityRow is one (site, reason) event count for the current
 // UTC day. Reason "clean" = events with no suspect mark; the rest use the
 // core's suspect_reason vocabulary (bot_ua, chain, timing, rate_cap,

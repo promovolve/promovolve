@@ -62,6 +62,8 @@ var ja = map[string]string{
 	"Resume serving":          "配信を再開",
 	"Review & confirm fraud":  "確認して不正を確定",
 	"Resume %s? Restores serving and clears its fraud flags.": "%s をリジュームしますか?配信を再開し、不正フラグをクリアします。",
+	"Restore earnings & resume": "収益を復元して再開",
+	"Restore earnings for %s? Reverses the clawback (re-charges the advertiser, pays the publisher) and resumes serving — use only if the confirmation was a mistake.": "%s の収益を復元しますか?クローバックを取り消し(広告主に再課金し、パブリッシャーに支払います)、配信を再開します。確定が誤りだった場合のみ使用してください。",
 	"Team":        "チーム",
 	"Preferences": "環境設定",
 	"Passkeys":    "パスキー",

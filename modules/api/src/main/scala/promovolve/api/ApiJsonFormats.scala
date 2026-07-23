@@ -165,7 +165,7 @@ trait ApiJsonFormats extends DefaultJsonProtocol {
 
   // Advertiser assets
   given RootJsonFormat[AdvertiserAssetView] = jsonFormat7(AdvertiserAssetView.apply)
-  given RootJsonFormat[AdvertiserAssetListResponse] = jsonFormat1(AdvertiserAssetListResponse.apply)
+  given RootJsonFormat[AdvertiserAssetListResponse] = jsonFormat2(AdvertiserAssetListResponse.apply)
   given RootJsonFormat[PresignedUploadRequest] = jsonFormat4(PresignedUploadRequest.apply)
   given RootJsonFormat[PresignedUploadResponse] = jsonFormat3(PresignedUploadResponse.apply)
   given RootJsonFormat[RegisterAssetRequest] = jsonFormat5(RegisterAssetRequest.apply)

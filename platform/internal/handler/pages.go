@@ -3717,7 +3717,12 @@ func (h *Handler) ListAdvertiserAssets(w http.ResponseWriter, r *http.Request) {
 		http.Error(w, `{"error":"unauthorized"}`, http.StatusUnauthorized)
 		return
 	}
-	body, err := h.coreGet("/v1/advertisers/me/assets", claims)
+	// Forward pagination params (limit, cursor) to core untouched.
+	assetsPath := "/v1/advertisers/me/assets"
+	if q := r.URL.RawQuery; q != "" {
+		assetsPath += "?" + q
+	}
+	body, err := h.coreGet(assetsPath, claims)
 	if err != nil {
 		slog.Error("ListAdvertiserAssets: core call failed", "err", err)
 		w.Header().Set("Content-Type", "application/json")

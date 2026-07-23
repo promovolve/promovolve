@@ -880,6 +880,23 @@ class EndpointRoutes(
     def storeIfNew(rawBytes: Array[Byte], rawMime: String): Future[(String, String, Int, Int)] =
       storeImageAsset(rawBytes, rawMime)
 
+    // Opaque, URL-safe page cursor = base64("<createdAt ISO>|<id>"). The
+    // ISO instant preserves the exact stored timestamp (µs), so the keyset
+    // comparison in listPage is precise; the id is the tiebreak.
+    def encodeAssetCursor(createdAt: Instant, id: String): String =
+      java.util.Base64.getUrlEncoder.withoutPadding
+        .encodeToString(s"$createdAt|$id".getBytes(java.nio.charset.StandardCharsets.UTF_8))
+
+    def decodeAssetCursor(s: String): Option[(Instant, String)] =
+      scala.util.Try(
+        new String(java.util.Base64.getUrlDecoder.decode(s), java.nio.charset.StandardCharsets.UTF_8)
+      ).toOption.flatMap { decoded =>
+        decoded.split("\\|", 2) match {
+          case Array(iso, id) => scala.util.Try(Instant.parse(iso)).toOption.map(ts => (ts, id))
+          case _              => None
+        }
+      }
+
     def viewOf(a: promovolve.publisher.AdvertiserAsset, s3Key: String, mime: String, w: Int, h: Int)
         : AdvertiserAssetView =
       AdvertiserAssetView(
@@ -917,14 +934,31 @@ class EndpointRoutes(
               // moved to the presigned flow.)
               pathEndOrSingleSlash {
                 get {
-                  val f = repo.list(advertiserId).flatMap { rows =>
-                    Future.sequence(rows.map(buildView)).map(_.flatten)
-                  }.map(AdvertiserAssetListResponse(_))
-                  onComplete(f) {
-                    case scala.util.Success(r) => complete(r)
-                    case scala.util.Failure(e) =>
-                      complete(StatusCodes.InternalServerError,
-                        ErrorResponse("list_failed", e.getMessage))
+                  // Keyset pagination: ?limit (default 60, cap 200) + opaque
+                  // ?cursor. Fetch limit+1 to know if another page exists; the
+                  // cursor is the last SCANNED row (not the last view) so a
+                  // dropped view — image_asset row missing — never stalls
+                  // paging. Cursor carries the exact createdAt so µs-precision
+                  // timestamps compare correctly.
+                  parameters("limit".as[Int].optional, "cursor".optional) { (limitOpt, cursorOpt) =>
+                    val limit = limitOpt.getOrElse(60).max(1).min(200)
+                    val after = cursorOpt.flatMap(decodeAssetCursor)
+                    val f = repo.listPage(advertiserId, limit + 1, after).flatMap { rows =>
+                      val hasMore = rows.sizeIs > limit
+                      val page = rows.take(limit)
+                      Future.sequence(page.map(buildView)).map(_.flatten).map { views =>
+                        val next =
+                          if (hasMore) page.lastOption.map(a => encodeAssetCursor(a.createdAt, a.id))
+                          else None
+                        AdvertiserAssetListResponse(views, next)
+                      }
+                    }
+                    onComplete(f) {
+                      case scala.util.Success(r) => complete(r)
+                      case scala.util.Failure(e) =>
+                        complete(StatusCodes.InternalServerError,
+                          ErrorResponse("list_failed", e.getMessage))
+                    }
                   }
                 }
               },

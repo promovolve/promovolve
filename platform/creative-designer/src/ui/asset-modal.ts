@@ -21,7 +21,13 @@ interface Asset {
 
 interface AssetsResponse {
   assets?: Asset[];
+  nextCursor?: string | null;
 }
+
+// Images fetched per page. The grid lazy-loads offscreen thumbnails, and
+// the next page is fetched as the sentinel nears the viewport, so a library
+// of any size stays bounded in memory and requests.
+const PAGE_SIZE = 60;
 
 // Open the image library. Picking an asset sets the creative's single
 // MAIN image (page.img) via setMainImage — so the image shows in the
@@ -122,31 +128,45 @@ function buildModal(): Modal {
   // which produced an unwanted horizontal scrollbar.)
   grid.style.cssText =
     "display:grid;grid-template-columns:repeat(auto-fill,minmax(150px,1fr));gap:12px;align-items:start;";
-  body.append(zone, grid);
+  // Infinite-scroll sentinel: sits below the grid inside the scrolling body;
+  // an IntersectionObserver fetches the next page when it nears the viewport.
+  const sentinel = document.createElement("div");
+  sentinel.style.cssText = "height:1px;";
+  body.append(zone, grid, sentinel);
 
   panel.append(header, body);
   root.appendChild(panel);
 
   // Behavior wiring
   let assets: Asset[] = [];
+  let nextCursor: string | null = null;
+  let loading = false;
 
   const close = (): void => {
+    observer.disconnect();
     root.remove();
   };
 
-  const render = (): void => {
-    count.textContent = assets.length ? `(${assets.length})` : "";
+  const updateCount = (): void => {
+    count.textContent = assets.length ? `(${assets.length}${nextCursor ? "+" : ""})` : "";
+  };
+
+  const showEmpty = (): void => {
     grid.innerHTML = "";
-    if (assets.length === 0) {
-      const empty = document.createElement("div");
-      empty.textContent = "No images yet — drop or upload some above.";
-      empty.style.cssText = `grid-column:1/-1; text-align:center; color:${tokens.ink400}; padding:32px;`;
-      grid.appendChild(empty);
-      return;
-    }
-    for (const asset of assets) {
-      grid.appendChild(card(asset));
-    }
+    const empty = document.createElement("div");
+    empty.textContent = "No images yet — drop or upload some above.";
+    empty.style.cssText = `grid-column:1/-1; text-align:center; color:${tokens.ink400}; padding:32px;`;
+    grid.appendChild(empty);
+  };
+
+  // Prepend a just-uploaded asset (replacing its card if it already showed)
+  // without a full re-render, so the paged list below stays intact.
+  const prependAsset = (asset: Asset): void => {
+    assets = assets.filter((a) => a.id !== asset.id);
+    assets.unshift(asset);
+    grid.querySelector(`[data-asset-id="${CSS.escape(asset.id)}"]`)?.remove();
+    grid.insertBefore(card(asset), grid.firstElementChild);
+    updateCount();
   };
 
   const card = (asset: Asset): HTMLElement => {
@@ -159,6 +179,7 @@ function buildModal(): Modal {
     // visibility:auto` additionally skips rendering work for offscreen cards.
     const ratio = asset.width && asset.height ? `${asset.width} / ${asset.height}` : "3 / 2";
     const c = document.createElement("div");
+    c.dataset.assetId = asset.id;
     c.style.cssText = `position:relative;background:${tokens.ink900};border:1px solid ${tokens.ink500};border-radius:4px;overflow:hidden;cursor:pointer;content-visibility:auto;contain-intrinsic-size:auto 150px;`;
     const img = document.createElement("img");
     // lazy + async so only images scrolled into view fetch/decode; the
@@ -187,18 +208,51 @@ function buildModal(): Modal {
     return c;
   };
 
-  const load = async (): Promise<void> => {
+  // Fetch one page. reset=true reloads from the top (initial open); else it
+  // appends the next page pointed at by nextCursor. Guards against overlap
+  // and against firing when there are no more pages.
+  const loadPage = async (reset: boolean): Promise<void> => {
+    if (loading) return;
+    if (!reset && !nextCursor) return;
+    loading = true;
+    observer.unobserve(sentinel);
     try {
-      const resp = await fetch("/advertiser/assets");
+      if (reset) {
+        assets = [];
+        nextCursor = null;
+        grid.innerHTML = "";
+      }
+      const params = new URLSearchParams({ limit: String(PAGE_SIZE) });
+      if (!reset && nextCursor) params.set("cursor", nextCursor);
+      const resp = await fetch(`/advertiser/assets?${params.toString()}`);
       if (!resp.ok) throw new Error(`HTTP ${resp.status}`);
       const data = (await resp.json()) as AssetsResponse;
-      assets = Array.isArray(data.assets) ? data.assets : [];
+      const page = Array.isArray(data.assets) ? data.assets : [];
+      nextCursor = data.nextCursor ?? null;
+      assets.push(...page);
+      for (const asset of page) grid.appendChild(card(asset));
+      if (assets.length === 0) showEmpty();
+      updateCount();
     } catch (e) {
       console.error("[asset-modal] fetch failed:", e);
-      assets = [];
+      if (assets.length === 0) showEmpty();
+    } finally {
+      loading = false;
+      // Re-arm only while more pages remain; the observer stays idle at the end.
+      if (nextCursor) observer.observe(sentinel);
     }
-    render();
   };
+
+  // rootMargin pre-fetches the next page before the sentinel is actually
+  // visible, so scrolling stays smooth. root is the scrolling modal body.
+  const observer = new IntersectionObserver(
+    (entries) => {
+      if (entries.some((e) => e.isIntersecting)) void loadPage(false);
+    },
+    { root: body, rootMargin: "600px" },
+  );
+
+  const load = (): Promise<void> => loadPage(true);
 
   // Browser-direct upload flow:
   //   1. Compute SHA-256 hex of the file bytes (SubtleCrypto).
@@ -238,7 +292,7 @@ function buildModal(): Modal {
             asset.height ?? 0,
             file.type,
           );
-          assets = [asset, ...assets.filter((a) => a.id !== asset.id)];
+          prependAsset(asset);
         }
       } catch (e) {
         // Dev harness (vite serve, no /advertiser backend on :9091):
@@ -248,7 +302,7 @@ function buildModal(): Modal {
         if (import.meta.env.DEV) {
           try {
             const asset = await localAsset(file);
-            assets = [asset, ...assets.filter((a) => a.id !== asset.id)];
+            prependAsset(asset);
             console.info("[asset-modal] dev fallback: local data-URL for %s (no backend)", raw.name);
             continue;
           } catch (e2) {
@@ -258,7 +312,8 @@ function buildModal(): Modal {
         console.error("[asset-modal] upload failed:", e);
       }
     }
-    render();
+    // prependAsset already updated the grid + count per file; nothing to
+    // re-render here.
   };
 
   /** Dev-only: build an in-memory asset from a File via a data-URL, so
@@ -293,7 +348,9 @@ function buildModal(): Modal {
       const resp = await fetch("/advertiser/assets/" + encodeURIComponent(id), { method: "DELETE" });
       if (resp.status === 204 || resp.ok) {
         assets = assets.filter((a) => a.id !== id);
-        render();
+        grid.querySelector(`[data-asset-id="${CSS.escape(id)}"]`)?.remove();
+        updateCount();
+        if (assets.length === 0) showEmpty();
       }
     } catch (e) {
       console.error("[asset-modal] delete failed:", e);

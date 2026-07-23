@@ -958,7 +958,10 @@ object ApiModels {
   )
 
   case class AdvertiserAssetListResponse(
-      assets: Vector[AdvertiserAssetView]
+      assets: Vector[AdvertiserAssetView],
+      // Opaque cursor to fetch the next (older) page; None = last page.
+      // Option-with-default so spray's jsonFormatN stays back-compatible.
+      nextCursor: Option[String] = None
   )
 
   // ─── Presigned (browser-direct) upload flow ─────────────────────

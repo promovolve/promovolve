@@ -23,6 +23,18 @@ final case class AdvertiserAsset(
 trait AdvertiserAssetRepo {
   def put(a: AdvertiserAsset): Future[Unit]
   def list(advertiserId: String): Future[Vector[AdvertiserAsset]]
+
+  /**
+   * One page of an advertiser's assets, newest first. `after` is the
+   * (createdAt, id) of the last row of the previous page — rows strictly
+   * older than it are returned (keyset pagination, stable under inserts).
+   * `limit` caps the rows scanned/returned.
+   */
+  def listPage(
+      advertiserId: String,
+      limit: Int,
+      after: Option[(Instant, String)]
+  ): Future[Vector[AdvertiserAsset]]
   def get(id: String): Future[Option[AdvertiserAsset]]
   def delete(id: String, advertiserId: String): Future[Int]
 
@@ -72,6 +84,25 @@ final class SlickAdvertiserAssetRepo(db: slick.jdbc.JdbcBackend#Database)(using 
         .sortBy(_.createdAt.desc)
         .result
     ).map(_.toVector)
+
+  override def listPage(
+      advertiserId: String,
+      limit: Int,
+      after: Option[(Instant, String)]
+  ): Future[Vector[AdvertiserAsset]] = {
+    val base = assets.filter(_.advertiserId === advertiserId)
+    // Keyset predicate: strictly older than the cursor row. The id tiebreak
+    // makes the (createdAt DESC, id DESC) order total, so no row is skipped
+    // or repeated when several share a createdAt.
+    val filtered = after match {
+      case Some((ts, cid)) =>
+        base.filter(a => a.createdAt < ts || (a.createdAt === ts && a.id < cid))
+      case None => base
+    }
+    db.run(
+      filtered.sortBy(a => (a.createdAt.desc, a.id.desc)).take(limit).result
+    ).map(_.toVector)
+  }
 
   override def get(id: String): Future[Option[AdvertiserAsset]] =
     db.run(assets.filter(_.id === id).result.headOption)

@@ -215,8 +215,20 @@
     </div>
     <div class="mb-4">
       <label class="form-label">{{t "Landing URL"}}</label>
-      <input type="url" name="landingUrl" required placeholder="https://example.com/promo"
+      {{/* type=text (not url) so {curly} attribution macros aren't rejected by
+           browser URL validation; inputmode keeps the URL keyboard on mobile. */}}
+      <input type="text" inputmode="url" name="landingUrl" required placeholder="https://example.com/promo"
              class="form-input">
+      <p class="text-xs text-gray-400 mt-1">
+        {{t "Optional attribution macros — filled at click time from the ad's context (no personal data):"}}
+        <code class="text-gray-500">{source}</code>
+        <code class="text-gray-500">{campaign_id}</code>
+        <code class="text-gray-500">{creative_id}</code>
+        <code class="text-gray-500">{site}</code>
+        <code class="text-gray-500">{category}</code>
+        <code class="text-gray-500">{slot}</code>.
+        {{t "Example:"}} <code class="text-gray-500">?utm_source={source}&utm_campaign={campaign_id}</code>
+      </p>
     </div>
     <div class="grid grid-cols-2 gap-4 mb-4">
       <div>

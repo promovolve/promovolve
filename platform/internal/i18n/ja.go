@@ -270,6 +270,8 @@ var ja = map[string]string{
 	"Search registered sites by domain (e.g., publisher.programmer.llc)": "登録済みサイトをドメインで検索(例: publisher.programmer.llc)",
 	"Leave empty to run everywhere your topics match. Pick one or more registered sites to restrict this campaign to them (still subject to topic matching on their pages).": "空のままにすると、トピックが一致するすべての場所で配信されます。登録済みサイトを1つ以上選ぶと、このキャンペーンはそれらに限定されます(そのページ上でのトピック一致は引き続き必要です)。",
 	"Landing URL":                    "ランディング URL",
+	"Optional attribution macros — filled at click time from the ad's context (no personal data):": "任意のアトリビューション用マクロ — クリック時に広告のコンテキストから自動で埋め込まれます(個人データは含みません):",
+	"Example:": "例:",
 	"Daily Budget ($)":               "日予算($)",
 	"Max CPM ($)":                    "上限CPM($)",
 	"Start date":                     "開始日",

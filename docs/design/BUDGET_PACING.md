@@ -120,6 +120,58 @@ PI-controlled pacing that directly adjusts throttle probability based on spend e
    - During peak hours (multiplier > 1): higher target allows more impressions
    - During valley hours (multiplier < 1): lower target prevents overspend
 
+### Tolerances (why the controller can't kill a site)
+
+The controller's correctness is a stack of explicit tolerances, each bounding
+how wrong an input may be before the response becomes destructive. Two of
+them exist because of a real outage (the "midnight blackout", 2026-07-24):
+ads died at local midnight every night and recovered mid-day, for weeks,
+before being root-caused.
+
+**Input tolerance — the spend-ratio slack floor.**
+
+```
+spendRatio = todaySpend / max(expectedSpend, 1% of dailyBudget, $0.01)
+```
+
+The traffic-shape expected spend is an *estimate*; in hours where the learned
+shape has ~no traffic it is micro-dollars, and a plain ratio against it has
+unbounded gain. Live failure: a few cents of after-midnight spend divided by
+a ~1e-7 target produced `spendRatio = 492,570` → PI error saturated → 100%
+throttle → total blackout until the day's shape accrued. (A guard existed but
+only caught `expected <= 0`, not tiny-positive.)
+
+Flooring the **denominator** — not capping the ratio — makes the error track
+the *absolute* miss: cents of spend against a sleeping shape read as
+under-paced (serve), overnight spend beyond the slack throttles gently, and
+the floor is inert once the day's expected spend passes 1% of budget, so
+mid-day pacing is unchanged. Do NOT "fix" this by capping the ratio output
+(e.g. at 2.0): a sustained ratio of 2.0 reads as hard over-pace and winds the
+integral up — the site stays dark anyway.
+
+The 1% is an error budget against the shape prediction: large enough for
+~100+ overnight impressions at a $10 CPM (visitors in a "dead" hour see a
+working site), small enough that a night bot-storm can only mis-spend 1% of
+the daily budget before throttling clamps it. Because the shape tracker
+learns from **request arrivals** (pageviews), not served impressions,
+throttling never feeds back into the shape — a genuine new night audience is
+learned within days and the slack stops binding. Tolerance covers what the
+model doesn't know *yet*; learning shrinks what tolerance has to cover.
+
+**Output tolerance — `MaxThrottleProb`.**
+
+Normal PI control is capped at 0.99: a true 1.0 (serve *nothing*) is reserved
+for hard stops (budget exhausted, day over, no budget). Even under a wildly
+wrong feedback signal, 1-in-100 requests still serves — delivery stays
+observable and the controller keeps receiving real outcomes to correct
+against. This is the difference between "barely noticeable dip" and the
+total blackout above.
+
+Other layers with the same character: the grace period (startup tolerance —
+serve at baseThrottle until rate estimates stabilize), EMA smoothing of the
+spend ratio (noise tolerance), and the leaky, clamped integrator (windup
+tolerance).
+
 ### PI Control Parameters
 
 | Parameter | Default | Description |

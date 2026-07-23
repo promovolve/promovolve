@@ -59,11 +59,18 @@ final case class PacingContext(
    */
   def spendRatio: Double = {
     val expected = expectedSpend
-    if (expected <= 0) {
-      // At day start when expectedSpend ≈ 0:
-      // - If no spend yet, we're on pace (1.0)
-      // - If there's spend but no expected, we're ahead (cap at 2.0 to avoid extreme values)
-      if (todaySpend <= 0) 1.0 else 2.0
+    // Negligible-target floor: right after a budget-day rollover the
+    // traffic-shape expected spend can be micro-dollars (the learned shape
+    // has ~no traffic in the small hours), and dividing a few cents of real
+    // spend by it produced six-figure ratios that pinned the PI throttle at
+    // 100% — ads died at local midnight every night until the shape accrued
+    // (live 2026-07-24). Treat any target below 0.1% of the daily budget
+    // (min 1¢) exactly like the zero case: bounded 1.0/2.0, never explosive.
+    val negligible = (dailyBudget * 0.001).max(BigDecimal(0.01))
+    if (expected <= negligible) {
+      // - At/below the (tiny) target: on pace (1.0)
+      // - Spent past a negligible target: mildly ahead (cap at 2.0)
+      if (todaySpend <= expected || todaySpend <= 0) 1.0 else 2.0
     } else {
       (todaySpend / expected).toDouble
     }

@@ -156,6 +156,20 @@ class AdaptivePacingSpec extends AnyFlatSpec with Matchers {
     c.remainingHours shouldBe 18.0 +- 0.01
   }
 
+  it should "cap the spend ratio when the shape-based expected spend is negligible" in {
+    // Just after local midnight the traffic-shape expected spend can be
+    // micro-dollars (the learned shape has ~no small-hours traffic). A few
+    // cents of real spend divided by that produced six-figure ratios that
+    // pinned the PI throttle at 100% — ads died at midnight nightly until
+    // the shape accrued (live 2026-07-24). A negligible target must behave
+    // like the zero case: bounded at 2.0, never explosive.
+    val c = ctx(hour = 1, spend = 0.04).copy(expectedSpendOverride = Some(BigDecimal("0.00000008")))
+    c.spendRatio shouldBe 2.0 +- 0.001
+    // And with no spend at all, on-pace.
+    val quiet = ctx(hour = 1, spend = 0).copy(expectedSpendOverride = Some(BigDecimal("0.00000008")))
+    quiet.spendRatio shouldBe 1.0 +- 0.001
+  }
+
   it should "calculate spend ratio correctly" in {
     // At hour 12 (50%), spent $40 out of $100 budget
     // Expected = 100 * (12/24) = 50

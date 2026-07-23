@@ -277,6 +277,64 @@ func (s *Service) ClawbackSettledWindow(ctx context.Context, siteID string, from
 	return clawed, nil
 }
 
+// SuspendedSiteFlag is one fraud flag whose site is currently frozen
+// (status 'open' = auto-suspended awaiting review, or 'confirmed' = fraud
+// upheld and still frozen). 'released' flags are excluded — those sites
+// were resumed. Read straight from the shared fraud_flags table so the
+// Site Requests page can show every currently-suspended site, including
+// confirmed ones that have left the open review queue.
+type SuspendedSiteFlag struct {
+	FlagID    int64
+	SiteID    string
+	Signal    string
+	Severity  float64
+	WindowDay time.Time
+	Evidence  string
+	Status    string // open | confirmed
+	FlaggedAt time.Time
+}
+
+// ListSuspendedSites returns the flags for every currently-suspended site
+// (status open or confirmed), newest first. A site may appear more than
+// once (multiple signals/days); the caller groups by site.
+func (s *Service) ListSuspendedSites(ctx context.Context) ([]SuspendedSiteFlag, error) {
+	rows, err := s.pool.Query(ctx, `
+		SELECT id, site_id, signal, severity, window_day, evidence, status, flagged_at
+		FROM fraud_flags
+		WHERE status IN ('open', 'confirmed')
+		ORDER BY flagged_at DESC`)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	var out []SuspendedSiteFlag
+	for rows.Next() {
+		var f SuspendedSiteFlag
+		if err := rows.Scan(&f.FlagID, &f.SiteID, &f.Signal, &f.Severity,
+			&f.WindowDay, &f.Evidence, &f.Status, &f.FlaggedAt); err != nil {
+			return nil, err
+		}
+		out = append(out, f)
+	}
+	return out, rows.Err()
+}
+
+// ResolveSiteFlags marks every currently-active flag for a site (open or
+// confirmed) as released — used when an operator resumes a suspended site
+// from Site Requests, so a site with several flags clears in one action
+// and the detector won't re-suspend it for the same day (the status guard
+// blocks re-open). Returns the number of flags cleared.
+func (s *Service) ResolveSiteFlags(ctx context.Context, siteID, by string) (int64, error) {
+	tag, err := s.pool.Exec(ctx, `
+		UPDATE fraud_flags
+		SET status = 'released', resolved_at = NOW(), resolved_by = $2
+		WHERE site_id = $1 AND status IN ('open', 'confirmed')`, siteID, by)
+	if err != nil {
+		return 0, err
+	}
+	return tag.RowsAffected(), nil
+}
+
 // SuspectActivityRow is one (site, reason) event count for the current
 // UTC day. Reason "clean" = events with no suspect mark; the rest use the
 // core's suspect_reason vocabulary (bot_ua, chain, timing, rate_cap,

@@ -182,16 +182,17 @@ type adminSuspectSiteRow struct {
 	Breakdown string // "bot_ua 120 / chain 40 / timing 12"
 }
 
-// adminSuspendedSiteRow is one site the fraud detector auto-suspended,
-// shown on /admin/sites for the operator to resume (false positive) or
-// review in the fraud queue.
+// adminSuspendedSiteRow is one currently-suspended site shown on
+// /admin/sites — one row per site (a site with several flags is collapsed).
+// Confirmed==true means fraud was upheld (still frozen, money already
+// clawed back); Confirmed==false means it's auto-suspended awaiting review.
 type adminSuspendedSiteRow struct {
-	FlagID    int64
 	SiteID    string
-	SignalLbl string
-	Evidence  string
-	WindowDay string
+	SignalLbl string // most-recent flag's signal
+	Evidence  string // most-recent flag's evidence
+	WindowDay string // most-recent flag's day, scopes any payout
 	FlaggedAt string
+	Confirmed bool
 }
 
 // fraudSignalLabel gives the operator a plain-English name for a signal id.
@@ -485,31 +486,47 @@ func (h *Handler) renderAdminSiteRequests(w http.ResponseWriter, r *http.Request
 	})
 }
 
-// suspendedSiteRows lists sites the fraud detector auto-suspended and that
-// are awaiting an operator decision. An open flag == an auto-suspended site
-// pending review (the detector freezes serving the moment it flags), so we
-// derive the list straight from the open flags. Best-effort: on error it
-// logs and returns nil so the site-request queue still renders.
+// suspendedSiteRows lists every currently-suspended site (auto-suspended
+// with an open flag, OR confirmed-fraud and still frozen), one row per
+// site, newest first. This is distinct from Fraud Review, which shows only
+// open flags awaiting a decision — a confirmed site stays here (resumable)
+// after it leaves that queue. Best-effort: on error it logs and returns
+// nil so the site-request queue still renders.
 func (h *Handler) suspendedSiteRows(ctx context.Context, user *model.User) []adminSuspendedSiteRow {
-	flags, err := h.orgCore.ListFraudFlags(ctx)
-	if err != nil {
-		slog.Error("list fraud flags for suspended sites failed", "error", err)
+	if h.billingSvc == nil {
 		return nil
 	}
-	rows := make([]adminSuspendedSiteRow, 0, len(flags))
+	flags, err := h.billingSvc.ListSuspendedSites(ctx)
+	if err != nil {
+		slog.Error("list suspended sites failed", "error", err)
+		return nil
+	}
+	// Collapse to one row per site: flags arrive newest-first, so the first
+	// one seen for a site is the most recent; a confirmed flag marks the
+	// whole site confirmed.
+	bySite := map[string]*adminSuspendedSiteRow{}
+	order := make([]string, 0, len(flags))
 	for _, f := range flags {
-		flaggedAt := f.FlaggedAt
-		if t, perr := time.Parse(time.RFC3339, f.FlaggedAt); perr == nil {
-			flaggedAt = t.In(user.Location()).Format("2006-01-02 15:04")
+		row := bySite[f.SiteID]
+		if row == nil {
+			flaggedAt := f.FlaggedAt.In(user.Location()).Format("2006-01-02 15:04")
+			row = &adminSuspendedSiteRow{
+				SiteID:    f.SiteID,
+				SignalLbl: fraudSignalLabel(f.Signal),
+				Evidence:  f.Evidence,
+				WindowDay: f.WindowDay.Format("2006-01-02"),
+				FlaggedAt: flaggedAt,
+			}
+			bySite[f.SiteID] = row
+			order = append(order, f.SiteID)
 		}
-		rows = append(rows, adminSuspendedSiteRow{
-			FlagID:    f.ID,
-			SiteID:    f.SiteID,
-			SignalLbl: fraudSignalLabel(f.Signal),
-			Evidence:  f.Evidence,
-			WindowDay: f.WindowDay,
-			FlaggedAt: flaggedAt,
-		})
+		if f.Status == "confirmed" {
+			row.Confirmed = true
+		}
+	}
+	rows := make([]adminSuspendedSiteRow, 0, len(order))
+	for _, siteID := range order {
+		rows = append(rows, *bySite[siteID])
 	}
 	return rows
 }
@@ -563,15 +580,14 @@ func (h *Handler) ResumeSuspendedSite(w http.ResponseWriter, r *http.Request) {
 		h.renderAdminSiteRequests(w, r, "missing site id")
 		return
 	}
-	// Release the flag (false positive) if we have its id, so the detector
-	// won't re-suspend the site for the same day.
-	if idStr := r.FormValue("flagId"); idStr != "" {
-		if id, perr := strconv.ParseInt(idStr, 10, 64); perr == nil {
-			if err := h.orgCore.ResolveFraudFlag(r.Context(), id, "released", admin.Email); err != nil {
-				slog.Error("resolve fraud flag on site resume failed", "flagId", id, "error", err)
-				h.renderAdminSiteRequests(w, r, fmt.Sprintf("could not release the flag: %v", err))
-				return
-			}
+	// Clear every active flag for the site (a site can carry several), so
+	// the detector won't re-suspend it for the same day (the status guard
+	// blocks re-open of a released flag).
+	if h.billingSvc != nil {
+		if _, err := h.billingSvc.ResolveSiteFlags(r.Context(), siteID, admin.Email); err != nil {
+			slog.Error("resolve site flags on resume failed", "siteId", siteID, "error", err)
+			h.renderAdminSiteRequests(w, r, fmt.Sprintf("could not clear flags for %s: %v", siteID, err))
+			return
 		}
 	}
 	if err := h.orgCore.ResumeSite(r.Context(), siteID); err != nil {

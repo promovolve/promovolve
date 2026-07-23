@@ -405,7 +405,20 @@ final class ServeRoutes(
                                       c, i, cta.getOrElse(""),
                                       cand.creativeId.value,
                                       version,
-                                      cand.landingUrl,
+                                      // Fill the advertiser's {curly} attribution
+                                      // macros from trusted auction context (no
+                                      // user data — PromoVolve doesn't track people).
+                                      LandingMacros.substitute(
+                                        cand.landingUrl,
+                                        LandingMacros.valuesFor(
+                                          source = "promovolve",
+                                          campaignId = cand.campaignId.value,
+                                          creativeId = cand.creativeId.value,
+                                          site = req.pub,
+                                          category = cand.category.value,
+                                          slot = outcome.slotId.value
+                                        )
+                                      ),
                                       pagesJson,
                                       if (pagesJson.isDefined) Some(bannerScriptUrl) else None,
                                       bannerConfigJson,

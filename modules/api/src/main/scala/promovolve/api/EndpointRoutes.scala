@@ -1490,6 +1490,7 @@ class EndpointRoutes(
               sql"""SELECT site_id, COUNT(*) AS impressions
                     FROM tracking_events
                     WHERE advertiser_id = $advertiserId AND event_type = 'impression'
+                      AND suspect_reason IS NULL
                     GROUP BY site_id
                     ORDER BY impressions DESC
                     LIMIT $capped""".as[(String, Long)]
@@ -4024,6 +4025,7 @@ class EndpointRoutes(
               FROM tracking_events
               WHERE advertiser_id = $advertiserId
                 AND event_type = 'impression'
+                AND suspect_reason IS NULL
                 AND event_time >= $dayStartStr::timestamptz
             """.as[(Long, Double)].headOption
             db.run(q).map { opt =>
@@ -4132,6 +4134,7 @@ class EndpointRoutes(
               FROM tracking_events
               WHERE advertiser_id = $advertiserId
                 AND event_type = 'impression'
+                AND suspect_reason IS NULL
                 AND event_time >= $dayStartStr::timestamptz
               GROUP BY campaign_id
             """.as[(String, Long, Double)]
@@ -4171,6 +4174,7 @@ class EndpointRoutes(
               FROM tracking_events
               WHERE advertiser_id = $advertiserId
                 AND event_type = 'impression'
+                AND suspect_reason IS NULL
                 AND event_time >= $dayStartStr::timestamptz
               GROUP BY 1
               ORDER BY 1

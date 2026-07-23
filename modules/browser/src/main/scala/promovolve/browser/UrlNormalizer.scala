@@ -26,6 +26,36 @@ object UrlNormalizer:
     "mc_cid", "mc_eid", "_hsenc", "_hsmi", "mkt_tok"
   )
 
+  /**
+   * Strip ONLY tracking params, preserving the path (incl. trailing slash),
+   * host case, param order, and fragment EXACTLY. This is the right transform
+   * for PAGE IDENTITY: `normalize` additionally canonicalizes slash/case/order
+   * (fine for the single-flight dedup KEY), but applying that to identity
+   * rewrites `/food/`→`/food` and orphans every already-classified page —
+   * which took serving down 2026-07-24. Here `/food/` stays `/food/`; only a
+   * `?fbclid=…`-style variant collapses onto its clean URL.
+   */
+  def stripTrackingParams(url: String): String = {
+    val qIdx = url.indexOf('?')
+    if (qIdx < 0) url
+    else {
+      val base = url.substring(0, qIdx)
+      val afterQ = url.substring(qIdx + 1)
+      val hashIdx = afterQ.indexOf('#')
+      val (queryStr, fragment) =
+        if (hashIdx >= 0) (afterQ.substring(0, hashIdx), afterQ.substring(hashIdx)) else (afterQ, "")
+      val kept = queryStr
+        .split("&")
+        .filter(_.nonEmpty)
+        .filterNot { p =>
+          val k = p.takeWhile(_ != '=').toLowerCase
+          TrackingParams.contains(k)
+        }
+      val newQuery = if (kept.isEmpty) "" else "?" + kept.mkString("&")
+      base + newQuery + fragment
+    }
+  }
+
   def normalize(url: String): String =
     Try {
       val uri = new URI(url.trim)

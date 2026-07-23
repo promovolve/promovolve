@@ -241,7 +241,7 @@ final class ServeRoutes(
                   // or tracking rows. Used everywhere the page URL is a key —
                   // the auction, the freshness token, and the signed click/imp/
                   // cta/fold tokens (so beacons record the canonical URL too).
-                  val pageUrl = UrlNormalizer.normalize(req.url)
+                  val pageUrl = UrlNormalizer.stripTrackingParams(req.url)
                   val pinByslot: Map[String, String] =
                     req.pins.fold(Map.empty[String, String])(_.iterator.map(p => p.slotId -> p.creativeId).toMap)
                   // Site-wide pin block: pins for slots NOT present on this
@@ -480,7 +480,7 @@ final class ServeRoutes(
               promovolve.publisher.SiteEntity.ClassifyUrl(
                 // Canonicalize (strip tracking params) so a Facebook/Google/UTM
                 // referral variant classifies the same page as its clean URL.
-                url = UrlNormalizer.normalize(cReq.url),
+                url = UrlNormalizer.stripTrackingParams(cReq.url),
                 text = cReq.text,
                 section = cReq.section,
                 slots = slots,

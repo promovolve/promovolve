@@ -91,4 +91,29 @@ class OnDemandClassificationSpec extends AnyWordSpec with Matchers {
       withTracker shouldBe cleanOnly
     }
   }
+
+  // stripTrackingParams is the PAGE-IDENTITY transform: it must preserve the
+  // path (incl. trailing slash) exactly, or it orphans classified pages — that
+  // rewrote /food/ -> /food and took serving down 2026-07-24.
+  "UrlNormalizer.stripTrackingParams" should {
+
+    "preserve a trailing slash and everything else" in {
+      UrlNormalizer.stripTrackingParams("https://Pub.example.com/food/") shouldBe
+      "https://Pub.example.com/food/"
+      UrlNormalizer.stripTrackingParams("https://pub.example.com/a/b/c.html") shouldBe
+      "https://pub.example.com/a/b/c.html"
+    }
+
+    "drop tracking params but keep path + content params + order + fragment" in {
+      UrlNormalizer.stripTrackingParams(
+        "https://pub.example.com/food/?id=9&fbclid=x&b=2#sec"
+      ) shouldBe "https://pub.example.com/food/?id=9&b=2#sec"
+    }
+
+    "reduce a tracker-only query to a bare path (no dangling ?)" in {
+      UrlNormalizer.stripTrackingParams(
+        "https://pub.example.com/food/farm.html?fbclid=IwY2xj"
+      ) shouldBe "https://pub.example.com/food/farm.html"
+    }
+  }
 }

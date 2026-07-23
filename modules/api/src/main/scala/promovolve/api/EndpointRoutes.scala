@@ -3495,7 +3495,7 @@ class EndpointRoutes(
       // Canonical page identity: strip tracking params so referral variants of
       // one article share a single classification/auction. Used for the
       // auction trigger, the pending-poll match, and the echoed response.
-      val canonicalUrl = promovolve.browser.UrlNormalizer.normalize(req.url)
+      val canonicalUrl = promovolve.browser.UrlNormalizer.stripTrackingParams(req.url)
       val slots = req.slots.map { s =>
         val sz = AdSize(s.width, s.height)
         // TODO multi-size source — ClassifyPageRequest.slots carries

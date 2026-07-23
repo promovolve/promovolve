@@ -254,7 +254,7 @@
       </div>
 
       <!-- Read-only metrics -->
-      <div class="mt-3 grid grid-cols-1 sm:grid-cols-2 gap-3">
+      <div class="mt-3 grid grid-cols-1 lg:grid-cols-3 gap-3">
         {{/* The site-wide sweep is the FALLBACK layer: with per-category
               floors enforced it only prices categories that have no learned
               floor of their own. The manually-set Floor CPM is just a
@@ -286,14 +286,14 @@
               render once per pageview. Healthy = rendered or a genuine
               no-fill; anything else is a broken integration. Reason
               tokens are machine identifiers — never translated. */}}
-        <div class="bg-white rounded-md border p-3"
+        <div class="bg-white rounded-md border p-3 lg:col-span-2"
              title="{{t "The ad tag reports its own lifecycle on every pageview. Healthy means an ad rendered or the auction genuinely had no ad to show; failures mean the integration is broken on some pageviews — the reasons say where it stopped."}}">
           <p class="text-xs text-gray-500 mb-1">{{t "Integration health (7d):"}}</p>
           <div class="flex items-baseline gap-2">
             <span class="text-lg font-semibold {{if eq .HealthFailures 0}}text-green-700{{else}}text-amber-600{{end}}">{{.HealthOkPct}}%</span>
             <span class="text-xs text-gray-400">{{t "healthy"}}</span>
           </div>
-          <p class="text-xs text-gray-400 mt-1">
+          <p class="text-xs text-gray-400 mt-1 whitespace-nowrap overflow-x-auto">
             {{.HealthPageviews}} {{t "pageviews"}} · {{.HealthRendered}} {{t "rendered"}} · {{.HealthNoFill}} {{t "no fill"}}{{if gt .HealthFailures 0}} ·
             <span class="text-amber-600">{{.HealthFailures}} {{t "failed"}}</span>
             <span class="font-mono">({{range $i, $fr := .HealthTopReasons}}{{if $i}}, {{end}}{{$fr.Reason}} ×{{$fr.Count}}{{end}})</span>

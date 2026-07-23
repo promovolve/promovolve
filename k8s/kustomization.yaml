@@ -11,6 +11,7 @@ resources:
   - api-statefulset.yaml
   - api-service.yaml
   - singleton-statefulset.yaml
+  - pdb.yaml
   - platform-deployment.yaml
   - platform-service.yaml
 

@@ -1,0 +1,24 @@
+# PodDisruptionBudgets — pace voluntary evictions (node upgrades, drains).
+#
+# api: 2 pods. maxUnavailable=1 makes a GKE node drain evict them ONE at a
+# time, waiting for each to be Ready on the surge node before taking the
+# next. Combined with the singleton tier (3rd Pekko member, 6ee0f80) the
+# cluster keeps DData majority through an entire node upgrade — without
+# this, a drain evicts both api pods at once: full cluster cold start,
+# serve dark window, and the shard-wedge risk from 2026-07-22.
+#
+# singleton / db are deliberately NOT given PDBs: with 1 replica, a
+# blocking PDB (minAvailable=1) stalls node upgrades until GKE's 1h
+# force-drain, and a maxUnavailable=1 PDB is a no-op. Both recover on
+# reschedule (LMDB PVC / TimescaleDB PVC); the api PDB already ensures
+# the cluster they rejoin kept quorum.
+apiVersion: policy/v1
+kind: PodDisruptionBudget
+metadata:
+  name: promovolve-api
+spec:
+  maxUnavailable: 1
+  selector:
+    matchLabels:
+      app: promovolve-api
+      tier: app

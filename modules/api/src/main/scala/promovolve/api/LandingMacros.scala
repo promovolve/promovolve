@@ -19,8 +19,10 @@ package promovolve.api
  */
 object LandingMacros {
 
-  /** The macro → value map for one served impression. Public so it can back
-    * both substitution and any advertiser-facing "available macros" help. */
+  /**
+   * The macro → value map for one served impression. Public so it can back
+   * both substitution and any advertiser-facing "available macros" help.
+   */
   def valuesFor(
       source: String,
       campaignId: String,
@@ -29,12 +31,12 @@ object LandingMacros {
       category: String,
       slot: String
   ): Map[String, String] = Map(
-    "{source}"      -> source,
+    "{source}" -> source,
     "{campaign_id}" -> campaignId,
     "{creative_id}" -> creativeId,
-    "{site}"        -> site,
-    "{category}"    -> category,
-    "{slot}"        -> slot
+    "{site}" -> site,
+    "{category}" -> category,
+    "{slot}" -> slot
   )
 
   def substitute(url: String, values: Map[String, String]): String =

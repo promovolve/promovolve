@@ -150,6 +150,12 @@ object CategoryBidderEntity {
   /** Internal: durable demand seed failed to load — start empty, await the push. */
   private case class SeedFailed(reason: String) extends Command
 
+  /** Internal: category_demand cross-check after a registry-shrinking push. */
+  private case class ReconcileLoaded(rows: Map[String, String]) extends Command
+
+  /** Internal: cross-check read failed — keep the pushed registry as-is. */
+  private case class ReconcileFailed(reason: String) extends Command
+
   // (campaignId, advertiserId, creatives, cpm, maxCpm, adProductCategory, landingDomain, hasApprovedCreative)
   private type Collected = Vector[(CampaignId, AdvertiserId, Set[AdvertiserEntity.Creative], CPM, CPM,
       Option[AdProductCategoryId], String, Boolean)]
@@ -236,18 +242,59 @@ private final class CategoryBidderEntity(
     Behaviors.receiveMessage {
 
       case ActiveCampaigns(campaigns, replyTo) =>
-//        ctx.log.info(
-//          "CategoryBidder[{}] received {} campaigns",
-//          categoryId,
-//          campaigns.size
-//        )
-//        ctx.log.debug(
-//          "CategoryBidder[{}] campaigns: {}",
-//          categoryId,
-//          campaigns.keys.mkString(",")
-//        )
         replyTo ! ActiveCampaignsAck(categoryId)
+        val removed = activeCampaigns.keySet -- campaigns.keySet
+        if (removed.nonEmpty) {
+          // A shrinking push is either a real leave (pause/delete — the
+          // CampaignEntity also removes its category_demand rows) or a
+          // PARTIAL push from a directory that lost state in a roll —
+          // the silent no-bid failure mode. WARN (visible at the prod
+          // log level) and cross-check the durable table: campaigns it
+          // still lists get merged back. Over-inclusion is safe (a
+          // paused campaign answers ineligible at bid time);
+          // under-inclusion silently kills its delivery in this category.
+          ctx.log.warn(
+            "CategoryBidder[{}] push shrinks registry {} -> {} (removed: {}); cross-checking category_demand",
+            categoryId.value,
+            activeCampaigns.size: java.lang.Integer,
+            campaigns.size: java.lang.Integer,
+            removed.map(_.value).mkString(",")
+          )
+          ctx.pipeToSelf(categoryDemandRepo.listByCategory(categoryId.value)) {
+            case scala.util.Success(rows) => ReconcileLoaded(rows.toMap)
+            case scala.util.Failure(e)    => ReconcileFailed(e.getMessage)
+          }
+        } else if (campaigns.keySet != activeCampaigns.keySet) {
+          ctx.log.debug(
+            "CategoryBidder[{}] push grows registry {} -> {}",
+            categoryId.value,
+            activeCampaigns.size: java.lang.Integer,
+            campaigns.size: java.lang.Integer
+          )
+        }
         serving(campaigns)
+
+      case ReconcileLoaded(rows) =>
+        val restored = rows.collect {
+          case (c, a) if !activeCampaigns.contains(CampaignId(c)) =>
+            CampaignId(c) -> AdvertiserId(a)
+        }
+        if (restored.nonEmpty) {
+          ctx.log.warn(
+            "CategoryBidder[{}] PARTIAL PUSH detected — restored {} campaign(s) still in category_demand: {}",
+            categoryId.value,
+            restored.size: java.lang.Integer,
+            restored.keys.map(_.value).mkString(",")
+          )
+          serving(activeCampaigns ++ restored)
+        } else Behaviors.same
+
+      case ReconcileFailed(reason) =>
+        ctx.log.warn(
+          "CategoryBidder[{}] category_demand cross-check failed ({}); keeping pushed registry",
+          categoryId.value, reason
+        )
+        Behaviors.same
 
       case CategoryBidRequest(siteId, url, slotId, sizes, floorCpm, replyTo) =>
         if (activeCampaigns.isEmpty) {

@@ -42,10 +42,13 @@ closed ad network can offer. For the guided version, read
    bookmarks, the latter weighted double) times `CPM^α`, balancing
    revenue against ad quality (α is publisher-configurable) and
    exploring new creatives without re-running the auction.
-5. **Winners pay the minimum price that still wins** (quality-adjusted,
-   second-price style), so advertisers can simply bid their true value.
-   Publisher floor prices are optimized continuously against observed
-   demand.
+5. **Winners pay the minimum price that still wins** — a
+   quality-adjusted second price set by the runner-up, never above the
+   winner's own bid. Publisher floors are learned continuously from
+   observed demand, capped so a floor can never price out the top two
+   bidders in a competitive category. Where an advertiser is the *only*
+   bidder in a category, the floor tracks their bid (99%) — a monopolist
+   pays what they offered until competition arrives.
 6. **Creatives are generated, not uploaded.** From an advertiser's
    landing page, Promovolve writes an original three-page "magazine"
    creative — a compact banner that expands into a page-turning story.

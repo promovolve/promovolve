@@ -26,8 +26,20 @@ func NewService(repo *Repository, coreAPIURL string) *Service {
 }
 
 // Request records a publisher's intent to add a site. No core entity is
-// created here — that happens at admin approval.
+// created here — that happens at admin approval. A site that is already
+// LIVE (verified by this publisher or registered to any other) is rejected
+// up front: such a request could never be approved (core returns
+// site_id_taken at provision time), so accepting it would only park a
+// dead row in the admin queue.
 func (s *Service) Request(ctx context.Context, publisherID, requestedBy, siteID, domain, pageURL string) error {
+	if owner, found, err := s.repo.LiveSiteOwner(ctx, siteID, domain); err != nil {
+		return err
+	} else if found {
+		if owner == publisherID {
+			return ErrSiteAlreadyOwned
+		}
+		return ErrSiteTaken
+	}
 	req := &model.SiteRequest{
 		PublisherID: publisherID,
 		SiteID:      siteID,

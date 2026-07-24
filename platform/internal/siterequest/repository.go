@@ -19,6 +19,8 @@ const (
 
 var ErrNotFound = errors.New("site request not found")
 var ErrDuplicatePending = errors.New("a request for this site is already awaiting approval")
+var ErrSiteAlreadyOwned = errors.New("the requesting publisher already owns this site")
+var ErrSiteTaken = errors.New("this site is already registered to another publisher")
 
 type Repository struct {
 	pool *pgxpool.Pool
@@ -70,6 +72,25 @@ func (r *Repository) Create(ctx context.Context, req *model.SiteRequest) error {
 		return err
 	}
 	return tx.Commit(ctx)
+}
+
+// LiveSiteOwner looks the site up in the publisher_sites projection (the
+// live-site mirror the core API maintains on create): a hit by either the
+// sanitized site_id or the raw host means the site is already registered
+// and a new request for it can never be approved.
+func (r *Repository) LiveSiteOwner(ctx context.Context, siteID, host string) (string, bool, error) {
+	var owner string
+	err := r.pool.QueryRow(ctx, `
+		SELECT publisher_id FROM publisher_sites
+		WHERE site_id = $1 OR host = $2
+		LIMIT 1`, siteID, host).Scan(&owner)
+	if errors.Is(err, pgx.ErrNoRows) {
+		return "", false, nil
+	}
+	if err != nil {
+		return "", false, err
+	}
+	return owner, true, nil
 }
 
 func (r *Repository) GetByID(ctx context.Context, id string) (*model.SiteRequest, error) {

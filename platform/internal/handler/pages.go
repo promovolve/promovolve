@@ -361,6 +361,14 @@ func (h *Handler) CreateSite(w http.ResponseWriter, r *http.Request) {
 		h.renderPublisherSites(w, r, i18n.T(h.lang(r, user), "a request for %s is already awaiting approval", domain))
 		return
 	}
+	if errors.Is(err, siterequest.ErrSiteAlreadyOwned) {
+		h.renderPublisherSites(w, r, i18n.T(h.lang(r, user), "%s is already registered", domain))
+		return
+	}
+	if errors.Is(err, siterequest.ErrSiteTaken) {
+		h.renderPublisherSites(w, r, i18n.T(h.lang(r, user), "%s is already registered to another publisher", domain))
+		return
+	}
 	if err != nil {
 		slog.Error("create site request failed", "siteId", siteID, "error", err)
 		h.renderPublisherSites(w, r, "could not submit the site request")

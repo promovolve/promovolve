@@ -74,15 +74,55 @@ floor, per-cycle bid bounds) is snapshotted (`Snapshot`, CborSerializable) so
 the sweep survives restarts. The previous cycle's results are kept so the
 dashboard can show this-cycle-vs-last-cycle deltas.
 
+## Per-category floors (the floors that price real demand)
+
+Each category with observed demand gets its own floor, decided per
+observation window from the latest per-category auction report
+(`bidderCount`, `rejectedByFloor`, `maxObservedCpm`):
+
+- **Zero servable demand** — nobody bids anymore, **or bidders exist but
+  every one was rejected below the floor** — collapses the floor to the
+  publisher minimum immediately and resets the optimizer. Demand that
+  cannot serve is treated as no demand: a floor can never freeze in a
+  state that prices out its whole field.
+- **Monopoly (exactly one bidder)** — floor is set to **bid × 0.99**,
+  computed directly (no sweep). The sole bidder always clears its own
+  floor; the 1% headroom removes the floor==bid floating-point knife-edge.
+- **Competitive (≥2 bidders)** — the sweep explores and takes the revenue
+  argmax, with its candidate range bounded by the observed bids.
+
+## Admission: how a floor reaches a bid request
+
+The floor a campaign is asked to beat is
+`effectiveFloor = categoryFloor × min(1.0, 0.5 + slotQuality)` — the
+slot-quality prior is **discount-only** (0.5×–1.0×): a weak slot may price
+below the category floor to attract fill; a premium slot never surcharges
+above it. Consequence: the effective floor is always ≤ the raw floor,
+which is always ≤ the observed bids — the system cannot ask bidders to
+beat a price derived from their own bids plus a markup. Categories with no
+learned floor fall back to the site-level sweep floor under the same rule.
+
+## Observability
+
+An auction that collects **zero candidates while approved bids were
+rejected below the floor** logs
+`WARN FLOOR-BLOCKED auction: site=… slot=… — N approved bid(s) ALL rejected below floor (best rejected bid=$X)`.
+Seeing this once is normal churn; seeing it repeatedly for a category
+means the zero-servable collapse failed — treat the WARN as an alarm, not
+noise.
+
 ## Interaction with the rest of the system
 
 - The publisher's `minFloorCpm` remains the hard lower bound (set in the Sites
-  UI); the optimizer explores above it.
+  UI); the optimizer explores above it, and every collapse lands on it.
 - Floors only matter when bidder values are spread out — in a homogeneous
   market (all bids equal), every floor below the common bid is
   revenue-equivalent and the optimizer correctly settles anywhere on that
   plateau.
-- Per-slot floor overrides (admin escape hatch) layer on top of the site-level
-  optimized floor. (The crawler-seeded slot prior is defunct for new slots
-  since the crawler tier was removed; slots created back then keep their
-  persisted priors.)
+- Per-slot floor overrides (admin escape hatch) bypass the category floor and
+  the quality scaling entirely; overridden slots are also excluded from floor
+  learning.
+- Per-category floors are pushed state (SiteEntity → auctioneer → AdServer):
+  a freshly restarted auctioneer serves under defaults until the first push
+  arrives, then under the learned floors. Both regimes obey the same
+  invariants above, so restarts do not change admission outcomes.

@@ -154,7 +154,7 @@ final class FloorSweepOptimizer(
    * (above max) or revenue-indistinguishable (below min).
    */
   def recordAuctionOutcome(outcome: AuctionOutcome): Unit = {
-    recordObservedBid(outcome.maxObservedCpm)
+    recordObservedBid(FloorSweepOptimizer.competitiveRangeTop(outcome))
     recordObservedMinBid(outcome.minObservedCpm)
   }
 
@@ -435,8 +435,27 @@ object FloorSweepOptimizer {
       clearingPrice: Option[Double],
       maxObservedCpm: Double,
       minObservedCpm: Double = 0.0,
-      slotId: Option[String] = None
+      slotId: Option[String] = None,
+      // Second-highest approved bid observed (0.0 = unknown / fewer than
+      // two bidders). Caps the competitive sweep range: a floor may price
+      // out the bottom of the field, never the top two.
+      secondMaxObservedCpm: Double = 0.0
   )
+
+  /**
+   * SECOND-BID CEILING for the sweep's candidate range. In a competitive
+   * category (≥2 bidders) the range top is `secondMax × 0.99`, not the
+   * top bid: any floor above the second bid manufactures a monopoly —
+   * only the top bidder clears — which under the per-campaign page cap
+   * forfeits every other campaign's fill. The sweep must not even PROBE
+   * such floors; extraction above the second bid belongs to second-price
+   * clearing, not to the reserve. Monopoly (1 bidder) and unknown-second
+   * outcomes are untouched.
+   */
+  def competitiveRangeTop(outcome: AuctionOutcome): Double =
+    if (outcome.totalBidders >= 2 && outcome.secondMaxObservedCpm > 0.0)
+      math.min(outcome.maxObservedCpm, outcome.secondMaxObservedCpm * 0.99)
+    else outcome.maxObservedCpm
 
   /**
    * Result returned by `observe`: the next floor to apply, plus — on the

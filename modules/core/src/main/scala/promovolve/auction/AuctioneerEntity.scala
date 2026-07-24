@@ -275,7 +275,7 @@ object AuctioneerEntity {
       // APPROVED-ONLY: computed from campaigns with ≥1 publisher-approved
       // creative — pending demand bids (to reach the approval queue) but
       // must not teach the floor.
-      perCategoryBounds: Map[CategoryId, (Double, Double, Int, Int)] = Map.empty,
+      perCategoryBounds: Map[CategoryId, (Double, Double, Int, Int, Double)] = Map.empty,
       // APPROVED-ONLY aggregate demand for the site-level AuctionOutcome
       // report. The raw rejectedByFloor/max/minRejectedCpm above keep their
       // all-bidders semantics for the eviction-evidence machinery
@@ -774,6 +774,14 @@ private final class AuctioneerEntity private (
         case (_, r) if r > 0.0            => r
         case _                            => 0.0
       }
+      // Aggregate second bid mirrors the per-category computation: known
+      // bids = qualifying + reject bounds (middle rejects invisible → can
+      // only underestimate → fails open).
+      val aggRejBids =
+        if (approvedFloorRejects >= 2) Seq(maxApprovedRejectedCpm, minApprovedRejectedCpm)
+        else Seq(maxApprovedRejectedCpm)
+      val aggKnownBids = (approvedDeduped.map(_.cpm.toDouble) ++ aggRejBids).filter(_ > 0.0).sorted(
+        Ordering[Double].reverse)
       val outcome = FloorSweepOptimizer.AuctionOutcome(
         totalBidders = approvedDeduped.size + approvedFloorRejects,
         rejectedByFloor = approvedFloorRejects,
@@ -781,7 +789,8 @@ private final class AuctioneerEntity private (
         clearingPrice = clearingPrice,
         maxObservedCpm = maxObserved,
         minObservedCpm = minObserved,
-        slotId = Some(slotId.value)
+        slotId = Some(slotId.value),
+        secondMaxObservedCpm = aggKnownBids.lift(1).getOrElse(0.0)
       )
       val siteRef = sharding.entityRefFor(SiteEntity.TypeKey, siteId.value)
       // Admin-overridden slots are invisible to floor LEARNING: their
@@ -802,7 +811,7 @@ private final class AuctioneerEntity private (
       // feeds the site-level optimizer, so this never double-counts.
       // Overridden slots are excluded here for the same reason as above.
       if (!slotIsOverridden) {
-        perCategoryBounds.foreach { case (cat, (maxObs, minObs, rejects, bidderCount)) =>
+        perCategoryBounds.foreach { case (cat, (maxObs, minObs, rejects, bidderCount, secondObs)) =>
           val catOutcome = FloorSweepOptimizer.AuctionOutcome(
             totalBidders = bidderCount,
             rejectedByFloor = rejects,
@@ -810,7 +819,8 @@ private final class AuctioneerEntity private (
             clearingPrice = None,
             maxObservedCpm = maxObs,
             minObservedCpm = minObs,
-            slotId = Some(slotId.value)
+            slotId = Some(slotId.value),
+            secondMaxObservedCpm = secondObs
           )
           siteRef ! SiteEntity.AuctionOutcomeReport(catOutcome, Some(cat.value))
         }
@@ -1397,7 +1407,18 @@ private final class AuctioneerEntity private (
                   // 0 = explicit no-servable-demand → SiteEntity collapses
                   // the floor to the publisher minimum.
                   val bidderCount = approved.map(_.campaignId).distinct.size + r.approvedRejectedByFloor
-                  r.categoryId -> (maxObs, minObs, r.approvedRejectedByFloor, bidderCount)
+                  // Second-highest approved bid. Rejected bids are only
+                  // known by their max/min, so the middle of the reject
+                  // field is invisible — which can only UNDERESTIMATE the
+                  // second bid (lower range cap → more admission): fails
+                  // open, never strangles.
+                  val rejBids =
+                    if (r.approvedRejectedByFloor >= 2)
+                      Seq(r.maxApprovedRejectedCpm, r.minApprovedRejectedCpm)
+                    else Seq(r.maxApprovedRejectedCpm)
+                  val knownBids = (qual ++ rejBids).filter(_ > 0.0).sorted(Ordering[Double].reverse)
+                  val secondObs = knownBids.lift(1).getOrElse(0.0)
+                  r.categoryId -> (maxObs, minObs, r.approvedRejectedByFloor, bidderCount, secondObs)
                 }.toMap
               CandidatesCollected(
                 url, slot.slotId, candidates.toVector, totalFloorRejects, maxRejectedCpm, minRejectedCpm,

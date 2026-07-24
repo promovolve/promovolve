@@ -236,7 +236,7 @@ object SiteEntity {
           // feeds the zero-SERVABLE collapse: bidders that exist but are all
           // priced out must read as no demand, not as satisfied demand.
           // Transient; rebuilt as auctions report.
-          var categoryBidInfo: Map[String, (Int, Int, Double)] = Map.empty
+          var categoryBidInfo: Map[String, (Int, Int, Double, Double)] = Map.empty
 
           // Sweep-optimizer tuning, read once from the `floor-optimizer`
           // HOCON block. Missing keys fall back to FloorSweepOptimizer.Config
@@ -326,10 +326,10 @@ object SiteEntity {
               // a MISSING entry (None) is the transient restart state
               // (categoryBidInfo is rebuilt from reports), which must retain
               // the persisted floor, not collapse to min.
-              val isZeroServable = info.exists { case (n, rejected, _) =>
+              val isZeroServable = info.exists { case (n, rejected, _, _) =>
                 n == 0 || (n > 0 && rejected >= n)
               }
-              val bidDerived = info.flatMap { case (n, _, b) =>
+              val bidDerived = info.flatMap { case (n, _, b, _) =>
                 FloorSweepOptimizer.bidDerivedFloor(n, b, state.minFloorCpm.toDouble)
               }
               if (isZeroServable) {
@@ -387,7 +387,19 @@ object SiteEntity {
                 // COMPETITIVE (≥2 bidders) or not-yet-known: run the sweep.
                 case _ =>
                   val r = opt.observe()
-                  floors = floors.updated(cat, CPM(opt.currentFloorCpm))
+                  // SECOND-BID CEILING at the APPLIED layer (the sweep's
+                  // candidate range is capped too, but a mid-cycle probe or
+                  // stale anchor can still sit above the field): a
+                  // competitive floor never exceeds secondBid × 0.99, so the
+                  // top two bidders always clear. Extraction above the
+                  // second bid is second-price clearing's job.
+                  val secondCap = info.collect {
+                    case (n, _, _, second) if n >= 2 && second > 0.0 => second * 0.99
+                  }
+                  val applied = secondCap
+                    .fold(opt.currentFloorCpm)(c => math.min(opt.currentFloorCpm, c))
+                    .max(state.minFloorCpm.toDouble)
+                  floors = floors.updated(cat, CPM(applied))
                   snaps = snaps.updated(cat, opt.snapshot())
                   r.flatMap(_.completedCycle).foreach { d =>
                     decisions = decisions :+ (cat -> d)
@@ -734,8 +746,8 @@ object SiteEntity {
                     // lets the dashboard distinguish a floor pegged to a lone
                     // bid (1), a sweep-governed competitive one (2+), and a
                     // historical row nobody bids into anymore (absent).
-                    bidderCounts = categoryBidInfo.map { case (k, (n, _, _)) => k -> n },
-                    observedBids = categoryBidInfo.map { case (k, (_, _, b)) => k -> b },
+                    bidderCounts = categoryBidInfo.map { case (k, (n, _, _, _)) => k -> n },
+                    observedBids = categoryBidInfo.map { case (k, (_, _, b, _)) => k -> b },
                     sweepStates = sweepStates,
                     observationIntervalSeconds = obsIntervalSecs
                   ))
@@ -1071,7 +1083,10 @@ object SiteEntity {
                   case Some(c) =>
                     categoryOptimizer(c, state).recordAuctionOutcome(outcome)
                     categoryBidInfo = categoryBidInfo
-                      .updated(c, (outcome.totalBidders, outcome.rejectedByFloor, outcome.maxObservedCpm))
+                      .updated(
+                        c,
+                        (outcome.totalBidders, outcome.rejectedByFloor, outcome.maxObservedCpm,
+                          outcome.secondMaxObservedCpm))
                 }
                 Effect.none
 

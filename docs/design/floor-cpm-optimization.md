@@ -89,7 +89,15 @@ observation window from the latest per-category auction report
   computed directly (no sweep). The sole bidder always clears its own
   floor; the 1% headroom removes the floor==bid floating-point knife-edge.
 - **Competitive (≥2 bidders)** — the sweep explores and takes the revenue
-  argmax, with its candidate range bounded by the observed bids.
+  argmax, with its candidate range capped at **the second-highest approved
+  bid × 0.99** (not the top bid). Any floor above the second bid
+  manufactures a monopoly — only the top bidder clears — which, under the
+  per-campaign page cap, forfeits every other campaign's fill; the sweep
+  is not allowed to even probe there. A competitive floor may price out
+  lowball bids, but never the top two; extraction above the second bid is
+  second-price clearing's job, not the reserve's. The same ceiling is
+  enforced on the **applied** floor each window (mid-cycle probes and
+  stale anchors get clamped immediately, not just next cycle).
 
 ## Admission: how a floor reaches a bid request
 

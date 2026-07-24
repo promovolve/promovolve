@@ -167,6 +167,42 @@ class FloorSweepOptimizerSpec extends AnyWordSpec with Matchers {
     }
   }
 
+  "FloorSweepOptimizer.competitiveRangeTop (second-bid ceiling)" should {
+    def outcome(bidders: Int, max: Double, second: Double) =
+      FloorSweepOptimizer.AuctionOutcome(
+        totalBidders = bidders,
+        rejectedByFloor = 0,
+        winnerCpm = None,
+        clearingPrice = None,
+        maxObservedCpm = max,
+        secondMaxObservedCpm = second
+      )
+
+    "cap the sweep range at secondBid × 0.99 in a competitive category" in {
+      // Live outage shape: bids $12 / $10 / $10. Probing floors in
+      // (10, 12] manufactures a monopoly — only the $12 bidder clears —
+      // so the range top must be 9.90, keeping all three admissible.
+      FloorSweepOptimizer.competitiveRangeTop(outcome(3, 12.0, 10.0)) shouldBe 9.90 +- 1e-9
+    }
+    "let a floor price out lowball bids but never the top two" in {
+      // Bids $12 / $0.50: the ceiling drops to $0.495 — the reserve gives
+      // up extraction above the second bid (that's second-price
+      // clearing's job), in exchange every approved bidder stays live.
+      FloorSweepOptimizer.competitiveRangeTop(outcome(2, 12.0, 0.5)) shouldBe 0.495 +- 1e-9
+    }
+    "leave a monopoly outcome untouched (bid-derived path owns it)" in {
+      FloorSweepOptimizer.competitiveRangeTop(outcome(1, 12.0, 0.0)) shouldBe 12.0
+    }
+    "leave the range untouched when the second bid is unknown" in {
+      // 0.0 = unknown (mixed-version rolling deploy, or reject-only field
+      // whose middle is invisible). Fail open to the old max-bid bound.
+      FloorSweepOptimizer.competitiveRangeTop(outcome(3, 12.0, 0.0)) shouldBe 12.0
+    }
+    "never raise the range when the second bid exceeds the max (defensive)" in {
+      FloorSweepOptimizer.competitiveRangeTop(outcome(2, 10.0, 20.0)) shouldBe 10.0
+    }
+  }
+
   "FloorSweepOptimizer sweep lifecycle" should {
 
     "emit each candidate once during sweep then converge to argmax" in {

@@ -228,12 +228,15 @@ object SiteEntity {
           // (and, in shadow mode, the only floor that is actually applied).
           var floorSweepOptimizerByCategory: Map[String, FloorSweepOptimizer] = Map.empty
 
-          // Latest (bidderCount, bid) observed per category, from the per-category
-          // AuctionOutcomeReport. Drives the bid-derived shortcut: a MONOPOLY
-          // category (1 bidder) sets floor = that bid directly — no sweep needed,
-          // no drift, instant adaptation. Competitive categories (≥2) fall back
-          // to the sweep. Transient; rebuilt as auctions report.
-          var categoryBidInfo: Map[String, (Int, Double)] = Map.empty
+          // Latest (bidderCount, floorRejected, bid) observed per category, from
+          // the per-category AuctionOutcomeReport. Drives the bid-derived
+          // shortcut: a MONOPOLY category (1 bidder) sets floor to (just under)
+          // that bid directly — no sweep needed, no drift, instant adaptation.
+          // Competitive categories (≥2) fall back to the sweep. floorRejected
+          // feeds the zero-SERVABLE collapse: bidders that exist but are all
+          // priced out must read as no demand, not as satisfied demand.
+          // Transient; rebuilt as auctions report.
+          var categoryBidInfo: Map[String, (Int, Int, Double)] = Map.empty
 
           // Sweep-optimizer tuning, read once from the `floor-optimizer`
           // HOCON block. Missing keys fall back to FloorSweepOptimizer.Config
@@ -312,23 +315,32 @@ object SiteEntity {
             var decisions = Vector.empty[(String, FloorSweepOptimizer.CycleDecision)]
             floorSweepOptimizerByCategory.foreach { case (cat, opt) =>
               val info = categoryBidInfo.get(cat)
-              // EXPLICIT zero-bidder report — the sole bidder's creative was
-              // flagged/rejected/revoked so it no longer bids. Gate strictly
-              // on Some((0, _)): a MISSING entry (None) is the transient
-              // restart state (categoryBidInfo is rebuilt from reports), which
-              // must retain the persisted floor, not collapse to min.
-              val isZeroDemand = info.exists { case (n, _) => n == 0 }
-              val bidDerived = info.flatMap { case (n, b) =>
+              // EXPLICIT zero-SERVABLE report — either nobody bids anymore
+              // (the sole bidder's creative was flagged/rejected/revoked), OR
+              // bidders exist but EVERY one was rejected below the floor.
+              // The second case is the 2026-07-24 dead-end: floor-rejected
+              // bidders used to count as demand, so a floor that priced out
+              // the whole field held the category in a zero-revenue freeze
+              // with no path down. Demand that cannot serve is not demand
+              // the floor may keep banking on. Gate strictly on Some(...):
+              // a MISSING entry (None) is the transient restart state
+              // (categoryBidInfo is rebuilt from reports), which must retain
+              // the persisted floor, not collapse to min.
+              val isZeroServable = info.exists { case (n, rejected, _) =>
+                n == 0 || (n > 0 && rejected >= n)
+              }
+              val bidDerived = info.flatMap { case (n, _, b) =>
                 FloorSweepOptimizer.bidDerivedFloor(n, b, state.minFloorCpm.toDouble)
               }
-              if (isZeroDemand) {
-                // ZERO DEMAND: the reserve pinned to the departed bid is no
-                // longer justified. Collapse to the publisher minimum
-                // IMMEDIATELY rather than draining it over a full sweep
-                // (~90 min dev / ~23 h prod) that would keep the floor
-                // elevated and lock out other legitimate bidders meanwhile.
-                // resetToMinFloor also wipes the optimizer's stale high anchor
-                // so a later re-entrant bidder sweeps clean from the minimum.
+              if (isZeroServable) {
+                // ZERO SERVABLE DEMAND: the reserve pinned to the departed
+                // (or priced-out) bids is no longer justified. Collapse to
+                // the publisher minimum IMMEDIATELY rather than draining it
+                // over a full sweep (~90 min dev / ~23 h prod) that would
+                // keep the floor elevated and lock out legitimate bidders
+                // meanwhile. resetToMinFloor also wipes the optimizer's stale
+                // high anchor so a later re-entrant bidder sweeps clean from
+                // the minimum.
                 opt.resetToMinFloor()
                 val floor = state.minFloorCpm.toDouble
                 floors = floors.updated(cat, CPM(floor))
@@ -344,7 +356,7 @@ object SiteEntity {
                       candidates = Vector(FloorDecisionCandidate(floor, 0.0, 0L))
                     ))
                   ctx.log.info(
-                    "SiteEntity {} [{}] per-category ZERO-DEMAND floor cat={} -> min ${}",
+                    "SiteEntity {} [{}] per-category ZERO-SERVABLE floor collapse cat={} -> min ${} (no bidders, or all floor-rejected)",
                     siteId.value, "enforce", cat, f"$floor%.4f"
                   )
                 }
@@ -722,8 +734,8 @@ object SiteEntity {
                     // lets the dashboard distinguish a floor pegged to a lone
                     // bid (1), a sweep-governed competitive one (2+), and a
                     // historical row nobody bids into anymore (absent).
-                    bidderCounts = categoryBidInfo.map { case (k, (n, _)) => k -> n },
-                    observedBids = categoryBidInfo.map { case (k, (_, b)) => k -> b },
+                    bidderCounts = categoryBidInfo.map { case (k, (n, _, _)) => k -> n },
+                    observedBids = categoryBidInfo.map { case (k, (_, _, b)) => k -> b },
                     sweepStates = sweepStates,
                     observationIntervalSeconds = obsIntervalSecs
                   ))
@@ -1058,7 +1070,8 @@ object SiteEntity {
                   // records (bidderCount, bid) for the bid-derived monopoly path.
                   case Some(c) =>
                     categoryOptimizer(c, state).recordAuctionOutcome(outcome)
-                    categoryBidInfo = categoryBidInfo.updated(c, (outcome.totalBidders, outcome.maxObservedCpm))
+                    categoryBidInfo = categoryBidInfo
+                      .updated(c, (outcome.totalBidders, outcome.rejectedByFloor, outcome.maxObservedCpm))
                 }
                 Effect.none
 
@@ -1647,14 +1660,26 @@ object SiteEntity {
   /**
    * Per-slot effective floor: explicit override wins; otherwise the
    * site floor is scaled by the crawler prior's qualityScore into a
-   * 0.5x..1.5x band; absent a prior, fall through to the site floor.
+   * 0.5x..1.0x band; absent a prior, fall through to the site floor.
+   *
+   * DISCOUNT-ONLY (capped at 1.0x): the prior may lower the floor on weak
+   * slots but never surcharge premium ones. The old 0.5x..1.5x band let a
+   * quality prior lift the EFFECTIVE floor above every bid that the floor
+   * system itself had learned from — the learned floors honor the
+   * "never above the observed bids" ceiling, but that ceiling is checked
+   * on the RAW floor, and a 1.275x surcharge silently re-broke it one
+   * level up: category floors ratcheted to bid level (monopoly rule),
+   * admission then asked bid×1.275, every bidder rejected itself, revenue
+   * pinned at zero, and the sweep froze there (live 2026-07-24, tech/food
+   * categories). With the cap, effective ≤ raw ≤ observed-bid ceiling —
+   * the invariant holds at the layer auctions actually use.
    */
   def effectiveFloor(slot: AdSlotConfig, siteFloor: CPM): CPM =
     slot.floorOverride match {
       case Some(cpm) => cpm
       case None      =>
         slot.prior match {
-          case Some(p) => siteFloor * (0.5 + p.qualityScore)
+          case Some(p) => siteFloor * math.min(1.0, 0.5 + p.qualityScore)
           case None    => siteFloor
         }
     }

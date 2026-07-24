@@ -691,14 +691,21 @@ object FloorSweepOptimizer {
 
   /**
    * Bid-derived floor — the monopoly shortcut. With exactly ONE bidder in a
-   * category, the revenue-optimal reserve is its bid: it still clears (bid ≥
-   * floor) and pays its full value, and there's no price-vs-fill tradeoff to
+   * category, the revenue-optimal reserve is (just under) its bid: it still
+   * clears and pays ~full value, and there's no price-vs-fill tradeoff to
    * sweep for. Computed directly from the observed bid (bounded below by the
    * publisher minimum), so it needs no traffic, never drifts on noise, and
    * follows a bid change instantly. Returns None for a competitive category
    * (≥2 bidders) or when nothing has been observed — the caller should sweep
    * instead.
+   *
+   * The 1% headroom (×0.99) exists because admission rejects on
+   * `maxCpm < floorCpm`: floor == bid must clear, but both values travel
+   * through Double arithmetic on different paths, and a knife-edge equality
+   * is one rounding away from rejecting the only bidder in the category —
+   * which (pre-2026-07-24) had no recovery path. 1% of revenue buys the
+   * guarantee that the monopolist always clears its own floor.
    */
   def bidDerivedFloor(bidderCount: Int, bid: Double, minFloor: Double): Option[Double] =
-    if (bidderCount == 1 && bid > 0.0) Some(math.max(bid, minFloor)) else None
+    if (bidderCount == 1 && bid > 0.0) Some(math.max(bid * 0.99, minFloor)) else None
 }

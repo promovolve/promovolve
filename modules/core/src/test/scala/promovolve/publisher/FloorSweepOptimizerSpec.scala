@@ -142,8 +142,17 @@ class FloorSweepOptimizerSpec extends AnyWordSpec with Matchers {
   }
 
   "FloorSweepOptimizer.bidDerivedFloor (monopoly shortcut)" should {
-    "set the floor to the single bidder's bid for a monopoly category" in {
-      FloorSweepOptimizer.bidDerivedFloor(bidderCount = 1, bid = 5.0, minFloor = 0.10) shouldBe Some(5.0)
+    "set the floor just under the single bidder's bid so it always clears" in {
+      // ×0.99 headroom: admission rejects on maxCpm < floor, and floor == bid
+      // is a Double knife-edge (both values travel different arithmetic
+      // paths). A monopolist must never reject its own floor — that dead-end
+      // had no recovery path before the zero-servable collapse (2026-07-24).
+      FloorSweepOptimizer.bidDerivedFloor(bidderCount = 1, bid = 5.0, minFloor = 0.10) shouldBe Some(4.95)
+    }
+    "leave the monopolist clearing at the live outage numbers (bid $10.00)" in {
+      val floor = FloorSweepOptimizer.bidDerivedFloor(bidderCount = 1, bid = 10.0, minFloor = 0.10).get
+      floor should be < 10.0 // maxCpm < floor must be false → clears
+      floor shouldBe 9.90 +- 1e-9
     }
     "raise the monopoly floor to the publisher minimum when the bid is below it" in {
       FloorSweepOptimizer.bidDerivedFloor(bidderCount = 1, bid = 0.05, minFloor = 0.10) shouldBe Some(0.10)

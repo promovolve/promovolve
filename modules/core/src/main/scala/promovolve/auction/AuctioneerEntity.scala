@@ -726,6 +726,24 @@ private final class AuctioneerEntity private (
         // timeout, and evicting on it let transport hiccups purge healthy
         // serve-index entries (incident 2026-07-06, 660 evictions/25min).
         notifyEmptyAuction(url, slotId, hadFloorRejects = rejectedByFloor > 0)
+        // OBSERVABILITY (never silent again): approved demand exists but the
+        // floor rejected ALL of it — the exact shape of the 2026-07-24
+        // outage, which was invisible at INFO and took hours to diagnose.
+        // One WARN per empty auction names the slot, how many approved bids
+        // knocked, and the highest bid the floor turned away. If you see
+        // this repeatedly for a category, its floor is above its demand —
+        // the zero-servable collapse should pull it down within one
+        // observation window; persistent recurrence means that safety
+        // failed and this line is the alarm.
+        if (approvedFloorRejects > 0)
+          ctx.log.warn(
+            "FLOOR-BLOCKED auction: site={} slot={} url={} — {} approved bid(s) ALL rejected below floor (best rejected bid=${})",
+            siteId,
+            slotId.value,
+            url,
+            approvedFloorRejects: java.lang.Integer,
+            f"$maxApprovedRejectedCpm%.2f"
+          )
       }
 
       // Report auction outcome to SiteEntity for floor CPM optimization

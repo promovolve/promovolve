@@ -56,14 +56,26 @@ class SlotPriorSpec extends AnyWordSpec with Matchers {
       effectiveFloor(slot, siteFloor).toDouble shouldBe 2.50 +- 1e-9
     }
 
-    "scale site floor by 0.5..1.5x based on quality score" in {
+    "scale site floor by 0.5..1.0x based on quality score (discount-only)" in {
       val low = AdSlotConfig("low", 728, 90, prior = Some(SlotPrior(0.0, aboveFold = false, region = "footer")))
       val high = AdSlotConfig("high", 300, 250, prior = Some(SlotPrior(1.0, aboveFold = true, region = "article")))
       effectiveFloor(low, siteFloor).toDouble shouldBe 0.50 +- 1e-9
-      effectiveFloor(high, siteFloor).toDouble shouldBe 1.50 +- 1e-9
+      // Capped at 1.0x — a premium slot never surcharges the floor. The old
+      // 1.5x ceiling let the EFFECTIVE floor exceed every observed bid the
+      // learned floor was derived from (floor=bid ratchet × 1.275 priced out
+      // the entire field, live 2026-07-24).
+      effectiveFloor(high, siteFloor).toDouble shouldBe 1.00 +- 1e-9
     }
 
-    "rank slots by floor: article > header > sidebar > footer (fixture run)" in {
+    "never lift the effective floor above the raw floor (the 2026-07-24 regression)" in {
+      // Live numbers from the outage: category floor $8.00, slot quality
+      // 0.775 → old multiplier 1.275 asked bidders for $10.20 and rejected
+      // the $10.00 field. Now effective must stay ≤ raw.
+      val slot = AdSlotConfig("s", 300, 250, prior = Some(SlotPrior(0.775, aboveFold = true, region = "content")))
+      effectiveFloor(slot, CPM(8.0)).toDouble shouldBe 8.0 +- 1e-9
+    }
+
+    "rank slots by floor with premium slots tying at the raw floor (fixture run)" in {
       def floor(qs: Double) = effectiveFloor(
         AdSlotConfig("s", 300, 250, prior = Some(SlotPrior(qs, aboveFold = true, region = "x"))),
         siteFloor
@@ -73,7 +85,11 @@ class SlotPriorSpec extends AnyWordSpec with Matchers {
       val sidebarFloor = floor(sidebar)
       val footerFloor = floor(footer)
 
-      articleFloor should be > sidebarFloor
+      // Discount-only pricing: premium slots (quality ≥ 0.5) all cap at the
+      // raw floor — they no longer out-rank each other via surcharge — while
+      // weak slots still discount below it. Ordering is preserved weakly.
+      articleFloor shouldBe siteFloor.toDouble +- 1e-9
+      articleFloor should be >= sidebarFloor
       sidebarFloor should be > footerFloor
       // Spread should be meaningful — top vs bottom > 30c on a $1 floor.
       (articleFloor - footerFloor) should be > 0.30

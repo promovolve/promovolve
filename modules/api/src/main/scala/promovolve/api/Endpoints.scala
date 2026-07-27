@@ -315,7 +315,7 @@ object Endpoints extends ApiJsonFormats {
       .tag("Sites")
       .summary("Set or clear per-slot floor override (admin escape hatch)")
       .description(
-        "Per-slot manual floor. Beats RL and prior. Pass floorCpm=null (or omit) to clear and let the slot fall back to RL/prior.")
+        "Per-slot manual floor. Beats every learned floor and the crawler prior. Pass floorCpm=null (or omit) to clear and let the slot fall back to the prior-scaled site floor.")
       .put
       .in(sitesBase / path[String]("siteId") / "slots" / path[String]("slotId") / "floor")
       .in(jsonBody[UpdateSlotFloorRequest])
@@ -325,9 +325,9 @@ object Endpoints extends ApiJsonFormats {
   val getFloorObservations: PublicEndpoint[(String, String, Int), ErrorResponse, RecentFloorObservationsResponse, Any] =
     endpoint
       .tag("Sites")
-      .summary("Get recent floor-RL decisions for a site")
+      .summary("Get recent floor-sweep decisions for a site")
       .description(
-        "Returns the in-memory ring buffer of recent observation windows (most-recent first). Each entry shows what the floor-CPM agent did or skipped that window. Not persisted; available only while the SiteEntity actor is running.")
+        "Returns the ring buffer of recent observation windows (most-recent first). Each entry shows what the floor-CPM sweep optimizer did or skipped that window. Persisted with the site, so entries survive an api-pod restart.")
       .get
       .in(sitesBase / path[String]("siteId") / "floor-observations")
       .in(query[Int]("limit").default(100))
@@ -563,9 +563,9 @@ object Endpoints extends ApiJsonFormats {
   val resetFloorAgent: PublicEndpoint[(String, String), ErrorResponse, Unit, Any] =
     endpoint
       .tag("Sites")
-      .summary("Reset the floor-RL agent for a site (admin escape hatch)")
+      .summary("Reset the floor-sweep optimizer for a site (admin escape hatch)")
       .description(
-        "Wipes the persisted agent snapshot and force-reloads the shipped warm-start default. Use when a site's agent has drifted to a pathological state. Logs a warning.")
+        "Wipes the persisted optimizer snapshot and force-reloads the shipped warm-start default. Use when a site's floor has drifted to a pathological state. Logs a warning.")
       .post
       .in(sitesBase / path[String]("siteId") / "reset-floor-agent")
       .out(statusCode(sttp.model.StatusCode.NoContent))

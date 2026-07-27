@@ -249,11 +249,12 @@ object SiteEntity {
             else
               FloorSweepOptimizer.Config()
 
-          // In-memory ring buffer of recent floor-CPM RL decisions. Surfaces
-          // production agent behavior to the dashboard without writing to
-          // a journal. Capped so a long-lived SiteEntity doesn't grow this
-          // unboundedly. ~100 entries × 15 min/entry ≈ last 25 hours of
-          // observations. Re-created empty on actor restart.
+          // Ring buffer of recent floor-CPM sweep decisions. Surfaces the
+          // optimizer's production behavior to the dashboard without
+          // standing up a projection. Capped so a long-lived SiteEntity
+          // doesn't grow this unboundedly. ~100 entries × 15 min/entry ≈
+          // last 25 hours of observations. Rides in persisted state
+          // (State.recentFloorObservations) and is hydrated on recovery.
           val FloorObservationCap: Int = 100
           var recentFloorObservations: Vector[FloorObservation] = Vector.empty
 
@@ -869,8 +870,8 @@ object SiteEntity {
                           .thenRun { _ =>
                             // Push the full admin-overrides map to the
                             // auctioneer. Empty values mean "no admin
-                            // override" — those slots fall back to RL /
-                            // prior at scoring time.
+                            // override" — those slots fall back to the
+                            // crawler prior at scoring time.
                             val adminMap = newSlots
                               .flatMap(s => s.floorOverride.map(cpm => SlotId(s.slotId) -> cpm))
                               .toMap
@@ -1405,8 +1406,8 @@ object SiteEntity {
                         .find(_.slotId == e.slotId)
                         .fold(e)(d =>
                           // Refresh geometry + the freshly-measured prior; keep
-                          // the admin/RL floor override (prior is auto, override
-                          // is human/learned).
+                          // the admin floor override (prior is auto, override
+                          // is human).
                           e.copy(width = d.width, height = d.height,
                             prior = d.prior.orElse(e.prior))
                         )
@@ -1532,8 +1533,8 @@ object SiteEntity {
             publishSiteSuspended(state.suspended)
             publishVerifiedHost(state.verifiedHost)
             // Replay admin per-slot floor overrides to AuctioneerEntity so
-            // they survive restarts. RL overrides are transient and will
-            // be recomputed at the next observation window.
+            // they survive restarts — they are the only per-slot overrides
+            // the auctioneer takes.
             state.config.foreach { cfg =>
               val adminMap = cfg.slots
                 .flatMap(s => s.floorOverride.map(cpm => SlotId(s.slotId) -> cpm))
@@ -1684,8 +1685,8 @@ object SiteEntity {
 
   /**
    * Crawler-derived prior for a slot — feeds into the per-slot
-   * effective floor before any auction data is available. Refined
-   * over time by the floor-CPM RL agent via `floorOverride` below.
+   * effective floor before any auction data is available. Overridable
+   * by an admin via `floorOverride` below.
    *
    *   qualityScore (0..1) is a weighted combination of crawl signals
    *   (above-fold, viewability, region, text density). Drives a
@@ -1732,7 +1733,7 @@ object SiteEntity {
    * Ad slot declared on a site.
    *
    *   prior         — crawler-derived; written only by the crawler ingest path
-   *   floorOverride — RL-learned or manual; written only by RL/admin code
+   *   floorOverride — manual; written only by admin code
    *
    * Both are Option so existing journaled slots deserialize with
    * defaults and the system falls through to the site-level floor.
@@ -1856,7 +1857,7 @@ object SiteEntity {
       dayDurationSeconds: Int = 86400, // Simulated day length (default: 24h = 86400s). Set lower for testing.
       warmupMode: Boolean = false, // When true, record traffic patterns but don't serve ads. Use for learning traffic shape before campaign start.
       bidWeight: Double = 0.5, // Scoring exponent: score = CTR × CPM^α. 0.3=discovery, 0.5=balanced, 0.7=revenue.
-      floorCpm: Double = 0.50 // Current floor CPM (synced to AdServer for serve-time filtering)
+      floorCpm: Double = FloorSweepOptimizer.DefaultFloor // Current floor CPM (synced to AdServer for serve-time filtering)
   ) extends CborSerializable
 
   /**
@@ -1980,15 +1981,15 @@ object SiteEntity {
   /** Get publisher's minimum floor CPM */
   final case class GetMinFloorCpm(replyTo: ActorRef[CPM]) extends Command
 
-  /** Update publisher's minimum floor CPM (RL agent cannot go below this) */
+  /** Update publisher's minimum floor CPM (the sweep cannot go below this) */
   final case class UpdateMinFloorCpm(cpm: CPM, replyTo: ActorRef[MinFloorCpmUpdated]) extends Command
   final case class MinFloorCpmUpdated(siteId: SiteId, minFloorCpm: CPM) extends promovolve.CborSerializable
 
   /**
    * Admin escape hatch: set or clear the explicit floor for one slot.
    * `floor = None` clears the override and lets the slot fall back to
-   * the RL-learned override (if any) or the prior-scaled site floor.
-   * Admin floors take precedence over RL floors at auction time.
+   * the prior-scaled site floor. Admin floors take precedence over every
+   * learned floor at auction time.
    */
   final case class UpdateSlotFloorOverride(
       slotId: String,
@@ -2085,11 +2086,17 @@ object SiteEntity {
 
   /**
    * One snapshot of what the floor-CPM sweep optimizer did during a single
-   * 15-minute observation window. Held in an in-memory ring buffer per
+   * 15-minute observation window. Held in a bounded ring buffer per
    * SiteEntity for production observability — the dashboard reads
-   * recent entries via `GetRecentFloorObservations`. Not persisted;
-   * survives only until the actor restarts. That's deliberate — long-
-   * term retention belongs in a journal/projection, not the entity.
+   * recent entries via `GetRecentFloorObservations`.
+   *
+   * PERSISTED: rides in `State.recentFloorObservations` so the
+   * observations page keeps its rows across an api-pod restart. That
+   * makes this a serialization-schema type — renaming or retyping a
+   * field breaks recovery of existing states, so add fields with
+   * defaults (the pageClassifications / demandCategories pattern) and
+   * see FloorObservationPersistenceSpec. Long-term retention still
+   * belongs in the floor_decisions journal, not here.
    */
   final case class FloorObservation(
       ts: java.time.Instant,
@@ -2180,8 +2187,11 @@ object SiteEntity {
       adProductBlocklist: Set[AdProductCategoryId] = Set.empty,
       verificationToken: Option[VerificationToken] = None,
       verifiedHost: Option[String] = None, // normalized host, set after successful verification
-      floorCpm: CPM = CPM(0.50), // current floor CPM (managed by RL agent)
-      minFloorCpm: CPM = CPM(0.10), // publisher-set minimum floor (RL agent cannot go below this)
+      // Seeds for a site created before the platform sends its configured
+      // floors. Dollar-scale by necessity — nothing here knows the
+      // deployment currency — and overwritten at registration.
+      floorCpm: CPM = CPM(FloorSweepOptimizer.DefaultFloor), // current floor CPM (managed by the sweep optimizer)
+      minFloorCpm: CPM = CPM(FloorSweepOptimizer.DefaultMinFloor), // publisher-set minimum floor (the sweep cannot go below this)
       bidWeight: Double = 0.5, // scoring exponent: score = CTR × CPM^α (0.3=discovery, 0.5=balanced, 0.7=revenue)
       // Sweep-optimizer state, persisted so phase counters and learned
       // floor survive an actor restart.

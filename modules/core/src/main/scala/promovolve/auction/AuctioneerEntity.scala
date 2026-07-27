@@ -163,18 +163,19 @@ object AuctioneerEntity {
    */
   final case class UpdateCategoryFloors(floors: Map[CategoryId, CPM]) extends Command
 
-  /**
-   * Per-slot floor overrides emitted by the RL agent once a slot
-   * accumulates enough auctions to diverge meaningfully from the
-   * site average. Sent alongside `UpdateFloorCpm`. Slots not in the
-   * map fall through to the site floor (with crawler prior).
-   */
-  final case class UpdateSlotFloors(floors: Map[SlotId, CPM]) extends Command
+  // UpdateSlotFloors (learned per-slot floor multipliers) removed
+  // 2026-07-27: the RL agent that emitted them is gone and the sweep
+  // optimizer produces site- and category-level floors only, so the
+  // command had zero producers and its handler only ever wrote an
+  // always-empty map. Per-slot divergence from the site floor is now
+  // expressed by the crawler prior and the admin override. Don't
+  // reintroduce a learned per-slot floor without a producer.
 
   /**
    * Admin-set per-slot floor overrides (escape hatch for publishers).
-   * Take precedence over RL slot floors. Replaces the full admin map
-   * each call — slots not in the map have no admin override.
+   * The most authoritative per-slot floor there is — nothing learned
+   * competes with it. Replaces the full admin map each call — slots
+   * not in the map have no admin override.
    */
   final case class UpdateAdminSlotFloors(floors: Map[SlotId, CPM]) extends Command
 
@@ -195,7 +196,7 @@ object AuctioneerEntity {
       declaredSizes: List[AdSize],
       computedSize: AdSize,
       // Per-slot floor knobs — see SiteEntity.SlotPrior / effectiveFloor.
-      // prior is crawler-derived; floorOverride is RL/admin-set.
+      // prior is crawler-derived; floorOverride is admin-set.
       // Both default to None so existing call sites compile unchanged
       // and the system falls through to the site-level floor.
       prior: Option[SiteEntity.SlotPrior] = None,
@@ -412,16 +413,6 @@ private final class AuctioneerEntity private (
     case UpdateCategoryFloors(floors) =>
       ctx.log.info("Per-category floors updated: site={} count={}", siteId, floors.size: java.lang.Integer)
       currentCategoryFloors = floors
-      scheduleReauction()
-      Behaviors.same
-
-    case UpdateSlotFloors(floors) =>
-      ctx.log.info(
-        "Per-slot floors updated (RL): site={} count={} floors={}",
-        siteId, floors.size: java.lang.Integer,
-        floors.iterator.map { case (sid, cpm) => f"${sid.value}=$$${cpm.toDouble}%.3f" }.mkString(",")
-      )
-      slotFloorOverrides = floors
       scheduleReauction()
       Behaviors.same
 
@@ -772,7 +763,11 @@ private final class AuctioneerEntity private (
       // Report auction outcome to SiteEntity for floor CPM optimization
       val winnerCpm = topCandidates.headOption.map(_.cpm.toDouble)
       val clearingPrice = topCandidates match {
-        case first +: second +: _ => Some(second.cpm.toDouble + 0.01)
+        // Second price plus the smallest meaningful increment. Relative
+        // rather than a flat cent: a cent is ~1% of a dollar CPM but
+        // ~0.001% of a yen one, so a fixed epsilon stops being an increment
+        // at all once the deployment's currency changes.
+        case first +: second +: _ => Some(second.cpm.toDouble * 1.001)
         case first +: _           => Some(currentFloorCpm.toDouble)
         case _                    => None
       }
@@ -1271,15 +1266,10 @@ private final class AuctioneerEntity private (
   // Per-category floors from SiteEntity. Empty until learned →
   // every category falls back to `currentFloorCpm` (legacy single-floor).
   private var currentCategoryFloors: Map[CategoryId, CPM] = Map.empty
-  // Per-slot floor overrides. Formerly populated by a removed RL agent's
-  // learned per-slot multipliers; the sweep optimizer emits no per-slot
-  // overrides, so this stays empty and the per-slot floor falls through
-  // to the crawler prior / admin override. Retained as a no-op hook
-  // rather than threading a removal through the floor-resolution path.
-  private var slotFloorOverrides: Map[SlotId, CPM] = Map.empty
   // Admin-set per-slot overrides (escape hatch). SiteEntity pushes
   // these on every admin edit and on startup from persisted state.
-  // Take precedence over RL overrides at scoring time.
+  // The only per-slot floor override there is — see the UpdateSlotFloors
+  // removal note above.
   private var adminSlotFloorOverrides: Map[SlotId, CPM] = Map.empty
   // Admin overrides carried on AdSlotSpec (the classify-page path's
   // equivalent source). Recorded at fan-out so finishAuction can resolve
@@ -1317,9 +1307,8 @@ private final class AuctioneerEntity private (
         //   1. Admin override   (publisher escape hatch — adminSlotFloorOverrides)
         //   2. Admin override carried on the AdSlotSpec (path used by
         //      the external classify-page endpoint; equivalent source)
-        //   3. RL-learned override (slotFloorOverrides)
-        //   4. Site floor scaled by crawler prior
-        //   5. Site floor
+        //   3. Site floor scaled by crawler prior
+        //   4. Site floor
         val adminOverride = adminSlotFloorOverrides.get(slot.slotId)
           .orElse(slot.floorOverride)
         // Remember the spec-carried override (or its absence) so
@@ -1330,10 +1319,9 @@ private final class AuctioneerEntity private (
           case Some(f) => slotSpecAdminFloors.updated(slot.slotId, f)
           case None    => slotSpecAdminFloors - slot.slotId
         }
-        val rlOverride = slotFloorOverrides.get(slot.slotId)
         // Per-category effective floor: the category's learned floor (or the
         // site floor when absent) scaled by the slot's quality prior. The
-        // admin/RL override still takes precedence inside `effectiveFloor`.
+        // admin override still takes precedence inside `effectiveFloor`.
         def floorForCategory(category: String): CPM =
           SiteEntity.effectiveFloor(
             SiteEntity.AdSlotConfig(
@@ -1341,7 +1329,7 @@ private final class AuctioneerEntity private (
               width = slot.computedSize.width,
               height = slot.computedSize.height,
               prior = slot.prior,
-              floorOverride = adminOverride.orElse(rlOverride)
+              floorOverride = adminOverride
             ),
             currentCategoryFloors.getOrElse(CategoryId(category), currentFloorCpm)
           )

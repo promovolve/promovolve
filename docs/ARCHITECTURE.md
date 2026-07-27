@@ -1293,14 +1293,13 @@ floors layer on top of it, tuned automatically by a direct sweep optimizer.
 1. Admin override        (publisher escape hatch — adminSlotFloorOverrides,
                           or an override carried on the slot spec via the
                           classify-page path; always wins)
-2. Sweep-learned override (learned per-slot floor — slotFloorOverrides)
-3. (Per-category floor, else site floor) × slot-prior scaling
+2. (Per-category floor, else site floor) × slot-prior scaling
                           — SlotPrior: floor × (0.5 + qualityScore), a
                             0.5×–1.5× band. The prior is measured by the AD
                             TAG in the visitor's real viewport (above-fold,
                             viewability, region, text density) — the crawler
                             that used to produce it is gone
-4. Site floor            (fallback — the base floor-cpm above)
+3. Site floor            (fallback — the base floor-cpm above)
 ```
 
 **FloorSweepOptimizer — the sole floor mechanism.** The former DQN agent was
@@ -1342,11 +1341,16 @@ bid — winning is how they reach the approval queue — but their bids never
 teach the floor: a pending bid must not peg a reserve that nothing servable
 can fulfil.
 
-`SiteEntity` emits two per-slot messages to its `AuctioneerEntity`:
+`SiteEntity` emits one per-slot message to its `AuctioneerEntity`:
 
-- `UpdateSlotFloors(Map[SlotId, CPM])` — sweep-learned per-slot overrides.
 - `UpdateAdminSlotFloors(Map[SlotId, CPM])` — the publisher escape hatch; a
-  manually pinned floor that always wins over the learned value.
+  manually pinned floor that always wins over the learned site/category floor.
+
+There is no learned *per-slot* floor. The sweep optimizer learns site- and
+category-level floors only; per-slot variation comes from the slot prior and
+the admin override. (`UpdateSlotFloors`, a leftover hook from the removed RL
+agent, was deleted 2026-07-27 — it had no producer and its handler only ever
+wrote an always-empty map.)
 
 Floor overrides only re-shape the floor; everything else (auction, pacing,
 Thompson Sampling) is unchanged. Note: in a homogeneous market (all bids

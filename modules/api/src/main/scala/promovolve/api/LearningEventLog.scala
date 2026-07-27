@@ -151,7 +151,7 @@ final class LearningEventLog(
         replyTo = system.ignoreRef
       )
 
-      // 5. Notify SiteEntity of served impression for floor CPM optimization RL.
+      // 5. Notify SiteEntity of served impression for floor-CPM sweep optimization.
       //    Tag with the winning creative's category so the per-category floor
       //    optimizer (per-category floors) can attribute revenue; the
       //    site-wide optimizer ignores the tag.

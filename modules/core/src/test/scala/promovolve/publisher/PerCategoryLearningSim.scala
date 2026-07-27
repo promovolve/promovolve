@@ -53,21 +53,33 @@ class PerCategoryLearningSim extends AnyWordSpec with Matchers {
 
     "converge each category's optimizer to its own bidder's value ($3/$4/$5)" in {
       val opts = bidders.keys.map(c => c -> newOpt()).toMap
+      // Read the CONVERGED ARGMAX, not `currentFloorCpm`. Mid-sweep the
+      // cursor sits on whichever candidate it is probing, so sampling the
+      // live floor at an arbitrary tick asserts on a probe rather than on
+      // a decision — and which probe you land on depends on the candidate
+      // grid, which is quantized to the site's minimum floor. (This test
+      // read the live floor until 2026-07-27, when a finer/coarser grid
+      // put candidate 6 of 8 under the cursor at the final tick.) The
+      // sibling test below has always read decisions for this reason.
+      val argmax = bidders.keys.map(c => c -> scala.collection.mutable.ArrayBuffer.empty[Double]).toMap
       for (_ <- 1 to Ticks) {
         opts.foreach { case (cat, opt) =>
           feedCategory(opt, bidders(cat))
-          opt.observe()
+          opt.observe().foreach(_.completedCycle.foreach(d => argmax(cat) += d.argmaxFloor))
         }
       }
-      println(f"  per-category floors: A=$$${opts("A").currentFloorCpm}%.2f " +
-        f"B=$$${opts("B").currentFloorCpm}%.2f C=$$${opts("C").currentFloorCpm}%.2f  (optimum $$3/$$4/$$5)")
+      def converged(cat: String): Double =
+        argmax(cat).lastOption.getOrElse(opts(cat).currentFloorCpm)
+
+      println(f"  per-category floors: A=$$${converged("A")}%.2f " +
+        f"B=$$${converged("B")}%.2f C=$$${converged("C")}%.2f  (optimum $$3/$$4/$$5)")
 
       // Each category's own bounds collapse its sweep range to its own
-      // bidder's bid → the floor lands exactly there. This is the monopoly
+      // bidder's bid → the argmax lands exactly there. This is the monopoly
       // optimum the single site floor cannot reach.
-      opts("A").currentFloorCpm shouldBe 3.0 +- 0.01
-      opts("B").currentFloorCpm shouldBe 4.0 +- 0.01
-      opts("C").currentFloorCpm shouldBe 5.0 +- 0.01
+      converged("A") shouldBe 3.0 +- 0.01
+      converged("B") shouldBe 4.0 +- 0.01
+      converged("C") shouldBe 5.0 +- 0.01
     }
 
     "a single blended optimizer over the SAME traffic lands on one compromise floor" in {

@@ -105,7 +105,7 @@ object CategoryBidderEntity {
       campaignId: CampaignId,
       advertiserId: AdvertiserId,
       creatives: Set[AdvertiserEntity.Creative],
-      cpm: CPM, // RL-shaded bid (for auction ranking)
+      cpm: CPM, // quoted bid = max(maxCpm, floor) — equals maxCpm, see Candidate.cpm
       maxCpm: CPM = CPM.zero, // advertiser's max CPM (for ServeIndex)
       adProductCategory: Option[AdProductCategoryId] = None,
       landingDomain: String = "",

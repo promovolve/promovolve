@@ -1559,8 +1559,9 @@ object CampaignEntity {
           // Adopt the account timezone in case the advertiser's fan-out tell
           // was lost while this entity was passivated (no-op when unchanged).
           refreshTimezoneFromAdvertiser()
-          // RL disabled — quality-adjusted auction makes bid shading counterproductive.
-          // Bidding true value (maxCPM) is always optimal in Vickrey auction.
+          // No bid shading: the quality-adjusted auction clears at a second
+          // price, so bidding true value (maxCPM) is always optimal and a
+          // shaded bid only loses winnable auctions at no price benefit.
 
           // Initialize ephemeral bloom filter from persisted filter
           ephemeral = EphemeralState.fromPersistedFilter(state.processedFilter)

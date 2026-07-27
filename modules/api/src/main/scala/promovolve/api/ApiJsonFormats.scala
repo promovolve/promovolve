@@ -80,7 +80,7 @@ trait ApiJsonFormats extends DefaultJsonProtocol {
     }
   }
   given RootJsonFormat[SiteList] = jsonFormat2(SiteList.apply)
-  given RootJsonFormat[CreateSiteRequest] = jsonFormat6(CreateSiteRequest.apply)
+  given RootJsonFormat[CreateSiteRequest] = jsonFormat7(CreateSiteRequest.apply)
   given RootJsonFormat[UpdateSiteRequest] = jsonFormat9(UpdateSiteRequest.apply)
   given RootJsonFormat[VerificationTokenResponse] = jsonFormat6(VerificationTokenResponse.apply)
   given RootJsonFormat[VerificationResponse] = jsonFormat3(VerificationResponse.apply)

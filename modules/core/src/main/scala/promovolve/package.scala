@@ -38,7 +38,13 @@ final case class Candidate(
     creativeId: CreativeId,
     campaignId: CampaignId,
     advertiserId: AdvertiserId,
-    cpm: CPM, // RL-shaded bid (for auction ranking)
+    // The quoted bid: `max(maxCpm, floor)`, which equals `maxCpm` — a
+    // campaign only quotes once `maxCpm >= floor` (CampaignEntity.canBidAt),
+    // so the max never raises anyone above their own ceiling. Equal to
+    // `maxCpm` in every live path since bid shading was dropped; kept
+    // distinct only because the flagged-creative rehydrate path
+    // (SlickPendingSelectionStore) persists this and not `maxCpm`.
+    cpm: CPM,
     category: CategoryId,
     creativeHash: String = "",
     landingDomain: String = "",

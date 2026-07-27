@@ -254,7 +254,7 @@ object ApiModels {
       slotId: String,
       width: Int,
       height: Int,
-      floorOverride: Option[String] = None, // admin escape hatch — overrides RL + prior
+      floorOverride: Option[String] = None, // admin escape hatch — overrides learned floors + prior
       // Crawler-derived prior (read-only, surfaced for UI explainability)
       priorQualityScore: Option[Double] = None,
       priorRegion: Option[String] = None,
@@ -276,8 +276,8 @@ object ApiModels {
       createdAt: String,
       updatedAt: String,
       verificationStatus: String, // unverified, verified
-      floorCpm: String = "0.50", // current floor CPM (auto-optimized by RL)
-      minFloorCpm: String = "0.10", // publisher-set minimum floor
+      floorCpm: String = "0.50", // current floor CPM (auto-optimized by the sweep); real value always supplied
+      minFloorCpm: String = "0.10", // publisher-set minimum floor; real value always supplied
       bidWeight: String = "0.50", // scoring exponent: discovery=0.3, balanced=0.5, revenue=0.7
       // Whether pages with no contextual match route to the filler
       // auction. Default true; flip to false to silence filler
@@ -315,7 +315,13 @@ object ApiModels {
       crawlConfig: SiteCrawlConfig,
       slots: Vector[SiteSlotConfig] = Vector.empty,
       taxonomyIds: Vector[String] = Vector.empty,
-      minFloorCpm: String // Required: publisher must set minimum floor on site creation
+      minFloorCpm: String, // Required: publisher must set minimum floor on site creation
+      // Starting floor for the site, in the deployment's base currency. The
+      // operator sets it at install (a floor that reads right in dollars is
+      // ~157x too low in yen, so there is no cross-currency default worth
+      // shipping). Optional: absent means "use the entity's own seed", which
+      // keeps older platform builds working.
+      floorCpm: Option[String] = None
   )
 
   /**
@@ -325,8 +331,13 @@ object ApiModels {
   case class UpdateSlotFloorRequest(floorCpm: Option[String] = None)
 
   /**
-   * One row in the floor-RL decision log. ISO timestamps + floors as
+   * One row in the floor-sweep decision log. ISO timestamps + floors as
    * strings to keep the JSON inspectable.
+   *
+   * `epsilon` and `trainingLoss` are RL-era names retained as JSON keys
+   * for compatibility: epsilon carries the sweep's remaining-probe
+   * fraction (see FloorSweepOptimizer.epsilon) and trainingLoss is
+   * always None. No learner produces either.
    */
   case class FloorObservationResponse(
       ts: String,
@@ -645,7 +656,7 @@ object ApiModels {
       slots: Option[Vector[SiteSlotConfig]] = None,
       taxonomyIds: Option[Vector[String]] = None,
       floorCpm: Option[String] = None, // override current floor (normally auto-managed)
-      minFloorCpm: Option[String] = None, // publisher minimum floor (RL cannot go below this)
+      minFloorCpm: Option[String] = None, // publisher minimum floor (the sweep cannot go below this)
       bidWeight: Option[String] = None, // scoring exponent: discovery=0.3, balanced=0.5, revenue=0.7
       acceptsFillerTraffic: Option[Boolean] = None // opt in/out of filler auction for this site
   )

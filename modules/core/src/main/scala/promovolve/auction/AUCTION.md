@@ -312,7 +312,7 @@ Behaviors.receiveMessage[Messages] { msg =>
 - `RestoreClassifications` from `SiteEntity` after cluster restart
 - `CampaignChanged` from `CampaignDirectory` via topic
 - `BudgetEvent` subtypes from `CampaignEntity` via topic
-- Floor updates (`UpdateFloorCpm`, `UpdateCategoryFloors`, `UpdateSlotFloors`, `UpdateAdminSlotFloors`) from `SiteEntity`
+- Floor updates (`UpdateFloorCpm`, `UpdateCategoryFloors`, `UpdateAdminSlotFloors`) from `SiteEntity`
 
 ### Outbound
 

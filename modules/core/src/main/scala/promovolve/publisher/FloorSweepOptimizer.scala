@@ -23,8 +23,13 @@ final class FloorSweepOptimizer(
 
   import FloorSweepOptimizer.*
 
-  private var _currentFloor: Double = 0.50
-  private var _minFloor: Double = 0.10
+  // Pre-configuration seeds only: SiteEntity calls setFloor/setMinFloor with
+  // the site's configured values, which the operator sets in their own
+  // currency at install. These constants are the last resort before that
+  // happens and are dollar-scale, which is the only safe guess when nothing
+  // has told us the currency.
+  private var _currentFloor: Double = DefaultFloor
+  private var _minFloor: Double = DefaultMinFloor
 
   private var phase: String = Phase.Init
   private var cursor: Int = 0
@@ -276,7 +281,7 @@ final class FloorSweepOptimizer(
       val (candMin, candMax) =
         if (effectiveMax > effectiveMin) (effectiveMin, effectiveMax)
         else if (effectiveMax > _minFloor)
-          (math.max(_minFloor, round2(effectiveMax * 0.8)), effectiveMax)
+          (math.max(_minFloor, round2(effectiveMax * 0.8, _minFloor)), effectiveMax)
         else (effectiveMin, effectiveMax)
       // Reset accumulators so this cycle's record* calls start fresh.
       // Without this, a one-time outlier would permanently bias the
@@ -284,7 +289,7 @@ final class FloorSweepOptimizer(
       maxBidObserved = 0.0
       minBidObserved = 0.0
       windowMaxBid = 0.0
-      candidates = buildCandidates(candMin, candMax, config.candidateCount)
+      candidates = buildCandidates(candMin, candMax, config.candidateCount, _minFloor)
       results = Map.empty
       cursor = 0
       ticksThisCandidate = 0
@@ -420,6 +425,15 @@ final class FloorSweepOptimizer(
 }
 
 object FloorSweepOptimizer {
+
+  /**
+   * Last-resort floor seeds, used only until SiteEntity supplies the site's
+   * configured values. Dollar-scale by necessity: nothing at this layer knows
+   * the deployment's currency, and the platform seeds real sites from the
+   * operator's setup answers.
+   */
+  val DefaultFloor: Double = 0.50
+  val DefaultMinFloor: Double = 0.10
 
   /**
    * Outcome of a single auction, reported by AuctioneerEntity to
@@ -619,11 +633,16 @@ object FloorSweepOptimizer {
    * `ticksPerCandidate` ticks on each copy — same measurement, repeated.
    * `distinct` keeps first occurrences, so ascending order is preserved.
    */
-  private[publisher] def buildCandidates(minFloor: Double, maxFloor: Double, n: Int): Vector[Double] = {
+  private[publisher] def buildCandidates(
+      minFloor: Double,
+      maxFloor: Double,
+      n: Int,
+      quantum: Double = DefaultMinFloor
+  ): Vector[Double] = {
     if (n <= 1 || maxFloor <= minFloor) Vector(minFloor)
     else {
       val step = (maxFloor - minFloor) / (n - 1).toDouble
-      (0 until n).iterator.map(i => round2(minFloor + step * i)).toVector.distinct
+      (0 until n).iterator.map(i => round2(minFloor + step * i, quantum)).toVector.distinct
     }
   }
 
@@ -665,9 +684,12 @@ object FloorSweepOptimizer {
   private[publisher] def pickBest(
       results: Map[Double, (Double, Long)],
       minImpsForArgmax: Int = 1,
-      tieTolerance: Double = 0.0
+      tieTolerance: Double = 0.0,
+      minFloor: Double = DefaultMinFloor
   ): Double = {
-    if (results.isEmpty) 0.50
+    // Empty results: the site's own minimum, not a dollar-scale literal — on
+    // a yen deployment 0.50 is no floor at all.
+    if (results.isEmpty) minFloor
     else {
       val totalRev = results.values.iterator.map(_._1).sum
       if (totalRev <= 0.0) results.keys.min
@@ -705,8 +727,22 @@ object FloorSweepOptimizer {
     }
   }
 
-  private def round2(d: Double): Double =
-    math.round(d * 100.0) / 100.0
+  /**
+   * Snap a candidate floor to a sane granularity, so a narrow sweep range
+   * doesn't emit the same floor at several cursor positions (buildCandidates
+   * dedupes on the rounded value).
+   *
+   * The step is derived from the site's minimum floor rather than fixed at one
+   * cent. A cent is only the right quantum in dollars: on a yen deployment
+   * whose floors run ¥80-¥1600, snapping to ¥0.01 dedupes nothing and stores
+   * meaningless sub-yen precision. minFloor/10 reproduces exactly the old
+   * behaviour at the dollar default (0.10 / 10 = 0.01) and scales with the
+   * market everywhere else.
+   */
+  private def round2(d: Double, siteMinFloor: Double): Double = {
+    val step = math.max(siteMinFloor / 10.0, 1e-6)
+    math.round(d / step) * step
+  }
 
   /**
    * Bid-derived floor — the monopoly shortcut. With exactly ONE bidder in a

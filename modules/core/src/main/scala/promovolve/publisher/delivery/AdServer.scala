@@ -362,6 +362,49 @@ object AdServer {
   }
 
   /**
+   * Fold a resolved batch's outcomes into the site's serve stats.
+   *
+   * Every winner increments `selected` and its hour bucket, and adds
+   * ITS CLEARING PRICE to `totalSpend` — the price the winner actually
+   * pays, never its bid. There is deliberately NO fallback from a zero
+   * clearing price to `winner.cpm`:
+   *
+   *   - Zero is a real, correct outcome. An honored dog-ear pin serves
+   *     free (the reader bookmarked the creative; no reservation runs),
+   *     and it arrives here with `winner = Some(_)` and
+   *     `clearingPrice = CPM.zero`.
+   *   - The old fallback treated that as missing data and substituted
+   *     the advertiser's full maxCpm, so every pinned impression was
+   *     booked at a price nobody paid — inflating the publisher Revenue
+   *     tile and the traffic-shape spend series in proportion to pin
+   *     rate. Billing never saw it (money runs off `reserve` at this
+   *     same clearing price), but the publisher-facing number lied.
+   *   - No auction path can produce a spurious zero to protect against:
+   *     clearing is clamped to `>= floor` (ThompsonSampling
+   *     .qualityAdjustedClearing), so a real auction win is zero only
+   *     when the floor itself is zero — in which case zero is again the
+   *     honest number.
+   *
+   * A batch with no winners at all records `noCandidates` instead.
+   *
+   * Pure — takes every input as a parameter (including the hour bucket,
+   * so tests don't depend on wall-clock time).
+   */
+  def recordBatchServeStats(
+      stats: Protocol.ServeStats,
+      outcomes: Vector[Protocol.BatchSlotOutcome],
+      hour: Int
+  ): Protocol.ServeStats =
+    if (!outcomes.exists(_.winner.isDefined)) stats.recordNoCandidates
+    else
+      outcomes.foldLeft(stats) { (acc, o) =>
+        o.winner match {
+          case Some(_) => acc.recordSelectedInBucket(hour, o.clearingPrice.toDouble / 1000.0)
+          case None    => acc
+        }
+      }
+
+  /**
    * Pick the best candidate for a slot together with its quality-
    * adjusted clearing price. Pure helper shared by the batch
    * assignment and the retry loop. Mirrors the size + floor +
@@ -2921,31 +2964,12 @@ private[delivery] class AdServer(
         log.info("BATCH SERVED: {} slots filled, {} unfilled",
           servedCount: java.lang.Integer, emptyCount: java.lang.Integer)
         replyTo ! BatchSelected(outcomes, pageCats)
-        // Increment serveStats per-winner via recordSelectedInBucket so
-        // `totalSpend` and `hourlyImpressions` update alongside `selected`.
-        // Earlier code took a shortcut (`serveStats.copy(selected += N)`)
-        // that bumped only the count and silently left totalSpend at 0 —
-        // breaks the dashboard Revenue tile and stalls traffic-shape
-        // learning since hourly buckets never populate.
-        val updatedServeStats: ServeStats = if (servedCount == 0) {
-          serveStats.recordNoCandidates
-        } else {
-          val hour = java.time.LocalTime.now(java.time.ZoneOffset.UTC).getHour
-          outcomes.foldLeft(serveStats) { (stats, o) =>
-            o.winner match {
-              case Some(_) =>
-                // Use the per-slot clearing price (what the winner actually
-                // pays). Falls back to winner.cpm when clearingPrice is
-                // zero — that case shouldn't occur in normal serve paths
-                // but keeps the counter consistent if it ever does.
-                val cpm: Double =
-                  if (o.clearingPrice.toDouble > 0) o.clearingPrice.toDouble
-                  else o.winner.map(_.cpm.toDouble).getOrElse(0.0)
-                stats.recordSelectedInBucket(hour, cpm / 1000.0)
-              case None => stats
-            }
-          }
-        }
+        val updatedServeStats: ServeStats =
+          AdServer.recordBatchServeStats(
+            serveStats,
+            outcomes,
+            java.time.LocalTime.now(java.time.ZoneOffset.UTC).getHour
+          )
         // Track creativeIds whose pin this batch honored. Best-effort signal for
         // the topic-narrow orphan-eligibility predicate: a pinned creative must
         // survive eviction when the advertiser drops a DIFFERENT topic. Pins are

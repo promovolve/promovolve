@@ -86,7 +86,8 @@ class BidBookSpec extends AnyWordSpec with Matchers with BeforeAndAfterAll {
     testKit.spawn(CategoryBidderEntity(id, sharding, new ConstRepo(seed), bidBookEnabled = true))
 
   private def bidRequest(replyTo: org.apache.pekko.actor.typed.ActorRef[CategoryBidResponse], floor: Double) =
-    CategoryBidRequest(SiteId("site-a"), "https://s/a", SlotId("S1"), Set.empty, CPM(floor), replyTo)
+    CategoryBidRequest(SiteId("site-a"), "https://s/a", SlotId("S1"), Set.empty, CPM(floor),
+      siteAudience = Set.empty, replyTo = replyTo)
 
   "the standing bid book" should {
 

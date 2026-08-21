@@ -108,6 +108,13 @@ final case class ClassifyPageTextReq(
     url: String,
     text: String,
     section: Option[String] = None,
+    // Publisher-declared PLACE for this page (the WordPress plugin's
+    // data-place). Same contract as `section`: an interested, unverified
+    // claim the classifier may use to disambiguate and must ignore when the
+    // content disagrees. Option, not a defaulted String — spray's
+    // jsonFormatN ignores case-class defaults, so an older ad tag that omits
+    // the field would fail to parse.
+    place: Option[String] = None,
     imp: Option[Vector[ClassifyImp]] = None
 )
 
@@ -202,7 +209,7 @@ trait ServeJson extends DefaultJsonProtocol {
   given RootJsonFormat[BatchImp] = jsonFormat4(BatchImp.apply)
   given RootJsonFormat[BatchServeReq] = jsonFormat5(BatchServeReq.apply)
   given RootJsonFormat[ClassifyImp] = jsonFormat7(ClassifyImp.apply)
-  given RootJsonFormat[ClassifyPageTextReq] = jsonFormat5(ClassifyPageTextReq.apply)
+  given RootJsonFormat[ClassifyPageTextReq] = jsonFormat6(ClassifyPageTextReq.apply)
   given RootJsonFormat[BatchImpResult] = jsonFormat3(BatchImpResult.apply)
   given RootJsonFormat[BatchServeRes] = jsonFormat4(BatchServeRes.apply)
 }
@@ -489,6 +496,7 @@ final class ServeRoutes(
                 url = UrlNormalizer.stripTrackingParams(cReq.url),
                 text = cReq.text,
                 section = cReq.section,
+                place = cReq.place,
                 slots = slots,
                 replyTo = replyTo
               )

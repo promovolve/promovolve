@@ -2,7 +2,7 @@
 /**
  * Plugin Name:       Promovolve Publisher
  * Description:       Connects this site to a Promovolve ad server: prints the ad tag, serves the site-verification file, and places ad slots via editor block or shortcode.
- * Version:           0.2.2
+ * Version:           0.4.0
  * Requires at least: 6.0
  * Requires PHP:      7.4
  * Author:            Promovolve
@@ -16,7 +16,7 @@ if ( ! defined( 'ABSPATH' ) ) {
 }
 
 const PROMOVOLVE_OPTION  = 'promovolve_settings';
-const PROMOVOLVE_VERSION = '0.2.2';
+const PROMOVOLVE_VERSION = '0.4.0';
 
 /**
  * Settings with defaults applied.
@@ -71,11 +71,13 @@ add_filter( 'script_loader_tag', function ( $tag, $handle ) {
 	// The loader reads document.currentScript, so the attributes must live on
 	// the real <script src> tag itself.
 	$section = promovolve_declared_topic();
+	$place   = promovolve_declared_place();
 	$attrs   = sprintf(
-		' data-pub="%s" data-api="%s"%s src=',
+		' data-pub="%s" data-api="%s"%s%s src=',
 		esc_attr( $s['site_id'] ),
 		esc_attr( $s['api_base'] ),
-		'' === $section ? '' : sprintf( ' data-section="%s"', esc_attr( $section ) )
+		'' === $section ? '' : sprintf( ' data-section="%s"', esc_attr( $section ) ),
+		'' === $place ? '' : sprintf( ' data-place="%s"', esc_attr( $place ) )
 	);
 	return str_replace( ' src=', $attrs, $tag );
 }, 10, 2 );
@@ -102,19 +104,29 @@ add_filter( 'script_loader_tag', function ( $tag, $handle ) {
  *                confident to say (front page, 404, search results).
  */
 function promovolve_declared_topic() {
-	// Singular: the post's own taxonomy. Categories first — they are the
-	// coarse topic — then tags, which are usually the specific one.
+	// Singular: every topical taxonomy the post type has, not just the two
+	// built-in ones. A travel site keeps its destinations in a `destination`
+	// taxonomy and its recipes in `cuisine`; reading only category and
+	// post_tag threw away the most specific thing WordPress knew.
 	if ( is_singular() ) {
-		$names = array();
-		foreach ( array( 'category', 'post_tag' ) as $taxonomy ) {
-			$terms = get_the_terms( get_queried_object_id(), $taxonomy );
-			if ( is_array( $terms ) ) {
-				foreach ( $terms as $term ) {
+		$post_id     = get_queried_object_id();
+		$by_taxonomy = array();
+		foreach ( promovolve_topic_taxonomies( $post_id ) as $taxonomy ) {
+			$terms = get_the_terms( $post_id, $taxonomy );
+			if ( ! is_array( $terms ) ) {
+				continue; // no terms, or a WP_Error — either way, nothing to say
+			}
+			$names = array();
+			foreach ( $terms as $term ) {
+				if ( isset( $term->name ) ) {
 					$names[] = $term->name;
 				}
 			}
+			if ( ! empty( $names ) ) {
+				$by_taxonomy[] = $names;
+			}
 		}
-		return promovolve_join_topic( $names );
+		return promovolve_join_topic( promovolve_interleave( $by_taxonomy ) );
 	}
 
 	// Category / tag / custom-taxonomy archive: the term IS the topic.
@@ -130,12 +142,195 @@ function promovolve_declared_topic() {
 }
 
 /**
+ * Taxonomy slugs that usually hold a PLACE rather than a topic.
+ *
+ * Matched on the slug, not the label, so a site can use its own wording
+ * ("Reiseziel", "行き先") as long as the taxonomy is registered under one of
+ * these. The filter below is the escape hatch for anything else.
+ */
+const PROMOVOLVE_PLACE_TAXONOMIES = array(
+	'destination',
+	'destinations',
+	'location',
+	'locations',
+	'place',
+	'places',
+	'city',
+	'cities',
+	'region',
+	'regions',
+	'country',
+	'countries',
+	'area',
+	'areas',
+	'prefecture',
+	'prefectures',
+	'state',
+	'states',
+	'province',
+	'provinces',
+);
+
+/**
+ * Where THIS page is about, according to WordPress.
+ *
+ * Note what this is and is not. It is a property of the POST — where the
+ * article is set — and never anything about the person reading it. That is
+ * what makes it safe to print into markup a page cache will store and replay
+ * to everyone: the answer does not vary by reader. A value derived from a
+ * visitor's IP would be captured by the same cache and served to the world,
+ * which is why this plugin does not and will not carry one.
+ *
+ * Names, not codes. The plugin has no gazetteer and should not grow one — it
+ * sends "Kyoto" or "京都" and the server resolves it against a vocabulary it
+ * controls. A publisher-supplied ISO code would be an unverified value
+ * dressed as an authoritative one.
+ *
+ * @return string Comma-separated place names, or '' when nothing is declared.
+ */
+function promovolve_declared_place() {
+	if ( ! is_singular() ) {
+		// On a place archive the term IS the place, and promovolve_declared_topic
+		// already sends it as the topic; repeating it here adds nothing.
+		return '';
+	}
+
+	$post_id = get_queried_object_id();
+
+	/**
+	 * Filter the taxonomy slugs treated as places.
+	 *
+	 * @param string[] $slugs   Taxonomy slugs.
+	 * @param int      $post_id Post being rendered.
+	 */
+	$slugs = apply_filters( 'promovolve_place_taxonomies', PROMOVOLVE_PLACE_TAXONOMIES, $post_id );
+
+	$by_taxonomy = array();
+	foreach ( promovolve_topic_taxonomies( $post_id ) as $taxonomy ) {
+		if ( ! in_array( $taxonomy, $slugs, true ) ) {
+			continue;
+		}
+		$terms = get_the_terms( $post_id, $taxonomy );
+		if ( ! is_array( $terms ) ) {
+			continue;
+		}
+		$names = array();
+		foreach ( $terms as $term ) {
+			if ( isset( $term->name ) ) {
+				$names[] = $term->name;
+			}
+		}
+		if ( ! empty( $names ) ) {
+			$by_taxonomy[] = $names;
+		}
+	}
+
+	// WordPress's own geodata convention, as a fallback when no place
+	// taxonomy exists. Free text, which is exactly what the server wants.
+	// geo_latitude / geo_longitude are deliberately NOT read: coordinates
+	// are out of scope, and reverse-geocoding them belongs on the server if
+	// it ever happens at all.
+	if ( empty( $by_taxonomy ) ) {
+		$address = get_post_meta( $post_id, 'geo_address', true );
+		if ( is_string( $address ) && '' !== trim( $address ) ) {
+			$by_taxonomy[] = array( trim( $address ) );
+		}
+	}
+
+	return promovolve_join_topic( promovolve_interleave( $by_taxonomy ) );
+}
+
+/**
+ * Taxonomies whose terms are never a topic, however public they look.
+ *
+ * post_format yields "Aside" / "Gallery" — a presentation choice, not a
+ * subject. Everything else is filtered structurally below.
+ */
+const PROMOVOLVE_TOPIC_TAXONOMY_DENY = array( 'post_format' );
+
+/**
+ * The taxonomies this post's type keeps topical terms in.
+ *
+ * Public and UI-visible is the structural test: the taxonomies that fail it
+ * are plumbing (product_visibility, wp_theme, nav menus) and never describe
+ * content. `category` and `post_tag` lead because their meaning is fixed on
+ * every WordPress site; the rest are sorted so the attribute value is stable
+ * across requests — a hint that reshuffled per request would vary the markup
+ * for no gain.
+ *
+ * Widening this does admit noise: a public taxonomy named "Sponsor" or
+ * "Author" is not a topic. That costs little — the server is told the whole
+ * hint is an interested claim and to ignore it when the content disagrees —
+ * and the filter below is the escape hatch for a site that wants one gone.
+ *
+ * @param int $post_id Post being rendered.
+ * @return string[] Taxonomy names, in the order they should be read.
+ */
+function promovolve_topic_taxonomies( $post_id ) {
+	$found = array();
+	foreach ( get_object_taxonomies( get_post_type( $post_id ), 'objects' ) as $taxonomy ) {
+		if ( empty( $taxonomy->public ) || empty( $taxonomy->show_ui ) ) {
+			continue;
+		}
+		if ( in_array( $taxonomy->name, PROMOVOLVE_TOPIC_TAXONOMY_DENY, true ) ) {
+			continue;
+		}
+		$found[] = $taxonomy->name;
+	}
+
+	$leading = array_values( array_intersect( array( 'category', 'post_tag' ), $found ) );
+	$rest    = array_diff( $found, $leading );
+	sort( $rest );
+
+	/**
+	 * Filter the taxonomies read for the data-section hint.
+	 *
+	 * @param string[] $taxonomies Taxonomy names, in read order.
+	 * @param int      $post_id    Post being rendered.
+	 */
+	return apply_filters( 'promovolve_topic_taxonomies', array_merge( $leading, $rest ), $post_id );
+}
+
+/**
+ * Round-robin per-taxonomy term lists into one.
+ *
+ * Concatenating them let a single taxonomy eat the whole budget: a post with
+ * eight tags pushed its `destination` terms past the cap, so the one taxonomy
+ * carrying the page's location never reached the server at all. Taking one
+ * term from each list in turn means every taxonomy contributes before any
+ * contributes twice, which is what makes the cap survivable.
+ *
+ * @param string[][] $lists Term names grouped by taxonomy.
+ * @return string[]
+ */
+function promovolve_interleave( $lists ) {
+	$deepest = 0;
+	foreach ( $lists as $list ) {
+		$deepest = max( $deepest, count( $list ) );
+	}
+	$out = array();
+	for ( $i = 0; $i < $deepest; $i++ ) {
+		foreach ( $lists as $list ) {
+			if ( isset( $list[ $i ] ) ) {
+				$out[] = $list[ $i ];
+			}
+		}
+	}
+	return $out;
+}
+
+/**
  * Join topic names for the data-section attribute.
  *
  * Bounded here as well as server-side: the server caps and flattens the value
  * because it must never trust a client, but a post with forty tags would
  * otherwise ship a long attribute on every page for a hint the server will
- * truncate anyway. Five names is more than enough to disambiguate.
+ * truncate anyway.
+ *
+ * Eight rather than five since the hint now spans several taxonomies — enough
+ * for a category, a couple of tags and a destination to travel together, and
+ * still far inside the server's own 200-character bound. The interleave above
+ * is what decides WHICH eight.
  *
  * @param string[] $names Term names.
  * @return string
@@ -145,7 +340,7 @@ function promovolve_join_topic( $names ) {
 	if ( empty( $names ) ) {
 		return '';
 	}
-	return implode( ', ', array_slice( $names, 0, 5 ) );
+	return implode( ', ', array_slice( $names, 0, 8 ) );
 }
 
 /* -------------------------------------------------------------------------

@@ -324,6 +324,64 @@
             <option value="0.70" {{if eq .BidWeightLabel "Revenue"}}selected{{end}}>{{t "Revenue"}}</option>
           </select>
         </form>
+        <form method="POST" action="/publisher/sites/audience" class="flex flex-col gap-1"
+              x-data="{
+                query: '', results: [], open: false,
+                selected: [{{range $i, $a := .AudienceRegions}}{{if $i}},{{end}}{code:'{{$a.Code}}',name:'{{$a.Name}}'}{{end}}],
+                add(p) { if (!this.selected.find(x => x.code === p.code)) this.selected.push(p); this.query=''; this.results=[]; this.open=false; },
+                remove(c) { this.selected = this.selected.filter(x => x.code !== c); },
+                codes() { return this.selected.map(p => p.code).join(','); }
+              }"
+              title="{{t "Where this site's readers are. Optional — most sites have no geographic audience to claim, and leaving it empty is normal. Advertisers targeting an audience will not run here until you declare one."}}">
+          <input type="hidden" name="siteId" value="{{.ID}}">
+          <input type="hidden" name="audienceRegions" :value="codes()">
+          <label class="text-xs text-gray-500">{{t "Reader audience:"}}</label>
+          <div class="flex flex-wrap items-center gap-1">
+            <template x-for="p in selected" :key="p.code">
+              <span class="badge badge-info">
+                <span x-text="p.name"></span>
+                <button type="button" @click="remove(p.code)" class="ml-1.5 text-brand hover:text-blue-900 font-bold">×</button>
+              </span>
+            </template>
+            <div class="relative">
+              <input type="text" x-model="query"
+                @input="if (query.length > 0) {
+                    fetch('/api/places?q=' + encodeURIComponent(query))
+                      .then(r => r.json()).then(d => { results = (d.data || []).filter(p => !selected.find(x => x.code === p.code)); open = results.length > 0; });
+                  } else { results = []; open = false; }"
+                @click.outside="open = false"
+                placeholder="{{t "Country, region or town"}}"
+                class="w-44 px-2 py-1 border rounded-md text-sm focus:outline-none focus:ring-2 focus:ring-brand/20 focus:border-brand">
+              <div x-show="open" x-transition x-cloak
+                   class="absolute z-10 w-64 mt-1 bg-white border rounded-md shadow-lg max-h-48 overflow-y-auto">
+                <template x-for="p in results" :key="p.code">
+                  <button type="button" @click="add(p)"
+                          class="block w-full text-left px-2 py-1 text-sm hover:bg-gray-100">
+                    <span x-text="p.name"></span>
+                    <span class="text-gray-400 text-xs" x-show="p.path" x-text="' — ' + p.path"></span>
+                  </button>
+                </template>
+              </div>
+            </div>
+            <button type="submit" class="btn btn-primary btn-sm">{{t "Save"}}</button>
+          </div>
+          {{if .AudienceObserved}}
+          {{/* Tier 3: what we actually observe, next to what was declared.
+               Advisory only — nothing gates on it yet. Shown only above the
+               sample floor, so a publisher is never invited to "correct" a
+               true declaration against noise. */}}
+          <p class="text-xs text-gray-400">
+            {{t "Observed (30d):"}}
+            {{range $i, $o := .AudienceObserved}}{{if $i}} · {{end}}{{$o.Name}} {{$o.Share}}{{end}}
+          </p>
+          {{end}}
+          {{if and .AudienceSuggestion (not .AudienceRegions)}}
+          {{/* A PROMPT, never a pre-filled value — a guess from the domain
+               presented as the publisher's own declaration would be exactly
+               the confidently-wrong failure this design avoids. */}}
+          <p class="text-xs text-gray-400">{{t "Your domain suggests %s — declare it only if it is true of your readers." .AudienceSuggestion}}</p>
+          {{end}}
+        </form>
         <form method="POST" action="/publisher/sites/filler-traffic" class="flex items-center pb-1.5"
               title="{{t "When off, pages with no contextual match are dropped instead of going through the filler auction."}}">
           <input type="hidden" name="siteId" value="{{.ID}}">

@@ -21,10 +21,74 @@ trait ApiJsonFormats extends DefaultJsonProtocol {
   given RootJsonFormat[CampaignBudget] = jsonFormat2(CampaignBudget.apply)
   given RootJsonFormat[CampaignSchedule] = jsonFormat2(CampaignSchedule.apply)
   given RootJsonFormat[CampaignBidding] = jsonFormat2(CampaignBidding.apply)
-  given RootJsonFormat[Campaign] = jsonFormat22(Campaign.apply)
+  // Hand-written because Campaign has 23 fields and spray-json's derivation
+  // stops at jsonFormat22. Reads tolerate absent optional fields so an older
+  // client's payload still parses.
+  given RootJsonFormat[Campaign] = new RootJsonFormat[Campaign] {
+    def write(c: Campaign): JsValue = JsObject(
+      "id" -> JsString(c.id),
+      "advertiserId" -> JsString(c.advertiserId),
+      "name" -> JsString(c.name),
+      "status" -> JsString(c.status),
+      "budget" -> summon[RootJsonFormat[CampaignBudget]].write(c.budget),
+      "schedule" -> summon[RootJsonFormat[CampaignSchedule]].write(c.schedule),
+      "adProductCategory" -> JsString(c.adProductCategory),
+      "bidding" -> summon[RootJsonFormat[CampaignBidding]].write(c.bidding),
+      "landingUrl" -> JsString(c.landingUrl),
+      "creativeIds" -> JsArray(c.creativeIds.map(JsString(_))),
+      "createdAt" -> JsString(c.createdAt),
+      "updatedAt" -> JsString(c.updatedAt),
+      "spent" -> c.spent.fold[JsValue](JsNull)(JsString(_)),
+      "remaining" -> c.remaining.fold[JsValue](JsNull)(JsString(_)),
+      "bidOnUnmatchedContext" -> JsBoolean(c.bidOnUnmatchedContext),
+      "targetCategories" -> JsArray(c.targetCategories.map(JsString(_))),
+      "untargeted" -> JsBoolean(c.untargeted),
+      "siteAllowlist" -> JsArray(c.siteAllowlist.map(JsString(_))),
+      "audienceTargeting" -> JsArray(c.audienceTargeting.map(JsString(_))),
+      "requireVerifiedAudience" -> JsBoolean(c.requireVerifiedAudience),
+      "placeTargeting" -> JsArray(c.placeTargeting.map(JsString(_))),
+      "adProductCategoryName" -> c.adProductCategoryName.fold[JsValue](JsNull)(JsString(_)),
+      "targetCategoryNames" -> JsArray(c.targetCategoryNames.map(JsString(_))),
+      "suggestedCategories" -> JsArray(c.suggestedCategories.map(JsString(_))),
+      "suggestedCategoryNames" -> JsArray(c.suggestedCategoryNames.map(JsString(_)))
+    )
+
+    def read(json: JsValue): Campaign = {
+      val o = json.asJsObject.fields
+      def strs(k: String): Vector[String] =
+        o.get(k).map(_.convertTo[Vector[String]]).getOrElse(Vector.empty)
+      Campaign(
+        id = o("id").convertTo[String],
+        advertiserId = o("advertiserId").convertTo[String],
+        name = o("name").convertTo[String],
+        status = o("status").convertTo[String],
+        budget = o("budget").convertTo[CampaignBudget],
+        schedule = o("schedule").convertTo[CampaignSchedule],
+        adProductCategory = o("adProductCategory").convertTo[String],
+        bidding = o("bidding").convertTo[CampaignBidding],
+        landingUrl = o("landingUrl").convertTo[String],
+        creativeIds = strs("creativeIds"),
+        createdAt = o("createdAt").convertTo[String],
+        updatedAt = o("updatedAt").convertTo[String],
+        spent = o.get("spent").flatMap(_.convertTo[Option[String]]),
+        remaining = o.get("remaining").flatMap(_.convertTo[Option[String]]),
+        bidOnUnmatchedContext = o.get("bidOnUnmatchedContext").exists(_.convertTo[Boolean]),
+        targetCategories = strs("targetCategories"),
+        untargeted = o.get("untargeted").exists(_.convertTo[Boolean]),
+        siteAllowlist = strs("siteAllowlist"),
+        audienceTargeting = strs("audienceTargeting"),
+        requireVerifiedAudience = o.get("requireVerifiedAudience").exists(_.convertTo[Boolean]),
+        placeTargeting = strs("placeTargeting"),
+        adProductCategoryName = o.get("adProductCategoryName").flatMap(_.convertTo[Option[String]]),
+        targetCategoryNames = strs("targetCategoryNames"),
+        suggestedCategories = strs("suggestedCategories"),
+        suggestedCategoryNames = strs("suggestedCategoryNames")
+      )
+    }
+  }
   given RootJsonFormat[CampaignList] = jsonFormat2(CampaignList.apply)
-  given RootJsonFormat[CreateCampaignRequest] = jsonFormat8(CreateCampaignRequest.apply)
-  given RootJsonFormat[UpdateCampaignRequest] = jsonFormat10(UpdateCampaignRequest.apply)
+  given RootJsonFormat[CreateCampaignRequest] = jsonFormat11(CreateCampaignRequest.apply)
+  given RootJsonFormat[UpdateCampaignRequest] = jsonFormat13(UpdateCampaignRequest.apply)
   given RootJsonFormat[CampaignBudgetStatus] = jsonFormat3(CampaignBudgetStatus.apply)
 
   // Creative
@@ -57,6 +121,7 @@ trait ApiJsonFormats extends DefaultJsonProtocol {
       "floorCpm" -> JsString(s.floorCpm),
       "minFloorCpm" -> JsString(s.minFloorCpm),
       "bidWeight" -> JsString(s.bidWeight),
+      "audienceRegions" -> JsArray(s.audienceRegions.map(JsString(_)).toVector),
       "acceptsFillerTraffic" -> JsBoolean(s.acceptsFillerTraffic)
     )
     def read(v: JsValue): Site = {
@@ -75,13 +140,14 @@ trait ApiJsonFormats extends DefaultJsonProtocol {
         floorCpm = o.get("floorCpm").map(_.convertTo[String]).getOrElse("0.50"),
         minFloorCpm = o.get("minFloorCpm").map(_.convertTo[String]).getOrElse("0.10"),
         bidWeight = o.get("bidWeight").map(_.convertTo[String]).getOrElse("0.50"),
+        audienceRegions = o.get("audienceRegions").map(_.convertTo[Vector[String]]).getOrElse(Vector.empty),
         acceptsFillerTraffic = o.get("acceptsFillerTraffic").map(_.convertTo[Boolean]).getOrElse(true)
       )
     }
   }
   given RootJsonFormat[SiteList] = jsonFormat2(SiteList.apply)
-  given RootJsonFormat[CreateSiteRequest] = jsonFormat7(CreateSiteRequest.apply)
-  given RootJsonFormat[UpdateSiteRequest] = jsonFormat9(UpdateSiteRequest.apply)
+  given RootJsonFormat[CreateSiteRequest] = jsonFormat8(CreateSiteRequest.apply)
+  given RootJsonFormat[UpdateSiteRequest] = jsonFormat10(UpdateSiteRequest.apply)
   given RootJsonFormat[VerificationTokenResponse] = jsonFormat6(VerificationTokenResponse.apply)
   given RootJsonFormat[VerificationResponse] = jsonFormat3(VerificationResponse.apply)
 
@@ -125,6 +191,11 @@ trait ApiJsonFormats extends DefaultJsonProtocol {
   // Taxonomy
   given RootJsonFormat[TaxonomyCategory] = jsonFormat3(TaxonomyCategory.apply)
   given RootJsonFormat[TaxonomyCategoryList] = jsonFormat2(TaxonomyCategoryList.apply)
+  given RootJsonFormat[ObservedAudienceRow] = jsonFormat4(ObservedAudienceRow.apply)
+  given RootJsonFormat[ObservedAudience] = jsonFormat6(ObservedAudience.apply)
+  given RootJsonFormat[GeoAvailability] = jsonFormat5(GeoAvailability.apply)
+  given RootJsonFormat[PlaceSuggestion] = jsonFormat4(PlaceSuggestion.apply)
+  given RootJsonFormat[PlaceList] = jsonFormat2(PlaceList.apply)
   given RootJsonFormat[VerifiedSite] = jsonFormat2(VerifiedSite.apply)
   given RootJsonFormat[VerifiedSiteList] = jsonFormat2(VerifiedSiteList.apply)
   given RootJsonFormat[AdvertiserDomainList] = jsonFormat2(AdvertiserDomainList.apply)

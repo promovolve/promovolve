@@ -595,6 +595,143 @@
             </p>
           </div>
 
+          <!-- Geographic targeting. The two pickers share one availability
+               probe: silent zero delivery is this feature's worst failure
+               mode (most sites never declare an audience, by design), so an
+               advertiser is told before saving rather than after a flat
+               week of spend. -->
+          <div x-data="{
+              geo: null,
+              probe(placeCodes, audienceCodes) {
+                if (!placeCodes && !audienceCodes) { this.geo = null; return; }
+                fetch('/api/geo-availability?places=' + encodeURIComponent(placeCodes || '') +
+                      '&audience=' + encodeURIComponent(audienceCodes || ''))
+                  .then(r => r.json())
+                  .then(d => { this.geo = (d && d.audienceSites !== undefined) ? d : null; })
+                  .catch(() => { this.geo = null; });
+              },
+              placeCodes: '', audienceCodes: '',
+              onPlaces(c) { this.placeCodes = c; this.probe(c, this.audienceCodes); },
+              onAudience(c) { this.audienceCodes = c; this.probe(this.placeCodes, c); }
+            }">
+
+          <!-- Content place (tier 1 of docs/design/GEOGRAPHIC_CONTEXT.md):
+               what the ARTICLE is about, matched against the classifier's
+               reading of the page. Independent of who reads the site. -->
+          <div class="mb-4" x-data="{
+              query: '', results: [], open: false,
+              selected: [{{range $i, $p := .PlaceTargeting}}{{if $i}},{{end}}{code:'{{$p.Code}}',name:'{{$p.Name}}'}{{end}}],
+              add(p) { if (!this.selected.find(x => x.code === p.code)) this.selected.push(p); this.query=''; this.results=[]; this.open=false; this.onPlaces(this.codes()); },
+              remove(c) { this.selected = this.selected.filter(x => x.code !== c); this.onPlaces(this.codes()); },
+              codes() { return this.selected.map(p => p.code).join(','); }
+            }" x-init="onPlaces(codes())">
+            <label class="form-label">{{t "Places the page is about"}}</label>
+            <input type="hidden" name="placeTargeting" :value="codes()">
+            <div class="flex flex-wrap gap-1 mb-1" x-show="selected.length > 0">
+              <template x-for="p in selected" :key="p.code">
+                <span class="badge badge-info">
+                  <span x-text="p.name"></span>
+                  <button type="button" @click="remove(p.code)" class="ml-1.5 text-brand hover:text-blue-900 font-bold">&times;</button>
+                </span>
+              </template>
+            </div>
+            <div class="relative">
+              <input type="text" x-model="query"
+                @input="if (query.length > 0) {
+                    fetch('/api/places?q=' + encodeURIComponent(query))
+                      .then(r => r.json()).then(d => { results = (d.data || []).filter(p => !selected.find(x => x.code === p.code)); open = results.length > 0; });
+                  } else { results = []; open = false; }"
+                @click.outside="open = false"
+                placeholder="{{t "Country, region or town"}}"
+                class="form-input">
+              <div x-show="open" x-transition x-cloak
+                   class="absolute z-10 w-full mt-1 bg-white border rounded-md shadow-lg max-h-48 overflow-y-auto">
+                <template x-for="p in results" :key="p.code">
+                  <button type="button" @click="add(p)"
+                          class="block w-full text-left px-3 py-2 text-sm hover:bg-gray-100">
+                    <span x-text="p.name"></span>
+                    <span class="text-gray-400 text-xs" x-show="p.path" x-text="' &mdash; ' + p.path"></span>
+                  </button>
+                </template>
+              </div>
+            </div>
+            <p class="text-xs text-gray-400 mt-1">{{t "Runs on articles about these places. A broader choice still runs on articles about somewhere inside it, but ranks below a campaign that named the place exactly."}}</p>
+          </div>
+
+          <!-- Reader audience (tier 2 of docs/design/GEOGRAPHIC_CONTEXT.md).
+               Matched against what the PUBLISHER declared about a site, not
+               against the individual reader — Promovolve never sees one. -->
+          <div class="mb-4" x-data="{
+              query: '', results: [], open: false,
+              selected: [{{range $i, $a := .AudienceTargeting}}{{if $i}},{{end}}{code:'{{$a.Code}}',name:'{{$a.Name}}'}{{end}}],
+              add(p) { if (!this.selected.find(x => x.code === p.code)) this.selected.push(p); this.query=''; this.results=[]; this.open=false; this.onAudience(this.codes()); },
+              remove(c) { this.selected = this.selected.filter(x => x.code !== c); this.onAudience(this.codes()); },
+              codes() { return this.selected.map(p => p.code).join(','); }
+            }" x-init="onAudience(codes())">
+            <label class="form-label">{{t "Reader audience"}}</label>
+            <input type="hidden" name="audienceTargeting" :value="codes()">
+            <div class="flex flex-wrap gap-1 mb-1" x-show="selected.length > 0">
+              <template x-for="p in selected" :key="p.code">
+                <span class="badge badge-info">
+                  <span x-text="p.name"></span>
+                  <button type="button" @click="remove(p.code)" class="ml-1.5 text-brand hover:text-blue-900 font-bold">×</button>
+                </span>
+              </template>
+            </div>
+            <div class="relative">
+              <input type="text" x-model="query"
+                @input="if (query.length > 0) {
+                    fetch('/api/places?q=' + encodeURIComponent(query))
+                      .then(r => r.json()).then(d => { results = (d.data || []).filter(p => !selected.find(x => x.code === p.code)); open = results.length > 0; });
+                  } else { results = []; open = false; }"
+                @click.outside="open = false"
+                placeholder="{{t "Country, region or town"}}"
+                class="form-input">
+              <div x-show="open" x-transition x-cloak
+                   class="absolute z-10 w-full mt-1 bg-white border rounded-md shadow-lg max-h-48 overflow-y-auto">
+                <template x-for="p in results" :key="p.code">
+                  <button type="button" @click="add(p)"
+                          class="block w-full text-left px-3 py-2 text-sm hover:bg-gray-100">
+                    <span x-text="p.name"></span>
+                    <span class="text-gray-400 text-xs" x-show="p.path" x-text="' — ' + p.path"></span>
+                  </button>
+                </template>
+              </div>
+            </div>
+            <p class="text-xs text-gray-400 mt-1">{{t "Only sites whose publisher has declared a matching reader audience. Leave empty to bid regardless of audience — most inventory declares nothing."}}</p>
+            <label class="inline-flex items-center gap-1.5 text-sm text-gray-600 cursor-pointer mt-2"
+                   x-show="selected.length > 0" x-cloak
+                   title="{{t "Reader location is observed at country granularity, so a region or town target cannot be verified. Such a campaign is rejected on save rather than left to never serve."}}">
+              <input type="checkbox" name="requireVerifiedAudience" {{if .RequireVerifiedAudience}}checked{{end}}
+                     class="rounded border-gray-300 text-brand focus:ring-brand">
+              {{t "Verified audiences only (fewer sites)"}}
+            </label>
+            {{/* The reach cost of that checkbox, in numbers. Without them the
+                 toggle is a superstition knob — nobody can weigh a trade they
+                 cannot see. */}}
+            <p class="text-xs text-gray-500 mt-1" x-show="selected.length > 0 && geo" x-cloak>
+              <span x-text="geo ? geo.audienceVerifiedSites : 0"></span>
+              {{t "verified"}} ·
+              <span x-text="geo ? geo.audienceSites : 0"></span>
+              {{t "including declared"}}
+            </p>
+          </div>
+
+          {{/* Honest about WHICH half is empty: an advertiser told only "no
+               inventory" cannot tell whether to widen the place, drop the
+               audience, or wait for publishers to declare. */}}
+          <p class="text-xs text-amber-600 mb-4" x-cloak
+             x-show="geo && audienceCodes && geo.audienceSites === 0">
+            {{t "No publisher has declared a matching reader audience yet — a campaign targeting only this audience will not serve today."}}
+            <span x-show="geo && geo.declaringSites === 0">{{t "No site has declared any audience so far."}}</span>
+          </p>
+          <p class="text-xs text-amber-600 mb-4" x-cloak
+             x-show="geo && placeCodes && geo.placeSites === 0">
+            {{t "No classified page is about these places yet — a campaign targeting only these places will not serve today."}}
+            <span x-show="geo && geo.classifyingSites === 0">{{t "No page has been classified with a place so far."}}</span>
+          </p>
+          </div>
+
           <!-- Run only on these media (site allowlist) -->
           <div class="mb-4" x-data="{
               query: '', results: [], open: false,

@@ -132,7 +132,12 @@ object AuctioneerEntity {
       url: URL,
       categoryScores: Map[String, Double],
       slots: List[AdSlotSpec],
-      ts: Instant
+      ts: Instant,
+      // Places the PAGE is about (tier 1 of
+      // docs/design/GEOGRAPHIC_CONTEXT.md). Default-empty keeps an
+      // in-flight message from an older node deserializable, and empty is
+      // also the correct answer for most pages.
+      places: Set[String] = Set.empty
   ) extends Command
 
   /**
@@ -192,6 +197,18 @@ object AuctioneerEntity {
   final case class UpdateAdminSlotFloors(floors: Map[SlotId, CPM]) extends Command
 
   /**
+   * The site's publisher-declared audience regions (tier 2 of
+   * docs/design/GEOGRAPHIC_CONTEXT.md), pushed by SiteEntity on every
+   * config edit and re-armed on AuctioneerStarted — the map is
+   * in-memory here, so an auctioneer-only restart would otherwise bid
+   * as if the site had declared nothing until the next edit.
+   *
+   * Replaces the whole set each call; empty means the publisher has
+   * declared nothing, which is UNKNOWN rather than "everywhere".
+   */
+  final case class UpdateAudienceRegions(regions: Set[String], verified: Boolean = false) extends Command
+
+  /**
    * Replay persisted page classifications from SiteEntity on cluster
    * restart. SiteEntity sends this once after its DurableState
    * recovery so the auctioneer's in-memory `lastPage` cache is ready
@@ -239,6 +256,39 @@ object AuctioneerEntity {
    * Pure + side-effect-free for unit testing. An unknown campaign maps to an
    * empty `awardedUrls` set → empty result (no crash).
    */
+  /**
+   * Slot keys to evict when a campaign narrows its CONTENT-PLACE targeting.
+   *
+   * Page-scoped, not site-scoped, and that distinction is the whole point:
+   * an audience narrow says "not this site's readers" and takes the whole
+   * site, while a place narrow says "not this article's subject" and must
+   * take only the pages that stopped qualifying. A campaign that drops
+   * `JP-13` should leave a Tokyo article and keep serving on the Kyoto one.
+   *
+   * Pages with NO places (the common case) are never evicted: a campaign
+   * that narrows its place targeting still bids on pages that were never
+   * about anywhere, because an empty page-place set means the classifier
+   * had nothing to say, not that the page contradicts the target.
+   */
+  private[auction] def placeEvictionSlotKeys(
+      siteId: String,
+      awardedUrls: Set[URL],
+      lastPage: Map[URL, (Map[String, Double], List[AdSlotSpec], Instant)],
+      lastPagePlaces: Map[URL, Set[String]],
+      placeTargeting: Set[String]
+  ): Set[String] =
+    if (placeTargeting.isEmpty) Set.empty
+    else
+      awardedUrls.flatMap { url =>
+        val pagePlaces = lastPagePlaces.getOrElse(url, Set.empty)
+        if (pagePlaces.nonEmpty &&
+          promovolve.taxonomy.Places.matchHops(placeTargeting, pagePlaces).isEmpty)
+          lastPage.get(url).iterator.flatMap { case (_, slots, _) =>
+            slots.iterator.map(sp => promovolve.publisher.Keys.keyUnsafe(siteId, sp.slotId.value))
+          }
+        else Iterator.empty
+      }
+
   private[auction] def topicEvictionSlotKeys(
       siteId: String,
       awardedUrls: Set[URL],
@@ -394,7 +444,7 @@ private final class AuctioneerEntity private (
   private var pendingExpansion: Option[(URL, List[String], List[AdSlotSpec])] = None
 
   private val public: PartialFunction[Messages, Behavior[Messages]] = {
-    case PageCategoriesClassified(url, categoryScores, slots, ts) =>
+    case PageCategoriesClassified(url, categoryScores, slots, ts, places) =>
       // Tell AdServer the page is classified NOW (before/independent of the
       // auction outcome) so its freshness token is set even if no campaign
       // bids — otherwise a no-bidder page re-classifies on every serve.
@@ -423,6 +473,8 @@ private final class AuctioneerEntity private (
           }
         } else lastPage
       }.updated(url, (categoryScores, slots, ts))
+      lastPagePlaces = lastPagePlaces.updated(url, places)
+      prunePlaces()
       startRanking(url, categoryScores, slots)
       Behaviors.same
 
@@ -436,6 +488,33 @@ private final class AuctioneerEntity private (
       ctx.log.info("Per-category floors updated: site={} count={}", siteId, floors.size: java.lang.Integer)
       currentCategoryFloors = floors
       scheduleReauction()
+      Behaviors.same
+
+    case UpdateAudienceRegions(regions, verified) =>
+      // Change-gated: SiteEntity pushes on every config apply, and a
+      // re-auction per push would be pure cost on sites that never touch
+      // their declaration.
+      //
+      // But a real change MUST re-auction, in both directions. Narrowing
+      // (or clearing) the declaration makes audience-targeted campaigns
+      // ineligible here, and they would otherwise keep serving from the
+      // ServeIndex pool that was built while they still qualified.
+      // Widening it makes new campaigns eligible that the last auction
+      // never considered.
+      if (regions != currentAudienceRegions || verified != currentAudienceVerified) {
+        ctx.log.info(
+          "Audience regions updated: site={} regions={} verified={} (was {} verified={})",
+          siteId,
+          if (regions.isEmpty) "(none declared)" else regions.toVector.sorted.mkString(","),
+          verified: java.lang.Boolean,
+          if (currentAudienceRegions.isEmpty) "(none declared)"
+          else currentAudienceRegions.toVector.sorted.mkString(","),
+          currentAudienceVerified: java.lang.Boolean
+        )
+        currentAudienceRegions = regions
+        currentAudienceVerified = verified
+        scheduleReauction()
+      }
       Behaviors.same
 
     case UpdateAdminSlotFloors(floors) =>
@@ -486,6 +565,7 @@ private final class AuctioneerEntity private (
           if (isNew) {
             val slots = entry.slots.iterator.map(_.toAdSlotSpec).toList
             lastPage = lastPage.updated(url, (entry.categories, slots, tsInst))
+            lastPagePlaces = lastPagePlaces.updated(url, entry.places)
             // Repopulate AdServer's freshness token after a restart so restored
             // pages (incl. no-bidder ones) aren't treated as cold on first serve.
             adServer ! AdServer.MarkClassified(url, tsInst)
@@ -658,6 +738,10 @@ private final class AuctioneerEntity private (
           }
         } else lastPage
       }.updated(url, (Map.empty[String, Double], slots, ts))
+      // Filler pages carry no places either — the classifier had nothing to
+      // say about the topic, so it has nothing to say about the location.
+      lastPagePlaces = lastPagePlaces.removed(url)
+      prunePlaces()
 
       campaignDirectory match {
         case Some(directory) =>
@@ -970,6 +1054,7 @@ private final class AuctioneerEntity private (
       lastPage = lastPage.filter { case (_, (_, _, classifiedAt)) =>
         classifiedAt.isAfter(cutoff)
       }
+      prunePlaces()
 
       // Clean up awardedCampaigns - remove stale URLs and empty entries
       if (removedUrls.nonEmpty) {
@@ -1036,14 +1121,25 @@ private final class AuctioneerEntity private (
         // bid everywhere = never excluded). When excluded, wipe the campaign
         // from this whole site — pins included — since the advertiser left the
         // site. Still re-auction so other campaigns refill the freed slots.
-        val excludedHere =
+        val excludedByAllowlist =
           event.siteAllowlist.nonEmpty && !event.siteAllowlist.contains(siteId.value)
+        // Audience-narrow: the advertiser dropped the reader population this
+        // site serves. Same consequence as a site-narrow — the campaign no
+        // longer targets this site at all — so it takes the same whole-site
+        // eviction rather than the per-page topic path. Uses the shared
+        // predicate, so it cannot disagree with the bid-time gate about what
+        // "targets this site" means.
+        val excludedByAudience = !CampaignEntity.audienceAdmits(
+          event.audienceTargeting, currentAudienceRegions)
+        val excludedHere = excludedByAllowlist || excludedByAudience
         if (excludedHere) {
           ctx.log.info(
-            "Campaign {} narrowed off site {} (allowlist={}) - evicting + re-auctioning",
+            "Campaign {} narrowed off site {} (allowlist={} audience={} siteAudience={}) - evicting + re-auctioning",
             event.campaignId.value,
             siteId.value,
-            event.siteAllowlist.mkString(",")
+            event.siteAllowlist.mkString(","),
+            event.audienceTargeting.mkString(","),
+            currentAudienceRegions.mkString(",")
           )
           adServer ! AdServer.EvictCampaignFromSite(event.campaignId)
           scheduleReauction()
@@ -1069,6 +1165,26 @@ private final class AuctioneerEntity private (
               lastPage = lastPage,
               targetCategories = event.targetCategories
             )
+          // Place-narrow eviction, same page-scoped shape as the topic
+          // narrow above and for the same reason.
+          val placeKeysToEvict: Set[String] =
+            AuctioneerEntity.placeEvictionSlotKeys(
+              siteId = siteId.value,
+              awardedUrls = awardedCampaigns.getOrElse(event.campaignId, Set.empty),
+              lastPage = lastPage,
+              lastPagePlaces = lastPagePlaces,
+              placeTargeting = event.placeTargeting
+            )
+          if (placeKeysToEvict.nonEmpty) {
+            ctx.log.info(
+              "Campaign {} narrowed off place on site {} - evicting from {} slot key(s): {}",
+              event.campaignId.value,
+              siteId.value,
+              placeKeysToEvict.size: java.lang.Integer,
+              placeKeysToEvict.mkString(",")
+            )
+            adServer ! AdServer.EvictCampaignFromSlots(event.campaignId, placeKeysToEvict)
+          }
           if (slotKeysToEvict.nonEmpty) {
             ctx.log.info(
               "Campaign {} narrowed off topic on site {} - evicting from {} slot key(s): {}",
@@ -1296,6 +1412,26 @@ private final class AuctioneerEntity private (
   }
   // Cache the last classification & slots per URL so we can re-auction without a re-scrape
   private var lastPage: Map[URL, (Map[String, Double], List[AdSlotSpec], Instant)] = Map.empty
+
+  /**
+   * Places each cached page is ABOUT (tier 1 of
+   * docs/design/GEOGRAPHIC_CONTEXT.md), parallel to `lastPage`.
+   *
+   * Held beside the tuple rather than inside it because `lastPage`'s shape
+   * is load-bearing in ~45 places including the restore/cleanup interplay
+   * that has already caused one live incident; widening it is a refactor
+   * worth doing deliberately, not as a rider on a feature. The cost is that
+   * the two can drift, so every shrink of `lastPage` calls `prunePlaces()`
+   * and no other code removes from this map.
+   */
+  private var lastPagePlaces: Map[URL, Set[String]] = Map.empty
+
+  /** Drop place entries for pages `lastPage` no longer holds. */
+  private def prunePlaces(): Unit =
+    if (lastPagePlaces.nonEmpty) lastPagePlaces = lastPagePlaces.filter { case (u, _) => lastPage.contains(u) }
+
+  /** Places for a cached page; empty when the page is about nowhere. */
+  private def placesFor(url: URL): Set[String] = lastPagePlaces.getOrElse(url, Set.empty)
   // Reevaluate-miss recovery asks in flight — single-flight per URL so a
   // burst of serve-misses on one unknown page can't stampede SiteEntity.
   private var classificationFetchInFlight: Set[URL] = Set.empty
@@ -1351,6 +1487,13 @@ private final class AuctioneerEntity private (
   // gate must agree with the auction-time one or an approved winner
   // gets silently blocked at serve.
   private var slotSpecAdminFloors: Map[SlotId, CPM] = Map.empty
+  // Publisher-declared audience regions for this site, pushed by
+  // SiteEntity. Carried onto every CategoryBidRequest so the demand side
+  // can gate on it; empty = nothing declared = UNKNOWN.
+  private var currentAudienceRegions: Set[String] = Set.empty
+  // Whether tier-3 observation backs the declaration above. Consulted only
+  // by campaigns that opted into requireVerifiedAudience.
+  private var currentAudienceVerified: Boolean = false
   // Track empty auction retry attempts per URL+slot
   private var emptyAuctionRetries: Map[String, Int] = Map.empty
 
@@ -1432,6 +1575,9 @@ private final class AuctioneerEntity private (
                   slotId = slot.slotId,
                   sizes = slotSizes,
                   floorCpm = floorForCategory(category),
+                  siteAudience = currentAudienceRegions,
+                  siteAudienceVerified = currentAudienceVerified,
+                  pagePlaces = placesFor(url),
                   replyTo = aggReply
                 )
               }
@@ -1485,7 +1631,8 @@ private final class AuctioneerEntity private (
                 adProductCategory = campaignBid.adProductCategory,
                 landingDomain = campaignBid.landingDomain,
                 maxCpm = campaignBid.maxCpm,
-                ancestorHops = hopsByCategory.getOrElse(r.categoryId.value, 0)
+                ancestorHops = hopsByCategory.getOrElse(r.categoryId.value, 0),
+                placeHops = campaignBid.placeHops
               )
               val totalFloorRejects = responses.collect {
                 case r: CategoryBidResponse => r.rejectedByFloor
@@ -1707,6 +1854,7 @@ private final class AuctioneerEntity private (
                 val slots = entry.slots.iterator.map(_.toAdSlotSpec).toList
                 val ts = Instant.ofEpochMilli(entry.classifiedAt)
                 lastPage = lastPage.updated(url, (entry.categories, slots, ts))
+                lastPagePlaces = lastPagePlaces.updated(url, entry.places)
                 adServer ! AdServer.MarkClassified(url, ts)
                 ctx.log.info(
                   "Recovered persisted classification for {} from SiteEntity (lost announce) — re-auctioning",

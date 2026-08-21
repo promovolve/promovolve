@@ -65,6 +65,20 @@ type siteData struct {
 	// True when the site opts in to filler-auction traffic (pages
 	// with no contextual match). Drives the checkbox on sites.html.
 	AcceptsFillerTraffic bool
+	// Publisher's declared reader audience (tier 2 of
+	// docs/design/GEOGRAPHIC_CONTEXT.md). Empty is the expected steady
+	// state — most sites have no geographic audience to claim.
+	AudienceRegions []audienceRegion
+	// Observed reader countries (tier 3), top few by share. Advisory:
+	// nothing gates on these yet. Empty when the counter is off or the
+	// window has too few observations to mean anything.
+	AudienceObserved []observedShare
+	// A region we could plausibly suggest from the site's TLD, shown as a
+	// prompt next to the empty picker. NEVER pre-filled into the field:
+	// an inferred audience presented as a declaration is the same
+	// confidently-wrong failure as reading a local-SEO plugin's business
+	// address. Empty when the TLD says nothing.
+	AudienceSuggestion string
 	// Sweep-optimizer summary. Shown next to "Floor CPM" so publishers
 	// can see what the optimizer actually chose vs the manually-set
 	// value. Empty strings until the first cycle produces an argmax.
@@ -140,6 +154,7 @@ func (h *Handler) renderPublisherSites(w http.ResponseWriter, r *http.Request, e
 				MatchedPageURL    *string  `json:"matchedPageUrl"`
 			} `json:"slots"`
 			TaxonomyIds          []string `json:"taxonomyIds"`
+			AudienceRegions      []string `json:"audienceRegions"`
 			FloorCpm             string   `json:"floorCpm"`
 			MinFloorCpm          string   `json:"minFloorCpm"`
 			BidWeight            string   `json:"bidWeight"`
@@ -231,6 +246,15 @@ func (h *Handler) renderPublisherSites(w http.ResponseWriter, r *http.Request, e
 			slots = append(slots, row)
 		}
 		sd := siteData{ID: s.ID, Domain: s.Domain, Status: s.Status, SlotCount: len(s.Slots), Categories: s.TaxonomyIds, VerificationStatus: vs, FloorCpm: fc, MinFloorCpm: mfc, BidWeight: bw, BidWeightLabel: bwLabel, BlockedCategories: blockedCats, Slots: slots, AcceptsFillerTraffic: acceptsFiller}
+		// Resolve declared codes to display names so the chips read
+		// "Kanagawa" and not "JP-14". One call per site with a declaration;
+		// most sites have none, so this is usually skipped entirely.
+		if len(s.AudienceRegions) > 0 {
+			sd.AudienceRegions = h.resolvePlaces(s.AudienceRegions, claims, h.lang(r, user))
+		} else {
+			sd.AudienceSuggestion = audienceSuggestionFor(s.Domain)
+		}
+		sd.AudienceObserved = h.fetchObservedAudience(claims.PublisherID, s.ID, claims)
 		sites = append(sites, sd)
 	}
 
@@ -765,6 +789,13 @@ type campaignData struct {
 	// Publisher siteIds this campaign is restricted to (media targeting).
 	// Empty = no restriction. Pre-fills the edit form's media picker.
 	SiteAllowlist []string
+	// Places codes this campaign bids for. Empty = any audience.
+	AudienceTargeting []audienceRegion
+	// Restrict to inventory whose declaration observation backs.
+	RequireVerifiedAudience bool
+	// Places a PAGE must be about. The other geographic axis from
+	// AudienceTargeting — subject, not readers.
+	PlaceTargeting []audienceRegion
 	// Schedule. *Local fields are the value to put in a datetime-local
 	// input. *Display are human-readable strings for the row header.
 	// EndAtLocal = "" means open-ended. EndAtPassed = end date is in
@@ -883,18 +914,21 @@ func (h *Handler) AdvertiserCampaigns(w http.ResponseWriter, r *http.Request) {
 			Bidding           struct {
 				MaxCPM string `json:"maxCpm"`
 			} `json:"bidding"`
-			LandingURL             string   `json:"landingUrl"`
-			Spent                  *string  `json:"spent"`
-			Remaining              *string  `json:"remaining"`
-			BidOnUnmatchedContext  bool     `json:"bidOnUnmatchedContext"`
-			Untargeted             bool     `json:"untargeted"`
-			TargetCategories       []string `json:"targetCategories"`
-			TargetCategoryNames    []string `json:"targetCategoryNames"`
-			SuggestedCategories    []string `json:"suggestedCategories"`
-			SuggestedCategoryNames []string `json:"suggestedCategoryNames"`
-			AdProductCategoryName  string   `json:"adProductCategoryName"`
-			SiteAllowlist          []string `json:"siteAllowlist"`
-			Schedule               struct {
+			LandingURL              string   `json:"landingUrl"`
+			Spent                   *string  `json:"spent"`
+			Remaining               *string  `json:"remaining"`
+			BidOnUnmatchedContext   bool     `json:"bidOnUnmatchedContext"`
+			Untargeted              bool     `json:"untargeted"`
+			TargetCategories        []string `json:"targetCategories"`
+			TargetCategoryNames     []string `json:"targetCategoryNames"`
+			SuggestedCategories     []string `json:"suggestedCategories"`
+			SuggestedCategoryNames  []string `json:"suggestedCategoryNames"`
+			AdProductCategoryName   string   `json:"adProductCategoryName"`
+			SiteAllowlist           []string `json:"siteAllowlist"`
+			AudienceTargeting       []string `json:"audienceTargeting"`
+			RequireVerifiedAudience bool     `json:"requireVerifiedAudience"`
+			PlaceTargeting          []string `json:"placeTargeting"`
+			Schedule                struct {
 				StartAt string  `json:"startAt"`
 				EndAt   *string `json:"endAt"`
 			} `json:"schedule"`
@@ -1007,24 +1041,27 @@ func (h *Handler) AdvertiserCampaigns(w http.ResponseWriter, r *http.Request) {
 			}
 		}
 		cd := campaignData{
-			ID:                    c.ID,
-			Name:                  c.Name,
-			Status:                c.Status,
-			AdProductCategory:     c.AdProductCategory,
-			DailyBudget:           money(c.Budget.Daily),
-			MaxCPM:                money(c.Bidding.MaxCPM),
-			LandingURL:            c.LandingURL,
-			BidOnUnmatchedContext: c.BidOnUnmatchedContext,
-			Untargeted:            c.Untargeted,
-			TargetCategories:      c.TargetCategories,
-			AdProductCategoryName: localizedName(adNames, c.AdProductCategory, c.AdProductCategoryName),
-			SiteAllowlist:         c.SiteAllowlist,
-			StartAtLocal:          startLocal,
-			StartAtDisplay:        startDisplay,
-			StartAtFuture:         startFuture,
-			EndAtLocal:            endLocal,
-			EndAtDisplay:          endDisplay,
-			EndAtPassed:           endPassed,
+			ID:                      c.ID,
+			Name:                    c.Name,
+			Status:                  c.Status,
+			AdProductCategory:       c.AdProductCategory,
+			DailyBudget:             money(c.Budget.Daily),
+			MaxCPM:                  money(c.Bidding.MaxCPM),
+			LandingURL:              c.LandingURL,
+			BidOnUnmatchedContext:   c.BidOnUnmatchedContext,
+			Untargeted:              c.Untargeted,
+			TargetCategories:        c.TargetCategories,
+			AdProductCategoryName:   localizedName(adNames, c.AdProductCategory, c.AdProductCategoryName),
+			SiteAllowlist:           c.SiteAllowlist,
+			AudienceTargeting:       h.resolvePlaces(c.AudienceTargeting, claims, lang),
+			RequireVerifiedAudience: c.RequireVerifiedAudience,
+			PlaceTargeting:          h.resolvePlaces(c.PlaceTargeting, claims, lang),
+			StartAtLocal:            startLocal,
+			StartAtDisplay:          startDisplay,
+			StartAtFuture:           startFuture,
+			EndAtLocal:              endLocal,
+			EndAtDisplay:            endDisplay,
+			EndAtPassed:             endPassed,
 		}
 		if campSpendOK {
 			// Tracking-events source: campaigns with no impressions
@@ -1630,6 +1667,15 @@ func (h *Handler) UpdateCampaign(w http.ResponseWriter, r *http.Request) {
 	if r.Form.Has("siteAllowlist") {
 		payload["siteAllowlist"] = splitCSV(r.FormValue("siteAllowlist"))
 	}
+	if r.Form.Has("placeTargeting") {
+		payload["placeTargeting"] = splitCSV(r.FormValue("placeTargeting"))
+	}
+	if r.Form.Has("audienceTargeting") {
+		payload["audienceTargeting"] = splitCSV(r.FormValue("audienceTargeting"))
+		// The checkbox only submits when checked, so its absence alongside a
+		// present targeting field is a real "off" rather than "unchanged".
+		payload["requireVerifiedAudience"] = r.FormValue("requireVerifiedAudience") == "on"
+	}
 	// Schedule: only when a start is provided (CampaignSchedule.startAt is
 	// required to also set endAt). Mirrors CreateCampaign's datetime-local
 	// → account-zone → UTC-instant conversion.
@@ -1677,6 +1723,34 @@ func (h *Handler) UpdateFloorCPM(w http.ResponseWriter, r *http.Request) {
 	http.Redirect(w, r, "/publisher/sites", http.StatusSeeOther)
 }
 
+// UpdateAudienceRegions saves the publisher's declared reader audience for a
+// site (tier 2 of docs/design/GEOGRAPHIC_CONTEXT.md).
+//
+// An empty field is sent through as an empty list rather than omitted: that is
+// how a publisher CLEARS a declaration, and the core API distinguishes
+// "absent" (leave alone) from "empty" (cleared). Dropping the key here would
+// make removal silently do nothing.
+func (h *Handler) UpdateAudienceRegions(w http.ResponseWriter, r *http.Request) {
+	_, claims := h.sessionUser(r)
+	if claims == nil {
+		http.Redirect(w, r, "/login", http.StatusSeeOther)
+		return
+	}
+	r.ParseForm()
+	siteID := r.FormValue("siteId")
+	regions := []string{}
+	for _, code := range strings.Split(r.FormValue("audienceRegions"), ",") {
+		if c := strings.TrimSpace(code); c != "" {
+			regions = append(regions, c)
+		}
+	}
+	body, _ := json.Marshal(map[string]any{
+		"audienceRegions": regions,
+	})
+	h.corePatch(fmt.Sprintf("/v1/publishers/me/sites/%s", siteID), claims, string(body))
+	http.Redirect(w, r, "/publisher/sites", http.StatusSeeOther)
+}
+
 func (h *Handler) UpdateMinFloorCPM(w http.ResponseWriter, r *http.Request) {
 	_, claims := h.sessionUser(r)
 	if claims == nil {
@@ -1691,6 +1765,112 @@ func (h *Handler) UpdateMinFloorCPM(w http.ResponseWriter, r *http.Request) {
 	})
 	h.corePatch(fmt.Sprintf("/v1/publishers/me/sites/%s", siteID), claims, string(body))
 	http.Redirect(w, r, "/publisher/sites", http.StatusSeeOther)
+}
+
+// resolvePlaces turns stored place codes into display names for the chips.
+// A lookup failure degrades to showing the raw code rather than dropping the
+// declaration — a publisher must never see their own setting vanish because
+// a name lookup hiccupped.
+func (h *Handler) resolvePlaces(codes []string, claims *model.Claims, lang string) []audienceRegion {
+	if len(codes) == 0 {
+		return nil // the common case — no call, no allocation
+	}
+	out := make([]audienceRegion, 0, len(codes))
+	byCode := map[string]string{}
+	body, err := h.coreGet(fmt.Sprintf("/v1/places?codes=%s&lang=%s",
+		url.QueryEscape(strings.Join(codes, ",")), url.QueryEscape(lang)), claims)
+	if err == nil {
+		var resp struct {
+			Data []struct {
+				Code string `json:"code"`
+				Name string `json:"name"`
+			} `json:"data"`
+		}
+		if json.Unmarshal(body, &resp) == nil {
+			for _, p := range resp.Data {
+				byCode[p.Code] = p.Name
+			}
+		}
+	}
+	for _, c := range codes {
+		name := byCode[c]
+		if name == "" {
+			name = c
+		}
+		out = append(out, audienceRegion{Code: c, Name: name})
+	}
+	return out
+}
+
+// observedShare is one observed reader country with its share of the
+// window, already formatted — the template must not do arithmetic that
+// could disagree with the API's own rounding.
+type observedShare struct {
+	Name  string
+	Share string // "87%"
+}
+
+// fetchObservedAudience reads the tier-3 distribution for a site. Returns
+// nil below the sample floor: a distribution over a handful of readers is
+// not evidence, and showing it next to a declaration would invite a
+// publisher to "correct" a true claim against noise.
+func (h *Handler) fetchObservedAudience(publisherID, siteID string, claims *model.Claims) []observedShare {
+	body, err := h.coreGet(fmt.Sprintf("/v1/publishers/%s/sites/%s/audience-observed?days=30",
+		url.PathEscape(publisherID), url.PathEscape(siteID)), claims)
+	if err != nil {
+		return nil
+	}
+	var resp struct {
+		SufficientSample bool `json:"sufficientSample"`
+		Observed         []struct {
+			Name  string  `json:"name"`
+			Share float64 `json:"share"`
+		} `json:"observed"`
+	}
+	if json.Unmarshal(body, &resp) != nil || !resp.SufficientSample {
+		return nil
+	}
+	out := make([]observedShare, 0, 3)
+	for i, o := range resp.Observed {
+		if i >= 3 {
+			break
+		}
+		out = append(out, observedShare{Name: o.Name, Share: fmt.Sprintf("%.0f%%", o.Share*100)})
+	}
+	return out
+}
+
+// audienceRegion is one declared place, resolved to a display name so the
+// chip reads "Kanagawa" rather than "JP-14".
+type audienceRegion struct {
+	Code string
+	Name string
+}
+
+// ccTLD -> ISO 3166-1 country code, for the "did you mean" prompt beside an
+// empty audience picker. Deliberately tiny and deliberately only a PROMPT:
+// a generic TLD (.com, .org) says nothing about readership, and even a ccTLD
+// is weak evidence — plenty of .io and .co sites have no tie to the territory.
+// The publisher confirms or ignores it; nothing is ever declared on their
+// behalf.
+var tldCountry = map[string]string{
+	"jp": "JP", "uk": "GB", "de": "DE", "fr": "FR", "it": "IT", "es": "ES",
+	"nl": "NL", "se": "SE", "no": "NO", "dk": "DK", "fi": "FI", "pl": "PL",
+	"br": "BR", "mx": "MX", "ar": "AR", "au": "AU", "nz": "NZ", "ca": "CA",
+	"kr": "KR", "cn": "CN", "tw": "TW", "hk": "HK", "sg": "SG", "in": "IN",
+	"id": "ID", "th": "TH", "vn": "VN", "my": "MY", "ph": "PH", "ch": "CH",
+	"at": "AT", "be": "BE", "pt": "PT", "gr": "GR", "cz": "CZ", "ie": "IE",
+	"za": "ZA", "ru": "RU", "tr": "TR", "il": "IL", "ae": "AE", "sa": "SA",
+}
+
+// audienceSuggestionFor returns an ISO country code the domain hints at, or
+// "" when it hints at nothing.
+func audienceSuggestionFor(domain string) string {
+	i := strings.LastIndex(domain, ".")
+	if i < 0 {
+		return ""
+	}
+	return tldCountry[strings.ToLower(domain[i+1:])]
 }
 
 // argmaxHistoryNav carries the date-picker state for the chart so the
@@ -2804,9 +2984,9 @@ type creativeData struct {
 	PendingVerify bool
 	PagesJson     string
 	Impressions   int64
-	Clicks       int64
-	CTAClicks    int64
-	CTR          string
+	Clicks        int64
+	CTAClicks     int64
+	CTR           string
 	// Pin re-engagement counters. Populated from creative_stats'
 	// dogeared_* columns. Surface as a separate dimension on the card
 	// so dashboards distinguish "fresh CTR" from "bookmark-driven CTR".

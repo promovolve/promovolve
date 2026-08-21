@@ -30,6 +30,28 @@ final class RequestHygiene(
   /** Swap the IP database (monthly refresh). Non-blocking. */
   def updateDb(db: IpClassifier.IpDb): Unit = dbRef.set(db)
 
+  /**
+   * ISO 3166-1 country for this request's source, or None when the db is
+   * absent or the address unrouted.
+   *
+   * Lives here rather than at the call site so there is exactly one
+   * reference to the loaded db, and so the country never travels further
+   * than the one caller that tallies it (tier 3 of
+   * docs/design/GEOGRAPHIC_CONTEXT.md). Nothing about this feeds the
+   * suspect decision — an ad may not be chosen from it.
+   */
+  def countryOf(ip: String): Option[String] = dbRef.get().countryOf(ip)
+
+  /**
+   * True when a real ASN database is loaded.
+   *
+   * Callers that COUNT rather than mark need this: with the empty db every
+   * lookup returns None, and a tally of zero is indistinguishable from a
+   * site with no foreign readers. Better to run the counter not at all
+   * than to publish a confidently empty distribution.
+   */
+  def hasDb: Boolean = dbRef.get().size > 0
+
   def dbSize: Int = dbRef.get().size
 
   /**

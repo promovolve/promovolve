@@ -751,17 +751,21 @@ object SlickPendingSelectionStore {
 
   // Candidate rows persist in pending_selection.selection_json, and spray's
   // jsonFormatN rejects missing fields (it ignores case-class defaults —
-  // gotcha_spray_json_defaults). ancestorHops was added 2026-07-25, so rows
-  // written before then lack it: default it to 0 (native) on read instead
-  // of failing every pre-existing approval card.
+  // gotcha_spray_json_defaults). Every hop field added after the fact has to
+  // be defaulted on read or every pre-existing approval card fails to load:
+  // ancestorHops (added 2026-07-25) and placeHops (2026-08-21). Both default
+  // to 0, which reads as "native / no distance" — the same thing an
+  // untargeted bid records.
+  private val HopDefaults = Vector("ancestorHops", "placeHops")
+
   given candidateFormat: JsonFormat[Candidate] = new JsonFormat[Candidate] {
-    private val base = jsonFormat11(Candidate.apply)
+    private val base = jsonFormat12(Candidate.apply)
     def write(c: Candidate): JsValue = base.write(c)
     def read(json: JsValue): Candidate = {
       val obj = json.asJsObject
-      val patched =
-        if (obj.fields.contains("ancestorHops")) obj
-        else JsObject(obj.fields + ("ancestorHops" -> JsNumber(0)))
+      val patched = HopDefaults.foldLeft(obj) { (o, field) =>
+        if (o.fields.contains(field)) o else JsObject(o.fields + (field -> JsNumber(0)))
+      }
       base.read(patched)
     }
   }

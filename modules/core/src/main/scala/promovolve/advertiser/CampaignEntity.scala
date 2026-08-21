@@ -294,6 +294,8 @@ object CampaignEntity {
             replyTo = directoryAckAdapter,
             bidOnUnmatchedContext = state.bidOnUnmatchedContext,
             siteAllowlist = state.siteAllowlist,
+            audienceTargeting = state.audienceTargeting,
+            placeTargeting = state.placeTargeting,
             configEdit = configEdit
           )
 
@@ -351,7 +353,13 @@ object CampaignEntity {
             prev.effectiveCategories != state.effectiveCategories ||
             prev.creativeAssignments != state.creativeAssignments ||
             prev.bidOnUnmatchedContext != state.bidOnUnmatchedContext ||
-            prev.siteAllowlist != state.siteAllowlist
+            prev.siteAllowlist != state.siteAllowlist ||
+            // An audience narrow makes the campaign ineligible on sites it
+            // used to serve; without this the directory never republishes
+            // and no auctioneer ever evicts it.
+            prev.audienceTargeting != state.audienceTargeting ||
+            prev.requireVerifiedAudience != state.requireVerifiedAudience ||
+            prev.placeTargeting != state.placeTargeting
           }
 
           (wasActive, isActive, configChanged) match {
@@ -452,6 +460,9 @@ object CampaignEntity {
                 slotId,
                 pageCategory,
                 floorCpm,
+                siteAudience,
+                siteAudienceVerified,
+                pagePlaces,
                 replyTo
               ) =>
             ctx.log.debug(
@@ -468,6 +479,9 @@ object CampaignEntity {
                   siteId = siteId,
                   pageCategory = pageCategory,
                   floorCpm = floorCpm,
+                  siteAudience = siteAudience,
+                  siteAudienceVerified = siteAudienceVerified,
+                  pagePlaces = pagePlaces,
                   replyTo = replyTo,
                   advRemaining = bidContext.remaining,
                   creatives = bidContext.creatives,
@@ -483,6 +497,9 @@ object CampaignEntity {
                   siteId = siteId,
                   pageCategory = pageCategory,
                   floorCpm = floorCpm,
+                  siteAudience = siteAudience,
+                  siteAudienceVerified = siteAudienceVerified,
+                  pagePlaces = pagePlaces,
                   replyTo = replyTo,
                   advRemaining = Budget.zero,
                   creatives = Set.empty,
@@ -495,6 +512,9 @@ object CampaignEntity {
                 siteId,
                 pageCategory,
                 floorCpm,
+                siteAudience,
+                siteAudienceVerified,
+                pagePlaces,
                 replyTo,
                 advRemaining,
                 creatives,
@@ -525,7 +545,8 @@ object CampaignEntity {
             // triggers re-auction before CampaignEntity processes its own ResetDayStart.
             // Site-domain blocklist is enforced at AdServer (via DData), not here.
             val campaignRemaining = remainingBudgetForBidding(state, Instant.now())
-            val rejection = state.bidRejectReason(siteId, pageCategory, floorCpm)
+            val rejection =
+              state.bidRejectReason(siteId, pageCategory, floorCpm, siteAudience, siteAudienceVerified, pagePlaces)
             val (eligible, reason) = rejection match {
               case Some(r) => (Set.empty[AdvertiserEntity.Creative], Some(r))
               case None    =>
@@ -570,6 +591,7 @@ object CampaignEntity {
               adProductCategory = state.adProductCategory,
               landingDomain = landingDomain,
               rejectReason = reason,
+              placeHops = placeAdmits(state.placeTargeting, pagePlaces).getOrElse(0),
               // Computed from the full fetched set (not `eligible`) so
               // below-floor rejects still carry it — an approved bidder
               // priced out by the current floor must keep teaching the
@@ -972,6 +994,9 @@ object CampaignEntity {
               startAt = state.startAt,
               endAt = state.endAt,
               siteAllowlist = state.siteAllowlist,
+              audienceTargeting = state.audienceTargeting,
+              requireVerifiedAudience = state.requireVerifiedAudience,
+              placeTargeting = state.placeTargeting,
               suggestedCategories = state.suggestedCategories,
               name = state.name
             )
@@ -1011,7 +1036,8 @@ object CampaignEntity {
             }
 
           case UpdateConfig(maxCpm, dailyBudget, adProductCat, categoriesOpt, landingUrlOpt, bidOnUnmatchedCtx,
-                startAtOpt, endAtOpt, siteAllowlistOpt, nameOpt, replyTo) =>
+                startAtOpt, endAtOpt, siteAllowlistOpt, audienceTargetingOpt, requireVerifiedOpt,
+                placeTargetingOpt, nameOpt, replyTo) =>
             val newAdProductCategory = adProductCat.getOrElse(state.adProductCategory)
             // Target categories are now an explicit advertiser declaration —
             // no longer derived from adProductCategory. Any 2.x ids the
@@ -1036,6 +1062,9 @@ object CampaignEntity {
               startAt = startAtOpt.getOrElse(state.startAt),
               endAt = endAtOpt.getOrElse(state.endAt),
               siteAllowlist = siteAllowlistOpt.getOrElse(state.siteAllowlist),
+              audienceTargeting = audienceTargetingOpt.getOrElse(state.audienceTargeting),
+              requireVerifiedAudience = requireVerifiedOpt.getOrElse(state.requireVerifiedAudience),
+              placeTargeting = placeTargetingOpt.getOrElse(state.placeTargeting),
               name = nameOpt.map(_.trim).filter(_.nonEmpty).getOrElse(state.name)
             )
             val nowWithin = withinBudget(newState)
@@ -1442,6 +1471,9 @@ object CampaignEntity {
                   adProductCategory = state.adProductCategory,
                   landingDomain = landingDomain,
                   siteAllowlist = state.siteAllowlist,
+                  audienceTargeting = state.audienceTargeting,
+                  requireVerifiedAudience = state.requireVerifiedAudience,
+                  placeTargeting = state.placeTargeting,
                   eligible = eligible,
                   quotedAtMs = quotedAt
                 )
@@ -1740,6 +1772,10 @@ object CampaignEntity {
       startAt: Instant = Instant.EPOCH, // populated from State.startAt by the GetCampaign handler
       endAt: Option[Instant] = None,
       siteAllowlist: Set[String] = Set.empty,
+      // Audience targeting, for the dashboard's edit form.
+      audienceTargeting: Set[String] = Set.empty,
+      requireVerifiedAudience: Boolean = false,
+      placeTargeting: Set[String] = Set.empty,
       // Durable Gemini suggestion (fallback default). Exposed so the dashboard
       // can compute the Untargeted badge against the EFFECTIVE set: a campaign
       // is untargeted only when BOTH categories and suggestedCategories are
@@ -1776,6 +1812,12 @@ object CampaignEntity {
       // Media targeting. None = no change, Some(set) = replace the allowlist
       // of publisher siteIds (empty set = clear → no restriction).
       siteAllowlist: Option[Set[String]] = None,
+      // Audience targeting. None = no change, Some(set) = replace (empty
+      // set = clear → bid for any audience). Same None/Some(empty)
+      // distinction the allowlist carries: clearing is a real edit.
+      audienceTargeting: Option[Set[String]] = None,
+      requireVerifiedAudience: Option[Boolean] = None,
+      placeTargeting: Option[Set[String]] = None,
       // Display name. None = no change; Some(s) sets the trimmed value
       // (blank-after-trim is ignored — a name can't be unset to empty).
       name: Option[String] = None,
@@ -1797,6 +1839,17 @@ object CampaignEntity {
       slotId: SlotId,
       pageCategory: CategoryId,
       floorCpm: CPM,
+      // The site's publisher-declared reader audience, forwarded from the
+      // auctioneer. Default-empty keeps in-flight messages from an older
+      // node deserializable — and empty is also the correct reading of a
+      // site that has declared nothing.
+      siteAudience: Set[String] = Set.empty,
+      // Whether tier-3 observation backs that declaration. Only consulted
+      // by campaigns that set requireVerifiedAudience.
+      siteAudienceVerified: Boolean = false,
+      // Places the PAGE is about (tier 1). Distinct from siteAudience:
+      // that describes the readers, this describes the article.
+      pagePlaces: Set[String] = Set.empty,
       replyTo: ActorRef[CampaignBidResponse]
   ) extends Command
 
@@ -1809,6 +1862,10 @@ object CampaignEntity {
       adProductCategory: Option[AdProductCategoryId] = None,
       landingDomain: String = "",
       rejectReason: Option[BidRejectReason] = None,
+      // Distance from the campaign's content-place targeting to what this
+      // page is about; 0 for a direct hit or no targeting. Computed here,
+      // at the gate, so the bidder never re-derives it differently.
+      placeHops: Int = 0,
       // True when the campaign has ≥1 publisher-APPROVED creative on this
       // site. Approved bids teach the floor; pending bids compete for the
       // approval queue but are invisible to floor pricing. Set on rejects
@@ -1819,9 +1876,48 @@ object CampaignEntity {
     def eligible: Boolean = creatives.nonEmpty
   }
 
+  /**
+   * The audience gate, in ONE place.
+   *
+   * Two code paths decide campaign eligibility and they must never
+   * disagree: `State.canBid` on the live-ask path, and
+   * `CategoryBidderEntity.answerFromBook`, which replicates eligibility
+   * from a standing quote without asking the campaign at all. Every
+   * previous set-valued filter (`siteAllowlist`) was reimplemented in
+   * both; this one is called from both instead, so drift is not
+   * expressible.
+   */
+  /**
+   * The content-place gate, in ONE place — same discipline as
+   * [[audienceAdmits]], since the live-ask and bid-book paths both decide it.
+   *
+   * Returns the match DISTANCE rather than a boolean: unlike audience, which
+   * is binary eligibility, content place is relevance, and a campaign
+   * targeting Japan on a Kamakura article is eligible but a worse fit than
+   * one targeting Kamakura. The hops ride the bid to serve time, where
+   * `CandidateLogic` decays the selection prior by them.
+   *
+   * `None` = refused. `Some(0)` = a direct hit, and also what an untargeted
+   * campaign records — no constraint is a perfect fit, not a distant one.
+   */
+  def placeAdmits(placeTargeting: Set[String], pagePlaces: Set[String]): Option[Int] =
+    promovolve.taxonomy.Places.matchHops(placeTargeting, pagePlaces)
+
+  def audienceAdmits(
+      audienceTargeting: Set[String],
+      siteAudience: Set[String],
+      requireVerified: Boolean = false,
+      siteAudienceVerified: Boolean = false
+  ): Boolean =
+    promovolve.taxonomy.Places.targetingMatches(audienceTargeting, siteAudience) &&
+    // Only bites when the advertiser asked for it AND is actually
+    // targeting. An untargeted campaign that happens to have the flag set
+    // is not narrowed to verified inventory — it never asked to be.
+    (!requireVerified || audienceTargeting.isEmpty || siteAudienceVerified)
+
   enum BidRejectReason:
     case Paused, CategoryMismatch, CategoryBlocked, SizeMismatch,
-      BelowFloor, BudgetExhausted, NoCreatives, SiteNotAllowed
+      BelowFloor, BudgetExhausted, NoCreatives, SiteNotAllowed, AudienceNotAllowed, PlaceNotAllowed
 
   /** Record spend (buffered, flushed periodically) */
   final case class RecordSpend(
@@ -1932,6 +2028,17 @@ object CampaignEntity {
       // event; the default keeps deserialization of any older in-flight events
       // safe.
       targetCategories: Set[CategoryId] = Set.empty,
+      // The campaign's FULL new audience targeting set. Per-site
+      // auctioneers compare it against their own site's declared audience
+      // to detect an AUDIENCE-narrow — the advertiser dropped the
+      // population this site serves — and evict, mirroring the
+      // siteAllowlist narrow directly above.
+      audienceTargeting: Set[String] = Set.empty,
+      // The campaign's FULL new content-place targeting set. Per-site
+      // auctioneers use it for a PAGE-scoped eviction — unlike the audience
+      // narrow, which takes the whole site, a place narrow removes the
+      // campaign only from pages that stopped qualifying.
+      placeTargeting: Set[String] = Set.empty,
       // True ONLY for a genuine config edit on an already-active campaign
       // (CPM/categories/creatives/allowlist changed). False for boot/recovery
       // (re)registration and directory re-tells. Consumers must not treat a
@@ -1980,6 +2087,30 @@ object CampaignEntity {
       // additive filter on top of normal category matching, NOT an override
       // (topic still gates which pages on those sites it serves on).
       siteAllowlist: Set[String] = Set.empty,
+      // Campaign audience targeting: the reader populations this campaign
+      // will bid for, as `Places` codes. An ADDITIVE filter on top of
+      // category matching, exactly like siteAllowlist — topic still gates
+      // WHICH pages, this gates WHOSE. Empty = bid anywhere, which is the
+      // contextual default. Matched against the site's publisher-declared
+      // audience (tier 2 of docs/design/GEOGRAPHIC_CONTEXT.md); a site that
+      // has declared nothing is UNKNOWN and does not match a non-empty set.
+      // Default-empty is Jackson-safe — no migration for older State.
+      audienceTargeting: Set[String] = Set.empty,
+      // Opt in to observation-backed inventory only. Costs reach: a site
+      // whose declaration has too little traffic behind it stops matching,
+      // even though its claim may well be true. The knob exists because
+      // "I'd prefer JP readers" and "I may only serve JP" are different
+      // buys and one flag cannot serve both. Default false keeps the
+      // contextual default: declared inventory counts.
+      requireVerifiedAudience: Boolean = false,
+      // Content place targeting: the places a page must be ABOUT for this
+      // campaign to bid, as `Places` codes. The OTHER geographic axis from
+      // audienceTargeting — that one asks who reads the site, this one asks
+      // what the article is about. A Paris hotel buys placeTargeting={FR};
+      // Japanese travel insurance buys audienceTargeting={JP}; an airline
+      // buys both. Empty = bid regardless of subject. Default-empty is
+      // Jackson-safe.
+      placeTargeting: Set[String] = Set.empty,
       // Durable Gemini-derived default targeting (IAB 3.0 ids). Acts as a
       // FALLBACK for `categories`: when the advertiser clears all explicit
       // topics (categories empty), the campaign still targets this suggestion
@@ -2031,7 +2162,10 @@ object CampaignEntity {
     def canBid(
         siteId: SiteId,
         pageCategory: CategoryId,
-        floorCpm: CPM
+        floorCpm: CPM,
+        siteAudience: Set[String] = Set.empty,
+        siteAudienceVerified: Boolean = false,
+        pagePlaces: Set[String] = Set.empty
     ): Boolean = {
       // Filler auctions carry a sentinel category; campaigns opted
       // into `bidOnUnmatchedContext` bypass the normal category
@@ -2042,9 +2176,17 @@ object CampaignEntity {
       // Media targeting: empty allowlist = bid anywhere; otherwise only the
       // listed sites. Purely a "where" filter on top of category matching.
       val siteOk = siteAllowlist.isEmpty || siteAllowlist.contains(siteId.value)
+      // Second `where` filter, same additive shape as siteOk. Shared with
+      // the bid book through CampaignEntity.audienceAdmits so the two
+      // paths cannot answer differently for the same inputs.
+      val audienceOk = audienceAdmits(
+        audienceTargeting, siteAudience, requireVerifiedAudience, siteAudienceVerified)
+      val placeOk = placeAdmits(placeTargeting, pagePlaces).isDefined
       status == Status.Active &&
       isWithinSchedule(Instant.now()) &&
       siteOk &&
+      audienceOk &&
+      placeOk &&
       categoryOk &&
       !categoryBlocklist.contains(pageCategory) &&
       maxCpm >= floorCpm
@@ -2053,11 +2195,18 @@ object CampaignEntity {
     def bidRejectReason(
         siteId: SiteId,
         pageCategory: CategoryId,
-        floorCpm: CPM
+        floorCpm: CPM,
+        siteAudience: Set[String] = Set.empty,
+        siteAudienceVerified: Boolean = false,
+        pagePlaces: Set[String] = Set.empty
     ): Option[BidRejectReason] = {
       val isFillerOptIn = pageCategory == CategoryId.Filler && bidOnUnmatchedContext
       if (status != Status.Active) Some(BidRejectReason.Paused)
       else if (siteAllowlist.nonEmpty && !siteAllowlist.contains(siteId.value)) Some(BidRejectReason.SiteNotAllowed)
+      else if (!audienceAdmits(
+          audienceTargeting, siteAudience, requireVerifiedAudience, siteAudienceVerified))
+        Some(BidRejectReason.AudienceNotAllowed)
+      else if (placeAdmits(placeTargeting, pagePlaces).isEmpty) Some(BidRejectReason.PlaceNotAllowed)
       else if (!isFillerOptIn && !effectiveCategories.contains(pageCategory)) Some(BidRejectReason.CategoryMismatch)
       else if (categoryBlocklist.contains(pageCategory)) Some(BidRejectReason.CategoryBlocked)
       else if (maxCpm < floorCpm) Some(BidRejectReason.BelowFloor)
@@ -2091,6 +2240,11 @@ object CampaignEntity {
       siteId: SiteId,
       pageCategory: CategoryId,
       floorCpm: CPM,
+      // Carried across the advertiser-budget hop so the eligibility check
+      // below sees the same site audience the request arrived with.
+      siteAudience: Set[String],
+      siteAudienceVerified: Boolean,
+      pagePlaces: Set[String],
       replyTo: ActorRef[CampaignBidResponse],
       advRemaining: Budget,
       creatives: Set[AdvertiserEntity.Creative],

@@ -116,7 +116,8 @@ object HttpBootstrap {
       // Database-backed repos for creative storage (required)
       // NOTE: creativeRepo is passed in from ClusterBootstrap.Repositories to ensure
       // both entities (AdServer) and HTTP routes use the SAME repo instance
-      val (imageAssetRepo, advertiserEmailRepo, publisherEmailRepo, advertiserAssetRepo, mountBeaconRepo) = try {
+      val (imageAssetRepo, advertiserEmailRepo, publisherEmailRepo, advertiserAssetRepo, mountBeaconRepo,
+        audienceObservationRepo) = try {
         val dbConfig = DatabaseConfig.forConfig[PostgresProfile]("dashboard-projection-db", config)
         val db = dbConfig.db
 
@@ -135,12 +136,17 @@ object HttpBootstrap {
         val beaconRepo = new promovolve.publisher.SlickMountBeaconRepo(db)(using system.executionContext)
         beaconRepo.ensureSchema()
 
+        val audienceRepo =
+          new promovolve.publisher.SlickAudienceObservationRepo(db)(using system.executionContext)
+        audienceRepo.ensureSchema()
+
         system.log.info(
           "ImageAssetRepo, AdvertiserEmailRepo, PublisherEmailRepo, AdvertiserAssetRepo, MountBeaconRepo initialized (PostgreSQL), ImageStorage: {}",
           storageType)
         system.log.info("Using shared CreativeRepo from ClusterBootstrap.Repositories")
         (imgRepo: ImageAssetRepo, advEmailRepo: AdvertiserEmailRepo, pubEmailRepo: PublisherEmailRepo,
-          advAssetRepo: AdvertiserAssetRepo, beaconRepo: promovolve.publisher.MountBeaconRepo)
+          advAssetRepo: AdvertiserAssetRepo, beaconRepo: promovolve.publisher.MountBeaconRepo,
+          Some(audienceRepo): Option[promovolve.publisher.AudienceObservationRepo])
       } catch {
         case ex: Exception =>
           system.log.error("Failed to initialize database repos: {}", ex.getMessage)
@@ -259,6 +265,26 @@ object HttpBootstrap {
           None
         }
 
+      // Tier 3 of docs/design/GEOGRAPHIC_CONTEXT.md. Counting is gated on
+      // the ASN db actually being loaded: without it every lookup returns
+      // None, so the counter would sit at zero and a reader could mistake
+      // "no data" for "no foreign traffic". Nothing gates on these counts
+      // yet — they are read-only until the suppression step.
+      val audienceCounter: Option[promovolve.publisher.AudienceObservationCounter] =
+        if (audienceObservationRepo.isDefined && requestHygiene.hasDb) {
+          val counter = new promovolve.publisher.AudienceObservationCounter()
+          val flushInterval = 5.minutes
+          system.scheduler.scheduleAtFixedRate(flushInterval, flushInterval) { () =>
+            audienceObservationRepo.foreach(repo =>
+              counter.flush(repo)(using system.executionContext))
+          }(using system.executionContext)
+          system.log.info("Audience observation counter active, flushing every {}", flushInterval)
+          Some(counter)
+        } else {
+          system.log.info("Audience observation counter off (no ASN db or no repo)")
+          None
+        }
+
       val trackRoutes = new TrackRoutes(
         secretsRepo,
         eventLog,
@@ -266,7 +292,8 @@ object HttpBootstrap {
         replayGuard = replayGuard,
         mountBeacons = Some(mountBeaconRepo),
         hygiene = requestHygiene,
-        engagement = engagementChecker
+        engagement = engagementChecker,
+        audienceCounter = audienceCounter
       )(using system)
 
       val enableTestRoutes = Try(config.getBoolean("promovolve.enable-test-routes")).getOrElse(false)
@@ -400,7 +427,8 @@ object HttpBootstrap {
         lpWorkerEnabled = lpWorkerEnabled,
         lpWorkerNumWorkers = lpWorkerNumWorkers,
         pendingSelectionStore = Some(pendingSelectionStore),
-        categoryRegistry = Some(categoryRegistry)
+        categoryRegistry = Some(categoryRegistry),
+        audienceObservationRepo = audienceObservationRepo
       )(using system)
 
       // Dashboard routes for advertiser performance data

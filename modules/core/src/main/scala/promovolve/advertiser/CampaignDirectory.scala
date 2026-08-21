@@ -110,6 +110,8 @@ object CampaignDirectory {
           categories: Set[CategoryId],
           isActive: Boolean,
           siteAllowlist: Set[String] = Set.empty,
+          audienceTargeting: Set[String] = Set.empty,
+          placeTargeting: Set[String] = Set.empty,
           targetCategories: Set[CategoryId] = Set.empty,
           configEdit: Boolean = false
       ): Unit = {
@@ -126,7 +128,8 @@ object CampaignDirectory {
           categories.mkString(",")
         )
         campaignChangedTopic ! Topic.Publish(
-          CampaignEntity.CampaignChanged(campaignId, categories, isActive, siteAllowlist, targetCategories, configEdit)
+          CampaignEntity.CampaignChanged(campaignId, categories, isActive, siteAllowlist, targetCategories,
+            audienceTargeting, placeTargeting, configEdit)
         )
       }
 
@@ -163,7 +166,7 @@ object CampaignDirectory {
       def commandHandler(state: State, command: Command): Effect[State] = command match {
 
         case ready @ CampaignReady(campaignId, advertiserId, categoryIds, _, _, _, status, replyTo,
-              bidOnUnmatchedContext, siteAllowlist, _) =>
+              bidOnUnmatchedContext, siteAllowlist, audienceTargeting, placeTargeting, _) =>
           if (status == CampaignEntity.Status.Active) {
             // Use ephemeral reverse index for O(1) lookup of old categories
             val oldCategories = campaignToCategories.getOrElse(campaignId, Set.empty)
@@ -199,7 +202,8 @@ object CampaignDirectory {
                     val toPublish = affectedCategories.map(c => c -> newState.categories.getOrElse(c, Map.empty)).toMap
                     publishToCategories(toPublish,
                       acked =>
-                        CategoryBiddersAcknowledged(campaignId, acked, replyTo, siteAllowlist, ready.targetCategories,
+                        CategoryBiddersAcknowledged(campaignId, acked, replyTo, siteAllowlist, audienceTargeting,
+                          placeTargeting, ready.targetCategories,
                           ready.configEdit))
                   } else {
                     replyTo ! CampaignRegistered(campaignId)
@@ -215,11 +219,11 @@ object CampaignDirectory {
             removeCampaign(state, campaignId)
           }
 
-        case CategoryBiddersAcknowledged(campaignId, affectedCategories, replyTo, siteAllowlist, targetCategories,
-              configEdit) =>
+        case CategoryBiddersAcknowledged(campaignId, affectedCategories, replyTo, siteAllowlist, audienceTargeting,
+              placeTargeting, targetCategories, configEdit) =>
           ctx.log.debug("All category bidders acknowledged for campaign {}", campaignId.value)
-          notifyCampaignChanged(campaignId, affectedCategories, isActive = true, siteAllowlist, targetCategories,
-            configEdit)
+          notifyCampaignChanged(campaignId, affectedCategories, isActive = true, siteAllowlist, audienceTargeting,
+            placeTargeting, targetCategories, configEdit)
           replyTo ! CampaignRegistered(campaignId)
           Effect.none
 
@@ -396,6 +400,14 @@ object CampaignDirectory {
       // Forwarded onto CampaignChanged so per-site AuctioneerEntities can
       // detect a site-narrow exclusion and evict. Empty = bid everywhere.
       siteAllowlist: Set[String] = Set.empty,
+      // Campaign audience targeting (mirrors State.audienceTargeting).
+      // Forwarded onto CampaignChanged so per-site AuctioneerEntities can
+      // detect an audience-narrow exclusion and evict, exactly as they do
+      // for siteAllowlist. Empty = bid for any audience.
+      audienceTargeting: Set[String] = Set.empty,
+      // Content-place targeting (mirrors State.placeTargeting). Forwarded
+      // onto CampaignChanged for the page-scoped place-narrow eviction.
+      placeTargeting: Set[String] = Set.empty,
       // True only for a genuine config edit (see CampaignChanged.configEdit).
       // Boot/recovery registrations and re-tells send false.
       configEdit: Boolean = false
@@ -514,6 +526,10 @@ object CampaignDirectory {
       replyTo: ActorRef[CampaignRegistered],
       // Forwarded onto the CampaignChanged event for site-narrow eviction.
       siteAllowlist: Set[String] = Set.empty,
+      // Forwarded onto the CampaignChanged event for audience-narrow eviction.
+      audienceTargeting: Set[String] = Set.empty,
+      // Forwarded onto the CampaignChanged event for place-narrow eviction.
+      placeTargeting: Set[String] = Set.empty,
       // The campaign's FULL target category set, forwarded onto the
       // CampaignChanged event for topic-narrow eviction.
       targetCategories: Set[CategoryId] = Set.empty,

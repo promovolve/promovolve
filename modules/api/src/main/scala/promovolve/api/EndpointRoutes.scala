@@ -46,7 +46,11 @@ class EndpointRoutes(
     pendingSelectionStore: Option[promovolve.publisher.PendingSelectionStore] = None,
     // Declared publisher inventory (site taxonomyIds) — backs the
     // advertiser-facing category-availability endpoint.
-    categoryRegistry: Option[ActorRef[promovolve.taxonomy.CategoryRegistry.Command]] = None
+    categoryRegistry: Option[ActorRef[promovolve.taxonomy.CategoryRegistry.Command]] = None,
+    // Tier 3 observed reader countries. None = the counter is off, and the
+    // endpoint reports an empty, insufficient-sample result rather than an
+    // error — "we are not measuring" is a valid answer.
+    audienceObservationRepo: Option[promovolve.publisher.AudienceObservationRepo] = None
 )(using system: ActorSystem[?])
     extends ApiJsonFormats {
 
@@ -1655,6 +1659,9 @@ class EndpointRoutes(
             // shows a warning chip when this is true.
             untargeted = info.categories.isEmpty && info.suggestedCategories.isEmpty && !info.bidOnUnmatchedContext,
             siteAllowlist = info.siteAllowlist.toVector.sorted,
+            audienceTargeting = info.audienceTargeting.toVector.sorted,
+            requireVerifiedAudience = info.requireVerifiedAudience,
+            placeTargeting = info.placeTargeting.toVector.sorted,
             adProductCategoryName = adProductName,
             targetCategoryNames = sortedCatNames,
             suggestedCategories = sortedSuggested,
@@ -1771,7 +1778,8 @@ class EndpointRoutes(
       if (req.name.trim.isEmpty) {
         Future.successful(Left(ErrorResponse("invalid_name", "Campaign name is required")))
       } else
-        validateLandingUrl(req.landingUrl) match {
+        validateLandingUrl(req.landingUrl)
+          .orElse(validateAudienceTargeting(req.audienceTargeting, req.requireVerifiedAudience)) match {
           case Some(err) => Future.successful(Left(err))
           case None      =>
             validateAdProductCategory(req.adProductCategory).flatMap {
@@ -1803,6 +1811,14 @@ class EndpointRoutes(
               categories = req.targetCategories.map(_.toSet.map(CategoryId(_))),
               landingUrl = Some(Some(req.landingUrl)),
               siteAllowlist = req.siteAllowlist.map(_.toSet),
+              // Unknown codes are DROPPED, matching the site declaration
+              // path: the picker reads /v1/places, so an unknown code is a
+              // bug or a hand-rolled request and neither should fail a
+              // campaign create.
+              audienceTargeting = req.audienceTargeting
+                .map(a => promovolve.taxonomy.Places.validate(a)),
+              requireVerifiedAudience = req.requireVerifiedAudience,
+              placeTargeting = req.placeTargeting.map(p => promovolve.taxonomy.Places.validate(p)),
               name = Some(req.name),
               replyTo = ref
             )
@@ -1823,7 +1839,12 @@ class EndpointRoutes(
               creativeIds = Vector.empty,
               createdAt = nowIso,
               updatedAt = nowIso,
-              siteAllowlist = req.siteAllowlist.map(_.toVector).getOrElse(Vector.empty)
+              siteAllowlist = req.siteAllowlist.map(_.toVector).getOrElse(Vector.empty),
+              audienceTargeting = req.audienceTargeting
+                .map(a => promovolve.taxonomy.Places.validate(a).toVector.sorted).getOrElse(Vector.empty),
+              requireVerifiedAudience = req.requireVerifiedAudience.getOrElse(false),
+              placeTargeting = req.placeTargeting
+                .map(p => promovolve.taxonomy.Places.validate(p).toVector.sorted).getOrElse(Vector.empty)
             )
           )
         }
@@ -1843,6 +1864,23 @@ class EndpointRoutes(
           case Some(apc) => validateAdProductCategory(apc).map(_.toLeft(()))
           case None      => Future.successful(Right(()))
         }
+
+      // On edit, either half of the contradiction may be arriving alone, so
+      // the check runs against the campaign's CURRENT state merged with the
+      // patch — turning on verified-only without touching targets, or adding
+      // a city target to an already-verified-only campaign, must both fail.
+      val audienceCheckF: Future[Either[ErrorResponse, Unit]] =
+        if (req.audienceTargeting.isEmpty && req.requireVerifiedAudience.isEmpty)
+          Future.successful(Right(()))
+        else
+          campaignRef(advertiserId, campaignId)
+            .ask[CampaignEntity.CampaignInfo](CampaignEntity.GetCampaign(_))
+            .map { info =>
+              val targets = req.audienceTargeting.getOrElse(info.audienceTargeting.toSeq)
+              val verified = req.requireVerifiedAudience.orElse(Some(info.requireVerifiedAudience))
+              validateAudienceTargeting(Some(targets), verified).toLeft(())
+            }
+            .recover { case _ => Right(()) }
 
       // Handle budget update if provided. def, not val — a Future val
       // launches its ask eagerly, before the prohibited-category gate
@@ -1876,7 +1914,8 @@ class EndpointRoutes(
       def configUpdateF: Future[Either[ErrorResponse, Unit]] =
         if (req.adProductCategory.isDefined || req.bidding.isDefined || req.bidOnUnmatchedContext.isDefined ||
           scheduleStartAt.isDefined || scheduleEndAt.isDefined || req.targetCategories.isDefined ||
-          req.siteAllowlist.isDefined ||
+          req.siteAllowlist.isDefined || req.audienceTargeting.isDefined ||
+          req.requireVerifiedAudience.isDefined || req.placeTargeting.isDefined ||
           req.landingUrl.isDefined || req.name.exists(_.trim.nonEmpty)) {
           campaignRef(advertiserId, campaignId)
             .ask(ref =>
@@ -1892,6 +1931,10 @@ class EndpointRoutes(
                 startAt = scheduleStartAt,
                 endAt = scheduleEndAt,
                 siteAllowlist = req.siteAllowlist.map(_.toSet),
+                audienceTargeting = req.audienceTargeting
+                  .map(a => promovolve.taxonomy.Places.validate(a)),
+                requireVerifiedAudience = req.requireVerifiedAudience,
+                placeTargeting = req.placeTargeting.map(p => promovolve.taxonomy.Places.validate(p)),
                 // Rename. Blank-after-trim is treated as "no change" both
                 // here and in the entity, so a name can never become empty.
                 name = req.name,
@@ -1906,8 +1949,10 @@ class EndpointRoutes(
       // Combine updates and return updated campaign
       for {
         prohibitedResult <- prohibitedCheckF
+        audienceResult <-
+          if (prohibitedResult.isRight) audienceCheckF else Future.successful(prohibitedResult)
         budgetResult <-
-          if (prohibitedResult.isRight) budgetUpdateF else Future.successful(prohibitedResult)
+          if (audienceResult.isRight) budgetUpdateF else Future.successful(audienceResult)
         configResult <- if (budgetResult.isRight) configUpdateF else Future.successful(budgetResult)
         campaign <- if (configResult.isRight) getCampaignLogic((advertiserId, campaignId))
         else Future.successful(configResult.asInstanceOf[Either[ErrorResponse, Campaign]])
@@ -2259,7 +2304,12 @@ class EndpointRoutes(
         hostRegex = req.crawlConfig.hostRegex,
         targetElements = req.crawlConfig.targetElements.toList,
         taxonomyIds = req.taxonomyIds.toSet,
-        slots = req.slots.map(s => SiteEntity.AdSlotConfig(s.slotId, s.width, s.height)).toList
+        slots = req.slots.map(s => SiteEntity.AdSlotConfig(s.slotId, s.width, s.height)).toList,
+        // Unknown codes are DROPPED, not rejected. The vocabulary is the
+        // guarantee (Places.validate), and a publisher who typed something
+        // the tables do not carry should end up with no declaration rather
+        // than a failed site creation.
+        audienceRegions = promovolve.taxonomy.Places.validate(req.audienceRegions.getOrElse(Vector.empty))
       )
 
       // Creating a siteId that already exists must never re-Initialize it:
@@ -2367,6 +2417,10 @@ class EndpointRoutes(
               hostRegex = mergedCrawl.hostRegex,
               targetElements = mergedCrawl.targetElements.toList,
               taxonomyIds = req.taxonomyIds.map(_.toSet).getOrElse(current.taxonomyIds),
+              // Some(empty) is a real edit — the publisher cleared the
+              // declaration — and must overwrite, not fall through to
+              // `current`. Only None leaves it alone.
+              audienceRegions = SiteEntity.mergeAudienceRegions(current.audienceRegions, req.audienceRegions),
               slots = req.slots.map(_.map(s => SiteEntity.AdSlotConfig(s.slotId, s.width, s.height)).toList).getOrElse(
                 current.slots)
             )
@@ -2593,11 +2647,182 @@ class EndpointRoutes(
       }
   }
 
+  /**
+   * Minimum observations in the window before the distribution is treated
+   * as evidence.
+   *
+   * Two independent reasons for a floor, and the second is the one that
+   * must not be traded away: a handful of observations is statistically
+   * meaningless, AND a distribution over three readers is close to a
+   * per-reader disclosure. Mirrors the MinSample discipline the market-rates
+   * work already uses.
+   */
+  private val AudienceMinSample = 100L
+
+  /**
+   * Reject a campaign asking for something unobtainable.
+   *
+   * `requireVerifiedAudience` promises the declaration is backed by
+   * observation, and observation stops at country granularity (the ASN dump
+   * carries no subdivision). A subdivision or city target under that flag
+   * could therefore never be satisfied, so the campaign would silently
+   * never serve. A clear error at save beats debugging zero delivery.
+   */
+  private def validateAudienceTargeting(
+      targeting: Option[Seq[String]],
+      requireVerified: Option[Boolean]
+  ): Option[ErrorResponse] =
+    if (!requireVerified.getOrElse(false)) None
+    else {
+      val codes = targeting.map(_.toSet).getOrElse(Set.empty)
+      val unverifiable = promovolve.publisher.AudienceVerification.unverifiableTargets(codes)
+      if (unverifiable.isEmpty) None
+      else Some(ErrorResponse(
+        "unverifiable_audience_target",
+        "Verified-audience-only campaigns can target countries only — reader location is observed at country " +
+        "granularity. Remove the verified-only requirement, or broaden these to their country: " +
+        unverifiable.toVector.sorted.map(c =>
+          promovolve.taxonomy.Places.displayName("", c)).mkString(", ")
+      ))
+    }
+
+  private val getSiteObservedAudienceLogic
+      : ((String, String, Int)) => Future[Either[ErrorResponse, ObservedAudience]] = {
+    case (publisherId, siteId, days) =>
+      val window = math.max(1, math.min(days, 90))
+      val declaredF = siteRef(siteId)
+        .ask[SiteEntity.ConfigResult](SiteEntity.GetConfig(_))
+        .map(_.config.map(_.audienceRegions).getOrElse(Set.empty))
+        .recover { case _ => Set.empty[String] }
+      val observedF = audienceObservationRepo
+        .map(_.forSite(siteId, window))
+        .getOrElse(Future.successful(Vector.empty))
+        .recover { case _ => Vector.empty }
+      for {
+        declared <- declaredF
+        rows <- observedF
+      } yield {
+        // Collapse the daily rows into one distribution over the window.
+        val byCountry = rows.groupMapReduce(_.country)(_.count)(_ + _)
+        val total = byCountry.valuesIterator.sum
+        val observed = byCountry.toVector
+          .sortBy { case (_, n) => -n }
+          .map { case (cc, n) =>
+            ObservedAudienceRow(
+              country = cc,
+              name = promovolve.taxonomy.Places.displayName("", cc),
+              count = n,
+              // Guarded rather than assumed: total is 0 whenever the
+              // counter is off, and a NaN share would render as "NaN%".
+              share = if (total > 0) n.toDouble / total.toDouble else 0.0
+            )
+          }
+        Right(ObservedAudience(
+          siteId = siteId,
+          days = window,
+          total = total,
+          sufficientSample = total >= AudienceMinSample,
+          declared = declared.toVector.sorted,
+          observed = observed
+        ))
+      }
+  }
+
+  /**
+   * Places type-ahead. Pure in-memory lookup over the shipped tables —
+   * no database, no actor ask, so it can be called on every keystroke.
+   */
+  private val listPlacesLogic
+      : ((Option[String], Option[String], Option[String], Int)) => Future[Either[ErrorResponse, PlaceList]] = {
+    case (queryOpt, codesOpt, langOpt, limit) =>
+      import promovolve.taxonomy.Places
+      Future.successful {
+        val lang = langOpt.getOrElse("")
+        // Bound the limit here rather than trusting the caller: this is a
+        // per-keystroke endpoint and the tables hold ~75k rows.
+        val capped = math.max(1, math.min(limit, 50))
+        // `codes` resolves stored selections back to display names — a chip
+        // reading "JP-14" instead of "Kanagawa" is the difference between a
+        // usable picker and a code editor. Exact lookup, so it takes
+        // precedence over the fuzzy search and ignores the limit's intent.
+        val hits = codesOpt.map(_.split(",").iterator.map(_.trim).filter(_.nonEmpty).toVector) match {
+          case Some(codes) if codes.nonEmpty => codes.take(200).flatMap(Places.get).toList
+          case _                             =>
+            queryOpt.map(_.trim).filter(_.nonEmpty).map(q => Places.search(q, capped)).getOrElse(Nil)
+        }
+        val data = hits.map { p =>
+          PlaceSuggestion(
+            code = p.code,
+            name = Places.displayName(lang, p.code),
+            kind = p.kind.toString.toLowerCase,
+            path = Places.ancestors(p.code).map(a => Places.displayName(lang, a.code)).mkString(", ")
+          )
+        }.toVector
+        Right(PlaceList(data = data, meta = Meta(total = data.size, limit = capped, offset = 0)))
+      }
+  }
+
   // List all registered (verified) sites for campaign media targeting. Reads
   // the verified-host DData map (siteId -> domain) with ReadLocal — DData
   // gossips every key to every node, so the API node's local replica holds it.
   // Filters by `q` (domain substring) server-side so the payload stays small
   // as the number of publishers grows.
+  /**
+   * Geographic inventory availability, from the per-site DData summary.
+   *
+   * Reads locally (DData gossips every key to every node) so this stays
+   * cheap enough to call on every edit. Counts SITES rather than pages: it
+   * answers "is there anywhere for this to run", which is the question a
+   * zero-delivery campaign needed answered.
+   */
+  private val getGeoAvailabilityLogic
+      : ((Option[String], Option[String])) => Future[Either[ErrorResponse, GeoAvailability]] = {
+    case (audienceOpt, placesOpt) =>
+      import org.apache.pekko.cluster.ddata.LWWMap
+      import org.apache.pekko.cluster.ddata.typed.scaladsl.{
+        DistributedData => ClusterDData,
+        Replicator => DDReplicator
+      }
+      def codes(o: Option[String]): Set[String] =
+        o.map(_.split(',').iterator.map(_.trim).filter(_.nonEmpty).toSet).getOrElse(Set.empty)
+      val audience = codes(audienceOpt)
+      val places = codes(placesOpt)
+      val replicator = ClusterDData(system).replicator
+      replicator
+        .ask[DDReplicator.GetResponse[LWWMap[SiteId, SiteEntity.CachedSiteGeo]]](
+          DDReplicator.Get(SiteEntity.SiteGeoKey, DDReplicator.ReadLocal, _)
+        )
+        .map {
+          case rsp @ DDReplicator.GetSuccess(SiteEntity.SiteGeoKey) =>
+            rsp.get(SiteEntity.SiteGeoKey).entries
+          case _ => Map.empty[SiteId, SiteEntity.CachedSiteGeo]
+        }
+        .map { entries =>
+          val all = entries.values.toVector
+          // Same predicates the auction uses, so the number an advertiser is
+          // shown cannot disagree with what actually bids.
+          val audienceMatches =
+            if (audience.isEmpty) Vector.empty
+            else all.filter(g => promovolve.taxonomy.Places.targetingMatches(audience, g.audienceRegions))
+          val placeMatches =
+            if (places.isEmpty) Vector.empty
+            else all.filter(g => promovolve.taxonomy.Places.matchHops(places, g.contentPlaces).isDefined)
+          Right(GeoAvailability(
+            audienceSites = audienceMatches.size,
+            audienceVerifiedSites = audienceMatches.count(_.audienceVerified),
+            declaringSites = all.count(_.audienceRegions.nonEmpty),
+            placeSites = placeMatches.size,
+            classifyingSites = all.count(_.contentPlaces.nonEmpty)
+          ))
+        }
+        .recover { case _ =>
+          // A failed lookup must not render as "no inventory" — a wrong
+          // warning is worse than no warning. Zeros with zero context read
+          // as "unknown" to the caller below.
+          Right(GeoAvailability(0, 0, 0, 0, 0))
+        }
+  }
+
   private val listRegisteredSitesLogic
       : ((Option[String], Int, Int)) => Future[Either[ErrorResponse, VerifiedSiteList]] = {
     case (queryOpt, limit, offset) =>
@@ -5878,6 +6103,10 @@ class EndpointRoutes(
   )
   private val taxonomyRoutes: List[Route] = List(
     PekkoHttpServerInterpreter().toRoute(Endpoints.listTaxonomyCategories.serverLogic(listTaxonomyCategoriesLogic)),
+    PekkoHttpServerInterpreter().toRoute(Endpoints.listPlaces.serverLogic(listPlacesLogic)),
+    PekkoHttpServerInterpreter().toRoute(Endpoints.getGeoAvailability.serverLogic(getGeoAvailabilityLogic)),
+    PekkoHttpServerInterpreter().toRoute(
+      Endpoints.getSiteObservedAudience.serverLogic(getSiteObservedAudienceLogic)),
     PekkoHttpServerInterpreter().toRoute(Endpoints.listRegisteredSites.serverLogic(listRegisteredSitesLogic)),
     PekkoHttpServerInterpreter().toRoute(Endpoints.listAdvertiserDomains.serverLogic(listAdvertiserDomainsLogic)),
     PekkoHttpServerInterpreter().toRoute(Endpoints.listAdProductCategories.serverLogic(listAdProductCategoriesLogic)),
@@ -6290,6 +6519,7 @@ class EndpointRoutes(
       ),
       slots = siteConfigToSlots(config, slotCategories),
       taxonomyIds = config.taxonomyIds.toVector,
+      audienceRegions = config.audienceRegions.toVector.sorted,
       createdAt = nowIso,
       updatedAt = nowIso,
       verificationStatus = verificationStatus,

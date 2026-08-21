@@ -141,6 +141,13 @@ interface PromovolveConfig {
   // weak hint; the server sanitises it and the page content stays the
   // authority, so a wrong or absent value costs nothing.
   section?: string;
+  // Place the PUBLISHER declares this page is ABOUT — filled by the
+  // WordPress plugin from the post's own location-ish taxonomy terms.
+  // A property of the PAGE, never of the reader: an article about Kyoto is
+  // about Kyoto for everyone who opens it, which is why it can ride in
+  // cached markup safely where a visitor's location could not. Same weak-
+  // hint contract as `section`.
+  place?: string;
 }
 
 interface Slot {
@@ -696,6 +703,7 @@ function postClassifyPage(slotsToServe: Slot[]): void {
     // Omitted entirely when unset, so a hand-embedded tag sends exactly what
     // it sent before. The server treats the field as optional.
     ...(config.section ? { section: config.section } : {}),
+    ...(config.place ? { place: config.place } : {}),
     imp: slotsToServe.map((s) => {
       const sig = measureSlotSignals(s.id);
       return {
@@ -920,6 +928,10 @@ const api: PromovolveApi = {
     // setConfig wins if the publisher set it explicitly.
     const sectionFromScript = installScript?.dataset.section;
     if (sectionFromScript && !config.section) config.section = sectionFromScript;
+
+    // Publisher-declared place for this page, same source and same rules.
+    const placeFromScript = installScript?.dataset.place;
+    if (placeFromScript && !config.place) config.place = placeFromScript;
     if (!config.pub) return;
     collectDomSlots();
     if (slots.size > 0) void displayImpl();

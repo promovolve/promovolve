@@ -62,4 +62,42 @@ class IpClassifierSpec extends AnyWordSpec with Matchers {
       IpClassifier.empty.classify("5.9.12.34") shouldBe IpClass.Unknown
     }
   }
+
+  "countryOf" should {
+
+    // The country column was parsed and discarded from the day this loader
+    // was written. Tier 3 of docs/design/GEOGRAPHIC_CONTEXT.md keeps it —
+    // as a per-site aggregate only, never against an event.
+    "resolve the country for a routable v4 address" in {
+      db.countryOf("93.184.216.34") shouldBe Some("US")
+      db.countryOf("5.9.1.1") shouldBe Some("DE")
+    }
+
+    "resolve the country for a routable v6 address" in {
+      db.countryOf("2a00:100::5") shouldBe Some("FR")
+    }
+
+    "say nothing for an address outside every range" in {
+      db.countryOf("203.0.113.1") shouldBe None
+    }
+
+    "say nothing for a non-address" in {
+      db.countryOf("") shouldBe None
+      db.countryOf("example.com") shouldBe None
+    }
+
+    // iptoasn writes the literal string "None" for ranges it cannot
+    // attribute. Passing that through would invent a country named None.
+    "never report a country named None" in {
+      val tsvWithNone =
+        "8.8.8.0\t8.8.8.255\t15169\tNone\tGOOGLE"
+      val d = IpClassifier.load(
+        new ByteArrayInputStream(tsvWithNone.getBytes(StandardCharsets.UTF_8)))
+      d.countryOf("8.8.8.8") shouldBe None
+    }
+
+    "report nothing from the empty database" in {
+      IpClassifier.empty.countryOf("93.184.216.34") shouldBe None
+    }
+  }
 }

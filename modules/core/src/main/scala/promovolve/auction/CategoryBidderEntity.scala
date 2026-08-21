@@ -98,6 +98,20 @@ object CategoryBidderEntity {
       slotId: SlotId,
       sizes: Set[AdSize],
       floorCpm: CPM,
+      // The site's publisher-declared audience regions (tier 2 of
+      // docs/design/GEOGRAPHIC_CONTEXT.md). Carried here rather than
+      // looked up because this entity is sharded by CATEGORY, not by
+      // site — it has no SiteEntity of its own to ask. Default-empty
+      // keeps any in-flight message from an older node deserializable.
+      siteAudience: Set[String] = Set.empty,
+      // Whether tier-3 observation backs that declaration. Rides the
+      // request for the same reason siteAudience does: this entity is
+      // sharded by CATEGORY and has no site to ask.
+      siteAudienceVerified: Boolean = false,
+      // Places the PAGE is about. Carried for the same reason as
+      // siteAudience: this entity is sharded by CATEGORY and has no page or
+      // site of its own to ask.
+      pagePlaces: Set[String] = Set.empty,
       replyTo: ActorRef[CategoryBidResponse]
   ) extends Command
 
@@ -112,7 +126,12 @@ object CategoryBidderEntity {
       // Campaign has ≥1 publisher-APPROVED creative on this site (from
       // CampaignBidResponse). Approved bids teach the floor; pending
       // bids only compete for the approval queue.
-      hasApprovedCreative: Boolean = false
+      hasApprovedCreative: Boolean = false,
+      // Distance between the campaign's content-place targeting and what
+      // this page is about (0 = direct hit, or no place targeting at all).
+      // Computed at the gate on both paths and carried onto Candidate so
+      // serve-time selection can decay a broader match.
+      placeHops: Int = 0
   )
 
   final case class CategoryBidResponse(
@@ -181,6 +200,13 @@ object CategoryBidderEntity {
       adProductCategory: Option[AdProductCategoryId],
       landingDomain: String,
       siteAllowlist: Set[String],
+      // Mirrors siteAllowlist's reason for being here: the book answers
+      // without asking the campaign, so every eligibility input the
+      // campaign would have used must ride on the quote. Default-empty
+      // keeps a quote from an older node deserializable.
+      audienceTargeting: Set[String] = Set.empty,
+      requireVerifiedAudience: Boolean = false,
+      placeTargeting: Set[String] = Set.empty,
       eligible: Boolean, // status Active && schedule live, at quote time
       quotedAtMs: Long
   ) extends Command
@@ -191,9 +217,10 @@ object CategoryBidderEntity {
   /** Quote older than this is excluded — a silent campaign IS absent demand. */
   val BookHardTtlMs: Long = 10L * 60 * 1000
 
-  // (campaignId, advertiserId, creatives, cpm, maxCpm, adProductCategory, landingDomain, hasApprovedCreative)
+  // (campaignId, advertiserId, creatives, cpm, maxCpm, adProductCategory,
+  //  landingDomain, hasApprovedCreative, placeHops)
   private type Collected = Vector[(CampaignId, AdvertiserId, Set[AdvertiserEntity.Creative], CPM, CPM,
-      Option[AdProductCategoryId], String, Boolean)]
+      Option[AdProductCategoryId], String, Boolean, Int)]
 
   extension (collected: Collected) {
 
@@ -214,11 +241,14 @@ object CategoryBidderEntity {
         val threshold = topCpm * (1.0 - cpmThresholdPct)
 
         collected
-          .filter { case (_, _, creatives, cpm, _, _, _, _) => cpm.value >= threshold && creatives.nonEmpty }
-          .sortBy { case (_, _, _, cpm, _, _, _, _) => -cpm.value }
+          .filter { case (_, _, creatives, cpm, _, _, _, _, _) => cpm.value >= threshold && creatives.nonEmpty }
+          .sortBy { case (_, _, _, cpm, _, _, _, _, _) => -cpm.value }
           .take(maxCampaigns)
-          .map { case (campaignId, advertiserId, creatives, cpm, maxCpm, adProductCat, landingDomain, hasApproved) =>
-            CampaignBid(campaignId, advertiserId, creatives, cpm, maxCpm, adProductCat, landingDomain, hasApproved)
+          .map {
+            case (campaignId, advertiserId, creatives, cpm, maxCpm, adProductCat, landingDomain, hasApproved,
+                  placeHops) =>
+              CampaignBid(campaignId, advertiserId, creatives, cpm, maxCpm, adProductCat, landingDomain, hasApproved,
+                placeHops)
           }
       }
   }
@@ -236,6 +266,21 @@ private final class CategoryBidderEntity(
 )(using timeout: Timeout, ec: scala.concurrent.ExecutionContext) {
 
   import CategoryBidderEntity.*
+
+  /**
+   * Trace the site's declared audience regions on the bid path.
+   *
+   * Nothing gates on them yet (see CategoryBidRequest.siteAudience), so
+   * this is the only evidence the value survived SiteEntity → auctioneer
+   * → bidder intact. Debug level: it fires once per category per auction.
+   */
+  private def logSiteAudience(siteId: SiteId, siteAudience: Set[String]): Unit =
+    if (siteAudience.nonEmpty && ctx.log.isDebugEnabled)
+      ctx.log.debug(
+        "CategoryBidder[{}] site={} declared audience={}",
+        categoryId.value, siteId.value,
+        siteAudience.toVector.sorted.mkString(",")
+      )
 
   /**
    * Startup state: load this category's demand from the durable table, stashing
@@ -261,6 +306,9 @@ private final class CategoryBidderEntity(
    */
   private def answerFromBook(
       siteId: SiteId,
+      siteAudience: Set[String],
+      siteAudienceVerified: Boolean,
+      pagePlaces: Set[String],
       floorCpm: CPM,
       replyTo: ActorRef[CategoryBidResponse],
       activeCampaigns: Map[CampaignId, AdvertiserId],
@@ -289,7 +337,12 @@ private final class CategoryBidderEntity(
       )
 
     val admissible = live.filter { e =>
-      e.eligible && (e.siteAllowlist.isEmpty || e.siteAllowlist.contains(siteId.value))
+      e.eligible && (e.siteAllowlist.isEmpty || e.siteAllowlist.contains(siteId.value)) &&
+      // Same predicate the live-ask path calls, not a copy of it.
+      CampaignEntity.audienceAdmits(
+        e.audienceTargeting, siteAudience, e.requireVerifiedAudience, siteAudienceVerified) &&
+      // Same shared predicate the live-ask path calls, not a copy.
+      CampaignEntity.placeAdmits(e.placeTargeting, pagePlaces).isDefined
     }
     def eligibleCreatives(e: BidQuote) = e.creatives.filter(_.isEligibleFor(siteId))
     def hasApproved(e: BidQuote) =
@@ -302,7 +355,10 @@ private final class CategoryBidderEntity(
       if (creatives.isEmpty) None // NoCreatives — same exclusion as legacy
       else
         Some((e.campaignId, e.advertiserId, creatives, CPM.max(e.maxCpm, floorCpm), e.maxCpm,
-          e.adProductCategory, e.landingDomain, hasApproved(e)))
+          e.adProductCategory, e.landingDomain, hasApproved(e),
+          // Admissibility was already checked above, so a direct hit is the
+          // only way to be here without a match — 0 is the safe read.
+          CampaignEntity.placeAdmits(e.placeTargeting, pagePlaces).getOrElse(0)))
     }
     val qualifying = collected.selectCampaigns(cpmThresholdPct, maxCampaignsPerCategory)
 
@@ -446,20 +502,30 @@ private final class CategoryBidderEntity(
         )
         Behaviors.same
 
-      case CategoryBidRequest(siteId, url, slotId, sizes, floorCpm, replyTo)
+      case CategoryBidRequest(siteId, url, slotId, sizes, floorCpm, siteAudience, siteAudienceVerified,
+            pagePlaces, replyTo)
           if bidBookEnabled && activeCampaigns.nonEmpty &&
           activeCampaigns.keySet.forall(bidBook.contains) =>
         // STANDING BID BOOK: answer synchronously — no aggregator, no
         // window, no race. Late information is staleness (disclosed),
         // never absence (docs/design/bid-book.md).
-        answerFromBook(siteId, floorCpm, replyTo, activeCampaigns, bidBook)
+        //
+        // siteAudience rides along but gates nothing yet — campaign-side
+        // audience targeting lands in the next step. Logged so the wiring
+        // is verifiable before anything depends on it, and so the eventual
+        // gate can be diffed against what the auction actually saw.
+        logSiteAudience(siteId, siteAudience)
+        answerFromBook(siteId, siteAudience, siteAudienceVerified, pagePlaces, floorCpm, replyTo,
+          activeCampaigns, bidBook)
         Behaviors.same
 
-      case CategoryBidRequest(siteId, url, slotId, sizes, floorCpm, replyTo) =>
+      case CategoryBidRequest(siteId, url, slotId, sizes, floorCpm, siteAudience, siteAudienceVerified,
+            pagePlaces, replyTo) =>
         // Hybrid fallback: book disabled, or registry members still missing
         // quotes (fresh bidder, brand-new campaign). Request the missing
         // quotes so the NEXT auction answers from the book, and serve this
         // one on the legacy live-ask path.
+        logSiteAudience(siteId, siteAudience)
         if (bidBookEnabled) {
           (activeCampaigns.keySet -- bidBook.keySet).foreach { cid =>
             activeCampaigns.get(cid).foreach(adv =>
@@ -503,6 +569,9 @@ private final class CategoryBidderEntity(
                     slotId = slotId,
                     pageCategory = categoryId,
                     floorCpm = floorCpm,
+                    siteAudience = siteAudience,
+                    siteAudienceVerified = siteAudienceVerified,
+                    pagePlaces = pagePlaces,
                     replyTo = aggReply
                   )
                 }
@@ -546,8 +615,8 @@ private final class CategoryBidderEntity(
                 val collected: Collected =
                   results.collect {
                     case r: CampaignEntity.CampaignBidResponse if r.eligible =>
-                      (r.campaignId, r.advertiserId, r.creatives, r.cpm, r.maxCpm, r.adProductCategory, r.landingDomain,
-                        r.hasApprovedCreative)
+                      (r.campaignId, r.advertiserId, r.creatives, r.cpm, r.maxCpm, r.adProductCategory,
+                        r.landingDomain, r.hasApprovedCreative, r.placeHops)
                   }.toVector
 
                 val qualifying =

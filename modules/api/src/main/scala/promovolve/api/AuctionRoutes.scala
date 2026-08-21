@@ -225,14 +225,18 @@ final class AuctionRoutes(
         post {
           entity(as[TestBidReq]) { req =>
             val bidFuture: Future[CategoryBidderEntity.CategoryBidResponse] =
-              categoryBidderRef(req.category).ask(CategoryBidderEntity.CategoryBidRequest(
-                siteId = SiteId(req.siteId),
-                url = req.url,
-                slotId = SlotId(req.slotId),
-                sizes = Set(AdSize(300, 250)), // Default size
-                floorCpm = CPM(req.floorCpm),
-                _
-              ))
+              categoryBidderRef(req.category).ask(ref =>
+                CategoryBidderEntity.CategoryBidRequest(
+                  siteId = SiteId(req.siteId),
+                  url = req.url,
+                  slotId = SlotId(req.slotId),
+                  sizes = Set(AdSize(300, 250)), // Default size
+                  floorCpm = CPM(req.floorCpm),
+                  // Admin bid probe: no site audience context, which is
+                  // the same "nothing declared" the auctioneer would send.
+                  siteAudience = Set.empty,
+                  replyTo = ref
+                ))
             onSuccess(bidFuture) { response =>
               complete(TestBidRes(
                 category = response.categoryId.value,

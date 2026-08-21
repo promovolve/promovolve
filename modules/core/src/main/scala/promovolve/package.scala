@@ -58,7 +58,15 @@ final case class Candidate(
     // decays categoryScore by this distance so native demand outcompetes
     // distant-ancestor demand (Food Industry → Business ads on a food
     // page, 2026-07-25).
-    ancestorHops: Int = 0
+    ancestorHops: Int = 0,
+    // How many place hops separate this bid's place targeting from the
+    // page's OWN places: 0 = the page is about a place the campaign
+    // targets; 1 = the campaign targets its parent (Japan, on an article
+    // about Kamakura); and so on. Same treatment as ancestorHops and for
+    // the same reason — reaching a page through a broader place is reach,
+    // not relevance, so serve-time selection decays it. 0 for untargeted
+    // campaigns: no constraint is a perfect fit, not a distant one.
+    placeHops: Int = 0
 )
 
 final case class Selection(

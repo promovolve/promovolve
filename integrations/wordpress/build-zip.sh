@@ -56,6 +56,14 @@ if command -v php >/dev/null 2>&1; then
 else
 	echo "note: php not installed — skipping the syntax check" >&2
 fi
+# ── behaviour gate: the topic-hint selection rules ───────────────────────────
+# php -l only proves the file parses. These pin WHICH taxonomies are read, in
+# what order, and which terms survive the cap — all of which fail silently
+# (a hint that is merely thinner than it should be still looks fine).
+if command -v php >/dev/null 2>&1; then
+	php tests/topic-test.php
+fi
+
 if command -v node >/dev/null 2>&1; then
 	find "$PLUGIN_DIR" -name '*.js' -print0 | xargs -0 -n1 node --check
 	node -e 'JSON.parse(require("fs").readFileSync("promovolve/blocks/slot/block.json","utf8"))'

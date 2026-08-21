@@ -72,9 +72,11 @@ object IpClassifier {
       v4Start: Array[Long],
       v4End: Array[Long],
       v4Dc: Array[Boolean],
+      v4Cc: Array[String],
       v6Start: Array[Array[Byte]],
       v6End: Array[Array[Byte]],
-      v6Dc: Array[Boolean]
+      v6Dc: Array[Boolean],
+      v6Cc: Array[String]
   ) {
     def size: Int = v4Start.length + v6Start.length
 
@@ -89,12 +91,39 @@ object IpClassifier {
           if (i >= 0 && compareBytes(v6, v6End(i)) <= 0) toClass(v6Dc(i)) else IpClass.Unknown
       }
 
+    /**
+     * ISO 3166-1 alpha-2 country for a routable address, or None.
+     *
+     * Same binary search as [[classify]], one more array read. Used ONLY
+     * to build the per-site aggregate in tier 3 of
+     * docs/design/GEOGRAPHIC_CONTEXT.md — the value is counted and
+     * discarded, never persisted against an event, and never reaches the
+     * serve path. The iptoasn dump has carried this column all along; it
+     * was parsed and thrown away.
+     *
+     * Country granularity is the ceiling here: this data has no
+     * subdivision, which is why a city-level declaration can only ever be
+     * verified as far as its country.
+     */
+    def countryOf(ip: String): Option[String] =
+      parseIp(ip) match {
+        case None           => None
+        case Some(Left(v4)) =>
+          val i = floorIndex(v4Start, v4)
+          if (i >= 0 && v4 <= v4End(i)) Option(v4Cc(i)).filter(_.nonEmpty) else None
+        case Some(Right(v6)) =>
+          val i = floorIndex6(v6Start, v6)
+          if (i >= 0 && compareBytes(v6, v6End(i)) <= 0) Option(v6Cc(i)).filter(_.nonEmpty) else None
+      }
+
     private def toClass(dc: Boolean): IpClass =
       if (dc) IpClass.Datacenter else IpClass.Residential
   }
 
   /** The empty database: everything Unknown (fail-open). */
-  val empty: IpDb = new IpDb(Array.empty, Array.empty, Array.empty, Array.empty, Array.empty, Array.empty)
+  val empty: IpDb = new IpDb(
+    Array.empty, Array.empty, Array.empty, Array.empty,
+    Array.empty, Array.empty, Array.empty, Array.empty)
 
   /**
    * Parse an iptoasn combined TSV stream (plain or, via [[loadGzip]],
@@ -103,8 +132,8 @@ object IpClassifier {
    */
   def load(in: InputStream): IpDb = {
     val reader = new BufferedReader(new InputStreamReader(in, StandardCharsets.UTF_8))
-    val v4s = new ArrayBuffer[(Long, Long, Boolean)](700000)
-    val v6s = new ArrayBuffer[(Array[Byte], Array[Byte], Boolean)](200000)
+    val v4s = new ArrayBuffer[(Long, Long, Boolean, String)](700000)
+    val v6s = new ArrayBuffer[(Array[Byte], Array[Byte], Boolean, String)](200000)
     var line = reader.readLine()
     while (line != null) {
       val cols = line.split('\t')
@@ -113,9 +142,17 @@ object IpClassifier {
         if (asn != 0) {
           val dc = CuratedDatacenterAsns.contains(asn) ||
             DatacenterNamePattern.findFirstIn(cols(4)).isDefined
+          // cols(3) is the ISO country. iptoasn writes "None" for ranges it
+          // cannot attribute; normalise that to empty so callers see None
+          // rather than a country literally named None.
+          val cc = cols(3).trim.toUpperCase match {
+            case "NONE" | "-" | ""  => ""
+            case c if c.length == 2 => c
+            case _                  => ""
+          }
           (parseIp(cols(0)), parseIp(cols(1))) match {
-            case (Some(Left(s)), Some(Left(e)))   => v4s += ((s, e, dc))
-            case (Some(Right(s)), Some(Right(e))) => v6s += ((s, e, dc))
+            case (Some(Left(s)), Some(Left(e)))   => v4s += ((s, e, dc, cc))
+            case (Some(Right(s)), Some(Right(e))) => v6s += ((s, e, dc, cc))
             case _                                => () // mixed/garbled row — skip
           }
         }
@@ -128,9 +165,11 @@ object IpClassifier {
       v4sorted.map(_._1).toArray,
       v4sorted.map(_._2).toArray,
       v4sorted.map(_._3).toArray,
+      v4sorted.map(_._4).toArray,
       v6sorted.map(_._1).toArray,
       v6sorted.map(_._2).toArray,
-      v6sorted.map(_._3).toArray
+      v6sorted.map(_._3).toArray,
+      v6sorted.map(_._4).toArray
     )
   }
 

@@ -111,6 +111,16 @@ object ApiModels {
       // Media targeting: publisher siteIds this campaign is restricted to.
       // Empty = no restriction (bids everywhere, contextual default).
       siteAllowlist: Vector[String] = Vector.empty,
+      // Audience targeting: Places codes this campaign bids for. Empty =
+      // any audience (contextual default). See
+      // docs/design/GEOGRAPHIC_CONTEXT.md.
+      audienceTargeting: Vector[String] = Vector.empty,
+      // Restrict to inventory whose declaration observation backs. Costs
+      // reach; see docs/design/GEOGRAPHIC_CONTEXT.md tier 3.
+      requireVerifiedAudience: Boolean = false,
+      // Content place targeting: Places codes a page must be ABOUT. The
+      // other geographic axis from audienceTargeting — subject, not readers.
+      placeTargeting: Vector[String] = Vector.empty,
       // Human-readable taxonomy names resolved server-side so the
       // dashboard/edit form never shows raw IAB numbers. *Name fields
       // are display-only; the ids above are the source of truth.
@@ -148,7 +158,13 @@ object ApiModels {
       // Media targeting: publisher siteIds to restrict bidding to. None/empty
       // = no restriction (bid everywhere). An additive filter on top of
       // category matching — does not bypass contextual matching.
-      siteAllowlist: Option[Seq[String]] = None
+      siteAllowlist: Option[Seq[String]] = None,
+      // Audience targeting: Places codes. None/empty = any audience. A
+      // second additive `where` filter alongside siteAllowlist — topic
+      // still gates which pages, this gates whose readers.
+      audienceTargeting: Option[Seq[String]] = None,
+      requireVerifiedAudience: Option[Boolean] = None,
+      placeTargeting: Option[Seq[String]] = None
   )
 
   case class UpdateCampaignRequest(
@@ -167,7 +183,13 @@ object ApiModels {
       targetCategories: Option[Seq[String]] = None,
       // Media targeting: publisher siteIds. None = no change, Some(empty) =
       // clear (no restriction), Some(set) = replace.
-      siteAllowlist: Option[Seq[String]] = None
+      siteAllowlist: Option[Seq[String]] = None,
+      // Audience targeting: Places codes. None = no change, Some(empty) =
+      // clear, Some(set) = replace.
+      audienceTargeting: Option[Seq[String]] = None,
+      requireVerifiedAudience: Option[Boolean] = None,
+      // Content place targeting. None = no change, Some(empty) = clear.
+      placeTargeting: Option[Seq[String]] = None
   )
 
   case class CampaignBudgetStatus(
@@ -293,6 +315,11 @@ object ApiModels {
       floorCpm: String = "0.50", // current floor CPM (auto-optimized by the sweep); real value always supplied
       minFloorCpm: String = "0.10", // publisher-set minimum floor; real value always supplied
       bidWeight: String = "0.50", // scoring exponent: discovery=0.3, balanced=0.5, revenue=0.7
+      // Publisher's declared reader audience as Places codes (country,
+      // subdivision or city). Empty = nothing declared = UNKNOWN, which is
+      // the expected state for most sites; see
+      // docs/design/GEOGRAPHIC_CONTEXT.md tier 2.
+      audienceRegions: Vector[String] = Vector.empty,
       // Whether pages with no contextual match route to the filler
       // auction. Default true; flip to false to silence filler
       // creatives for this site without needing to reject them
@@ -329,6 +356,10 @@ object ApiModels {
       crawlConfig: SiteCrawlConfig,
       slots: Vector[SiteSlotConfig] = Vector.empty,
       taxonomyIds: Vector[String] = Vector.empty,
+      // Option, not a defaulted Vector: spray's jsonFormatN ignores
+      // case-class defaults, so a site-create payload that omits this
+      // field would fail to parse rather than fall back to empty.
+      audienceRegions: Option[Vector[String]] = None,
       minFloorCpm: String, // Required: publisher must set minimum floor on site creation
       // Starting floor for the site, in the deployment's base currency. The
       // operator sets it at install (a floor that reads right in dollars is
@@ -669,6 +700,10 @@ object ApiModels {
       crawlConfig: Option[SiteCrawlConfig] = None,
       slots: Option[Vector[SiteSlotConfig]] = None,
       taxonomyIds: Option[Vector[String]] = None,
+      // None = leave the declaration alone; Some(empty) = the publisher
+      // cleared it. The distinction matters: clearing is a real edit that
+      // must reach the auctioneer, not a no-op.
+      audienceRegions: Option[Vector[String]] = None,
       floorCpm: Option[String] = None, // override current floor (normally auto-managed)
       minFloorCpm: Option[String] = None, // publisher minimum floor (the sweep cannot go below this)
       bidWeight: Option[String] = None, // scoring exponent: discovery=0.3, balanced=0.5, revenue=0.7
@@ -701,6 +736,77 @@ object ApiModels {
 
   case class TaxonomyCategoryList(
       data: Vector[TaxonomyCategory],
+      meta: Meta
+  )
+
+  /**
+   * One observed reader country for a site, over the reported window.
+   *
+   * `share` is what a reader of this actually wants — a raw count means
+   * nothing without the denominator — and it is computed server-side so
+   * every surface reports the same number.
+   */
+  case class ObservedAudienceRow(
+      country: String, // ISO 3166-1 alpha-2
+      name: String, // localized display name
+      count: Long,
+      share: Double // 0.0-1.0 of the window's total
+  )
+
+  /**
+   * Declared-vs-observed for one site: tier 2 against tier 3.
+   *
+   * `sufficientSample` is the honest qualifier. Below the floor the
+   * observation is not evidence of anything, and no surface should present
+   * it as contradicting a declaration.
+   */
+  case class ObservedAudience(
+      siteId: String,
+      days: Int,
+      total: Long,
+      sufficientSample: Boolean,
+      declared: Vector[String],
+      observed: Vector[ObservedAudienceRow]
+  )
+
+  /**
+   * Whether inventory exists for a campaign's geographic targeting.
+   *
+   * Exists because silent zero delivery is this feature's worst failure
+   * mode: most sites never declare an audience (by design), so an
+   * audience-targeted campaign can match nothing and look broken. The
+   * advertiser is told before saving, not left to read a flat spend chart.
+   *
+   * `audienceVerifiedSites` is the reach cost of `requireVerifiedAudience`,
+   * which is otherwise a knob with no visible consequence.
+   */
+  case class GeoAvailability(
+      audienceSites: Int, // sites whose declaration matches the targeting
+      audienceVerifiedSites: Int, // of those, backed by observation
+      declaringSites: Int, // sites declaring ANY audience, for context
+      placeSites: Int, // sites with content about the targeted places
+      classifyingSites: Int // sites with ANY classified places, for context
+  )
+
+  // ----------------- Places -----------------
+
+  /**
+   * One entry in the geographic vocabulary, shaped for a type-ahead.
+   *
+   * `path` is what makes the picker usable: "Springfield" is ambiguous and
+   * "Springfield — Illinois, United States" is not. Both the publisher
+   * declaring an audience and the advertiser targeting one read from this
+   * same endpoint, so neither side ever types a code.
+   */
+  case class PlaceSuggestion(
+      code: String, // "JP", "JP-13", "GN1860672"
+      name: String, // localized when available, else English
+      kind: String, // country | subdivision | city
+      path: String = "" // enclosing places, widest last
+  )
+
+  case class PlaceList(
+      data: Vector[PlaceSuggestion],
       meta: Meta
   )
 

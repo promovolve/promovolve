@@ -241,12 +241,16 @@ object ClusterBootstrap {
       val categoryDemand = new SlickCategoryDemandRepo(db)
       categoryDemand.ensureSchema()
 
+      val audienceObservations = new SlickAudienceObservationRepo(db)
+      audienceObservations.ensureSchema()
+
       Refs(
         pendingSelectionStore = pendingSelectionStore,
         creative = creativeRepo,
         statsSnapshot = statsSnapshot,
         trafficShapeSnapshot = trafficShapeSnapshot,
-        categoryDemand = categoryDemand
+        categoryDemand = categoryDemand,
+        audienceObservations = audienceObservations
       )
     }
 
@@ -255,7 +259,10 @@ object ClusterBootstrap {
         creative: CreativeRepo,
         statsSnapshot: CreativeStatsSnapshotRepo,
         trafficShapeSnapshot: TrafficShapeSnapshotRepo,
-        categoryDemand: CategoryDemandRepo
+        categoryDemand: CategoryDemandRepo,
+        // Tier 3 of docs/design/GEOGRAPHIC_CONTEXT.md — read by SiteEntity
+        // to suppress declarations the observed traffic does not support.
+        audienceObservations: AudienceObservationRepo
     )
   }
 
@@ -315,7 +322,8 @@ object ClusterBootstrap {
       initPublisherEntity(system, sharding)
       initAdServerEntity(system, sharding, repos.pendingSelectionStore, repos.creative, serveIndex, repos.statsSnapshot,
         repos.trafficShapeSnapshot, topics.budgetEvent)
-      initSiteEntity(system, sharding, categoryRegistry, campaignDirectory, geminiRateLimiter)
+      initSiteEntity(system, sharding, categoryRegistry, campaignDirectory, geminiRateLimiter,
+        repos.audienceObservations)
     }
 
     private def initAdvertiserEntity(
@@ -512,7 +520,8 @@ object ClusterBootstrap {
         sharding: ClusterSharding,
         categoryRegistry: ActorRef[CategoryRegistry.Command],
         campaignDirectory: ActorRef[CampaignDirectory.Command],
-        geminiRateLimiter: Option[ActorRef[GeminiRateLimiter.Command]]
+        geminiRateLimiter: Option[ActorRef[GeminiRateLimiter.Command]],
+        audienceObservations: AudienceObservationRepo
     )(using ExecutionContext): Unit = {
       val config = system.settings.config
 
@@ -555,7 +564,8 @@ object ClusterBootstrap {
           categoryRegistry,
           campaignDirectory,
           llmProvider,
-          geminiRateLimiter
+          geminiRateLimiter,
+          Some(audienceObservations)
         )(using system)
       }.withEntityProps(DispatcherSelector.fromConfig("entity-dispatcher")))
     }

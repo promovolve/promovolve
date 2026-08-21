@@ -1,0 +1,5047 @@
+code	country	name_en
+AD-02	AD	Canillo
+AD-03	AD	Encamp
+AD-04	AD	La Massana
+AD-05	AD	Ordino
+AD-06	AD	Sant Julià de Lòria
+AD-07	AD	Andorra la Vella
+AD-08	AD	Escaldes-Engordany
+AE-AJ	AE	‘Ajmān
+AE-AZ	AE	Abū Z̧aby
+AE-DU	AE	Dubayy
+AE-FU	AE	Al Fujayrah
+AE-RK	AE	Ra’s al Khaymah
+AE-SH	AE	Ash Shāriqah
+AE-UQ	AE	Umm al Qaywayn
+AF-BAL	AF	Balkh
+AF-BAM	AF	Bāmyān
+AF-BDG	AF	Bādghīs
+AF-BDS	AF	Badakhshān
+AF-BGL	AF	Baghlān
+AF-DAY	AF	Dāykundī
+AF-FRA	AF	Farāh
+AF-FYB	AF	Fāryāb
+AF-GHA	AF	Ghaznī
+AF-GHO	AF	Ghōr
+AF-HEL	AF	Helmand
+AF-HER	AF	Herāt
+AF-JOW	AF	Jowzjān
+AF-KAB	AF	Kābul
+AF-KAN	AF	Kandahār
+AF-KAP	AF	Kāpīsā
+AF-KDZ	AF	Kunduz
+AF-KHO	AF	Khōst
+AF-KNR	AF	Kunaṟ
+AF-LAG	AF	Laghmān
+AF-LOG	AF	Lōgar
+AF-NAN	AF	Nangarhār
+AF-NIM	AF	Nīmrōz
+AF-NUR	AF	Nūristān
+AF-PAN	AF	Panjshayr
+AF-PAR	AF	Parwān
+AF-PIA	AF	Paktiyā
+AF-PKA	AF	Paktīkā
+AF-SAM	AF	Samangān
+AF-SAR	AF	Sar-e Pul
+AF-TAK	AF	Takhār
+AF-URU	AF	Uruzgān
+AF-WAR	AF	Wardak
+AF-ZAB	AF	Zābul
+AG-03	AG	Saint George
+AG-04	AG	Saint John
+AG-05	AG	Saint Mary
+AG-06	AG	Saint Paul
+AG-07	AG	Saint Peter
+AG-08	AG	Saint Philip
+AG-10	AG	Barbuda
+AG-11	AG	Redonda
+AL-01	AL	Berat
+AL-02	AL	Durrës
+AL-03	AL	Elbasan
+AL-04	AL	Fier
+AL-05	AL	Gjirokastër
+AL-06	AL	Korçë
+AL-07	AL	Kukës
+AL-08	AL	Lezhë
+AL-09	AL	Dibër
+AL-10	AL	Shkodër
+AL-11	AL	Tiranë
+AL-12	AL	Vlorë
+AM-AG	AM	Aragac̣otn
+AM-AR	AM	Ararat
+AM-AV	AM	Armavir
+AM-ER	AM	Erevan
+AM-GR	AM	Geġark'unik'
+AM-KT	AM	Kotayk'
+AM-LO	AM	Loṙi
+AM-SH	AM	Širak
+AM-SU	AM	Syunik'
+AM-TV	AM	Tavuš
+AM-VD	AM	Vayoć Jor
+AO-BGO	AO	Bengo
+AO-BGU	AO	Benguela
+AO-BIE	AO	Bié
+AO-CAB	AO	Cabinda
+AO-CCU	AO	Cuando Cubango
+AO-CNN	AO	Cunene
+AO-CNO	AO	Cuanza-Norte
+AO-CUS	AO	Cuanza-Sul
+AO-HUA	AO	Huambo
+AO-HUI	AO	Huíla
+AO-LNO	AO	Lunda-Norte
+AO-LSU	AO	Lunda-Sul
+AO-LUA	AO	Luanda
+AO-MAL	AO	Malange
+AO-MOX	AO	Moxico
+AO-NAM	AO	Namibe
+AO-UIG	AO	Uíge
+AO-ZAI	AO	Zaire
+AR-A	AR	Salta
+AR-B	AR	Buenos Aires
+AR-C	AR	Ciudad Autónoma de Buenos Aires
+AR-D	AR	San Luis
+AR-E	AR	Entre Ríos
+AR-F	AR	La Rioja
+AR-G	AR	Santiago del Estero
+AR-H	AR	Chaco
+AR-J	AR	San Juan
+AR-K	AR	Catamarca
+AR-L	AR	La Pampa
+AR-M	AR	Mendoza
+AR-N	AR	Misiones
+AR-P	AR	Formosa
+AR-Q	AR	Neuquén
+AR-R	AR	Río Negro
+AR-S	AR	Santa Fe
+AR-T	AR	Tucumán
+AR-U	AR	Chubut
+AR-V	AR	Tierra del Fuego
+AR-W	AR	Corrientes
+AR-X	AR	Córdoba
+AR-Y	AR	Jujuy
+AR-Z	AR	Santa Cruz
+AT-1	AT	Burgenland
+AT-2	AT	Kärnten
+AT-3	AT	Niederösterreich
+AT-4	AT	Oberösterreich
+AT-5	AT	Salzburg
+AT-6	AT	Steiermark
+AT-7	AT	Tirol
+AT-8	AT	Vorarlberg
+AT-9	AT	Wien
+AU-ACT	AU	Australian Capital Territory
+AU-NSW	AU	New South Wales
+AU-NT	AU	Northern Territory
+AU-QLD	AU	Queensland
+AU-SA	AU	South Australia
+AU-TAS	AU	Tasmania
+AU-VIC	AU	Victoria
+AU-WA	AU	Western Australia
+AZ-ABS	AZ	Abşeron
+AZ-AGA	AZ	Ağstafa
+AZ-AGC	AZ	Ağcabədi
+AZ-AGM	AZ	Ağdam
+AZ-AGS	AZ	Ağdaş
+AZ-AGU	AZ	Ağsu
+AZ-AST	AZ	Astara
+AZ-BA	AZ	Bakı
+AZ-BAB	AZ	Babək
+AZ-BAL	AZ	Balakən
+AZ-BAR	AZ	Bərdə
+AZ-BEY	AZ	Beyləqan
+AZ-BIL	AZ	Biləsuvar
+AZ-CAB	AZ	Cəbrayıl
+AZ-CAL	AZ	Cəlilabad
+AZ-CUL	AZ	Culfa
+AZ-DAS	AZ	Daşkəsən
+AZ-FUZ	AZ	Füzuli
+AZ-GA	AZ	Gəncə
+AZ-GAD	AZ	Gədəbəy
+AZ-GOR	AZ	Goranboy
+AZ-GOY	AZ	Göyçay
+AZ-GYG	AZ	Göygöl
+AZ-HAC	AZ	Hacıqabul
+AZ-IMI	AZ	İmişli
+AZ-ISM	AZ	İsmayıllı
+AZ-KAL	AZ	Kəlbəcər
+AZ-KAN	AZ	Kǝngǝrli
+AZ-KUR	AZ	Kürdəmir
+AZ-LA	AZ	Lənkəran
+AZ-LAC	AZ	Laçın
+AZ-LAN	AZ	Lənkəran
+AZ-LER	AZ	Lerik
+AZ-MAS	AZ	Masallı
+AZ-MI	AZ	Mingəçevir
+AZ-NA	AZ	Naftalan
+AZ-NEF	AZ	Neftçala
+AZ-NV	AZ	Naxçıvan
+AZ-NX	AZ	Naxçıvan
+AZ-OGU	AZ	Oğuz
+AZ-ORD	AZ	Ordubad
+AZ-QAB	AZ	Qəbələ
+AZ-QAX	AZ	Qax
+AZ-QAZ	AZ	Qazax
+AZ-QBA	AZ	Quba
+AZ-QBI	AZ	Qubadlı
+AZ-QOB	AZ	Qobustan
+AZ-QUS	AZ	Qusar
+AZ-SA	AZ	Şəki
+AZ-SAB	AZ	Sabirabad
+AZ-SAD	AZ	Sədərək
+AZ-SAH	AZ	Şahbuz
+AZ-SAK	AZ	Şəki
+AZ-SAL	AZ	Salyan
+AZ-SAR	AZ	Şərur
+AZ-SAT	AZ	Saatlı
+AZ-SBN	AZ	Şabran
+AZ-SIY	AZ	Siyəzən
+AZ-SKR	AZ	Şəmkir
+AZ-SM	AZ	Sumqayıt
+AZ-SMI	AZ	Şamaxı
+AZ-SMX	AZ	Samux
+AZ-SR	AZ	Şirvan
+AZ-SUS	AZ	Şuşa
+AZ-TAR	AZ	Tərtər
+AZ-TOV	AZ	Tovuz
+AZ-UCA	AZ	Ucar
+AZ-XA	AZ	Xankəndi
+AZ-XAC	AZ	Xaçmaz
+AZ-XCI	AZ	Xocalı
+AZ-XIZ	AZ	Xızı
+AZ-XVD	AZ	Xocavənd
+AZ-YAR	AZ	Yardımlı
+AZ-YE	AZ	Yevlax
+AZ-YEV	AZ	Yevlax
+AZ-ZAN	AZ	Zəngilan
+AZ-ZAQ	AZ	Zaqatala
+AZ-ZAR	AZ	Zərdab
+BA-BIH	BA	Federacija Bosne i Hercegovine
+BA-BRC	BA	Brčko distrikt
+BA-SRP	BA	Republika Srpska
+BB-01	BB	Christ Church
+BB-02	BB	Saint Andrew
+BB-03	BB	Saint George
+BB-04	BB	Saint James
+BB-05	BB	Saint John
+BB-06	BB	Saint Joseph
+BB-07	BB	Saint Lucy
+BB-08	BB	Saint Michael
+BB-09	BB	Saint Peter
+BB-10	BB	Saint Philip
+BB-11	BB	Saint Thomas
+BD-01	BD	Bandarban
+BD-02	BD	Barguna
+BD-03	BD	Bogura
+BD-04	BD	Brahmanbaria
+BD-05	BD	Bagerhat
+BD-06	BD	Barishal
+BD-07	BD	Bhola
+BD-08	BD	Cumilla
+BD-09	BD	Chandpur
+BD-10	BD	Chattogram
+BD-11	BD	Cox's Bazar
+BD-12	BD	Chuadanga
+BD-13	BD	Dhaka
+BD-14	BD	Dinajpur
+BD-15	BD	Faridpur
+BD-16	BD	Feni
+BD-17	BD	Gopalganj
+BD-18	BD	Gazipur
+BD-19	BD	Gaibandha
+BD-20	BD	Habiganj
+BD-21	BD	Jamalpur
+BD-22	BD	Jashore
+BD-23	BD	Jhenaidah
+BD-24	BD	Joypurhat
+BD-25	BD	Jhalakathi
+BD-26	BD	Kishoreganj
+BD-27	BD	Khulna
+BD-28	BD	Kurigram
+BD-29	BD	Khagrachhari
+BD-30	BD	Kushtia
+BD-31	BD	Lakshmipur
+BD-32	BD	Lalmonirhat
+BD-33	BD	Manikganj
+BD-34	BD	Mymensingh
+BD-35	BD	Munshiganj
+BD-36	BD	Madaripur
+BD-37	BD	Magura
+BD-38	BD	Moulvibazar
+BD-39	BD	Meherpur
+BD-40	BD	Narayanganj
+BD-41	BD	Netrakona
+BD-42	BD	Narsingdi
+BD-43	BD	Narail
+BD-44	BD	Natore
+BD-45	BD	Chapai Nawabganj
+BD-46	BD	Nilphamari
+BD-47	BD	Noakhali
+BD-48	BD	Naogaon
+BD-49	BD	Pabna
+BD-50	BD	Pirojpur
+BD-51	BD	Patuakhali
+BD-52	BD	Panchagarh
+BD-53	BD	Rajbari
+BD-54	BD	Rajshahi
+BD-55	BD	Rangpur
+BD-56	BD	Rangamati
+BD-57	BD	Sherpur
+BD-58	BD	Satkhira
+BD-59	BD	Sirajganj
+BD-60	BD	Sylhet
+BD-61	BD	Sunamganj
+BD-62	BD	Shariatpur
+BD-63	BD	Tangail
+BD-64	BD	Thakurgaon
+BD-A	BD	Barishal
+BD-B	BD	Chattogram
+BD-C	BD	Dhaka
+BD-D	BD	Khulna
+BD-E	BD	Rajshahi
+BD-F	BD	Rangpur
+BD-G	BD	Sylhet
+BD-H	BD	Mymensingh
+BE-BRU	BE	Bruxelles-Capitale, Région de
+BE-VAN	BE	Antwerpen
+BE-VBR	BE	Vlaams-Brabant
+BE-VLG	BE	Vlaams Gewest
+BE-VLI	BE	Limburg
+BE-VOV	BE	Oost-Vlaanderen
+BE-VWV	BE	West-Vlaanderen
+BE-WAL	BE	wallonne, Région
+BE-WBR	BE	Brabant wallon
+BE-WHT	BE	Hainaut
+BE-WLG	BE	Liège
+BE-WLX	BE	Luxembourg
+BE-WNA	BE	Namur
+BF-01	BF	Boucle du Mouhoun
+BF-02	BF	Cascades
+BF-03	BF	Centre
+BF-04	BF	Centre-Est
+BF-05	BF	Centre-Nord
+BF-06	BF	Centre-Ouest
+BF-07	BF	Centre-Sud
+BF-08	BF	Est
+BF-09	BF	Hauts-Bassins
+BF-10	BF	Nord
+BF-11	BF	Plateau-Central
+BF-12	BF	Sahel
+BF-13	BF	Sud-Ouest
+BF-BAL	BF	Balé
+BF-BAM	BF	Bam
+BF-BAN	BF	Banwa
+BF-BAZ	BF	Bazèga
+BF-BGR	BF	Bougouriba
+BF-BLG	BF	Boulgou
+BF-BLK	BF	Boulkiemdé
+BF-COM	BF	Comoé
+BF-GAN	BF	Ganzourgou
+BF-GNA	BF	Gnagna
+BF-GOU	BF	Gourma
+BF-HOU	BF	Houet
+BF-IOB	BF	Ioba
+BF-KAD	BF	Kadiogo
+BF-KEN	BF	Kénédougou
+BF-KMD	BF	Komondjari
+BF-KMP	BF	Kompienga
+BF-KOP	BF	Koulpélogo
+BF-KOS	BF	Kossi
+BF-KOT	BF	Kouritenga
+BF-KOW	BF	Kourwéogo
+BF-LER	BF	Léraba
+BF-LOR	BF	Loroum
+BF-MOU	BF	Mouhoun
+BF-NAM	BF	Namentenga
+BF-NAO	BF	Nahouri
+BF-NAY	BF	Nayala
+BF-NOU	BF	Noumbiel
+BF-OUB	BF	Oubritenga
+BF-OUD	BF	Oudalan
+BF-PAS	BF	Passoré
+BF-PON	BF	Poni
+BF-SEN	BF	Séno
+BF-SIS	BF	Sissili
+BF-SMT	BF	Sanmatenga
+BF-SNG	BF	Sanguié
+BF-SOM	BF	Soum
+BF-SOR	BF	Sourou
+BF-TAP	BF	Tapoa
+BF-TUI	BF	Tuy
+BF-YAG	BF	Yagha
+BF-YAT	BF	Yatenga
+BF-ZIR	BF	Ziro
+BF-ZON	BF	Zondoma
+BF-ZOU	BF	Zoundwéogo
+BG-01	BG	Blagoevgrad
+BG-02	BG	Burgas
+BG-03	BG	Varna
+BG-04	BG	Veliko Tarnovo
+BG-05	BG	Vidin
+BG-06	BG	Vratsa
+BG-07	BG	Gabrovo
+BG-08	BG	Dobrich
+BG-09	BG	Kardzhali
+BG-10	BG	Kyustendil
+BG-11	BG	Lovech
+BG-12	BG	Montana
+BG-13	BG	Pazardzhik
+BG-14	BG	Pernik
+BG-15	BG	Pleven
+BG-16	BG	Plovdiv
+BG-17	BG	Razgrad
+BG-18	BG	Ruse
+BG-19	BG	Silistra
+BG-20	BG	Sliven
+BG-21	BG	Smolyan
+BG-22	BG	Sofia (stolitsa)
+BG-23	BG	Sofia
+BG-24	BG	Stara Zagora
+BG-25	BG	Targovishte
+BG-26	BG	Haskovo
+BG-27	BG	Shumen
+BG-28	BG	Yambol
+BH-13	BH	Al ‘Āşimah
+BH-14	BH	Al Janūbīyah
+BH-15	BH	Al Muḩarraq
+BH-17	BH	Ash Shamālīyah
+BI-BB	BI	Bubanza
+BI-BL	BI	Bujumbura Rural
+BI-BM	BI	Bujumbura Mairie
+BI-BR	BI	Bururi
+BI-CA	BI	Cankuzo
+BI-CI	BI	Cibitoke
+BI-GI	BI	Gitega
+BI-KI	BI	Kirundo
+BI-KR	BI	Karuzi
+BI-KY	BI	Kayanza
+BI-MA	BI	Makamba
+BI-MU	BI	Muramvya
+BI-MW	BI	Mwaro
+BI-MY	BI	Muyinga
+BI-NG	BI	Ngozi
+BI-RM	BI	Rumonge
+BI-RT	BI	Rutana
+BI-RY	BI	Ruyigi
+BJ-AK	BJ	Atacora
+BJ-AL	BJ	Alibori
+BJ-AQ	BJ	Atlantique
+BJ-BO	BJ	Borgou
+BJ-CO	BJ	Collines
+BJ-DO	BJ	Donga
+BJ-KO	BJ	Couffo
+BJ-LI	BJ	Littoral
+BJ-MO	BJ	Mono
+BJ-OU	BJ	Ouémé
+BJ-PL	BJ	Plateau
+BJ-ZO	BJ	Zou
+BN-BE	BN	Belait
+BN-BM	BN	Brunei-Muara
+BN-TE	BN	Temburong
+BN-TU	BN	Tutong
+BO-B	BO	El Beni
+BO-C	BO	Cochabamba
+BO-H	BO	Chuquisaca
+BO-L	BO	La Paz
+BO-N	BO	Pando
+BO-O	BO	Oruro
+BO-P	BO	Potosí
+BO-S	BO	Santa Cruz
+BO-T	BO	Tarija
+BQ-BO	BQ	Bonaire
+BQ-SA	BQ	Saba
+BQ-SE	BQ	Sint Eustatius
+BR-AC	BR	Acre
+BR-AL	BR	Alagoas
+BR-AM	BR	Amazonas
+BR-AP	BR	Amapá
+BR-BA	BR	Bahia
+BR-CE	BR	Ceará
+BR-DF	BR	Distrito Federal
+BR-ES	BR	Espírito Santo
+BR-GO	BR	Goiás
+BR-MA	BR	Maranhão
+BR-MG	BR	Minas Gerais
+BR-MS	BR	Mato Grosso do Sul
+BR-MT	BR	Mato Grosso
+BR-PA	BR	Pará
+BR-PB	BR	Paraíba
+BR-PE	BR	Pernambuco
+BR-PI	BR	Piauí
+BR-PR	BR	Paraná
+BR-RJ	BR	Rio de Janeiro
+BR-RN	BR	Rio Grande do Norte
+BR-RO	BR	Rondônia
+BR-RR	BR	Roraima
+BR-RS	BR	Rio Grande do Sul
+BR-SC	BR	Santa Catarina
+BR-SE	BR	Sergipe
+BR-SP	BR	São Paulo
+BR-TO	BR	Tocantins
+BS-AK	BS	Acklins
+BS-BI	BS	Bimini
+BS-BP	BS	Black Point
+BS-BY	BS	Berry Islands
+BS-CE	BS	Central Eleuthera
+BS-CI	BS	Cat Island
+BS-CK	BS	Crooked Island and Long Cay
+BS-CO	BS	Central Abaco
+BS-CS	BS	Central Andros
+BS-EG	BS	East Grand Bahama
+BS-EX	BS	Exuma
+BS-FP	BS	City of Freeport
+BS-GC	BS	Grand Cay
+BS-HI	BS	Harbour Island
+BS-HT	BS	Hope Town
+BS-IN	BS	Inagua
+BS-LI	BS	Long Island
+BS-MC	BS	Mangrove Cay
+BS-MG	BS	Mayaguana
+BS-MI	BS	Moore's Island
+BS-NE	BS	North Eleuthera
+BS-NO	BS	North Abaco
+BS-NP	BS	New Providence
+BS-NS	BS	North Andros
+BS-RC	BS	Rum Cay
+BS-RI	BS	Ragged Island
+BS-SA	BS	South Andros
+BS-SE	BS	South Eleuthera
+BS-SO	BS	South Abaco
+BS-SS	BS	San Salvador
+BS-SW	BS	Spanish Wells
+BS-WG	BS	West Grand Bahama
+BT-11	BT	Paro
+BT-12	BT	Chhukha
+BT-13	BT	Haa
+BT-14	BT	Samtse
+BT-15	BT	Thimphu
+BT-21	BT	Tsirang
+BT-22	BT	Dagana
+BT-23	BT	Punakha
+BT-24	BT	Wangdue Phodrang
+BT-31	BT	Sarpang
+BT-32	BT	Trongsa
+BT-33	BT	Bumthang
+BT-34	BT	Zhemgang
+BT-41	BT	Trashigang
+BT-42	BT	Monggar
+BT-43	BT	Pema Gatshel
+BT-44	BT	Lhuentse
+BT-45	BT	Samdrup Jongkhar
+BT-GA	BT	Gasa
+BT-TY	BT	Trashi Yangtse
+BW-CE	BW	Central
+BW-CH	BW	Chobe
+BW-FR	BW	Francistown
+BW-GA	BW	Gaborone
+BW-GH	BW	Ghanzi
+BW-JW	BW	Jwaneng
+BW-KG	BW	Kgalagadi
+BW-KL	BW	Kgatleng
+BW-KW	BW	Kweneng
+BW-LO	BW	Lobatse
+BW-NE	BW	North East
+BW-NW	BW	North West
+BW-SE	BW	South East
+BW-SO	BW	Southern
+BW-SP	BW	Selibe Phikwe
+BW-ST	BW	Sowa Town
+BY-BR	BY	Bresckaja voblasć
+BY-HM	BY	Horad Minsk
+BY-HO	BY	Homieĺskaja voblasć
+BY-HR	BY	Hrodzienskaja voblasć
+BY-MA	BY	Mahilioŭskaja voblasć
+BY-MI	BY	Minskaja voblasć
+BY-VI	BY	Viciebskaja voblasć
+BZ-BZ	BZ	Belize
+BZ-CY	BZ	Cayo
+BZ-CZL	BZ	Corozal
+BZ-OW	BZ	Orange Walk
+BZ-SC	BZ	Stann Creek
+BZ-TOL	BZ	Toledo
+CA-AB	CA	Alberta
+CA-BC	CA	British Columbia
+CA-MB	CA	Manitoba
+CA-NB	CA	New Brunswick
+CA-NL	CA	Newfoundland and Labrador
+CA-NS	CA	Nova Scotia
+CA-NT	CA	Northwest Territories
+CA-NU	CA	Nunavut
+CA-ON	CA	Ontario
+CA-PE	CA	Prince Edward Island
+CA-QC	CA	Quebec
+CA-SK	CA	Saskatchewan
+CA-YT	CA	Yukon
+CD-BC	CD	Kongo Central
+CD-BU	CD	Bas-Uélé
+CD-EQ	CD	Équateur
+CD-HK	CD	Haut-Katanga
+CD-HL	CD	Haut-Lomami
+CD-HU	CD	Haut-Uélé
+CD-IT	CD	Ituri
+CD-KC	CD	Kasaï Central
+CD-KE	CD	Kasaï Oriental
+CD-KG	CD	Kwango
+CD-KL	CD	Kwilu
+CD-KN	CD	Kinshasa
+CD-KS	CD	Kasaï
+CD-LO	CD	Lomami
+CD-LU	CD	Lualaba
+CD-MA	CD	Maniema
+CD-MN	CD	Mai-Ndombe
+CD-MO	CD	Mongala
+CD-NK	CD	Nord-Kivu
+CD-NU	CD	Nord-Ubangi
+CD-SA	CD	Sankuru
+CD-SK	CD	Sud-Kivu
+CD-SU	CD	Sud-Ubangi
+CD-TA	CD	Tanganyika
+CD-TO	CD	Tshopo
+CD-TU	CD	Tshuapa
+CF-AC	CF	Ouham
+CF-BB	CF	Bamingui-Bangoran
+CF-BGF	CF	Bangui
+CF-BK	CF	Basse-Kotto
+CF-HK	CF	Haute-Kotto
+CF-HM	CF	Haut-Mbomou
+CF-HS	CF	Haute-Sangha / Mambéré-Kadéï
+CF-KB	CF	Gribingui
+CF-KG	CF	Kémo-Gribingui
+CF-LB	CF	Lobaye
+CF-MB	CF	Mbomou
+CF-MP	CF	Ombella-Mpoko
+CF-NM	CF	Nana-Mambéré
+CF-OP	CF	Ouham-Pendé
+CF-SE	CF	Sangha
+CF-UK	CF	Ouaka
+CF-VK	CF	Vakaga
+CG-11	CG	Bouenza
+CG-12	CG	Pool
+CG-13	CG	Sangha
+CG-14	CG	Plateaux
+CG-15	CG	Cuvette-Ouest
+CG-16	CG	Pointe-Noire
+CG-2	CG	Lékoumou
+CG-5	CG	Kouilou
+CG-7	CG	Likouala
+CG-8	CG	Cuvette
+CG-9	CG	Niari
+CG-BZV	CG	Brazzaville
+CH-AG	CH	Aargau
+CH-AI	CH	Appenzell Innerrhoden
+CH-AR	CH	Appenzell Ausserrhoden
+CH-BE	CH	Berne
+CH-BL	CH	Basel-Landschaft
+CH-BS	CH	Basel-Stadt
+CH-FR	CH	Fribourg
+CH-GE	CH	Genève
+CH-GL	CH	Glarus
+CH-GR	CH	Graubünden
+CH-JU	CH	Jura
+CH-LU	CH	Luzern
+CH-NE	CH	Neuchâtel
+CH-NW	CH	Nidwalden
+CH-OW	CH	Obwalden
+CH-SG	CH	Sankt Gallen
+CH-SH	CH	Schaffhausen
+CH-SO	CH	Solothurn
+CH-SZ	CH	Schwyz
+CH-TG	CH	Thurgau
+CH-TI	CH	Ticino
+CH-UR	CH	Uri
+CH-VD	CH	Vaud
+CH-VS	CH	Valais
+CH-ZG	CH	Zug
+CH-ZH	CH	Zürich
+CI-AB	CI	Abidjan
+CI-BS	CI	Bas-Sassandra
+CI-CM	CI	Comoé
+CI-DN	CI	Denguélé
+CI-GD	CI	Gôh-Djiboua
+CI-LC	CI	Lacs
+CI-LG	CI	Lagunes
+CI-MG	CI	Montagnes
+CI-SM	CI	Sassandra-Marahoué
+CI-SV	CI	Savanes
+CI-VB	CI	Vallée du Bandama
+CI-WR	CI	Woroba
+CI-YM	CI	Yamoussoukro
+CI-ZZ	CI	Zanzan
+CL-AI	CL	Aisén del General Carlos Ibañez del Campo
+CL-AN	CL	Antofagasta
+CL-AP	CL	Arica y Parinacota
+CL-AR	CL	La Araucanía
+CL-AT	CL	Atacama
+CL-BI	CL	Biobío
+CL-CO	CL	Coquimbo
+CL-LI	CL	Libertador General Bernardo O'Higgins
+CL-LL	CL	Los Lagos
+CL-LR	CL	Los Ríos
+CL-MA	CL	Magallanes
+CL-ML	CL	Maule
+CL-NB	CL	Ñuble
+CL-RM	CL	Región Metropolitana de Santiago
+CL-TA	CL	Tarapacá
+CL-VS	CL	Valparaíso
+CM-AD	CM	Adamaoua
+CM-CE	CM	Centre
+CM-EN	CM	Far North
+CM-ES	CM	East
+CM-LT	CM	Littoral
+CM-NO	CM	North
+CM-NW	CM	North-West
+CM-OU	CM	West
+CM-SU	CM	South
+CM-SW	CM	South-West
+CN-AH	CN	Anhui Sheng
+CN-BJ	CN	Beijing Shi
+CN-CQ	CN	Chongqing Shi
+CN-FJ	CN	Fujian Sheng
+CN-GD	CN	Guangdong Sheng
+CN-GS	CN	Gansu Sheng
+CN-GX	CN	Guangxi Zhuangzu Zizhiqu
+CN-GZ	CN	Guizhou Sheng
+CN-HA	CN	Henan Sheng
+CN-HB	CN	Hubei Sheng
+CN-HE	CN	Hebei Sheng
+CN-HI	CN	Hainan Sheng
+CN-HK	CN	Hong Kong SAR
+CN-HL	CN	Heilongjiang Sheng
+CN-HN	CN	Hunan Sheng
+CN-JL	CN	Jilin Sheng
+CN-JS	CN	Jiangsu Sheng
+CN-JX	CN	Jiangxi Sheng
+CN-LN	CN	Liaoning Sheng
+CN-MO	CN	Macao SAR
+CN-NM	CN	Nei Mongol Zizhiqu
+CN-NX	CN	Ningxia Huizu Zizhiqu
+CN-QH	CN	Qinghai Sheng
+CN-SC	CN	Sichuan Sheng
+CN-SD	CN	Shandong Sheng
+CN-SH	CN	Shanghai Shi
+CN-SN	CN	Shaanxi Sheng
+CN-SX	CN	Shanxi Sheng
+CN-TJ	CN	Tianjin Shi
+CN-TW	CN	Taiwan Sheng
+CN-XJ	CN	Xinjiang Uygur Zizhiqu
+CN-XZ	CN	Xizang Zizhiqu
+CN-YN	CN	Yunnan Sheng
+CN-ZJ	CN	Zhejiang Sheng
+CO-AMA	CO	Amazonas
+CO-ANT	CO	Antioquia
+CO-ARA	CO	Arauca
+CO-ATL	CO	Atlántico
+CO-BOL	CO	Bolívar
+CO-BOY	CO	Boyacá
+CO-CAL	CO	Caldas
+CO-CAQ	CO	Caquetá
+CO-CAS	CO	Casanare
+CO-CAU	CO	Cauca
+CO-CES	CO	Cesar
+CO-CHO	CO	Chocó
+CO-COR	CO	Córdoba
+CO-CUN	CO	Cundinamarca
+CO-DC	CO	Distrito Capital de Bogotá
+CO-GUA	CO	Guainía
+CO-GUV	CO	Guaviare
+CO-HUI	CO	Huila
+CO-LAG	CO	La Guajira
+CO-MAG	CO	Magdalena
+CO-MET	CO	Meta
+CO-NAR	CO	Nariño
+CO-NSA	CO	Norte de Santander
+CO-PUT	CO	Putumayo
+CO-QUI	CO	Quindío
+CO-RIS	CO	Risaralda
+CO-SAN	CO	Santander
+CO-SAP	CO	San Andrés, Providencia y Santa Catalina
+CO-SUC	CO	Sucre
+CO-TOL	CO	Tolima
+CO-VAC	CO	Valle del Cauca
+CO-VAU	CO	Vaupés
+CO-VID	CO	Vichada
+CR-A	CR	Alajuela
+CR-C	CR	Cartago
+CR-G	CR	Guanacaste
+CR-H	CR	Heredia
+CR-L	CR	Limón
+CR-P	CR	Puntarenas
+CR-SJ	CR	San José
+CU-01	CU	Pinar del Río
+CU-03	CU	La Habana
+CU-04	CU	Matanzas
+CU-05	CU	Villa Clara
+CU-06	CU	Cienfuegos
+CU-07	CU	Sancti Spíritus
+CU-08	CU	Ciego de Ávila
+CU-09	CU	Camagüey
+CU-10	CU	Las Tunas
+CU-11	CU	Holguín
+CU-12	CU	Granma
+CU-13	CU	Santiago de Cuba
+CU-14	CU	Guantánamo
+CU-15	CU	Artemisa
+CU-16	CU	Mayabeque
+CU-99	CU	Isla de la Juventud
+CV-B	CV	Ilhas de Barlavento
+CV-BR	CV	Brava
+CV-BV	CV	Boa Vista
+CV-CA	CV	Santa Catarina
+CV-CF	CV	Santa Catarina do Fogo
+CV-CR	CV	Santa Cruz
+CV-MA	CV	Maio
+CV-MO	CV	Mosteiros
+CV-PA	CV	Paul
+CV-PN	CV	Porto Novo
+CV-PR	CV	Praia
+CV-RB	CV	Ribeira Brava
+CV-RG	CV	Ribeira Grande
+CV-RS	CV	Ribeira Grande de Santiago
+CV-S	CV	Ilhas de Sotavento
+CV-SD	CV	São Domingos
+CV-SF	CV	São Filipe
+CV-SL	CV	Sal
+CV-SM	CV	São Miguel
+CV-SO	CV	São Lourenço dos Órgãos
+CV-SS	CV	São Salvador do Mundo
+CV-SV	CV	São Vicente
+CV-TA	CV	Tarrafal
+CV-TS	CV	Tarrafal de São Nicolau
+CY-01	CY	Lefkosia
+CY-02	CY	Lemesos
+CY-03	CY	Larnaka
+CY-04	CY	Ammochostos
+CY-05	CY	Pafos
+CY-06	CY	Keryneia
+CZ-10	CZ	Praha, Hlavní město
+CZ-20	CZ	Středočeský kraj
+CZ-201	CZ	Benešov
+CZ-202	CZ	Beroun
+CZ-203	CZ	Kladno
+CZ-204	CZ	Kolín
+CZ-205	CZ	Kutná Hora
+CZ-206	CZ	Mělník
+CZ-207	CZ	Mladá Boleslav
+CZ-208	CZ	Nymburk
+CZ-209	CZ	Praha-východ
+CZ-20A	CZ	Praha-západ
+CZ-20B	CZ	Příbram
+CZ-20C	CZ	Rakovník
+CZ-31	CZ	Jihočeský kraj
+CZ-311	CZ	České Budějovice
+CZ-312	CZ	Český Krumlov
+CZ-313	CZ	Jindřichův Hradec
+CZ-314	CZ	Písek
+CZ-315	CZ	Prachatice
+CZ-316	CZ	Strakonice
+CZ-317	CZ	Tábor
+CZ-32	CZ	Plzeňský kraj
+CZ-321	CZ	Domažlice
+CZ-322	CZ	Klatovy
+CZ-323	CZ	Plzeň-město
+CZ-324	CZ	Plzeň-jih
+CZ-325	CZ	Plzeň-sever
+CZ-326	CZ	Rokycany
+CZ-327	CZ	Tachov
+CZ-41	CZ	Karlovarský kraj
+CZ-411	CZ	Cheb
+CZ-412	CZ	Karlovy Vary
+CZ-413	CZ	Sokolov
+CZ-42	CZ	Ústecký kraj
+CZ-421	CZ	Děčín
+CZ-422	CZ	Chomutov
+CZ-423	CZ	Litoměřice
+CZ-424	CZ	Louny
+CZ-425	CZ	Most
+CZ-426	CZ	Teplice
+CZ-427	CZ	Ústí nad Labem
+CZ-51	CZ	Liberecký kraj
+CZ-511	CZ	Česká Lípa
+CZ-512	CZ	Jablonec nad Nisou
+CZ-513	CZ	Liberec
+CZ-514	CZ	Semily
+CZ-52	CZ	Královéhradecký kraj
+CZ-521	CZ	Hradec Králové
+CZ-522	CZ	Jičín
+CZ-523	CZ	Náchod
+CZ-524	CZ	Rychnov nad Kněžnou
+CZ-525	CZ	Trutnov
+CZ-53	CZ	Pardubický kraj
+CZ-531	CZ	Chrudim
+CZ-532	CZ	Pardubice
+CZ-533	CZ	Svitavy
+CZ-534	CZ	Ústí nad Orlicí
+CZ-63	CZ	Kraj Vysočina
+CZ-631	CZ	Havlíčkův Brod
+CZ-632	CZ	Jihlava
+CZ-633	CZ	Pelhřimov
+CZ-634	CZ	Třebíč
+CZ-635	CZ	Žďár nad Sázavou
+CZ-64	CZ	Jihomoravský kraj
+CZ-641	CZ	Blansko
+CZ-642	CZ	Brno-město
+CZ-643	CZ	Brno-venkov
+CZ-644	CZ	Břeclav
+CZ-645	CZ	Hodonín
+CZ-646	CZ	Vyškov
+CZ-647	CZ	Znojmo
+CZ-71	CZ	Olomoucký kraj
+CZ-711	CZ	Jeseník
+CZ-712	CZ	Olomouc
+CZ-713	CZ	Prostějov
+CZ-714	CZ	Přerov
+CZ-715	CZ	Šumperk
+CZ-72	CZ	Zlínský kraj
+CZ-721	CZ	Kroměříž
+CZ-722	CZ	Uherské Hradiště
+CZ-723	CZ	Vsetín
+CZ-724	CZ	Zlín
+CZ-80	CZ	Moravskoslezský kraj
+CZ-801	CZ	Bruntál
+CZ-802	CZ	Frýdek-Místek
+CZ-803	CZ	Karviná
+CZ-804	CZ	Nový Jičín
+CZ-805	CZ	Opava
+CZ-806	CZ	Ostrava-město
+DE-BB	DE	Brandenburg
+DE-BE	DE	Berlin
+DE-BW	DE	Baden-Württemberg
+DE-BY	DE	Bayern
+DE-HB	DE	Bremen
+DE-HE	DE	Hessen
+DE-HH	DE	Hamburg
+DE-MV	DE	Mecklenburg-Vorpommern
+DE-NI	DE	Niedersachsen
+DE-NW	DE	Nordrhein-Westfalen
+DE-RP	DE	Rheinland-Pfalz
+DE-SH	DE	Schleswig-Holstein
+DE-SL	DE	Saarland
+DE-SN	DE	Sachsen
+DE-ST	DE	Sachsen-Anhalt
+DE-TH	DE	Thüringen
+DJ-AR	DJ	Arta
+DJ-AS	DJ	Ali Sabieh
+DJ-DI	DJ	Dikhil
+DJ-DJ	DJ	Djibouti
+DJ-OB	DJ	Obock
+DJ-TA	DJ	Tadjourah
+DK-81	DK	Nordjylland
+DK-82	DK	Midtjylland
+DK-83	DK	Syddanmark
+DK-84	DK	Hovedstaden
+DK-85	DK	Sjælland
+DM-02	DM	Saint Andrew
+DM-03	DM	Saint David
+DM-04	DM	Saint George
+DM-05	DM	Saint John
+DM-06	DM	Saint Joseph
+DM-07	DM	Saint Luke
+DM-08	DM	Saint Mark
+DM-09	DM	Saint Patrick
+DM-10	DM	Saint Paul
+DM-11	DM	Saint Peter
+DO-01	DO	Distrito Nacional (Santo Domingo)
+DO-02	DO	Azua
+DO-03	DO	Baoruco
+DO-04	DO	Barahona
+DO-05	DO	Dajabón
+DO-06	DO	Duarte
+DO-07	DO	Elías Piña
+DO-08	DO	El Seibo
+DO-09	DO	Espaillat
+DO-10	DO	Independencia
+DO-11	DO	La Altagracia
+DO-12	DO	La Romana
+DO-13	DO	La Vega
+DO-14	DO	María Trinidad Sánchez
+DO-15	DO	Monte Cristi
+DO-16	DO	Pedernales
+DO-17	DO	Peravia
+DO-18	DO	Puerto Plata
+DO-19	DO	Hermanas Mirabal
+DO-20	DO	Samaná
+DO-21	DO	San Cristóbal
+DO-22	DO	San Juan
+DO-23	DO	San Pedro de Macorís
+DO-24	DO	Sánchez Ramírez
+DO-25	DO	Santiago
+DO-26	DO	Santiago Rodríguez
+DO-27	DO	Valverde
+DO-28	DO	Monseñor Nouel
+DO-29	DO	Monte Plata
+DO-30	DO	Hato Mayor
+DO-31	DO	San José de Ocoa
+DO-32	DO	Santo Domingo
+DO-33	DO	Cibao Nordeste
+DO-34	DO	Cibao Noroeste
+DO-35	DO	Cibao Norte
+DO-36	DO	Cibao Sur
+DO-37	DO	El Valle
+DO-38	DO	Enriquillo
+DO-39	DO	Higuamo
+DO-40	DO	Ozama
+DO-41	DO	Valdesia
+DO-42	DO	Yuma
+DZ-01	DZ	Adrar
+DZ-02	DZ	Chlef
+DZ-03	DZ	Laghouat
+DZ-04	DZ	Oum el Bouaghi
+DZ-05	DZ	Batna
+DZ-06	DZ	Béjaïa
+DZ-07	DZ	Biskra
+DZ-08	DZ	Béchar
+DZ-09	DZ	Blida
+DZ-10	DZ	Bouira
+DZ-11	DZ	Tamanrasset
+DZ-12	DZ	Tébessa
+DZ-13	DZ	Tlemcen
+DZ-14	DZ	Tiaret
+DZ-15	DZ	Tizi Ouzou
+DZ-16	DZ	Alger
+DZ-17	DZ	Djelfa
+DZ-18	DZ	Jijel
+DZ-19	DZ	Sétif
+DZ-20	DZ	Saïda
+DZ-21	DZ	Skikda
+DZ-22	DZ	Sidi Bel Abbès
+DZ-23	DZ	Annaba
+DZ-24	DZ	Guelma
+DZ-25	DZ	Constantine
+DZ-26	DZ	Médéa
+DZ-27	DZ	Mostaganem
+DZ-28	DZ	M'sila
+DZ-29	DZ	Mascara
+DZ-30	DZ	Ouargla
+DZ-31	DZ	Oran
+DZ-32	DZ	El Bayadh
+DZ-33	DZ	Illizi
+DZ-34	DZ	Bordj Bou Arréridj
+DZ-35	DZ	Boumerdès
+DZ-36	DZ	El Tarf
+DZ-37	DZ	Tindouf
+DZ-38	DZ	Tissemsilt
+DZ-39	DZ	El Oued
+DZ-40	DZ	Khenchela
+DZ-41	DZ	Souk Ahras
+DZ-42	DZ	Tipaza
+DZ-43	DZ	Mila
+DZ-44	DZ	Aïn Defla
+DZ-45	DZ	Naama
+DZ-46	DZ	Aïn Témouchent
+DZ-47	DZ	Ghardaïa
+DZ-48	DZ	Relizane
+DZ-49	DZ	Timimoun
+DZ-50	DZ	Bordj Badji Mokhtar
+DZ-51	DZ	Ouled Djellal
+DZ-52	DZ	Béni Abbès
+DZ-53	DZ	In Salah
+DZ-54	DZ	In Guezzam
+DZ-55	DZ	Touggourt
+DZ-56	DZ	Djanet
+DZ-57	DZ	El Meghaier
+DZ-58	DZ	El Meniaa
+EC-A	EC	Azuay
+EC-B	EC	Bolívar
+EC-C	EC	Carchi
+EC-D	EC	Orellana
+EC-E	EC	Esmeraldas
+EC-F	EC	Cañar
+EC-G	EC	Guayas
+EC-H	EC	Chimborazo
+EC-I	EC	Imbabura
+EC-L	EC	Loja
+EC-M	EC	Manabí
+EC-N	EC	Napo
+EC-O	EC	El Oro
+EC-P	EC	Pichincha
+EC-R	EC	Los Ríos
+EC-S	EC	Morona Santiago
+EC-SD	EC	Santo Domingo de los Tsáchilas
+EC-SE	EC	Santa Elena
+EC-T	EC	Tungurahua
+EC-U	EC	Sucumbíos
+EC-W	EC	Galápagos
+EC-X	EC	Cotopaxi
+EC-Y	EC	Pastaza
+EC-Z	EC	Zamora Chinchipe
+EE-130	EE	Alutaguse
+EE-141	EE	Anija
+EE-142	EE	Antsla
+EE-171	EE	Elva
+EE-184	EE	Haapsalu
+EE-191	EE	Haljala
+EE-198	EE	Harku
+EE-205	EE	Hiiumaa
+EE-214	EE	Häädemeeste
+EE-245	EE	Jõelähtme
+EE-247	EE	Jõgeva
+EE-251	EE	Jõhvi
+EE-255	EE	Järva
+EE-272	EE	Kadrina
+EE-283	EE	Kambja
+EE-284	EE	Kanepi
+EE-291	EE	Kastre
+EE-293	EE	Kehtna
+EE-296	EE	Keila
+EE-303	EE	Kihnu
+EE-305	EE	Kiili
+EE-317	EE	Kohila
+EE-321	EE	Kohtla-Järve
+EE-338	EE	Kose
+EE-353	EE	Kuusalu
+EE-37	EE	Harjumaa
+EE-39	EE	Hiiumaa
+EE-424	EE	Loksa
+EE-430	EE	Lääneranna
+EE-431	EE	Lääne-Harju
+EE-432	EE	Luunja
+EE-441	EE	Lääne-Nigula
+EE-442	EE	Lüganuse
+EE-446	EE	Maardu
+EE-45	EE	Ida-Virumaa
+EE-478	EE	Muhu
+EE-480	EE	Mulgi
+EE-486	EE	Mustvee
+EE-50	EE	Jõgevamaa
+EE-503	EE	Märjamaa
+EE-511	EE	Narva
+EE-514	EE	Narva-Jõesuu
+EE-52	EE	Järvamaa
+EE-528	EE	Nõo
+EE-557	EE	Otepää
+EE-56	EE	Läänemaa
+EE-567	EE	Paide
+EE-586	EE	Peipsiääre
+EE-60	EE	Lääne-Virumaa
+EE-615	EE	Põhja-Sakala
+EE-618	EE	Põltsamaa
+EE-622	EE	Põlva
+EE-624	EE	Pärnu
+EE-638	EE	Põhja-Pärnumaa
+EE-64	EE	Põlvamaa
+EE-651	EE	Raasiku
+EE-653	EE	Rae
+EE-661	EE	Rakvere
+EE-663	EE	Rakvere
+EE-668	EE	Rapla
+EE-68	EE	Pärnumaa
+EE-689	EE	Ruhnu
+EE-698	EE	Rõuge
+EE-708	EE	Räpina
+EE-71	EE	Raplamaa
+EE-712	EE	Saarde
+EE-714	EE	Saaremaa
+EE-719	EE	Saku
+EE-726	EE	Saue
+EE-732	EE	Setomaa
+EE-735	EE	Sillamäe
+EE-74	EE	Saaremaa
+EE-784	EE	Tallinn
+EE-79	EE	Tartumaa
+EE-792	EE	Tapa
+EE-793	EE	Tartu
+EE-796	EE	Tartu
+EE-803	EE	Toila
+EE-809	EE	Tori
+EE-81	EE	Valgamaa
+EE-824	EE	Tõrva
+EE-834	EE	Türi
+EE-84	EE	Viljandimaa
+EE-855	EE	Valga
+EE-87	EE	Võrumaa
+EE-890	EE	Viimsi
+EE-897	EE	Viljandi
+EE-899	EE	Viljandi
+EE-901	EE	Vinni
+EE-903	EE	Viru-Nigula
+EE-907	EE	Vormsi
+EE-917	EE	Võru
+EE-919	EE	Võru
+EE-928	EE	Väike-Maarja
+EG-ALX	EG	Al Iskandarīyah
+EG-ASN	EG	Aswān
+EG-AST	EG	Asyūţ
+EG-BA	EG	Al Baḩr al Aḩmar
+EG-BH	EG	Al Buḩayrah
+EG-BNS	EG	Banī Suwayf
+EG-C	EG	Al Qāhirah
+EG-DK	EG	Ad Daqahlīyah
+EG-DT	EG	Dumyāţ
+EG-FYM	EG	Al Fayyūm
+EG-GH	EG	Al Gharbīyah
+EG-GZ	EG	Al Jīzah
+EG-IS	EG	Al Ismā'īlīyah
+EG-JS	EG	Janūb Sīnā'
+EG-KB	EG	Al Qalyūbīyah
+EG-KFS	EG	Kafr ash Shaykh
+EG-KN	EG	Qinā
+EG-LX	EG	Al Uqşur
+EG-MN	EG	Al Minyā
+EG-MNF	EG	Al Minūfīyah
+EG-MT	EG	Maţrūḩ
+EG-PTS	EG	Būr Sa‘īd
+EG-SHG	EG	Sūhāj
+EG-SHR	EG	Ash Sharqīyah
+EG-SIN	EG	Shamāl Sīnā'
+EG-SUZ	EG	As Suways
+EG-WAD	EG	Al Wādī al Jadīd
+ER-AN	ER	Ansabā
+ER-DK	ER	Janūbī al Baḩrī al Aḩmar
+ER-DU	ER	Al Janūbī
+ER-GB	ER	Qāsh-Barkah
+ER-MA	ER	Al Awsaţ
+ER-SK	ER	Shimālī al Baḩrī al Aḩmar
+ES-A	ES	Alicante
+ES-AB	ES	Albacete
+ES-AL	ES	Almería
+ES-AN	ES	Andalucía
+ES-AR	ES	Aragón
+ES-AS	ES	Asturias, Principado de
+ES-AV	ES	Ávila
+ES-B	ES	Barcelona [Barcelona]
+ES-BA	ES	Badajoz
+ES-BI	ES	Bizkaia
+ES-BU	ES	Burgos
+ES-C	ES	A Coruña [La Coruña]
+ES-CA	ES	Cádiz
+ES-CB	ES	Cantabria
+ES-CC	ES	Cáceres
+ES-CE	ES	Ceuta
+ES-CL	ES	Castilla y León
+ES-CM	ES	Castilla-La Mancha
+ES-CN	ES	Canarias
+ES-CO	ES	Córdoba
+ES-CR	ES	Ciudad Real
+ES-CS	ES	Castellón
+ES-CT	ES	Catalunya [Cataluña]
+ES-CU	ES	Cuenca
+ES-EX	ES	Extremadura
+ES-GA	ES	Galicia [Galicia]
+ES-GC	ES	Las Palmas
+ES-GI	ES	Girona [Gerona]
+ES-GR	ES	Granada
+ES-GU	ES	Guadalajara
+ES-H	ES	Huelva
+ES-HU	ES	Huesca
+ES-IB	ES	Illes Balears [Islas Baleares]
+ES-J	ES	Jaén
+ES-L	ES	Lleida [Lérida]
+ES-LE	ES	León
+ES-LO	ES	La Rioja
+ES-LU	ES	Lugo [Lugo]
+ES-M	ES	Madrid
+ES-MA	ES	Málaga
+ES-MC	ES	Murcia, Región de
+ES-MD	ES	Madrid, Comunidad de
+ES-ML	ES	Melilla
+ES-MU	ES	Murcia
+ES-NA	ES	Navarra
+ES-NC	ES	Navarra, Comunidad Foral de
+ES-O	ES	Asturias
+ES-OR	ES	Ourense [Orense]
+ES-P	ES	Palencia
+ES-PM	ES	Illes Balears [Islas Baleares]
+ES-PO	ES	Pontevedra [Pontevedra]
+ES-PV	ES	País Vasco
+ES-RI	ES	La Rioja
+ES-S	ES	Cantabria
+ES-SA	ES	Salamanca
+ES-SE	ES	Sevilla
+ES-SG	ES	Segovia
+ES-SO	ES	Soria
+ES-SS	ES	Gipuzkoa
+ES-T	ES	Tarragona [Tarragona]
+ES-TE	ES	Teruel
+ES-TF	ES	Santa Cruz de Tenerife
+ES-TO	ES	Toledo
+ES-V	ES	Valencia
+ES-VA	ES	Valladolid
+ES-VC	ES	Valenciana, Comunidad
+ES-VI	ES	Álava
+ES-Z	ES	Zaragoza
+ES-ZA	ES	Zamora
+ET-AA	ET	Addis Ababa
+ET-AF	ET	Afar
+ET-AM	ET	Amara
+ET-BE	ET	Benshangul-Gumaz
+ET-DD	ET	Dire Dawa
+ET-GA	ET	Gambela Peoples
+ET-HA	ET	Harari People
+ET-OR	ET	Oromia
+ET-SI	ET	Sidama
+ET-SN	ET	Southern Nations, Nationalities and Peoples
+ET-SO	ET	Somali
+ET-SW	ET	Southwest Ethiopia Peoples
+ET-TI	ET	Tigrai
+FI-01	FI	Landskapet Åland
+FI-02	FI	Etelä-Karjala
+FI-03	FI	Etelä-Pohjanmaa
+FI-04	FI	Etelä-Savo
+FI-05	FI	Kainuu
+FI-06	FI	Kanta-Häme
+FI-07	FI	Keski-Pohjanmaa
+FI-08	FI	Keski-Suomi
+FI-09	FI	Kymenlaakso
+FI-10	FI	Lappi
+FI-11	FI	Pirkanmaa
+FI-12	FI	Pohjanmaa
+FI-13	FI	Pohjois-Karjala
+FI-14	FI	Pohjois-Pohjanmaa
+FI-15	FI	Pohjois-Savo
+FI-16	FI	Päijät-Häme
+FI-17	FI	Satakunta
+FI-18	FI	Uusimaa
+FI-19	FI	Varsinais-Suomi
+FJ-01	FJ	Ba
+FJ-02	FJ	Bua
+FJ-03	FJ	Cakaudrove
+FJ-04	FJ	Kadavu
+FJ-05	FJ	Lau
+FJ-06	FJ	Lomaiviti
+FJ-07	FJ	Macuata
+FJ-08	FJ	Nadroga and Navosa
+FJ-09	FJ	Naitasiri
+FJ-10	FJ	Namosi
+FJ-11	FJ	Ra
+FJ-12	FJ	Rewa
+FJ-13	FJ	Serua
+FJ-14	FJ	Tailevu
+FJ-C	FJ	Central
+FJ-E	FJ	Eastern
+FJ-N	FJ	Northern
+FJ-R	FJ	Rotuma
+FJ-W	FJ	Western
+FM-KSA	FM	Kosrae
+FM-PNI	FM	Pohnpei
+FM-TRK	FM	Chuuk
+FM-YAP	FM	Yap
+FR-01	FR	Ain
+FR-02	FR	Aisne
+FR-03	FR	Allier
+FR-04	FR	Alpes-de-Haute-Provence
+FR-05	FR	Hautes-Alpes
+FR-06	FR	Alpes-Maritimes
+FR-07	FR	Ardèche
+FR-08	FR	Ardennes
+FR-09	FR	Ariège
+FR-10	FR	Aube
+FR-11	FR	Aude
+FR-12	FR	Aveyron
+FR-13	FR	Bouches-du-Rhône
+FR-14	FR	Calvados
+FR-15	FR	Cantal
+FR-16	FR	Charente
+FR-17	FR	Charente-Maritime
+FR-18	FR	Cher
+FR-19	FR	Corrèze
+FR-20R	FR	Corse
+FR-21	FR	Côte-d'Or
+FR-22	FR	Côtes-d'Armor
+FR-23	FR	Creuse
+FR-24	FR	Dordogne
+FR-25	FR	Doubs
+FR-26	FR	Drôme
+FR-27	FR	Eure
+FR-28	FR	Eure-et-Loir
+FR-29	FR	Finistère
+FR-2A	FR	Corse-du-Sud
+FR-2B	FR	Haute-Corse
+FR-30	FR	Gard
+FR-31	FR	Haute-Garonne
+FR-32	FR	Gers
+FR-33	FR	Gironde
+FR-34	FR	Hérault
+FR-35	FR	Ille-et-Vilaine
+FR-36	FR	Indre
+FR-37	FR	Indre-et-Loire
+FR-38	FR	Isère
+FR-39	FR	Jura
+FR-40	FR	Landes
+FR-41	FR	Loir-et-Cher
+FR-42	FR	Loire
+FR-43	FR	Haute-Loire
+FR-44	FR	Loire-Atlantique
+FR-45	FR	Loiret
+FR-46	FR	Lot
+FR-47	FR	Lot-et-Garonne
+FR-48	FR	Lozère
+FR-49	FR	Maine-et-Loire
+FR-50	FR	Manche
+FR-51	FR	Marne
+FR-52	FR	Haute-Marne
+FR-53	FR	Mayenne
+FR-54	FR	Meurthe-et-Moselle
+FR-55	FR	Meuse
+FR-56	FR	Morbihan
+FR-57	FR	Moselle
+FR-58	FR	Nièvre
+FR-59	FR	Nord
+FR-60	FR	Oise
+FR-61	FR	Orne
+FR-62	FR	Pas-de-Calais
+FR-63	FR	Puy-de-Dôme
+FR-64	FR	Pyrénées-Atlantiques
+FR-65	FR	Hautes-Pyrénées
+FR-66	FR	Pyrénées-Orientales
+FR-67	FR	Bas-Rhin
+FR-68	FR	Haut-Rhin
+FR-69	FR	Rhône
+FR-69M	FR	Métropole de Lyon
+FR-6AE	FR	Alsace
+FR-70	FR	Haute-Saône
+FR-71	FR	Saône-et-Loire
+FR-72	FR	Sarthe
+FR-73	FR	Savoie
+FR-74	FR	Haute-Savoie
+FR-75C	FR	Paris
+FR-76	FR	Seine-Maritime
+FR-77	FR	Seine-et-Marne
+FR-78	FR	Yvelines
+FR-79	FR	Deux-Sèvres
+FR-80	FR	Somme
+FR-81	FR	Tarn
+FR-82	FR	Tarn-et-Garonne
+FR-83	FR	Var
+FR-84	FR	Vaucluse
+FR-85	FR	Vendée
+FR-86	FR	Vienne
+FR-87	FR	Haute-Vienne
+FR-88	FR	Vosges
+FR-89	FR	Yonne
+FR-90	FR	Territoire de Belfort
+FR-91	FR	Essonne
+FR-92	FR	Hauts-de-Seine
+FR-93	FR	Seine-Saint-Denis
+FR-94	FR	Val-de-Marne
+FR-95	FR	Val-d'Oise
+FR-971	FR	Guadeloupe
+FR-972	FR	Martinique
+FR-973	FR	Guyane (française)
+FR-974	FR	La Réunion
+FR-976	FR	Mayotte
+FR-ARA	FR	Auvergne-Rhône-Alpes
+FR-BFC	FR	Bourgogne-Franche-Comté
+FR-BL	FR	Saint-Barthélemy
+FR-BRE	FR	Bretagne
+FR-CP	FR	Clipperton
+FR-CVL	FR	Centre-Val de Loire
+FR-GES	FR	Grand-Est
+FR-HDF	FR	Hauts-de-France
+FR-IDF	FR	Île-de-France
+FR-MF	FR	Saint-Martin
+FR-NAQ	FR	Nouvelle-Aquitaine
+FR-NC	FR	Nouvelle-Calédonie
+FR-NOR	FR	Normandie
+FR-OCC	FR	Occitanie
+FR-PAC	FR	Provence-Alpes-Côte-d’Azur
+FR-PDL	FR	Pays-de-la-Loire
+FR-PF	FR	Polynésie française
+FR-PM	FR	Saint-Pierre-et-Miquelon
+FR-TF	FR	Terres australes françaises
+FR-WF	FR	Wallis-et-Futuna
+GA-1	GA	Estuaire
+GA-2	GA	Haut-Ogooué
+GA-3	GA	Moyen-Ogooué
+GA-4	GA	Ngounié
+GA-5	GA	Nyanga
+GA-6	GA	Ogooué-Ivindo
+GA-7	GA	Ogooué-Lolo
+GA-8	GA	Ogooué-Maritime
+GA-9	GA	Woleu-Ntem
+GB-ABC	GB	Armagh City, Banbridge and Craigavon
+GB-ABD	GB	Aberdeenshire
+GB-ABE	GB	Aberdeen City
+GB-AGB	GB	Argyll and Bute
+GB-AGY	GB	Isle of Anglesey [Sir Ynys Môn GB-YNM]
+GB-AND	GB	Ards and North Down
+GB-ANN	GB	Antrim and Newtownabbey
+GB-ANS	GB	Angus
+GB-BAS	GB	Bath and North East Somerset
+GB-BBD	GB	Blackburn with Darwen
+GB-BCP	GB	Bournemouth, Christchurch and Poole
+GB-BDF	GB	Bedford
+GB-BDG	GB	Barking and Dagenham
+GB-BEN	GB	Brent
+GB-BEX	GB	Bexley
+GB-BFS	GB	Belfast City
+GB-BGE	GB	Bridgend [Pen-y-bont ar Ogwr GB-POG]
+GB-BGW	GB	Blaenau Gwent
+GB-BIR	GB	Birmingham
+GB-BKM	GB	Buckinghamshire
+GB-BNE	GB	Barnet
+GB-BNH	GB	Brighton and Hove
+GB-BNS	GB	Barnsley
+GB-BOL	GB	Bolton
+GB-BPL	GB	Blackpool
+GB-BRC	GB	Bracknell Forest
+GB-BRD	GB	Bradford
+GB-BRY	GB	Bromley
+GB-BST	GB	Bristol, City of
+GB-BUR	GB	Bury
+GB-CAM	GB	Cambridgeshire
+GB-CAY	GB	Caerphilly [Caerffili GB-CAF]
+GB-CBF	GB	Central Bedfordshire
+GB-CCG	GB	Causeway Coast and Glens
+GB-CGN	GB	Ceredigion [Sir Ceredigion]
+GB-CHE	GB	Cheshire East
+GB-CHW	GB	Cheshire West and Chester
+GB-CLD	GB	Calderdale
+GB-CLK	GB	Clackmannanshire
+GB-CMA	GB	Cumbria
+GB-CMD	GB	Camden
+GB-CMN	GB	Carmarthenshire [Sir Gaerfyrddin GB-GFY]
+GB-CON	GB	Cornwall
+GB-COV	GB	Coventry
+GB-CRF	GB	Cardiff [Caerdydd GB-CRD]
+GB-CRY	GB	Croydon
+GB-CWY	GB	Conwy
+GB-DAL	GB	Darlington
+GB-DBY	GB	Derbyshire
+GB-DEN	GB	Denbighshire [Sir Ddinbych GB-DDB]
+GB-DER	GB	Derby
+GB-DEV	GB	Devon
+GB-DGY	GB	Dumfries and Galloway
+GB-DNC	GB	Doncaster
+GB-DND	GB	Dundee City
+GB-DOR	GB	Dorset
+GB-DRS	GB	Derry and Strabane
+GB-DUD	GB	Dudley
+GB-DUR	GB	Durham, County
+GB-EAL	GB	Ealing
+GB-EAY	GB	East Ayrshire
+GB-EDH	GB	Edinburgh, City of
+GB-EDU	GB	East Dunbartonshire
+GB-ELN	GB	East Lothian
+GB-ELS	GB	Eilean Siar
+GB-ENF	GB	Enfield
+GB-ENG	GB	England
+GB-ERW	GB	East Renfrewshire
+GB-ERY	GB	East Riding of Yorkshire
+GB-ESS	GB	Essex
+GB-ESX	GB	East Sussex
+GB-FAL	GB	Falkirk
+GB-FIF	GB	Fife
+GB-FLN	GB	Flintshire [Sir y Fflint GB-FFL]
+GB-FMO	GB	Fermanagh and Omagh
+GB-GAT	GB	Gateshead
+GB-GLG	GB	Glasgow City
+GB-GLS	GB	Gloucestershire
+GB-GRE	GB	Greenwich
+GB-GWN	GB	Gwynedd
+GB-HAL	GB	Halton
+GB-HAM	GB	Hampshire
+GB-HAV	GB	Havering
+GB-HCK	GB	Hackney
+GB-HEF	GB	Herefordshire
+GB-HIL	GB	Hillingdon
+GB-HLD	GB	Highland
+GB-HMF	GB	Hammersmith and Fulham
+GB-HNS	GB	Hounslow
+GB-HPL	GB	Hartlepool
+GB-HRT	GB	Hertfordshire
+GB-HRW	GB	Harrow
+GB-HRY	GB	Haringey
+GB-IOS	GB	Isles of Scilly
+GB-IOW	GB	Isle of Wight
+GB-ISL	GB	Islington
+GB-IVC	GB	Inverclyde
+GB-KEC	GB	Kensington and Chelsea
+GB-KEN	GB	Kent
+GB-KHL	GB	Kingston upon Hull
+GB-KIR	GB	Kirklees
+GB-KTT	GB	Kingston upon Thames
+GB-KWL	GB	Knowsley
+GB-LAN	GB	Lancashire
+GB-LBC	GB	Lisburn and Castlereagh
+GB-LBH	GB	Lambeth
+GB-LCE	GB	Leicester
+GB-LDS	GB	Leeds
+GB-LEC	GB	Leicestershire
+GB-LEW	GB	Lewisham
+GB-LIN	GB	Lincolnshire
+GB-LIV	GB	Liverpool
+GB-LND	GB	London, City of
+GB-LUT	GB	Luton
+GB-MAN	GB	Manchester
+GB-MDB	GB	Middlesbrough
+GB-MDW	GB	Medway
+GB-MEA	GB	Mid and East Antrim
+GB-MIK	GB	Milton Keynes
+GB-MLN	GB	Midlothian
+GB-MON	GB	Monmouthshire [Sir Fynwy GB-FYN]
+GB-MRT	GB	Merton
+GB-MRY	GB	Moray
+GB-MTY	GB	Merthyr Tydfil [Merthyr Tudful GB-MTU]
+GB-MUL	GB	Mid-Ulster
+GB-NAY	GB	North Ayrshire
+GB-NBL	GB	Northumberland
+GB-NEL	GB	North East Lincolnshire
+GB-NET	GB	Newcastle upon Tyne
+GB-NFK	GB	Norfolk
+GB-NGM	GB	Nottingham
+GB-NIR	GB	Northern Ireland
+GB-NLK	GB	North Lanarkshire
+GB-NLN	GB	North Lincolnshire
+GB-NMD	GB	Newry, Mourne and Down
+GB-NNH	GB	North Northamptonshire
+GB-NSM	GB	North Somerset
+GB-NTL	GB	Neath Port Talbot [Castell-nedd Port Talbot GB-CTL]
+GB-NTT	GB	Nottinghamshire
+GB-NTY	GB	North Tyneside
+GB-NWM	GB	Newham
+GB-NWP	GB	Newport [Casnewydd GB-CNW]
+GB-NYK	GB	North Yorkshire
+GB-OLD	GB	Oldham
+GB-ORK	GB	Orkney Islands
+GB-OXF	GB	Oxfordshire
+GB-PEM	GB	Pembrokeshire [Sir Benfro GB-BNF]
+GB-PKN	GB	Perth and Kinross
+GB-PLY	GB	Plymouth
+GB-POR	GB	Portsmouth
+GB-POW	GB	Powys
+GB-PTE	GB	Peterborough
+GB-RCC	GB	Redcar and Cleveland
+GB-RCH	GB	Rochdale
+GB-RCT	GB	Rhondda Cynon Taff [Rhondda CynonTaf]
+GB-RDB	GB	Redbridge
+GB-RDG	GB	Reading
+GB-RFW	GB	Renfrewshire
+GB-RIC	GB	Richmond upon Thames
+GB-ROT	GB	Rotherham
+GB-RUT	GB	Rutland
+GB-SAW	GB	Sandwell
+GB-SAY	GB	South Ayrshire
+GB-SCB	GB	Scottish Borders
+GB-SCT	GB	Scotland
+GB-SFK	GB	Suffolk
+GB-SFT	GB	Sefton
+GB-SGC	GB	South Gloucestershire
+GB-SHF	GB	Sheffield
+GB-SHN	GB	St. Helens
+GB-SHR	GB	Shropshire
+GB-SKP	GB	Stockport
+GB-SLF	GB	Salford
+GB-SLG	GB	Slough
+GB-SLK	GB	South Lanarkshire
+GB-SND	GB	Sunderland
+GB-SOL	GB	Solihull
+GB-SOM	GB	Somerset
+GB-SOS	GB	Southend-on-Sea
+GB-SRY	GB	Surrey
+GB-STE	GB	Stoke-on-Trent
+GB-STG	GB	Stirling
+GB-STH	GB	Southampton
+GB-STN	GB	Sutton
+GB-STS	GB	Staffordshire
+GB-STT	GB	Stockton-on-Tees
+GB-STY	GB	South Tyneside
+GB-SWA	GB	Swansea [Abertawe GB-ATA]
+GB-SWD	GB	Swindon
+GB-SWK	GB	Southwark
+GB-TAM	GB	Tameside
+GB-TFW	GB	Telford and Wrekin
+GB-THR	GB	Thurrock
+GB-TOB	GB	Torbay
+GB-TOF	GB	Torfaen [Tor-faen]
+GB-TRF	GB	Trafford
+GB-TWH	GB	Tower Hamlets
+GB-VGL	GB	Vale of Glamorgan, The [Bro Morgannwg GB-BMG]
+GB-WAR	GB	Warwickshire
+GB-WBK	GB	West Berkshire
+GB-WDU	GB	West Dunbartonshire
+GB-WFT	GB	Waltham Forest
+GB-WGN	GB	Wigan
+GB-WIL	GB	Wiltshire
+GB-WKF	GB	Wakefield
+GB-WLL	GB	Walsall
+GB-WLN	GB	West Lothian
+GB-WLS	GB	Wales [Cymru GB-CYM]
+GB-WLV	GB	Wolverhampton
+GB-WND	GB	Wandsworth
+GB-WNH	GB	West Northamptonshire
+GB-WNM	GB	Windsor and Maidenhead
+GB-WOK	GB	Wokingham
+GB-WOR	GB	Worcestershire
+GB-WRL	GB	Wirral
+GB-WRT	GB	Warrington
+GB-WRX	GB	Wrexham [Wrecsam GB-WRC]
+GB-WSM	GB	Westminster
+GB-WSX	GB	West Sussex
+GB-YOR	GB	York
+GB-ZET	GB	Shetland Islands
+GD-01	GD	Saint Andrew
+GD-02	GD	Saint David
+GD-03	GD	Saint George
+GD-04	GD	Saint John
+GD-05	GD	Saint Mark
+GD-06	GD	Saint Patrick
+GD-10	GD	Southern Grenadine Islands
+GE-AB	GE	Abkhazia
+GE-AJ	GE	Ajaria
+GE-GU	GE	Guria
+GE-IM	GE	Imereti
+GE-KA	GE	K'akheti
+GE-KK	GE	Kvemo Kartli
+GE-MM	GE	Mtskheta-Mtianeti
+GE-RL	GE	Rach'a-Lechkhumi-Kvemo Svaneti
+GE-SJ	GE	Samtskhe-Javakheti
+GE-SK	GE	Shida Kartli
+GE-SZ	GE	Samegrelo-Zemo Svaneti
+GE-TB	GE	Tbilisi
+GH-AA	GH	Greater Accra
+GH-AF	GH	Ahafo
+GH-AH	GH	Ashanti
+GH-BE	GH	Bono East
+GH-BO	GH	Bono
+GH-CP	GH	Central
+GH-EP	GH	Eastern
+GH-NE	GH	North East
+GH-NP	GH	Northern
+GH-OT	GH	Oti
+GH-SV	GH	Savannah
+GH-TV	GH	Volta
+GH-UE	GH	Upper East
+GH-UW	GH	Upper West
+GH-WN	GH	Western North
+GH-WP	GH	Western
+GL-AV	GL	Avannaata Kommunia
+GL-KU	GL	Kommune Kujalleq
+GL-QE	GL	Qeqqata Kommunia
+GL-QT	GL	Kommune Qeqertalik
+GL-SM	GL	Kommuneqarfik Sermersooq
+GM-B	GM	Banjul
+GM-L	GM	Lower River
+GM-M	GM	Central River
+GM-N	GM	North Bank
+GM-U	GM	Upper River
+GM-W	GM	Western
+GN-B	GN	Boké
+GN-BE	GN	Beyla
+GN-BF	GN	Boffa
+GN-BK	GN	Boké
+GN-C	GN	Conakry
+GN-CO	GN	Coyah
+GN-D	GN	Kindia
+GN-DB	GN	Dabola
+GN-DI	GN	Dinguiraye
+GN-DL	GN	Dalaba
+GN-DU	GN	Dubréka
+GN-F	GN	Faranah
+GN-FA	GN	Faranah
+GN-FO	GN	Forécariah
+GN-FR	GN	Fria
+GN-GA	GN	Gaoual
+GN-GU	GN	Guékédou
+GN-K	GN	Kankan
+GN-KA	GN	Kankan
+GN-KB	GN	Koubia
+GN-KD	GN	Kindia
+GN-KE	GN	Kérouané
+GN-KN	GN	Koundara
+GN-KO	GN	Kouroussa
+GN-KS	GN	Kissidougou
+GN-L	GN	Labé
+GN-LA	GN	Labé
+GN-LE	GN	Lélouma
+GN-LO	GN	Lola
+GN-M	GN	Mamou
+GN-MC	GN	Macenta
+GN-MD	GN	Mandiana
+GN-ML	GN	Mali
+GN-MM	GN	Mamou
+GN-N	GN	Nzérékoré
+GN-NZ	GN	Nzérékoré
+GN-PI	GN	Pita
+GN-SI	GN	Siguiri
+GN-TE	GN	Télimélé
+GN-TO	GN	Tougué
+GN-YO	GN	Yomou
+GQ-AN	GQ	Annobon
+GQ-BN	GQ	Bioko Nord
+GQ-BS	GQ	Bioko Sud
+GQ-C	GQ	Région Continentale
+GQ-CS	GQ	Centro Sud
+GQ-DJ	GQ	Djibloho
+GQ-I	GQ	Région Insulaire
+GQ-KN	GQ	Kié-Ntem
+GQ-LI	GQ	Littoral
+GQ-WN	GQ	Wele-Nzas
+GR-69	GR	Ágion Óros
+GR-A	GR	Anatolikí Makedonía kai Thráki
+GR-B	GR	Kentrikí Makedonía
+GR-C	GR	Dytikí Makedonía
+GR-D	GR	Ípeiros
+GR-E	GR	Thessalía
+GR-F	GR	Ionía Nísia
+GR-G	GR	Dytikí Elláda
+GR-H	GR	Stereá Elláda
+GR-I	GR	Attikí
+GR-J	GR	Pelopónnisos
+GR-K	GR	Vóreio Aigaío
+GR-L	GR	Nótio Aigaío
+GR-M	GR	Kríti
+GT-01	GT	Guatemala
+GT-02	GT	El Progreso
+GT-03	GT	Sacatepéquez
+GT-04	GT	Chimaltenango
+GT-05	GT	Escuintla
+GT-06	GT	Santa Rosa
+GT-07	GT	Sololá
+GT-08	GT	Totonicapán
+GT-09	GT	Quetzaltenango
+GT-10	GT	Suchitepéquez
+GT-11	GT	Retalhuleu
+GT-12	GT	San Marcos
+GT-13	GT	Huehuetenango
+GT-14	GT	Quiché
+GT-15	GT	Baja Verapaz
+GT-16	GT	Alta Verapaz
+GT-17	GT	Petén
+GT-18	GT	Izabal
+GT-19	GT	Zacapa
+GT-20	GT	Chiquimula
+GT-21	GT	Jalapa
+GT-22	GT	Jutiapa
+GW-BA	GW	Bafatá
+GW-BL	GW	Bolama / Bijagós
+GW-BM	GW	Biombo
+GW-BS	GW	Bissau
+GW-CA	GW	Cacheu
+GW-GA	GW	Gabú
+GW-L	GW	Leste
+GW-N	GW	Norte
+GW-OI	GW	Oio
+GW-QU	GW	Quinara
+GW-S	GW	Sul
+GW-TO	GW	Tombali
+GY-BA	GY	Barima-Waini
+GY-CU	GY	Cuyuni-Mazaruni
+GY-DE	GY	Demerara-Mahaica
+GY-EB	GY	East Berbice-Corentyne
+GY-ES	GY	Essequibo Islands-West Demerara
+GY-MA	GY	Mahaica-Berbice
+GY-PM	GY	Pomeroon-Supenaam
+GY-PT	GY	Potaro-Siparuni
+GY-UD	GY	Upper Demerara-Berbice
+GY-UT	GY	Upper Takutu-Upper Essequibo
+HN-AT	HN	Atlántida
+HN-CH	HN	Choluteca
+HN-CL	HN	Colón
+HN-CM	HN	Comayagua
+HN-CP	HN	Copán
+HN-CR	HN	Cortés
+HN-EP	HN	El Paraíso
+HN-FM	HN	Francisco Morazán
+HN-GD	HN	Gracias a Dios
+HN-IB	HN	Islas de la Bahía
+HN-IN	HN	Intibucá
+HN-LE	HN	Lempira
+HN-LP	HN	La Paz
+HN-OC	HN	Ocotepeque
+HN-OL	HN	Olancho
+HN-SB	HN	Santa Bárbara
+HN-VA	HN	Valle
+HN-YO	HN	Yoro
+HR-01	HR	Zagrebačka županija
+HR-02	HR	Krapinsko-zagorska županija
+HR-03	HR	Sisačko-moslavačka županija
+HR-04	HR	Karlovačka županija
+HR-05	HR	Varaždinska županija
+HR-06	HR	Koprivničko-križevačka županija
+HR-07	HR	Bjelovarsko-bilogorska županija
+HR-08	HR	Primorsko-goranska županija
+HR-09	HR	Ličko-senjska županija
+HR-10	HR	Virovitičko-podravska županija
+HR-11	HR	Požeško-slavonska županija
+HR-12	HR	Brodsko-posavska županija
+HR-13	HR	Zadarska županija
+HR-14	HR	Osječko-baranjska županija
+HR-15	HR	Šibensko-kninska županija
+HR-16	HR	Vukovarsko-srijemska županija
+HR-17	HR	Splitsko-dalmatinska županija
+HR-18	HR	Istarska županija
+HR-19	HR	Dubrovačko-neretvanska županija
+HR-20	HR	Međimurska županija
+HR-21	HR	Grad Zagreb
+HT-AR	HT	Artibonite
+HT-CE	HT	Centre
+HT-GA	HT	Grande’Anse
+HT-ND	HT	Nord
+HT-NE	HT	Nord-Est
+HT-NI	HT	Nippes
+HT-NO	HT	Nord-Ouest
+HT-OU	HT	Ouest
+HT-SD	HT	Sud
+HT-SE	HT	Sud-Est
+HU-BA	HU	Baranya
+HU-BC	HU	Békéscsaba
+HU-BE	HU	Békés
+HU-BK	HU	Bács-Kiskun
+HU-BU	HU	Budapest
+HU-BZ	HU	Borsod-Abaúj-Zemplén
+HU-CS	HU	Csongrád-Csanád
+HU-DE	HU	Debrecen
+HU-DU	HU	Dunaújváros
+HU-EG	HU	Eger
+HU-ER	HU	Érd
+HU-FE	HU	Fejér
+HU-GS	HU	Győr-Moson-Sopron
+HU-GY	HU	Győr
+HU-HB	HU	Hajdú-Bihar
+HU-HE	HU	Heves
+HU-HV	HU	Hódmezővásárhely
+HU-JN	HU	Jász-Nagykun-Szolnok
+HU-KE	HU	Komárom-Esztergom
+HU-KM	HU	Kecskemét
+HU-KV	HU	Kaposvár
+HU-MI	HU	Miskolc
+HU-NK	HU	Nagykanizsa
+HU-NO	HU	Nógrád
+HU-NY	HU	Nyíregyháza
+HU-PE	HU	Pest
+HU-PS	HU	Pécs
+HU-SD	HU	Szeged
+HU-SF	HU	Székesfehérvár
+HU-SH	HU	Szombathely
+HU-SK	HU	Szolnok
+HU-SN	HU	Sopron
+HU-SO	HU	Somogy
+HU-SS	HU	Szekszárd
+HU-ST	HU	Salgótarján
+HU-SZ	HU	Szabolcs-Szatmár-Bereg
+HU-TB	HU	Tatabánya
+HU-TO	HU	Tolna
+HU-VA	HU	Vas
+HU-VE	HU	Veszprém
+HU-VM	HU	Veszprém
+HU-ZA	HU	Zala
+HU-ZE	HU	Zalaegerszeg
+ID-AC	ID	Aceh
+ID-BA	ID	Bali
+ID-BB	ID	Kepulauan Bangka Belitung
+ID-BE	ID	Bengkulu
+ID-BT	ID	Banten
+ID-GO	ID	Gorontalo
+ID-JA	ID	Jambi
+ID-JB	ID	Jawa Barat
+ID-JI	ID	Jawa Timur
+ID-JK	ID	Jakarta Raya
+ID-JT	ID	Jawa Tengah
+ID-JW	ID	Jawa
+ID-KA	ID	Kalimantan
+ID-KB	ID	Kalimantan Barat
+ID-KI	ID	Kalimantan Timur
+ID-KR	ID	Kepulauan Riau
+ID-KS	ID	Kalimantan Selatan
+ID-KT	ID	Kalimantan Tengah
+ID-KU	ID	Kalimantan Utara
+ID-LA	ID	Lampung
+ID-MA	ID	Maluku
+ID-ML	ID	Maluku
+ID-MU	ID	Maluku Utara
+ID-NB	ID	Nusa Tenggara Barat
+ID-NT	ID	Nusa Tenggara Timur
+ID-NU	ID	Nusa Tenggara
+ID-PA	ID	Papua
+ID-PB	ID	Papua Barat
+ID-PD	ID	Papua Barat Daya
+ID-PE	ID	Papua Pengunungan
+ID-PP	ID	Papua
+ID-PS	ID	Papua Selatan
+ID-PT	ID	Papua Tengah
+ID-RI	ID	Riau
+ID-SA	ID	Sulawesi Utara
+ID-SB	ID	Sumatera Barat
+ID-SG	ID	Sulawesi Tenggara
+ID-SL	ID	Sulawesi
+ID-SM	ID	Sumatera
+ID-SN	ID	Sulawesi Selatan
+ID-SR	ID	Sulawesi Barat
+ID-SS	ID	Sumatera Selatan
+ID-ST	ID	Sulawesi Tengah
+ID-SU	ID	Sumatera Utara
+ID-YO	ID	Yogyakarta
+IE-C	IE	Connaught
+IE-CE	IE	Clare
+IE-CN	IE	Cavan
+IE-CO	IE	Cork
+IE-CW	IE	Carlow
+IE-D	IE	Dublin
+IE-DL	IE	Donegal
+IE-G	IE	Galway
+IE-KE	IE	Kildare
+IE-KK	IE	Kilkenny
+IE-KY	IE	Kerry
+IE-L	IE	Leinster
+IE-LD	IE	Longford
+IE-LH	IE	Louth
+IE-LK	IE	Limerick
+IE-LM	IE	Leitrim
+IE-LS	IE	Laois
+IE-M	IE	Munster
+IE-MH	IE	Meath
+IE-MN	IE	Monaghan
+IE-MO	IE	Mayo
+IE-OY	IE	Offaly
+IE-RN	IE	Roscommon
+IE-SO	IE	Sligo
+IE-TA	IE	Tipperary
+IE-U	IE	Ulster
+IE-WD	IE	Waterford
+IE-WH	IE	Westmeath
+IE-WW	IE	Wicklow
+IE-WX	IE	Wexford
+IL-D	IL	Al Janūbī
+IL-HA	IL	Ḩayfā
+IL-JM	IL	Al Quds
+IL-M	IL	Al Awsaţ
+IL-TA	IL	Tall Abīb
+IL-Z	IL	Ash Shamālī
+IN-AN	IN	Andaman and Nicobar Islands
+IN-AP	IN	Andhra Pradesh
+IN-AR	IN	Arunāchal Pradesh
+IN-AS	IN	Assam
+IN-BR	IN	Bihār
+IN-CG	IN	Chhattīsgarh
+IN-CH	IN	Chandīgarh
+IN-DH	IN	Dādra and Nagar Haveli and Damān and Diu
+IN-DL	IN	Delhi
+IN-GA	IN	Goa
+IN-GJ	IN	Gujarāt
+IN-HP	IN	Himāchal Pradesh
+IN-HR	IN	Haryāna
+IN-JH	IN	Jhārkhand
+IN-JK	IN	Jammu and Kashmīr
+IN-KA	IN	Karnātaka
+IN-KL	IN	Kerala
+IN-LA	IN	Ladākh
+IN-LD	IN	Lakshadweep
+IN-MH	IN	Mahārāshtra
+IN-ML	IN	Meghālaya
+IN-MN	IN	Manipur
+IN-MP	IN	Madhya Pradesh
+IN-MZ	IN	Mizoram
+IN-NL	IN	Nāgāland
+IN-OD	IN	Odisha
+IN-PB	IN	Punjab
+IN-PY	IN	Puducherry
+IN-RJ	IN	Rājasthān
+IN-SK	IN	Sikkim
+IN-TN	IN	Tamil Nādu
+IN-TR	IN	Tripura
+IN-TS	IN	Telangāna
+IN-UK	IN	Uttarākhand
+IN-UP	IN	Uttar Pradesh
+IN-WB	IN	West Bengal
+IQ-AN	IQ	Al Anbār
+IQ-AR	IQ	Arbīl
+IQ-BA	IQ	Al Başrah
+IQ-BB	IQ	Bābil
+IQ-BG	IQ	Baghdād
+IQ-DA	IQ	Dahūk
+IQ-DI	IQ	Diyālá
+IQ-DQ	IQ	Dhī Qār
+IQ-KA	IQ	Karbalā’
+IQ-KI	IQ	Kirkūk
+IQ-KR	IQ	Iqlīm Kūrdistān
+IQ-MA	IQ	Maysān
+IQ-MU	IQ	Al Muthanná
+IQ-NA	IQ	An Najaf
+IQ-NI	IQ	Nīnawá
+IQ-QA	IQ	Al Qādisīyah
+IQ-SD	IQ	Şalāḩ ad Dīn
+IQ-SU	IQ	As Sulaymānīyah
+IQ-WA	IQ	Wāsiţ
+IR-00	IR	Markazī
+IR-01	IR	Gīlān
+IR-02	IR	Māzandarān
+IR-03	IR	Āz̄ārbāyjān-e Shārqī
+IR-04	IR	Āz̄ārbāyjān-e Ghārbī
+IR-05	IR	Kermānshāh
+IR-06	IR	Khūzestān
+IR-07	IR	Fārs
+IR-08	IR	Kermān
+IR-09	IR	Khorāsān-e Raẕavī
+IR-10	IR	Eşfahān
+IR-11	IR	Sīstān va Balūchestān
+IR-12	IR	Kordestān
+IR-13	IR	Hamadān
+IR-14	IR	Chahār Maḩāl va Bakhtīārī
+IR-15	IR	Lorestān
+IR-16	IR	Īlām
+IR-17	IR	Kohgīlūyeh va Bowyer Aḩmad
+IR-18	IR	Būshehr
+IR-19	IR	Zanjān
+IR-20	IR	Semnān
+IR-21	IR	Yazd
+IR-22	IR	Hormozgān
+IR-23	IR	Tehrān
+IR-24	IR	Ardabīl
+IR-25	IR	Qom
+IR-26	IR	Qazvīn
+IR-27	IR	Golestān
+IR-28	IR	Khorāsān-e Shomālī
+IR-29	IR	Khorāsān-e Jonūbī
+IR-30	IR	Alborz
+IS-1	IS	Höfuðborgarsvæði
+IS-2	IS	Suðurnes
+IS-3	IS	Vesturland
+IS-4	IS	Vestfirðir
+IS-5	IS	Norðurland vestra
+IS-6	IS	Norðurland eystra
+IS-7	IS	Austurland
+IS-8	IS	Suðurland
+IS-AKN	IS	Akraneskaupstaður
+IS-AKU	IS	Akureyrarbær
+IS-ARN	IS	Árneshreppur
+IS-ASA	IS	Ásahreppur
+IS-BLA	IS	Bláskógabyggð
+IS-BOG	IS	Borgarbyggð
+IS-BOL	IS	Bolungarvíkurkaupstaður
+IS-DAB	IS	Dalabyggð
+IS-DAV	IS	Dalvíkurbyggð
+IS-EOM	IS	Eyja- og Miklaholtshreppur
+IS-EYF	IS	Eyjafjarðarsveit
+IS-FJD	IS	Fjarðabyggð
+IS-FJL	IS	Fjallabyggð
+IS-FLA	IS	Flóahreppur
+IS-FLR	IS	Fljótsdalshreppur
+IS-GAR	IS	Garðabær
+IS-GOG	IS	Grímsnes- og Grafningshreppur
+IS-GRN	IS	Grindavíkurbær
+IS-GRU	IS	Grundarfjarðarbær
+IS-GRY	IS	Grýtubakkahreppur
+IS-HAF	IS	Hafnarfjarðarkaupstaður
+IS-HRG	IS	Hörgársveit
+IS-HRU	IS	Hrunamannahreppur
+IS-HUG	IS	Húnabyggð
+IS-HUV	IS	Húnaþing vestra
+IS-HVA	IS	Hvalfjarðarsveit
+IS-HVE	IS	Hveragerðisbær
+IS-ISA	IS	Ísafjarðarbær
+IS-KAL	IS	Kaldrananeshreppur
+IS-KJO	IS	Kjósarhreppur
+IS-KOP	IS	Kópavogsbær
+IS-LAN	IS	Langanesbyggð
+IS-MOS	IS	Mosfellsbær
+IS-MUL	IS	Múlaþing
+IS-MYR	IS	Mýrdalshreppur
+IS-NOR	IS	Norðurþing
+IS-RGE	IS	Rangárþing eystra
+IS-RGY	IS	Rangárþing ytra
+IS-RHH	IS	Reykhólahreppur
+IS-RKN	IS	Reykjanesbær
+IS-RKV	IS	Reykjavíkurborg
+IS-SBT	IS	Svalbarðsstrandarhreppur
+IS-SDN	IS	Suðurnesjabær
+IS-SDV	IS	Súðavíkurhreppur
+IS-SEL	IS	Seltjarnarnesbær
+IS-SFA	IS	Sveitarfélagið Árborg
+IS-SHF	IS	Sveitarfélagið Hornafjörður
+IS-SKF	IS	Skaftárhreppur
+IS-SKG	IS	Skagabyggð
+IS-SKO	IS	Skorradalshreppur
+IS-SKR	IS	Skagafjörður
+IS-SNF	IS	Snæfellsbær
+IS-SOG	IS	Skeiða- og Gnúpverjahreppur
+IS-SOL	IS	Sveitarfélagið Ölfus
+IS-SSS	IS	Sveitarfélagið Skagaströnd
+IS-STR	IS	Strandabyggð
+IS-STY	IS	Stykkishólmsbær
+IS-SVG	IS	Sveitarfélagið Vogar
+IS-TAL	IS	Tálknafjarðarhreppur
+IS-THG	IS	Þingeyjarsveit
+IS-TJO	IS	Tjörneshreppur
+IS-VEM	IS	Vestmannaeyjabær
+IS-VER	IS	Vesturbyggð
+IS-VOP	IS	Vopnafjarðarhreppur
+IT-21	IT	Piemonte
+IT-23	IT	Valle d'Aosta
+IT-25	IT	Lombardia
+IT-32	IT	Trentino-Alto Adige
+IT-34	IT	Veneto
+IT-36	IT	Friuli Venezia Giulia
+IT-42	IT	Liguria
+IT-45	IT	Emilia-Romagna
+IT-52	IT	Toscana
+IT-55	IT	Umbria
+IT-57	IT	Marche
+IT-62	IT	Lazio
+IT-65	IT	Abruzzo
+IT-67	IT	Molise
+IT-72	IT	Campania
+IT-75	IT	Puglia
+IT-77	IT	Basilicata
+IT-78	IT	Calabria
+IT-82	IT	Sicilia
+IT-88	IT	Sardegna
+IT-AG	IT	Agrigento
+IT-AL	IT	Alessandria
+IT-AN	IT	Ancona
+IT-AP	IT	Ascoli Piceno
+IT-AQ	IT	L'Aquila
+IT-AR	IT	Arezzo
+IT-AT	IT	Asti
+IT-AV	IT	Avellino
+IT-BA	IT	Bari
+IT-BG	IT	Bergamo
+IT-BI	IT	Biella
+IT-BL	IT	Belluno
+IT-BN	IT	Benevento
+IT-BO	IT	Bologna
+IT-BR	IT	Brindisi
+IT-BS	IT	Brescia
+IT-BT	IT	Barletta-Andria-Trani
+IT-BZ	IT	Bolzano
+IT-CA	IT	Cagliari
+IT-CB	IT	Campobasso
+IT-CE	IT	Caserta
+IT-CH	IT	Chieti
+IT-CL	IT	Caltanissetta
+IT-CN	IT	Cuneo
+IT-CO	IT	Como
+IT-CR	IT	Cremona
+IT-CS	IT	Cosenza
+IT-CT	IT	Catania
+IT-CZ	IT	Catanzaro
+IT-EN	IT	Enna
+IT-FC	IT	Forlì-Cesena
+IT-FE	IT	Ferrara
+IT-FG	IT	Foggia
+IT-FI	IT	Firenze
+IT-FM	IT	Fermo
+IT-FR	IT	Frosinone
+IT-GE	IT	Genova
+IT-GO	IT	Gorizia
+IT-GR	IT	Grosseto
+IT-IM	IT	Imperia
+IT-IS	IT	Isernia
+IT-KR	IT	Crotone
+IT-LC	IT	Lecco
+IT-LE	IT	Lecce
+IT-LI	IT	Livorno
+IT-LO	IT	Lodi
+IT-LT	IT	Latina
+IT-LU	IT	Lucca
+IT-MB	IT	Monza e Brianza
+IT-MC	IT	Macerata
+IT-ME	IT	Messina
+IT-MI	IT	Milano
+IT-MN	IT	Mantova
+IT-MO	IT	Modena
+IT-MS	IT	Massa-Carrara
+IT-MT	IT	Matera
+IT-NA	IT	Napoli
+IT-NO	IT	Novara
+IT-NU	IT	Nuoro
+IT-OR	IT	Oristano
+IT-PA	IT	Palermo
+IT-PC	IT	Piacenza
+IT-PD	IT	Padova
+IT-PE	IT	Pescara
+IT-PG	IT	Perugia
+IT-PI	IT	Pisa
+IT-PN	IT	Pordenone
+IT-PO	IT	Prato
+IT-PR	IT	Parma
+IT-PT	IT	Pistoia
+IT-PU	IT	Pesaro e Urbino
+IT-PV	IT	Pavia
+IT-PZ	IT	Potenza
+IT-RA	IT	Ravenna
+IT-RC	IT	Reggio Calabria
+IT-RE	IT	Reggio Emilia
+IT-RG	IT	Ragusa
+IT-RI	IT	Rieti
+IT-RM	IT	Roma
+IT-RN	IT	Rimini
+IT-RO	IT	Rovigo
+IT-SA	IT	Salerno
+IT-SI	IT	Siena
+IT-SO	IT	Sondrio
+IT-SP	IT	La Spezia
+IT-SR	IT	Siracusa
+IT-SS	IT	Sassari
+IT-SU	IT	Sud Sardegna
+IT-SV	IT	Savona
+IT-TA	IT	Taranto
+IT-TE	IT	Teramo
+IT-TN	IT	Trento
+IT-TO	IT	Torino
+IT-TP	IT	Trapani
+IT-TR	IT	Terni
+IT-TS	IT	Trieste
+IT-TV	IT	Treviso
+IT-UD	IT	Udine
+IT-VA	IT	Varese
+IT-VB	IT	Verbano-Cusio-Ossola
+IT-VC	IT	Vercelli
+IT-VE	IT	Venezia
+IT-VI	IT	Vicenza
+IT-VR	IT	Verona
+IT-VT	IT	Viterbo
+IT-VV	IT	Vibo Valentia
+JM-01	JM	Kingston
+JM-02	JM	Saint Andrew
+JM-03	JM	Saint Thomas
+JM-04	JM	Portland
+JM-05	JM	Saint Mary
+JM-06	JM	Saint Ann
+JM-07	JM	Trelawny
+JM-08	JM	Saint James
+JM-09	JM	Hanover
+JM-10	JM	Westmoreland
+JM-11	JM	Saint Elizabeth
+JM-12	JM	Manchester
+JM-13	JM	Clarendon
+JM-14	JM	Saint Catherine
+JO-AJ	JO	‘Ajlūn
+JO-AM	JO	Al ‘A̅şimah
+JO-AQ	JO	Al ‘Aqabah
+JO-AT	JO	Aţ Ţafīlah
+JO-AZ	JO	Az Zarqā’
+JO-BA	JO	Al Balqā’
+JO-IR	JO	Irbid
+JO-JA	JO	Jarash
+JO-KA	JO	Al Karak
+JO-MA	JO	Al Mafraq
+JO-MD	JO	Mādabā
+JO-MN	JO	Ma‘ān
+JP-01	JP	Hokkaido
+JP-02	JP	Aomori
+JP-03	JP	Iwate
+JP-04	JP	Miyagi
+JP-05	JP	Akita
+JP-06	JP	Yamagata
+JP-07	JP	Fukushima
+JP-08	JP	Ibaraki
+JP-09	JP	Tochigi
+JP-10	JP	Gunma
+JP-11	JP	Saitama
+JP-12	JP	Chiba
+JP-13	JP	Tokyo
+JP-14	JP	Kanagawa
+JP-15	JP	Niigata
+JP-16	JP	Toyama
+JP-17	JP	Ishikawa
+JP-18	JP	Fukui
+JP-19	JP	Yamanashi
+JP-20	JP	Nagano
+JP-21	JP	Gifu
+JP-22	JP	Shizuoka
+JP-23	JP	Aichi
+JP-24	JP	Mie
+JP-25	JP	Shiga
+JP-26	JP	Kyoto
+JP-27	JP	Osaka
+JP-28	JP	Hyogo
+JP-29	JP	Nara
+JP-30	JP	Wakayama
+JP-31	JP	Tottori
+JP-32	JP	Shimane
+JP-33	JP	Okayama
+JP-34	JP	Hiroshima
+JP-35	JP	Yamaguchi
+JP-36	JP	Tokushima
+JP-37	JP	Kagawa
+JP-38	JP	Ehime
+JP-39	JP	Kochi
+JP-40	JP	Fukuoka
+JP-41	JP	Saga
+JP-42	JP	Nagasaki
+JP-43	JP	Kumamoto
+JP-44	JP	Oita
+JP-45	JP	Miyazaki
+JP-46	JP	Kagoshima
+JP-47	JP	Okinawa
+KE-01	KE	Baringo
+KE-02	KE	Bomet
+KE-03	KE	Bungoma
+KE-04	KE	Busia
+KE-05	KE	Elgeyo/Marakwet
+KE-06	KE	Embu
+KE-07	KE	Garissa
+KE-08	KE	Homa Bay
+KE-09	KE	Isiolo
+KE-10	KE	Kajiado
+KE-11	KE	Kakamega
+KE-12	KE	Kericho
+KE-13	KE	Kiambu
+KE-14	KE	Kilifi
+KE-15	KE	Kirinyaga
+KE-16	KE	Kisii
+KE-17	KE	Kisumu
+KE-18	KE	Kitui
+KE-19	KE	Kwale
+KE-20	KE	Laikipia
+KE-21	KE	Lamu
+KE-22	KE	Machakos
+KE-23	KE	Makueni
+KE-24	KE	Mandera
+KE-25	KE	Marsabit
+KE-26	KE	Meru
+KE-27	KE	Migori
+KE-28	KE	Mombasa
+KE-29	KE	Murang'a
+KE-30	KE	Nairobi City
+KE-31	KE	Nakuru
+KE-32	KE	Nandi
+KE-33	KE	Narok
+KE-34	KE	Nyamira
+KE-35	KE	Nyandarua
+KE-36	KE	Nyeri
+KE-37	KE	Samburu
+KE-38	KE	Siaya
+KE-39	KE	Taita/Taveta
+KE-40	KE	Tana River
+KE-41	KE	Tharaka-Nithi
+KE-42	KE	Trans Nzoia
+KE-43	KE	Turkana
+KE-44	KE	Uasin Gishu
+KE-45	KE	Vihiga
+KE-46	KE	Wajir
+KE-47	KE	West Pokot
+KG-B	KG	Batken
+KG-C	KG	Chüy
+KG-GB	KG	Bishkek Shaary
+KG-GO	KG	Osh Shaary
+KG-J	KG	Jalal-Abad
+KG-N	KG	Naryn
+KG-O	KG	Osh
+KG-T	KG	Talas
+KG-Y	KG	Ysyk-Köl
+KH-1	KH	Banteay Mean Choăy
+KH-10	KH	Kracheh
+KH-11	KH	Mondol Kiri
+KH-12	KH	Phnom Penh
+KH-13	KH	Preah Vihear
+KH-14	KH	Prey Veaeng
+KH-15	KH	Pousaat
+KH-16	KH	Rotanak Kiri
+KH-17	KH	Siem Reab
+KH-18	KH	Preah Sihanouk
+KH-19	KH	Stueng Traeng
+KH-2	KH	Baat Dambang
+KH-20	KH	Svaay Rieng
+KH-21	KH	Taakaev
+KH-22	KH	Otdar Mean Chey
+KH-23	KH	Kaeb
+KH-24	KH	Pailin
+KH-25	KH	Tbong Khmum
+KH-3	KH	Kampong Chaam
+KH-4	KH	Kampong Chhnang
+KH-5	KH	Kampong Spueu
+KH-6	KH	Kampong Thum
+KH-7	KH	Kampot
+KH-8	KH	Kandaal
+KH-9	KH	Kaoh Kong
+KI-G	KI	Gilbert Islands
+KI-L	KI	Line Islands
+KI-P	KI	Phoenix Islands
+KM-A	KM	Anjouan
+KM-G	KM	Grande Comore
+KM-M	KM	Mohéli
+KN-01	KN	Christ Church Nichola Town
+KN-02	KN	Saint Anne Sandy Point
+KN-03	KN	Saint George Basseterre
+KN-04	KN	Saint George Gingerland
+KN-05	KN	Saint James Windward
+KN-06	KN	Saint John Capisterre
+KN-07	KN	Saint John Figtree
+KN-08	KN	Saint Mary Cayon
+KN-09	KN	Saint Paul Capisterre
+KN-10	KN	Saint Paul Charlestown
+KN-11	KN	Saint Peter Basseterre
+KN-12	KN	Saint Thomas Lowland
+KN-13	KN	Saint Thomas Middle Island
+KN-15	KN	Trinity Palmetto Point
+KN-K	KN	Saint Kitts
+KN-N	KN	Nevis
+KP-01	KP	Phyeongyang
+KP-02	KP	Phyeongannamto
+KP-03	KP	Phyeonganpukto
+KP-04	KP	Jakangto
+KP-05	KP	Hwanghainamto
+KP-06	KP	Hwanghaipukto
+KP-07	KP	Kangweonto
+KP-08	KP	Hamkyeongnamto
+KP-09	KP	Hamkyeongpukto
+KP-10	KP	Ryangkangto
+KP-13	KP	Raseon
+KP-14	KP	Nampho
+KP-15	KP	Kaeseong
+KR-11	KR	Seoul-teukbyeolsi
+KR-26	KR	Busan-gwangyeoksi
+KR-27	KR	Daegu-gwangyeoksi
+KR-28	KR	Incheon-gwangyeoksi
+KR-29	KR	Gwangju-gwangyeoksi
+KR-30	KR	Daejeon-gwangyeoksi
+KR-31	KR	Ulsan-gwangyeoksi
+KR-41	KR	Gyeonggi-do
+KR-42	KR	Gangwon-teukbyeoljachido
+KR-43	KR	Chungcheongbuk-do
+KR-44	KR	Chungcheongnam-do
+KR-45	KR	Jeollabuk-do
+KR-46	KR	Jeollanam-do
+KR-47	KR	Gyeongsangbuk-do
+KR-48	KR	Gyeongsangnam-do
+KR-49	KR	Jeju-teukbyeoljachido
+KR-50	KR	Sejong
+KW-AH	KW	Al Aḩmadī
+KW-FA	KW	Al Farwānīyah
+KW-HA	KW	Ḩawallī
+KW-JA	KW	Al Jahrā’
+KW-KU	KW	Al ‘Āşimah
+KW-MU	KW	Mubārak al Kabīr
+KZ-10	KZ	Abay oblysy
+KZ-11	KZ	Aqmola oblysy
+KZ-15	KZ	Aqtöbe oblysy
+KZ-19	KZ	Almaty oblysy
+KZ-23	KZ	Atyraū oblysy
+KZ-27	KZ	Batys Qazaqstan oblysy
+KZ-31	KZ	Zhambyl oblysy
+KZ-33	KZ	Zhetisū oblysy
+KZ-35	KZ	Qaraghandy oblysy
+KZ-39	KZ	Qostanay oblysy
+KZ-43	KZ	Qyzylorda oblysy
+KZ-47	KZ	Mangghystaū oblysy
+KZ-55	KZ	Pavlodar oblysy
+KZ-59	KZ	Soltüstik Qazaqstan oblysy
+KZ-61	KZ	Türkistan oblysy
+KZ-62	KZ	Ulytaū oblysy
+KZ-63	KZ	Shyghys Qazaqstan oblysy
+KZ-71	KZ	Astana
+KZ-75	KZ	Almaty
+KZ-79	KZ	Shymkent
+LA-AT	LA	Attapu
+LA-BK	LA	Bokèo
+LA-BL	LA	Bolikhamxai
+LA-CH	LA	Champasak
+LA-HO	LA	Houaphan
+LA-KH	LA	Khammouan
+LA-LM	LA	Louang Namtha
+LA-LP	LA	Louangphabang
+LA-OU	LA	Oudômxai
+LA-PH	LA	Phôngsali
+LA-SL	LA	Salavan
+LA-SV	LA	Savannakhét
+LA-VI	LA	Viangchan
+LA-VT	LA	Viangchan
+LA-XA	LA	Xaignabouli
+LA-XE	LA	Xékong
+LA-XI	LA	Xiangkhouang
+LA-XS	LA	Xaisômboun
+LB-AK	LB	‘Akkār
+LB-AS	LB	Ash Shimāl
+LB-BA	LB	Bayrūt
+LB-BH	LB	B‘alabak-Al Hirmil
+LB-BI	LB	Al Biqā‘
+LB-JA	LB	Al Janūb
+LB-JL	LB	Jabal Lubnān
+LB-NA	LB	An Nabaţīyah
+LC-01	LC	Anse la Raye
+LC-02	LC	Castries
+LC-03	LC	Choiseul
+LC-05	LC	Dennery
+LC-06	LC	Gros Islet
+LC-07	LC	Laborie
+LC-08	LC	Micoud
+LC-10	LC	Soufrière
+LC-11	LC	Vieux Fort
+LC-12	LC	Canaries
+LI-01	LI	Balzers
+LI-02	LI	Eschen
+LI-03	LI	Gamprin
+LI-04	LI	Mauren
+LI-05	LI	Planken
+LI-06	LI	Ruggell
+LI-07	LI	Schaan
+LI-08	LI	Schellenberg
+LI-09	LI	Triesen
+LI-10	LI	Triesenberg
+LI-11	LI	Vaduz
+LK-1	LK	Western Province
+LK-11	LK	Colombo
+LK-12	LK	Gampaha
+LK-13	LK	Kalutara
+LK-2	LK	Central Province
+LK-21	LK	Kandy
+LK-22	LK	Matale
+LK-23	LK	Nuwara Eliya
+LK-3	LK	Southern Province
+LK-31	LK	Galle
+LK-32	LK	Matara
+LK-33	LK	Hambantota
+LK-4	LK	Northern Province
+LK-41	LK	Jaffna
+LK-42	LK	Kilinochchi
+LK-43	LK	Mannar
+LK-44	LK	Vavuniya
+LK-45	LK	Mullaittivu
+LK-5	LK	Eastern Province
+LK-51	LK	Batticaloa
+LK-52	LK	Ampara
+LK-53	LK	Trincomalee
+LK-6	LK	North Western Province
+LK-61	LK	Kurunegala
+LK-62	LK	Puttalam
+LK-7	LK	North Central Province
+LK-71	LK	Anuradhapura
+LK-72	LK	Polonnaruwa
+LK-8	LK	Uva Province
+LK-81	LK	Badulla
+LK-82	LK	Monaragala
+LK-9	LK	Sabaragamuwa Province
+LK-91	LK	Ratnapura
+LK-92	LK	Kegalla
+LR-BG	LR	Bong
+LR-BM	LR	Bomi
+LR-CM	LR	Grand Cape Mount
+LR-GB	LR	Grand Bassa
+LR-GG	LR	Grand Gedeh
+LR-GK	LR	Grand Kru
+LR-GP	LR	Gbarpolu
+LR-LO	LR	Lofa
+LR-MG	LR	Margibi
+LR-MO	LR	Montserrado
+LR-MY	LR	Maryland
+LR-NI	LR	Nimba
+LR-RG	LR	River Gee
+LR-RI	LR	River Cess
+LR-SI	LR	Sinoe
+LS-A	LS	Maseru
+LS-B	LS	Botha-Bothe
+LS-C	LS	Leribe
+LS-D	LS	Berea
+LS-E	LS	Mafeteng
+LS-F	LS	Mohale's Hoek
+LS-G	LS	Quthing
+LS-H	LS	Qacha's Nek
+LS-J	LS	Mokhotlong
+LS-K	LS	Thaba-Tseka
+LT-01	LT	Akmenė
+LT-02	LT	Alytaus miestas
+LT-03	LT	Alytus
+LT-04	LT	Anykščiai
+LT-05	LT	Birštonas
+LT-06	LT	Biržai
+LT-07	LT	Druskininkai
+LT-08	LT	Elektrėnai
+LT-09	LT	Ignalina
+LT-10	LT	Jonava
+LT-11	LT	Joniškis
+LT-12	LT	Jurbarkas
+LT-13	LT	Kaišiadorys
+LT-14	LT	Kalvarija
+LT-15	LT	Kauno miestas
+LT-16	LT	Kaunas
+LT-17	LT	Kazlų Rūdos
+LT-18	LT	Kėdainiai
+LT-19	LT	Kelmė
+LT-20	LT	Klaipėdos miestas
+LT-21	LT	Klaipėda
+LT-22	LT	Kretinga
+LT-23	LT	Kupiškis
+LT-24	LT	Lazdijai
+LT-25	LT	Marijampolė
+LT-26	LT	Mažeikiai
+LT-27	LT	Molėtai
+LT-28	LT	Neringa
+LT-29	LT	Pagėgiai
+LT-30	LT	Pakruojis
+LT-31	LT	Palangos miestas
+LT-32	LT	Panevėžio miestas
+LT-33	LT	Panevėžys
+LT-34	LT	Pasvalys
+LT-35	LT	Plungė
+LT-36	LT	Prienai
+LT-37	LT	Radviliškis
+LT-38	LT	Raseiniai
+LT-39	LT	Rietavas
+LT-40	LT	Rokiškis
+LT-41	LT	Šakiai
+LT-42	LT	Šalčininkai
+LT-43	LT	Šiaulių miestas
+LT-44	LT	Šiauliai
+LT-45	LT	Šilalė
+LT-46	LT	Šilutė
+LT-47	LT	Širvintos
+LT-48	LT	Skuodas
+LT-49	LT	Švenčionys
+LT-50	LT	Tauragė
+LT-51	LT	Telšiai
+LT-52	LT	Trakai
+LT-53	LT	Ukmergė
+LT-54	LT	Utena
+LT-55	LT	Varėna
+LT-56	LT	Vilkaviškis
+LT-57	LT	Vilniaus miestas
+LT-58	LT	Vilnius
+LT-59	LT	Visaginas
+LT-60	LT	Zarasai
+LT-AL	LT	Alytaus apskritis
+LT-KL	LT	Klaipėdos apskritis
+LT-KU	LT	Kauno apskritis
+LT-MR	LT	Marijampolės apskritis
+LT-PN	LT	Panevėžio apskritis
+LT-SA	LT	Šiaulių apskritis
+LT-TA	LT	Tauragės apskritis
+LT-TE	LT	Telšių apskritis
+LT-UT	LT	Utenos apskritis
+LT-VL	LT	Vilniaus apskritis
+LU-CA	LU	Capellen
+LU-CL	LU	Clervaux
+LU-DI	LU	Diekirch
+LU-EC	LU	Echternach
+LU-ES	LU	Esch-sur-Alzette
+LU-GR	LU	Grevenmacher
+LU-LU	LU	Luxembourg
+LU-ME	LU	Mersch
+LU-RD	LU	Redange
+LU-RM	LU	Remich
+LU-VD	LU	Vianden
+LU-WI	LU	Wiltz
+LV-002	LV	Aizkraukles novads
+LV-007	LV	Alūksnes novads
+LV-011	LV	Ādažu novads
+LV-015	LV	Balvu novads
+LV-016	LV	Bauskas novads
+LV-022	LV	Cēsu novads
+LV-026	LV	Dobeles novads
+LV-033	LV	Gulbenes novads
+LV-041	LV	Jelgavas novads
+LV-042	LV	Jēkabpils novads
+LV-047	LV	Krāslavas novads
+LV-050	LV	Kuldīgas novads
+LV-052	LV	Ķekavas novads
+LV-054	LV	Limbažu novads
+LV-056	LV	Līvānu novads
+LV-058	LV	Ludzas novads
+LV-059	LV	Madonas novads
+LV-062	LV	Mārupes novads
+LV-067	LV	Ogres novads
+LV-068	LV	Olaines novads
+LV-073	LV	Preiļu novads
+LV-077	LV	Rēzeknes novads
+LV-080	LV	Ropažu novads
+LV-087	LV	Salaspils novads
+LV-088	LV	Saldus novads
+LV-089	LV	Saulkrastu novads
+LV-091	LV	Siguldas novads
+LV-094	LV	Smiltenes novads
+LV-097	LV	Talsu novads
+LV-099	LV	Tukuma novads
+LV-101	LV	Valkas novads
+LV-102	LV	Varakļānu novads
+LV-106	LV	Ventspils novads
+LV-111	LV	Augšdaugavas novads
+LV-112	LV	Dienvidkurzemes Novads
+LV-113	LV	Valmieras Novads
+LV-DGV	LV	Daugavpils
+LV-JEL	LV	Jelgava
+LV-JUR	LV	Jūrmala
+LV-LPX	LV	Liepāja
+LV-REZ	LV	Rēzekne
+LV-RIX	LV	Rīga
+LV-VEN	LV	Ventspils
+LY-BA	LY	Banghāzī
+LY-BU	LY	Al Buţnān
+LY-DR	LY	Darnah
+LY-GT	LY	Ghāt
+LY-JA	LY	Al Jabal al Akhḑar
+LY-JG	LY	Al Jabal al Gharbī
+LY-JI	LY	Al Jafārah
+LY-JU	LY	Al Jufrah
+LY-KF	LY	Al Kufrah
+LY-MB	LY	Al Marqab
+LY-MI	LY	Mişrātah
+LY-MJ	LY	Al Marj
+LY-MQ	LY	Murzuq
+LY-NL	LY	Nālūt
+LY-NQ	LY	An Nuqāţ al Khams
+LY-SB	LY	Sabhā
+LY-SR	LY	Surt
+LY-TB	LY	Ţarābulus
+LY-WA	LY	Al Wāḩāt
+LY-WD	LY	Wādī al Ḩayāt
+LY-WS	LY	Wādī ash Shāţi’
+LY-ZA	LY	Az Zāwiyah
+MA-01	MA	Tanger-Tétouan-Al Hoceïma
+MA-02	MA	L'Oriental
+MA-03	MA	Fès-Meknès
+MA-04	MA	Rabat-Salé-Kénitra
+MA-05	MA	Béni Mellal-Khénifra
+MA-06	MA	Casablanca-Settat
+MA-07	MA	Marrakech-Safi
+MA-08	MA	Drâa-Tafilalet
+MA-09	MA	Souss-Massa
+MA-10	MA	Guelmim-Oued Noun (EH-partial)
+MA-11	MA	Laâyoune-Sakia El Hamra (EH-partial)
+MA-12	MA	Dakhla-Oued Ed-Dahab (EH)
+MA-AGD	MA	Agadir-Ida-Ou-Tanane
+MA-AOU	MA	Aousserd (EH)
+MA-ASZ	MA	Assa-Zag (EH-partial)
+MA-AZI	MA	Azilal
+MA-BEM	MA	Béni Mellal
+MA-BER	MA	Berkane
+MA-BES	MA	Benslimane
+MA-BOD	MA	Boujdour (EH)
+MA-BOM	MA	Boulemane
+MA-BRR	MA	Berrechid
+MA-CAS	MA	Casablanca
+MA-CHE	MA	Chefchaouen
+MA-CHI	MA	Chichaoua
+MA-CHT	MA	Chtouka-Ait Baha
+MA-DRI	MA	Driouch
+MA-ERR	MA	Errachidia
+MA-ESI	MA	Essaouira
+MA-ESM	MA	Es-Semara (EH-partial)
+MA-FAH	MA	Fahs-Anjra
+MA-FES	MA	Fès
+MA-FIG	MA	Figuig
+MA-FQH	MA	Fquih Ben Salah
+MA-GUE	MA	Guelmim
+MA-GUF	MA	Guercif
+MA-HAJ	MA	El Hajeb
+MA-HAO	MA	Al Haouz
+MA-HOC	MA	Al Hoceïma
+MA-IFR	MA	Ifrane
+MA-INE	MA	Inezgane-Ait Melloul
+MA-JDI	MA	El Jadida
+MA-JRA	MA	Jerada
+MA-KEN	MA	Kénitra
+MA-KES	MA	El Kelâa des Sraghna
+MA-KHE	MA	Khémisset
+MA-KHN	MA	Khénifra
+MA-KHO	MA	Khouribga
+MA-LAA	MA	Laâyoune (EH)
+MA-LAR	MA	Larache
+MA-MAR	MA	Marrakech
+MA-MDF	MA	M’diq-Fnideq
+MA-MED	MA	Médiouna
+MA-MEK	MA	Meknès
+MA-MID	MA	Midelt
+MA-MOH	MA	Mohammadia
+MA-MOU	MA	Moulay Yacoub
+MA-NAD	MA	Nador
+MA-NOU	MA	Nouaceur
+MA-OUA	MA	Ouarzazate
+MA-OUD	MA	Oued Ed-Dahab (EH)
+MA-OUJ	MA	Oujda-Angad
+MA-OUZ	MA	Ouezzane
+MA-RAB	MA	Rabat
+MA-REH	MA	Rehamna
+MA-SAF	MA	Safi
+MA-SAL	MA	Salé
+MA-SEF	MA	Sefrou
+MA-SET	MA	Settat
+MA-SIB	MA	Sidi Bennour
+MA-SIF	MA	Sidi Ifni
+MA-SIK	MA	Sidi Kacem
+MA-SIL	MA	Sidi Slimane
+MA-SKH	MA	Skhirate-Témara
+MA-TAF	MA	Tarfaya (EH-partial)
+MA-TAI	MA	Taourirt
+MA-TAO	MA	Taounate
+MA-TAR	MA	Taroudannt
+MA-TAT	MA	Tata
+MA-TAZ	MA	Taza
+MA-TET	MA	Tétouan
+MA-TIN	MA	Tinghir
+MA-TIZ	MA	Tiznit
+MA-TNG	MA	Tanger-Assilah
+MA-TNT	MA	Tan-Tan (EH-partial)
+MA-YUS	MA	Youssoufia
+MA-ZAG	MA	Zagora
+MC-CL	MC	La Colle
+MC-CO	MC	La Condamine
+MC-FO	MC	Fontvieille
+MC-GA	MC	La Gare
+MC-JE	MC	Jardin Exotique
+MC-LA	MC	Larvotto
+MC-MA	MC	Malbousquet
+MC-MC	MC	Monte-Carlo
+MC-MG	MC	Moneghetti
+MC-MO	MC	Monaco-Ville
+MC-MU	MC	Moulins
+MC-PH	MC	Port-Hercule
+MC-SD	MC	Sainte-Dévote
+MC-SO	MC	La Source
+MC-SP	MC	Spélugues
+MC-SR	MC	Saint-Roman
+MC-VR	MC	Vallon de la Rousse
+MD-AN	MD	Anenii Noi
+MD-BA	MD	Bălți
+MD-BD	MD	Bender [Tighina]
+MD-BR	MD	Briceni
+MD-BS	MD	Basarabeasca
+MD-CA	MD	Cahul
+MD-CL	MD	Călărași
+MD-CM	MD	Cimișlia
+MD-CR	MD	Criuleni
+MD-CS	MD	Căușeni
+MD-CT	MD	Cantemir
+MD-CU	MD	Chișinău
+MD-DO	MD	Dondușeni
+MD-DR	MD	Drochia
+MD-DU	MD	Dubăsari
+MD-ED	MD	Edineț
+MD-FA	MD	Fălești
+MD-FL	MD	Florești
+MD-GA	MD	Găgăuzia, Unitatea teritorială autonomă (UTAG)
+MD-GL	MD	Glodeni
+MD-HI	MD	Hîncești
+MD-IA	MD	Ialoveni
+MD-LE	MD	Leova
+MD-NI	MD	Nisporeni
+MD-OC	MD	Ocnița
+MD-OR	MD	Orhei
+MD-RE	MD	Rezina
+MD-RI	MD	Rîșcani
+MD-SD	MD	Șoldănești
+MD-SI	MD	Sîngerei
+MD-SN	MD	Stînga Nistrului, unitatea teritorială din
+MD-SO	MD	Soroca
+MD-ST	MD	Strășeni
+MD-SV	MD	Ștefan Vodă
+MD-TA	MD	Taraclia
+MD-TE	MD	Telenești
+MD-UN	MD	Ungheni
+ME-01	ME	Andrijevica
+ME-02	ME	Bar
+ME-03	ME	Berane
+ME-04	ME	Bijelo Polje
+ME-05	ME	Budva
+ME-06	ME	Cetinje
+ME-07	ME	Danilovgrad
+ME-08	ME	Herceg-Novi
+ME-09	ME	Kolašin
+ME-10	ME	Kotor
+ME-11	ME	Mojkovac
+ME-12	ME	Nikšić
+ME-13	ME	Plav
+ME-14	ME	Pljevlja
+ME-15	ME	Plužine
+ME-16	ME	Podgorica
+ME-17	ME	Rožaje
+ME-18	ME	Šavnik
+ME-19	ME	Tivat
+ME-20	ME	Ulcinj
+ME-21	ME	Žabljak
+ME-22	ME	Gusinje
+ME-23	ME	Petnjica
+ME-24	ME	Tuzi
+ME-25	ME	Zeta
+MG-A	MG	Toamasina
+MG-D	MG	Antsiranana
+MG-F	MG	Fianarantsoa
+MG-M	MG	Mahajanga
+MG-T	MG	Antananarivo
+MG-U	MG	Toliara
+MH-ALK	MH	Ailuk
+MH-ALL	MH	Ailinglaplap
+MH-ARN	MH	Arno
+MH-AUR	MH	Aur
+MH-EBO	MH	Ebon
+MH-ENI	MH	Enewetak & Ujelang
+MH-JAB	MH	Jabat
+MH-JAL	MH	Jaluit
+MH-KIL	MH	Bikini & Kili
+MH-KWA	MH	Kwajalein
+MH-L	MH	Ralik chain
+MH-LAE	MH	Lae
+MH-LIB	MH	Lib
+MH-LIK	MH	Likiep
+MH-MAJ	MH	Majuro
+MH-MAL	MH	Maloelap
+MH-MEJ	MH	Mejit
+MH-MIL	MH	Mili
+MH-NMK	MH	Namdrik
+MH-NMU	MH	Namu
+MH-RON	MH	Rongelap
+MH-T	MH	Ratak chain
+MH-UJA	MH	Ujae
+MH-UTI	MH	Utrik
+MH-WTH	MH	Wotho
+MH-WTJ	MH	Wotje
+MK-101	MK	Veles
+MK-102	MK	Gradsko
+MK-103	MK	Demir Kapija
+MK-104	MK	Kavadarci
+MK-105	MK	Lozovo
+MK-106	MK	Negotino
+MK-107	MK	Rosoman
+MK-108	MK	Sveti Nikole
+MK-109	MK	Čaška
+MK-201	MK	Berovo
+MK-202	MK	Vinica
+MK-203	MK	Delčevo
+MK-204	MK	Zrnovci
+MK-205	MK	Karbinci
+MK-206	MK	Kočani
+MK-207	MK	Makedonska Kamenica
+MK-208	MK	Pehčevo
+MK-209	MK	Probištip
+MK-210	MK	Češinovo-Obleševo
+MK-211	MK	Štip
+MK-301	MK	Vevčani
+MK-303	MK	Debar
+MK-304	MK	Debrca
+MK-307	MK	Kičevo
+MK-308	MK	Makedonski Brod
+MK-310	MK	Ohrid
+MK-311	MK	Plasnica
+MK-312	MK	Struga
+MK-313	MK	Centar Župa
+MK-401	MK	Bogdanci
+MK-402	MK	Bosilovo
+MK-403	MK	Valandovo
+MK-404	MK	Vasilevo
+MK-405	MK	Gevgelija
+MK-406	MK	Dojran
+MK-407	MK	Konče
+MK-408	MK	Novo Selo
+MK-409	MK	Radoviš
+MK-410	MK	Strumica
+MK-501	MK	Bitola
+MK-502	MK	Demir Hisar
+MK-503	MK	Dolneni
+MK-504	MK	Krivogaštani
+MK-505	MK	Kruševo
+MK-506	MK	Mogila
+MK-507	MK	Novaci
+MK-508	MK	Prilep
+MK-509	MK	Resen
+MK-601	MK	Bogovinje
+MK-602	MK	Brvenica
+MK-603	MK	Vrapčište
+MK-604	MK	Gostivar
+MK-605	MK	Želino
+MK-606	MK	Jegunovce
+MK-607	MK	Mavrovo i Rostuše
+MK-608	MK	Tearce
+MK-609	MK	Tetovo
+MK-701	MK	Kratovo
+MK-702	MK	Kriva Palanka
+MK-703	MK	Kumanovo
+MK-704	MK	Lipkovo
+MK-705	MK	Rankovce
+MK-706	MK	Staro Nagoričane
+MK-801	MK	Aerodrom †
+MK-802	MK	Aračinovo
+MK-803	MK	Butel †
+MK-804	MK	Gazi Baba †
+MK-805	MK	Gjorče Petrov †
+MK-806	MK	Zelenikovo
+MK-807	MK	Ilinden
+MK-808	MK	Karpoš †
+MK-809	MK	Kisela Voda †
+MK-810	MK	Petrovec
+MK-811	MK	Saraj †
+MK-812	MK	Sopište
+MK-813	MK	Studeničani
+MK-814	MK	Centar †
+MK-815	MK	Čair †
+MK-816	MK	Čučer-Sandevo
+MK-817	MK	Šuto Orizari †
+ML-1	ML	Kayes
+ML-10	ML	Taoudénit
+ML-2	ML	Koulikoro
+ML-3	ML	Sikasso
+ML-4	ML	Ségou
+ML-5	ML	Mopti
+ML-6	ML	Tombouctou
+ML-7	ML	Gao
+ML-8	ML	Kidal
+ML-9	ML	Ménaka
+ML-BKO	ML	Bamako
+MM-01	MM	Sagaing
+MM-02	MM	Bago
+MM-03	MM	Magway
+MM-04	MM	Mandalay
+MM-05	MM	Tanintharyi
+MM-06	MM	Yangon
+MM-07	MM	Ayeyarwady
+MM-11	MM	Kachin
+MM-12	MM	Kayah
+MM-13	MM	Kayin
+MM-14	MM	Chin
+MM-15	MM	Mon
+MM-16	MM	Rakhine
+MM-17	MM	Shan
+MM-18	MM	Nay Pyi Taw
+MN-035	MN	Orhon
+MN-037	MN	Darhan uul
+MN-039	MN	Hentiy
+MN-041	MN	Hövsgöl
+MN-043	MN	Hovd
+MN-046	MN	Uvs
+MN-047	MN	Töv
+MN-049	MN	Selenge
+MN-051	MN	Sühbaatar
+MN-053	MN	Ömnögovĭ
+MN-055	MN	Övörhangay
+MN-057	MN	Dzavhan
+MN-059	MN	Dundgovĭ
+MN-061	MN	Dornod
+MN-063	MN	Dornogovĭ
+MN-064	MN	Govĭ-Sümber
+MN-065	MN	Govĭ-Altay
+MN-067	MN	Bulgan
+MN-069	MN	Bayanhongor
+MN-071	MN	Bayan-Ölgiy
+MN-073	MN	Arhangay
+MN-1	MN	Ulaanbaatar
+MR-01	MR	Hodh ech Chargui
+MR-02	MR	Hodh el Gharbi
+MR-03	MR	Assaba
+MR-04	MR	Gorgol
+MR-05	MR	Brakna
+MR-06	MR	Trarza
+MR-07	MR	Adrar
+MR-08	MR	Dakhlet Nouâdhibou
+MR-09	MR	Tagant
+MR-10	MR	Guidimaka
+MR-11	MR	Tiris Zemmour
+MR-12	MR	Inchiri
+MR-13	MR	Nouakchott Ouest
+MR-14	MR	Nouakchott Nord
+MR-15	MR	Nouakchott Sud
+MT-01	MT	Attard
+MT-02	MT	Balzan
+MT-03	MT	Birgu
+MT-04	MT	Birkirkara
+MT-05	MT	Birżebbuġa
+MT-06	MT	Bormla
+MT-07	MT	Dingli
+MT-08	MT	Fgura
+MT-09	MT	Floriana
+MT-10	MT	Fontana
+MT-11	MT	Gudja
+MT-12	MT	Gżira
+MT-13	MT	Għajnsielem
+MT-14	MT	Għarb
+MT-15	MT	Għargħur
+MT-16	MT	Għasri
+MT-17	MT	Għaxaq
+MT-18	MT	Ħamrun
+MT-19	MT	Iklin
+MT-20	MT	Isla
+MT-21	MT	Kalkara
+MT-22	MT	Kerċem
+MT-23	MT	Kirkop
+MT-24	MT	Lija
+MT-25	MT	Luqa
+MT-26	MT	Marsa
+MT-27	MT	Marsaskala
+MT-28	MT	Marsaxlokk
+MT-29	MT	Mdina
+MT-30	MT	Mellieħa
+MT-31	MT	Mġarr
+MT-32	MT	Mosta
+MT-33	MT	Mqabba
+MT-34	MT	Msida
+MT-35	MT	Mtarfa
+MT-36	MT	Munxar
+MT-37	MT	Nadur
+MT-38	MT	Naxxar
+MT-39	MT	Paola
+MT-40	MT	Pembroke
+MT-41	MT	Pietà
+MT-42	MT	Qala
+MT-43	MT	Qormi
+MT-44	MT	Qrendi
+MT-45	MT	Rabat Gozo
+MT-46	MT	Rabat Malta
+MT-47	MT	Safi
+MT-48	MT	Saint Julian's
+MT-49	MT	Saint John
+MT-50	MT	Saint Lawrence
+MT-51	MT	Saint Paul's Bay
+MT-52	MT	Sannat
+MT-53	MT	Saint Lucia's
+MT-54	MT	Santa Venera
+MT-55	MT	Siġġiewi
+MT-56	MT	Sliema
+MT-57	MT	Swieqi
+MT-58	MT	Ta' Xbiex
+MT-59	MT	Tarxien
+MT-60	MT	Valletta
+MT-61	MT	Xagħra
+MT-62	MT	Xewkija
+MT-63	MT	Xgħajra
+MT-64	MT	Żabbar
+MT-65	MT	Żebbuġ Gozo
+MT-66	MT	Żebbuġ Malta
+MT-67	MT	Żejtun
+MT-68	MT	Żurrieq
+MU-AG	MU	Agalega Islands
+MU-BL	MU	Black River
+MU-CC	MU	Cargados Carajos Shoals
+MU-FL	MU	Flacq
+MU-GP	MU	Grand Port
+MU-MO	MU	Moka
+MU-PA	MU	Pamplemousses
+MU-PL	MU	Port Louis
+MU-PW	MU	Plaines Wilhems
+MU-RO	MU	Rodrigues Island
+MU-RR	MU	Rivière du Rempart
+MU-SA	MU	Savanne
+MV-00	MV	South Ari Atoll
+MV-01	MV	Addu City
+MV-02	MV	North Ari Atoll
+MV-03	MV	Faadhippolhu
+MV-04	MV	Felidhu Atoll
+MV-05	MV	Hahdhunmathi
+MV-07	MV	North Thiladhunmathi
+MV-08	MV	Kolhumadulu
+MV-12	MV	Mulaku Atoll
+MV-13	MV	North Maalhosmadulu
+MV-14	MV	North Nilandhe Atoll
+MV-17	MV	South Nilandhe Atoll
+MV-20	MV	South Maalhosmadulu
+MV-23	MV	South Thiladhunmathi
+MV-24	MV	North Miladhunmadulu
+MV-25	MV	South Miladhunmadulu
+MV-26	MV	Male Atoll
+MV-27	MV	North Huvadhu Atoll
+MV-28	MV	South Huvadhu Atoll
+MV-29	MV	Fuvammulah
+MV-MLE	MV	Male
+MW-BA	MW	Balaka
+MW-BL	MW	Blantyre
+MW-C	MW	Central Region
+MW-CK	MW	Chikwawa
+MW-CR	MW	Chiradzulu
+MW-CT	MW	Chitipa
+MW-DE	MW	Dedza
+MW-DO	MW	Dowa
+MW-KR	MW	Karonga
+MW-KS	MW	Kasungu
+MW-LI	MW	Lilongwe
+MW-LK	MW	Likoma
+MW-MC	MW	Mchinji
+MW-MG	MW	Mangochi
+MW-MH	MW	Machinga
+MW-MU	MW	Mulanje
+MW-MW	MW	Mwanza
+MW-MZ	MW	Mzimba
+MW-N	MW	Northern Region
+MW-NB	MW	Nkhata Bay
+MW-NE	MW	Neno
+MW-NI	MW	Ntchisi
+MW-NK	MW	Nkhotakota
+MW-NS	MW	Nsanje
+MW-NU	MW	Ntcheu
+MW-PH	MW	Phalombe
+MW-RU	MW	Rumphi
+MW-S	MW	Southern Region
+MW-SA	MW	Salima
+MW-TH	MW	Thyolo
+MW-ZO	MW	Zomba
+MX-AGU	MX	Aguascalientes
+MX-BCN	MX	Baja California
+MX-BCS	MX	Baja California Sur
+MX-CAM	MX	Campeche
+MX-CHH	MX	Chihuahua
+MX-CHP	MX	Chiapas
+MX-CMX	MX	Ciudad de México
+MX-COA	MX	Coahuila de Zaragoza
+MX-COL	MX	Colima
+MX-DUR	MX	Durango
+MX-GRO	MX	Guerrero
+MX-GUA	MX	Guanajuato
+MX-HID	MX	Hidalgo
+MX-JAL	MX	Jalisco
+MX-MEX	MX	México
+MX-MIC	MX	Michoacán de Ocampo
+MX-MOR	MX	Morelos
+MX-NAY	MX	Nayarit
+MX-NLE	MX	Nuevo León
+MX-OAX	MX	Oaxaca
+MX-PUE	MX	Puebla
+MX-QUE	MX	Querétaro
+MX-ROO	MX	Quintana Roo
+MX-SIN	MX	Sinaloa
+MX-SLP	MX	San Luis Potosí
+MX-SON	MX	Sonora
+MX-TAB	MX	Tabasco
+MX-TAM	MX	Tamaulipas
+MX-TLA	MX	Tlaxcala
+MX-VER	MX	Veracruz de Ignacio de la Llave
+MX-YUC	MX	Yucatán
+MX-ZAC	MX	Zacatecas
+MY-01	MY	Johor
+MY-02	MY	Kedah
+MY-03	MY	Kelantan
+MY-04	MY	Melaka
+MY-05	MY	Negeri Sembilan
+MY-06	MY	Pahang
+MY-07	MY	Pulau Pinang
+MY-08	MY	Perak
+MY-09	MY	Perlis
+MY-10	MY	Selangor
+MY-11	MY	Terengganu
+MY-12	MY	Sabah
+MY-13	MY	Sarawak
+MY-14	MY	Wilayah Persekutuan Kuala Lumpur
+MY-15	MY	Wilayah Persekutuan Labuan
+MY-16	MY	Wilayah Persekutuan Putrajaya
+MZ-A	MZ	Niassa
+MZ-B	MZ	Manica
+MZ-G	MZ	Gaza
+MZ-I	MZ	Inhambane
+MZ-L	MZ	Maputo
+MZ-MPM	MZ	Maputo
+MZ-N	MZ	Nampula
+MZ-P	MZ	Cabo Delgado
+MZ-Q	MZ	Zambézia
+MZ-S	MZ	Sofala
+MZ-T	MZ	Tete
+NA-CA	NA	Zambezi
+NA-ER	NA	Erongo
+NA-HA	NA	Hardap
+NA-KA	NA	//Karas
+NA-KE	NA	Kavango East
+NA-KH	NA	Khomas
+NA-KU	NA	Kunene
+NA-KW	NA	Kavango West
+NA-OD	NA	Otjozondjupa
+NA-OH	NA	Omaheke
+NA-ON	NA	Oshana
+NA-OS	NA	Omusati
+NA-OT	NA	Oshikoto
+NA-OW	NA	Ohangwena
+NE-1	NE	Agadez
+NE-2	NE	Diffa
+NE-3	NE	Dosso
+NE-4	NE	Maradi
+NE-5	NE	Tahoua
+NE-6	NE	Tillabéri
+NE-7	NE	Zinder
+NE-8	NE	Niamey
+NG-AB	NG	Abia
+NG-AD	NG	Adamawa
+NG-AK	NG	Akwa Ibom
+NG-AN	NG	Anambra
+NG-BA	NG	Bauchi
+NG-BE	NG	Benue
+NG-BO	NG	Borno
+NG-BY	NG	Bayelsa
+NG-CR	NG	Cross River
+NG-DE	NG	Delta
+NG-EB	NG	Ebonyi
+NG-ED	NG	Edo
+NG-EK	NG	Ekiti
+NG-EN	NG	Enugu
+NG-FC	NG	Abuja Federal Capital Territory
+NG-GO	NG	Gombe
+NG-IM	NG	Imo
+NG-JI	NG	Jigawa
+NG-KD	NG	Kaduna
+NG-KE	NG	Kebbi
+NG-KN	NG	Kano
+NG-KO	NG	Kogi
+NG-KT	NG	Katsina
+NG-KW	NG	Kwara
+NG-LA	NG	Lagos
+NG-NA	NG	Nasarawa
+NG-NI	NG	Niger
+NG-OG	NG	Ogun
+NG-ON	NG	Ondo
+NG-OS	NG	Osun
+NG-OY	NG	Oyo
+NG-PL	NG	Plateau
+NG-RI	NG	Rivers
+NG-SO	NG	Sokoto
+NG-TA	NG	Taraba
+NG-YO	NG	Yobe
+NG-ZA	NG	Zamfara
+NI-AN	NI	Costa Caribe Norte
+NI-AS	NI	Costa Caribe Sur
+NI-BO	NI	Boaco
+NI-CA	NI	Carazo
+NI-CI	NI	Chinandega
+NI-CO	NI	Chontales
+NI-ES	NI	Estelí
+NI-GR	NI	Granada
+NI-JI	NI	Jinotega
+NI-LE	NI	León
+NI-MD	NI	Madriz
+NI-MN	NI	Managua
+NI-MS	NI	Masaya
+NI-MT	NI	Matagalpa
+NI-NS	NI	Nueva Segovia
+NI-RI	NI	Rivas
+NI-SJ	NI	Río San Juan
+NL-AW	NL	Aruba
+NL-BQ1	NL	Bonaire
+NL-BQ2	NL	Saba
+NL-BQ3	NL	Sint Eustatius
+NL-CW	NL	Curaçao
+NL-DR	NL	Drenthe
+NL-FL	NL	Flevoland
+NL-FR	NL	Fryslân
+NL-GE	NL	Gelderland
+NL-GR	NL	Groningen
+NL-LI	NL	Limburg
+NL-NB	NL	Noord-Brabant
+NL-NH	NL	Noord-Holland
+NL-OV	NL	Overijssel
+NL-SX	NL	Sint Maarten
+NL-UT	NL	Utrecht
+NL-ZE	NL	Zeeland
+NL-ZH	NL	Zuid-Holland
+NO-03	NO	Oslo
+NO-11	NO	Rogaland
+NO-15	NO	Møre og Romsdal
+NO-18	NO	Nordland
+NO-21	NO	Svalbard (Arctic Region)
+NO-22	NO	Jan Mayen (Arctic Region)
+NO-30	NO	Viken
+NO-34	NO	Innlandet
+NO-38	NO	Vestfold og Telemark
+NO-42	NO	Agder
+NO-46	NO	Vestland
+NO-50	NO	Trøndelag
+NO-54	NO	Troms og Finnmark
+NP-P1	NP	Koshi
+NP-P2	NP	Madhesh
+NP-P3	NP	Bagmati
+NP-P4	NP	Gandaki
+NP-P5	NP	Lumbini
+NP-P6	NP	Karnali
+NP-P7	NP	Sudurpashchim
+NR-01	NR	Aiwo
+NR-02	NR	Anabar
+NR-03	NR	Anetan
+NR-04	NR	Anibare
+NR-05	NR	Baitsi
+NR-06	NR	Boe
+NR-07	NR	Buada
+NR-08	NR	Denigomodu
+NR-09	NR	Ewa
+NR-10	NR	Ijuw
+NR-11	NR	Meneng
+NR-12	NR	Nibok
+NR-13	NR	Uaboe
+NR-14	NR	Yaren
+NZ-AUK	NZ	Auckland
+NZ-BOP	NZ	Bay of Plenty
+NZ-CAN	NZ	Canterbury
+NZ-CIT	NZ	Chatham Islands Territory
+NZ-GIS	NZ	Gisborne
+NZ-HKB	NZ	Hawke's Bay
+NZ-MBH	NZ	Marlborough
+NZ-MWT	NZ	Manawatū-Whanganui
+NZ-NSN	NZ	Nelson
+NZ-NTL	NZ	Northland
+NZ-OTA	NZ	Otago
+NZ-STL	NZ	Southland
+NZ-TAS	NZ	Tasman
+NZ-TKI	NZ	Taranaki
+NZ-WGN	NZ	Greater Wellington
+NZ-WKO	NZ	Waikato
+NZ-WTC	NZ	West Coast
+OM-BJ	OM	Janūb al Bāţinah
+OM-BS	OM	Shamāl al Bāţinah
+OM-BU	OM	Al Buraymī
+OM-DA	OM	Ad Dākhilīyah
+OM-MA	OM	Masqaţ
+OM-MU	OM	Musandam
+OM-SJ	OM	Janūb ash Sharqīyah
+OM-SS	OM	Shamāl ash Sharqīyah
+OM-WU	OM	Al Wusţá
+OM-ZA	OM	Az̧ Z̧āhirah
+OM-ZU	OM	Z̧ufār
+PA-1	PA	Bocas del Toro
+PA-10	PA	Panamá Oeste
+PA-2	PA	Coclé
+PA-3	PA	Colón
+PA-4	PA	Chiriquí
+PA-5	PA	Darién
+PA-6	PA	Herrera
+PA-7	PA	Los Santos
+PA-8	PA	Panamá
+PA-9	PA	Veraguas
+PA-EM	PA	Emberá
+PA-KY	PA	Guna Yala
+PA-NB	PA	Ngäbe-Buglé
+PA-NT	PA	Naso Tjër Di
+PE-AMA	PE	Amazonas
+PE-ANC	PE	Ancash
+PE-APU	PE	Apurímac
+PE-ARE	PE	Arequipa
+PE-AYA	PE	Ayacucho
+PE-CAJ	PE	Cajamarca
+PE-CAL	PE	El Callao
+PE-CUS	PE	Cusco
+PE-HUC	PE	Huánuco
+PE-HUV	PE	Huancavelica
+PE-ICA	PE	Ica
+PE-JUN	PE	Junín
+PE-LAL	PE	La Libertad
+PE-LAM	PE	Lambayeque
+PE-LIM	PE	Lima
+PE-LMA	PE	Municipalidad Metropolitana de Lima
+PE-LOR	PE	Loreto
+PE-MDD	PE	Madre de Dios
+PE-MOQ	PE	Moquegua
+PE-PAS	PE	Pasco
+PE-PIU	PE	Piura
+PE-PUN	PE	Puno
+PE-SAM	PE	San Martín
+PE-TAC	PE	Tacna
+PE-TUM	PE	Tumbes
+PE-UCA	PE	Ucayali
+PG-CPK	PG	Chimbu
+PG-CPM	PG	Central
+PG-EBR	PG	East New Britain
+PG-EHG	PG	Eastern Highlands
+PG-EPW	PG	Enga
+PG-ESW	PG	East Sepik
+PG-GPK	PG	Gulf
+PG-HLA	PG	Hela
+PG-JWK	PG	Jiwaka
+PG-MBA	PG	Milne Bay
+PG-MPL	PG	Morobe
+PG-MPM	PG	Madang
+PG-MRL	PG	Manus
+PG-NCD	PG	National Capital District (Port Moresby)
+PG-NIK	PG	New Ireland
+PG-NPP	PG	Northern
+PG-NSB	PG	Bougainville
+PG-SAN	PG	West Sepik
+PG-SHM	PG	Southern Highlands
+PG-WBK	PG	West New Britain
+PG-WHM	PG	Western Highlands
+PG-WPD	PG	Western
+PH-00	PH	National Capital Region
+PH-01	PH	Ilocos (Region I)
+PH-02	PH	Cagayan Valley (Region II)
+PH-03	PH	Central Luzon (Region III)
+PH-05	PH	Bicol (Region V)
+PH-06	PH	Western Visayas (Region VI)
+PH-07	PH	Central Visayas (Region VII)
+PH-08	PH	Eastern Visayas (Region VIII)
+PH-09	PH	Zamboanga Peninsula (Region IX)
+PH-10	PH	Northern Mindanao (Region X)
+PH-11	PH	Davao (Region XI)
+PH-12	PH	Soccsksargen (Region XII)
+PH-13	PH	Caraga (Region XIII)
+PH-14	PH	Autonomous Region in Muslim Mindanao (ARMM)
+PH-15	PH	Cordillera Administrative Region (CAR)
+PH-40	PH	Calabarzon (Region IV-A)
+PH-41	PH	Mimaropa (Region IV-B)
+PH-ABR	PH	Abra
+PH-AGN	PH	Agusan del Norte
+PH-AGS	PH	Agusan del Sur
+PH-AKL	PH	Aklan
+PH-ALB	PH	Albay
+PH-ANT	PH	Antique
+PH-APA	PH	Apayao
+PH-AUR	PH	Aurora
+PH-BAN	PH	Bataan
+PH-BAS	PH	Basilan
+PH-BEN	PH	Benguet
+PH-BIL	PH	Biliran
+PH-BOH	PH	Bohol
+PH-BTG	PH	Batangas
+PH-BTN	PH	Batanes
+PH-BUK	PH	Bukidnon
+PH-BUL	PH	Bulacan
+PH-CAG	PH	Cagayan
+PH-CAM	PH	Camiguin
+PH-CAN	PH	Camarines Norte
+PH-CAP	PH	Capiz
+PH-CAS	PH	Camarines Sur
+PH-CAT	PH	Catanduanes
+PH-CAV	PH	Cavite
+PH-CEB	PH	Cebu
+PH-COM	PH	Davao de Oro
+PH-DAO	PH	Davao Oriental
+PH-DAS	PH	Davao del Sur
+PH-DAV	PH	Davao del Norte
+PH-DIN	PH	Dinagat Islands
+PH-DVO	PH	Davao Occidental
+PH-EAS	PH	Eastern Samar
+PH-GUI	PH	Guimaras
+PH-IFU	PH	Ifugao
+PH-ILI	PH	Iloilo
+PH-ILN	PH	Ilocos Norte
+PH-ILS	PH	Ilocos Sur
+PH-ISA	PH	Isabela
+PH-KAL	PH	Kalinga
+PH-LAG	PH	Laguna
+PH-LAN	PH	Lanao del Norte
+PH-LAS	PH	Lanao del Sur
+PH-LEY	PH	Leyte
+PH-LUN	PH	La Union
+PH-MAD	PH	Marinduque
+PH-MAS	PH	Masbate
+PH-MDC	PH	Mindoro Occidental
+PH-MDR	PH	Mindoro Oriental
+PH-MGN	PH	Maguindanao del Norte
+PH-MGS	PH	Maguindanao del Sur
+PH-MOU	PH	Mountain Province
+PH-MSC	PH	Misamis Occidental
+PH-MSR	PH	Misamis Oriental
+PH-NCO	PH	Cotabato
+PH-NEC	PH	Negros Occidental
+PH-NER	PH	Negros Oriental
+PH-NSA	PH	Northern Samar
+PH-NUE	PH	Nueva Ecija
+PH-NUV	PH	Nueva Vizcaya
+PH-PAM	PH	Pampanga
+PH-PAN	PH	Pangasinan
+PH-PLW	PH	Palawan
+PH-QUE	PH	Quezon
+PH-QUI	PH	Quirino
+PH-RIZ	PH	Rizal
+PH-ROM	PH	Romblon
+PH-SAR	PH	Sarangani
+PH-SCO	PH	South Cotabato
+PH-SIG	PH	Siquijor
+PH-SLE	PH	Southern Leyte
+PH-SLU	PH	Sulu
+PH-SOR	PH	Sorsogon
+PH-SUK	PH	Sultan Kudarat
+PH-SUN	PH	Surigao del Norte
+PH-SUR	PH	Surigao del Sur
+PH-TAR	PH	Tarlac
+PH-TAW	PH	Tawi-Tawi
+PH-WSA	PH	Samar
+PH-ZAN	PH	Zamboanga del Norte
+PH-ZAS	PH	Zamboanga del Sur
+PH-ZMB	PH	Zambales
+PH-ZSI	PH	Zamboanga Sibugay
+PK-BA	PK	Balochistan
+PK-GB	PK	Gilgit-Baltistan
+PK-IS	PK	Islamabad
+PK-JK	PK	Azad Jammu and Kashmir
+PK-KP	PK	Khyber Pakhtunkhwa
+PK-PB	PK	Punjab
+PK-SD	PK	Sindh
+PL-02	PL	Dolnośląskie
+PL-04	PL	Kujawsko-Pomorskie
+PL-06	PL	Lubelskie
+PL-08	PL	Lubuskie
+PL-10	PL	Łódzkie
+PL-12	PL	Małopolskie
+PL-14	PL	Mazowieckie
+PL-16	PL	Opolskie
+PL-18	PL	Podkarpackie
+PL-20	PL	Podlaskie
+PL-22	PL	Pomorskie
+PL-24	PL	Śląskie
+PL-26	PL	Świętokrzyskie
+PL-28	PL	Warmińsko-Mazurskie
+PL-30	PL	Wielkopolskie
+PL-32	PL	Zachodniopomorskie
+PS-BTH	PS	Bethlehem
+PS-DEB	PS	Deir El Balah
+PS-GZA	PS	Gaza
+PS-HBN	PS	Hebron
+PS-JEM	PS	Jerusalem
+PS-JEN	PS	Jenin
+PS-JRH	PS	Jericho and Al Aghwar
+PS-KYS	PS	Khan Yunis
+PS-NBS	PS	Nablus
+PS-NGZ	PS	North Gaza
+PS-QQA	PS	Qalqilya
+PS-RBH	PS	Ramallah
+PS-RFH	PS	Rafah
+PS-SLT	PS	Salfit
+PS-TBS	PS	Tubas
+PS-TKM	PS	Tulkarm
+PT-01	PT	Aveiro
+PT-02	PT	Beja
+PT-03	PT	Braga
+PT-04	PT	Bragança
+PT-05	PT	Castelo Branco
+PT-06	PT	Coimbra
+PT-07	PT	Évora
+PT-08	PT	Faro
+PT-09	PT	Guarda
+PT-10	PT	Leiria
+PT-11	PT	Lisboa
+PT-12	PT	Portalegre
+PT-13	PT	Porto
+PT-14	PT	Santarém
+PT-15	PT	Setúbal
+PT-16	PT	Viana do Castelo
+PT-17	PT	Vila Real
+PT-18	PT	Viseu
+PT-20	PT	Região Autónoma dos Açores
+PT-30	PT	Região Autónoma da Madeira
+PW-002	PW	Aimeliik
+PW-004	PW	Airai
+PW-010	PW	Angaur
+PW-050	PW	Hatohobei
+PW-100	PW	Kayangel
+PW-150	PW	Koror
+PW-212	PW	Melekeok
+PW-214	PW	Ngaraard
+PW-218	PW	Ngarchelong
+PW-222	PW	Ngardmau
+PW-224	PW	Ngatpang
+PW-226	PW	Ngchesar
+PW-227	PW	Ngeremlengui
+PW-228	PW	Ngiwal
+PW-350	PW	Peleliu
+PW-370	PW	Sonsorol
+PY-1	PY	Concepción
+PY-10	PY	Alto Paraná
+PY-11	PY	Central
+PY-12	PY	Ñeembucú
+PY-13	PY	Amambay
+PY-14	PY	Canindeyú
+PY-15	PY	Presidente Hayes
+PY-16	PY	Alto Paraguay
+PY-19	PY	Boquerón
+PY-2	PY	San Pedro
+PY-3	PY	Cordillera
+PY-4	PY	Guairá
+PY-5	PY	Caaguazú
+PY-6	PY	Caazapá
+PY-7	PY	Itapúa
+PY-8	PY	Misiones
+PY-9	PY	Paraguarí
+PY-ASU	PY	Asunción
+QA-DA	QA	Ad Dawḩah
+QA-KH	QA	Al Khawr wa adh Dhakhīrah
+QA-MS	QA	Ash Shamāl
+QA-RA	QA	Ar Rayyān
+QA-SH	QA	Ash Shīḩānīyah
+QA-US	QA	Umm Şalāl
+QA-WA	QA	Al Wakrah
+QA-ZA	QA	Az̧ Z̧a‘āyin
+RO-AB	RO	Alba
+RO-AG	RO	Argeș
+RO-AR	RO	Arad
+RO-B	RO	București
+RO-BC	RO	Bacău
+RO-BH	RO	Bihor
+RO-BN	RO	Bistrița-Năsăud
+RO-BR	RO	Brăila
+RO-BT	RO	Botoșani
+RO-BV	RO	Brașov
+RO-BZ	RO	Buzău
+RO-CJ	RO	Cluj
+RO-CL	RO	Călărași
+RO-CS	RO	Caraș-Severin
+RO-CT	RO	Constanța
+RO-CV	RO	Covasna
+RO-DB	RO	Dâmbovița
+RO-DJ	RO	Dolj
+RO-GJ	RO	Gorj
+RO-GL	RO	Galați
+RO-GR	RO	Giurgiu
+RO-HD	RO	Hunedoara
+RO-HR	RO	Harghita
+RO-IF	RO	Ilfov
+RO-IL	RO	Ialomița
+RO-IS	RO	Iași
+RO-MH	RO	Mehedinți
+RO-MM	RO	Maramureș
+RO-MS	RO	Mureș
+RO-NT	RO	Neamț
+RO-OT	RO	Olt
+RO-PH	RO	Prahova
+RO-SB	RO	Sibiu
+RO-SJ	RO	Sălaj
+RO-SM	RO	Satu Mare
+RO-SV	RO	Suceava
+RO-TL	RO	Tulcea
+RO-TM	RO	Timiș
+RO-TR	RO	Teleorman
+RO-VL	RO	Vâlcea
+RO-VN	RO	Vrancea
+RO-VS	RO	Vaslui
+RS-00	RS	Beograd
+RS-01	RS	Severnobački okrug
+RS-02	RS	Srednjebanatski okrug
+RS-03	RS	Severnobanatski okrug
+RS-04	RS	Južnobanatski okrug
+RS-05	RS	Zapadnobački okrug
+RS-06	RS	Južnobački okrug
+RS-07	RS	Sremski okrug
+RS-08	RS	Mačvanski okrug
+RS-09	RS	Kolubarski okrug
+RS-10	RS	Podunavski okrug
+RS-11	RS	Braničevski okrug
+RS-12	RS	Šumadijski okrug
+RS-13	RS	Pomoravski okrug
+RS-14	RS	Borski okrug
+RS-15	RS	Zaječarski okrug
+RS-16	RS	Zlatiborski okrug
+RS-17	RS	Moravički okrug
+RS-18	RS	Raški okrug
+RS-19	RS	Rasinski okrug
+RS-20	RS	Nišavski okrug
+RS-21	RS	Toplički okrug
+RS-22	RS	Pirotski okrug
+RS-23	RS	Jablanički okrug
+RS-24	RS	Pčinjski okrug
+RS-25	RS	Kosovski okrug
+RS-26	RS	Pećki okrug
+RS-27	RS	Prizrenski okrug
+RS-28	RS	Kosovsko-Mitrovački okrug
+RS-29	RS	Kosovsko-Pomoravski okrug
+RS-KM	RS	Kosovo-Metohija
+RS-VO	RS	Vojvodina
+RU-AD	RU	Adygeya, Respublika
+RU-AL	RU	Altay, Respublika
+RU-ALT	RU	Altayskiy kray
+RU-AMU	RU	Amurskaya oblast'
+RU-ARK	RU	Arkhangel'skaya oblast'
+RU-AST	RU	Astrakhanskaya oblast'
+RU-BA	RU	Bashkortostan, Respublika
+RU-BEL	RU	Belgorodskaya oblast'
+RU-BRY	RU	Bryanskaya oblast'
+RU-BU	RU	Buryatiya, Respublika
+RU-CE	RU	Chechenskaya Respublika
+RU-CHE	RU	Chelyabinskaya oblast'
+RU-CHU	RU	Chukotskiy avtonomnyy okrug
+RU-CU	RU	Chuvashskaya Respublika
+RU-DA	RU	Dagestan, Respublika
+RU-IN	RU	Ingushetiya, Respublika
+RU-IRK	RU	Irkutskaya oblast'
+RU-IVA	RU	Ivanovskaya oblast'
+RU-KAM	RU	Kamchatskiy kray
+RU-KB	RU	Kabardino-Balkarskaya Respublika
+RU-KC	RU	Karachayevo-Cherkesskaya Respublika
+RU-KDA	RU	Krasnodarskiy kray
+RU-KEM	RU	Kemerovskaya oblast'
+RU-KGD	RU	Kaliningradskaya oblast'
+RU-KGN	RU	Kurganskaya oblast'
+RU-KHA	RU	Khabarovskiy kray
+RU-KHM	RU	Khanty-Mansiyskiy avtonomnyy okrug
+RU-KIR	RU	Kirovskaya oblast'
+RU-KK	RU	Khakasiya, Respublika
+RU-KL	RU	Kalmykiya, Respublika
+RU-KLU	RU	Kaluzhskaya oblast'
+RU-KO	RU	Komi, Respublika
+RU-KOS	RU	Kostromskaya oblast'
+RU-KR	RU	Kareliya, Respublika
+RU-KRS	RU	Kurskaya oblast'
+RU-KYA	RU	Krasnoyarskiy kray
+RU-LEN	RU	Leningradskaya oblast'
+RU-LIP	RU	Lipetskaya oblast'
+RU-MAG	RU	Magadanskaya oblast'
+RU-ME	RU	Mariy El, Respublika
+RU-MO	RU	Mordoviya, Respublika
+RU-MOS	RU	Moskovskaya oblast'
+RU-MOW	RU	Moskva
+RU-MUR	RU	Murmanskaya oblast'
+RU-NEN	RU	Nenetskiy avtonomnyy okrug
+RU-NGR	RU	Novgorodskaya oblast'
+RU-NIZ	RU	Nizhegorodskaya oblast'
+RU-NVS	RU	Novosibirskaya oblast'
+RU-OMS	RU	Omskaya oblast'
+RU-ORE	RU	Orenburgskaya oblast'
+RU-ORL	RU	Orlovskaya oblast'
+RU-PER	RU	Permskiy kray
+RU-PNZ	RU	Penzenskaya oblast'
+RU-PRI	RU	Primorskiy kray
+RU-PSK	RU	Pskovskaya oblast'
+RU-ROS	RU	Rostovskaya oblast'
+RU-RYA	RU	Ryazanskaya oblast'
+RU-SA	RU	Saha, Respublika
+RU-SAK	RU	Sakhalinskaya oblast'
+RU-SAM	RU	Samarskaya oblast'
+RU-SAR	RU	Saratovskaya oblast'
+RU-SE	RU	Severnaya Osetiya, Respublika
+RU-SMO	RU	Smolenskaya oblast'
+RU-SPE	RU	Sankt-Peterburg
+RU-STA	RU	Stavropol'skiy kray
+RU-SVE	RU	Sverdlovskaya oblast'
+RU-TA	RU	Tatarstan, Respublika
+RU-TAM	RU	Tambovskaya oblast'
+RU-TOM	RU	Tomskaya oblast'
+RU-TUL	RU	Tul'skaya oblast'
+RU-TVE	RU	Tverskaya oblast'
+RU-TY	RU	Tyva, Respublika
+RU-TYU	RU	Tyumenskaya oblast'
+RU-UD	RU	Udmurtskaya Respublika
+RU-ULY	RU	Ul'yanovskaya oblast'
+RU-VGG	RU	Volgogradskaya oblast'
+RU-VLA	RU	Vladimirskaya oblast'
+RU-VLG	RU	Vologodskaya oblast'
+RU-VOR	RU	Voronezhskaya oblast'
+RU-YAN	RU	Yamalo-Nenetskiy avtonomnyy okrug
+RU-YAR	RU	Yaroslavskaya oblast'
+RU-YEV	RU	Yevreyskaya avtonomnaya oblast'
+RU-ZAB	RU	Zabaykal'skiy kray
+RW-01	RW	City of Kigali
+RW-02	RW	Eastern
+RW-03	RW	Northern
+RW-04	RW	Western
+RW-05	RW	Southern
+SA-01	SA	Ar Riyāḑ
+SA-02	SA	Makkah al Mukarramah
+SA-03	SA	Al Madīnah al Munawwarah
+SA-04	SA	Ash Sharqīyah
+SA-05	SA	Al Qaşīm
+SA-06	SA	Ḩā'il
+SA-07	SA	Tabūk
+SA-08	SA	Al Ḩudūd ash Shamālīyah
+SA-09	SA	Jāzān
+SA-10	SA	Najrān
+SA-11	SA	Al Bāḩah
+SA-12	SA	Al Jawf
+SA-14	SA	'Asīr
+SB-CE	SB	Central
+SB-CH	SB	Choiseul
+SB-CT	SB	Capital Territory (Honiara)
+SB-GU	SB	Guadalcanal
+SB-IS	SB	Isabel
+SB-MK	SB	Makira-Ulawa
+SB-ML	SB	Malaita
+SB-RB	SB	Rennell and Bellona
+SB-TE	SB	Temotu
+SB-WE	SB	Western
+SC-01	SC	Anse aux Pins
+SC-02	SC	Anse Boileau
+SC-03	SC	Anse Etoile
+SC-04	SC	Au Cap
+SC-05	SC	Anse Royale
+SC-06	SC	Baie Lazare
+SC-07	SC	Baie Sainte Anne
+SC-08	SC	Beau Vallon
+SC-09	SC	Bel Air
+SC-10	SC	Bel Ombre
+SC-11	SC	Cascade
+SC-12	SC	Glacis
+SC-13	SC	Grand Anse Mahe
+SC-14	SC	Grand Anse Praslin
+SC-15	SC	La Digue
+SC-16	SC	English River
+SC-17	SC	Mont Buxton
+SC-18	SC	Mont Fleuri
+SC-19	SC	Plaisance
+SC-20	SC	Pointe Larue
+SC-21	SC	Port Glaud
+SC-22	SC	Saint Louis
+SC-23	SC	Takamaka
+SC-24	SC	Les Mamelles
+SC-25	SC	Roche Caiman
+SC-26	SC	Ile Perseverance I
+SC-27	SC	Ile Perseverance II
+SD-DC	SD	Central Darfur
+SD-DE	SD	East Darfur
+SD-DN	SD	North Darfur
+SD-DS	SD	South Darfur
+SD-DW	SD	West Darfur
+SD-GD	SD	Gedaref
+SD-GK	SD	West Kordofan
+SD-GZ	SD	Gezira
+SD-KA	SD	Kassala
+SD-KH	SD	Khartoum
+SD-KN	SD	North Kordofan
+SD-KS	SD	South Kordofan
+SD-NB	SD	Blue Nile
+SD-NO	SD	Northern
+SD-NR	SD	River Nile
+SD-NW	SD	White Nile
+SD-RS	SD	Red Sea
+SD-SI	SD	Sennar
+SE-AB	SE	Stockholms län [SE-01]
+SE-AC	SE	Västerbottens län [SE-24]
+SE-BD	SE	Norrbottens län [SE-25]
+SE-C	SE	Uppsala län [SE-03]
+SE-D	SE	Södermanlands län [SE-04]
+SE-E	SE	Östergötlands län [SE-05]
+SE-F	SE	Jönköpings län [SE-06]
+SE-G	SE	Kronobergs län [SE-07]
+SE-H	SE	Kalmar län [SE-08]
+SE-I	SE	Gotlands län [SE-09]
+SE-K	SE	Blekinge län [SE-10]
+SE-M	SE	Skåne län [SE-12]
+SE-N	SE	Hallands län [SE-13]
+SE-O	SE	Västra Götalands län [SE-14]
+SE-S	SE	Värmlands län [SE-17]
+SE-T	SE	Örebro län [SE-18]
+SE-U	SE	Västmanlands län [SE-19]
+SE-W	SE	Dalarnas län [SE-20]
+SE-X	SE	Gävleborgs län [SE-21]
+SE-Y	SE	Västernorrlands län [SE-22]
+SE-Z	SE	Jämtlands län [SE-23]
+SG-01	SG	Central Singapore
+SG-02	SG	North East
+SG-03	SG	North West
+SG-04	SG	South East
+SG-05	SG	South West
+SH-AC	SH	Ascension
+SH-HL	SH	Saint Helena
+SH-TA	SH	Tristan da Cunha
+SI-001	SI	Ajdovščina
+SI-002	SI	Beltinci
+SI-003	SI	Bled
+SI-004	SI	Bohinj
+SI-005	SI	Borovnica
+SI-006	SI	Bovec
+SI-007	SI	Brda
+SI-008	SI	Brezovica
+SI-009	SI	Brežice
+SI-010	SI	Tišina
+SI-011	SI	Celje
+SI-012	SI	Cerklje na Gorenjskem
+SI-013	SI	Cerknica
+SI-014	SI	Cerkno
+SI-015	SI	Črenšovci
+SI-016	SI	Črna na Koroškem
+SI-017	SI	Črnomelj
+SI-018	SI	Destrnik
+SI-019	SI	Divača
+SI-020	SI	Dobrepolje
+SI-021	SI	Dobrova-Polhov Gradec
+SI-022	SI	Dol pri Ljubljani
+SI-023	SI	Domžale
+SI-024	SI	Dornava
+SI-025	SI	Dravograd
+SI-026	SI	Duplek
+SI-027	SI	Gorenja vas-Poljane
+SI-028	SI	Gorišnica
+SI-029	SI	Gornja Radgona
+SI-030	SI	Gornji Grad
+SI-031	SI	Gornji Petrovci
+SI-032	SI	Grosuplje
+SI-033	SI	Šalovci
+SI-034	SI	Hrastnik
+SI-035	SI	Hrpelje-Kozina
+SI-036	SI	Idrija
+SI-037	SI	Ig
+SI-038	SI	Ilirska Bistrica
+SI-039	SI	Ivančna Gorica
+SI-040	SI	Izola
+SI-041	SI	Jesenice
+SI-042	SI	Juršinci
+SI-043	SI	Kamnik
+SI-044	SI	Kanal ob Soči
+SI-045	SI	Kidričevo
+SI-046	SI	Kobarid
+SI-047	SI	Kobilje
+SI-048	SI	Kočevje
+SI-049	SI	Komen
+SI-050	SI	Koper
+SI-051	SI	Kozje
+SI-052	SI	Kranj
+SI-053	SI	Kranjska Gora
+SI-054	SI	Krško
+SI-055	SI	Kungota
+SI-056	SI	Kuzma
+SI-057	SI	Laško
+SI-058	SI	Lenart
+SI-059	SI	Lendava
+SI-060	SI	Litija
+SI-061	SI	Ljubljana
+SI-062	SI	Ljubno
+SI-063	SI	Ljutomer
+SI-064	SI	Logatec
+SI-065	SI	Loška dolina
+SI-066	SI	Loški Potok
+SI-067	SI	Luče
+SI-068	SI	Lukovica
+SI-069	SI	Majšperk
+SI-070	SI	Maribor
+SI-071	SI	Medvode
+SI-072	SI	Mengeš
+SI-073	SI	Metlika
+SI-074	SI	Mežica
+SI-075	SI	Miren-Kostanjevica
+SI-076	SI	Mislinja
+SI-077	SI	Moravče
+SI-078	SI	Moravske Toplice
+SI-079	SI	Mozirje
+SI-080	SI	Murska Sobota
+SI-081	SI	Muta
+SI-082	SI	Naklo
+SI-083	SI	Nazarje
+SI-084	SI	Nova Gorica
+SI-085	SI	Novo Mesto
+SI-086	SI	Odranci
+SI-087	SI	Ormož
+SI-088	SI	Osilnica
+SI-089	SI	Pesnica
+SI-090	SI	Piran
+SI-091	SI	Pivka
+SI-092	SI	Podčetrtek
+SI-093	SI	Podvelka
+SI-094	SI	Postojna
+SI-095	SI	Preddvor
+SI-096	SI	Ptuj
+SI-097	SI	Puconci
+SI-098	SI	Rače-Fram
+SI-099	SI	Radeče
+SI-100	SI	Radenci
+SI-101	SI	Radlje ob Dravi
+SI-102	SI	Radovljica
+SI-103	SI	Ravne na Koroškem
+SI-104	SI	Ribnica
+SI-105	SI	Rogašovci
+SI-106	SI	Rogaška Slatina
+SI-107	SI	Rogatec
+SI-108	SI	Ruše
+SI-109	SI	Semič
+SI-110	SI	Sevnica
+SI-111	SI	Sežana
+SI-112	SI	Slovenj Gradec
+SI-113	SI	Slovenska Bistrica
+SI-114	SI	Slovenske Konjice
+SI-115	SI	Starše
+SI-116	SI	Sveti Jurij ob Ščavnici
+SI-117	SI	Šenčur
+SI-118	SI	Šentilj
+SI-119	SI	Šentjernej
+SI-120	SI	Šentjur
+SI-121	SI	Škocjan
+SI-122	SI	Škofja Loka
+SI-123	SI	Škofljica
+SI-124	SI	Šmarje pri Jelšah
+SI-125	SI	Šmartno ob Paki
+SI-126	SI	Šoštanj
+SI-127	SI	Štore
+SI-128	SI	Tolmin
+SI-129	SI	Trbovlje
+SI-130	SI	Trebnje
+SI-131	SI	Tržič
+SI-132	SI	Turnišče
+SI-133	SI	Velenje
+SI-134	SI	Velike Lašče
+SI-135	SI	Videm
+SI-136	SI	Vipava
+SI-137	SI	Vitanje
+SI-138	SI	Vodice
+SI-139	SI	Vojnik
+SI-140	SI	Vrhnika
+SI-141	SI	Vuzenica
+SI-142	SI	Zagorje ob Savi
+SI-143	SI	Zavrč
+SI-144	SI	Zreče
+SI-146	SI	Železniki
+SI-147	SI	Žiri
+SI-148	SI	Benedikt
+SI-149	SI	Bistrica ob Sotli
+SI-150	SI	Bloke
+SI-151	SI	Braslovče
+SI-152	SI	Cankova
+SI-153	SI	Cerkvenjak
+SI-154	SI	Dobje
+SI-155	SI	Dobrna
+SI-156	SI	Dobrovnik
+SI-157	SI	Dolenjske Toplice
+SI-158	SI	Grad
+SI-159	SI	Hajdina
+SI-160	SI	Hoče-Slivnica
+SI-161	SI	Hodoš
+SI-162	SI	Horjul
+SI-163	SI	Jezersko
+SI-164	SI	Komenda
+SI-165	SI	Kostel
+SI-166	SI	Križevci
+SI-167	SI	Lovrenc na Pohorju
+SI-168	SI	Markovci
+SI-169	SI	Miklavž na Dravskem polju
+SI-170	SI	Mirna Peč
+SI-171	SI	Oplotnica
+SI-172	SI	Podlehnik
+SI-173	SI	Polzela
+SI-174	SI	Prebold
+SI-175	SI	Prevalje
+SI-176	SI	Razkrižje
+SI-177	SI	Ribnica na Pohorju
+SI-178	SI	Selnica ob Dravi
+SI-179	SI	Sodražica
+SI-180	SI	Solčava
+SI-181	SI	Sveta Ana
+SI-182	SI	Sveti Andraž v Slovenskih goricah
+SI-183	SI	Šempeter-Vrtojba
+SI-184	SI	Tabor
+SI-185	SI	Trnovska Vas
+SI-186	SI	Trzin
+SI-187	SI	Velika Polana
+SI-188	SI	Veržej
+SI-189	SI	Vransko
+SI-190	SI	Žalec
+SI-191	SI	Žetale
+SI-192	SI	Žirovnica
+SI-193	SI	Žužemberk
+SI-194	SI	Šmartno pri Litiji
+SI-195	SI	Apače
+SI-196	SI	Cirkulane
+SI-197	SI	Kostanjevica na Krki
+SI-198	SI	Makole
+SI-199	SI	Mokronog-Trebelno
+SI-200	SI	Poljčane
+SI-201	SI	Renče-Vogrsko
+SI-202	SI	Središče ob Dravi
+SI-203	SI	Straža
+SI-204	SI	Sveta Trojica v Slovenskih goricah
+SI-205	SI	Sveti Tomaž
+SI-206	SI	Šmarješke Toplice
+SI-207	SI	Gorje
+SI-208	SI	Log-Dragomer
+SI-209	SI	Rečica ob Savinji
+SI-210	SI	Sveti Jurij v Slovenskih goricah
+SI-211	SI	Šentrupert
+SI-212	SI	Mirna
+SI-213	SI	Ankaran
+SK-BC	SK	Banskobystrický kraj
+SK-BL	SK	Bratislavský kraj
+SK-KI	SK	Košický kraj
+SK-NI	SK	Nitriansky kraj
+SK-PV	SK	Prešovský kraj
+SK-TA	SK	Trnavský kraj
+SK-TC	SK	Trenčiansky kraj
+SK-ZI	SK	Žilinský kraj
+SL-E	SL	Eastern
+SL-N	SL	Northern
+SL-NW	SL	North Western
+SL-S	SL	Southern
+SL-W	SL	Western Area (Freetown)
+SM-01	SM	Acquaviva
+SM-02	SM	Chiesanuova
+SM-03	SM	Domagnano
+SM-04	SM	Faetano
+SM-05	SM	Fiorentino
+SM-06	SM	Borgo Maggiore
+SM-07	SM	Città di San Marino
+SM-08	SM	Montegiardino
+SM-09	SM	Serravalle
+SN-DB	SN	Diourbel
+SN-DK	SN	Dakar
+SN-FK	SN	Fatick
+SN-KA	SN	Kaffrine
+SN-KD	SN	Kolda
+SN-KE	SN	Kédougou
+SN-KL	SN	Kaolack
+SN-LG	SN	Louga
+SN-MT	SN	Matam
+SN-SE	SN	Sédhiou
+SN-SL	SN	Saint-Louis
+SN-TC	SN	Tambacounda
+SN-TH	SN	Thiès
+SN-ZG	SN	Ziguinchor
+SO-AW	SO	Awdal
+SO-BK	SO	Bakool
+SO-BN	SO	Banaadir
+SO-BR	SO	Bari
+SO-BY	SO	Bay
+SO-GA	SO	Galguduud
+SO-GE	SO	Gedo
+SO-HI	SO	Hiiraan
+SO-JD	SO	Jubbada Dhexe
+SO-JH	SO	Jubbada Hoose
+SO-MU	SO	Mudug
+SO-NU	SO	Nugaal
+SO-SA	SO	Sanaag
+SO-SD	SO	Shabeellaha Dhexe
+SO-SH	SO	Shabeellaha Hoose
+SO-SO	SO	Sool
+SO-TO	SO	Togdheer
+SO-WO	SO	Woqooyi Galbeed
+SR-BR	SR	Brokopondo
+SR-CM	SR	Commewijne
+SR-CR	SR	Coronie
+SR-MA	SR	Marowijne
+SR-NI	SR	Nickerie
+SR-PM	SR	Paramaribo
+SR-PR	SR	Para
+SR-SA	SR	Saramacca
+SR-SI	SR	Sipaliwini
+SR-WA	SR	Wanica
+SS-BN	SS	Northern Bahr el Ghazal
+SS-BW	SS	Western Bahr el Ghazal
+SS-EC	SS	Central Equatoria
+SS-EE	SS	Eastern Equatoria
+SS-EW	SS	Western Equatoria
+SS-JG	SS	Jonglei
+SS-LK	SS	Lakes
+SS-NU	SS	Upper Nile
+SS-UY	SS	Unity
+SS-WR	SS	Warrap
+ST-01	ST	Água Grande
+ST-02	ST	Cantagalo
+ST-03	ST	Caué
+ST-04	ST	Lembá
+ST-05	ST	Lobata
+ST-06	ST	Mé-Zóchi
+ST-P	ST	Príncipe
+SV-AH	SV	Ahuachapán
+SV-CA	SV	Cabañas
+SV-CH	SV	Chalatenango
+SV-CU	SV	Cuscatlán
+SV-LI	SV	La Libertad
+SV-MO	SV	Morazán
+SV-PA	SV	La Paz
+SV-SA	SV	Santa Ana
+SV-SM	SV	San Miguel
+SV-SO	SV	Sonsonate
+SV-SS	SV	San Salvador
+SV-SV	SV	San Vicente
+SV-UN	SV	La Unión
+SV-US	SV	Usulután
+SY-DI	SY	Dimashq
+SY-DR	SY	Dar'ā
+SY-DY	SY	Dayr az Zawr
+SY-HA	SY	Al Ḩasakah
+SY-HI	SY	Ḩimş
+SY-HL	SY	Ḩalab
+SY-HM	SY	Ḩamāh
+SY-ID	SY	Idlib
+SY-LA	SY	Al Lādhiqīyah
+SY-QU	SY	Al Qunayţirah
+SY-RA	SY	Ar Raqqah
+SY-RD	SY	Rīf Dimashq
+SY-SU	SY	As Suwaydā'
+SY-TA	SY	Ţarţūs
+SZ-HH	SZ	Hhohho
+SZ-LU	SZ	Lubombo
+SZ-MA	SZ	Manzini
+SZ-SH	SZ	Shiselweni
+TD-BA	TD	Batha
+TD-BG	TD	Bahr el Ghazal
+TD-BO	TD	Borkou
+TD-CB	TD	Chari-Baguirmi
+TD-EE	TD	Ennedi-Est
+TD-EO	TD	Ennedi-Ouest
+TD-GR	TD	Guéra
+TD-HL	TD	Hadjer Lamis
+TD-KA	TD	Kanem
+TD-LC	TD	Lac
+TD-LO	TD	Logone-Occidental
+TD-LR	TD	Logone-Oriental
+TD-MA	TD	Mandoul
+TD-MC	TD	Moyen-Chari
+TD-ME	TD	Mayo-Kebbi-Est
+TD-MO	TD	Mayo-Kebbi-Ouest
+TD-ND	TD	Ville de Ndjamena
+TD-OD	TD	Ouaddaï
+TD-SA	TD	Salamat
+TD-SI	TD	Sila
+TD-TA	TD	Tandjilé
+TD-TI	TD	Tibesti
+TD-WF	TD	Wadi Fira
+TG-C	TG	Centrale
+TG-K	TG	Kara
+TG-M	TG	Maritime (Région)
+TG-P	TG	Plateaux
+TG-S	TG	Savanes
+TH-10	TH	Krung Thep Maha Nakhon
+TH-11	TH	Samut Prakan
+TH-12	TH	Nonthaburi
+TH-13	TH	Pathum Thani
+TH-14	TH	Phra Nakhon Si Ayutthaya
+TH-15	TH	Ang Thong
+TH-16	TH	Lop Buri
+TH-17	TH	Sing Buri
+TH-18	TH	Chai Nat
+TH-19	TH	Saraburi
+TH-20	TH	Chon Buri
+TH-21	TH	Rayong
+TH-22	TH	Chanthaburi
+TH-23	TH	Trat
+TH-24	TH	Chachoengsao
+TH-25	TH	Prachin Buri
+TH-26	TH	Nakhon Nayok
+TH-27	TH	Sa Kaeo
+TH-30	TH	Nakhon Ratchasima
+TH-31	TH	Buri Ram
+TH-32	TH	Surin
+TH-33	TH	Si Sa Ket
+TH-34	TH	Ubon Ratchathani
+TH-35	TH	Yasothon
+TH-36	TH	Chaiyaphum
+TH-37	TH	Amnat Charoen
+TH-38	TH	Bueng Kan
+TH-39	TH	Nong Bua Lam Phu
+TH-40	TH	Khon Kaen
+TH-41	TH	Udon Thani
+TH-42	TH	Loei
+TH-43	TH	Nong Khai
+TH-44	TH	Maha Sarakham
+TH-45	TH	Roi Et
+TH-46	TH	Kalasin
+TH-47	TH	Sakon Nakhon
+TH-48	TH	Nakhon Phanom
+TH-49	TH	Mukdahan
+TH-50	TH	Chiang Mai
+TH-51	TH	Lamphun
+TH-52	TH	Lampang
+TH-53	TH	Uttaradit
+TH-54	TH	Phrae
+TH-55	TH	Nan
+TH-56	TH	Phayao
+TH-57	TH	Chiang Rai
+TH-58	TH	Mae Hong Son
+TH-60	TH	Nakhon Sawan
+TH-61	TH	Uthai Thani
+TH-62	TH	Kamphaeng Phet
+TH-63	TH	Tak
+TH-64	TH	Sukhothai
+TH-65	TH	Phitsanulok
+TH-66	TH	Phichit
+TH-67	TH	Phetchabun
+TH-70	TH	Ratchaburi
+TH-71	TH	Kanchanaburi
+TH-72	TH	Suphan Buri
+TH-73	TH	Nakhon Pathom
+TH-74	TH	Samut Sakhon
+TH-75	TH	Samut Songkhram
+TH-76	TH	Phetchaburi
+TH-77	TH	Prachuap Khiri Khan
+TH-80	TH	Nakhon Si Thammarat
+TH-81	TH	Krabi
+TH-82	TH	Phangnga
+TH-83	TH	Phuket
+TH-84	TH	Surat Thani
+TH-85	TH	Ranong
+TH-86	TH	Chumphon
+TH-90	TH	Songkhla
+TH-91	TH	Satun
+TH-92	TH	Trang
+TH-93	TH	Phatthalung
+TH-94	TH	Pattani
+TH-95	TH	Yala
+TH-96	TH	Narathiwat
+TH-S	TH	Phatthaya
+TJ-DU	TJ	Dushanbe
+TJ-GB	TJ	Kŭhistoni Badakhshon
+TJ-KT	TJ	Khatlon
+TJ-RA	TJ	nohiyahoi tobei jumhurí
+TJ-SU	TJ	Sughd
+TL-AL	TL	Aileu
+TL-AN	TL	Ainaro
+TL-BA	TL	Baucau
+TL-BO	TL	Bobonaro
+TL-CO	TL	Cova Lima
+TL-DI	TL	Díli
+TL-ER	TL	Ermera
+TL-LA	TL	Lautém
+TL-LI	TL	Liquiça
+TL-MF	TL	Manufahi
+TL-MT	TL	Manatuto
+TL-OE	TL	Oé-Cusse Ambeno
+TL-VI	TL	Viqueque
+TM-A	TM	Ahal
+TM-B	TM	Balkan
+TM-D	TM	Daşoguz
+TM-L	TM	Lebap
+TM-M	TM	Mary
+TM-S	TM	Aşgabat
+TN-11	TN	Tunis
+TN-12	TN	L'Ariana
+TN-13	TN	Ben Arous
+TN-14	TN	La Manouba
+TN-21	TN	Nabeul
+TN-22	TN	Zaghouan
+TN-23	TN	Bizerte
+TN-31	TN	Béja
+TN-32	TN	Jendouba
+TN-33	TN	Le Kef
+TN-34	TN	Siliana
+TN-41	TN	Kairouan
+TN-42	TN	Kasserine
+TN-43	TN	Sidi Bouzid
+TN-51	TN	Sousse
+TN-52	TN	Monastir
+TN-53	TN	Mahdia
+TN-61	TN	Sfax
+TN-71	TN	Gafsa
+TN-72	TN	Tozeur
+TN-73	TN	Kébili
+TN-81	TN	Gabès
+TN-82	TN	Médenine
+TN-83	TN	Tataouine
+TO-01	TO	'Eua
+TO-02	TO	Ha'apai
+TO-03	TO	Niuas
+TO-04	TO	Tongatapu
+TO-05	TO	Vava'u
+TR-01	TR	Adana
+TR-02	TR	Adıyaman
+TR-03	TR	Afyonkarahisar
+TR-04	TR	Ağrı
+TR-05	TR	Amasya
+TR-06	TR	Ankara
+TR-07	TR	Antalya
+TR-08	TR	Artvin
+TR-09	TR	Aydın
+TR-10	TR	Balıkesir
+TR-11	TR	Bilecik
+TR-12	TR	Bingöl
+TR-13	TR	Bitlis
+TR-14	TR	Bolu
+TR-15	TR	Burdur
+TR-16	TR	Bursa
+TR-17	TR	Çanakkale
+TR-18	TR	Çankırı
+TR-19	TR	Çorum
+TR-20	TR	Denizli
+TR-21	TR	Diyarbakır
+TR-22	TR	Edirne
+TR-23	TR	Elazığ
+TR-24	TR	Erzincan
+TR-25	TR	Erzurum
+TR-26	TR	Eskişehir
+TR-27	TR	Gaziantep
+TR-28	TR	Giresun
+TR-29	TR	Gümüşhane
+TR-30	TR	Hakkâri
+TR-31	TR	Hatay
+TR-32	TR	Isparta
+TR-33	TR	Mersin
+TR-34	TR	İstanbul
+TR-35	TR	İzmir
+TR-36	TR	Kars
+TR-37	TR	Kastamonu
+TR-38	TR	Kayseri
+TR-39	TR	Kırklareli
+TR-40	TR	Kırşehir
+TR-41	TR	Kocaeli
+TR-42	TR	Konya
+TR-43	TR	Kütahya
+TR-44	TR	Malatya
+TR-45	TR	Manisa
+TR-46	TR	Kahramanmaraş
+TR-47	TR	Mardin
+TR-48	TR	Muğla
+TR-49	TR	Muş
+TR-50	TR	Nevşehir
+TR-51	TR	Niğde
+TR-52	TR	Ordu
+TR-53	TR	Rize
+TR-54	TR	Sakarya
+TR-55	TR	Samsun
+TR-56	TR	Siirt
+TR-57	TR	Sinop
+TR-58	TR	Sivas
+TR-59	TR	Tekirdağ
+TR-60	TR	Tokat
+TR-61	TR	Trabzon
+TR-62	TR	Tunceli
+TR-63	TR	Şanlıurfa
+TR-64	TR	Uşak
+TR-65	TR	Van
+TR-66	TR	Yozgat
+TR-67	TR	Zonguldak
+TR-68	TR	Aksaray
+TR-69	TR	Bayburt
+TR-70	TR	Karaman
+TR-71	TR	Kırıkkale
+TR-72	TR	Batman
+TR-73	TR	Şırnak
+TR-74	TR	Bartın
+TR-75	TR	Ardahan
+TR-76	TR	Iğdır
+TR-77	TR	Yalova
+TR-78	TR	Karabük
+TR-79	TR	Kilis
+TR-80	TR	Osmaniye
+TR-81	TR	Düzce
+TT-ARI	TT	Arima
+TT-CHA	TT	Chaguanas
+TT-CTT	TT	Couva-Tabaquite-Talparo
+TT-DMN	TT	Diego Martin
+TT-MRC	TT	Mayaro-Rio Claro
+TT-PED	TT	Penal-Debe
+TT-POS	TT	Port of Spain
+TT-PRT	TT	Princes Town
+TT-PTF	TT	Point Fortin
+TT-SFO	TT	San Fernando
+TT-SGE	TT	Sangre Grande
+TT-SIP	TT	Siparia
+TT-SJL	TT	San Juan-Laventille
+TT-TOB	TT	Tobago
+TT-TUP	TT	Tunapuna-Piarco
+TV-FUN	TV	Funafuti
+TV-NIT	TV	Niutao
+TV-NKF	TV	Nukufetau
+TV-NKL	TV	Nukulaelae
+TV-NMA	TV	Nanumea
+TV-NMG	TV	Nanumaga
+TV-NUI	TV	Nui
+TV-VAI	TV	Vaitupu
+TW-CHA	TW	Changhua
+TW-CYI	TW	Chiayi
+TW-CYQ	TW	Chiayi
+TW-HSQ	TW	Hsinchu
+TW-HSZ	TW	Hsinchu
+TW-HUA	TW	Hualien
+TW-ILA	TW	Yilan
+TW-KEE	TW	Keelung
+TW-KHH	TW	Kaohsiung
+TW-KIN	TW	Kinmen
+TW-LIE	TW	Lienchiang
+TW-MIA	TW	Miaoli
+TW-NAN	TW	Nantou
+TW-NWT	TW	New Taipei
+TW-PEN	TW	Penghu
+TW-PIF	TW	Pingtung
+TW-TAO	TW	Taoyuan
+TW-TNN	TW	Tainan
+TW-TPE	TW	Taipei
+TW-TTT	TW	Taitung
+TW-TXG	TW	Taichung
+TW-YUN	TW	Yunlin
+TZ-01	TZ	Arusha
+TZ-02	TZ	Dar es Salaam
+TZ-03	TZ	Dodoma
+TZ-04	TZ	Iringa
+TZ-05	TZ	Kagera
+TZ-06	TZ	Pemba North
+TZ-07	TZ	Zanzibar North
+TZ-08	TZ	Kigoma
+TZ-09	TZ	Kilimanjaro
+TZ-10	TZ	Pemba South
+TZ-11	TZ	Zanzibar South
+TZ-12	TZ	Lindi
+TZ-13	TZ	Mara
+TZ-14	TZ	Mbeya
+TZ-15	TZ	Zanzibar West
+TZ-16	TZ	Morogoro
+TZ-17	TZ	Mtwara
+TZ-18	TZ	Mwanza
+TZ-19	TZ	Coast
+TZ-20	TZ	Rukwa
+TZ-21	TZ	Ruvuma
+TZ-22	TZ	Shinyanga
+TZ-23	TZ	Singida
+TZ-24	TZ	Tabora
+TZ-25	TZ	Tanga
+TZ-26	TZ	Manyara
+TZ-27	TZ	Geita
+TZ-28	TZ	Katavi
+TZ-29	TZ	Njombe
+TZ-30	TZ	Simiyu
+TZ-31	TZ	Songwe
+UA-05	UA	Vinnytska oblast
+UA-07	UA	Volynska oblast
+UA-09	UA	Luhanska oblast
+UA-12	UA	Dnipropetrovska oblast
+UA-14	UA	Donetska oblast
+UA-18	UA	Zhytomyrska oblast
+UA-21	UA	Zakarpatska oblast
+UA-23	UA	Zaporizka oblast
+UA-26	UA	Ivano-Frankivska oblast
+UA-30	UA	Kyiv
+UA-32	UA	Kyivska oblast
+UA-35	UA	Kirovohradska oblast
+UA-40	UA	Sevastopol
+UA-43	UA	Avtonomna Respublika Krym
+UA-46	UA	Lvivska oblast
+UA-48	UA	Mykolaivska oblast
+UA-51	UA	Odeska oblast
+UA-53	UA	Poltavska oblast
+UA-56	UA	Rivnenska oblast
+UA-59	UA	Sumska oblast
+UA-61	UA	Ternopilska oblast
+UA-63	UA	Kharkivska oblast
+UA-65	UA	Khersonska oblast
+UA-68	UA	Khmelnytska oblast
+UA-71	UA	Cherkaska oblast
+UA-74	UA	Chernihivska oblast
+UA-77	UA	Chernivetska oblast
+UG-101	UG	Kalangala
+UG-102	UG	Kampala
+UG-103	UG	Kiboga
+UG-104	UG	Luwero
+UG-105	UG	Masaka
+UG-106	UG	Mpigi
+UG-107	UG	Mubende
+UG-108	UG	Mukono
+UG-109	UG	Nakasongola
+UG-110	UG	Rakai
+UG-111	UG	Sembabule
+UG-112	UG	Kayunga
+UG-113	UG	Wakiso
+UG-114	UG	Lyantonde
+UG-115	UG	Mityana
+UG-116	UG	Nakaseke
+UG-117	UG	Buikwe
+UG-118	UG	Bukomansibi
+UG-119	UG	Butambala
+UG-120	UG	Buvuma
+UG-121	UG	Gomba
+UG-122	UG	Kalungu
+UG-123	UG	Kyankwanzi
+UG-124	UG	Lwengo
+UG-125	UG	Kyotera
+UG-126	UG	Kasanda
+UG-201	UG	Bugiri
+UG-202	UG	Busia
+UG-203	UG	Iganga
+UG-204	UG	Jinja
+UG-205	UG	Kamuli
+UG-206	UG	Kapchorwa
+UG-207	UG	Katakwi
+UG-208	UG	Kumi
+UG-209	UG	Mbale
+UG-210	UG	Pallisa
+UG-211	UG	Soroti
+UG-212	UG	Tororo
+UG-213	UG	Kaberamaido
+UG-214	UG	Mayuge
+UG-215	UG	Sironko
+UG-216	UG	Amuria
+UG-217	UG	Budaka
+UG-218	UG	Bududa
+UG-219	UG	Bukedea
+UG-220	UG	Bukwo
+UG-221	UG	Butaleja
+UG-222	UG	Kaliro
+UG-223	UG	Manafwa
+UG-224	UG	Namutumba
+UG-225	UG	Bulambuli
+UG-226	UG	Buyende
+UG-227	UG	Kibuku
+UG-228	UG	Kween
+UG-229	UG	Luuka
+UG-230	UG	Namayingo
+UG-231	UG	Ngora
+UG-232	UG	Serere
+UG-233	UG	Butebo
+UG-234	UG	Namisindwa
+UG-235	UG	Bugweri
+UG-236	UG	Kapelebyong
+UG-237	UG	Kalaki
+UG-301	UG	Adjumani
+UG-302	UG	Apac
+UG-303	UG	Arua
+UG-304	UG	Gulu
+UG-305	UG	Kitgum
+UG-306	UG	Kotido
+UG-307	UG	Lira
+UG-308	UG	Moroto
+UG-309	UG	Moyo
+UG-310	UG	Nebbi
+UG-311	UG	Nakapiripirit
+UG-312	UG	Pader
+UG-313	UG	Yumbe
+UG-314	UG	Abim
+UG-315	UG	Amolatar
+UG-316	UG	Amuru
+UG-317	UG	Dokolo
+UG-318	UG	Kaabong
+UG-319	UG	Koboko
+UG-320	UG	Maracha
+UG-321	UG	Oyam
+UG-322	UG	Agago
+UG-323	UG	Alebtong
+UG-324	UG	Amudat
+UG-325	UG	Kole
+UG-326	UG	Lamwo
+UG-327	UG	Napak
+UG-328	UG	Nwoya
+UG-329	UG	Otuke
+UG-330	UG	Zombo
+UG-331	UG	Omoro
+UG-332	UG	Pakwach
+UG-333	UG	Kwania
+UG-334	UG	Nabilatuk
+UG-335	UG	Karenga
+UG-336	UG	Madi-Okollo
+UG-337	UG	Obongi
+UG-401	UG	Bundibugyo
+UG-402	UG	Bushenyi
+UG-403	UG	Hoima
+UG-404	UG	Kabale
+UG-405	UG	Kabarole
+UG-406	UG	Kasese
+UG-407	UG	Kibaale
+UG-408	UG	Kisoro
+UG-409	UG	Masindi
+UG-410	UG	Mbarara
+UG-411	UG	Ntungamo
+UG-412	UG	Rukungiri
+UG-413	UG	Kamwenge
+UG-414	UG	Kanungu
+UG-415	UG	Kyenjojo
+UG-416	UG	Buliisa
+UG-417	UG	Ibanda
+UG-418	UG	Isingiro
+UG-419	UG	Kiruhura
+UG-420	UG	Buhweju
+UG-421	UG	Kiryandongo
+UG-422	UG	Kyegegwa
+UG-423	UG	Mitooma
+UG-424	UG	Ntoroko
+UG-425	UG	Rubirizi
+UG-426	UG	Sheema
+UG-427	UG	Kagadi
+UG-428	UG	Kakumiro
+UG-429	UG	Rubanda
+UG-430	UG	Bunyangabu
+UG-431	UG	Rukiga
+UG-432	UG	Kikuube
+UG-433	UG	Kazo
+UG-434	UG	Kitagwenda
+UG-435	UG	Rwampara
+UG-C	UG	Central
+UG-E	UG	Eastern
+UG-N	UG	Northern
+UG-W	UG	Western
+UM-67	UM	Johnston Atoll
+UM-71	UM	Midway Islands
+UM-76	UM	Navassa Island
+UM-79	UM	Wake Island
+UM-81	UM	Baker Island
+UM-84	UM	Howland Island
+UM-86	UM	Jarvis Island
+UM-89	UM	Kingman Reef
+UM-95	UM	Palmyra Atoll
+US-AK	US	Alaska
+US-AL	US	Alabama
+US-AR	US	Arkansas
+US-AS	US	American Samoa
+US-AZ	US	Arizona
+US-CA	US	California
+US-CO	US	Colorado
+US-CT	US	Connecticut
+US-DC	US	District of Columbia
+US-DE	US	Delaware
+US-FL	US	Florida
+US-GA	US	Georgia
+US-GU	US	Guam
+US-HI	US	Hawaii
+US-IA	US	Iowa
+US-ID	US	Idaho
+US-IL	US	Illinois
+US-IN	US	Indiana
+US-KS	US	Kansas
+US-KY	US	Kentucky
+US-LA	US	Louisiana
+US-MA	US	Massachusetts
+US-MD	US	Maryland
+US-ME	US	Maine
+US-MI	US	Michigan
+US-MN	US	Minnesota
+US-MO	US	Missouri
+US-MP	US	Northern Mariana Islands
+US-MS	US	Mississippi
+US-MT	US	Montana
+US-NC	US	North Carolina
+US-ND	US	North Dakota
+US-NE	US	Nebraska
+US-NH	US	New Hampshire
+US-NJ	US	New Jersey
+US-NM	US	New Mexico
+US-NV	US	Nevada
+US-NY	US	New York
+US-OH	US	Ohio
+US-OK	US	Oklahoma
+US-OR	US	Oregon
+US-PA	US	Pennsylvania
+US-PR	US	Puerto Rico
+US-RI	US	Rhode Island
+US-SC	US	South Carolina
+US-SD	US	South Dakota
+US-TN	US	Tennessee
+US-TX	US	Texas
+US-UM	US	United States Minor Outlying Islands
+US-UT	US	Utah
+US-VA	US	Virginia
+US-VI	US	Virgin Islands, U.S.
+US-VT	US	Vermont
+US-WA	US	Washington
+US-WI	US	Wisconsin
+US-WV	US	West Virginia
+US-WY	US	Wyoming
+UY-AR	UY	Artigas
+UY-CA	UY	Canelones
+UY-CL	UY	Cerro Largo
+UY-CO	UY	Colonia
+UY-DU	UY	Durazno
+UY-FD	UY	Florida
+UY-FS	UY	Flores
+UY-LA	UY	Lavalleja
+UY-MA	UY	Maldonado
+UY-MO	UY	Montevideo
+UY-PA	UY	Paysandú
+UY-RN	UY	Río Negro
+UY-RO	UY	Rocha
+UY-RV	UY	Rivera
+UY-SA	UY	Salto
+UY-SJ	UY	San José
+UY-SO	UY	Soriano
+UY-TA	UY	Tacuarembó
+UY-TT	UY	Treinta y Tres
+UZ-AN	UZ	Andijon
+UZ-BU	UZ	Buxoro
+UZ-FA	UZ	Farg‘ona
+UZ-JI	UZ	Jizzax
+UZ-NG	UZ	Namangan
+UZ-NW	UZ	Navoiy
+UZ-QA	UZ	Qashqadaryo
+UZ-QR	UZ	Qoraqalpog‘iston Respublikasi
+UZ-SA	UZ	Samarqand
+UZ-SI	UZ	Sirdaryo
+UZ-SU	UZ	Surxondaryo
+UZ-TK	UZ	Toshkent
+UZ-TO	UZ	Toshkent
+UZ-XO	UZ	Xorazm
+VC-01	VC	Charlotte
+VC-02	VC	Saint Andrew
+VC-03	VC	Saint David
+VC-04	VC	Saint George
+VC-05	VC	Saint Patrick
+VC-06	VC	Grenadines
+VE-A	VE	Distrito Capital
+VE-B	VE	Anzoátegui
+VE-C	VE	Apure
+VE-D	VE	Aragua
+VE-E	VE	Barinas
+VE-F	VE	Bolívar
+VE-G	VE	Carabobo
+VE-H	VE	Cojedes
+VE-I	VE	Falcón
+VE-J	VE	Guárico
+VE-K	VE	Lara
+VE-L	VE	Mérida
+VE-M	VE	Miranda
+VE-N	VE	Monagas
+VE-O	VE	Nueva Esparta
+VE-P	VE	Portuguesa
+VE-R	VE	Sucre
+VE-S	VE	Táchira
+VE-T	VE	Trujillo
+VE-U	VE	Yaracuy
+VE-V	VE	Zulia
+VE-W	VE	Dependencias Federales
+VE-X	VE	La Guaira
+VE-Y	VE	Delta Amacuro
+VE-Z	VE	Amazonas
+VN-01	VN	Lai Châu
+VN-02	VN	Lào Cai
+VN-03	VN	Hà Giang
+VN-04	VN	Cao Bằng
+VN-05	VN	Sơn La
+VN-06	VN	Yên Bái
+VN-07	VN	Tuyên Quang
+VN-09	VN	Lạng Sơn
+VN-13	VN	Quảng Ninh
+VN-14	VN	Hòa Bình
+VN-18	VN	Ninh Bình
+VN-20	VN	Thái Bình
+VN-21	VN	Thanh Hóa
+VN-22	VN	Nghệ An
+VN-23	VN	Hà Tĩnh
+VN-24	VN	Quảng Bình
+VN-25	VN	Quảng Trị
+VN-26	VN	Thừa Thiên-Huế
+VN-27	VN	Quảng Nam
+VN-28	VN	Kon Tum
+VN-29	VN	Quảng Ngãi
+VN-30	VN	Gia Lai
+VN-31	VN	Bình Định
+VN-32	VN	Phú Yên
+VN-33	VN	Đắk Lắk
+VN-34	VN	Khánh Hòa
+VN-35	VN	Lâm Đồng
+VN-36	VN	Ninh Thuận
+VN-37	VN	Tây Ninh
+VN-39	VN	Đồng Nai
+VN-40	VN	Bình Thuận
+VN-41	VN	Long An
+VN-43	VN	Bà Rịa - Vũng Tàu
+VN-44	VN	An Giang
+VN-45	VN	Đồng Tháp
+VN-46	VN	Tiền Giang
+VN-47	VN	Kiến Giang
+VN-49	VN	Vĩnh Long
+VN-50	VN	Bến Tre
+VN-51	VN	Trà Vinh
+VN-52	VN	Sóc Trăng
+VN-53	VN	Bắc Kạn
+VN-54	VN	Bắc Giang
+VN-55	VN	Bạc Liêu
+VN-56	VN	Bắc Ninh
+VN-57	VN	Bình Dương
+VN-58	VN	Bình Phước
+VN-59	VN	Cà Mau
+VN-61	VN	Hải Dương
+VN-63	VN	Hà Nam
+VN-66	VN	Hưng Yên
+VN-67	VN	Nam Định
+VN-68	VN	Phú Thọ
+VN-69	VN	Thái Nguyên
+VN-70	VN	Vĩnh Phúc
+VN-71	VN	Điện Biên
+VN-72	VN	Đắk Nông
+VN-73	VN	Hậu Giang
+VN-CT	VN	Cần Thơ
+VN-DN	VN	Đà Nẵng
+VN-HN	VN	Hà Nội
+VN-HP	VN	Hải Phòng
+VN-SG	VN	Hồ Chí Minh
+VU-MAP	VU	Malampa
+VU-PAM	VU	Pénama
+VU-SAM	VU	Sanma
+VU-SEE	VU	Shéfa
+VU-TAE	VU	Taféa
+VU-TOB	VU	Torba
+WF-AL	WF	Alo
+WF-SG	WF	Sigave
+WF-UV	WF	Uvea
+WS-AA	WS	A'ana
+WS-AL	WS	Aiga-i-le-Tai
+WS-AT	WS	Atua
+WS-FA	WS	Fa'asaleleaga
+WS-GE	WS	Gaga'emauga
+WS-GI	WS	Gagaifomauga
+WS-PA	WS	Palauli
+WS-SA	WS	Satupa'itea
+WS-TU	WS	Tuamasaga
+WS-VF	WS	Va'a-o-Fonoti
+WS-VS	WS	Vaisigano
+YE-AB	YE	Abyan
+YE-AD	YE	‘Adan
+YE-AM	YE	‘Amrān
+YE-BA	YE	Al Bayḑā’
+YE-DA	YE	Aḑ Ḑāli‘
+YE-DH	YE	Dhamār
+YE-HD	YE	Ḩaḑramawt
+YE-HJ	YE	Ḩajjah
+YE-HU	YE	Al Ḩudaydah
+YE-IB	YE	Ibb
+YE-JA	YE	Al Jawf
+YE-LA	YE	Laḩij
+YE-MA	YE	Ma’rib
+YE-MR	YE	Al Mahrah
+YE-MW	YE	Al Maḩwīt
+YE-RA	YE	Raymah
+YE-SA	YE	Amānat al ‘Āşimah [city]
+YE-SD	YE	Şāʻdah
+YE-SH	YE	Shabwah
+YE-SN	YE	Şanʻā’
+YE-SU	YE	Arkhabīl Suquţrá
+YE-TA	YE	Tāʻizz
+ZA-EC	ZA	Eastern Cape
+ZA-FS	ZA	Free State
+ZA-GP	ZA	Gauteng
+ZA-KZN	ZA	Kwazulu-Natal
+ZA-LP	ZA	Limpopo
+ZA-MP	ZA	Mpumalanga
+ZA-NC	ZA	Northern Cape
+ZA-NW	ZA	North-West
+ZA-WC	ZA	Western Cape
+ZM-01	ZM	Western
+ZM-02	ZM	Central
+ZM-03	ZM	Eastern
+ZM-04	ZM	Luapula
+ZM-05	ZM	Northern
+ZM-06	ZM	North-Western
+ZM-07	ZM	Southern
+ZM-08	ZM	Copperbelt
+ZM-09	ZM	Lusaka
+ZM-10	ZM	Muchinga
+ZW-BU	ZW	Bulawayo
+ZW-HA	ZW	Harare
+ZW-MA	ZW	Manicaland
+ZW-MC	ZW	Mashonaland Central
+ZW-ME	ZW	Mashonaland East
+ZW-MI	ZW	Midlands
+ZW-MN	ZW	Matabeleland North
+ZW-MS	ZW	Matabeleland South
+ZW-MV	ZW	Masvingo
+ZW-MW	ZW	Mashonaland West

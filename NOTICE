@@ -1,0 +1,37 @@
+Promovolve
+Copyright 2026 Programmer LLC
+
+This product includes software developed at Programmer LLC, licensed under
+the Apache License, Version 2.0 (see LICENSE).
+
+--------------------------------------------------------------------------
+Third-party data
+--------------------------------------------------------------------------
+
+modules/core/src/main/resources/places/
+  countries.tsv, countries_<lang>.tsv
+  subdivisions.tsv, subdivisions_<lang>.tsv
+
+    Derived from Debian iso-codes (ISO 3166-1 and ISO 3166-2 codes, names,
+    and translations), licensed under the GNU Lesser General Public License
+    version 2.1 or later.
+    https://salsa.debian.org/iso-codes-team/iso-codes
+
+    Only the data tables are derived; no iso-codes program code is
+    incorporated or linked. Regenerate with scripts/build-places.sh.
+
+  cities.tsv, cities_<lang>.tsv
+
+    Derived from the GeoNames geographical database, licensed under the
+    Creative Commons Attribution 4.0 License.
+    https://www.geonames.org/
+    https://creativecommons.org/licenses/by/4.0/
+
+    Trimmed to the columns Promovolve uses (id, name, country, subdivision,
+    population) plus localised names. Regenerate with
+    scripts/build-places.sh.
+
+modules/core/src/main/resources/iab_content_taxonomy/
+
+    IAB Content Taxonomy, published by IAB Tech Lab.
+    https://iabtechlab.com/standards/content-taxonomy/

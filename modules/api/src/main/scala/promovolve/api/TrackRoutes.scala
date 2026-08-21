@@ -68,7 +68,12 @@ final class TrackRoutes(
     hygiene: promovolve.fraud.RequestHygiene = promovolve.fraud.RequestHygiene.disabled,
     // Layer-1 engagement-chain guard (fraud): impression→click→cta ordering +
     // sub-human server-side timing. None = off (chain/timing marking absent).
-    engagement: Option[promovolve.api.guard.EngagementChecker] = None
+    engagement: Option[promovolve.api.guard.EngagementChecker] = None,
+    // Tier 3 of docs/design/GEOGRAPHIC_CONTEXT.md: tallies the reader's
+    // COUNTRY per site so a publisher's audience declaration is checkable.
+    // Counted on the mount beacon only — see the call site for why — and
+    // aggregate-only by construction. None = off.
+    audienceCounter: Option[promovolve.publisher.AudienceObservationCounter] = None
 )(using system: ActorSystem[?]) extends DogearEventJson with MountBeaconJson {
 
   val routes: Route =
@@ -274,6 +279,20 @@ final class TrackRoutes(
                   mountBeacons.foreach { repo =>
                     secrets.secretFor(req.pub).foreach {
                       case Some(_) =>
+                        // Tally the reader's country for this site. The mount
+                        // beacon is the right and only place: it fires once
+                        // per pageview REGARDLESS of fill, so the denominator
+                        // survives a site with poor fill — which is what stops
+                        // tier-3 suppression from starving the very sample
+                        // that caused it. Counting on impressions instead
+                        // would bias the picture toward filled pageviews.
+                        //
+                        // The country is added to an in-memory tally and the
+                        // IP is dropped, exactly as it already is after
+                        // hygiene classification. Nothing per-reader is kept.
+                        audienceCounter.foreach { counter =>
+                          hygiene.countryOf(ipAddr).foreach(cc => counter.record(req.pub, cc))
+                        }
                         repo
                           .record(
                             req.pub,

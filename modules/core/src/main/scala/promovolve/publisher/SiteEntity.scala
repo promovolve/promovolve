@@ -160,6 +160,33 @@ object SiteEntity {
   /** DData key for verified host distribution — AdServer uses this for serve-time host check */
   val VerifiedHostKey: LWWMapKey[SiteId, String] = LWWMapKey("site-verified-host")
 
+  /**
+   * Per-site geographic inventory summary, for the advertiser-facing
+   * availability check (docs/design/GEOGRAPHIC_CONTEXT.md).
+   *
+   * Exists because there is no global index of either signal — declarations
+   * live in each SiteEntity's config and page places in its classifications
+   * — and an advertiser who targets a place with no inventory otherwise gets
+   * silent zero delivery, which reads as a broken product. DData is already
+   * how this entity publishes site-level facts the cluster needs to read
+   * cheaply (verified host, pacing, blocklists).
+   *
+   * Summary only: the union of places this site has classified, never which
+   * page carried which.
+   */
+  val SiteGeoKey: LWWMapKey[SiteId, CachedSiteGeo] = LWWMapKey("site-geo")
+
+  /**
+   * @param audienceRegions the site's EFFECTIVE declaration (post-suppression)
+   * @param audienceVerified whether tier-3 observation backs it
+   * @param contentPlaces union of places across this site's classified pages
+   */
+  final case class CachedSiteGeo(
+      audienceRegions: Set[String],
+      audienceVerified: Boolean,
+      contentPlaces: Set[String]
+  ) extends promovolve.CborSerializable
+
   /** DData key for auto-approve toggle distribution — AdServer reads it at candidate-partition time */
   val AutoApproveKey: LWWMapKey[SiteId, CachedAutoApprove] = LWWMapKey("site-auto-approve")
 
@@ -190,7 +217,12 @@ object SiteEntity {
       categoryRegistry: ActorRef[CategoryRegistry.Command],
       campaignDirectory: ActorRef[CampaignDirectory.Command],
       llmProvider: IABTaxonomy.Provider,
-      geminiRateLimiter: Option[ActorRef[GeminiRateLimiter.Command]] = None
+      geminiRateLimiter: Option[ActorRef[GeminiRateLimiter.Command]] = None,
+      // Tier 3 of docs/design/GEOGRAPHIC_CONTEXT.md. None = observation is
+      // off, and every declaration is pushed as-is and unverified — the
+      // same behaviour as a site below the sample floor, which is the
+      // honest reading of "we are not measuring".
+      audienceObservations: Option[AudienceObservationRepo] = None
   )(using system: ActorSystem[?]): Behavior[Command] =
     Behaviors.withTimers[Command] { timers =>
       Behaviors
@@ -200,6 +232,16 @@ object SiteEntity {
           // Helper to get auctioneer ref
           def auctioneerRef: EntityRef[AuctioneerEntity.Command] =
             sharding.entityRefFor(AuctioneerEntity.TypeKey, siteId.value)
+
+          // Union of places across this site's classified pages, for the
+          // advertiser availability check. Derived from persisted state, so
+          // it survives a restart without its own persistence.
+          var currentContentPlaces: Set[String] = Set.empty
+
+          // Latest tier-3 read, so a config edit can be pushed with the
+          // verification state already known instead of waiting for the
+          // next observation tick.
+          var lastObserved: Map[String, Long] = Map.empty
 
           // Mutable assistant reference (initialized when we have config)
           var assistant: Option[IABTaxonomy] = None
@@ -483,7 +525,8 @@ object SiteEntity {
               url: String,
               text: String,
               discoveredSlots: List[AdSlotConfig],
-              publisherHint: Option[String] = None
+              publisherHint: Option[String] = None,
+              placeHint: Option[String] = None
           ): Unit =
             // Gated on demand EXISTING (a cost guard — don't classify when there
             // are zero advertisers), but classification itself is demand-INDEPENDENT
@@ -492,14 +535,15 @@ object SiteEntity {
               case (Some(iabTaxonomy), Some(cats)) =>
                 // cats is the FALLBACK only (used if the LLM fails); classification
                 // itself is full-taxonomy / demand-independent.
-                ctx.pipeToSelf(iabTaxonomy.analyzeTaxonomy(
+                ctx.pipeToSelf(iabTaxonomy.analyze(
                   url,
                   text,
                   fallbackCategories = cats,
-                  publisherHint = publisherHint
+                  publisherHint = publisherHint,
+                  placeHint = placeHint
                 )) {
-                  case Success(selections) => ContentAnalyzed(url, text, selections, discoveredSlots)
-                  case Failure(ex)         => FailedToAnalyzeContent(url, ex)
+                  case Success(a)  => ContentAnalyzed(url, text, a.categories, a.places, discoveredSlots)
+                  case Failure(ex) => FailedToAnalyzeContent(url, ex)
                 }
               case (Some(_), None) =>
                 ctx.log.warn(
@@ -582,6 +626,30 @@ object SiteEntity {
             ctx.log.info("SiteEntity {} published suspended={} to DData", siteId.value, suspended)
           }
 
+          /**
+           * Publish this site's geographic summary for the availability
+           * endpoint. Change-gated: classification fires often and the
+           * summary rarely moves, so an unconditional publish would be
+           * cluster gossip for nothing.
+           */
+          var lastPublishedGeo: Option[CachedSiteGeo] = None
+
+          def publishSiteGeo(audience: Set[String], verified: Boolean, places: Set[String]): Unit = {
+            val next = CachedSiteGeo(audience, verified, places)
+            if (!lastPublishedGeo.contains(next)) {
+              lastPublishedGeo = Some(next)
+              replicator ! Replicator.Update(
+                SiteGeoKey,
+                LWWMap.empty[SiteId, CachedSiteGeo],
+                Replicator.WriteLocal,
+                ddataResponseAdapter
+              )(_.put(selfUniqueAddress, siteId, next))
+              ctx.log.debug(
+                "SiteEntity {} published geo summary: audience={} verified={} places={}",
+                siteId.value, audience.mkString(","), verified: java.lang.Boolean, places.mkString(","))
+            }
+          }
+
           def publishVerifiedHost(host: Option[String]): Unit = {
             host match {
               case Some(h) =>
@@ -596,6 +664,40 @@ object SiteEntity {
                 ctx.log.debug("SiteEntity {} no verified host to publish", siteId.value)
             }
           }
+
+          /**
+           * Push the declaration to the auctioneer as the auction should
+           * read it: suppressed against observation, with the verified flag
+           * alongside. The auctioneer is change-gated, so calling this
+           * more often than necessary is cheap.
+           */
+          def pushAudience(declared: Set[String]): Unit = {
+            val effective = AudienceVerification.effectiveAudience(declared, lastObserved)
+            val verified = AudienceVerification.isVerified(declared, lastObserved)
+            val dropped = declared -- effective
+            publishSiteGeo(effective, verified, currentContentPlaces)
+            if (dropped.nonEmpty)
+              ctx.log.warn(
+                "SiteEntity {} suppressing declared audience {} — observation does not support it (total={})",
+                siteId.value, dropped.toVector.sorted.mkString(","), lastObserved.valuesIterator.sum
+              )
+            auctioneerRef ! AuctioneerEntity.UpdateAudienceRegions(effective, verified)
+          }
+
+          /** Refresh the tier-3 read, then re-push. */
+          def refreshAudienceObservations(declared: Set[String]): Unit =
+            audienceObservations.foreach { repo =>
+              ctx.pipeToSelf(repo.forSite(siteId.value, AudienceObservationWindowDays)) {
+                case scala.util.Success(rows) =>
+                  AudienceObservationsLoaded(rows.groupMapReduce(_.country)(_.count)(_ + _))
+                case scala.util.Failure(ex) =>
+                  // A DB hiccup must never suppress a live declaration —
+                  // failing closed here would cut an honest publisher's
+                  // demand for an unrelated outage.
+                  ctx.log.warn("SiteEntity {} audience observation read failed: {}", siteId.value, ex.toString)
+                  AudienceObservationsLoaded(lastObserved)
+              }
+            }
 
           /**
            * Remove this site's entry from the verified-host DData map. AdServer
@@ -729,6 +831,12 @@ object SiteEntity {
                 siteId.value, changed.mkString(", "))
             initializeAssistant()
             registerCategories(config.copy(taxonomyIds = normalizedIds))
+            // Push the declared audience to the auctioneer on every config
+            // apply — Initialize and each UpdateConfig — so an edit takes
+            // effect without waiting for an auctioneer restart. The
+            // auctioneer no-ops when the set is unchanged.
+            pushAudience(config.audienceRegions)
+            refreshAudienceObservations(config.audienceRegions)
           }
 
           /**
@@ -747,6 +855,11 @@ object SiteEntity {
               )
               setupFromConfig(config)
             }
+            // Seed the geographic summary from persisted classifications so a
+            // restarted site does not report "no inventory" until its next
+            // page classifies.
+            currentContentPlaces = state.pageClassifications.valuesIterator.flatMap(_.places).toSet
+
             // Publish pacing config, ad product blocklist, and verified host to DData on recovery
             publishPacingConfig(state.pacingConfig.copy(bidWeight = state.bidWeight,
               floorCpm = state.floorCpm.toDouble))
@@ -835,6 +948,13 @@ object SiteEntity {
               floorObsInterval)
             ctx.log.info("SiteEntity {} floor CPM sweep optimizer initialized (floor={}, obsInterval={}, splay={})",
               siteId.value, state.floorCpm.toDouble, floorObsInterval, obsSplay)
+
+            // Tier-3 refresh. Slow on purpose: the input is a 30-day
+            // rolling aggregate, so reading it often would cost queries to
+            // watch a number that barely moves. Staggered like the others
+            // so sites don't tick in lockstep.
+            timers.startTimerWithFixedDelay("audience-observation", AudienceObservationTick,
+              (math.abs(siteId.value.hashCode) % 600).seconds, 15.minutes)
 
             // Start periodic demand category refresh (staggered likewise)
             timers.startTimerWithFixedDelay("refresh-demand", RefreshDemandCategories,
@@ -1075,6 +1195,12 @@ object SiteEntity {
                 auctioneerRef ! AuctioneerEntity.UpdateCategoryFloors(
                   state.floorCpmByCategory.map { case (k, v) => CategoryId(k) -> v }
                 )
+                // Declared audience regions live in the auctioneer's memory
+                // too, so they need the same unconditional re-arm. Sending
+                // the empty set matters as much as a populated one: it is
+                // what clears a declaration the publisher removed while the
+                // auctioneer was down.
+                pushAudience(state.config.map(_.audienceRegions).getOrElse(Set.empty))
                 // The page-classification cache (`lastPage`) is in-memory
                 // only too, and used to be replayed ONLY at SiteEntity's own
                 // recovery — an auctioneer incarnation spawned in between
@@ -1417,6 +1543,20 @@ object SiteEntity {
                 floorSweepOptimizer.foreach(_.recordBudgetExhausted())
                 Effect.none
 
+              case AudienceObservationTick =>
+                refreshAudienceObservations(state.config.map(_.audienceRegions).getOrElse(Set.empty))
+                Effect.none
+
+              case AudienceObservationsLoaded(byCountry) =>
+                // Ephemeral: recomputed from the aggregate table on every
+                // tick, so it is deliberately NOT persisted. A restart
+                // re-reads it within one tick, and until then the
+                // declaration stands unsuppressed — failing open, the same
+                // way a read error does.
+                lastObserved = byCountry
+                pushAudience(state.config.map(_.audienceRegions).getOrElse(Set.empty))
+                Effect.none
+
               case FloorCpmObservationTick =>
                 // Guard the whole tick: this handler runs the sweep, the
                 // per-category optimizers, and snapshot building. An
@@ -1565,7 +1705,7 @@ object SiteEntity {
                   .thenRun((_: State) => replyTo ! SiteDataDeleted(siteId))
                   .thenStop()
 
-              case ClassifyUrl(url, text, section, slots, replyTo) =>
+              case ClassifyUrl(url, text, section, place, slots, replyTo) =>
                 // On-demand, serve-triggered classification. Text is supplied by
                 // the ad tag (live page DOM) instead of a crawl. Single-flight on
                 // the normalized url so a traffic burst on a new page fires ONE
@@ -1600,7 +1740,7 @@ object SiteEntity {
                     // page (the WP plugin sends the post's categories/tags).
                     // Accepted since the endpoint existed but discarded until
                     // now; it reaches the prompt as unverified evidence only.
-                    triggerClassification(url, text, discoveredSlots, publisherHint = section)
+                    triggerClassification(url, text, discoveredSlots, publisherHint = section, placeHint = place)
                     replyTo ! ClassifyAck(accepted = true, reason = ClassifyDecision.Accept.reason)
                     Effect.none
                   case other =>
@@ -1608,14 +1748,15 @@ object SiteEntity {
                     Effect.none
                 }
 
-              case ContentAnalyzed(url, text, selections, discoveredSlots) =>
+              case ContentAnalyzed(url, text, selections, places, discoveredSlots) =>
                 // Release the single-flight slot (no-op for crawler-path urls).
                 pendingClassifications = pendingClassifications - UrlNormalizer.normalize(url)
                 ctx.log.info(
-                  "SiteEntity {} content analyzed for {}: {} categories",
+                  "SiteEntity {} content analyzed for {}: {} categories, places=[{}]",
                   siteId,
                   url,
-                  selections.size
+                  selections.size,
+                  places.mkString(",")
                 )
                 ctx.log.debug(
                   "SiteEntity {} selections: {}",
@@ -1646,7 +1787,8 @@ object SiteEntity {
                 val persistedEntry = ClassificationEntry(
                   categories = categoryScores,
                   slots = slots.iterator.map(PersistedSlot.from).toVector,
-                  classifiedAt = classifiedAt.toEpochMilli
+                  classifiedAt = classifiedAt.toEpochMilli,
+                  places = places.toSet
                 )
                 // Activate request-detected slots into the site inventory so the
                 // dashboard's Slots table + per-slot floor overrides populate from
@@ -1711,13 +1853,27 @@ object SiteEntity {
                       url = URL(url),
                       categoryScores = categoryScores,
                       slots = slots,
-                      ts = classifiedAt
+                      ts = classifiedAt,
+                      places = places.toSet
                     )
                     Some(withActivated(state).withClassification(url, persistedEntry))
                   }
                 newStateOpt match {
-                  case Some(s) => Effect.persist(s)
-                  case None    => Effect.none
+                  case Some(s) =>
+                    // Keep the advertiser-facing availability summary honest
+                    // as pages classify. Derived from the whole persisted set
+                    // rather than accumulated, so an evicted page's places
+                    // leave with it instead of lingering forever.
+                    currentContentPlaces = s.pageClassifications.valuesIterator.flatMap(_.places).toSet
+                    publishSiteGeo(
+                      AudienceVerification.effectiveAudience(
+                        s.config.map(_.audienceRegions).getOrElse(Set.empty), lastObserved),
+                      AudienceVerification.isVerified(
+                        s.config.map(_.audienceRegions).getOrElse(Set.empty), lastObserved),
+                      currentContentPlaces
+                    )
+                    Effect.persist(s)
+                  case None => Effect.none
                 }
 
               case FailedToAnalyzeContent(url, ex) =>
@@ -1798,6 +1954,19 @@ object SiteEntity {
 
   /** Internal: periodic floor CPM optimization observation tick */
   private case object FloorCpmObservationTick extends Internal
+
+  /** Internal: time to re-read the tier-3 observed audience. */
+  private case object AudienceObservationTick extends Internal
+
+  /** Internal: the tier-3 read came back, keyed by ISO country. */
+  private case class AudienceObservationsLoaded(byCountry: Map[String, Long]) extends Internal
+
+  /**
+   * Trailing window for the tier-3 read. Long enough that a quiet site can
+   * accumulate the sample floor, short enough that a genuine shift in
+   * readership stops being contradicted by last quarter's traffic.
+   */
+  val AudienceObservationWindowDays: Int = 30
 
   /** Internal: traffic ratio updated via DData from AdServer */
   private case class TrafficRatioUpdated(ratio: Double, isWarmedUp: Boolean) extends Internal
@@ -1932,6 +2101,26 @@ object SiteEntity {
     }
 
   /** Configuration for a site's crawler and taxonomy analysis */
+  /**
+   * Apply a declared-audience edit to the current value.
+   *
+   * The distinction this exists to protect: `None` means the caller did
+   * not mention the field and the declaration stands; `Some(empty)` means
+   * the publisher CLEARED it, which is a real edit that must reach the
+   * auctioneer. Collapsing the two — the obvious `getOrElse(current)` on a
+   * flattened set — makes "remove my declaration" silently do nothing, and
+   * the site keeps receiving audience-targeted demand it no longer claims.
+   *
+   * Codes the vocabulary does not know are dropped rather than rejected,
+   * matching the create path: the UI picks from `/v1/places`, so an unknown
+   * code is a bug or a hand-rolled request, and neither should be able to
+   * fail a site edit. A submission that validates away entirely therefore
+   * clears the declaration — the honest reading of "none of what you sent
+   * is a place".
+   */
+  def mergeAudienceRegions(current: Set[String], edit: Option[Iterable[String]]): Set[String] =
+    edit.map(promovolve.taxonomy.Places.validate).getOrElse(current)
+
   final case class SiteConfig(
       publisherId: PublisherId,
       domain: String,
@@ -1942,7 +2131,15 @@ object SiteEntity {
       hostRegex: String,
       targetElements: List[String],
       taxonomyIds: Set[String], // IAB taxonomy category IDs this site targets
-      slots: List[AdSlotConfig] = Nil // Ad slots on this site
+      slots: List[AdSlotConfig] = Nil, // Ad slots on this site
+      // Tier 2 of docs/design/GEOGRAPHIC_CONTEXT.md: the publisher's own
+      // claim about where this site's READERS are, as `Places` codes
+      // (country, subdivision, or city). Empty is the expected steady
+      // state and means UNKNOWN, not "everywhere" — a campaign with
+      // audience targeting is not eligible here until the publisher
+      // declares. Default-empty keeps Jackson recovery of pre-geo
+      // snapshots working with no migration.
+      audienceRegions: Set[String] = Set.empty
   ) extends promovolve.CborSerializable
 
   /**
@@ -1958,7 +2155,14 @@ object SiteEntity {
   final case class ClassificationEntry(
       categories: Map[String, Double],
       slots: Vector[PersistedSlot],
-      classifiedAt: Long
+      classifiedAt: Long,
+      // Tier 1 of docs/design/GEOGRAPHIC_CONTEXT.md: the places this PAGE is
+      // about, as validated `Places` codes. A property of the URL, not of
+      // any reader, which is why it caches next to the categories and
+      // survives full-page caching untouched. Empty is the common answer —
+      // most pages are not about anywhere. Default-empty is Jackson-safe:
+      // pre-geo snapshots recover with no migration.
+      places: Set[String] = Set.empty
   ) extends CborSerializable
 
   /**
@@ -2028,6 +2232,9 @@ object SiteEntity {
       url: String,
       text: String,
       section: Option[String],
+      // Publisher-declared PLACE for this page (the plugin's data-place),
+      // same unverified-claim contract as `section`.
+      place: Option[String],
       slots: Vector[ClassifySlot],
       replyTo: ActorRef[ClassifyAck]
   ) extends Command
@@ -2489,7 +2696,7 @@ object SiteEntity {
   private case class DemandCategoriesRefreshFailed(ex: Throwable) extends Internal
 
   private case class ContentAnalyzed(url: String, text: String, selections: List[IABTaxonomy.Selection],
-      discoveredSlots: List[AdSlotConfig])
+      places: List[String], discoveredSlots: List[AdSlotConfig])
       extends Internal
 
   private case class FailedToAnalyzeContent(url: String, exception: Throwable) extends Internal

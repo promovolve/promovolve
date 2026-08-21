@@ -545,6 +545,46 @@ object AdServer {
         None
     }
 
+  /**
+   * Split candidates into those a trust anchor lets skip the approval queue
+   * and those that must be reviewed.
+   *
+   * Extracted from the actor because this is the one place where a creative
+   * reaches serving WITHOUT a publisher having looked at it, and a rule that
+   * consequential should be readable and testable on its own.
+   *
+   * '''Geographic targeting is deliberately NOT part of this decision.'''
+   * An earlier draft of docs/design/GEOGRAPHIC_CONTEXT.md proposed breaking
+   * trust when a creative's campaign targets a different place or audience
+   * than the anchor was granted under. That does not survive asking what
+   * approval is FOR: the publisher is judging the creative's content and
+   * suitability for their site, and geography changes neither. It changes
+   * which of their pages it runs on, which is the publisher's own inventory
+   * decision, not a content one. A rule that auto-approved a seasonal
+   * variant but queued a regional one would be arbitrary, and arbitrary
+   * rules in an approval path are worse than none.
+   *
+   * What actually protects the constraint "a regional variant must not
+   * bypass approval by being treated as an already-approved creative" is
+   * identity: approval is keyed per `creativeId`, so a variant is a distinct
+   * creative with its own decision. Auto-approve is a separate, opt-in,
+   * off-by-default mechanism whose stated scope is exactly "new creatives
+   * from a trusted campaign or domain skip the queue" — a publisher who
+   * enables it is choosing that, geography or no geography.
+   */
+  private[delivery] def partitionAutoApprovable(
+      candidates: Vector[Candidate],
+      autoApproveEnabled: Boolean,
+      trustedCampaigns: Set[CampaignId],
+      trustedDomains: Set[String]
+  ): (Vector[Candidate], Vector[Candidate]) =
+    if (autoApproveEnabled && (trustedCampaigns.nonEmpty || trustedDomains.nonEmpty))
+      candidates.partition(c =>
+        trustedCampaigns.contains(c.campaignId) ||
+        promovolve.publisher.RegistrableDomain.of(c.landingDomain).exists(trustedDomains.contains)
+      )
+    else (Vector.empty[Candidate], candidates)
+
   def batchReserveWithRetry(
       slots: Vector[Protocol.BatchSlotSpec],
       pool: Vector[CandidateView],
@@ -3700,12 +3740,7 @@ private[delivery] class AdServer(
     // approved skips the queue and rides the approved batch path below —
     // which gives it the same ServeIndex entry a manual approval gets.
     val (autoApproved, pending) =
-      if (autoApproveEnabled && (trustedCampaigns.nonEmpty || trustedDomains.nonEmpty))
-        rest.partition(c =>
-          trustedCampaigns.contains(c.campaignId) ||
-          RegistrableDomain.of(c.landingDomain).exists(trustedDomains.contains)
-        )
-      else (Vector.empty[Candidate], rest)
+      AdServer.partitionAutoApprovable(rest, autoApproveEnabled, trustedCampaigns, trustedDomains)
 
     autoApproved.foreach { c =>
       log.info(

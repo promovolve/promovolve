@@ -89,6 +89,11 @@ object ApiSchemas {
   // Taxonomy
   given Schema[TaxonomyCategory] = Schema.derived
   given Schema[TaxonomyCategoryList] = Schema.derived
+  given Schema[ObservedAudienceRow] = Schema.derived
+  given Schema[ObservedAudience] = Schema.derived
+  given Schema[GeoAvailability] = Schema.derived
+  given Schema[PlaceSuggestion] = Schema.derived
+  given Schema[PlaceList] = Schema.derived
   given Schema[VerifiedSite] = Schema.derived
   given Schema[VerifiedSiteList] = Schema.derived
   given Schema[AdvertiserDomainList] = Schema.derived

@@ -336,6 +336,7 @@ func main() {
 	mux.HandleFunc("GET /publisher/sites/{siteId}/verification-token", pub(h.GetVerificationToken))
 	mux.HandleFunc("POST /publisher/sites/floor", pub(h.UpdateFloorCPM))
 	mux.HandleFunc("POST /publisher/sites/min-floor", pub(h.UpdateMinFloorCPM))
+	mux.HandleFunc("POST /publisher/sites/audience", pub(h.UpdateAudienceRegions))
 	mux.HandleFunc("POST /publisher/sites/slot-floor", pub(h.UpdateSlotFloorOverride))
 	mux.HandleFunc("GET /publisher/sites/{siteId}/observations", pub(h.FloorObservations))
 	mux.HandleFunc("POST /publisher/sites/reset-floor-agent", pub(h.ResetFloorAgent))
@@ -416,6 +417,8 @@ func main() {
 	mux.HandleFunc("GET /api/taxonomy/ad-products", h.SearchAdProducts)
 	mux.HandleFunc("GET /api/taxonomy/categories", h.SearchCategories)
 	mux.HandleFunc("GET /api/sites", h.SearchSites)
+	mux.HandleFunc("GET /api/places", h.SearchPlaces)
+	mux.HandleFunc("GET /api/geo-availability", h.GeoAvailability)
 	mux.HandleFunc("GET /api/advertiser-domains", h.SearchAdvertiserDomains)
 	mux.HandleFunc("GET /api/image-proxy", h.ImageProxy)
 

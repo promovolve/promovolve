@@ -760,6 +760,74 @@ object Endpoints extends ApiJsonFormats {
       .out(jsonBody[TaxonomyCategoryList])
       .errorOut(jsonBody[ErrorResponse])
 
+  /**
+   * Does inventory exist for a campaign's geographic targeting?
+   *
+   * Advisory and cheap — a local DData read, safe to call while the
+   * advertiser edits the form.
+   */
+  val getGeoAvailability
+      : PublicEndpoint[(Option[String], Option[String]), ErrorResponse, GeoAvailability, Any] =
+    endpoint
+      .tag("Sites")
+      .summary("Geographic inventory availability")
+      .description(
+        "How many sites match a campaign's audience targeting and place targeting, so the advertiser " +
+        "is warned before saving a campaign that would never serve.")
+      .get
+      .in(v1 / "geo-availability")
+      .in(query[Option[String]]("audience").description("Comma-separated audience targeting codes"))
+      .in(query[Option[String]]("places").description("Comma-separated content place targeting codes"))
+      .out(jsonBody[GeoAvailability])
+      .errorOut(jsonBody[ErrorResponse])
+
+  /**
+   * Declared-vs-observed reader audience for one site (tiers 2 and 3 of
+   * docs/design/GEOGRAPHIC_CONTEXT.md).
+   *
+   * Read-only and advisory. Nothing gates on these numbers yet; they exist
+   * so a publisher can check their own declaration against reality, and so
+   * the eventual suppression rule is diffable against what operators were
+   * already seeing.
+   */
+  val getSiteObservedAudience
+      : PublicEndpoint[(String, String, Int), ErrorResponse, ObservedAudience, Any] =
+    endpoint
+      .tag("Sites")
+      .summary("Observed reader audience for a site")
+      .description(
+        "Aggregate observed reader countries over a trailing window, alongside what the publisher declared. " +
+        "Counts are per (site, country, day) sums — no per-reader record exists or is derivable.")
+      .get
+      .in(v1 / "publishers" / path[String]("publisherId") / "sites" / path[String]("siteId") / "audience-observed")
+      .in(query[Int]("days").default(30))
+      .out(jsonBody[ObservedAudience])
+      .errorOut(jsonBody[ErrorResponse])
+
+  /**
+   * Type-ahead over the geographic vocabulary. One endpoint for both
+   * sides: the publisher declaring a site audience and the advertiser
+   * targeting one pick from the same table, so the two always speak the
+   * same codes.
+   */
+  val listPlaces: PublicEndpoint[(Option[String], Option[String], Option[String], Int), ErrorResponse, PlaceList, Any] =
+    endpoint
+      .tag("Taxonomy")
+      .summary("Search places")
+      .description(
+        "Countries (ISO 3166-1), first-level subdivisions (ISO 3166-2) and cities. " +
+        "Matches English and localized names; results carry their enclosing places for disambiguation.")
+      .get
+      .in(v1 / "places")
+      .in(query[Option[String]]("q").description("Search query — matches English and localized names"))
+      .in(query[Option[String]]("codes").description(
+        "Comma-separated codes to resolve exactly, for rendering stored selections. Takes precedence over q."))
+      .in(query[Option[String]]("lang")
+        .description("Display language (e.g. ja); untranslated names fall back to English"))
+      .in(query[Int]("limit").default(20))
+      .out(jsonBody[PlaceList])
+      .errorOut(jsonBody[ErrorResponse])
+
   // All registered (verified) publisher sites — for campaign media targeting.
   // Server-side `q` filter keeps the payload small as site count grows.
   val listRegisteredSites: PublicEndpoint[(Option[String], Int, Int), ErrorResponse, VerifiedSiteList, Any] =

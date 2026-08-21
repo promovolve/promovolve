@@ -4,7 +4,7 @@ Tags: ads, advertising, publisher
 Requires at least: 6.0
 Tested up to: 7.0
 Requires PHP: 7.4
-Stable tag: 0.2.2
+Stable tag: 0.4.0
 License: Apache-2.0
 License URI: https://www.apache.org/licenses/LICENSE-2.0
 
@@ -87,6 +87,40 @@ reader "dog-ear" bookmarks in the browser's IndexedDB (7-day expiry). It sets
 no cookies. Visitors sending the Global Privacy Control signal receive no ads.
 
 == Changelog ==
+
+= 0.4.0 =
+* **The tag now also tells the ad server what place a post is ABOUT.** A
+  travel post filed under a `destination` taxonomy, or carrying WordPress's
+  own `geo_address` meta, ships that as `data-place`. The server resolves the
+  name against its own place vocabulary and can then match the article with
+  advertising relevant to that destination.
+* This is a property of the POST, never of the person reading it. That is
+  what makes it safe to print into markup a page cache will store and replay
+  to everyone: the answer does not vary by reader. The plugin does not and
+  will not derive anything from a visitor's IP address — a value like that,
+  captured by the same page cache, would be served to the world.
+* Names are sent, not codes. The plugin has no place database and should not
+  grow one; a publisher-supplied ISO code would be an unverified value
+  dressed up as an authoritative one.
+* New `promovolve_place_taxonomies` filter, for a site whose destination
+  taxonomy is registered under a slug the defaults do not cover.
+
+= 0.3.0 =
+* **The topic hint now reads every taxonomy the post type has, not just
+  categories and tags.** A travel site keeps its destinations in a
+  `destination` taxonomy and a food site its `cuisine` — the most specific
+  thing WordPress knew about a post was exactly the thing the plugin threw
+  away. Only public, UI-visible taxonomies are read; internal plumbing
+  (product visibility, menus, themes) and `post_format` are skipped, since
+  "Aside" is a presentation choice and not a subject.
+* Terms are now taken round-robin across taxonomies rather than one taxonomy
+  at a time. A post with eight tags used to push everything else past the
+  cap, so the taxonomy carrying the page's location never reached the server.
+  Every taxonomy now contributes a term before any contributes a second.
+* The cap rises from five names to eight, which is still far inside the
+  bound the server applies to the hint.
+* New `promovolve_topic_taxonomies` filter, for a site with a public
+  taxonomy that is not a topic ("Author", "Sponsor") and wants it left out.
 
 = 0.2.2 =
 * **The tag now tells the ad server what WordPress already knows this page is

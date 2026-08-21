@@ -86,6 +86,15 @@ object CandidateLogic {
    */
   val AncestorAffinityDecay = 0.7
 
+  /**
+   * Per-hop discount for a bid that reached a page through a BROADER place
+   * than the page is about (see Candidate.placeHops). Same shape and same
+   * constant as the taxonomy decay: reach stays intact, only the selection
+   * prior decays, so a campaign targeting Kamakura outranks one targeting
+   * Japan on a Kamakura article while both stay eligible.
+   */
+  val PlaceAffinityDecay = 0.7
+
   /** Build CandidateView from candidate with creative and scores. */
   def buildCandidateView(
       candidate: Candidate,
@@ -113,7 +122,13 @@ object CandidateLogic {
     // grandparent 0.49× — strong enough to reorder, gentle enough that
     // an ancestor bid still fills an otherwise-empty slot.
     val distanceDecayed = rawScore * math.pow(AncestorAffinityDecay, candidate.ancestorHops)
-    val score = if (geminiMatch) math.min(1.0, distanceDecayed * GeminiCategoryBoost) else distanceDecayed
+    // PLACE DECAY: the same argument one axis over. A campaign targeting
+    // {JP} still bids on an article about Kamakura — that reach is
+    // deliberate — but it should lose the slot to one targeting Kamakura
+    // itself. Multiplicative with the taxonomy decay, so a bid that is
+    // distant on BOTH axes is discounted on both.
+    val placeDecayed = distanceDecayed * math.pow(PlaceAffinityDecay, candidate.placeHops)
+    val score = if (geminiMatch) math.min(1.0, placeDecayed * GeminiCategoryBoost) else placeDecayed
     if (geminiMatch && log.isDebugEnabled) {
       log.debug(
         "Gemini category boost: creative={} page-cat={} raw={} → boosted={} (suggested={})",

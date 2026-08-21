@@ -94,7 +94,7 @@ class PlaceTargetingSpec extends AnyWordSpec with Matchers {
 
     "name the place gate when it is what refused" in {
       campaign(Set("FR")).bidRejectReason(siteId, cat, CPM(1.0), pagePlaces = Set(Kamakura)) shouldBe
-        Some(CampaignEntity.BidRejectReason.PlaceNotAllowed)
+      Some(CampaignEntity.BidRejectReason.PlaceNotAllowed)
     }
 
     // The two geographic axes are independent, and both AND with category.

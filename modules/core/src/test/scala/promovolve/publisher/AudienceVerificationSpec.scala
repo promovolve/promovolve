@@ -62,7 +62,7 @@ class AudienceVerificationSpec extends AnyWordSpec with Matchers {
       // 10% is a genuine readership, not noise — a Japanese-language site
       // read partly by expats abroad still serves JP readers.
       AudienceVerification.effectiveAudience(Set("JP", "US"), observed("JP" -> 900, "US" -> 100)) shouldBe
-        Set("JP", "US")
+      Set("JP", "US")
     }
 
     "drop a code the vocabulary no longer knows" in {

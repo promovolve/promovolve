@@ -119,7 +119,7 @@ class AudienceTargetingSpec extends AnyWordSpec with Matchers {
 
     "name the audience gate so the floor optimizer's stats stay readable" in {
       campaign(audience = Set("FR")).bidRejectReason(siteId, cat, CPM(1.0), Set(Kamakura)) shouldBe
-        Some(CampaignEntity.BidRejectReason.AudienceNotAllowed)
+      Some(CampaignEntity.BidRejectReason.AudienceNotAllowed)
     }
 
     // Allowlist is checked first; both being wrong must not report the
@@ -127,7 +127,7 @@ class AudienceTargetingSpec extends AnyWordSpec with Matchers {
     "report SiteNotAllowed ahead of the audience when both fail" in {
       campaign(audience = Set("FR"), allowlist = Set("other-site"))
         .bidRejectReason(siteId, cat, CPM(1.0), Set(Kamakura)) shouldBe
-        Some(CampaignEntity.BidRejectReason.SiteNotAllowed)
+      Some(CampaignEntity.BidRejectReason.SiteNotAllowed)
     }
 
     "say nothing when the campaign is eligible" in {
@@ -184,7 +184,7 @@ class AudienceTargetingSpec extends AnyWordSpec with Matchers {
     "report the audience gate when verification is what failed" in {
       campaign(audience = Set("JP"), requireVerified = true)
         .bidRejectReason(siteId, cat, CPM(1.0), Set(Kamakura), siteAudienceVerified = false) shouldBe
-        Some(CampaignEntity.BidRejectReason.AudienceNotAllowed)
+      Some(CampaignEntity.BidRejectReason.AudienceNotAllowed)
     }
 
     // The book path replicates eligibility from a standing quote, so the

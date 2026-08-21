@@ -75,7 +75,7 @@ class PlacesSpec extends AnyWordSpec with Matchers with OptionValues {
     // targeting set must never introduce a code the tables do not know.
     "keep known codes and drop everything else" in {
       Places.validate(List("JP", "JP-13", Kamakura, "XX-99", "Tokyo", "")) shouldBe
-        Set("JP", "JP-13", Kamakura)
+      Set("JP", "JP-13", Kamakura)
     }
   }
 

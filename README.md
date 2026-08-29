@@ -83,7 +83,7 @@ scripts/run-dev.sh --fresh             # core API on :8080
 scripts/run-dashboard.sh               # dashboard on :9091
 ```
 
-You'll need JDK + sbt, Go, Node.js, Docker, a Cloudflare R2 bucket, and
+You'll need JDK 21 and sbt, Go, Node.js, Docker, a Cloudflare R2 bucket, and
 one LLM API key (Gemini, OpenAI, or Anthropic) — the core refuses to boot
 without R2 and an LLM provider. Details in the
 [self-hosting guide](docs/guides/self-hosting.md).

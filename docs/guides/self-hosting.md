@@ -56,8 +56,8 @@ The app runs fully without them; both are single, well-marked seams.
 - An LLM API key. The core API **hard-fails at boot** without one of
   `GEMINI_API_KEY`, `OPENAI_API_KEY`, or `ANTHROPIC_API_KEY` (precedence
   in that order). Classification and creative generation run through it.
-- Node.js (to build/publish the JS bundles) and JDK/sbt + Go if building
-  images yourself.
+- Node.js (to build/publish the JS bundles), JDK 21 with sbt, and Go if
+  building images yourself.
 
 ## Step 1 — R2 bucket and CDN origin
 

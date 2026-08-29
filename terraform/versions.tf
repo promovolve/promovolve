@@ -1,6 +1,6 @@
 terraform {
   # optional() defaults and modern provider blocks; nothing newer needed.
-  required_version = ">= 1.7"
+  required_version = ">= 1.15"
 
   required_providers {
     google = {

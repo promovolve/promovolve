@@ -30,8 +30,8 @@ way.
 
 ## Prerequisites
 
-- Terraform >= 1.7, `gcloud` authenticated as a user who can administer
-  the project.
+- Terraform >= 1.7 (`.terraform-version` selects 1.15.9 for local use),
+  `gcloud` authenticated as a user who can administer the project.
 - A GCP project with billing linked:
 
   ```sh

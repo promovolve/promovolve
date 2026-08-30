@@ -3,6 +3,9 @@
   "private": true,
   "type": "module",
   "description": "Browser tests for dashboard template components (date-picker calendar). Renders the REAL pages via the Go preview tests, then drives them in Chromium.",
+  "engines": {
+    "node": "24"
+  },
   "scripts": {
     "test": "node datepicker.run.mjs"
   },

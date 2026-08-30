@@ -14,7 +14,7 @@
 # ---- css stage ----
 # Pin the same tailwindcss version as scripts/build-tailwind.sh so local
 # and in-image output can't drift.
-FROM node:20-alpine AS css
+FROM node:24-alpine AS css
 WORKDIR /css
 RUN npm install tailwindcss@3.4.17
 COPY tailwind.config.js tailwind.input.css ./

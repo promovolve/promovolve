@@ -61,7 +61,7 @@ export function mountToolbar(host: HTMLElement, store: Store): void {
   bar.append(
     iconBtn(ICON_SELECT, "Select · V",  () => store.commit(selectItem(store.state, null))),
     iconBtn(ICON_TEXT,   "Text · T",    addText),
-    iconBtn(ICON_IMAGE,  "Image · I",   () => openAssetModal(store, (asset) => store.commit(addLocalImage(store.state, asset.cdnUrl)))),
+    iconBtn(ICON_IMAGE,  "Image · I",   () => openAssetModal(store, (asset) => store.commit(addLocalImage(store.state, asset.cdnUrl, asset.width && asset.height ? { w: asset.width, h: asset.height } : undefined)))),
     iconBtn(ICON_SCRIM,  "Scrim",       () => store.commit(addItem(store.state, defaultScrim()))),
     iconBtn(ICON_TEMPLATE, "Layout templates", () => openTemplateModal(store)),
     iconBtn(ICON_BRAND, "Brand kit", () => openBrandKitModal(window.__DESIGNER__?.campaignId ?? "")),

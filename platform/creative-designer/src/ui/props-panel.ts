@@ -25,6 +25,7 @@ import { loadBrandKit } from "../brand-kit";
 import { mountKitColorChips } from "./brand-kit-chips";
 import { openAssetModal } from "./asset-modal";
 import { openCropModal } from "./crop-modal";
+import { openRemoveBgModal } from "./remove-bg-modal";
 import { tokens } from "./tokens";
 
 export interface PropsPanelHandle {
@@ -381,6 +382,18 @@ function build(panel: HTMLElement, idx: number, item: LayoutItem, store: Store):
       appendToGroup(content, replaceBtn);
     } else {
       contentHint(content, "Image set in the Expanded view");
+    }
+    // "Remove background…" — in-browser u2netp matte, uploads a cutout
+    // as a new asset. The main image is only editable from the expanded
+    // view (same rule as Replace); a baked local image from anywhere.
+    if (isExpanded || item.src) {
+      const rmBgBtn = document.createElement("button");
+      rmBgBtn.type = "button";
+      rmBgBtn.textContent = "Remove background…";
+      rmBgBtn.title = "Cut the subject out of its background (runs in your browser; the result is saved as a new asset)";
+      rmBgBtn.style.cssText = `background:${tokens.ink700};color:${tokens.ink100};border:1px solid ${tokens.ink500};border-radius:4px;padding:4px 8px;font:inherit;font-size:11px;cursor:pointer;align-self:flex-start;`;
+      rmBgBtn.addEventListener("click", () => openRemoveBgModal(store, idx, item));
+      appendToGroup(content, rmBgBtn);
     }
     // Fill = cover (may crop to the box, honours the crop window).
     // Fit  = contain (whole image at its natural proportion, letterboxed).

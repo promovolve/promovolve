@@ -763,8 +763,37 @@ export function addItem(state: DesignerState, item: LayoutItem): DesignerState {
 // modest size, carrying its own baked src. It stays in this view only; THE
 // shared image is changed via setMainImage from the expanded view. Selected
 // after add so the props panel is ready.
-export function addLocalImage(state: DesignerState, src: string): DesignerState {
-  const item = { type: "image", src, left: 25, top: 25, width: 50, height: 50, fillMode: "fill" } as LayoutItem;
+//
+// When the caller knows the image's natural dimensions, the box is sized
+// so its PIXEL aspect matches the image — nothing gets cover-cropped on
+// arrival (the author can still crop deliberately). Without dims we fall
+// back to the old 50×50 square.
+export function addLocalImage(
+  state: DesignerState,
+  src: string,
+  natural?: { w: number; h: number },
+): DesignerState {
+  let width = 50;
+  let height = 50;
+  if (natural && natural.w > 0 && natural.h > 0) {
+    // Box pixel aspect == image aspect:
+    //   (width% × mode.w) / (height% × mode.h) = natW / natH
+    const { w: cw, h: ch } = state.mode;
+    height = width * (cw * natural.h) / (ch * natural.w);
+    const MAX = 80; // don't let a tall strip fill the whole canvas
+    const over = Math.max(width / MAX, height / MAX, 1);
+    width = Math.round((width / over) * 10) / 10;
+    height = Math.round((height / over) * 10) / 10;
+  }
+  const item = {
+    type: "image",
+    src,
+    left: Math.round(((100 - width) / 2) * 10) / 10,
+    top: Math.round(((100 - height) / 2) * 10) / 10,
+    width,
+    height,
+    fillMode: "fill",
+  } as LayoutItem;
   return addItem(state, item);
 }
 
@@ -960,6 +989,22 @@ export function setMainImage(state: DesignerState, src: string): DesignerState {
   return {
     ...state,
     selectedItemIdxs: [],
+    pages: state.pages.map((p, i) => (i === state.pageIdx ? nextPage : p)),
+  };
+}
+
+// Swap the MAIN image's source in place — page.img only. Unlike
+// setMainImage this does NOT re-slot, re-order, or drop crops: every
+// field:"img" item across the sizes resolves page.img live, so the new
+// bytes show everywhere with placement + crop untouched. Meant for a
+// processed version of the SAME image (remove-background cutout), where
+// the pixel dimensions are unchanged and the author's crops stay valid.
+export function setMainImageSrc(state: DesignerState, src: string): DesignerState {
+  const page = currentPage(state);
+  if (!page) return state;
+  const nextPage = { ...page, img: src } as Page;
+  return {
+    ...state,
     pages: state.pages.map((p, i) => (i === state.pageIdx ? nextPage : p)),
   };
 }

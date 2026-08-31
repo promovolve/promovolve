@@ -8,7 +8,7 @@
 // HTML5 drags of existing items go through the interaction layer and are
 // ignored here.
 
-import { uploadImage } from "../api/upload-asset";
+import { imageDimensions, uploadImage } from "../api/upload-asset";
 import { addLocalImage, setTextureSrc } from "../state";
 import type { Store } from "../store";
 import { tokens } from "./tokens";
@@ -115,7 +115,21 @@ function openChooser(file: File, x: number, y: number, store: Store): void {
 
   const thumb = document.createElement("img");
   thumb.src = objectUrl;
-  thumb.style.cssText = `width:100%;height:96px;object-fit:cover;border-radius:4px;background:${tokens.ink900};display:block;margin-bottom:10px;`;
+  // Whole image, letterboxed (contain) — cover cropped tall/wide photos so
+  // the author couldn't see what they'd dropped. Checkerboard so a
+  // transparent PNG/WebP reads as transparent.
+  thumb.style.cssText = [
+    "width: 100%",
+    "height: 120px",
+    "object-fit: contain",
+    "border-radius: 4px",
+    "display: block",
+    "margin-bottom: 10px",
+    "background-color: #808080",
+    "background-image: linear-gradient(45deg,#666 25%,transparent 25%),linear-gradient(-45deg,#666 25%,transparent 25%),linear-gradient(45deg,transparent 75%,#666 75%),linear-gradient(-45deg,transparent 75%,#666 75%)",
+    "background-size: 12px 12px",
+    "background-position: 0 0,0 6px,6px -6px,-6px 0",
+  ].join(";");
   card.appendChild(thumb);
 
   const label = document.createElement("div");
@@ -144,11 +158,17 @@ function openChooser(file: File, x: number, y: number, store: Store): void {
     elBtn.disabled = true;
     status.textContent = "Uploading…";
     try {
-      const { src, sizeBytes } = await uploadImage(file);
+      // Natural dims measured from the dropped file so the placed box
+      // keeps the image's aspect (best-effort — a square fallback if
+      // the browser can't decode).
+      const [{ src, sizeBytes }, dims] = await Promise.all([
+        uploadImage(file),
+        imageDimensions(file).catch(() => undefined),
+      ]);
       if (route === "texture") {
         store.commit(setTextureSrc(store.state, src, sizeBytes));
       } else {
-        store.commit(addLocalImage(store.state, src));
+        store.commit(addLocalImage(store.state, src, dims));
       }
       cleanup();
     } catch (err) {

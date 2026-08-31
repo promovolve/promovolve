@@ -76,8 +76,10 @@ const ORT_WASM_BASE = `https://cdn.jsdelivr.net/npm/onnxruntime-web@${ORT_VERSIO
 const MODEL_URL =
   "https://pub-7ab486148c8740dbb2cc31c5072eb91c.r2.dev/models/u2netp.309c846925.onnx";
 
-// U-2-Net input is 320×320 RGB, ImageNet-normalized.
+// U-2-Net input is 320×320 RGB, ImageNet-normalized. The saliency
+// mask comes out at the same resolution — remove-bg.ts upsamples it.
 const INPUT_SIZE = 320;
+export const SALIENCY_MASK_SIZE = INPUT_SIZE;
 const NORM_MEAN = [0.485, 0.456, 0.406];
 const NORM_STD = [0.229, 0.224, 0.225];
 
@@ -253,25 +255,38 @@ function bboxFromMask(mask: Float32Array): { x: number; y: number; w: number; h:
   };
 }
 
+/** Run u2netp on the image and return its raw saliency mask: a
+  * SALIENCY_MASK_SIZE² Float32Array in row-major order, values in
+  * roughly 0..1 (sigmoid output — NOT min-max normalized; consumers
+  * that need a full-range matte normalize themselves, see
+  * remove-bg.ts). The mask is a stretch-fit of the whole image, so
+  * mask (u, v) in 0..1 maps straight to natural (u·W, v·H).
+  *
+  * Throws on inference failure (script/model load, canvas taint from
+  * a CORS-less source, WASM init). findSalientBox swallows that into
+  * null; the remove-background modal surfaces it to the user. */
+export async function runSaliencyMask(img: HTMLImageElement): Promise<Float32Array> {
+  const ort = await ensureScript();
+  const session = await ensureSession();
+  const tensorData = imageToTensorData(img);
+  const input = new ort.Tensor("float32", tensorData, [1, 3, INPUT_SIZE, INPUT_SIZE]);
+  const inputName = session.inputNames[0];
+  const output = await session.run({ [inputName]: input });
+
+  // U-2-Net publishes 7 sided outputs (d0..d6); d0 is the highest-
+  // resolution combined output. Different ONNX exports name it
+  // differently — fall back to the first output when the named
+  // one isn't present.
+  const outputName = session.outputNames.includes("d0_pred") ? "d0_pred"
+    : session.outputNames.includes("output") ? "output"
+    : session.outputNames[0];
+  return output[outputName].data;
+}
+
 export async function findSalientBox(img: HTMLImageElement): Promise<SalientBox | null> {
   if (!img.naturalWidth || !img.naturalHeight) return null;
   try {
-    const ort = await ensureScript();
-    const session = await ensureSession();
-    const tensorData = imageToTensorData(img);
-    const input = new ort.Tensor("float32", tensorData, [1, 3, INPUT_SIZE, INPUT_SIZE]);
-    const inputName = session.inputNames[0];
-    const output = await session.run({ [inputName]: input });
-
-    // U-2-Net publishes 7 sided outputs (d0..d6); d0 is the highest-
-    // resolution combined output. Different ONNX exports name it
-    // differently — fall back to the first output when the named
-    // one isn't present.
-    const outputName = session.outputNames.includes("d0_pred") ? "d0_pred"
-      : session.outputNames.includes("output") ? "output"
-      : session.outputNames[0];
-    const mask = output[outputName].data;
-
+    const mask = await runSaliencyMask(img);
     const bbox = bboxFromMask(mask);
     if (!bbox) return null;
     if (bbox.coverage < MIN_COVERAGE) return null;

@@ -1,7 +1,7 @@
 // Restore/erase brush rasterizer + hint application.
 
 import { describe, expect, it } from "vitest";
-import { applyHints, hasHints, HINT_DROP, HINT_KEEP, HINT_NONE, paintDisc, paintStroke } from "../src/matte-hints";
+import { applyHints, hasHints, HINT_DROP, HINT_KEEP, HINT_NONE, paintDisc, paintStroke, resampleHints } from "../src/matte-hints";
 
 describe("paintDisc", () => {
   it("fills a disc and clips at the edges", () => {
@@ -40,5 +40,21 @@ describe("hasHints", () => {
     expect(hasHints(hints)).toBe(false);
     hints[3] = HINT_KEEP;
     expect(hasHints(hints)).toBe(true);
+  });
+});
+
+describe("resampleHints", () => {
+  it("upscales by nearest neighbour, preserving categories", () => {
+    const src = { data: new Uint8Array([HINT_KEEP, HINT_NONE, HINT_NONE, HINT_DROP]), w: 2, h: 2 };
+    const out = resampleHints(src, 4, 4);
+    expect(out[0]).toBe(HINT_KEEP);        // top-left block
+    expect(out[1]).toBe(HINT_KEEP);
+    expect(out[3]).toBe(HINT_NONE);        // top-right block
+    expect(out[15]).toBe(HINT_DROP);       // bottom-right block
+    expect(out[4 * 2 + 0]).toBe(HINT_NONE); // bottom-left block
+  });
+  it("returns the same array when dimensions match", () => {
+    const src = { data: new Uint8Array(6), w: 3, h: 2 };
+    expect(resampleHints(src, 3, 2)).toBe(src.data);
   });
 });

@@ -102,6 +102,10 @@ Two build traps worth knowing (both self-inflicted footguns if skipped):
 
 ## Commits & pull requests
 
+- **Everything lands on `main` through a pull request** — a repository
+  Ruleset requires one, with the CI checks green, and squash-merges it.
+  Maintainers included; CI's own digest pin-back goes through a PR too
+  (`scripts/pin-back-pr.sh`). Merging to `main` is what deploys.
 - **Conventional-commit style** subject lines (`feat:`, `fix:`, `chore:`,
   `docs:`, `refactor:`), matching the existing history.
 - Keep PRs **focused** — one logical change per PR is much easier to review.

@@ -75,7 +75,24 @@ git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
 pushed=0
 for attempt in 1 2 3 4 5; do
   git fetch -q origin "$BASE"
-  if git fetch -q origin "$BRANCH" 2>/dev/null; then
+  # Explicit refspec so a branch deleted remotely mid-loop cannot linger as a
+  # stale origin/ ref from the initial checkout.
+  remote_has_branch=0
+  git fetch -q origin "+refs/heads/$BRANCH:refs/remotes/origin/$BRANCH" 2>/dev/null && remote_has_branch=1
+  if [ "$remote_has_branch" -eq 1 ] \
+     && [ -z "$(gh pr list --head "$BRANCH" --base "$BASE" --state open --json number --jq '.[0].number // empty')" ] \
+     && git diff --quiet "origin/$BASE" "origin/$BRANCH" -- "$FILE"; then
+    # A leftover from a PR that already squash-merged: no PR is open and the
+    # file matches main byte for byte, so nothing on it is unlanded. GitHub's
+    # delete-branch-on-merge did not fire for the bot's auto-merge (PR #41,
+    # 2026-09-04), and building on the leftover would drag every old commit
+    # into the next PR. Start fresh from main. The content check is what
+    # makes this safe against a sibling job that pushed seconds ago and has
+    # not opened its PR yet: its pin changes the file, so we leave it alone.
+    echo "$BRANCH is a merged leftover — deleting it and starting from $BASE"
+    git push -q origin --delete "$BRANCH" || true
+    git checkout -q -B "$BRANCH" "origin/$BASE"
+  elif [ "$remote_has_branch" -eq 1 ]; then
     git checkout -q -B "$BRANCH" "origin/$BRANCH"
     # Keep the pin branch on top of main so its CI run reflects current
     # code. Squash-merge makes the merge commit vanish on landing. A conflict

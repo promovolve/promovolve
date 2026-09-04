@@ -156,11 +156,21 @@ run while a pin-back PR is still open.
 
 `main` is protected by a Ruleset (pull request + the five CI checks, squash
 merges only). Nothing pushes to it directly — not contributors, not CI. The
-pin-back PR needs two repository settings that are already on: *Allow
-GitHub Actions to create and approve pull requests* and *Allow auto-merge*.
-It uses the default `GITHUB_TOKEN`, whose pushes never trigger workflows,
-so the pin job dispatches `ci.yml` on the branch itself to produce the
-required checks.
+pin-back PR needs two repository settings that are already on (*Allow
+GitHub Actions to create and approve pull requests*, *Allow auto-merge*)
+and one secret: **`PIN_DEPLOY_KEY`**, a write deploy key the pin jobs push
+the `ci/pins` branch with. A push made with `GITHUB_TOKEN` fires no
+workflow, and check runs from a dispatched run do not count toward
+required checks, so without the key the PR opens but never merges. Create
+it once with:
+
+```sh
+scripts/setup-pin-deploy-key.sh
+```
+
+which generates an ed25519 key, registers the public half as a deploy key
+with write access, stores the private half as the secret, and discards it
+locally. Rotate by running it again.
 
 Auth: GCP via Workload Identity Federation (pool `github`, provider
 `github-oidc`, SA `github-deployer@promovolve.iam.gserviceaccount.com`,

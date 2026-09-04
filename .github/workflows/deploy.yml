@@ -27,6 +27,12 @@ name: Deploy
 on:
   push:
     branches: [main]
+    # The pin-back PR (scripts/pin-back-pr.sh) lands a commit that touches
+    # only this file. It matches no paths-filter below, so the run would
+    # build and deploy nothing — skip it outright instead of burning a
+    # ci-gate wait. A commit that changes this file AND code still runs.
+    paths-ignore:
+      - 'k8s/kustomization.yaml'
   workflow_dispatch:
     inputs:
       rebuild:
@@ -259,22 +265,24 @@ jobs:
   # `ci/pins` branch — never a direct push: the `main` Ruleset requires a
   # PR + green checks, and a direct push failed with GH013 after an
   # otherwise successful rollout (2026-08-30 ×3, GH #33). The PR auto-merges
-  # (squash) once CI passes; its title carries `[skip ci]` so the resulting
-  # commit does not burn a Deploy run (it matches no paths-filter anyway).
+  # (squash) once CI passes; the push trigger above ignores the resulting
+  # commit. The branch is pushed with the PIN_DEPLOY_KEY deploy key rather
+  # than GITHUB_TOKEN because only a real push fires the CI run whose check
+  # runs the Ruleset counts (workflow_dispatch runs do not — see the script).
   pin-images:
     name: Pin deployed digests back to the repo
     needs: [build-api, build-platform, deploy]
     if: "!cancelled() && needs.deploy.result == 'success'"
     runs-on: ubuntu-latest
     permissions:
-      contents: write        # push the ci/pins branch
+      contents: write        # gh needs it for auto-merge; the push itself uses the deploy key
       pull-requests: write   # open the PR + enable auto-merge
-      actions: write         # dispatch CI on the branch (GITHUB_TOKEN pushes never trigger it)
     steps:
       - uses: actions/checkout@9c091bb21b7c1c1d1991bb908d89e4e9dddfe3e0 # v7.0.0
         with:
           ref: main
           fetch-depth: 0             # merge-base / merge need real history
+          ssh-key: ${{ secrets.PIN_DEPLOY_KEY }}   # push over SSH so ci.yml runs on ci/pins
           persist-credentials: true  # the pin-back script pushes
 
       - name: Pin digests via pull request
@@ -289,7 +297,7 @@ jobs:
           # The pin command is re-run on every push retry, so it must be a
           # single idempotent step: both components in one go.
           scripts/pin-back-pr.sh \
-            "ci: pin deployed image digests [skip ci]" \
+            "ci: pin deployed image digests" \
             "Deployed by run ${GITHUB_RUN_ID} from ${GITHUB_SHA}." \
             bash -c '
               set -euo pipefail
@@ -328,17 +336,18 @@ jobs:
     permissions:
       contents: write        # pins the published URL back (ci/pins branch).
       pull-requests: write   # Job-level permissions REPLACE the top-level
-      actions: write         # pair, so WIF's id-token must be respelled
-      id-token: write        # here or the gcloud auth step breaks.
+      id-token: write        # pair, so WIF's id-token must be respelled
+                             # here or the gcloud auth step breaks.
     steps:
       - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4.4.0
         with:
           ref: main
           fetch-depth: 0              # pin-back merges main into ci/pins
+          ssh-key: ${{ secrets.PIN_DEPLOY_KEY }}   # push over SSH so ci.yml runs on ci/pins
           persist-credentials: true   # the pin-back step pushes
       - uses: actions/setup-node@49933ea5288caeca8642d1e84afbd3f7d6820020 # v4.4.0
         with:
-          node-version: 22
+          node-version: 24
       - name: Build + publish banner bundle to R2
         id: publish
         working-directory: platform/banner-component
@@ -400,7 +409,7 @@ jobs:
           # jobs run concurrently and the script re-applies on a push race,
           # so neither pin can overwrite the other).
           scripts/pin-back-pr.sh \
-            "ci: pin published banner bundle url [skip ci]" \
+            "ci: pin published banner bundle url" \
             "Published by run ${GITHUB_RUN_ID} from ${GITHUB_SHA}." \
             scripts/pin-banner-url.sh "$URL"
 
@@ -426,7 +435,7 @@ jobs:
       - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4.4.0
       - uses: actions/setup-node@49933ea5288caeca8642d1e84afbd3f7d6820020 # v4.4.0
         with:
-          node-version: 22
+          node-version: 24
       - name: Build + publish bootstrap to R2
         working-directory: platform/banner-bootstrap
         env:

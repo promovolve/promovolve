@@ -17,26 +17,38 @@
 #   3. commit k8s/kustomization.yaml and push the branch — on rejection
 #      re-fetch and re-run the pin command rather than rebasing a commit,
 #      so a concurrent pin from the OTHER job is never overwritten
-#   4. open the PR if none is open for the branch, dispatch the CI
-#      workflow on it (pushes made with GITHUB_TOKEN do not trigger
-#      `pull_request` runs, and the Ruleset needs those five checks), and
-#      enable auto-merge (squash) so it lands as soon as CI is green
+#   4. open the PR if none is open for the branch and enable auto-merge
+#      (squash) so it lands as soon as the required checks are green
+#
+# THE PUSH MUST NOT USE GITHUB_TOKEN. A push made with the workflow token
+# triggers no workflows, and check runs from a `workflow_dispatch` run do
+# NOT count toward a pull request's required status checks (verified
+# 2026-09-04: six green check runs on the head commit, statusCheckRollup
+# null, PR #41 BLOCKED forever). The pin branch is therefore pushed over
+# SSH with a write deploy key (secret PIN_DEPLOY_KEY, created by
+# scripts/setup-pin-deploy-key.sh; deploy.yml hands it to actions/checkout
+# as `ssh-key`), so the push fires ci.yml's `push` trigger on `ci/pins` and
+# those check runs are the ones the Ruleset counts. `gh` keeps using
+# GITHUB_TOKEN for the PR itself — the "Actions may create pull requests"
+# setting covers that, and auto-merge needs no extra identity.
 #
 # ONE branch, ONE PR: digest and banner pins from the same deploy share it,
 # a rerun finds it already open, and delete-branch-on-merge retires it so
-# the next deploy starts fresh from main. The PR title carries `[skip ci]`
-# so the squash commit it produces does not trigger a Deploy (the change
-# matches no paths-filter anyway, but this saves the run entirely).
+# the next deploy starts fresh from main. The squash commit it lands on
+# main touches only k8s/kustomization.yaml, which deploy.yml's push
+# trigger ignores (`paths-ignore`), so a pin merge never burns a Deploy.
+# No `[skip ci]` anywhere: it would also skip the CI run on the branch.
 #
 #   scripts/pin-back-pr.sh "<commit subject>" "<commit body>" <pin-command...>
 #
-# Requires: gh (authenticated), a checkout with push credentials, and the
-# calling job to hold `contents: write`, `pull-requests: write`, and
-# `actions: write`. Repository settings: "Allow GitHub Actions to create
-# and approve pull requests" and "Allow auto-merge" must be on.
+# Requires: gh (authenticated with GITHUB_TOKEN), a checkout whose origin
+# pushes over SSH with the deploy key, and the calling job to hold
+# `contents: write` and `pull-requests: write`. Repository settings: "Allow
+# GitHub Actions to create and approve pull requests" and "Allow auto-merge"
+# must be on.
 #
 # Idempotent: with nothing to pin it exits 0 without a commit, but still
-# makes sure an open PR (from an earlier job) has CI + auto-merge armed.
+# makes sure an open PR (from an earlier job) has auto-merge armed.
 set -euo pipefail
 
 SUBJECT="${1:?usage: pin-back-pr.sh <commit subject> <commit body> <pin-command...>}"
@@ -47,14 +59,20 @@ shift 2
 BRANCH="${PIN_BRANCH:-ci/pins}"
 BASE="${PIN_BASE:-main}"
 FILE="k8s/kustomization.yaml"
-PR_TITLE="ci: pin deployed digests / banner url [skip ci]"
+PR_TITLE="ci: pin deployed digests / banner url"
 
 cd "$(git rev-parse --show-toplevel)"
+case "$(git remote get-url --push origin)" in
+  git@github.com:*|ssh://*) ;;
+  *) echo "WARNING: origin pushes over HTTPS (GITHUB_TOKEN) — that push triggers no CI run, so the" >&2
+     echo "         pin PR will never satisfy its required checks. Is secret PIN_DEPLOY_KEY set?" >&2
+     echo "         (scripts/setup-pin-deploy-key.sh creates it.)" >&2 ;;
+esac
 git config user.name  "github-actions[bot]"
 git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
 
 # --- 1–3. pin, commit, push (retry on a concurrent push) -----------------------
-pushed=0; committed=0
+pushed=0
 for attempt in 1 2 3 4 5; do
   git fetch -q origin "$BASE"
   if git fetch -q origin "$BRANCH" 2>/dev/null; then
@@ -80,7 +98,7 @@ for attempt in 1 2 3 4 5; do
   git add "$FILE"
   git commit -q -m "$SUBJECT" -m "$BODY"
   if git push -q origin "HEAD:refs/heads/$BRANCH"; then
-    pushed=1; committed=1; break
+    pushed=1; break
   fi
   # Someone (the sibling pin job, most likely) pushed first. Drop our commit
   # and re-apply the pin on top of theirs — re-running the pin command is
@@ -97,7 +115,7 @@ if git merge-base --is-ancestor HEAD "origin/$BASE"; then
   exit 0
 fi
 
-# --- 4. PR + CI + auto-merge ---------------------------------------------------
+# --- 4. PR + auto-merge --------------------------------------------------------
 pr=$(gh pr list --head "$BRANCH" --base "$BASE" --state open --json number --jq '.[0].number // empty')
 if [ -z "$pr" ]; then
   pr=$(gh pr create --base "$BASE" --head "$BRANCH" \
@@ -112,14 +130,8 @@ else
   echo "pull request #$pr already open for $BRANCH"
 fi
 
-# Required checks come from the CI workflow, which a GITHUB_TOKEN push never
-# triggers; workflow_dispatch is the sanctioned exception. Its concurrency
-# group cancels a run an earlier pin job started on a stale head. A run that
-# pushed nothing leaves the earlier dispatch (on the same head) alone.
-if [ "$committed" -eq 1 ]; then
-  gh workflow run ci.yml --ref "$BRANCH"
-  echo "dispatched CI on $BRANCH"
-fi
+# The push above (deploy key, not GITHUB_TOKEN) fired ci.yml on the branch;
+# those check runs are what the Ruleset counts. Nothing to dispatch.
 
 # Squash is the only merge method the Ruleset allows. Auto-merge waits for
 # the required checks; a rerun that finds it already enabled is a no-op.

@@ -2,12 +2,17 @@ name: CI
 
 on:
   push:
-    branches: [main]
+    # ci/pins is the CI-generated pin-back branch (scripts/pin-back-pr.sh).
+    # Its PR is opened with GITHUB_TOKEN, which fires no pull_request run,
+    # and workflow_dispatch check runs do not satisfy the main Ruleset's
+    # required checks — so the deploy-key push to this branch is what has
+    # to run CI. Keep it listed here.
+    branches: [main, ci/pins]
   pull_request:
   # Manual runs exist for the deploy gate: Deploy polls for a CI run on
-  # its commit, but a workflow_dispatch deploy from a "[skip ci]"
-  # digest-pin HEAD has none and would time out after 30 minutes.
-  # Dispatching CI on the same commit gives the gate something green.
+  # its commit; if a HEAD somehow has none (an older "[skip ci]" pin
+  # commit, say) the gate would time out after 30 minutes. Dispatching CI
+  # on the same commit gives it something green.
   workflow_dispatch:
 
 # Cancel superseded runs on the same ref (e.g. rapid pushes to a PR).

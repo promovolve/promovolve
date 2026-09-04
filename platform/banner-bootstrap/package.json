@@ -18,6 +18,7 @@
   "devDependencies": {
     "@aws-sdk/client-s3": "^3.1032.0",
     "@eslint/js": "^9.17.0",
+    "@types/node": "24",
     "eslint": "^9.17.0",
     "fake-indexeddb": "^6.0.0",
     "happy-dom": "^20.9.0",
@@ -27,6 +28,6 @@
     "vitest": "^2.1.8"
   },
   "engines": {
-    "node": ">=22"
+    "node": "24"
   }
 }

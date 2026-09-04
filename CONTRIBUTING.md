@@ -57,10 +57,9 @@ configuration surface.
 sbt compile
 sbt test                 # all modules; or e.g. `sbt "core/testOnly *FloorSweep*"`
 
-# Go platform
-cd platform
-go build ./...
-go test ./cmd/...        # server + tools
+# Go platform — build + vet + `go test -race` over every first-party package,
+# exactly what CI runs (`scripts/go-test.sh list` prints the package set)
+scripts/go-test.sh
 ```
 
 Notes:
@@ -78,7 +77,9 @@ Notes:
 
 - **Scala** — run `sbt scalafmtAll` before committing (config in
   `.scalafmt.conf`). CI-style check: `sbt scalafmtCheckAll`.
-- **Go** — `gofmt`/`goimports` and `go vet ./...`. Keep to standard Go style.
+- **Go** — `gofmt`/`goimports`; `scripts/go-test.sh` runs `go vet` over the
+  first-party packages (a bare `./...` also sweeps up Go snippets that npm
+  vendors under `node_modules`). Keep to standard Go style.
 - **Match the surrounding code.** Naming, comment density, and idiom should look
   like the file you're editing.
 

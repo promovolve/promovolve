@@ -186,8 +186,9 @@ jobs:
         with:
           go-version-file: platform/go.mod
           cache-dependency-path: platform/go.sum
-      # Scoped to ./cmd/... and the root package to avoid the Go snippets vendored
-      # under */node_modules by the JS ad-bundle toolchains.
-      - run: go build ./cmd/... .
-      - run: go vet ./cmd/... .
-      - run: go test ./cmd/... .
+      # Build + vet + `go test -race` over every first-party package. The
+      # selection lives in the script (shared with contributors): `go list
+      # ./...` minus the Go snippets npm vendors under */node_modules, which
+      # is what the old `./cmd/... .` scope was dodging — at the price of
+      # never running a single test under internal/ (GH #21).
+      - run: ../scripts/go-test.sh

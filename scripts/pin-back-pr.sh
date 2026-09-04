@@ -128,10 +128,18 @@ if [ -z "$pr" ]; then
   echo "opened pull request #$pr"
 else
   echo "pull request #$pr already open for $BRANCH"
+  # A multi-commit PR squashes under its TITLE, so the title must stay clean:
+  # PR #41 was opened by an earlier version with a skip-ci marker in it, which
+  # would have landed on main and starved the next deploy's ci-gate.
+  if [ "$(gh pr view "$pr" --json title --jq .title)" != "$PR_TITLE" ]; then
+    gh pr edit "$pr" --title "$PR_TITLE" >/dev/null && echo "retitled #$pr"
+  fi
 fi
 
-# The push above (deploy key, not GITHUB_TOKEN) fired ci.yml on the branch;
-# those check runs are what the Ruleset counts. Nothing to dispatch.
+# The push above (deploy key, not GITHUB_TOKEN) fired ci.yml on the branch —
+# as a `push` run and, once the PR exists, a `pull_request` run too; both
+# are cheap and the first push of a fresh branch has only the former, which
+# is why ci.yml keeps ci/pins in its push branches. Nothing to dispatch.
 
 # Squash is the only merge method the Ruleset allows. Auto-merge waits for
 # the required checks; a rerun that finds it already enabled is a no-op.

@@ -1,0 +1,128 @@
+#!/usr/bin/env bash
+#
+# Land a CI-generated pin update on `main` THROUGH A PULL REQUEST.
+#
+# WHY THIS EXISTS: deploy.yml's pin-images and publish-banner jobs used to
+# commit k8s/kustomization.yaml and `git push origin HEAD:main`. The `main`
+# Ruleset requires a pull request and green status checks, so a rollout
+# would SUCCEED and then the pin-back step failed with GH013 (2026-08-30,
+# three deploys in a row; GH issue #33). This script keeps the Ruleset
+# intact — no bypass for github-actions[bot] — and still gets the pins
+# onto main without a human in the loop:
+#
+#   1. check out the shared pin branch (ci/pins), created from main when
+#      absent; merge main into it if it has fallen behind
+#   2. run the caller's pin command (scripts/pin-image-digest.sh or
+#      scripts/pin-banner-url.sh) against the working tree
+#   3. commit k8s/kustomization.yaml and push the branch — on rejection
+#      re-fetch and re-run the pin command rather than rebasing a commit,
+#      so a concurrent pin from the OTHER job is never overwritten
+#   4. open the PR if none is open for the branch, dispatch the CI
+#      workflow on it (pushes made with GITHUB_TOKEN do not trigger
+#      `pull_request` runs, and the Ruleset needs those five checks), and
+#      enable auto-merge (squash) so it lands as soon as CI is green
+#
+# ONE branch, ONE PR: digest and banner pins from the same deploy share it,
+# a rerun finds it already open, and delete-branch-on-merge retires it so
+# the next deploy starts fresh from main. The PR title carries `[skip ci]`
+# so the squash commit it produces does not trigger a Deploy (the change
+# matches no paths-filter anyway, but this saves the run entirely).
+#
+#   scripts/pin-back-pr.sh "<commit subject>" "<commit body>" <pin-command...>
+#
+# Requires: gh (authenticated), a checkout with push credentials, and the
+# calling job to hold `contents: write`, `pull-requests: write`, and
+# `actions: write`. Repository settings: "Allow GitHub Actions to create
+# and approve pull requests" and "Allow auto-merge" must be on.
+#
+# Idempotent: with nothing to pin it exits 0 without a commit, but still
+# makes sure an open PR (from an earlier job) has CI + auto-merge armed.
+set -euo pipefail
+
+SUBJECT="${1:?usage: pin-back-pr.sh <commit subject> <commit body> <pin-command...>}"
+BODY="${2:?missing commit body}"
+shift 2
+[ $# -ge 1 ] || { echo "missing pin command" >&2; exit 2; }
+
+BRANCH="${PIN_BRANCH:-ci/pins}"
+BASE="${PIN_BASE:-main}"
+FILE="k8s/kustomization.yaml"
+PR_TITLE="ci: pin deployed digests / banner url [skip ci]"
+
+cd "$(git rev-parse --show-toplevel)"
+git config user.name  "github-actions[bot]"
+git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+
+# --- 1–3. pin, commit, push (retry on a concurrent push) -----------------------
+pushed=0; committed=0
+for attempt in 1 2 3 4 5; do
+  git fetch -q origin "$BASE"
+  if git fetch -q origin "$BRANCH" 2>/dev/null; then
+    git checkout -q -B "$BRANCH" "origin/$BRANCH"
+    # Keep the pin branch on top of main so its CI run reflects current
+    # code. Squash-merge makes the merge commit vanish on landing. A conflict
+    # means someone hand-edited a CI-owned line on main; the file says not
+    # to, so fail loudly rather than guess.
+    if ! git merge-base --is-ancestor "origin/$BASE" HEAD; then
+      git merge -q --no-edit "origin/$BASE" \
+        || { git merge --abort; echo "merge of $BASE into $BRANCH conflicts — resolve by hand" >&2; exit 1; }
+    fi
+  else
+    git checkout -q -B "$BRANCH" "origin/$BASE"
+  fi
+
+  "$@"
+
+  if git diff --quiet -- "$FILE"; then
+    echo "pins already current on $BRANCH — nothing to commit"
+    pushed=1; break
+  fi
+  git add "$FILE"
+  git commit -q -m "$SUBJECT" -m "$BODY"
+  if git push -q origin "HEAD:refs/heads/$BRANCH"; then
+    pushed=1; committed=1; break
+  fi
+  # Someone (the sibling pin job, most likely) pushed first. Drop our commit
+  # and re-apply the pin on top of theirs — re-running the pin command is
+  # the merge strategy, so neither change can be lost.
+  echo "push rejected (attempt $attempt) — re-applying on the latest $BRANCH"
+  git reset -q --hard "HEAD~1"
+done
+[ "$pushed" -eq 1 ] || { echo "could not push $BRANCH after 5 attempts" >&2; exit 1; }
+
+# If the branch carries nothing beyond main there is no PR to open — this is
+# the "already pinned, rerun" case with no earlier job having pushed either.
+if git merge-base --is-ancestor HEAD "origin/$BASE"; then
+  echo "$BRANCH has no changes against $BASE — no pull request needed"
+  exit 0
+fi
+
+# --- 4. PR + CI + auto-merge ---------------------------------------------------
+pr=$(gh pr list --head "$BRANCH" --base "$BASE" --state open --json number --jq '.[0].number // empty')
+if [ -z "$pr" ]; then
+  pr=$(gh pr create --base "$BASE" --head "$BRANCH" \
+        --title "$PR_TITLE" \
+        --body "$(printf '%s\n\n%s\n\n%s' \
+          "Generated by deploy.yml — writes what the cluster is actually running back into \`k8s/kustomization.yaml\` so a manual \`k8s-gke/setup.sh --deploy-only\` cannot roll it backwards." \
+          "Auto-merges once CI is green. Each commit names the Deploy run that produced it." \
+          "Do not hand-edit; if it conflicts, close it and the next deploy opens a fresh one.")")
+  pr="${pr##*/}"
+  echo "opened pull request #$pr"
+else
+  echo "pull request #$pr already open for $BRANCH"
+fi
+
+# Required checks come from the CI workflow, which a GITHUB_TOKEN push never
+# triggers; workflow_dispatch is the sanctioned exception. Its concurrency
+# group cancels a run an earlier pin job started on a stale head. A run that
+# pushed nothing leaves the earlier dispatch (on the same head) alone.
+if [ "$committed" -eq 1 ]; then
+  gh workflow run ci.yml --ref "$BRANCH"
+  echo "dispatched CI on $BRANCH"
+fi
+
+# Squash is the only merge method the Ruleset allows. Auto-merge waits for
+# the required checks; a rerun that finds it already enabled is a no-op.
+gh pr merge "$pr" --auto --squash \
+  || echo "auto-merge could not be enabled on #$pr — merge it by hand once CI is green" >&2
+echo "pull request: $(gh pr view "$pr" --json url --jq .url)"

@@ -66,7 +66,7 @@ permanently.
 
 ## Redeploys (maintainer / staging)
 
-CI builds and rolls images by digest on every push to `main`; that is the
+CI builds and rolls images by digest on every merge to `main`; that is the
 normal path and needs nothing here. For an infra/config-only change:
 
 ```sh
@@ -77,9 +77,14 @@ which preserves the running CI-deployed images across the apply. To
 deliberately deploy the digests pinned in `k8s/kustomization.yaml` instead,
 add `--pin-images`.
 
-> **The pins are written back by CI** (`deploy.yml`'s `pin-images` job, via
-> `scripts/pin-image-digest.sh`), so `k8s/kustomization.yaml` describes what
-> is actually deployed. Do not hand-edit them.
+> **The pins are written back by CI** (`deploy.yml`'s `pin-images` and
+> `publish-banner` jobs, via `scripts/pin-back-pr.sh`), so
+> `k8s/kustomization.yaml` describes what is actually deployed. Do not
+> hand-edit them. They land **through a pull request** on the `ci/pins`
+> branch — `main` requires a PR and green checks, so CI cannot push to it —
+> which auto-merges once CI passes. Until it merges the pins lag the
+> cluster, and `setup.sh` refuses to apply while that PR is open
+> (`--allow-open-pins` overrides).
 >
 > They used to be hand-maintained, and drifted permanently behind `main`.
 > That is why `--deploy-only` preserves the running images across an apply:
@@ -140,12 +145,22 @@ script always passes `--context` explicitly, so it can't land in
 
 ## CI deploys (.github/workflows/deploy.yml)
 
-Push to `main` → the changed image(s) build natively on arm64 runners →
+Merge to `main` → the changed image(s) build natively on arm64 runners →
 Docker Hub (`main-<sha>` tags; `:dev` stays laptop-owned) → `kubectl set
-image` by digest on the GKE workloads. CI never renders the kustomize
-overlay (secrets stay off GitHub), so **a manual `setup.sh --deploy-only`
-rolls GKE back to the digests pinned in k8s/kustomization.yaml** — refresh
-the pins after CI deploys if you intend to deploy manually.
+image` by digest on the GKE workloads → the rolled digests (and, after a
+banner publish, the bundle URL) are written back to `k8s/kustomization.yaml`
+via an auto-merging pull request. CI never renders the kustomize overlay
+(secrets stay off GitHub), so **a manual `setup.sh --deploy-only` renders
+the pins** — which is why they are kept true, and why the script refuses to
+run while a pin-back PR is still open.
+
+`main` is protected by a Ruleset (pull request + the five CI checks, squash
+merges only). Nothing pushes to it directly — not contributors, not CI. The
+pin-back PR needs two repository settings that are already on: *Allow
+GitHub Actions to create and approve pull requests* and *Allow auto-merge*.
+It uses the default `GITHUB_TOKEN`, whose pushes never trigger workflows,
+so the pin job dispatches `ci.yml` on the branch itself to produce the
+required checks.
 
 Auth: GCP via Workload Identity Federation (pool `github`, provider
 `github-oidc`, SA `github-deployer@promovolve.iam.gserviceaccount.com`,

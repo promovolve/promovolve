@@ -10,10 +10,12 @@
 # kustomize secretGenerator needs k8s/*.env, which stay on the laptop and
 # out of GitHub). Infra/config changes deploy via `k8s-gke/setup.sh
 # --deploy-only` from a machine that has them; CI only moves images.
-# Consequence: the digests pinned in k8s/kustomization.yaml are the DEV
-# (Docker Desktop) cluster's source of truth and a manual setup.sh deploy
-# rolls GKE back to them — after CI deploys, refresh the pins before any
-# manual deploy.
+# Consequence: the digests pinned in k8s/kustomization.yaml are what a
+# manual setup.sh deploy renders, so after every rollout the pin-images /
+# publish-banner jobs write the live digests and banner URL back — through
+# a pull request (branch `ci/pins`, auto-merged once CI is green), because
+# the `main` Ruleset forbids direct pushes. Until that PR lands the pins
+# lag the cluster; setup.sh refuses to apply while it is open.
 #
 # The `:dev` tag stays laptop-owned (this workflow never writes it).
 #
@@ -251,70 +253,49 @@ jobs:
             kubectl -n promovolve rollout status deployment/promovolve-platform --timeout=300s
           fi
 
-  # Write the digests we just rolled back into k8s/kustomization.yaml, so the
-  # repo always describes what is actually deployed.
-  #
-  # Without this the pins were hand-maintained and permanently behind main,
-  # which is not cosmetic: a manual overlay apply deploys the PINS and rolls
-  # the app backwards (2026-07-12 reverted four shipped fixes; 2026-07-27
-  # gke-factory-reset.sh reverted api+singleton to a four-day-old build and
-  # every /v1/internal/* route vanished with it). And on a CLEAN install there
-  # is nothing running to preserve, so the pins are simply what deploys —
-  # which is the open-source path (k8s-gke/setup.sh --build-images), so a
-  # stale pin means a stranger's first install is born broken.
-  #
-  # No CI loop: this commit touches only k8s/kustomization.yaml, which matches
-  # neither the `api` nor the `platform` paths-filter, so the Deploy it
-  # triggers skips both builds and deploys nothing. `[skip ci]` keeps it from
-  # burning a run at all.
+  # Write the deployed digests back to k8s/kustomization.yaml so the pins
+  # describe what is running (see scripts/pin-image-digest.sh for the two
+  # rollbacks that motivated it). Landed via a pull request on the shared
+  # `ci/pins` branch — never a direct push: the `main` Ruleset requires a
+  # PR + green checks, and a direct push failed with GH013 after an
+  # otherwise successful rollout (2026-08-30 ×3, GH #33). The PR auto-merges
+  # (squash) once CI passes; its title carries `[skip ci]` so the resulting
+  # commit does not burn a Deploy run (it matches no paths-filter anyway).
   pin-images:
     name: Pin deployed digests back to the repo
     needs: [build-api, build-platform, deploy]
     if: "!cancelled() && needs.deploy.result == 'success'"
     runs-on: ubuntu-latest
     permissions:
-      contents: write   # the only job here that writes to the repo
+      contents: write        # push the ci/pins branch
+      pull-requests: write   # open the PR + enable auto-merge
+      actions: write         # dispatch CI on the branch (GITHUB_TOKEN pushes never trigger it)
     steps:
       - uses: actions/checkout@9c091bb21b7c1c1d1991bb908d89e4e9dddfe3e0 # v7.0.0
         with:
           ref: main
-          # Default token can push; the checkout must keep credentials for it.
-          persist-credentials: true
+          fetch-depth: 0             # merge-base / merge need real history
+          persist-credentials: true  # the pin-back script pushes
 
-      - name: Update pins
+      - name: Pin digests via pull request
+        env:
+          GH_TOKEN: ${{ github.token }}
+          API_OK: ${{ needs.build-api.result == 'success' }}
+          API_DIGEST: ${{ needs.build-api.outputs.digest }}
+          PLATFORM_OK: ${{ needs.build-platform.result == 'success' }}
+          PLATFORM_DIGEST: ${{ needs.build-platform.outputs.digest }}
         run: |
           set -euo pipefail
-          if [ "${{ needs.build-api.result }}" = "success" ]; then
-            scripts/pin-image-digest.sh api \
-              "${{ needs.build-api.outputs.digest }}" \
-              "${GITHUB_SHA:0:7}" "${GITHUB_RUN_ID}"
-          fi
-          if [ "${{ needs.build-platform.result }}" = "success" ]; then
-            scripts/pin-image-digest.sh platform \
-              "${{ needs.build-platform.outputs.digest }}" \
-              "${GITHUB_SHA:0:7}" "${GITHUB_RUN_ID}"
-          fi
-
-      - name: Commit if anything changed
-        run: |
-          set -euo pipefail
-          if git diff --quiet -- k8s/kustomization.yaml; then
-            echo "pins already current — nothing to commit"; exit 0
-          fi
-          git config user.name  "github-actions[bot]"
-          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
-          git add k8s/kustomization.yaml
-          git commit -m "ci: pin deployed image digests [skip ci]" \
-                     -m "Deployed by run ${GITHUB_RUN_ID} from ${GITHUB_SHA}."
-          # Someone may have pushed while the rollout ran; rebase and retry
-          # once rather than failing a deploy that already succeeded.
-          for i in 1 2 3; do
-            if git push origin HEAD:main; then exit 0; fi
-            echo "push rejected (attempt $i) — rebasing on main"
-            git pull --rebase origin main
-          done
-          echo "could not push updated pins after 3 attempts" >&2
-          exit 1
+          # The pin command is re-run on every push retry, so it must be a
+          # single idempotent step: both components in one go.
+          scripts/pin-back-pr.sh \
+            "ci: pin deployed image digests [skip ci]" \
+            "Deployed by run ${GITHUB_RUN_ID} from ${GITHUB_SHA}." \
+            bash -c '
+              set -euo pipefail
+              [ "$API_OK" = "true" ] && scripts/pin-image-digest.sh api "$API_DIGEST" "${GITHUB_SHA:0:7}" "$GITHUB_RUN_ID"
+              [ "$PLATFORM_OK" = "true" ] && scripts/pin-image-digest.sh platform "$PLATFORM_DIGEST" "${GITHUB_SHA:0:7}" "$GITHUB_RUN_ID"
+              true'
 
   # Publish the delivered banner runtime to R2 and point the cluster at the
   # new immutable URL. This is the piece CI historically did NOT do — the
@@ -345,13 +326,15 @@ jobs:
       && needs.deploy.result != 'failure'
     runs-on: ubuntu-latest
     permissions:
-      contents: write   # pins the published URL back. Job-level permissions
-      id-token: write   # REPLACE the top-level pair, so WIF's id-token must
-                        # be respelled here or the gcloud auth step breaks.
+      contents: write        # pins the published URL back (ci/pins branch).
+      pull-requests: write   # Job-level permissions REPLACE the top-level
+      actions: write         # pair, so WIF's id-token must be respelled
+      id-token: write        # here or the gcloud auth step breaks.
     steps:
       - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4.4.0
         with:
           ref: main
+          fetch-depth: 0              # pin-back merges main into ci/pins
           persist-credentials: true   # the pin-back step pushes
       - uses: actions/setup-node@49933ea5288caeca8642d1e84afbd3f7d6820020 # v4.4.0
         with:
@@ -408,24 +391,18 @@ jobs:
       # k8s-gke/setup.sh drops that literal before applying, which is only
       # correct while this line is true.
       - name: Pin the published URL back to the repo
+        env:
+          GH_TOKEN: ${{ github.token }}
+          URL: ${{ steps.publish.outputs.url }}
         run: |
           set -euo pipefail
-          scripts/pin-banner-url.sh "${{ steps.publish.outputs.url }}"
-          if git diff --quiet -- k8s/kustomization.yaml; then
-            echo "banner url already current — nothing to commit"; exit 0
-          fi
-          git config user.name  "github-actions[bot]"
-          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
-          git add k8s/kustomization.yaml
-          git commit -m "ci: pin published banner bundle url [skip ci]" \
-                     -m "Published by run ${GITHUB_RUN_ID} from ${GITHUB_SHA}."
-          for i in 1 2 3; do
-            if git push origin HEAD:main; then exit 0; fi
-            echo "push rejected (attempt $i) — rebasing on main"
-            git pull --rebase origin main
-          done
-          echo "could not push the updated banner url after 3 attempts" >&2
-          exit 1
+          # Same PR path as pin-images (shared `ci/pins` branch — the two
+          # jobs run concurrently and the script re-applies on a push race,
+          # so neither pin can overwrite the other).
+          scripts/pin-back-pr.sh \
+            "ci: pin published banner bundle url [skip ci]" \
+            "Published by run ${GITHUB_RUN_ID} from ${GITHUB_SHA}." \
+            scripts/pin-banner-url.sh "$URL"
 
   # The publisher ad tag. Bootstrap releases used to be MANUAL (npm run
   # release from a laptop with scripts/.env) — a merged tag fix that nobody

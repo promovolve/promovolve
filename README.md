@@ -62,7 +62,7 @@ closed ad network can offer. For the guided version, read
 | `platform/` | The dashboard: a Go web app (server-rendered templates, passkey auth) plus the banner web component and the publisher loader script |
 | `docs/` | [Documentation index](docs/README.md) — guides, architecture, design docs |
 | `k8s/` | Base Kubernetes manifests (Kustomize) |
-| `k8s-gke/` | The public GKE deployment: ARM spot cluster, GKE Ingress + managed certs, CI-deployed on push to `main` (`.github/workflows/deploy.yml`) |
+| `k8s-gke/` | The public GKE deployment: ARM spot cluster, GKE Ingress + managed certs, CI-deployed on merge to `main` (`.github/workflows/deploy.yml`) |
 | `docker/` | Database schema (`init-db.sql`) and container bits |
 | `scripts/` | Dev runners, asset publish scripts, test harnesses |
 

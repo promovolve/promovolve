@@ -32,7 +32,16 @@ ssh-keygen -q -t ed25519 -N "" -C "$TITLE" -f "$tmp/key"
 # Replace an existing key of the same title so a rotation leaves one behind.
 gh repo deploy-key list -R "$REPO" --json id,title --jq ".[] | select(.title==\"$TITLE\") | .id" \
   | while read -r id; do [ -n "$id" ] && gh repo deploy-key delete -R "$REPO" "$id"; done
-gh repo deploy-key add -R "$REPO" --allow-write --title "$TITLE" "$tmp/key.pub"
+if ! gh repo deploy-key add -R "$REPO" --allow-write --title "$TITLE" "$tmp/key.pub"; then
+  cat >&2 <<EOF
+could not register the deploy key. If GitHub said "Deploy keys are disabled
+for this repository", that is the ORGANIZATION policy (it was off on
+promovolve until 2026-09-04). An org owner turns it on with
+  gh api -X PATCH orgs/${REPO%%/*} -F deploy_keys_enabled_for_repositories=true
+or in the org's Settings > Deploy keys page, then re-run this script.
+EOF
+  exit 1
+fi
 gh secret set "$SECRET" -R "$REPO" < "$tmp/key"
 
 echo "deploy key '$TITLE' registered with write access on $REPO"

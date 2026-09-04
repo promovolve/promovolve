@@ -170,7 +170,10 @@ scripts/setup-pin-deploy-key.sh
 
 which generates an ed25519 key, registers the public half as a deploy key
 with write access, stores the private half as the secret, and discards it
-locally. Rotate by running it again.
+locally. Rotate by running it again. The organization policy *Deploy keys*
+must allow them (`deploy_keys_enabled_for_repositories` on the org; it had
+been switched off on promovolve and was re-enabled 2026-09-04) — the script
+says so if registration is refused.
 
 Auth: GCP via Workload Identity Federation (pool `github`, provider
 `github-oidc`, SA `github-deployer@promovolve.iam.gserviceaccount.com`,

@@ -23,7 +23,7 @@ COPY static/passkey.js ./static/passkey.js
 RUN npx tailwindcss -c tailwind.config.js -i tailwind.input.css -o tailwind.css --minify
 
 # ---- build stage ----
-FROM golang:1.26 AS build
+FROM golang:1.27 AS build
 WORKDIR /src
 
 COPY go.mod go.sum ./

@@ -8,7 +8,7 @@
 # PROMOVOLVE_VERSION, not by mtime).
 services:
   db:
-    image: mariadb:11
+    image: mariadb:12
     environment:
       MARIADB_DATABASE: wordpress
       MARIADB_USER: wordpress

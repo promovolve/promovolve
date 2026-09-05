@@ -74,8 +74,8 @@ object CboAllocator {
         strengthSpend: Double
     ): GammaPrior = {
       val observed = if (yesterdaySpent > 0) yesterdayCtas.toDouble / yesterdaySpent else 0.0
-      val mean     = if (yesterdayCtas >= minCtas && observed > 0) observed else math.max(fallbackRate, MinRate)
-      val beta0    = math.max(strengthSpend, MinStrength)
+      val mean = if (yesterdayCtas >= minCtas && observed > 0) observed else math.max(fallbackRate, MinRate)
+      val beta0 = math.max(strengthSpend, MinStrength)
       GammaPrior(math.max(mean * beta0, MinShape), beta0)
     }
   }
@@ -84,7 +84,7 @@ object CboAllocator {
   val MinRate: Double = 1e-9
 
   /** Floor on prior shape/strength so a posterior is always proper. */
-  val MinShape: Double    = 1e-3
+  val MinShape: Double = 1e-3
   val MinStrength: Double = 1e-3
 
   final case class Params(
@@ -195,8 +195,8 @@ object CboAllocator {
       params: Params = Params(),
       tickFraction: Double = 0.0
   ): Allocation[K] = {
-    val n         = inputs.size
-    val spentSum  = inputs.map(_.spent).sum
+    val n = inputs.size
+    val spentSum = inputs.map(_.spent).sum
     val remaining = math.max(0.0, accountDaily - spentSum)
     if (n == 0 || remaining <= 0.0)
       Allocation(
@@ -205,7 +205,7 @@ object CboAllocator {
         inputs.map(i => Result(i.id, 0.0, i.spent, -i.previousForward, 0.0, i.prior.mean, 0.0, 0.0, 0.0))
       )
     else {
-      val f     = elapsedFraction.max(0.0).min(1.0)
+      val f = elapsedFraction.max(0.0).min(1.0)
       val floor = params.explorationFloor * remaining / n
 
       val prepared = inputs.map { in =>
@@ -213,26 +213,26 @@ object CboAllocator {
         val rate = drawRate(post, rng, params)
 
         val capacity = capacityOf(in, f, params, tickFraction)
-        val prev     = in.previousForward
+        val prev = in.previousForward
         // Hysteresis band around the previous forward allocation. The upper
         // bound is never below the floor, so a campaign parked at 0 can grow
         // again; the lower bound is never above the capacity, so an
         // inventory-limited campaign is not force-fed.
         val lowerRaw = math.max(floor, (1.0 - params.maxMovePerTick) * prev)
         val upperRaw = math.max(floor, (1.0 + params.maxMovePerTick) * prev)
-        val upper    = math.min(capacity, upperRaw)
-        val lower    = math.min(lowerRaw, upper)
+        val upper = math.min(capacity, upperRaw)
+        val lower = math.min(lowerRaw, upper)
         Prep(in, rate, post.mean, capacity, lower, upper)
       }
 
       // If the lower bounds alone exceed R, scale them down proportionally;
       // the sum of allocations can never exceed the remaining account budget.
       val lowerSum = prepared.map(_.lower).sum
-      val scale    = if (lowerSum > remaining && lowerSum > 0) remaining / lowerSum else 1.0
-      val bounded  = prepared.map(p => p.copy(lower = p.lower * scale, upper = math.max(p.upper, p.lower * scale)))
+      val scale = if (lowerSum > remaining && lowerSum > 0) remaining / lowerSum else 1.0
+      val bounded = prepared.map(p => p.copy(lower = p.lower * scale, upper = math.max(p.upper, p.lower * scale)))
 
       val upperSum = bounded.map(_.upper).sum
-      val target   = math.min(remaining, upperSum)
+      val target = math.min(remaining, upperSum)
 
       val (lambda, forwards) =
         waterFill(bounded.map(p => (p.rate, p.lower, p.upper)), target, params.returnsExponent)
@@ -293,7 +293,7 @@ object CboAllocator {
     if (in.exhausted || elapsedFraction < params.minElapsedFraction || in.dailyBudget <= 0.0)
       Double.PositiveInfinity
     else {
-      val f              = elapsedFraction
+      val f = elapsedFraction
       val cumulativePace = in.spent / (in.dailyBudget * f)
       val cumulativeProj = math.max(0.0, in.spent / f - in.spent)
 
@@ -302,11 +302,11 @@ object CboAllocator {
           ts <- in.tickSpend
           dt <- Option(tickFraction).filter(_ > 0)
         } yield {
-          val fLast       = math.max(0.0, f - dt)
+          val fLast = math.max(0.0, f - dt)
           val lastForward = in.previousForward + ts
-          val expected    = if (fLast < 1.0) lastForward * dt / (1.0 - fLast) else 0.0
-          val pace        = if (expected > 0) ts / expected else 0.0
-          val projection  = (ts / dt) * (1.0 - f)
+          val expected = if (fLast < 1.0) lastForward * dt / (1.0 - fLast) else 0.0
+          val pace = if (expected > 0) ts / expected else 0.0
+          val projection = (ts / dt) * (1.0 - f)
           (pace, projection)
         }
 
@@ -327,7 +327,7 @@ object CboAllocator {
   def waterFill(items: Vector[(Double, Double, Double)], target: Double, rho: Double): (Double, Vector[Double]) = {
     val lowerSum = items.map(_._2).sum
     val upperSum = items.map(_._3).sum
-    val t        = target.max(lowerSum).min(upperSum)
+    val t = target.max(lowerSum).min(upperSum)
     if (items.isEmpty) (0.0, Vector.empty)
     else if (t >= upperSum) (0.0, items.map(_._3))
     else if (t <= lowerSum) (Double.PositiveInfinity, items.map(_._2))
@@ -341,13 +341,13 @@ object CboAllocator {
       // sits at its upper bound, at the high end at its lower bound.
       var lo = -60.0
       var hi = 60.0
-      var i  = 0
+      var i = 0
       while (i < 200) {
         val mid = 0.5 * (lo + hi)
         if (clampedSum(math.exp(mid)) > t) lo = mid else hi = mid
         i += 1
       }
-      val lambda   = math.exp(0.5 * (lo + hi))
+      val lambda = math.exp(0.5 * (lo + hi))
       val forwards = items.map { case (rate, lo0, hi0) => response(rate, lambda).max(lo0).min(hi0) }
       // Bisection leaves a residual of at most the flat parts of the clamped
       // response; spread it over the campaigns that still have room so the
@@ -388,7 +388,7 @@ object CboAllocator {
     val n = ids.size
     if (n == 0 || accountDaily <= 0) Map.empty
     else {
-      val ySum  = ids.map(id => math.max(0.0, yesterdayFinal.getOrElse(id, 0.0))).sum
+      val ySum = ids.map(id => math.max(0.0, yesterdayFinal.getOrElse(id, 0.0))).sum
       val blend = if (ySum > 0) params.dayStartBlend else 0.0
       ids.map { id =>
         val yShare = if (ySum > 0) math.max(0.0, yesterdayFinal.getOrElse(id, 0.0)) / ySum else 0.0

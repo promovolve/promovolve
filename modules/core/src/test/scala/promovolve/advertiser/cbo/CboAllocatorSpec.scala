@@ -19,26 +19,26 @@ class CboAllocatorSpec extends AnyWordSpec with Matchers with ScalaCheckProperty
 
   private val genPrior: Gen[GammaPrior] =
     for {
-      mean     <- Gen.choose(0.001, 0.2)
+      mean <- Gen.choose(0.001, 0.2)
       strength <- Gen.choose(0.5, 50.0)
     } yield GammaPrior(mean * strength, strength)
 
   private def genInput(id: Int): Gen[Input[Int]] =
     for {
-      budget    <- Gen.choose(0.0, 100.0)
-      spent     <- Gen.choose(0.0, 120.0).map(s => math.min(s, budget * 1.5))
-      ctas      <- Gen.choose(0L, 50L)
+      budget <- Gen.choose(0.0, 100.0)
+      spent <- Gen.choose(0.0, 120.0).map(s => math.min(s, budget * 1.5))
+      ctas <- Gen.choose(0L, 50L)
       exhausted <- Gen.prob(0.15)
-      prior     <- genPrior
+      prior <- genPrior
     } yield Input(id, spent, ctas, budget, exhausted, prior)
 
   private val genCase: Gen[(Vector[Input[Int]], Double, Double, Long)] =
     for {
-      n        <- Gen.choose(1, 6)
-      inputs   <- Gen.sequence[Vector[Input[Int]], Input[Int]]((1 to n).map(genInput))
-      account  <- Gen.choose(0.0, 500.0)
-      elapsed  <- Gen.choose(0.0, 1.0)
-      seed     <- Gen.long
+      n <- Gen.choose(1, 6)
+      inputs <- Gen.sequence[Vector[Input[Int]], Input[Int]]((1 to n).map(genInput))
+      account <- Gen.choose(0.0, 500.0)
+      elapsed <- Gen.choose(0.0, 1.0)
+      seed <- Gen.long
     } yield (inputs, account, elapsed, seed)
 
   private def floorOf(remaining: Double, n: Int, params: Params): Double =
@@ -49,8 +49,8 @@ class CboAllocatorSpec extends AnyWordSpec with Matchers with ScalaCheckProperty
     "conserve the remainder and respect every per-campaign bound" in {
       forAll(genCase) { case (inputs, account, elapsed, seed) =>
         val params = Params()
-        val alloc  = allocate(inputs, account, elapsed, new Random(seed), params)
-        val n      = inputs.size
+        val alloc = allocate(inputs, account, elapsed, new Random(seed), params)
+        val n = inputs.size
 
         alloc.remaining shouldBe math.max(0.0, account - inputs.map(_.spent).sum) +- Eps
         alloc.results.map(_.id) shouldBe inputs.map(_.id)
@@ -79,8 +79,8 @@ class CboAllocatorSpec extends AnyWordSpec with Matchers with ScalaCheckProperty
     "keep the exploration floor and the hysteresis band whenever the remainder can afford them" in {
       forAll(genCase) { case (inputs, account, elapsed, seed) =>
         val params = Params()
-        val alloc  = allocate(inputs, account, elapsed, new Random(seed), params)
-        val n      = inputs.size
+        val alloc = allocate(inputs, account, elapsed, new Random(seed), params)
+        val n = inputs.size
         whenever(alloc.remaining > 0) {
           val floor = floorOf(alloc.remaining, n, params)
           alloc.results.zip(inputs).foreach { case (r, in) =>
@@ -127,12 +127,12 @@ class CboAllocatorSpec extends AnyWordSpec with Matchers with ScalaCheckProperty
 
     "be unbounded when exhausted, early in the day, or pace-binding" in {
       capacityOf(Input(1, 10.0, 0L, 20.0, exhausted = true, GammaPrior(1, 1)), 0.5, params) shouldBe
-        Double.PositiveInfinity
+      Double.PositiveInfinity
       capacityOf(Input(1, 0.0, 0L, 20.0, exhausted = false, GammaPrior(1, 1)), 0.01, params) shouldBe
-        Double.PositiveInfinity
+      Double.PositiveInfinity
       // pace = 10 / (20 * 0.5) = 1.0 >= 0.9
       capacityOf(Input(1, 10.0, 0L, 20.0, exhausted = false, GammaPrior(1, 1)), 0.5, params) shouldBe
-        Double.PositiveInfinity
+      Double.PositiveInfinity
     }
 
     "project the campaign's own remaining day rate when inventory-limited" in {
@@ -144,9 +144,9 @@ class CboAllocatorSpec extends AnyWordSpec with Matchers with ScalaCheckProperty
       // Budget raised 20 -> 40 at mid-day: cumulative pace = 10 / (40 * 0.5) = 0.5
       // looks inventory-limited, but the last tick (1/96 of the day) spent the
       // full flat-shape slice of the forward it held: instantaneous pace 1.0.
-      val dt          = 1.0 / 96
+      val dt = 1.0 / 96
       val lastForward = 30.0
-      val slice       = lastForward * dt / (1.0 - (0.5 - dt))
+      val slice = lastForward * dt / (1.0 - (0.5 - dt))
       val in = Input(1, 10.0, 0L, 40.0, exhausted = false, GammaPrior(1, 1), tickSpend = Some(slice))
       capacityOf(in, 0.5, params, dt) shouldBe Double.PositiveInfinity
       // Without the tick reading the old rule would have capped it at its old path.
@@ -169,21 +169,21 @@ class CboAllocatorSpec extends AnyWordSpec with Matchers with ScalaCheckProperty
 
   "CboAllocator.drawRate" should {
     "keep the posterior mean and cap the draw's spread at 1/sqrt(minDrawShape)" in {
-      val rng   = new Random(3L)
-      val post  = GammaPrior(2.0, 40.0) // mean 0.05, only 2 pseudo tap-throughs of evidence
+      val rng = new Random(3L)
+      val post = GammaPrior(2.0, 40.0) // mean 0.05, only 2 pseudo tap-throughs of evidence
       val draws = Vector.fill(4000)(drawRate(post, rng, Params()))
-      val mean  = draws.sum / draws.size
-      val cv    = math.sqrt(draws.map(d => (d - mean) * (d - mean)).sum / draws.size) / mean
+      val mean = draws.sum / draws.size
+      val cv = math.sqrt(draws.map(d => (d - mean) * (d - mean)).sum / draws.size) / mean
       mean shouldBe post.mean +- 0.002
       cv should be <= 1.2 / math.sqrt(Params().minDrawShape)
     }
 
     "recover pure Thompson when minDrawShape is 0" in {
-      val rng   = new Random(3L)
-      val post  = GammaPrior(2.0, 40.0)
+      val rng = new Random(3L)
+      val post = GammaPrior(2.0, 40.0)
       val draws = Vector.fill(4000)(drawRate(post, rng, Params(minDrawShape = 0)))
-      val mean  = draws.sum / draws.size
-      val cv    = math.sqrt(draws.map(d => (d - mean) * (d - mean)).sum / draws.size) / mean
+      val mean = draws.sum / draws.size
+      val cv = math.sqrt(draws.map(d => (d - mean) * (d - mean)).sum / draws.size) / mean
       cv shouldBe 1.0 / math.sqrt(2.0) +- 0.1
     }
   }
@@ -192,16 +192,16 @@ class CboAllocatorSpec extends AnyWordSpec with Matchers with ScalaCheckProperty
 
     "hit the target exactly and give a higher rate never less money under shared bounds" in {
       val gen = for {
-        n      <- Gen.choose(1, 8)
-        rates  <- Gen.listOfN(n, Gen.choose(0.001, 1.0))
-        lo     <- Gen.choose(0.0, 5.0)
-        hi     <- Gen.choose(5.0, 50.0)
+        n <- Gen.choose(1, 8)
+        rates <- Gen.listOfN(n, Gen.choose(0.001, 1.0))
+        lo <- Gen.choose(0.0, 5.0)
+        hi <- Gen.choose(5.0, 50.0)
         target <- Gen.choose(0.0, 400.0)
       } yield (rates.toVector, lo, hi, target)
 
       forAll(gen) { case (rates, lo, hi, target) =>
-        val items    = rates.map(r => (r, lo, hi))
-        val clamped  = target.max(lo * rates.size).min(hi * rates.size)
+        val items = rates.map(r => (r, lo, hi))
+        val clamped = target.max(lo * rates.size).min(hi * rates.size)
         val (_, out) = waterFill(items, target, 0.5)
         out.sum shouldBe clamped +- 1e-6
         out.foreach { x =>
@@ -252,17 +252,17 @@ class CboAllocatorSpec extends AnyWordSpec with Matchers with ScalaCheckProperty
       noiseless: Boolean = false,
       prior: Option[GammaPrior] = None
   ): (Vector[Double], Vector[Long], Vector[Double]) = {
-    val rng      = new Random(seed)
-    val n        = trueRates.size
-    var spent    = Vector.fill(n)(0.0)
+    val rng = new Random(seed)
+    val n = trueRates.size
+    var spent = Vector.fill(n)(0.0)
     var expected = Vector.fill(n)(0.0)
-    var ctas     = Vector.fill(n)(0L)
-    var budgets  = Vector.fill(n)(accountDaily / n)
+    var ctas = Vector.fill(n)(0L)
+    var budgets = Vector.fill(n)(accountDaily / n)
     var lastTick = Vector.fill(n)(Option.empty[Double])
     val p =
       prior.getOrElse(GammaPrior.seed(0L, 0.0, minCtas = 5, fallbackRate = 0.02, strengthSpend = accountDaily / n / 2))
     val shares = Vector.newBuilder[Double]
-    val dt     = 1.0 / ticks
+    val dt = 1.0 / ticks
 
     (0 until ticks).foreach { t =>
       val f = t.toDouble / ticks
@@ -274,7 +274,7 @@ class CboAllocatorSpec extends AnyWordSpec with Matchers with ScalaCheckProperty
         budgets = alloc.results.map(_.newDailyBudget)
       }
       val forward = (0 until n).map(i => math.max(0.0, budgets(i) - spent(i)))
-      val total   = forward.sum
+      val total = forward.sum
       shares += (if (total > 0) forward(0) / total else 0.5)
       val ticksLeft = ticks - t
       (0 until n).foreach { i =>
@@ -321,13 +321,13 @@ class CboAllocatorSpec extends AnyWordSpec with Matchers with ScalaCheckProperty
         shares.last
       }
       val mean = endShares.sum / endShares.size
-      val std  = math.sqrt(endShares.map(s => (s - mean) * (s - mean)).sum / endShares.size)
+      val std = math.sqrt(endShares.map(s => (s - mean) * (s - mean)).sum / endShares.size)
       mean shouldBe 0.5 +- 0.06
       std should be <= 0.2
     }
 
     "move budget toward the campaign with the threefold higher rate without starving the other" in {
-      val params                 = Params()
+      val params = Params()
       val (shares, ctasAuto, sp) = simulateDay(Vector(1.5, 0.5), 100.0, ticks = 96, seed = 7L, fixed = false, params)
       // Converged by the last quarter of the day: A holds a clear majority.
       val lastQuarter = shares.drop(72)
@@ -336,8 +336,8 @@ class CboAllocatorSpec extends AnyWordSpec with Matchers with ScalaCheckProperty
       shares.foreach(s => (1 - s) should be >= params.explorationFloor / 2 - 1e-9)
 
       val (_, ctasFixed, _) = simulateDay(Vector(1.5, 0.5), 100.0, ticks = 96, seed = 7L, fixed = true)
-      val autoTotal         = ctasAuto.sum.toDouble
-      val fixedTotal        = ctasFixed.sum.toDouble
+      val autoTotal = ctasAuto.sum.toDouble
+      val fixedTotal = ctasFixed.sum.toDouble
       // Primary gate of #38: tap-throughs per unit of spend up at least 20% over equal split.
       sp.sum shouldBe 100.0 +- 1e-6
       autoTotal / fixedTotal should be >= 1.2

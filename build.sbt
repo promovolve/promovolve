@@ -1,12 +1,12 @@
 import scala.collection.Seq
 
 ThisBuild / organization := "promovolve"
-scalaVersion := "3.7.4"
+scalaVersion := "3.9.0"
 val pekkoVersion                = "1.4.0"
 val pekkoHttpVersion            = "1.2.0"
 val pekkoProjectionVersion      = "1.1.0"
 val pekkoManagementVersion      = "1.2.1"
-val logbackVersion              = "1.5.18"
+val logbackVersion              = "1.6.3"
 val pekkoQuartzSchedulerVersion = "1.3.0-pekko-1.1.x"
 val tapirVersion = "1.13.3"
 
@@ -120,9 +120,9 @@ lazy val commonSettings = Seq(
     "org.apache.pekko"       %% "pekko-http-spray-json"        % pekkoHttpVersion,
     "org.apache.pekko"       %% "pekko-http-xml"               % pekkoHttpVersion,  // Explicit version to avoid conflict with pekko-connectors-s3
     // Persistence (PostgreSQL)
-    "org.apache.pekko"       %% "pekko-persistence-jdbc"       % "1.2.0",
-    "com.typesafe.slick"     %% "slick"                        % "3.5.1",
-    "com.typesafe.slick"     %% "slick-hikaricp"               % "3.5.1",
+    "org.apache.pekko"       %% "pekko-persistence-jdbc"       % "1.3.0",
+    "com.typesafe.slick"     %% "slick"                        % "3.6.1",
+    "com.typesafe.slick"     %% "slick-hikaricp"               % "3.6.1",
     "org.postgresql"          % "postgresql"                   % "42.7.8",
     // Pekko Projection (for dashboard read-side)
     "org.apache.pekko"       %% "pekko-projection-core"        % pekkoProjectionVersion,
@@ -131,12 +131,12 @@ lazy val commonSettings = Seq(
     "io.github.samueleresca" %% "pekko-quartz-scheduler"       % pekkoQuartzSchedulerVersion,
     "ch.qos.logback"          % "logback-classic"              % logbackVersion,
     "com.github.jkugiya"     %% "ulid-scala"                   % "1.0.6",
-    "com.microsoft.playwright" % "playwright"                  % "1.54.0",
+    "com.microsoft.playwright" % "playwright"                  % "1.62.0",
     "org.apache.commons"      % "commons-math3"                % "3.6.1",  // Beta distribution for Thompson Sampling
     "com.github.blemale"     %% "scaffeine"                    % "5.3.0",  // Scala wrapper for Caffeine cache
-    "com.google.guava"        % "guava"                        % "33.4.8-jre",  // InternetDomainName (public-suffix eTLD+1 for auto-approve trust)
-    "com.sksamuel.scrimage"   % "scrimage-webp"                % "4.3.0",   // WebP encoder (bundles cwebp/dwebp native binaries)
-    "org.apache.pekko"       %% "pekko-connectors-s3"          % "1.2.0",   // S3/R2 connector (streaming)
+    "com.google.guava"        % "guava"                        % "33.7.1-jre",  // InternetDomainName (public-suffix eTLD+1 for auto-approve trust)
+    "com.sksamuel.scrimage"   % "scrimage-webp"                % "4.6.7",   // WebP encoder (bundles cwebp/dwebp native binaries)
+    "org.apache.pekko"       %% "pekko-connectors-s3"          % "1.3.0",   // S3/R2 connector (streaming)
     "com.softwaremill.sttp.tapir" %% "tapir-pekko-http-server" % tapirVersion,
     "com.softwaremill.sttp.tapir" %% "tapir-json-spray"        % tapirVersion,
     "com.softwaremill.sttp.tapir" %% "tapir-openapi-docs"      % tapirVersion,

@@ -186,9 +186,5 @@ jobs:
         with:
           go-version-file: platform/go.mod
           cache-dependency-path: platform/go.sum
-      # Build + vet + `go test -race` over every first-party package. The
-      # selection lives in the script (shared with contributors): `go list
-      # ./...` minus the Go snippets npm vendors under */node_modules, which
-      # is what the old `./cmd/... .` scope was dodging — at the price of
-      # never running a single test under internal/ (GH #21).
-      - run: ../scripts/go-test.sh
+      # Share first-party build, vet, and race checks with local development.
+      - run: make check

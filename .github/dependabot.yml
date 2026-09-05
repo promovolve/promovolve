@@ -13,14 +13,15 @@ updates:
     open-pull-requests-limit: 1
     labels:
       - dependencies
+    # Slick modules share a release; unrelated dependencies need separate reviews.
     groups:
-      minor-updates:
+      slick-minor:
         applies-to: "version-updates"
-        patterns: ["*"]
+        patterns: ["com.typesafe.slick:slick_*", "com.typesafe.slick:slick-hikaricp_*"]
         update-types: ["minor"]
-      patch-updates:
+      slick-patch:
         applies-to: "version-updates"
-        patterns: ["*"]
+        patterns: ["com.typesafe.slick:slick_*", "com.typesafe.slick:slick-hikaricp_*"]
         update-types: ["patch"]
 
   - package-ecosystem: "npm"
@@ -38,15 +39,6 @@ updates:
     open-pull-requests-limit: 1
     labels:
       - dependencies
-    groups:
-      minor-updates:
-        applies-to: "version-updates"
-        patterns: ["*"]
-        update-types: ["minor"]
-      patch-updates:
-        applies-to: "version-updates"
-        patterns: ["*"]
-        update-types: ["patch"]
 
   - package-ecosystem: "gomod"
     directory: "/platform"
@@ -59,15 +51,6 @@ updates:
     open-pull-requests-limit: 1
     labels:
       - dependencies
-    groups:
-      minor-updates:
-        applies-to: "version-updates"
-        patterns: ["*"]
-        update-types: ["minor"]
-      patch-updates:
-        applies-to: "version-updates"
-        patterns: ["*"]
-        update-types: ["patch"]
 
   - package-ecosystem: "pip"
     directory: "/scripts/rl-test"
@@ -80,15 +63,6 @@ updates:
     open-pull-requests-limit: 1
     labels:
       - dependencies
-    groups:
-      minor-updates:
-        applies-to: "version-updates"
-        patterns: ["*"]
-        update-types: ["minor"]
-      patch-updates:
-        applies-to: "version-updates"
-        patterns: ["*"]
-        update-types: ["patch"]
 
   - package-ecosystem: "terraform"
     directory: "/terraform"
@@ -101,15 +75,6 @@ updates:
     open-pull-requests-limit: 1
     labels:
       - dependencies
-    groups:
-      minor-updates:
-        applies-to: "version-updates"
-        patterns: ["*"]
-        update-types: ["minor"]
-      patch-updates:
-        applies-to: "version-updates"
-        patterns: ["*"]
-        update-types: ["patch"]
 
   - package-ecosystem: "docker"
     directories:
@@ -124,15 +89,6 @@ updates:
     open-pull-requests-limit: 1
     labels:
       - dependencies
-    groups:
-      minor-updates:
-        applies-to: "version-updates"
-        patterns: ["*"]
-        update-types: ["minor"]
-      patch-updates:
-        applies-to: "version-updates"
-        patterns: ["*"]
-        update-types: ["patch"]
 
   - package-ecosystem: "docker-compose"
     directories:
@@ -147,15 +103,6 @@ updates:
     open-pull-requests-limit: 1
     labels:
       - dependencies
-    groups:
-      minor-updates:
-        applies-to: "version-updates"
-        patterns: ["*"]
-        update-types: ["minor"]
-      patch-updates:
-        applies-to: "version-updates"
-        patterns: ["*"]
-        update-types: ["patch"]
 
   - package-ecosystem: "github-actions"
     directory: "/"
@@ -168,12 +115,3 @@ updates:
     open-pull-requests-limit: 1
     labels:
       - dependencies
-    groups:
-      minor-updates:
-        applies-to: "version-updates"
-        patterns: ["*"]
-        update-types: ["minor"]
-      patch-updates:
-        applies-to: "version-updates"
-        patterns: ["*"]
-        update-types: ["patch"]

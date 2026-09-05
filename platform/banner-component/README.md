@@ -26,7 +26,6 @@ All three point at the same hashed URL on Cloudflare R2. There's no JAR classpat
 platform/banner-component/
 ├── src/                # TypeScript source (web component + helpers)
 ├── tests/              # Vitest unit tests; Playwright visual tests later
-├── scripts/fanout.mjs  # Post-build copy into consumer paths
 ├── dist/               # Build output (gitignored)
 ├── package.json
 ├── vite.config.ts      # Library mode, IIFE, minified

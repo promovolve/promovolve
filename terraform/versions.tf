@@ -7,7 +7,7 @@ terraform {
       source = "hashicorp/google"
       # 6.x is the first series where hyperdisk boot disks and the current
       # WIF provider schema are both stable.
-      version = "~> 6.0"
+      version = "~> 8.0"
     }
   }
 }

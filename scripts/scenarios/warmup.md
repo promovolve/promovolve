@@ -1,5 +1,7 @@
 Warmup Workflow
 
+Run these commands from the repository root.
+
 1. Start the stack
 
 Deploy to the local k8s cluster (see k8s/README.md) — core API on :8080.
@@ -25,7 +27,7 @@ nothing is served. Two drivers:
 - simulate-traffic (Go), against a real page that carries your slots
   (it discovers data-promovolve-slot divs and POSTs /v1/serve/batch):
 
-  go run ./platform/cmd/simulate-traffic -pub YOUR_SITE_ID \
+  go -C platform run ./cmd/simulate-traffic -pub YOUR_SITE_ID \
     -site http://localhost:8888 -api http://localhost:8080/v1 \
     -workers 2 -interval 1s
 

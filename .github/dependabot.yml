@@ -1,0 +1,179 @@
+version: 2
+
+# Keep Dependabot's default `dependencies` label.
+updates:
+  - package-ecosystem: "sbt"
+    directory: "/"
+    schedule:
+      interval: "daily"
+      time: "02:00"
+      timezone: "Asia/Tokyo"
+    cooldown:
+      default-days: 7
+    open-pull-requests-limit: 1
+    labels:
+      - dependencies
+    groups:
+      minor-updates:
+        applies-to: "version-updates"
+        patterns: ["*"]
+        update-types: ["minor"]
+      patch-updates:
+        applies-to: "version-updates"
+        patterns: ["*"]
+        update-types: ["patch"]
+
+  - package-ecosystem: "npm"
+    directories:
+      - "/platform/banner-bootstrap"
+      - "/platform/banner-component"
+      - "/platform/creative-designer"
+      - "/platform/dashboard-tests"
+    schedule:
+      interval: "daily"
+      time: "02:00"
+      timezone: "Asia/Tokyo"
+    cooldown:
+      default-days: 7
+    open-pull-requests-limit: 1
+    labels:
+      - dependencies
+    groups:
+      minor-updates:
+        applies-to: "version-updates"
+        patterns: ["*"]
+        update-types: ["minor"]
+      patch-updates:
+        applies-to: "version-updates"
+        patterns: ["*"]
+        update-types: ["patch"]
+
+  - package-ecosystem: "gomod"
+    directory: "/platform"
+    schedule:
+      interval: "daily"
+      time: "02:00"
+      timezone: "Asia/Tokyo"
+    cooldown:
+      default-days: 7
+    open-pull-requests-limit: 1
+    labels:
+      - dependencies
+    groups:
+      minor-updates:
+        applies-to: "version-updates"
+        patterns: ["*"]
+        update-types: ["minor"]
+      patch-updates:
+        applies-to: "version-updates"
+        patterns: ["*"]
+        update-types: ["patch"]
+
+  - package-ecosystem: "pip"
+    directory: "/scripts/rl-test"
+    schedule:
+      interval: "daily"
+      time: "02:00"
+      timezone: "Asia/Tokyo"
+    cooldown:
+      default-days: 7
+    open-pull-requests-limit: 1
+    labels:
+      - dependencies
+    groups:
+      minor-updates:
+        applies-to: "version-updates"
+        patterns: ["*"]
+        update-types: ["minor"]
+      patch-updates:
+        applies-to: "version-updates"
+        patterns: ["*"]
+        update-types: ["patch"]
+
+  - package-ecosystem: "terraform"
+    directory: "/terraform"
+    schedule:
+      interval: "daily"
+      time: "02:00"
+      timezone: "Asia/Tokyo"
+    cooldown:
+      default-days: 7
+    open-pull-requests-limit: 1
+    labels:
+      - dependencies
+    groups:
+      minor-updates:
+        applies-to: "version-updates"
+        patterns: ["*"]
+        update-types: ["minor"]
+      patch-updates:
+        applies-to: "version-updates"
+        patterns: ["*"]
+        update-types: ["patch"]
+
+  - package-ecosystem: "docker"
+    directories:
+      - "/"
+      - "/platform"
+    schedule:
+      interval: "daily"
+      time: "02:00"
+      timezone: "Asia/Tokyo"
+    cooldown:
+      default-days: 7
+    open-pull-requests-limit: 1
+    labels:
+      - dependencies
+    groups:
+      minor-updates:
+        applies-to: "version-updates"
+        patterns: ["*"]
+        update-types: ["minor"]
+      patch-updates:
+        applies-to: "version-updates"
+        patterns: ["*"]
+        update-types: ["patch"]
+
+  - package-ecosystem: "docker-compose"
+    directories:
+      - "/"
+      - "/integrations/wordpress"
+    schedule:
+      interval: "daily"
+      time: "02:00"
+      timezone: "Asia/Tokyo"
+    cooldown:
+      default-days: 7
+    open-pull-requests-limit: 1
+    labels:
+      - dependencies
+    groups:
+      minor-updates:
+        applies-to: "version-updates"
+        patterns: ["*"]
+        update-types: ["minor"]
+      patch-updates:
+        applies-to: "version-updates"
+        patterns: ["*"]
+        update-types: ["patch"]
+
+  - package-ecosystem: "github-actions"
+    directory: "/"
+    schedule:
+      interval: "daily"
+      time: "02:00"
+      timezone: "Asia/Tokyo"
+    cooldown:
+      default-days: 7
+    open-pull-requests-limit: 1
+    labels:
+      - dependencies
+    groups:
+      minor-updates:
+        applies-to: "version-updates"
+        patterns: ["*"]
+        update-types: ["minor"]
+      patch-updates:
+        applies-to: "version-updates"
+        patterns: ["*"]
+        update-types: ["patch"]

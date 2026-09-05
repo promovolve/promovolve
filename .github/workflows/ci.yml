@@ -94,6 +94,7 @@ jobs:
       - run: npm ci
       - run: npx tsc --noEmit
       - run: npx vitest run
+      - run: npm run build
       # Animation viewability contract: collapsed-banner item motion must
       # HOLD until the banner is ≥50% visible (and the atomic reveal has
       # lifted), then play; reduced-motion poses instantly at render. The
@@ -135,6 +136,7 @@ jobs:
       - run: npm run typecheck
       - run: npm run lint
       - run: npm run test
+      - run: npm run build
 
   datepicker:
     name: Dashboard date-picker (browser)

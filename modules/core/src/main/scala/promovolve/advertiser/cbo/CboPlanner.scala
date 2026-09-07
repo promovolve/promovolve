@@ -114,8 +114,9 @@ object CboPlanner {
       }
 
       if (dayStartPending) {
-        val ids   = pool.map(_.campaignId)
-        val split = CboAllocator.dayStartSplit(ids, pool.map(s => s.campaignId -> s.dailyBudget).toMap, accountDaily, params)
+        val ids = pool.map(_.campaignId)
+        val split =
+          CboAllocator.dayStartSplit(ids, pool.map(s => s.campaignId -> s.dailyBudget).toMap, accountDaily, params)
         val pushes = pool.flatMap { s =>
           val target = s.spent + split.getOrElse(s.campaignId, 0.0)
           if (math.abs(target - s.dailyBudget) < PushEpsilon) None

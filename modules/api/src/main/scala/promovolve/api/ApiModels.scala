@@ -57,7 +57,9 @@ object ApiModels {
       siteDomainBlocklist: Vector[String],
       budget: BudgetStatus,
       createdAt: String,
-      updatedAt: String
+      updatedAt: String,
+      // "manual" | "optimized" (Campaign Budget Optimization).
+      budgetMode: Option[String] = None
   )
 
   // ----------------- Campaign -----------------
@@ -73,7 +75,10 @@ object ApiModels {
   )
 
   case class CampaignBidding(
-      strategy: String, // "fixed" | "auto"
+      // "fixed" | "auto" (Campaign Budget Optimization). Optional on the wire:
+      // a PATCH that omits it leaves the strategy unchanged, so a client
+      // that only edits maxCpm cannot flip an auto campaign back to fixed.
+      strategy: Option[String],
       maxCpm: String // "5.0000"
   )
 
@@ -883,7 +888,9 @@ object ApiModels {
   // ----------------- Additional Advertiser Operations -----------------
 
   case class UpdateBudgetRequest(
-      dailyBudget: String // "1000.0000"
+      dailyBudget: String, // "1000.0000"
+      // "manual" | "optimized" (Campaign Budget Optimization); absent = unchanged.
+      budgetMode: Option[String] = None
   )
 
   case class ServedSite(

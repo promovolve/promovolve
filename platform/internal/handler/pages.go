@@ -1856,7 +1856,10 @@ func (h *Handler) UpdateCampaign(w http.ResponseWriter, r *http.Request) {
 		payload["budget"] = map[string]string{"daily": v}
 	}
 	if v := strings.TrimSpace(r.FormValue("maxCpm")); v != "" {
-		payload["bidding"] = map[string]string{"strategy": "fixed", "maxCpm": v}
+		// No "strategy" here: the edit form has no strategy control yet, and
+		// sending "fixed" would silently flip an "auto" (Campaign Budget
+		// Optimization) campaign back to fixed. Absent = unchanged.
+		payload["bidding"] = map[string]string{"maxCpm": v}
 	}
 	// Picker lists: present (even if empty) ⇒ send, so removing every chip
 	// clears the restriction. Absent ⇒ omit (no change).
@@ -3095,7 +3098,8 @@ func (h *Handler) UpdateCampaignCPM(w http.ResponseWriter, r *http.Request) {
 	campID := r.FormValue("campaignId")
 	maxCpm := r.FormValue("maxCpm")
 	body, _ := json.Marshal(map[string]any{
-		"bidding": map[string]string{"strategy": "fixed", "maxCpm": maxCpm},
+		// "strategy" deliberately omitted: absent = unchanged (see the edit path).
+		"bidding": map[string]string{"maxCpm": maxCpm},
 	})
 	h.corePatch(fmt.Sprintf("/v1/advertisers/me/campaigns/%s", campID), claims, string(body))
 	http.Redirect(w, r, "/advertiser/campaigns", http.StatusSeeOther)

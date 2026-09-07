@@ -140,9 +140,21 @@ class CboPlannerSpec extends AnyWordSpec with Matchers {
       settled.pushes.find(_.campaignId == cb).map(_.newDailyBudget).getOrElse(41.0) should be < 41.0
       settled.capped should contain(cb)
 
+      // Pushed last tick: no capacity cut (not in the capped set), so any cut
+      // is rate-driven and stays inside the 25% band (forward 40 -> >= 30).
       val held = plan(snaps, priors, 100.0, 0.5, 1.0 / 96, last, false, new Random(1), Params(),
         tick = 10L, lastPushTick = Map(cb -> 9L))
-      held.pushes.find(_.campaignId == cb) shouldBe None
+      held.capped should not contain cb
+      held.pushes.find(_.campaignId == cb).foreach(_.newDailyBudget should be >= 1.0 + 30.0 - 1e-6)
+    }
+  }
+
+  "CboPlanner.material" should {
+    "ignore moves under 1% of the wall and keep the absolute epsilon for tiny walls (#85)" in {
+      material(10.0, 10.05, Params()) shouldBe false
+      material(10.0, 10.2, Params()) shouldBe true
+      material(0.001, 0.0012, Params()) shouldBe true
+      material(0.0, 0.00005, Params()) shouldBe false
     }
   }
 

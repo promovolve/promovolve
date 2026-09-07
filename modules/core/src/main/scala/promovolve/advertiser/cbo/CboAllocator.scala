@@ -118,6 +118,12 @@ object CboAllocator {
        * cut again (#82).
        */
       settleTicks: Int = 2,
+      /**
+       * Smallest push, as a fraction of the current wall. Tie-breaking
+       * moves of a few cents are not worth an UpdateConfig, and a wall
+       * that is pushed every tick never settles (#85).
+       */
+      minPushFraction: Double = 0.01,
       /** Concavity of returns in spend: `f(x) = e * x^rho`. */
       returnsExponent: Double = 0.5,
       /**
@@ -146,6 +152,7 @@ object CboAllocator {
     require(minPoolSpendFraction >= 0 && minPoolSpendFraction < 1, "minPoolSpendFraction in [0,1)")
     require(probeStep > 0 && probeStep <= maxMovePerTick, "probeStep in (0, maxMovePerTick]")
     require(settleTicks >= 0, "settleTicks >= 0")
+    require(minPushFraction >= 0 && minPushFraction < 1, "minPushFraction in [0,1)")
     require(dayRollDecay > 0 && dayRollDecay <= 1, "dayRollDecay in (0,1]")
     require(dayStartBlend >= 0 && dayStartBlend <= 1, "dayStartBlend in [0,1]")
   }
@@ -245,6 +252,13 @@ object CboAllocator {
       // Capacity needs evidence: enough of the day AND enough account spend.
       val capacityKnown = f >= params.minElapsedFraction &&
         spentSum >= params.minPoolSpendFraction * accountDaily
+      // Pace is judged RELATIVE to the pool: sibling campaigns share the
+      // day's traffic shape, so in a quiet hour every one of them reads
+      // under-paced on a flat clock and would be cut on nothing (#85). A
+      // campaign clearly below its siblings still reads inventory-limited.
+      val wallSum = inputs.map(_.dailyBudget).sum
+      val poolPace =
+        if (f > 0 && wallSum > 0) (spentSum / (wallSum * f)).max(MinPoolPace).min(1.0) else 1.0
 
       val prepared = inputs.map { in =>
         val post = in.prior.posterior(in.ctas, in.spent)
@@ -263,13 +277,15 @@ object CboAllocator {
           if (!capacityKnown) (Double.PositiveInfinity, false, lowerRaw, upperRaw)
           else if (!in.wallSettled) {
             // The wall moved within settleTicks: any pace reading is the echo
-            // of that move. Hold the allocation; allow a raise only when the
-            // campaign is binding against the wall it has now.
-            val hold = math.max(lowerRaw, math.min(prev, upperRaw))
-            if (paceBinding(in, f, params, tickFraction)) (Double.PositiveInfinity, false, hold, upperRaw)
-            else (Double.PositiveInfinity, false, hold, hold)
+            // of that move, so no CAPACITY cut. Rate-driven reallocation
+            // within the band stays possible (a binding sibling with a
+            // better rate may take from it), and it may be raised only when
+            // binding against the wall it has now (#85).
+            val noRaise = math.max(lowerRaw, math.min(prev, upperRaw))
+            if (paceBinding(in, f, params, tickFraction, poolPace)) (Double.PositiveInfinity, false, lowerRaw, upperRaw)
+            else (Double.PositiveInfinity, false, lowerRaw, noRaise)
           } else {
-            val cap = capacityOf(in, f, params, tickFraction)
+            val cap = capacityOf(in, f, params, tickFraction, poolPace)
             val up = math.max(lowerRaw, math.min(cap, upperRaw))
             (cap, cap < upperRaw, math.min(lowerRaw, up), up)
           }
@@ -342,29 +358,48 @@ object CboAllocator {
    * When neither binds the campaign is inventory-limited and its capacity
    * is the larger of the two projections of its own remaining-day spend.
    */
-  def capacityOf[K](in: Input[K], elapsedFraction: Double, params: Params, tickFraction: Double = 0.0): Double =
+  /** Floor on the pool pace used as the reference; below it the pool is "not spending" and pace is absolute. */
+  val MinPoolPace: Double = 0.05
+
+  /**
+   * @param poolPace the pool's own cumulative pace in (0, 1]; a campaign's cumulative pace is divided by it
+   */
+  def capacityOf[K](
+      in: Input[K],
+      elapsedFraction: Double,
+      params: Params,
+      tickFraction: Double = 0.0,
+      poolPace: Double = 1.0
+  ): Double =
     if (in.exhausted || elapsedFraction < params.minElapsedFraction || in.dailyBudget <= 0.0)
       Double.PositiveInfinity
     else {
-      val (binding, cumulativeProj, instProj) = paceReadings(in, elapsedFraction, params, tickFraction)
+      val (binding, cumulativeProj, instProj) = paceReadings(in, elapsedFraction, params, tickFraction, poolPace)
       if (binding) Double.PositiveInfinity
       else math.max(cumulativeProj, instProj)
     }
 
   /** True when the campaign's spend is held back by its wall (either pace reading at or above the threshold). */
-  def paceBinding[K](in: Input[K], elapsedFraction: Double, params: Params, tickFraction: Double = 0.0): Boolean =
+  def paceBinding[K](
+      in: Input[K],
+      elapsedFraction: Double,
+      params: Params,
+      tickFraction: Double = 0.0,
+      poolPace: Double = 1.0
+  ): Boolean =
     in.exhausted || elapsedFraction < params.minElapsedFraction || in.dailyBudget <= 0.0 ||
-    paceReadings(in, elapsedFraction, params, tickFraction)._1
+    paceReadings(in, elapsedFraction, params, tickFraction, poolPace)._1
 
   /** (binding, cumulative projection, instantaneous projection) of remaining-day spend. */
   private def paceReadings[K](
       in: Input[K],
       elapsedFraction: Double,
       params: Params,
-      tickFraction: Double
+      tickFraction: Double,
+      poolPace: Double
   ): (Boolean, Double, Double) = {
     val f = elapsedFraction
-    val cumulativePace = in.spent / (in.dailyBudget * f)
+    val cumulativePace = in.spent / (in.dailyBudget * f) / poolPace.max(MinPoolPace).min(1.0)
     val cumulativeProj = math.max(0.0, in.spent / f - in.spent)
 
     val instantaneous: Option[(Double, Double)] =

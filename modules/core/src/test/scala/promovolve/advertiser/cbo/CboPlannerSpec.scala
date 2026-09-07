@@ -13,9 +13,9 @@ import scala.util.Random
 class CboPlannerSpec extends AnyWordSpec with Matchers {
 
   private val Eps = 1e-6
-  private val ca  = CampaignId("a")
-  private val cb  = CampaignId("b")
-  private val cc  = CampaignId("c")
+  private val ca = CampaignId("a")
+  private val cb = CampaignId("b")
+  private val cc = CampaignId("c")
 
   private def snap(
       id: CampaignId,
@@ -73,7 +73,7 @@ class CboPlannerSpec extends AnyWordSpec with Matchers {
 
     "seed a newcomer from its siblings' posterior means" in {
       val known = Map(ca -> GammaPrior(4.0, 20.0)) // mean 0.2
-      val p     = run(Vector(snap(ca, 50, 10, 2), snap(cb, 50, 0, 0)), priors = known)
+      val p = run(Vector(snap(ca, 50, 10, 2), snap(cb, 50, 0, 0)), priors = known)
       p.priors(ca) shouldBe known(ca)
       p.priors(cb).mean shouldBe 0.2 +- Eps
     }
@@ -82,7 +82,7 @@ class CboPlannerSpec extends AnyWordSpec with Matchers {
       // a: 3 tap-throughs on 25 spent; b: 0 on 25. Same walls, mid-day, both
       // exactly on pace (25 of 50 at F = 0.5), so neither is capacity-capped.
       val priors = Map(ca -> GammaPrior(2.0, 20.0), cb -> GammaPrior(2.0, 20.0))
-      val p      = run(Vector(snap(ca, 50, 25, 3), snap(cb, 50, 25, 0)), priors = priors)
+      val p = run(Vector(snap(ca, 50, 25, 3), snap(cb, 50, 25, 0)), priors = priors)
       p.pushes.map(_.campaignId).toSet shouldBe Set(ca, cb)
       val pa = p.pushes.find(_.campaignId == ca).get
       val pb = p.pushes.find(_.campaignId == cb).get
@@ -101,7 +101,7 @@ class CboPlannerSpec extends AnyWordSpec with Matchers {
       // hair exceeds PushEpsilon is seed-dependent; what must hold is that
       // any push is tiny.
       val priors = Map(ca -> GammaPrior(50.0, 100.0), cb -> GammaPrior(50.0, 100.0))
-      val p      = run(Vector(snap(ca, 50, 25, 12), snap(cb, 50, 25, 12)), priors = priors)
+      val p = run(Vector(snap(ca, 50, 25, 12), snap(cb, 50, 25, 12)), priors = priors)
       p.pushes.foreach(push => math.abs(push.newDailyBudget - 50.0) should be < 2.0)
     }
 
@@ -118,12 +118,12 @@ class CboPlannerSpec extends AnyWordSpec with Matchers {
       // Cumulative pace of `a` looks under-paced (20 of 60 at mid-day) because
       // it was raised last tick, but it spent its whole slice since then; `b`
       // is the weak one. With tickSpend, `a` keeps growing.
-      val priors  = Map(ca -> GammaPrior(6.0, 20.0), cb -> GammaPrior(1.0, 20.0))
-      val snaps   = Vector(snap(ca, 60, 20, 6), snap(cb, 40, 20, 1))
-      val slice   = 40.0 * (1.0 / 96) / 0.5 // last forward 40 over the remaining half day, one tick
+      val priors = Map(ca -> GammaPrior(6.0, 20.0), cb -> GammaPrior(1.0, 20.0))
+      val snaps = Vector(snap(ca, 60, 20, 6), snap(cb, 40, 20, 1))
+      val slice = 40.0 * (1.0 / 96) / 0.5 // last forward 40 over the remaining half day, one tick
       val withTick = run(snaps, priors, lastSpent = Map(ca -> (20.0 - slice), cb -> 20.0))
       val without = run(snaps, priors)
-      val aWith    = withTick.pushes.find(_.campaignId == ca).map(_.newDailyBudget).getOrElse(60.0)
+      val aWith = withTick.pushes.find(_.campaignId == ca).map(_.newDailyBudget).getOrElse(60.0)
       val aWithout = without.pushes.find(_.campaignId == ca).map(_.newDailyBudget).getOrElse(60.0)
       aWith should be >= aWithout - Eps
       aWith should be > 60.0

@@ -31,7 +31,8 @@
       0.3,
       0.1
     ],
-    "ctaDelayMs": 150
+    "ctaDelayMs": 150,
+    "budgetMode": "manual"
   },
   "pacing": {
     "dayDurationSeconds": 300,

@@ -116,7 +116,10 @@ object RunScenario {
       // advertiser-level budget/cpm, which is useless for CBO scenarios.
       campaignBudgets: Option[Array[Double]] = None,    // Daily budget per campaign index
       campaignCpms: Option[Array[Double]] = None,       // maxCpm per campaign index
-      campaignStrategies: Option[Array[String]] = None  // bidding.strategy per campaign index: fixed | auto
+      campaignStrategies: Option[Array[String]] = None, // bidding.strategy per campaign index: fixed | auto
+      // Advertiser account budget mode (Campaign Budget Optimization):
+      // "manual" | "optimized". None = leave the account's default (manual).
+      budgetMode: Option[String] = None
   ) {
     /** True when any campaign can produce tap-throughs. */
     def ctaEnabled: Boolean = ctaRate > 0 || ctaRates.exists(_.exists(_ > 0))
@@ -289,6 +292,7 @@ object RunScenario {
       | Adv Budget:  $$${effectiveAdvBudget} per advertiser$advBudgetNote
       | CPM:         ${config.cpms.map(arr => arr.map(c => f"$$$c%.2f").mkString(", ")).getOrElse(f"$$${config.cpm}%.2f")}
       | Day length:  $dayDurationDisplay (${config.dayDurationSeconds}s)
+      | Budget mode: ${config.budgetMode.getOrElse("manual (default)")}
       | Tap-through: ${if (config.ctaEnabled) (1 to config.campaignsPerAdvertiser).map(n => f"camp$n=${config.ctaRateFor(n) * 100}%.0f%%").mkString(", ") + " of clicks" else "off (no /cta beacons)"}
       |==========================================
       |""".stripMargin)
@@ -307,10 +311,11 @@ object RunScenario {
       // campaignBudgets the siblings differ, so sum the per-index values.
       val campaignWalls = (1 to config.campaignsPerAdvertiser).map(n => config.campaignBudgetFor(n, campBudget))
       val advBudget = config.advertiserBudget.getOrElse(campaignWalls.sum)
+      val budgetModeJson = config.budgetMode.map(m => s""", "budgetMode": "$m"""").getOrElse("")
       basicRequest
         .put(uri"${config.baseUrl}/v1/advertisers/$advId/budget")
         .header("Content-Type", "application/json")
-        .body(s"""{"dailyBudget": "$advBudget"}""")
+        .body(s"""{"dailyBudget": "$advBudget"$budgetModeJson}""")
         .send(backend)
 
       for (campNum <- 1 to config.campaignsPerAdvertiser) {
@@ -2160,6 +2165,7 @@ object RunScenario {
       |  "campaignBudgets": [10, 10]    Daily budget per campaign index (advertiser wall = sum unless advertiserBudget set)
       |  "campaignCpms": [5, 5]         maxCpm per campaign index
       |  "campaignStrategies": ["auto", "auto"]  bidding.strategy per campaign index (fixed | auto)
+      |  "budgetMode": "optimized"      Advertiser account budget mode (manual | optimized); needed for auto campaigns to be re-split
       |
       |Examples:
       |  # Pacing test with scenario file
@@ -2270,6 +2276,13 @@ object RunScenario {
         case arr if arr.nonEmpty => Some(arr)
         case _ => None
       }
+      val budgetMode = extractString(json, "budgetMode") match {
+        case "" => None
+        case m if m == "manual" || m == "optimized" => Some(m)
+        case bad =>
+          println(s"Error: budgetMode must be manual or optimized (got: $bad)")
+          sys.exit(1)
+      }
       val campaignStrategies = parseStringArray(json, "campaignStrategies") match {
         case Nil => None
         case l =>
@@ -2312,7 +2325,8 @@ object RunScenario {
         ctaDelayMs = ctaDelayMs,
         campaignBudgets = campaignBudgets,
         campaignCpms = campaignCpms,
-        campaignStrategies = campaignStrategies
+        campaignStrategies = campaignStrategies,
+        budgetMode = budgetMode
       )
     } finally {
       source.close()

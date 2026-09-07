@@ -1,6 +1,6 @@
 {
   "name": "CBO Two-Campaign (auto)",
-  "description": "Campaign Budget Optimization gate: both campaigns strategy=auto so the allocator may move budget. One advertiser, account budget 20, two campaigns with identical CPM and targeting but a 3x tap-through gap (30% vs 10% of clicks). 3 simulated days of 300s (day 1 is warm-up). Compare account tap-throughs per unit of spend and the per-campaign budget trace against the -fixed control. Gate for #38.",
+  "description": "Campaign Budget Optimization gate: both campaigns strategy=auto and the account in optimized budget mode so the allocator moves budget. Run the server with SIM_DAY_DURATION_SECONDS=300 CBO_TICK_INTERVAL=3s (96 ticks per simulated day). One advertiser, account budget 20, two campaigns with identical CPM and targeting but a 3x tap-through gap (30% vs 10% of clicks). 3 simulated days of 300s (day 1 is warm-up). Compare account tap-throughs per unit of spend and the per-campaign budget trace against the -fixed control. Gate for #38.",
   "setup": {
     "mode": "pacing",
     "advertisers": 1,
@@ -31,7 +31,8 @@
       0.3,
       0.1
     ],
-    "ctaDelayMs": 150
+    "ctaDelayMs": 150,
+    "budgetMode": "optimized"
   },
   "pacing": {
     "dayDurationSeconds": 300,

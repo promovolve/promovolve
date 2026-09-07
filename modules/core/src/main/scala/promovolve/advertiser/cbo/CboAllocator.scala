@@ -96,6 +96,13 @@ object CboAllocator {
       paceBindingThreshold: Double = 0.90,
       /** Below this elapsed fraction of the day, capacity is unknown: treat as unbounded. */
       minElapsedFraction: Double = 0.02,
+      /**
+       * Until the pool has spent this fraction of the account daily budget,
+       * capacity is unknown for everyone: "no spend yet" is not evidence that
+       * a campaign cannot spend (day start, a quiet night). Without this a
+       * zero-spend campaign read as inventory-limited with zero capacity.
+       */
+      minPoolSpendFraction: Double = 0.02,
       /** Concavity of returns in spend: `f(x) = e * x^rho`. */
       returnsExponent: Double = 0.5,
       /**
@@ -121,6 +128,7 @@ object CboAllocator {
     require(maxMovePerTick > 0 && maxMovePerTick < 1, "maxMovePerTick in (0,1)")
     require(returnsExponent > 0 && returnsExponent < 1, "returnsExponent in (0,1)")
     require(minDrawShape >= 0, "minDrawShape >= 0")
+    require(minPoolSpendFraction >= 0 && minPoolSpendFraction < 1, "minPoolSpendFraction in [0,1)")
     require(dayRollDecay > 0 && dayRollDecay <= 1, "dayRollDecay in (0,1]")
     require(dayStartBlend >= 0 && dayStartBlend <= 1, "dayStartBlend in [0,1]")
   }
@@ -207,20 +215,24 @@ object CboAllocator {
     else {
       val f = elapsedFraction.max(0.0).min(1.0)
       val floor = params.explorationFloor * remaining / n
+      // Capacity needs evidence: enough of the day AND enough account spend.
+      val capacityKnown = f >= params.minElapsedFraction &&
+        spentSum >= params.minPoolSpendFraction * accountDaily
 
       val prepared = inputs.map { in =>
         val post = in.prior.posterior(in.ctas, in.spent)
         val rate = drawRate(post, rng, params)
 
-        val capacity = capacityOf(in, f, params, tickFraction)
+        val capacity = if (capacityKnown) capacityOf(in, f, params, tickFraction) else Double.PositiveInfinity
         val prev = in.previousForward
-        // Hysteresis band around the previous forward allocation. The upper
-        // bound is never below the floor, so a campaign parked at 0 can grow
-        // again; the lower bound is never above the capacity, so an
-        // inventory-limited campaign is not force-fed.
+        // Hysteresis band around the previous forward allocation, then the
+        // capacity cap, then the floor as a HARD lower bound: the exploration
+        // floor is the design's invariant (#38) and beats capacity. Letting
+        // capacity win cut a zero-spend campaign to 0, which then read as
+        // exhausted, got the floor back, and oscillated every tick (#79).
         val lowerRaw = math.max(floor, (1.0 - params.maxMovePerTick) * prev)
         val upperRaw = math.max(floor, (1.0 + params.maxMovePerTick) * prev)
-        val upper = math.min(capacity, upperRaw)
+        val upper = math.max(floor, math.min(capacity, upperRaw))
         val lower = math.min(lowerRaw, upper)
         Prep(in, rate, post.mean, capacity, lower, upper)
       }

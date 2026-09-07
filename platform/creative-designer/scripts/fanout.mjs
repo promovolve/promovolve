@@ -35,5 +35,5 @@ for (const name of readdirSync(DIST, { withFileTypes: true })) {
   console.log(`  platform/static/${name.name}`);
 }
 
-console.log("\nRemember to rebuild the Go dashboard:");
-console.log("  go build ./platform/cmd/server");
+console.log("\nFrom platform/creative-designer, rebuild the Go dashboard:");
+console.log("  make -C .. build-server");

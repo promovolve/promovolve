@@ -1,0 +1,73 @@
+{
+  "name": "CBO Two-Campaign (auto)",
+  "description": "Campaign Budget Optimization gate: both campaigns strategy=auto so the allocator may move budget. One advertiser, account budget 20, two campaigns with identical CPM and targeting but a 3x tap-through gap (30% vs 10% of clicks). 3 simulated days of 300s (day 1 is warm-up). Compare account tap-throughs per unit of spend and the per-campaign budget trace against the -fixed control. Gate for #38.",
+  "setup": {
+    "mode": "pacing",
+    "advertisers": 1,
+    "campaignsPerAdvertiser": 2,
+    "creativesPerCampaign": 2,
+    "adProductCategory": "1529",
+    "additionalCategories": [
+      "653",
+      "654",
+      "655"
+    ],
+    "budget": 10.0,
+    "campaignBudgets": [
+      10.0,
+      10.0
+    ],
+    "advertiserBudget": 20.0,
+    "cpm": 5.0,
+    "campaignCpms": [
+      5.0,
+      5.0
+    ],
+    "campaignStrategies": [
+      "auto",
+      "auto"
+    ],
+    "ctaRates": [
+      0.3,
+      0.1
+    ],
+    "ctaDelayMs": 150
+  },
+  "pacing": {
+    "dayDurationSeconds": 300,
+    "weekdayShapeVolumes": [
+      0.5,
+      0.3,
+      0.2,
+      0.2,
+      0.3,
+      0.5,
+      0.8,
+      1.5,
+      2.0,
+      2.5,
+      2.5,
+      2.0,
+      1.8,
+      2.0,
+      2.2,
+      2.5,
+      3.0,
+      2.5,
+      2.0,
+      1.5,
+      1.0,
+      0.8,
+      0.6,
+      0.4
+    ]
+  },
+  "traffic": {
+    "continuous": true,
+    "reportEvery": 400,
+    "clickRate": 0.05,
+    "variableDelay": false,
+    "delayMs": 10,
+    "stopAfterDays": 3
+  }
+}

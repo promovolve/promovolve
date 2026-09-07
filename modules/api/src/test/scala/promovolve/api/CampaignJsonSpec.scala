@@ -51,7 +51,7 @@ class CampaignJsonSpec extends AnyWordSpec with Matchers with ApiJsonFormats {
     val base = Campaign(
       id = "c1", advertiserId = "a1", name = "n", status = "paused",
       budget = CampaignBudget("100.0000"), schedule = CampaignSchedule("2026-08-24T00:00:00Z"),
-      adProductCategory = "123", bidding = CampaignBidding("fixed", "5.0000"),
+      adProductCategory = "123", bidding = CampaignBidding(Some("fixed"), "5.0000"),
       landingUrl = "https://example.com", creativeIds = Vector.empty,
       createdAt = "2026-08-24T00:00:00Z", updatedAt = "2026-08-24T00:00:00Z"
     )

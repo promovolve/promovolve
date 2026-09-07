@@ -10,6 +10,7 @@ import org.apache.pekko.http.scaladsl.server.Route
 import org.apache.pekko.pattern.StatusReply
 import org.apache.pekko.util.Timeout
 import promovolve.BudgetEvent
+import promovolve.advertiser.cbo.{ CboBudgetMode, CboStrategy }
 import sttp.tapir.server.pekkohttp.PekkoHttpServerInterpreter
 import sttp.tapir.swagger.bundle.SwaggerInterpreter
 
@@ -1449,7 +1450,8 @@ class EndpointRoutes(
             withinBudget = budget.withinBudget
           ),
           createdAt = nowIso,
-          updatedAt = nowIso
+          updatedAt = nowIso,
+          budgetMode = Some(info.budgetMode)
         )
       )).recover { case _: java.util.concurrent.TimeoutException =>
         Left(ErrorResponse("advertiser_not_found", s"Advertiser $advertiserId not found"))
@@ -1458,15 +1460,28 @@ class EndpointRoutes(
   private val updateAdvertiserBudgetLogic
       : ((String, UpdateBudgetRequest)) => Future[Either[ErrorResponse, AdvertiserDetail]] = {
     case (advertiserId, req) =>
-      val budget = Budget(BigDecimal(req.dailyBudget))
-      val updateF: Future[AdvertiserEntity.DailyBudgetUpdated] =
-        advertiserRef(advertiserId).ask(AdvertiserEntity.UpdateDailyBudget(budget, _))
+      validateBudgetMode(req.budgetMode) match {
+        case Some(err) => Future.successful(Left(err))
+        case None      =>
+          val budget = Budget(BigDecimal(req.dailyBudget))
+          val updateF: Future[AdvertiserEntity.DailyBudgetUpdated] =
+            advertiserRef(advertiserId).ask(AdvertiserEntity.UpdateDailyBudget(budget, _))
+          // Budget mode rides on the same form; absent = unchanged.
+          def modeF: Future[Unit] = req.budgetMode match {
+            case Some(mode) =>
+              advertiserRef(advertiserId)
+                .ask[AdvertiserEntity.BudgetModeUpdated](AdvertiserEntity.SetBudgetMode(mode, _))
+                .map(_ => ())
+            case None => Future.successful(())
+          }
 
-      updateF
-        .flatMap { _ => getAdvertiserLogic(advertiserId) }
-        .recover { case ex =>
-          Left(ErrorResponse("update_failed", ex.getMessage))
-        }
+          updateF
+            .flatMap(_ => modeF)
+            .flatMap { _ => getAdvertiserLogic(advertiserId) }
+            .recover { case ex =>
+              Left(ErrorResponse("update_failed", ex.getMessage))
+            }
+      }
   }
 
   // ----------------- Helpers -----------------
@@ -1640,7 +1655,7 @@ class EndpointRoutes(
             ),
             adProductCategory = info.adProductCategory.map(_.value).getOrElse(""),
             bidding = CampaignBidding(
-              strategy = "fixed",
+              strategy = Some(info.strategy),
               maxCpm = formatMoney(info.maxCpm.value)
             ),
             landingUrl = info.landingUrl.getOrElse(""),
@@ -1880,7 +1895,8 @@ class EndpointRoutes(
       } else
         validateLandingUrl(req.landingUrl)
           .orElse(validateAudienceTargeting(req.audienceTargeting, req.requireVerifiedAudience))
-          .orElse(validateFrequencyCap(req.frequencyCap)) match {
+          .orElse(validateFrequencyCap(req.frequencyCap))
+          .orElse(validateStrategy(req.bidding.strategy)) match {
           case Some(err) => Future.successful(Left(err))
           case None      =>
             validateAdProductCategory(req.adProductCategory).flatMap {
@@ -1889,6 +1905,19 @@ class EndpointRoutes(
             }
         }
   }
+
+  /** Campaign Budget Optimization strategy: absent = unchanged; present must be fixed | auto. */
+  private def validateStrategy(strategy: Option[String]): Option[ErrorResponse] =
+    strategy.filterNot(CboStrategy.isValid).map(bad =>
+      ErrorResponse("invalid_strategy",
+        s"bidding.strategy must be '${CboStrategy.Fixed}' or '${CboStrategy.Auto}' (got '$bad')")
+    )
+
+  private def validateBudgetMode(mode: Option[String]): Option[ErrorResponse] =
+    mode.filterNot(CboBudgetMode.isValid).map(bad =>
+      ErrorResponse("invalid_budget_mode",
+        s"budgetMode must be '${CboBudgetMode.Manual}' or '${CboBudgetMode.Optimized}' (got '$bad')")
+    )
 
   private def createCampaignAfterChecks(
       advertiserId: String,
@@ -1922,6 +1951,7 @@ class EndpointRoutes(
               placeTargeting = req.placeTargeting.map(p => promovolve.taxonomy.Places.validate(p)),
               name = Some(req.name),
               frequencyCap = req.frequencyCap.map(frequencyCapToCore),
+              strategy = req.bidding.strategy,
               replyTo = ref
             )
           )
@@ -1963,9 +1993,13 @@ class EndpointRoutes(
       // taxonomy-valid + not prohibited) — the dashboard doesn't expose
       // category on edit, but the API does.
       val prohibitedCheckF: Future[Either[ErrorResponse, Unit]] =
-        req.adProductCategory match {
-          case Some(apc) => validateAdProductCategory(apc).map(_.toLeft(()))
-          case None      => Future.successful(Right(()))
+        validateStrategy(req.bidding.flatMap(_.strategy)) match {
+          case Some(err) => Future.successful(Left(err))
+          case None      =>
+            req.adProductCategory match {
+              case Some(apc) => validateAdProductCategory(apc).map(_.toLeft(()))
+              case None      => Future.successful(Right(()))
+            }
         }
 
       // On edit, either half of the contradiction may be arriving alone, so
@@ -2043,6 +2077,7 @@ class EndpointRoutes(
                 name = req.name,
                 // None = no change; impressions 0 → Some(None) clears.
                 frequencyCap = req.frequencyCap.map(frequencyCapToCore),
+                strategy = req.bidding.flatMap(_.strategy),
                 replyTo = ref
               ))
             .map(_ => Right(()))

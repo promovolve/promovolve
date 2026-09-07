@@ -1,5 +1,11 @@
 package promovolve.advertiser
 
+import promovolve.advertiser.cbo.{ CboAllocator, CboBudgetMode, CboPlanner }
+import org.apache.pekko.util.Timeout
+import scala.concurrent.Future
+import scala.concurrent.duration.*
+import scala.util.{ Failure, Random, Success }
+
 import jkugiya.ulid.*
 import org.apache.pekko.actor.typed.pubsub.Topic
 import org.apache.pekko.actor.typed.scaladsl.{ ActorContext, Behaviors }
@@ -83,13 +89,22 @@ object AdvertiserEntity {
   def apply(
       advertiserId: AdvertiserId,
       sharding: ClusterSharding,
-      budgetEventTopic: ActorRef[Topic.Command[BudgetEvent]]
+      budgetEventTopic: ActorRef[Topic.Command[BudgetEvent]],
+      // Campaign Budget Optimization tick (GH #38, #59). Runs on every
+      // advertiser; inert unless budgetMode == optimized with >= 2 live auto
+      // campaigns. promovolve.cbo.tick-interval / CBO_TICK_INTERVAL.
+      cboTickInterval: FiniteDuration = 15.minutes,
+      // Simulated day length (compressed budget days in scenario runs);
+      // 86400 = real day. Same source as CampaignEntity's.
+      simDayDurationSeconds: Double = 86400.0
   )(using system: ActorSystem[?]): Behavior[Command | DDataUpdateResponse] =
     Behaviors.setup { ctx =>
       Behaviors.withTimers { timers =>
         given node: SelfUniqueAddress = DistributedData(system).selfUniqueAddress
         val replicator = DistributedData(system).replicator
         val retryTimerKey = "ddata-retry"
+        val cboCtx = CboContext(sharding, new CboEphemeral, cboTickInterval, simDayDurationSeconds)
+        timers.startTimerWithFixedDelay("cbo-tick", CboTick, cboTickInterval, cboTickInterval)
 
         def syncToDData(state: State): Unit = {
           val cached = CachedSiteDomainBlocklist(state.siteDomainBlocklist)
@@ -113,7 +128,8 @@ object AdvertiserEntity {
           persistenceId = PersistenceId.ofUniqueId(s"advertiser-$advertiserId"),
           emptyState = State.empty(advertiserId),
           commandHandler = (state, command) =>
-            handleCommand(state, command, sharding, budgetEventTopic, syncToDData, cancelRetryTimer, scheduleRetry, ctx)
+            handleCommand(state, command, sharding, budgetEventTopic, syncToDData, cancelRetryTimer, scheduleRetry,
+              cboCtx, ctx)
         ).receiveSignal { case (state, RecoveryCompleted) =>
           ctx.log.info(
             "AdvertiserEntity[{}] recovered: campaigns={}, blocklist={}",
@@ -135,15 +151,17 @@ object AdvertiserEntity {
       syncToDData: State => Unit,
       cancelRetryTimer: () => Unit,
       scheduleRetry: Int => Unit,
+      cboCtx: CboContext,
       ctx: ActorContext[Command | DDataUpdateResponse]
   ): Effect[State] = command match {
     case cmd: Command =>
       val handlers: PartialFunction[Command, Effect[State]] =
         campaignManagement(state, sharding, ctx).orElse(
           siteBlocklist(state, syncToDData)).orElse(
-          budgetAndSpend(state, budgetEventTopic, ctx)).orElse(
+          budgetAndSpend(state, budgetEventTopic, cboCtx, ctx)).orElse(
           advertiserInfo(state, budgetEventTopic, ctx)).orElse(
           creativeManagement(state, budgetEventTopic, ctx)).orElse(
+          campaignBudgetOptimization(state, cboCtx, ctx)).orElse(
           ddataRetry(state, syncToDData, scheduleRetry, ctx))
       // applyOrElse, not apply: an uncovered Command is a MatchError →
       // entity stop → every in-flight ask dead-letters (same trap fixed in
@@ -321,6 +339,137 @@ object AdvertiserEntity {
   }
 
   // ═══════════════════════════════════════════════════════════════════════════
+  // CAMPAIGN BUDGET OPTIMIZATION (GH #38, #59)
+  // Every tick, in optimized mode: snapshot every campaign, hand the live
+  // auto ones to CboPlanner, push the daily budgets it returns. The pacer,
+  // the money gates and exhaustion marking are reused unchanged; this
+  // entity only moves CEILINGS.
+  // ═══════════════════════════════════════════════════════════════════════════
+
+  /** Day roll hook: fold the day's counts into the priors and re-arm the day-start split. */
+  private def rollCbo(rolled: State, cboCtx: CboContext): State = {
+    val eph = cboCtx.eph
+    val priors = CboPlanner.rollPriors(rolled.priorsForCbo, eph.lastSnapshots)
+    eph.lastSpent = Map.empty
+    eph.lastSnapshots = Vector.empty
+    eph.dayStartPending = rolled.budgetMode == CboBudgetMode.Optimized
+    rolled.withCboPriors(priors)
+  }
+
+  /** (dayStart, dayLengthSeconds) of the current budget window. */
+  private def dayWindow(state: State, now: Instant, simDayDurationSeconds: Double): (Instant, Double) = {
+    val zone = Timezones.zoneOf(state.timezone)
+    val dayStart =
+      if (state.lastResetAt != Instant.EPOCH) state.lastResetAt
+      else java.time.LocalDate.ofInstant(now, zone).atStartOfDay(zone).toInstant
+    val dayLength =
+      if (simDayDurationSeconds < 86400.0) simDayDurationSeconds
+      else math.max(1.0,
+        (Timezones.nextMidnightAfter(dayStart, state.timezone).toEpochMilli - dayStart.toEpochMilli) / 1000.0)
+    (dayStart, dayLength)
+  }
+
+  private def campaignBudgetOptimization(
+      state: State,
+      cboCtx: CboContext,
+      ctx: ActorContext[Command | DDataUpdateResponse]
+  ): PartialFunction[Command, Effect[State]] = {
+    case SetBudgetMode(mode, replyTo) =>
+      if (!CboBudgetMode.isValid(mode)) {
+        ctx.log.warn("Rejected invalid budget mode '{}' for advertiser {}", mode, state.advertiserId.value)
+        Effect.none.thenReply(replyTo)(s => BudgetModeUpdated(s.advertiserId, s.budgetMode))
+      } else if (mode == state.budgetMode)
+        Effect.none.thenReply(replyTo)(s => BudgetModeUpdated(s.advertiserId, s.budgetMode))
+      else
+        Effect
+          .persist(state.copy(budgetMode = mode))
+          .thenRun { _ =>
+            cboCtx.eph.reset()
+            ctx.log.info("Budget mode for advertiser {}: '{}' -> '{}'", state.advertiserId.value, state.budgetMode,
+              mode)
+          }
+          .thenReply(replyTo)(_ => BudgetModeUpdated(state.advertiserId, mode))
+
+    case CboTick =>
+      if (state.budgetMode == CboBudgetMode.Optimized && state.campaignIds.size >= CboPlanner.MinCampaigns) {
+        given Timeout = Timeout(3.seconds)
+        given scala.concurrent.ExecutionContext = ctx.executionContext
+        val asks: Vector[Future[Option[CampaignEntity.CboSnapshot]]] = state.campaignIds.toVector.map { cid =>
+          cboCtx.sharding
+            .entityRefFor(CampaignEntity.TypeKey, s"${state.advertiserId.value}|${cid.value}")
+            .ask[CampaignEntity.CboSnapshot](CampaignEntity.GetCboSnapshot(_))
+            .map(Some(_))
+            .recover { case _ => None }
+        }
+        // pipeToSelf: the Future callbacks never touch ctx or state.
+        ctx.pipeToSelf(Future.sequence(asks)) {
+          case Success(snaps) => CboSnapshots(snaps.flatten)
+          case Failure(_)     => CboSnapshots(Vector.empty)
+        }
+      }
+      Effect.none
+
+    case CboSnapshots(snaps) =>
+      if (state.budgetMode != CboBudgetMode.Optimized) Effect.none
+      else {
+        val eph = cboCtx.eph
+        val now = Instant.now()
+        val (dayStart, dayLength) = dayWindow(state, now, cboCtx.simDayDurationSeconds)
+        val snapshots = snaps.map { s =>
+          CboPlanner.Snapshot(
+            s.campaignId,
+            s.strategy,
+            s.live,
+            s.dailyBudget.value.toDouble,
+            s.spent.value.toDouble,
+            s.ctaToday,
+            s.exhausted
+          )
+        }
+        val plan = CboPlanner.plan(
+          snapshots,
+          state.priorsForCbo,
+          accountDaily = state.dailyBudget.value.toDouble,
+          elapsedFraction = CboPlanner.elapsedFraction(now, dayStart, dayLength),
+          tickFraction = cboCtx.tickInterval.toMillis / 1000.0 / dayLength,
+          lastSpent = eph.lastSpent,
+          dayStartPending = eph.dayStartPending,
+          rng = eph.rng
+        )
+        eph.lastSpent = snapshots.map(s => s.campaignId -> s.spent).toMap
+        eph.lastSnapshots = snapshots
+        if (plan.dayStartApplied) eph.dayStartPending = false
+
+        val pushBudgets = () =>
+          plan.pushes.foreach { push =>
+            val budget = Budget(BigDecimal(push.newDailyBudget).setScale(4, BigDecimal.RoundingMode.HALF_UP))
+            cboCtx.sharding
+              .entityRefFor(CampaignEntity.TypeKey, s"${state.advertiserId.value}|${push.campaignId.value}")
+              .tell(CampaignEntity.UpdateConfig(maxCpm = None, dailyBudget = Some(budget),
+                replyTo = ctx.system.ignoreRef))
+            ctx.log.info(
+              "CBO advertiser {} campaign {}: dailyBudget -> {} (moved {} forward; rate sampled {} mean {})",
+              state.advertiserId.value,
+              push.campaignId.value,
+              budget.value,
+              f"${push.moved}%+.4f",
+              f"${push.sampledRate}%.6f",
+              f"${push.posteriorMean}%.6f"
+            )
+          }
+        if (plan.pushes.isEmpty && plan.note.nonEmpty)
+          ctx.log.debug("CBO advertiser {}: {}", state.advertiserId.value, plan.note)
+
+        if (plan.priors != state.priorsForCbo)
+          Effect.persist(state.withCboPriors(plan.priors)).thenRun(_ => pushBudgets())
+        else {
+          pushBudgets()
+          Effect.none
+        }
+      }
+  }
+
+  // ═══════════════════════════════════════════════════════════════════════════
   // SITE BLOCKLIST
   // Manage advertiser-level site-domain blocklist (applies to all campaigns).
   // Filter is enforced at AdServer serve time via DData; no per-bid check.
@@ -360,6 +509,7 @@ object AdvertiserEntity {
   private def budgetAndSpend(
       state: State,
       budgetEventTopic: ActorRef[Topic.Command[BudgetEvent]],
+      cboCtx: CboContext,
       ctx: ActorContext[Command | DDataUpdateResponse]
   ): PartialFunction[Command, Effect[State]] = {
     case UpdateDailyBudget(newBudget, replyTo) =>
@@ -419,7 +569,7 @@ object AdvertiserEntity {
         val today = Timezones.localEpochDay(ts, state.timezone)
         val needsRoll = state.needsRoll(ts)
         val wasExhausted = !state.withinBudget
-        val rolledState = if (needsRoll) state.rollWindow(today, ts) else state
+        val rolledState = if (needsRoll) rollCbo(state.rollWindow(today, ts), cboCtx) else state
 
         // Record spend and track flushId for idempotency
         val wasWithin = rolledState.withinBudget
@@ -486,7 +636,7 @@ object AdvertiserEntity {
         today,
         silent
       )
-      val newState = state.rollWindow(today, resetAt)
+      val newState = rollCbo(state.rollWindow(today, resetAt), cboCtx)
       // Publish budget reset event so AdServer knows budget is available
       // Skip publishing when silent=true (used by PacingConfigUpdated to avoid re-auctions)
       if (!silent) {
@@ -720,8 +870,51 @@ object AdvertiserEntity {
       status: Status,
       campaignIds: Set[CampaignId],
       siteDomainBlocklist: Set[String],
-      timezone: String = ""
+      timezone: String = "",
+      budgetMode: String = CboBudgetMode.Manual
   ) extends promovolve.CborSerializable
+
+  /**
+   * Set the account budget mode (Campaign Budget Optimization): "manual" |
+   * "optimized". Replies with the mode actually in effect (invalid = unchanged).
+   */
+  case class SetBudgetMode(budgetMode: String, replyTo: ActorRef[BudgetModeUpdated]) extends Command
+
+  case class BudgetModeUpdated(advertiserId: AdvertiserId, budgetMode: String) extends promovolve.CborSerializable
+
+  /** Persisted Gamma prior (shape, rate) on tap-throughs per unit of spend. */
+  final case class CboPrior(alpha: Double, beta: Double) extends CborSerializable
+
+  /** Timer tick for the allocator; local only. */
+  private case object CboTick extends Command
+
+  /** Fan-in of one tick's campaign snapshots (pipeToSelf); local only. */
+  private final case class CboSnapshots(snapshots: Vector[CampaignEntity.CboSnapshot]) extends Command
+
+  /**
+   * Per-incarnation allocator memory. Deliberately NOT persisted: last
+   * tick's spend only informs instantaneous pace (a restart falls back to
+   * cumulative pace for one tick), and the day-start flag re-arms on the
+   * next roll.
+   */
+  final class CboEphemeral {
+    var lastSpent: Map[CampaignId, Double] = Map.empty
+    var lastSnapshots: Vector[CboPlanner.Snapshot] = Vector.empty
+    var dayStartPending: Boolean = false
+    val rng: Random = new Random()
+    def reset(): Unit = {
+      lastSpent = Map.empty
+      lastSnapshots = Vector.empty
+      dayStartPending = false
+    }
+  }
+
+  final case class CboContext(
+      sharding: ClusterSharding,
+      eph: CboEphemeral,
+      tickInterval: FiniteDuration,
+      simDayDurationSeconds: Double
+  )
 
   /**
    * Set the account timezone (IANA id, "" = UTC). Operator-only, pushed from
@@ -972,7 +1165,14 @@ object AdvertiserEntity {
       // snapshot). Roll detection compares calendar days of this instant vs
       // now IN THE ACCOUNT ZONE — an Instant is zone-independent, so a zone
       // change can never double-roll (unlike the day-number comparison).
-      lastResetAt: Instant = Instant.EPOCH
+      lastResetAt: Instant = Instant.EPOCH,
+      // Campaign Budget Optimization (GH #38): "manual" | "optimized". Plain
+      // String per the Jackson sealed-trait rule; default keeps legacy
+      // snapshots manual.
+      budgetMode: String = CboBudgetMode.Manual,
+      // Per-campaign Gamma priors on tap-throughs per unit of spend, rolled
+      // at the day boundary. Default-empty is Jackson-safe.
+      cboPriors: Map[CampaignId, CboPrior] = Map.empty
   ) extends CborSerializable {
     def addCampaign(campaignId: CampaignId): State =
       copy(campaignIds = campaignIds + campaignId)
@@ -1113,7 +1313,13 @@ object AdvertiserEntity {
       spendToday.value < dailyBudget.value
 
     def toInfo: AdvertiserInfo =
-      AdvertiserInfo(advertiserId, name, status, campaignIds, siteDomainBlocklist, timezone)
+      AdvertiserInfo(advertiserId, name, status, campaignIds, siteDomainBlocklist, timezone, budgetMode)
+
+    def priorsForCbo: Map[CampaignId, CboAllocator.GammaPrior] =
+      cboPriors.map { case (id, p) => id -> CboAllocator.GammaPrior(p.alpha, p.beta) }
+
+    def withCboPriors(priors: Map[CampaignId, CboAllocator.GammaPrior]): State =
+      copy(cboPriors = priors.map { case (id, p) => id -> CboPrior(p.alpha, p.beta) })
   }
 
   /** Remove a creative */

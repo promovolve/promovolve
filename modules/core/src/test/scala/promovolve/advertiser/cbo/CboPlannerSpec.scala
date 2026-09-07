@@ -121,8 +121,11 @@ class CboPlannerSpec extends AnyWordSpec with Matchers {
       val priors = Map(ca -> GammaPrior(6.0, 20.0), cb -> GammaPrior(1.0, 20.0))
       val snaps = Vector(snap(ca, 60, 20, 6), snap(cb, 40, 20, 1))
       val slice = 40.0 * (1.0 / 96) / 0.5 // last forward 40 over the remaining half day, one tick
-      val withTick = run(snaps, priors, lastSpent = Map(ca -> (20.0 - slice), cb -> 20.0))
-      val without = run(snaps, priors)
+      // Shrinkage off: this case is about tickSpend, not evidence weighting.
+      val p0 = Params(shrinkageCtas = 0)
+      val withTick =
+        plan(snaps, priors, 100.0, 0.5, 1.0 / 96, Map(ca -> (20.0 - slice), cb -> 20.0), false, new Random(1), p0)
+      val without = plan(snaps, priors, 100.0, 0.5, 1.0 / 96, Map.empty, false, new Random(1), p0)
       val aWith = withTick.pushes.find(_.campaignId == ca).map(_.newDailyBudget).getOrElse(60.0)
       val aWithout = without.pushes.find(_.campaignId == ca).map(_.newDailyBudget).getOrElse(60.0)
       aWith should be >= aWithout - Eps

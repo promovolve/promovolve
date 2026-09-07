@@ -54,6 +54,10 @@ object CboPlanner {
   /** Budget moves below this are not pushed (money is 4-decimal). */
   val PushEpsilon: Double = 1e-4
 
+  /** A move is pushed only when it is at least `minPushFraction` of the current wall (and above PushEpsilon). */
+  def material(current: Double, target: Double, params: Params): Boolean =
+    math.abs(target - current) >= math.max(PushEpsilon, params.minPushFraction * current)
+
   /** Minimum tap-throughs yesterday for the observed rate to seed the prior on its own. */
   val SeedMinCtas: Int = 5
 
@@ -127,7 +131,7 @@ object CboPlanner {
           CboAllocator.dayStartSplit(ids, pool.map(s => s.campaignId -> s.dailyBudget).toMap, accountDaily, params)
         val pushes = pool.flatMap { s =>
           val target = s.spent + split.getOrElse(s.campaignId, 0.0)
-          if (math.abs(target - s.dailyBudget) < PushEpsilon) None
+          if (!material(s.dailyBudget, target, params)) None
           else
             Some(Push(
               s.campaignId,
@@ -156,7 +160,7 @@ object CboPlanner {
         val bySnapshot = pool.map(s => s.campaignId -> s).toMap
         val pushes = alloc.results.flatMap { r =>
           val current = bySnapshot(r.id).dailyBudget
-          if (math.abs(r.newDailyBudget - current) < PushEpsilon) None
+          if (!material(current, r.newDailyBudget, params)) None
           else Some(Push(r.id, r.newDailyBudget, r.moved, r.sampledRate, r.posteriorMean))
         }
         val note = if (pushes.isEmpty) f"no move (remaining ${alloc.remaining}%.4f)" else ""

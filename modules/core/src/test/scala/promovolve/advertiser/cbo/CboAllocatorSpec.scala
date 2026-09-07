@@ -174,6 +174,38 @@ class CboAllocatorSpec extends AnyWordSpec with Matchers with ScalaCheckProperty
       r2.forward should be <= (1 + params.maxMovePerTick) * 30.0 + Eps
     }
 
+    "let a binding sibling with a better rate take budget from an unsettled wall (#85)" in {
+      // Both walls just moved (unsettled). a: better rate, binding. b: worse
+      // rate, not binding. Sum of walls == account remainder, so a can only
+      // rise if b may be cut. b must be cut within the band, not held.
+      val params = Params()
+      val a = Input(1, 10.0, 8L, 40.0, exhausted = true, GammaPrior(8, 10), tickSpend = Some(0.6), wallSettled = false)
+      val b =
+        Input(2, 10.0, 0L, 40.0, exhausted = false, GammaPrior(1, 100), tickSpend = Some(0.01), wallSettled = false)
+      val alloc = allocate(Vector(a, b), 80.0, 0.5, new Random(1), params, tickFraction = 1.0 / 96)
+      val ra = alloc.results.find(_.id == 1).get
+      val rb = alloc.results.find(_.id == 2).get
+      ra.forward should be > 30.0
+      rb.forward should be < 30.0
+      rb.forward should be >= (1 - params.maxMovePerTick) * 30.0 - Eps
+      rb.capacity shouldBe Double.PositiveInfinity // no capacity cut while unsettled
+    }
+
+    "judge pace relative to the pool so a quiet hour cuts nobody (#85)" in {
+      val params = Params()
+      // Morning: both campaigns at 30% of flat-clock pace. Absolute pace would
+      // call both inventory-limited; relative to the pool they are on pace.
+      val a = Input(1, 1.5, 2L, 10.0, exhausted = false, GammaPrior(1, 10), tickSpend = Some(0.03))
+      val b = Input(2, 1.5, 0L, 10.0, exhausted = false, GammaPrior(1, 10), tickSpend = Some(0.03))
+      val quiet = allocate(Vector(a, b), 20.0, 0.5, new Random(1), params, tickFraction = 1.0 / 96)
+      quiet.results.foreach(_.capacity shouldBe Double.PositiveInfinity)
+      // Same hour, but b is at a third of its sibling's pace: still limited.
+      val weak = allocate(Vector(a, b.copy(spent = 0.5, tickSpend = Some(0.01))), 20.0, 0.5, new Random(1), params,
+        tickFraction = 1.0 / 96)
+      weak.results.find(_.id == 2).get.capacity.isFinite shouldBe true
+      weak.results.find(_.id == 1).get.capacity shouldBe Double.PositiveInfinity
+    }
+
     "not infer capacity while the account has barely spent (quiet start)" in {
       // 1% of the account budget spent by one campaign, none by the other:
       // no campaign may be capped yet, so the zero-spend one keeps its wall

@@ -19,7 +19,7 @@
 <!-- Budget info line -->
 {{if .AdvBudget}}
 <div class="flex items-center justify-between mb-6 text-sm text-gray-500">
-  <span>{{t "Account budget: %s/day (%s remaining, %s spent today)" (money .AdvBudget.DailyBudget) (money .AdvBudget.Remaining) (money .AdvBudget.SpendToday)}}</span>
+  <span>{{t "Account budget: %s/day (%s remaining, %s spent today)" (money .AdvBudget.DailyBudget) (money .AdvBudget.Remaining) (money .AdvBudget.SpendToday)}}{{if eq .AdvBudget.BudgetMode "optimized"}} &middot; <span class="badge badge-info" title="{{t "The account budget is re-split across campaigns whose budget strategy is Optimized."}}">{{t "Optimized budget mode"}}</span>{{end}}</span>
   <a href="/advertiser/account" class="text-brand hover:underline">{{t "Edit"}}</a>
 </div>
 {{end}}
@@ -278,6 +278,20 @@
       </div>
     </div>
     <div class="mb-4">
+      <label class="form-label">{{t "Budget strategy"}}</label>
+      <div class="flex items-center gap-6 mt-1">
+        <label class="flex items-center gap-2 text-sm cursor-pointer">
+          <input type="radio" name="strategy" value="fixed" checked class="border-gray-300">
+          <span>{{t "Fixed daily budget"}}</span>
+        </label>
+        <label class="flex items-center gap-2 text-sm cursor-pointer">
+          <input type="radio" name="strategy" value="auto" class="border-gray-300">
+          <span>{{t "Optimized from account budget"}}</span>
+        </label>
+      </div>
+      <p class="text-xs text-gray-400 mt-1">{{t "Optimized: the account allocator moves this campaign's daily budget toward the best tap-throughs per unit of spend. The budget above is only the starting point, and the account's budget mode must be Optimized."}}</p>
+    </div>
+    <div class="mb-4">
       <label class="form-label">{{t "Frequency cap"}} <span class="font-normal text-gray-500">{{t "(optional)"}}</span></label>
       {{/* The window only means something when there IS a cap: "no cap per
            week" is not a policy. Disabled rather than hidden so the control
@@ -351,6 +365,12 @@
           <span class="badge badge-warning gap-1"
                 title="{{t "This campaign has no target categories. The auto-categorisation from the landing page returned nothing usable, so this campaign won't bid in any auction. Open the campaign and either set Target Categories manually or enable 'Bid on unmatched context'."}}">
             {{t "⚠ Untargeted"}}
+          </span>
+          {{end}}
+          {{if eq .Strategy "auto"}}
+          <span class="badge badge-info"
+                title="{{t "Daily budget is set by the account allocator (Campaign Budget Optimization)."}}">
+            {{t "Optimized"}}
           </span>
           {{end}}
         </div>
@@ -867,10 +887,16 @@
             <div>
               <label class="form-label">{{t "Daily Budget"}} ({{sym}})</label>
               <div >
+              {{/* Disabled while the strategy is Optimized: a disabled input is
+                   not submitted, so the PATCH omits `budget` and the allocator's
+                   number is never clobbered by a stale resend (which would also
+                   fail the whole patch if it fell below today's spend). */}}
               <input type="number" name="budget" step="{{moneystep}}" min="{{moneystep}}" value="{{.DailyBudget}}"
-                      class="form-input">
+                      {{if eq .Strategy "auto"}}disabled{{end}}
+                      class="form-input{{if eq .Strategy "auto"}} bg-gray-100 text-gray-500 cursor-not-allowed{{end}}">
               
               </div>
+              <p class="text-xs text-gray-400 mt-1" data-budget-managed {{if ne .Strategy "auto"}}hidden{{end}}>{{t "Managed by the account allocator while Optimized. Switch to Fixed to set it by hand."}}</p>
             </div>
             <div>
               <label class="form-label">{{t "Max CPM"}} ({{sym}})</label>
@@ -881,6 +907,23 @@
               </div>
               <span data-hint-slot>{{template "market-rates-hint" $.MarketRates}}</span>
             </div>
+          </div>
+          <div class="mb-4">
+            <label class="form-label">{{t "Budget strategy"}}</label>
+            <div class="flex items-center gap-6 mt-1">
+              {{/* Toggles the budget input above: disabled + greyed while Optimized. */}}
+              <label class="flex items-center gap-2 text-sm cursor-pointer">
+                <input type="radio" name="strategy" value="fixed" {{if ne .Strategy "auto"}}checked{{end}} class="border-gray-300"
+                       onchange="var b=this.form.elements.budget;b.disabled=false;b.classList.remove('bg-gray-100','text-gray-500','cursor-not-allowed');this.form.querySelector('[data-budget-managed]').hidden=true">
+                <span>{{t "Fixed daily budget"}}</span>
+              </label>
+              <label class="flex items-center gap-2 text-sm cursor-pointer">
+                <input type="radio" name="strategy" value="auto" {{if eq .Strategy "auto"}}checked{{end}} class="border-gray-300"
+                       onchange="var b=this.form.elements.budget;b.disabled=true;b.classList.add('bg-gray-100','text-gray-500','cursor-not-allowed');this.form.querySelector('[data-budget-managed]').hidden=false">
+                <span>{{t "Optimized from account budget"}}</span>
+              </label>
+            </div>
+            <p class="text-xs text-gray-400 mt-1">{{t "Optimized: the account allocator moves this campaign's daily budget toward the best tap-throughs per unit of spend. The budget above is only the starting point, and the account's budget mode must be Optimized."}}</p>
           </div>
           <div class="mb-4">
             <label class="form-label">{{t "Frequency cap"}} <span class="font-normal text-gray-500">{{t "(optional)"}}</span></label>

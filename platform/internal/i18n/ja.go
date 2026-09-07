@@ -483,6 +483,19 @@ var ja = map[string]string{
 	"Remaining Today":      "本日の残り",
 	"New Daily Budget":     "新しい日予算",
 	"Update Budget":        "予算を更新",
+	// ── Campaign Budget Optimization ──
+	"Budget mode":          "予算モード",
+	"Manual":               "手動",
+	"Optimized":            "最適化",
+	"Manual: every campaign keeps its own daily budget and the account budget is a hard cap. Optimized: the account budget is re-split every few minutes across the campaigns whose budget strategy is Optimized, toward the ones earning the most tap-throughs per unit of spend. It needs at least two such campaigns; below that it does nothing.": "手動：各キャンペーンが自分の日予算を持ち、アカウント予算は上限として働きます。最適化：予算戦略が「最適化」のキャンペーン間で、支出あたりのタップスルーが多いものへアカウント予算を数分ごとに再配分します。対象キャンペーンが2件以上必要で、それ未満では何もしません。",
+	"Optimized budget mode": "最適化予算モード",
+	"The account budget is re-split across campaigns whose budget strategy is Optimized.": "予算戦略が「最適化」のキャンペーン間でアカウント予算を再配分しています。",
+	"Budget strategy":      "予算戦略",
+	"Fixed daily budget":   "固定の日予算",
+	"Optimized from account budget": "アカウント予算から最適化",
+	"Optimized: the account allocator moves this campaign's daily budget toward the best tap-throughs per unit of spend. The budget above is only the starting point, and the account's budget mode must be Optimized.": "最適化：アカウントの配分器が、支出あたりのタップスルーが最も多くなるようこのキャンペーンの日予算を動かします。上の予算は開始値にすぎず、アカウントの予算モードも「最適化」である必要があります。",
+	"Managed by the account allocator while Optimized. Switch to Fixed to set it by hand.": "「最適化」の間はアカウントの配分器が管理します。手動で設定するには「固定」に切り替えてください。",
+	"Daily budget is set by the account allocator (Campaign Budget Optimization).": "日予算はアカウントの配分器（キャンペーン予算最適化）が設定しています。",
 	"Changes apply immediately. Today's spend is not reset.": "変更はすぐに適用されます。本日の消化額はリセットされません。",
 
 	// ── report ──

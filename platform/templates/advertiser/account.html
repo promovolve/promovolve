@@ -72,7 +72,8 @@
   </div>
   {{end}}
 
-  <form method="POST" action="/advertiser/budget" class="flex items-end gap-3">
+  {{$mode := "manual"}}{{if .AdvBudget}}{{if eq .AdvBudget.BudgetMode "optimized"}}{{$mode = "optimized"}}{{end}}{{end}}
+  <form method="POST" action="/advertiser/budget" class="flex items-end gap-3 flex-wrap">
     <div>
       <label class="form-label">{{t "New Daily Budget"}}</label>
       <div class="flex items-center gap-2" >
@@ -84,11 +85,25 @@
         
       </div>
     </div>
+    <div>
+      <label class="form-label">{{t "Budget mode"}}</label>
+      <div class="flex items-center gap-4 h-10">
+        <label class="flex items-center gap-2 text-sm cursor-pointer">
+          <input type="radio" name="budgetMode" value="manual" {{if ne $mode "optimized"}}checked{{end}} class="border-gray-300">
+          <span>{{t "Manual"}}</span>
+        </label>
+        <label class="flex items-center gap-2 text-sm cursor-pointer">
+          <input type="radio" name="budgetMode" value="optimized" {{if eq $mode "optimized"}}checked{{end}} class="border-gray-300">
+          <span>{{t "Optimized"}}</span>
+        </label>
+      </div>
+    </div>
     <button type="submit"
             class="btn btn-primary">
       {{t "Update Budget"}}
     </button>
   </form>
   <p class="text-xs text-gray-400 mt-3">{{t "Changes apply immediately. Today's spend is not reset."}}</p>
+  <p class="text-xs text-gray-400 mt-1">{{t "Manual: every campaign keeps its own daily budget and the account budget is a hard cap. Optimized: the account budget is re-split every few minutes across the campaigns whose budget strategy is Optimized, toward the ones earning the most tap-throughs per unit of spend. It needs at least two such campaigns; below that it does nothing."}}</p>
 </div>
 {{end}}

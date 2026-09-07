@@ -3,7 +3,7 @@ package promovolve.advertiser.cbo
 import org.scalatest.matchers.should.Matchers
 import org.scalatest.wordspec.AnyWordSpec
 import promovolve.CampaignId
-import promovolve.advertiser.cbo.CboAllocator.GammaPrior
+import promovolve.advertiser.cbo.CboAllocator.{ GammaPrior, Params }
 import promovolve.advertiser.cbo.CboPlanner.*
 
 import java.time.Instant
@@ -127,6 +127,22 @@ class CboPlannerSpec extends AnyWordSpec with Matchers {
       val aWithout = without.pushes.find(_.campaignId == ca).map(_.newDailyBudget).getOrElse(60.0)
       aWith should be >= aWithout - Eps
       aWith should be > 60.0
+    }
+  }
+
+  "CboPlanner.plan with wall memory (#82)" should {
+    "hold a campaign whose wall was pushed within settleTicks and report capped campaigns" in {
+      // b is inventory-limited (1 of 40 spent at mid-day) and would be cut when settled.
+      val priors = Map(ca -> GammaPrior(6.0, 20.0), cb -> GammaPrior(1.0, 20.0))
+      val snaps = Vector(snap(ca, 60, 30, 6), snap(cb, 41, 1, 0))
+      val last = Map(ca -> 30.0, cb -> 1.0)
+      val settled = plan(snaps, priors, 100.0, 0.5, 1.0 / 96, last, false, new Random(1), Params(), tick = 10L)
+      settled.pushes.find(_.campaignId == cb).map(_.newDailyBudget).getOrElse(41.0) should be < 41.0
+      settled.capped should contain(cb)
+
+      val held = plan(snaps, priors, 100.0, 0.5, 1.0 / 96, last, false, new Random(1), Params(),
+        tick = 10L, lastPushTick = Map(cb -> 9L))
+      held.pushes.find(_.campaignId == cb) shouldBe None
     }
   }
 

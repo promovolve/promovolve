@@ -352,6 +352,7 @@ object AdvertiserEntity {
     val priors = CboPlanner.rollPriors(rolled.priorsForCbo, eph.lastSnapshots)
     eph.lastSpent = Map.empty
     eph.lastSnapshots = Vector.empty
+    eph.cappedLast = Set.empty
     eph.dayStartPending = rolled.budgetMode == CboBudgetMode.Optimized
     rolled.withCboPriors(priors)
   }
@@ -434,10 +435,16 @@ object AdvertiserEntity {
           tickFraction = cboCtx.tickInterval.toMillis / 1000.0 / dayLength,
           lastSpent = eph.lastSpent,
           dayStartPending = eph.dayStartPending,
-          rng = eph.rng
+          rng = eph.rng,
+          tick = eph.tick,
+          lastPushTick = eph.lastPushTick,
+          cappedLast = eph.cappedLast
         )
         eph.lastSpent = snapshots.map(s => s.campaignId -> s.spent).toMap
         eph.lastSnapshots = snapshots
+        eph.lastPushTick = eph.lastPushTick ++ plan.pushes.map(p => p.campaignId -> eph.tick)
+        eph.cappedLast = plan.capped
+        eph.tick += 1
         if (plan.dayStartApplied) eph.dayStartPending = false
 
         val pushBudgets = () =>
@@ -901,11 +908,18 @@ object AdvertiserEntity {
     var lastSpent: Map[CampaignId, Double] = Map.empty
     var lastSnapshots: Vector[CboPlanner.Snapshot] = Vector.empty
     var dayStartPending: Boolean = false
+
+    /** Tick ordinal in this incarnation; walls pushed within settleTicks of it are not trusted for capacity (#82). */
+    var tick: Long = 0L
+    var lastPushTick: Map[CampaignId, Long] = Map.empty
+    var cappedLast: Set[CampaignId] = Set.empty
     val rng: Random = new Random()
     def reset(): Unit = {
       lastSpent = Map.empty
       lastSnapshots = Vector.empty
       dayStartPending = false
+      lastPushTick = Map.empty
+      cappedLast = Set.empty
     }
   }
 

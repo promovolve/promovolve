@@ -103,6 +103,21 @@ object CboAllocator {
        * zero-spend campaign read as inventory-limited with zero capacity.
        */
       minPoolSpendFraction: Double = 0.02,
+      /**
+       * Raise step for a campaign that was capacity-capped on the previous
+       * tick. Probing whether a capped campaign can absorb more is inherent
+       * (a wall cut to capacity reads as binding), so the probe must stay
+       * inside what the pacer shrugs off (#82).
+       */
+      probeStep: Double = 0.10,
+      /**
+       * Ticks a wall must have been stable before a pace reading against
+       * it is trusted for capacity. Measuring pace against a wall the
+       * allocator itself just moved made the capacity estimate
+       * self-fulfilling: cut, braked pacer, less spend, lower capacity,
+       * cut again (#82).
+       */
+      settleTicks: Int = 2,
       /** Concavity of returns in spend: `f(x) = e * x^rho`. */
       returnsExponent: Double = 0.5,
       /**
@@ -129,6 +144,8 @@ object CboAllocator {
     require(returnsExponent > 0 && returnsExponent < 1, "returnsExponent in (0,1)")
     require(minDrawShape >= 0, "minDrawShape >= 0")
     require(minPoolSpendFraction >= 0 && minPoolSpendFraction < 1, "minPoolSpendFraction in [0,1)")
+    require(probeStep > 0 && probeStep <= maxMovePerTick, "probeStep in (0, maxMovePerTick]")
+    require(settleTicks >= 0, "settleTicks >= 0")
     require(dayRollDecay > 0 && dayRollDecay <= 1, "dayRollDecay in (0,1]")
     require(dayStartBlend >= 0 && dayStartBlend <= 1, "dayStartBlend in [0,1]")
   }
@@ -151,7 +168,15 @@ object CboAllocator {
        * the last tick's spend against the forward it had is the
        * instantaneous pace that can. `None` on the first tick of a day.
        */
-      tickSpend: Option[Double] = None
+      tickSpend: Option[Double] = None,
+      /** This campaign's forward allocation was capacity-capped on the previous tick: raise by `probeStep` only. */
+      cappedLastTick: Boolean = false,
+      /**
+       * The wall has been stable for at least `settleTicks` ticks. While
+       * false, capacity is not inferred: no cut, and a raise only when the
+       * campaign is pace-binding against the wall it has.
+       */
+      wallSettled: Boolean = true
   ) {
     require(spent >= 0 && dailyBudget >= 0 && ctas >= 0, s"Input($id) needs non-negative spend/budget/ctas")
     require(tickSpend.forall(_ >= 0), s"Input($id) needs non-negative tickSpend")
@@ -170,10 +195,12 @@ object CboAllocator {
       moved: Double,
       sampledRate: Double,
       posteriorMean: Double,
-      /** Forward capacity; `Double.PositiveInfinity` when the pacer is binding. */
+      /** Forward capacity; `Double.PositiveInfinity` when the pacer is binding or not inferred. */
       capacity: Double,
       lower: Double,
-      upper: Double
+      upper: Double,
+      /** Capacity bound the raise this tick (feeds next tick's `cappedLastTick`). */
+      capped: Boolean = false
   )
 
   final case class Allocation[K](
@@ -223,18 +250,30 @@ object CboAllocator {
         val post = in.prior.posterior(in.ctas, in.spent)
         val rate = drawRate(post, rng, params)
 
-        val capacity = if (capacityKnown) capacityOf(in, f, params, tickFraction) else Double.PositiveInfinity
         val prev = in.previousForward
-        // Hysteresis band around the previous forward allocation, then the
-        // capacity cap, then the floor as a HARD lower bound: the exploration
-        // floor is the design's invariant (#38) and beats capacity. Letting
-        // capacity win cut a zero-spend campaign to 0, which then read as
-        // exhausted, got the floor back, and oscillated every tick (#79).
+        // Hysteresis band around the previous forward allocation. Cuts and
+        // raises are both bounded by the band (#82: an unbounded capacity
+        // cut wound up the pacer and blacked out the campaign); a campaign
+        // capped last tick probes upward by the smaller probeStep. The floor
+        // is a HARD lower bound (#38, #79).
+        val raiseStep = if (in.cappedLastTick) params.probeStep else params.maxMovePerTick
         val lowerRaw = math.max(floor, (1.0 - params.maxMovePerTick) * prev)
-        val upperRaw = math.max(floor, (1.0 + params.maxMovePerTick) * prev)
-        val upper = math.max(floor, math.min(capacity, upperRaw))
-        val lower = math.min(lowerRaw, upper)
-        Prep(in, rate, post.mean, capacity, lower, upper)
+        val upperRaw = math.max(floor, (1.0 + raiseStep) * prev)
+        val (capacity, capped, lower, upper) =
+          if (!capacityKnown) (Double.PositiveInfinity, false, lowerRaw, upperRaw)
+          else if (!in.wallSettled) {
+            // The wall moved within settleTicks: any pace reading is the echo
+            // of that move. Hold the allocation; allow a raise only when the
+            // campaign is binding against the wall it has now.
+            val hold = math.max(lowerRaw, math.min(prev, upperRaw))
+            if (paceBinding(in, f, params, tickFraction)) (Double.PositiveInfinity, false, hold, upperRaw)
+            else (Double.PositiveInfinity, false, hold, hold)
+          } else {
+            val cap = capacityOf(in, f, params, tickFraction)
+            val up = math.max(lowerRaw, math.min(cap, upperRaw))
+            (cap, cap < upperRaw, math.min(lowerRaw, up), up)
+          }
+        Prep(in, rate, post.mean, capacity, lower, upper, capped)
       }
 
       // If the lower bounds alone exceed R, scale them down proportionally;
@@ -259,7 +298,8 @@ object CboAllocator {
           p.posteriorMean,
           p.capacity,
           p.lower,
-          p.upper
+          p.upper,
+          p.capped
         )
       }
       Allocation(remaining, lambda, results)
@@ -272,7 +312,8 @@ object CboAllocator {
       posteriorMean: Double,
       capacity: Double,
       lower: Double,
-      upper: Double
+      upper: Double,
+      capped: Boolean
   )
 
   /**
@@ -305,28 +346,44 @@ object CboAllocator {
     if (in.exhausted || elapsedFraction < params.minElapsedFraction || in.dailyBudget <= 0.0)
       Double.PositiveInfinity
     else {
-      val f = elapsedFraction
-      val cumulativePace = in.spent / (in.dailyBudget * f)
-      val cumulativeProj = math.max(0.0, in.spent / f - in.spent)
-
-      val instantaneous: Option[(Double, Double)] =
-        for {
-          ts <- in.tickSpend
-          dt <- Option(tickFraction).filter(_ > 0)
-        } yield {
-          val fLast = math.max(0.0, f - dt)
-          val lastForward = in.previousForward + ts
-          val expected = if (fLast < 1.0) lastForward * dt / (1.0 - fLast) else 0.0
-          val pace = if (expected > 0) ts / expected else 0.0
-          val projection = (ts / dt) * (1.0 - f)
-          (pace, projection)
-        }
-
-      val binding = cumulativePace >= params.paceBindingThreshold ||
-        instantaneous.exists(_._1 >= params.paceBindingThreshold)
+      val (binding, cumulativeProj, instProj) = paceReadings(in, elapsedFraction, params, tickFraction)
       if (binding) Double.PositiveInfinity
-      else math.max(cumulativeProj, instantaneous.map(_._2).getOrElse(0.0))
+      else math.max(cumulativeProj, instProj)
     }
+
+  /** True when the campaign's spend is held back by its wall (either pace reading at or above the threshold). */
+  def paceBinding[K](in: Input[K], elapsedFraction: Double, params: Params, tickFraction: Double = 0.0): Boolean =
+    in.exhausted || elapsedFraction < params.minElapsedFraction || in.dailyBudget <= 0.0 ||
+    paceReadings(in, elapsedFraction, params, tickFraction)._1
+
+  /** (binding, cumulative projection, instantaneous projection) of remaining-day spend. */
+  private def paceReadings[K](
+      in: Input[K],
+      elapsedFraction: Double,
+      params: Params,
+      tickFraction: Double
+  ): (Boolean, Double, Double) = {
+    val f = elapsedFraction
+    val cumulativePace = in.spent / (in.dailyBudget * f)
+    val cumulativeProj = math.max(0.0, in.spent / f - in.spent)
+
+    val instantaneous: Option[(Double, Double)] =
+      for {
+        ts <- in.tickSpend
+        dt <- Option(tickFraction).filter(_ > 0)
+      } yield {
+        val fLast = math.max(0.0, f - dt)
+        val lastForward = in.previousForward + ts
+        val expected = if (fLast < 1.0) lastForward * dt / (1.0 - fLast) else 0.0
+        val pace = if (expected > 0) ts / expected else 0.0
+        val projection = (ts / dt) * (1.0 - f)
+        (pace, projection)
+      }
+
+    val binding = cumulativePace >= params.paceBindingThreshold ||
+      instantaneous.exists(_._1 >= params.paceBindingThreshold)
+    (binding, cumulativeProj, instantaneous.map(_._2).getOrElse(0.0))
+  }
 
   /**
    * Water-fill under box bounds. Each campaign's unconstrained response to

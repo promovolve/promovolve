@@ -1,0 +1,74 @@
+{
+  "name": "CBO Two-Campaign scarce (auto)",
+  "description": "Demand-scarce variant of cbo-two-campaign: account budget 10 with 5 + 5 walls, below the ~7/day each campaign spends unconstrained (measured in the fixed control of gate run 1), so the walls bind and moving budget can change spend. Both campaigns auto, account optimized. Same 3x tap-through gap, 3 days of 300s. Compare with -scarce-fixed.",
+  "setup": {
+    "mode": "pacing",
+    "advertisers": 1,
+    "campaignsPerAdvertiser": 2,
+    "creativesPerCampaign": 2,
+    "adProductCategory": "1529",
+    "additionalCategories": [
+      "653",
+      "654",
+      "655"
+    ],
+    "budget": 5.0,
+    "campaignBudgets": [
+      5.0,
+      5.0
+    ],
+    "advertiserBudget": 10.0,
+    "cpm": 5.0,
+    "campaignCpms": [
+      5.0,
+      5.0
+    ],
+    "campaignStrategies": [
+      "auto",
+      "auto"
+    ],
+    "ctaRates": [
+      0.3,
+      0.1
+    ],
+    "ctaDelayMs": 150,
+    "budgetMode": "optimized"
+  },
+  "pacing": {
+    "dayDurationSeconds": 300,
+    "weekdayShapeVolumes": [
+      0.5,
+      0.3,
+      0.2,
+      0.2,
+      0.3,
+      0.5,
+      0.8,
+      1.5,
+      2.0,
+      2.5,
+      2.5,
+      2.0,
+      1.8,
+      2.0,
+      2.2,
+      2.5,
+      3.0,
+      2.5,
+      2.0,
+      1.5,
+      1.0,
+      0.8,
+      0.6,
+      0.4
+    ]
+  },
+  "traffic": {
+    "continuous": true,
+    "reportEvery": 400,
+    "clickRate": 0.05,
+    "variableDelay": false,
+    "delayMs": 10,
+    "stopAfterDays": 3
+  }
+}

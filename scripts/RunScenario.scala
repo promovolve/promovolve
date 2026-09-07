@@ -27,7 +27,10 @@ import org.apache.commons.math3.distribution.BetaDistribution
  *   2. Trigger auctions and approve creatives
  *   3. Configure pacing (for pacing mode)
  *   4. Run traffic simulation with mode-specific behavior
- *   5. Report results including Thompson Sampling stats
+ *      (impression → click → optional tap-through via the signed /cta beacon)
+ *   5. Report results including Thompson Sampling stats and, when tap-throughs
+ *      or sibling campaigns are configured, a per-campaign block with the
+ *      server-side daily budget (the Campaign Budget Optimization trace, #38)
  */
 object RunScenario {
 
@@ -101,8 +104,32 @@ object RunScenario {
       randomClickRate: Option[Double] = None,  // Override per-item CTR with flat rate
       refreshIntervalSeconds: Int = 1800,  // Re-classify pages every 30 min to refresh ServeIndex TTL (default 2h)
       stopAfterDays: Int = 0,  // Stop after N simulated days (0 = don't stop based on days)
-      churnEvents: List[ChurnEvent] = Nil  // Campaign pause/resume events at specific days
+      churnEvents: List[ChurnEvent] = Nil,  // Campaign pause/resume events at specific days
+      // Tap-through (CTA beacon) simulation. A click becomes a tap-through with
+      // probability ctaRate; 0 (the default) never fires /cta, preserving the
+      // legacy click-only behaviour of every existing scenario.
+      ctaRate: Double = 0.0,                            // P(tap-through | click), all campaigns
+      ctaRates: Option[Array[Double]] = None,           // Per-campaign-index override (cycles); beats ctaRate
+      ctaDelayMs: Int = 150,                            // Click→CTA gap; must exceed EngagementGuard.clickToCtaFloor (100ms) or the CTA is marked suspect and filtered from stats
+      // Per-campaign-index knobs WITHIN an advertiser (cycle if fewer than
+      // campaignsPerAdvertiser). Without them every sibling campaign shares the
+      // advertiser-level budget/cpm, which is useless for CBO scenarios.
+      campaignBudgets: Option[Array[Double]] = None,    // Daily budget per campaign index
+      campaignCpms: Option[Array[Double]] = None,       // maxCpm per campaign index
+      campaignStrategies: Option[Array[String]] = None  // bidding.strategy per campaign index: fixed | auto
   ) {
+    /** True when any campaign can produce tap-throughs. */
+    def ctaEnabled: Boolean = ctaRate > 0 || ctaRates.exists(_.exists(_ > 0))
+    /** Tap-through probability for the campNum-th (1-based) campaign of an advertiser. */
+    def ctaRateFor(campNum: Int): Double =
+      ctaRates.filter(_.nonEmpty).map(arr => arr((campNum - 1) % arr.length)).getOrElse(ctaRate)
+    def campaignBudgetFor(campNum: Int, fallback: Double): Double =
+      campaignBudgets.filter(_.nonEmpty).map(arr => arr((campNum - 1) % arr.length)).getOrElse(fallback)
+    def campaignCpmFor(campNum: Int, fallback: Option[Double]): Option[Double] =
+      campaignCpms.filter(_.nonEmpty).map(arr => arr((campNum - 1) % arr.length)).orElse(fallback)
+    def campaignStrategyFor(campNum: Int): String =
+      campaignStrategies.filter(_.nonEmpty).map(arr => arr((campNum - 1) % arr.length)).getOrElse("fixed")
+
     // Helper: returns traffic shape for the given simulated day (0-indexed)
     // Days 5,6 are weekend (matching server's simulated day-of-week progression)
     def trafficShapeForDay(day: Int): Option[Array[Double]] = {
@@ -122,11 +149,14 @@ object RunScenario {
       httpErrors: Int = 0,
       impressions: Int = 0,
       clicks: Int = 0,
+      ctas: Int = 0,  // tap-throughs (CTA beacons accepted by the server)
       spendDollars: Double = 0.0,
       startTimeMs: Long = System.currentTimeMillis()
   ) {
     def successRate: Double = if (requests > 0) selected.toDouble / requests * 100 else 0
     def ctr: Double = if (impressions > 0) clicks.toDouble / impressions * 100 else 0
+    def ctaPerClick: Double = if (clicks > 0) ctas.toDouble / clicks * 100 else 0
+    def ctasPerThousandSpend: Double = if (spendDollars > 0) ctas / spendDollars * 1000 else 0
     def elapsedSec: Double = (System.currentTimeMillis() - startTimeMs) / 1000.0
     def impressionsPerSec: Double = if (elapsedSec > 0) impressions / elapsedSec else 0
     def requestsPerSec: Double = if (elapsedSec > 0) requests / elapsedSec else 0
@@ -141,7 +171,8 @@ object RunScenario {
       category: String = "",
       requestId: String = "",
       impUrl: String = "",
-      clickUrl: String = ""
+      clickUrl: String = "",
+      ctaUrl: String = ""
   )
 
   case class SiteStats(
@@ -157,7 +188,13 @@ object RunScenario {
   )
 
   /** Campaign info for day start reset */
-  case class CampaignInfo(advertiserId: String, campaignId: String)
+  /** ctaRate: P(tap-through | click) for this campaign (0 = never fires /cta). */
+  case class CampaignInfo(advertiserId: String, campaignId: String, name: String = "", ctaRate: Double = 0.0)
+
+  /** Per-campaign traffic tally: impressions, clicks, tap-throughs, spend. */
+  case class CampaignTally(imps: Int = 0, clicks: Int = 0, ctas: Int = 0, spend: Double = 0.0) {
+    def ctasPerThousandSpend: Double = if (spend > 0) ctas / spend * 1000 else 0
+  }
 
   /** Setup result including page URLs and campaigns created */
   case class SetupResult(pageUrls: List[String], campaigns: List[CampaignInfo], categoryWithRunId: String)
@@ -252,6 +289,7 @@ object RunScenario {
       | Adv Budget:  $$${effectiveAdvBudget} per advertiser$advBudgetNote
       | CPM:         ${config.cpms.map(arr => arr.map(c => f"$$$c%.2f").mkString(", ")).getOrElse(f"$$${config.cpm}%.2f")}
       | Day length:  $dayDurationDisplay (${config.dayDurationSeconds}s)
+      | Tap-through: ${if (config.ctaEnabled) (1 to config.campaignsPerAdvertiser).map(n => f"camp$n=${config.ctaRateFor(n) * 100}%.0f%%").mkString(", ") + " of clicks" else "off (no /cta beacons)"}
       |==========================================
       |""".stripMargin)
 
@@ -265,7 +303,10 @@ object RunScenario {
 
       // Per-advertiser budget: from budgets array, or advertiserBudget override, or default
       val campBudget = config.budgets.map(arr => arr((advNum - 1) % arr.length)).getOrElse(config.budget)
-      val advBudget = config.advertiserBudget.getOrElse(campBudget * config.campaignsPerAdvertiser)
+      // Advertiser wall = sum of its campaigns' walls unless overridden. With
+      // campaignBudgets the siblings differ, so sum the per-index values.
+      val campaignWalls = (1 to config.campaignsPerAdvertiser).map(n => config.campaignBudgetFor(n, campBudget))
+      val advBudget = config.advertiserBudget.getOrElse(campaignWalls.sum)
       basicRequest
         .put(uri"${config.baseUrl}/v1/advertisers/$advId/budget")
         .header("Content-Type", "application/json")
@@ -274,10 +315,13 @@ object RunScenario {
 
       for (campNum <- 1 to config.campaignsPerAdvertiser) {
         val advCpm = config.cpms.map(arr => arr((advNum - 1) % arr.length))
-        val campId = createCampaign(config, advId, categoryWithRunId, s"adv$advNum-camp$campNum", advCpm, Some(campBudget))
+        val campCpm = config.campaignCpmFor(campNum, advCpm)
+        val campName = s"adv$advNum-camp$campNum"
+        val campId = createCampaign(config, advId, categoryWithRunId, campName, campCpm,
+          Some(config.campaignBudgetFor(campNum, campBudget)), config.campaignStrategyFor(campNum))
 
-        // Track this campaign for later day start reset
-        campaigns += CampaignInfo(advId, campId)
+        // Track this campaign for later day start reset + per-campaign tap-through rate
+        campaigns += CampaignInfo(advId, campId, campName, config.ctaRateFor(campNum))
 
         for (creativeNum <- 1 to config.creativesPerCampaign) {
           createCreative(config, advId, campId, s"adv$advNum-camp$campNum-cr$creativeNum")
@@ -380,7 +424,7 @@ object RunScenario {
     SetupResult(pageUrls.toList, campaigns.toList, categoryWithRunId)
   }
 
-  def createCampaign(config: Config, advId: String, category: String, name: String, cpmOverride: Option[Double] = None, budgetOverride: Option[Double] = None): String = {
+  def createCampaign(config: Config, advId: String, category: String, name: String, cpmOverride: Option[Double] = None, budgetOverride: Option[Double] = None, strategy: String = "fixed"): String = {
     val now = java.time.Instant.now().toString
     val effectiveCpm = cpmOverride.getOrElse(config.cpm)
     val effectiveBudget = budgetOverride.getOrElse(config.budget)
@@ -400,7 +444,7 @@ object RunScenario {
         "budget": {"daily": "$effectiveBudget"},
         "schedule": {"startAt": "$now"},
         "adProductCategory": "${config.adProductCategory}",
-        "bidding": {"strategy": "fixed", "maxCpm": "$effectiveCpm"},
+        "bidding": {"strategy": "$strategy", "maxCpm": "$effectiveCpm"},
         "landingUrl": "https://example.com/landing",
         "targetCategories": [$targetCategoriesJson]
       }""")
@@ -586,6 +630,8 @@ object RunScenario {
     var counters = Counters()
     // creativeId -> (imps, clicks, category, advertiserId, campaignId)
     val perCreative = scala.collection.mutable.Map[String, (Int, Int, String, String, String)]()
+    val perCampaign = scala.collection.mutable.Map[String, CampaignTally]()
+    val ctaRateByCampaign: Map[String, Double] = campaigns.map(c => c.campaignId -> c.ctaRate).toMap
     val perUrl = scala.collection.mutable.Map[String, Int]().withDefaultValue(0)
 
 
@@ -692,6 +738,8 @@ object RunScenario {
               spendDollars = counters.spendDollars + spendForImp
             )
             perUrl(url) = perUrl(url) + 1
+            val tally0 = perCampaign.getOrElse(resp.campaignId, CampaignTally())
+            perCampaign(resp.campaignId) = tally0.copy(imps = tally0.imps + 1, spend = tally0.spend + spendForImp)
 
             val (prevImps, prevClicks, _, _, _) = perCreative.getOrElse(resp.creativeId, (0, 0, resp.category, resp.advertiserId, resp.campaignId))
 
@@ -702,6 +750,21 @@ object RunScenario {
               if (clickOk) {
                 counters = counters.copy(clicks = counters.clicks + 1)
                 perCreative(resp.creativeId) = (prevImps + 1, prevClicks + 1, resp.category, resp.advertiserId, resp.campaignId)
+                val t = perCampaign(resp.campaignId)
+                perCampaign(resp.campaignId) = t.copy(clicks = t.clicks + 1)
+                // Tap-through: the CTA beacon is Layer-1 chained to this click's
+                // rid, and the guard marks a CTA that lands < clickToCtaFloor
+                // after the click as suspect (dropped from the dashboard
+                // projection), so wait ctaDelayMs before firing it.
+                val ctaRate = ctaRateByCampaign.getOrElse(resp.campaignId, config.ctaRate)
+                if (ctaRate > 0 && rng.nextDouble() < ctaRate) {
+                  if (config.ctaDelayMs > 0) Thread.sleep(config.ctaDelayMs)
+                  if (trackCta(config, url, resp)) {
+                    counters = counters.copy(ctas = counters.ctas + 1)
+                    val t2 = perCampaign(resp.campaignId)
+                    perCampaign(resp.campaignId) = t2.copy(ctas = t2.ctas + 1)
+                  }
+                }
               } else {
                 perCreative(resp.creativeId) = (prevImps + 1, prevClicks, resp.category, resp.advertiserId, resp.campaignId)
               }
@@ -726,7 +789,7 @@ object RunScenario {
           val intervalSpend = currentStats.map(_.totalSpend).getOrElse(0.0) - lastSpend
           val intervalSpendRate = if (intervalSec > 0) intervalSpend / intervalSec else 0.0
 
-          printReport(config, counters, perUrl.toMap, perCreative.toMap, intervalRate, lastStats, intervalSpendRate, campaigns)
+          printReport(config, counters, perUrl.toMap, perCreative.toMap, intervalRate, lastStats, intervalSpendRate, campaigns, perCampaign.toMap)
           lastStats = currentStats
           lastSpend = currentStats.map(_.totalSpend).getOrElse(lastSpend)
         } else {
@@ -765,7 +828,7 @@ object RunScenario {
     } // end while
 
     println()
-    printReport(config, counters, perUrl.toMap, perCreative.toMap, campaigns = campaigns)
+    printReport(config, counters, perUrl.toMap, perCreative.toMap, campaigns = campaigns, perCampaign = perCampaign.toMap)
   }
 
   def requestServe(config: Config, url: String): Option[ServeResponse] = {
@@ -800,6 +863,7 @@ object RunScenario {
       val creativeId = extractField(respBody, "creativeId")
       val impUrl     = extractField(respBody, "impUrl")
       val clickUrl   = extractField(respBody, "clickUrl")
+      val ctaUrl     = extractField(respBody, "ctaUrl")
 
       val campaignId   = extractUrlParam(impUrl, "camp")
       val advertiserId = extractUrlParam(impUrl, "adv")
@@ -816,7 +880,8 @@ object RunScenario {
         category = category,
         requestId = requestId,
         impUrl = impUrl,
-        clickUrl = clickUrl
+        clickUrl = clickUrl,
+        ctaUrl = ctaUrl
       ))
     } catch {
       case _: Exception => None
@@ -904,6 +969,32 @@ object RunScenario {
     }
   }
 
+  var emptyCtaUrlCount = 0
+
+  /**
+   * Fire the tap-through beacon. Uses the signed ctaUrl from the serve
+   * response, which carries the same rid as the click so the server's
+   * EngagementGuard chain (imp → click → cta) accepts it. Must be called
+   * AFTER a successful trackClick for the same response. 204 = accepted;
+   * 403 = bad signature, 409 = replay, both count as failure here.
+   */
+  def trackCta(config: Config, url: String, resp: ServeResponse): Boolean = {
+    if (resp.ctaUrl.isEmpty) {
+      emptyCtaUrlCount += 1
+      return false
+    }
+    try {
+      val r = basicRequest
+        .get(uri"${rebaseTrackingUrl(config, resp.ctaUrl)}")
+        .header("User-Agent", "RunScenario/1.0")
+        .followRedirects(false)
+        .send(backend)
+      r.code.code == 204 || r.code.isSuccess
+    } catch {
+      case _: Exception => false
+    }
+  }
+
   def calculateShapedDelay(config: Config, elapsedSeconds: Double, currentDay: Int = 0): Int = {
     config.trafficShapeForDay(currentDay) match {
       case Some(shape) if shape.length == 24 =>
@@ -947,7 +1038,8 @@ object RunScenario {
       intervalRate: Double = 0.0,
       prevStats: Option[SiteStats] = None,
       intervalSpendRate: Double = 0.0,
-      campaigns: List[CampaignInfo] = List.empty
+      campaigns: List[CampaignInfo] = List.empty,
+      perCampaign: Map[String, CampaignTally] = Map.empty
   ): Unit = {
     val totalCampaigns = config.advertisers * config.campaignsPerAdvertiser
 
@@ -961,7 +1053,25 @@ object RunScenario {
     println()
     println(f"    Impressions: ${c.impressions}%6d  (avg: ${c.impressionsPerSec}%.1f/sec, this interval: $intervalRate%.1f/sec)")
     println(f"    Clicks:      ${c.clicks}%6d (CTR: ${c.ctr}%.1f%%)")
+    if (config.ctaEnabled) {
+      println(f"    Tap-through: ${c.ctas}%6d (${c.ctaPerClick}%.1f%% of clicks, ${c.ctasPerThousandSpend}%.2f per 1,000 spent)")
+      if (emptyCtaUrlCount > 0) println(f"      Empty ctaUrl: $emptyCtaUrlCount%6d")
+    }
     println()
+
+    // Per-campaign block: the CBO allocation trace (#38). Daily budget is
+    // read back from the server each report so a budget moved by the
+    // allocator shows up next to the tap-throughs that earned it.
+    if (perCampaign.nonEmpty && (config.ctaEnabled || config.campaignsPerAdvertiser > 1)) {
+      println("    Per-Campaign:")
+      campaigns.foreach { ci =>
+        val t = perCampaign.getOrElse(ci.campaignId, CampaignTally())
+        val budget = getCampaignBudget(config, ci).map(b => f"$$$b%.2f").getOrElse("?")
+        val label = if (ci.name.nonEmpty) ci.name else ci.campaignId.take(12)
+        println(f"      $label%-16s budget=$budget%-9s ${t.imps}%6d imps ${t.clicks}%5d clicks ${t.ctas}%5d tap-throughs  spend=$$${t.spend}%.2f  ${t.ctasPerThousandSpend}%.2f tap-throughs/1,000 spent")
+      }
+      println()
+    }
 
     if (c.selected != c.impressions) {
       println(f"    ⚠ Selected (${c.selected}) != Impressions (${c.impressions}) - tracking failures")
@@ -2043,6 +2153,14 @@ object RunScenario {
       |  "additionalCategories": ["653"] Extra content categories for incomplete mappings
       |  "runOfNetwork": true           Target all inventory regardless of category
       |
+      |Tap-throughs + per-campaign knobs (in scenario JSON; all optional):
+      |  "ctaRate": 0.2                 P(tap-through | click); 0 = never fire /cta (default)
+      |  "ctaRates": [0.3, 0.1]         Per campaign index within an advertiser (cycles)
+      |  "ctaDelayMs": 150              Click→CTA gap; keep > 100ms guard floor or CTAs are filtered as suspect
+      |  "campaignBudgets": [10, 10]    Daily budget per campaign index (advertiser wall = sum unless advertiserBudget set)
+      |  "campaignCpms": [5, 5]         maxCpm per campaign index
+      |  "campaignStrategies": ["auto", "auto"]  bidding.strategy per campaign index (fixed | auto)
+      |
       |Examples:
       |  # Pacing test with scenario file
       |  scala-cli scripts/RunScenario.scala -- --scenario scenarios/continuous.json
@@ -2135,6 +2253,32 @@ object RunScenario {
       val runOfNetwork = json.contains("\"runOfNetwork\": true") || json.contains("\"runOfNetwork\":true")
       val stopAfterDays = extractInt(json, "stopAfterDays")
       val churnEvents = parseChurnEvents(json)
+      val ctaRate = extractDouble(json, "ctaRate")
+      val ctaRates = parseDoubleArray(json, "ctaRates") match {
+        case arr if arr.nonEmpty => Some(arr)
+        case _ => None
+      }
+      val ctaDelayMs = extractInt(json, "ctaDelayMs") match {
+        case 0 => 150  // Default: above the 100ms click→CTA guard floor
+        case n => n
+      }
+      val campaignBudgets = parseDoubleArray(json, "campaignBudgets") match {
+        case arr if arr.nonEmpty => Some(arr)
+        case _ => None
+      }
+      val campaignCpms = parseDoubleArray(json, "campaignCpms") match {
+        case arr if arr.nonEmpty => Some(arr)
+        case _ => None
+      }
+      val campaignStrategies = parseStringArray(json, "campaignStrategies") match {
+        case Nil => None
+        case l =>
+          l.find(v => v != "fixed" && v != "auto").foreach { bad =>
+            println(s"Error: campaignStrategies entries must be fixed or auto (got: $bad)")
+            sys.exit(1)
+          }
+          Some(l.toArray)
+      }
 
       Config(
         budget = budget,
@@ -2162,7 +2306,13 @@ object RunScenario {
         quietPeriodMaxMs = quietPeriodMaxMs,
         refreshIntervalSeconds = refreshIntervalSeconds,
         stopAfterDays = stopAfterDays,
-        churnEvents = churnEvents
+        churnEvents = churnEvents,
+        ctaRate = ctaRate,
+        ctaRates = ctaRates,
+        ctaDelayMs = ctaDelayMs,
+        campaignBudgets = campaignBudgets,
+        campaignCpms = campaignCpms,
+        campaignStrategies = campaignStrategies
       )
     } finally {
       source.close()

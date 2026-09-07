@@ -87,8 +87,10 @@ class CboAllocatorSpec extends AnyWordSpec with Matchers with ScalaCheckProperty
             val prev = in.previousForward
             // Upper: never more than the band above prev, unless the floor is higher.
             r.forward should be <= math.max(floor, (1 + params.maxMovePerTick) * prev) + Eps
-            // Capacity caps the upper bound whenever it is finite, but never below the floor.
-            if (r.capacity.isFinite) r.forward should be <= math.max(r.capacity, floor) + Eps
+            // Capacity caps the raise whenever it is finite, but a cut is bounded by
+            // the band (#82) and never goes below the floor.
+            if (r.capacity.isFinite)
+              r.forward should be <= math.max(math.max(r.capacity, floor), (1 - params.maxMovePerTick) * prev) + Eps
           }
           // Lower bounds only bind when their (unscaled) sum fits into the
           // remainder; the result carries the scaled bound, so recompute.
@@ -121,16 +123,55 @@ class CboAllocatorSpec extends AnyWordSpec with Matchers with ScalaCheckProperty
         val floor = params.explorationFloor * alloc.remaining / 2
         ra.forward should be >= floor - Eps
         ra.newDailyBudget should be >= floor - Eps
-        // Anything beyond the floor's own drift (the remainder shrinks 0.5 per
-        // tick, so the floor moves 0.05) is a flip.
-        if (t > 1 && math.abs(ra.newDailyBudget - budgetA) > 0.1) pushes += 1
+        // Bounded cuts (#82) walk it down 25% per tick; a raise would be a flip.
+        if (ra.newDailyBudget > budgetA + 1e-6) pushes += 1
         budgetA = ra.newDailyBudget
       }
-      // The first tick steps it down toward the floor (bounded by hysteresis);
-      // after that nothing flips back and forth.
+      // It never rises, and it reaches the floor within the 20 ticks.
       pushes shouldBe 0
       budgetA should be > 0.0
       budgetA should be < 15.0
+    }
+
+    "cut an inventory-limited campaign no faster than the band, and probe a capped one gently (#82)" in {
+      val params = Params()
+      // Settled wall, spending 4 of 40 by mid-day: capacity 4, far below the
+      // 30 the band allows; the cut stops at the band.
+      val limited = Input(1, 4.0, 1L, 44.0, exhausted = false, GammaPrior(1, 10), tickSpend = Some(0.02))
+      val other = Input(2, 25.0, 5L, 50.0, exhausted = false, GammaPrior(1, 10), tickSpend = Some(0.5))
+      val a1 = allocate(Vector(limited, other), 100.0, 0.5, new Random(1), params, tickFraction = 1.0 / 96)
+      val r1 = a1.results.find(_.id == 1).get
+      r1.capacity should be < 30.0
+      r1.forward shouldBe (1 - params.maxMovePerTick) * 40.0 +- Eps
+      r1.capped shouldBe true
+
+      // Same campaign, capped last tick and now pace-binding: the raise is probeStep, not maxMovePerTick.
+      val probing = Input(1, 20.0, 1L, 50.0, exhausted = false, GammaPrior(5, 10), tickSpend = Some(0.7),
+        cappedLastTick = true)
+      val a2 = allocate(Vector(probing, other.copy(prior = GammaPrior(1, 100))), 100.0, 0.5, new Random(1), params,
+        tickFraction = 1.0 / 96)
+      val r2 = a2.results.find(_.id == 1).get
+      r2.forward should be <= (1 + params.probeStep) * 30.0 + Eps
+      r2.forward should be > 30.0
+    }
+
+    "hold an unsettled wall unless the campaign is binding against it (#82)" in {
+      val params = Params()
+      // Wall moved last tick; spend since then is a trickle: not binding -> frozen at prev.
+      val unsettled = Input(1, 10.0, 3L, 40.0, exhausted = false, GammaPrior(5, 10), tickSpend = Some(0.01),
+        wallSettled = false)
+      val other = Input(2, 25.0, 1L, 50.0, exhausted = false, GammaPrior(1, 100), tickSpend = Some(0.5))
+      val a1 = allocate(Vector(unsettled, other), 100.0, 0.5, new Random(1), params, tickFraction = 1.0 / 96)
+      val r1 = a1.results.find(_.id == 1).get
+      r1.forward shouldBe 30.0 +- Eps
+      r1.capacity shouldBe Double.PositiveInfinity
+      // Same wall, but it spent its whole slice: binding -> may rise, still within the band.
+      val slice = 30.0 * (1.0 / 96) / 0.5
+      val binding = unsettled.copy(spent = 10.0 + slice, dailyBudget = 40.0 + slice, tickSpend = Some(slice))
+      val a2 = allocate(Vector(binding, other), 100.0, 0.5, new Random(1), params, tickFraction = 1.0 / 96)
+      val r2 = a2.results.find(_.id == 1).get
+      r2.forward should be > 30.0
+      r2.forward should be <= (1 + params.maxMovePerTick) * 30.0 + Eps
     }
 
     "not infer capacity while the account has barely spent (quiet start)" in {

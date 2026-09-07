@@ -43,7 +43,9 @@ object CboPlanner {
       /** True when this plan applied the day-start split (so the pending flag can clear). */
       dayStartApplied: Boolean,
       /** Human-readable reason when nothing was pushed. */
-      note: String
+      note: String,
+      /** Campaigns whose raise was capacity-capped this tick (next tick probes gently). */
+      capped: Set[CampaignId] = Set.empty
   )
 
   /** Minimum number of live auto campaigns for the allocator to do anything. */
@@ -90,6 +92,9 @@ object CboPlanner {
    *
    * @param lastSpent       each campaign's spend as of the previous tick (for instantaneous pace)
    * @param dayStartPending true on the first tick after a budget-day roll: push the 20/80 split
+   * @param tick            this tick's ordinal in the entity's incarnation
+   * @param lastPushTick    the tick each campaign's wall was last pushed (for `wallSettled`)
+   * @param cappedLast      campaigns capacity-capped on the previous tick (for `cappedLastTick`)
    */
   def plan(
       snapshots: Vector[Snapshot],
@@ -100,7 +105,10 @@ object CboPlanner {
       lastSpent: Map[CampaignId, Double],
       dayStartPending: Boolean,
       rng: Random,
-      params: Params = Params()
+      params: Params = Params(),
+      tick: Long = 0L,
+      lastPushTick: Map[CampaignId, Long] = Map.empty,
+      cappedLast: Set[CampaignId] = Set.empty
   ): Plan = {
     val pool = eligible(snapshots)
     if (pool.size < MinCampaigns)
@@ -139,7 +147,9 @@ object CboPlanner {
             dailyBudget = s.dailyBudget,
             exhausted = s.exhausted,
             prior = seeded(s.campaignId),
-            tickSpend = lastSpent.get(s.campaignId).map(prev => math.max(0.0, s.spent - prev))
+            tickSpend = lastSpent.get(s.campaignId).map(prev => math.max(0.0, s.spent - prev)),
+            cappedLastTick = cappedLast.contains(s.campaignId),
+            wallSettled = lastPushTick.get(s.campaignId).forall(t => tick - t >= params.settleTicks)
           )
         }
         val alloc = CboAllocator.allocate(inputs, accountDaily, elapsedFraction, rng, params, tickFraction)
@@ -150,7 +160,7 @@ object CboPlanner {
           else Some(Push(r.id, r.newDailyBudget, r.moved, r.sampledRate, r.posteriorMean))
         }
         val note = if (pushes.isEmpty) f"no move (remaining ${alloc.remaining}%.4f)" else ""
-        Plan(pushes, seeded, dayStartApplied = false, note)
+        Plan(pushes, seeded, dayStartApplied = false, note, alloc.results.filter(_.capped).map(_.id).toSet)
       }
     }
   }

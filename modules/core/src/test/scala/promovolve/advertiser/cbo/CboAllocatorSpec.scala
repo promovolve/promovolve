@@ -87,8 +87,8 @@ class CboAllocatorSpec extends AnyWordSpec with Matchers with ScalaCheckProperty
             val prev = in.previousForward
             // Upper: never more than the band above prev, unless the floor is higher.
             r.forward should be <= math.max(floor, (1 + params.maxMovePerTick) * prev) + Eps
-            // Capacity caps the upper bound whenever it is finite.
-            if (r.capacity.isFinite) r.forward should be <= r.capacity + Eps
+            // Capacity caps the upper bound whenever it is finite, but never below the floor.
+            if (r.capacity.isFinite) r.forward should be <= math.max(r.capacity, floor) + Eps
           }
           // Lower bounds only bind when their (unscaled) sum fits into the
           // remainder; the result carries the scaled bound, so recompute.
@@ -102,6 +102,48 @@ class CboAllocatorSpec extends AnyWordSpec with Matchers with ScalaCheckProperty
           }
         }
       }
+    }
+
+    "keep a zero-spend campaign at its exploration floor instead of cutting it to zero (#79)" in {
+      // Mid-day, sibling spending on pace, this one has not spent at all:
+      // inventory-limited with zero projected capacity. It must still keep
+      // the floor, and hold it tick after tick without oscillating.
+      val params = Params()
+      var budgetA = 50.0
+      var pushes = 0
+      (1 to 20).foreach { t =>
+        val inputs = Vector(
+          Input(1, 0.0, 0L, budgetA, exhausted = budgetA <= 0.0, GammaPrior(1, 10)),
+          Input(2, 25.0 + t * 0.5, 5L, 50.0 + t * 0.5, exhausted = false, GammaPrior(1, 10), tickSpend = Some(0.5))
+        )
+        val alloc = allocate(inputs, 100.0, 0.5 + t * 0.005, new Random(t.toLong), params, tickFraction = 1.0 / 96)
+        val ra = alloc.results.find(_.id == 1).get
+        val floor = params.explorationFloor * alloc.remaining / 2
+        ra.forward should be >= floor - Eps
+        ra.newDailyBudget should be >= floor - Eps
+        // Anything beyond the floor's own drift (the remainder shrinks 0.5 per
+        // tick, so the floor moves 0.05) is a flip.
+        if (t > 1 && math.abs(ra.newDailyBudget - budgetA) > 0.1) pushes += 1
+        budgetA = ra.newDailyBudget
+      }
+      // The first tick steps it down toward the floor (bounded by hysteresis);
+      // after that nothing flips back and forth.
+      pushes shouldBe 0
+      budgetA should be > 0.0
+      budgetA should be < 15.0
+    }
+
+    "not infer capacity while the account has barely spent (quiet start)" in {
+      // 1% of the account budget spent by one campaign, none by the other:
+      // no campaign may be capped yet, so the zero-spend one keeps its wall
+      // (hysteresis aside), not just the floor.
+      val inputs = Vector(
+        Input(1, 0.0, 0L, 50.0, exhausted = false, GammaPrior(1, 10)),
+        Input(2, 1.0, 0L, 50.0, exhausted = false, GammaPrior(1, 10))
+      )
+      val alloc = allocate(inputs, 100.0, 0.3, new Random(1))
+      alloc.results.foreach(_.capacity shouldBe Double.PositiveInfinity)
+      alloc.results.find(_.id == 1).get.forward should be >= 0.75 * 50.0 - Eps
     }
 
     "return zero forward allocations when the account is spent" in {

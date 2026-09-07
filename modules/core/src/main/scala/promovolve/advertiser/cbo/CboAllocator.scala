@@ -124,8 +124,22 @@ object CboAllocator {
        * that is pushed every tick never settles (#85).
        */
       minPushFraction: Double = 0.01,
-      /** Concavity of returns in spend: `f(x) = e * x^rho`. */
-      returnsExponent: Double = 0.5,
+      /**
+       * Empirical-Bayes shrinkage toward the pool's tap-through rate: a
+       * campaign keeps `n / (n + shrinkageCtas)` of its deviation from the
+       * pool rate, where `n` is its own tap-throughs. A light value guards
+       * the first hours (the first count no longer decides the morning)
+       * without eating the gain: 3 keeps 23% of a threefold-gap gain in a
+       * two-day simulation where 20 keeps 13% (#89). 0 disables.
+       */
+      shrinkageCtas: Double = 3.0,
+      /**
+       * Concavity of returns in spend: `f(x) = e * x^rho`. 0.5 (a squared
+       * response) turned a 1.6x observed-rate gap into a 27 / 73 split on
+       * tap-through noise; 0.33 keeps the threefold-gap gain and roughly
+       * halves the symmetric drift in a two-day simulation (#89).
+       */
+      returnsExponent: Double = 0.33,
       /**
        * Minimum shape of the Thompson draw. The rate is drawn from
        * `Gamma(s, s / mean)` with `s = max(alpha, minDrawShape)`: same
@@ -153,6 +167,7 @@ object CboAllocator {
     require(probeStep > 0 && probeStep <= maxMovePerTick, "probeStep in (0, maxMovePerTick]")
     require(settleTicks >= 0, "settleTicks >= 0")
     require(minPushFraction >= 0 && minPushFraction < 1, "minPushFraction in [0,1)")
+    require(shrinkageCtas >= 0, "shrinkageCtas >= 0")
     require(dayRollDecay > 0 && dayRollDecay <= 1, "dayRollDecay in (0,1]")
     require(dayStartBlend >= 0 && dayStartBlend <= 1, "dayStartBlend in [0,1]")
   }
@@ -256,13 +271,19 @@ object CboAllocator {
       // day's traffic shape, so in a quiet hour every one of them reads
       // under-paced on a flat clock and would be cut on nothing (#85). A
       // campaign clearly below its siblings still reads inventory-limited.
+      // Pool rate for shrinkage: the account's own tap-throughs per unit of
+      // spend today (None until the pool has spent anything).
+      val poolRate: Option[Double] = {
+        val ctasSum = inputs.map(_.ctas).sum.toDouble
+        if (spentSum > 0 && ctasSum > 0) Some(ctasSum / spentSum) else None
+      }
       val wallSum = inputs.map(_.dailyBudget).sum
       val poolPace =
         if (f > 0 && wallSum > 0) (spentSum / (wallSum * f)).max(MinPoolPace).min(1.0) else 1.0
 
       val prepared = inputs.map { in =>
         val post = in.prior.posterior(in.ctas, in.spent)
-        val rate = drawRate(post, rng, params)
+        val rate = shrinkToward(drawRate(post, rng, params), poolRate, in.ctas, params)
 
         val prev = in.previousForward
         // Hysteresis band around the previous forward allocation. Cuts and
@@ -358,6 +379,19 @@ object CboAllocator {
    * When neither binds the campaign is inventory-limited and its capacity
    * is the larger of the two projections of its own remaining-day spend.
    */
+  /**
+   * Shrink a campaign's rate toward the pool rate by its own evidence:
+   * `pool + (rate - pool) * n / (n + shrinkageCtas)`. No pool rate or
+   * `shrinkageCtas = 0` leaves the rate untouched.
+   */
+  def shrinkToward(rate: Double, poolRate: Option[Double], ctas: Long, params: Params): Double =
+    poolRate match {
+      case Some(p) if params.shrinkageCtas > 0 =>
+        val w = ctas.toDouble / (ctas.toDouble + params.shrinkageCtas)
+        math.max(MinRate, p + (rate - p) * w)
+      case _ => rate
+    }
+
   /** Floor on the pool pace used as the reference; below it the pool is "not spending" and pace is absolute. */
   val MinPoolPace: Double = 0.05
 

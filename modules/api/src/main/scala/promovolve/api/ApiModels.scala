@@ -59,7 +59,12 @@ object ApiModels {
       createdAt: String,
       updatedAt: String,
       // "manual" | "optimized" (Campaign Budget Optimization).
-      budgetMode: Option[String] = None
+      budgetMode: Option[String] = None,
+      // While optimized: each pooled campaign's daily budget as of the start
+      // of the budget day, keyed by campaign id (money string), so a client
+      // can show "started today at X, moved Y" against the current daily
+      // budget (#103). Absent under manual.
+      cboDayStart: Option[Map[String, String]] = None
   )
 
   // ----------------- Campaign -----------------

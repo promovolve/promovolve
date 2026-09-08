@@ -1451,7 +1451,13 @@ class EndpointRoutes(
           ),
           createdAt = nowIso,
           updatedAt = nowIso,
-          budgetMode = Some(info.budgetMode)
+          budgetMode = Some(info.budgetMode),
+          cboDayStart =
+            if (info.budgetMode == CboBudgetMode.Optimized && info.cboDayStart.nonEmpty)
+              Some(info.cboDayStart.map { case (id, wall) =>
+                id.value -> formatMoney(BigDecimal(wall).setScale(4, BigDecimal.RoundingMode.HALF_UP))
+              })
+            else None
         )
       )).recover { case _: java.util.concurrent.TimeoutException =>
         Left(ErrorResponse("advertiser_not_found", s"Advertiser $advertiserId not found"))

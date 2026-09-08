@@ -19,7 +19,7 @@
 <!-- Budget info line -->
 {{if .AdvBudget}}
 <div class="flex items-center justify-between mb-6 text-sm text-gray-500">
-  <span>{{t "Account budget: %s/day (%s remaining, %s spent today)" (money .AdvBudget.DailyBudget) (money .AdvBudget.Remaining) (money .AdvBudget.SpendToday)}}{{if eq .AdvBudget.BudgetMode "optimized"}} &middot; <span class="badge badge-info" title="{{t "The account budget is re-split across all live campaigns."}}">{{t "Optimized budget mode"}}</span>{{end}}</span>
+  <span>{{t "Account budget: %s/day (%s remaining, %s spent today)" (money .AdvBudget.DailyBudget) (money .AdvBudget.Remaining) (money .AdvBudget.SpendToday)}}{{if eq .AdvBudget.BudgetMode "optimized"}} &middot; <span class="badge badge-info" title="{{t "The account budget is re-split across all live campaigns."}}">{{t "Optimized budget mode"}}</span>{{if .AdvBudget.MovedToday}} &middot; {{t "moved %s between campaigns today" .AdvBudget.MovedToday}}{{end}}{{end}}</span>
   <a href="/advertiser/account" class="text-brand hover:underline">{{t "Edit"}}</a>
 </div>
 {{end}}
@@ -369,6 +369,9 @@
           <span>{{money .SpendToday}}</span>
           <span>{{money .DailyBudget}}</span>
         </div>
+        {{if .DayStartBudget}}
+        <p class="text-xs text-gray-400 mb-1 text-right" data-budget-moved>{{t "started today at %s" .DayStartBudget}}{{if .BudgetMoved}} &middot; <span class="{{if .BudgetMovedUp}}text-green-600{{else}}text-red-600{{end}}">{{.BudgetMoved}}</span>{{end}}</p>
+        {{end}}
         <div class="h-1.5 bg-gray-200 rounded-full">
           <div class="h-full rounded-full {{if gt .BudgetPct 90.0}}bg-red-500{{else if gt .BudgetPct 70.0}}bg-amber-500{{else}}bg-green-500{{end}}"
                style="width:{{if .BudgetPct}}{{.BudgetPct}}{{else}}0{{end}}%;"></div>

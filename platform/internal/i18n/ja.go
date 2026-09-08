@@ -491,6 +491,8 @@ var ja = map[string]string{
 	"Optimized budget mode": "最適化予算モード",
 	"The account budget is re-split across all live campaigns.": "アカウント予算は稼働中の全キャンペーン間で再配分されます。",
 	"Managed by the account allocator while the account budget mode is Optimized. Switch the account to Manual to set it by hand.": "アカウントの予算モードが「最適化」の間はアカウントの配分器が管理します。手動で設定するにはアカウントを「手動」に切り替えてください。",
+	"started today at %s":                   "本日の開始時点は %s",
+	"moved %s between campaigns today":        "本日はキャンペーン間で %s を移動",
 	"Daily budget is set by the account allocator (Campaign Budget Optimization).": "日予算はアカウントの配分器（キャンペーン予算最適化）が設定しています。",
 	"Changes apply immediately. Today's spend is not reset.": "変更はすぐに適用されます。本日の消化額はリセットされません。",
 

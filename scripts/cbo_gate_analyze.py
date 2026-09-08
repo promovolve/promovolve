@@ -232,7 +232,9 @@ def verdict(o):
         ok = sf >= CONTROL_SPEND_MIN and (rf is None or rf >= CONTROL_THROUGHPUT_MIN)
         print(f"           {'VALID' if ok else 'INVALID'} "
               f"(needs spend >= {CONTROL_SPEND_MIN:.0%}, throughput >= {CONTROL_THROUGHPUT_MIN:.0%})")
-    if o["symmetric"] and o["walls"]:
+    if o["optimized"] is False and not o["symmetric"]:
+        print("direction: n/a (fixed walls)")
+    elif o["symmetric"] and o["walls"]:
         ids = sorted(o["walls"])
         tot = sum(o["walls"].values())
         sh = o["walls"][ids[0]] / tot if tot > 0 else 0.5

@@ -925,7 +925,6 @@ type campaignData struct {
 	AdProductCategory string
 	DailyBudget       string
 	MaxCPM            string
-	Strategy          string // "fixed" | "auto" (Campaign Budget Optimization)
 	LandingURL        string
 	SpendToday        string
 	BudgetPct         float64
@@ -1236,7 +1235,6 @@ func (h *Handler) AdvertiserCampaigns(w http.ResponseWriter, r *http.Request) {
 			AdProductCategory:       c.AdProductCategory,
 			DailyBudget:             money(c.Budget.Daily),
 			MaxCPM:                  money(c.Bidding.MaxCPM),
-			Strategy:                campaignStrategy(c.Bidding.Strategy),
 			LandingURL:              c.LandingURL,
 			BidOnUnmatchedContext:   c.BidOnUnmatchedContext,
 			Untargeted:              c.Untargeted,
@@ -1649,15 +1647,6 @@ func (h *Handler) SetAdvertiserBudget(w http.ResponseWriter, r *http.Request) {
 	http.Redirect(w, r, redirect, http.StatusSeeOther)
 }
 
-// campaignStrategy normalizes a bidding.strategy value: "auto" stays, anything
-// else (including absent) is "fixed", the core's default.
-func campaignStrategy(v string) string {
-	if v == "auto" {
-		return "auto"
-	}
-	return "fixed"
-}
-
 func (h *Handler) CreateCampaign(w http.ResponseWriter, r *http.Request) {
 	_, claims := h.sessionUser(r)
 	if claims == nil {
@@ -1693,7 +1682,7 @@ func (h *Handler) CreateCampaign(w http.ResponseWriter, r *http.Request) {
 		"budget":            map[string]string{"daily": r.FormValue("budget")},
 		"schedule":          schedule,
 		"adProductCategory": r.FormValue("adProductCategory"),
-		"bidding":           map[string]string{"strategy": campaignStrategy(r.FormValue("strategy")), "maxCpm": r.FormValue("maxCpm")},
+		"bidding":           map[string]string{"maxCpm": r.FormValue("maxCpm")},
 		"landingUrl":        r.FormValue("landingUrl"),
 	}
 	// targetCategories (comma-separated chip values from the form) → JSON
@@ -1876,24 +1865,16 @@ func (h *Handler) UpdateCampaign(w http.ResponseWriter, r *http.Request) {
 	if v := strings.TrimSpace(r.FormValue("name")); v != "" {
 		payload["name"] = v
 	}
-	// Budget strategy (Campaign Budget Optimization): only sent when the
-	// form carried it, so callers without the control never flip an "auto"
-	// campaign back to "fixed". While "auto" the allocator owns the daily
-	// budget: the form disables the field (not submitted), and this guard
-	// makes sure a stale value is never resent even if it were.
-	strategy := ""
-	if r.Form.Has("strategy") {
-		strategy = campaignStrategy(r.FormValue("strategy"))
-	}
-	if v := strings.TrimSpace(r.FormValue("budget")); v != "" && strategy != "auto" {
+	// While the account budget mode is Optimized the allocator owns every
+	// campaign's daily budget (#98): the edit form disables the field, so it
+	// is not submitted and the PATCH omits `budget`. Budget strategy is no
+	// longer a per-campaign setting; `bidding.strategy` is never sent.
+	if v := strings.TrimSpace(r.FormValue("budget")); v != "" {
 		payload["budget"] = map[string]string{"daily": v}
 	}
 	bidding := map[string]string{}
 	if v := strings.TrimSpace(r.FormValue("maxCpm")); v != "" {
 		bidding["maxCpm"] = v
-	}
-	if strategy != "" {
-		bidding["strategy"] = strategy
 	}
 	if len(bidding) > 0 {
 		payload["bidding"] = bidding
@@ -3135,7 +3116,6 @@ func (h *Handler) UpdateCampaignCPM(w http.ResponseWriter, r *http.Request) {
 	campID := r.FormValue("campaignId")
 	maxCpm := r.FormValue("maxCpm")
 	body, _ := json.Marshal(map[string]any{
-		// "strategy" deliberately omitted: absent = unchanged (see the edit path).
 		"bidding": map[string]string{"maxCpm": maxCpm},
 	})
 	h.corePatch(fmt.Sprintf("/v1/advertisers/me/campaigns/%s", campID), claims, string(body))

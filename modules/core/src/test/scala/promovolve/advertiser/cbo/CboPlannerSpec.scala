@@ -38,20 +38,20 @@ class CboPlannerSpec extends AnyWordSpec with Matchers {
   ): Plan = plan(snaps, priors, accountDaily, elapsed, 1.0 / 96, lastSpent, dayStartPending, new Random(seed))
 
   "CboPlanner.eligible" should {
-    "keep only live auto campaigns" in {
+    "keep every live campaign regardless of its strategy field (#98)" in {
       val pool = eligible(Vector(
         snap(ca, 50, 10, 1),
         snap(cb, 50, 10, 1, strategy = CboStrategy.Fixed),
         snap(cc, 50, 10, 1, live = false)
       ))
-      pool.map(_.campaignId) shouldBe Vector(ca)
+      pool.map(_.campaignId) shouldBe Vector(ca, cb)
     }
   }
 
   "CboPlanner.plan" should {
 
-    "be inert below two live auto campaigns and leave priors untouched" in {
-      val p = run(Vector(snap(ca, 50, 10, 1), snap(cb, 50, 10, 1, strategy = CboStrategy.Fixed)))
+    "be inert below two live campaigns and leave priors untouched" in {
+      val p = run(Vector(snap(ca, 50, 10, 1), snap(cb, 50, 10, 1, live = false)))
       p.pushes shouldBe empty
       p.priors shouldBe empty
       p.dayStartApplied shouldBe false

@@ -1,10 +1,12 @@
 package handler
 
-// Render test for the Campaign Budget Optimization surface (GH #73): the
-// account budget-mode control, the campaign strategy control in the create
-// and edit forms, and the Optimized badge in the list. Executes the real
-// templates in both languages and asserts the markup the handlers rely on
-// (a disabled budget input is not submitted, so the PATCH omits it).
+// Render test for the Campaign Budget Optimization surface (GH #73, #98):
+// the account budget-mode control and what follows from it on the
+// campaigns page. Budget mode is a property of the ACCOUNT: while it is
+// Optimized every campaign's daily budget input is disabled (not submitted,
+// so the PATCH omits it) and every campaign carries the Optimized badge;
+// there is no per-campaign strategy control. Executes the real templates in
+// both languages.
 
 import (
 	"bytes"
@@ -21,52 +23,59 @@ func TestCboTemplatesRender(t *testing.T) {
 
 	adv := &model.User{Email: "adv@test", Role: model.RoleAdvertiser}
 	nav := &listNav{Page: 1, TotalPages: 1, Total: 2, From: 1, To: 2}
-	budget := &advertiserBudget{DailyBudget: "100.00", Remaining: "60.00", SpendToday: "40.00", BudgetMode: "optimized"}
-
-	campaigns := pageData{
-		Title: "Campaigns", Nav: "campaigns", User: adv, AdvBudget: budget, ListNav: nav,
-		Campaigns: []campaignData{
-			{ID: "camp-auto", Name: "Auto", Status: "active", DailyBudget: "70.00", MaxCPM: "5.00", Strategy: "auto"},
-			{ID: "camp-fixed", Name: "Fixed", Status: "active", DailyBudget: "30.00", MaxCPM: "5.00", Strategy: "fixed"},
-		},
+	rows := []campaignData{
+		{ID: "camp-a", Name: "A", Status: "active", DailyBudget: "70.00", MaxCPM: "5.00"},
+		{ID: "camp-b", Name: "B", Status: "active", DailyBudget: "30.00", MaxCPM: "5.00"},
 	}
-	account := pageData{Title: "Account", Nav: "account", User: adv, AdvBudget: budget}
+	optimized := &advertiserBudget{DailyBudget: "100.00", Remaining: "60.00", SpendToday: "40.00", BudgetMode: "optimized"}
+	manual := &advertiserBudget{DailyBudget: "100.00", Remaining: "60.00", SpendToday: "40.00", BudgetMode: "manual"}
+
+	render := func(lang, name string, data pageData) string {
+		var out bytes.Buffer
+		if err := getPage(lang, name).ExecuteTemplate(&out, "layout", data); err != nil {
+			t.Fatalf("%s (%s) failed to render: %v", name, lang, err)
+		}
+		return out.String()
+	}
+	disabled := func(html, value string) bool {
+		return strings.Contains(html, `value="`+value+`"`+"\n                      disabled")
+	}
 
 	for _, lang := range []string{i18n.LangEN, i18n.LangJA} {
-		var out bytes.Buffer
-		if err := getPage(lang, "advertiser/campaigns.html").ExecuteTemplate(&out, "layout", campaigns); err != nil {
-			t.Fatalf("campaigns.html (%s) failed to render: %v", lang, err)
-		}
-		html := out.String()
-		if strings.Count(html, `name="strategy" value="auto"`) != 3 { // create form + one edit form per campaign
-			t.Errorf("%s: expected 3 auto strategy radios, got %d", lang, strings.Count(html, `name="strategy" value="auto"`))
-		}
-		// The auto campaign's edit form: budget disabled + greyed, auto checked.
-		if !strings.Contains(html, `value="70.00"`+"\n                      disabled") {
-			t.Errorf("%s: auto campaign's budget input is not disabled", lang)
-		}
-		if !strings.Contains(html, `value="auto" checked`) {
-			t.Errorf("%s: auto campaign's strategy radio is not checked", lang)
-		}
-		// The fixed campaign's edit form keeps its budget editable.
-		if strings.Contains(html, `value="30.00"`+"\n                      disabled") {
-			t.Errorf("%s: fixed campaign's budget input is disabled", lang)
-		}
-		// One Optimized badge in the list (the fixed campaign gets none) and
-		// the account-budget line shows the mode.
 		badge := i18n.T(lang, "Optimized")
-		if strings.Count(html, ">\n            "+badge+"\n          </span>") != 1 {
-			t.Errorf("%s: expected exactly one Optimized badge in the list", lang)
+		badges := func(html string) int { return strings.Count(html, ">\n            "+badge+"\n          </span>") }
+
+		// Optimized account: no per-campaign control, both budgets disabled, both badged.
+		html := render(lang, "advertiser/campaigns.html",
+			pageData{Title: "Campaigns", Nav: "campaigns", User: adv, AdvBudget: optimized, ListNav: nav, Campaigns: rows})
+		if strings.Contains(html, `name="strategy"`) {
+			t.Errorf("%s: a per-campaign strategy control is rendered (#98)", lang)
+		}
+		for _, v := range []string{"70.00", "30.00"} {
+			if !disabled(html, v) {
+				t.Errorf("%s: budget input %s is not disabled under an optimized account", lang, v)
+			}
+		}
+		if n := badges(html); n != 2 {
+			t.Errorf("%s: expected an Optimized badge on every campaign, got %d", lang, n)
 		}
 		if !strings.Contains(html, i18n.T(lang, "Optimized budget mode")) {
 			t.Errorf("%s: account-budget line does not show the optimized mode", lang)
 		}
 
-		out.Reset()
-		if err := getPage(lang, "advertiser/account.html").ExecuteTemplate(&out, "layout", account); err != nil {
-			t.Fatalf("account.html (%s) failed to render: %v", lang, err)
+		// Manual account: budgets editable, no badges.
+		html = render(lang, "advertiser/campaigns.html",
+			pageData{Title: "Campaigns", Nav: "campaigns", User: adv, AdvBudget: manual, ListNav: nav, Campaigns: rows})
+		for _, v := range []string{"70.00", "30.00"} {
+			if disabled(html, v) {
+				t.Errorf("%s: budget input %s is disabled under a manual account", lang, v)
+			}
 		}
-		html = out.String()
+		if n := badges(html); n != 0 {
+			t.Errorf("%s: expected no Optimized badge under a manual account, got %d", lang, n)
+		}
+
+		html = render(lang, "advertiser/account.html", pageData{Title: "Account", Nav: "account", User: adv, AdvBudget: optimized})
 		if !strings.Contains(html, `name="budgetMode" value="optimized" checked`) {
 			t.Errorf("%s: account page does not pre-select the optimized mode", lang)
 		}
@@ -76,12 +85,8 @@ func TestCboTemplatesRender(t *testing.T) {
 	}
 
 	// Manual account, no budget yet: the form must still render, defaulting to manual.
-	var out bytes.Buffer
-	if err := getPage(i18n.LangEN, "advertiser/account.html").ExecuteTemplate(&out, "layout",
-		pageData{Title: "Account", Nav: "account", User: adv, BudgetUnset: true}); err != nil {
-		t.Fatalf("account.html without a budget failed to render: %v", err)
-	}
-	if !strings.Contains(out.String(), `name="budgetMode" value="manual" checked`) {
+	html := render(i18n.LangEN, "advertiser/account.html", pageData{Title: "Account", Nav: "account", User: adv, BudgetUnset: true})
+	if !strings.Contains(html, `name="budgetMode" value="manual" checked`) {
 		t.Errorf("account page without a budget does not default to manual")
 	}
 }

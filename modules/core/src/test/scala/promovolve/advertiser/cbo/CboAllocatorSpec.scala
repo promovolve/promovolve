@@ -44,6 +44,13 @@ class CboAllocatorSpec extends AnyWordSpec with Matchers with ScalaCheckProperty
   private def floorOf(remaining: Double, n: Int, params: Params): Double =
     params.explorationFloor * remaining / n
 
+  /** Each campaign's evidence weight `w` this tick, as the allocator computes it (#93). */
+  private def weightsOf(inputs: Vector[Input[Int]], params: Params): Vector[Double] = {
+    val posts = inputs.map(in => in.prior.posterior(in.ctas, in.spent))
+    val pool = poolRateOf(posts)
+    posts.map(post => evidenceWeight(evidenceOf(post, pool), params))
+  }
+
   "CboAllocator.allocate" should {
 
     "conserve the remainder and respect every per-campaign bound" in {
@@ -83,19 +90,20 @@ class CboAllocatorSpec extends AnyWordSpec with Matchers with ScalaCheckProperty
         val n = inputs.size
         whenever(alloc.remaining > 0) {
           val floor = floorOf(alloc.remaining, n, params)
-          alloc.results.zip(inputs).foreach { case (r, in) =>
+          val weights = weightsOf(inputs, params)
+          alloc.results.zip(inputs).zip(weights).foreach { case ((r, in), w) =>
             val prev = in.previousForward
             // Upper: never more than the band above prev, unless the floor is higher.
             r.forward should be <= math.max(floor, (1 + params.maxMovePerTick) * prev) + Eps
             // Capacity caps the raise whenever it is finite, but a cut is bounded by
-            // the band (#82) and never goes below the floor.
+            // the evidence-scaled band (#82, #93) and never goes below the floor.
             if (r.capacity.isFinite)
-              r.forward should be <= math.max(math.max(r.capacity, floor), (1 - params.maxMovePerTick) * prev) + Eps
+              r.forward should be <= math.max(math.max(r.capacity, floor), (1 - params.maxMovePerTick * w) * prev) + Eps
           }
           // Lower bounds only bind when their (unscaled) sum fits into the
           // remainder; the result carries the scaled bound, so recompute.
-          val unscaledLowers = alloc.results.zip(inputs).map { case (r, in) =>
-            math.min(math.max(floor, (1 - params.maxMovePerTick) * in.previousForward), r.upper)
+          val unscaledLowers = alloc.results.zip(inputs).zip(weights).map { case ((r, in), w) =>
+            math.min(math.max(floor, (1 - params.maxMovePerTick * w) * in.previousForward), r.upper)
           }
           if (unscaledLowers.sum <= alloc.remaining + Eps) {
             alloc.results.zip(unscaledLowers).foreach { case (r, lower) =>
@@ -142,7 +150,12 @@ class CboAllocatorSpec extends AnyWordSpec with Matchers with ScalaCheckProperty
       val a1 = allocate(Vector(limited, other), 100.0, 0.5, new Random(1), params, tickFraction = 1.0 / 96)
       val r1 = a1.results.find(_.id == 1).get
       r1.capacity should be < 30.0
-      r1.forward shouldBe (1 - params.maxMovePerTick) * 40.0 +- Eps
+      // The band is scaled by the campaign's evidence weight (#93): on one
+      // tap-through it is narrower than maxMovePerTick, and the cut still
+      // stops there, far above capacity.
+      val w1 = weightsOf(Vector(limited, other), params).head
+      r1.forward shouldBe (1 - params.maxMovePerTick * w1) * 40.0 +- Eps
+      r1.forward should be > 30.0
       r1.capped shouldBe true
 
       // Same campaign, capped last tick and now pace-binding: the raise is probeStep, not maxMovePerTick.
@@ -334,6 +347,67 @@ class CboAllocatorSpec extends AnyWordSpec with Matchers with ScalaCheckProperty
       val unshrunk = share(Params(shrinkageCtas = 0))
       shrunk should be > unshrunk
       shrunk should be >= 0.35
+    }
+  }
+
+  "CboAllocator evidence (#93)" should {
+    // Cold day-1 prior as CboPlanner.seedPrior builds it for a fresh
+    // campaign on a 10.00 account: fallback rate 1 / accountDaily at
+    // half-a-wall strength, i.e. a quarter of a pseudo tap-through.
+    val cold = GammaPrior.seed(0L, 0.0, minCtas = 5, fallbackRate = 0.1, strengthSpend = 2.5)
+
+    "barely move on a cold start with a single tap-through" in {
+      // The seed-4 scarce gate run inverted its wall at t = 15-27 s of day 1
+      // on moves of -0.80 and -1.14 (a 5.00 wall) taken on ONE tap-through.
+      val inputs = Vector(
+        Input(1, 0.3, 1L, 5.0, exhausted = false, cold),
+        Input(2, 0.3, 0L, 5.0, exhausted = false, cold)
+      )
+      val bounded = allocate(inputs, 10.0, 0.05, new Random(11), Params())
+      bounded.results.foreach { r =>
+        val prev = inputs.find(_.id == r.id).get.previousForward
+        math.abs(r.moved) should be <= 0.06 * prev
+      }
+      // Same tick with evidence weighting off: the one count moves a fifth of the wall.
+      val unbounded = allocate(inputs, 10.0, 0.05, new Random(11), Params(shrinkageCtas = 0))
+      unbounded.results.map(r => math.abs(r.moved)).max should be > 0.2 * 4.7
+    }
+
+    "carry yesterday's evidence into the morning: a threefold prior gap moves budget with no count today" in {
+      // Day 2, first tick: nothing spent or earned today, but the priors
+      // hold yesterday's 30 vs 10 tap-throughs on equal spend. Keyed to
+      // today's count the old shrinkage collapsed both onto the pool and
+      // split this evenly.
+      val strong = GammaPrior.seed(30L, 10.0, minCtas = 5, fallbackRate = 0.1, strengthSpend = 10.0)
+      val weak = GammaPrior.seed(10L, 10.0, minCtas = 5, fallbackRate = 0.1, strengthSpend = 10.0)
+      val inputs = Vector(
+        Input(1, 0.1, 0L, 5.0, exhausted = false, strong),
+        Input(2, 0.1, 0L, 5.0, exhausted = false, weak)
+      )
+      val a = allocate(inputs, 10.0, 0.02, new Random(5), Params())
+      val f = a.results.map(r => r.id -> r.forward).toMap
+      f(1) should be > 1.3 * f(2)
+    }
+
+    "treat spend without tap-throughs as evidence: a dead campaign can still be cut" in {
+      // Mid-day, both binding. A has spent 3.00 for nothing beside a
+      // sibling that earned 10 on the same spend. Evidence from spend alone
+      // (what A would have earned at the pool rate) must let the band cut
+      // it; on its own count of zero it would be frozen at its wall.
+      val inputs = Vector(
+        Input(1, 3.0, 0L, 5.0, exhausted = false, cold),
+        Input(2, 3.0, 10L, 5.0, exhausted = false, cold)
+      )
+      val a = allocate(inputs, 10.0, 0.5, new Random(2), Params())
+      val dead = a.results.find(_.id == 1).get
+      dead.forward should be < 0.9 * inputs.head.previousForward
+    }
+
+    "define evidence as the larger of seen and expected tap-throughs" in {
+      evidenceOf(GammaPrior(4.0, 2.0), poolRate = 1.0) shouldBe 4.0 +- Eps
+      evidenceOf(GammaPrior(0.25, 5.5), poolRate = 1.0) shouldBe 5.5 +- Eps
+      evidenceWeight(3.0, Params(shrinkageCtas = 3)) shouldBe 0.5 +- Eps
+      evidenceWeight(3.0, Params(shrinkageCtas = 0)) shouldBe 1.0 +- Eps
     }
   }
 

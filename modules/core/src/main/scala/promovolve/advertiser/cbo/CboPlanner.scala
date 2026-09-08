@@ -61,9 +61,15 @@ object CboPlanner {
   /** Minimum tap-throughs yesterday for the observed rate to seed the prior on its own. */
   val SeedMinCtas: Int = 5
 
-  /** The campaigns the allocator may move money between. */
+  /**
+   * The campaigns the allocator may move money between: every LIVE campaign
+   * of the account. Budget mode is a property of the account (#98): when it
+   * is Optimized every live campaign is pooled, when it is Manual the tick
+   * does not run. `Snapshot.strategy` is kept on the wire for compatibility
+   * and is not read.
+   */
   def eligible(snapshots: Vector[Snapshot]): Vector[Snapshot] =
-    snapshots.filter(s => s.live && s.strategy == CboStrategy.Auto)
+    snapshots.filter(_.live)
 
   /**
    * Prior for a campaign the allocator has not seen before. Mean = the

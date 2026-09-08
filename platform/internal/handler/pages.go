@@ -925,17 +925,22 @@ type campaignData struct {
 	AdProductCategory string
 	DailyBudget       string
 	MaxCPM            string
-	LandingURL        string
-	SpendToday        string
-	BudgetPct         float64
-	Impressions       int
-	Clicks            int
-	CTR               string
-	ECPM              string // effective CPM: spend / impressions * 1000
-	LifetimeSpend     string // projection totalSpend, base-currency formatted
-	BidsToday         int
-	WinRate           string // e.g. "45.2%"
-	WinRateClass      string // CSS class: text-red-600, text-amber-600, text-green-600
+	// While the account is optimized (#103): the wall this campaign started
+	// the day with, and the signed move since ("+2.40"); empty under manual.
+	DayStartBudget string
+	BudgetMoved    string
+	BudgetMovedUp  bool
+	LandingURL     string
+	SpendToday     string
+	BudgetPct      float64
+	Impressions    int
+	Clicks         int
+	CTR            string
+	ECPM           string // effective CPM: spend / impressions * 1000
+	LifetimeSpend  string // projection totalSpend, base-currency formatted
+	BidsToday      int
+	WinRate        string // e.g. "45.2%"
+	WinRateClass   string // CSS class: text-red-600, text-amber-600, text-green-600
 	// Opted in to bid on pages with no contextual match (filler
 	// auction). Drives the checkbox on campaigns.html.
 	BidOnUnmatchedContext bool
@@ -992,6 +997,33 @@ type campaignData struct {
 	EndAtPassed    bool
 }
 
+// budgetMoved renders a campaign's day-start wall and its move since, for
+// the campaigns page under an optimized account (#103). dayStart is the
+// money string from the core (empty when the campaign is not pooled or the
+// account is manual); daily is the current daily budget. Returns the
+// formatted day-start wall, the signed move ("+2.40" / "-1.10", empty when
+// unchanged), whether it went up, and the absolute move for the account
+// total.
+func budgetMoved(dayStart, daily string) (string, string, bool, float64) {
+	if dayStart == "" {
+		return "", "", false, 0
+	}
+	from, err1 := strconv.ParseFloat(dayStart, 64)
+	to, err2 := strconv.ParseFloat(daily, 64)
+	if err1 != nil || err2 != nil {
+		return "", "", false, 0
+	}
+	delta := to - from
+	if math.Abs(delta) < 0.00005 {
+		return money(dayStart), "", false, 0
+	}
+	sign := "+"
+	if delta < 0 {
+		sign = "-"
+	}
+	return money(dayStart), sign + money(strconv.FormatFloat(math.Abs(delta), 'f', 4, 64)), delta > 0, math.Abs(delta)
+}
+
 type advertiserBudget struct {
 	DailyBudget string
 	Remaining   string
@@ -999,6 +1031,10 @@ type advertiserBudget struct {
 	IsZero      bool
 	// "manual" | "optimized" (Campaign Budget Optimization).
 	BudgetMode string
+	// Net budget moved between campaigns today while optimized (#103): half
+	// the sum of absolute per-campaign moves, so one transfer reads once.
+	// Empty when nothing moved.
+	MovedToday string
 }
 
 type servedSite struct {
@@ -1025,7 +1061,8 @@ func (h *Handler) AdvertiserCampaigns(w http.ResponseWriter, r *http.Request) {
 			Remaining   string `json:"remaining"`
 			SpendToday  string `json:"spendToday"`
 		} `json:"budget"`
-		BudgetMode string `json:"budgetMode"`
+		BudgetMode  string            `json:"budgetMode"`
+		CboDayStart map[string]string `json:"cboDayStart"`
 	}
 	var servedSites []servedSite
 	servedBody, _ := h.coreGet("/v1/advertisers/me/served-sites?limit=50", claims)
@@ -1207,6 +1244,7 @@ func (h *Handler) AdvertiserCampaigns(w http.ResponseWriter, r *http.Request) {
 	// same boundary the budget day rolls on. Stored instants are
 	// unchanged; only their interpretation and display shift.
 	schedTz, schedLoc := h.accountTimeContext(r.Context(), claims.AdvertiserID)
+	movedTotal := 0.0
 	for _, c := range campResp.Data {
 		var startLocal, startDisplay string
 		var startFuture bool
@@ -1228,6 +1266,8 @@ func (h *Handler) AdvertiserCampaigns(w http.ResponseWriter, r *http.Request) {
 			}
 		}
 		freqN, freqWindow := freqCapFields(c.FrequencyCap)
+		dayStart, moved, movedUp, movedAbs := budgetMoved(advResp.CboDayStart[c.ID], c.Budget.Daily)
+		movedTotal += movedAbs
 		cd := campaignData{
 			ID:                      c.ID,
 			Name:                    c.Name,
@@ -1235,6 +1275,9 @@ func (h *Handler) AdvertiserCampaigns(w http.ResponseWriter, r *http.Request) {
 			AdProductCategory:       c.AdProductCategory,
 			DailyBudget:             money(c.Budget.Daily),
 			MaxCPM:                  money(c.Bidding.MaxCPM),
+			DayStartBudget:          dayStart,
+			BudgetMoved:             moved,
+			BudgetMovedUp:           movedUp,
 			LandingURL:              c.LandingURL,
 			BidOnUnmatchedContext:   c.BidOnUnmatchedContext,
 			Untargeted:              c.Untargeted,
@@ -1328,6 +1371,9 @@ func (h *Handler) AdvertiserCampaigns(w http.ResponseWriter, r *http.Request) {
 			}
 		}
 		campaigns = append(campaigns, cd)
+	}
+	if advBudget != nil && movedTotal > 0 {
+		advBudget.MovedToday = money(strconv.FormatFloat(movedTotal/2, 'f', 4, 64))
 	}
 
 	var avgCTR, avgWinRate string

@@ -10,6 +10,7 @@ package handler
 
 import (
 	"bytes"
+	"math"
 	"strings"
 	"testing"
 
@@ -24,10 +25,13 @@ func TestCboTemplatesRender(t *testing.T) {
 	adv := &model.User{Email: "adv@test", Role: model.RoleAdvertiser}
 	nav := &listNav{Page: 1, TotalPages: 1, Total: 2, From: 1, To: 2}
 	rows := []campaignData{
-		{ID: "camp-a", Name: "A", Status: "active", DailyBudget: "70.00", MaxCPM: "5.00"},
-		{ID: "camp-b", Name: "B", Status: "active", DailyBudget: "30.00", MaxCPM: "5.00"},
+		{ID: "camp-a", Name: "A", Status: "active", DailyBudget: "70.00", MaxCPM: "5.00",
+			DayStartBudget: "50.00", BudgetMoved: "+20.00", BudgetMovedUp: true},
+		{ID: "camp-b", Name: "B", Status: "active", DailyBudget: "30.00", MaxCPM: "5.00",
+			DayStartBudget: "50.00", BudgetMoved: "-20.00"},
 	}
-	optimized := &advertiserBudget{DailyBudget: "100.00", Remaining: "60.00", SpendToday: "40.00", BudgetMode: "optimized"}
+	optimized := &advertiserBudget{DailyBudget: "100.00", Remaining: "60.00", SpendToday: "40.00", BudgetMode: "optimized",
+		MovedToday: "20.00"}
 	manual := &advertiserBudget{DailyBudget: "100.00", Remaining: "60.00", SpendToday: "40.00", BudgetMode: "manual"}
 
 	render := func(lang, name string, data pageData) string {
@@ -62,10 +66,28 @@ func TestCboTemplatesRender(t *testing.T) {
 		if !strings.Contains(html, i18n.T(lang, "Optimized budget mode")) {
 			t.Errorf("%s: account-budget line does not show the optimized mode", lang)
 		}
+		// The day's movement (#103): one line per pooled campaign, the net on the account line.
+		if n := strings.Count(html, "data-budget-moved"); n != 2 {
+			t.Errorf("%s: expected a budget-moved line on both campaigns, got %d", lang, n)
+		}
+		// html/template escapes "+" as &#43;.
+		if !strings.Contains(html, ">&#43;20.00</span>") || !strings.Contains(html, ">-20.00</span>") {
+			t.Errorf("%s: signed moves are not rendered", lang)
+		}
+		if !strings.Contains(html, strings.Replace(i18n.T(lang, "moved %s between campaigns today"), "%s", "20.00", 1)) {
+			t.Errorf("%s: account line does not show the net move", lang)
+		}
 
-		// Manual account: budgets editable, no badges.
+		// Manual account: budgets editable, no badges, no movement line.
+		manualRows := []campaignData{
+			{ID: "camp-a", Name: "A", Status: "active", DailyBudget: "70.00", MaxCPM: "5.00"},
+			{ID: "camp-b", Name: "B", Status: "active", DailyBudget: "30.00", MaxCPM: "5.00"},
+		}
 		html = render(lang, "advertiser/campaigns.html",
-			pageData{Title: "Campaigns", Nav: "campaigns", User: adv, AdvBudget: manual, ListNav: nav, Campaigns: rows})
+			pageData{Title: "Campaigns", Nav: "campaigns", User: adv, AdvBudget: manual, ListNav: nav, Campaigns: manualRows})
+		if strings.Contains(html, "data-budget-moved") {
+			t.Errorf("%s: budget-moved line rendered under a manual account", lang)
+		}
 		for _, v := range []string{"70.00", "30.00"} {
 			if disabled(html, v) {
 				t.Errorf("%s: budget input %s is disabled under a manual account", lang, v)
@@ -88,5 +110,27 @@ func TestCboTemplatesRender(t *testing.T) {
 	html := render(i18n.LangEN, "advertiser/account.html", pageData{Title: "Account", Nav: "account", User: adv, BudgetUnset: true})
 	if !strings.Contains(html, `name="budgetMode" value="manual" checked`) {
 		t.Errorf("account page without a budget does not default to manual")
+	}
+}
+
+func TestBudgetMoved(t *testing.T) {
+	cases := []struct {
+		dayStart, daily     string
+		wantStart, wantMove string
+		wantUp              bool
+		wantAbs             float64
+	}{
+		{"", "12.40", "", "", false, 0},
+		{"10.00", "12.40", money("10.00"), "+" + money("2.4000"), true, 2.4},
+		{"10.00", "8.90", money("10.00"), "-" + money("1.1000"), false, 1.1},
+		{"10.00", "10.00", money("10.00"), "", false, 0},
+		{"x", "10.00", "", "", false, 0},
+	}
+	for _, c := range cases {
+		start, move, up, abs := budgetMoved(c.dayStart, c.daily)
+		if start != c.wantStart || move != c.wantMove || up != c.wantUp || math.Abs(abs-c.wantAbs) > 1e-9 {
+			t.Errorf("budgetMoved(%q, %q) = (%q, %q, %v, %v), want (%q, %q, %v, %v)",
+				c.dayStart, c.daily, start, move, up, abs, c.wantStart, c.wantMove, c.wantUp, c.wantAbs)
+		}
 	}
 }

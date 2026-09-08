@@ -354,7 +354,7 @@ object AdvertiserEntity {
     eph.lastSnapshots = Vector.empty
     eph.cappedLast = Set.empty
     eph.dayStartPending = rolled.budgetMode == CboBudgetMode.Optimized
-    rolled.withCboPriors(priors)
+    rolled.withCboPriors(priors).copy(cboDayStart = Map.empty)
   }
 
   /** (dayStart, dayLengthSeconds) of the current budget window. */
@@ -383,7 +383,7 @@ object AdvertiserEntity {
         Effect.none.thenReply(replyTo)(s => BudgetModeUpdated(s.advertiserId, s.budgetMode))
       else
         Effect
-          .persist(state.copy(budgetMode = mode))
+          .persist(state.copy(budgetMode = mode, cboDayStart = Map.empty))
           .thenRun { _ =>
             cboCtx.eph.reset()
             ctx.log.info("Budget mode for advertiser {}: '{}' -> '{}'", state.advertiserId.value, state.budgetMode,
@@ -467,8 +467,11 @@ object AdvertiserEntity {
         if (plan.pushes.isEmpty && plan.note.nonEmpty)
           ctx.log.debug("CBO advertiser {}: {}", state.advertiserId.value, plan.note)
 
-        if (plan.priors != state.priorsForCbo)
-          Effect.persist(state.withCboPriors(plan.priors)).thenRun(_ => pushBudgets())
+        val dayStartWalls = CboPlanner.dayStartWalls(state.cboDayStart, CboPlanner.eligible(snapshots), plan)
+        if (plan.priors != state.priorsForCbo || dayStartWalls != state.cboDayStart)
+          Effect
+            .persist(state.withCboPriors(plan.priors).copy(cboDayStart = dayStartWalls))
+            .thenRun(_ => pushBudgets())
         else {
           pushBudgets()
           Effect.none
@@ -878,7 +881,9 @@ object AdvertiserEntity {
       campaignIds: Set[CampaignId],
       siteDomainBlocklist: Set[String],
       timezone: String = "",
-      budgetMode: String = CboBudgetMode.Manual
+      budgetMode: String = CboBudgetMode.Manual,
+      /** Day-start walls of the pooled campaigns while optimized (#103); empty otherwise. */
+      cboDayStart: Map[CampaignId, Double] = Map.empty
   ) extends promovolve.CborSerializable
 
   /**
@@ -1186,7 +1191,12 @@ object AdvertiserEntity {
       budgetMode: String = CboBudgetMode.Manual,
       // Per-campaign Gamma priors on tap-throughs per unit of spend, rolled
       // at the day boundary. Default-empty is Jackson-safe.
-      cboPriors: Map[CampaignId, CboPrior] = Map.empty
+      cboPriors: Map[CampaignId, CboPrior] = Map.empty,
+      // Each pooled campaign's wall at the start of the budget day, so the
+      // dashboard can say "started today at X, moved Y" (#103). Cleared at
+      // the day roll and when the mode leaves optimized. Default-empty is
+      // Jackson-safe.
+      cboDayStart: Map[CampaignId, Double] = Map.empty
   ) extends CborSerializable {
     def addCampaign(campaignId: CampaignId): State =
       copy(campaignIds = campaignIds + campaignId)
@@ -1327,7 +1337,7 @@ object AdvertiserEntity {
       spendToday.value < dailyBudget.value
 
     def toInfo: AdvertiserInfo =
-      AdvertiserInfo(advertiserId, name, status, campaignIds, siteDomainBlocklist, timezone, budgetMode)
+      AdvertiserInfo(advertiserId, name, status, campaignIds, siteDomainBlocklist, timezone, budgetMode, cboDayStart)
 
     def priorsForCbo: Map[CampaignId, CboAllocator.GammaPrior] =
       cboPriors.map { case (id, p) => id -> CboAllocator.GammaPrior(p.alpha, p.beta) }

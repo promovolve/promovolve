@@ -152,6 +152,27 @@ class CboPlannerSpec extends AnyWordSpec with Matchers {
     }
   }
 
+  "CboPlanner.dayStartWalls (#103)" should {
+    val pool = Vector(snap(ca, 60, 0, 0), snap(cb, 40, 0, 0))
+    def planWith(pushes: Vector[Push], dayStart: Boolean): Plan =
+      Plan(pushes, Map.empty, dayStartApplied = dayStart, note = "")
+
+    "rebuild the record from the day-start split, pushed or held" in {
+      val p = planWith(Vector(Push(ca, 55.0, -5.0, 1.0, 1.0)), dayStart = true)
+      dayStartWalls(Map(ca -> 99.0, cc -> 1.0), pool, p) shouldBe Map(ca -> 55.0, cb -> 40.0)
+    }
+
+    "record a campaign new to the pool at the wall it holds before this tick's push" in {
+      val p = planWith(Vector(Push(cb, 30.0, -10.0, 1.0, 1.0)), dayStart = false)
+      dayStartWalls(Map(ca -> 50.0), pool, p) shouldBe Map(ca -> 50.0, cb -> 40.0)
+    }
+
+    "keep entries for campaigns that left the pool until the day rolls" in {
+      dayStartWalls(Map(ca -> 50.0, cc -> 20.0), pool, planWith(Vector.empty, dayStart = false)) shouldBe
+      Map(ca -> 50.0, cc -> 20.0, cb -> 40.0)
+    }
+  }
+
   "CboPlanner.material" should {
     "ignore moves under 1% of the wall and keep the absolute epsilon for tiny walls (#85)" in {
       material(10.0, 10.05, Params()) shouldBe false

@@ -58,6 +58,26 @@ object CboPlanner {
   def material(current: Double, target: Double, params: Params): Boolean =
     math.abs(target - current) >= math.max(PushEpsilon, params.minPushFraction * current)
 
+  /**
+   * Each pooled campaign's wall as of the start of the budget day, for the
+   * dashboard's "started today at X, moved Y" line (#103). On the tick that
+   * applies the day-start split the record is rebuilt from that split (the
+   * pushed wall, or the current one where the push was not material);
+   * otherwise campaigns already recorded keep their entry and campaigns
+   * new to the pool today are recorded at the wall they hold BEFORE this
+   * tick's push. Campaigns that left the pool keep their entry until the
+   * day rolls.
+   */
+  def dayStartWalls(
+      existing: Map[CampaignId, Double],
+      pool: Vector[Snapshot],
+      plan: Plan
+  ): Map[CampaignId, Double] = {
+    val pushed = plan.pushes.map(p => p.campaignId -> p.newDailyBudget).toMap
+    if (plan.dayStartApplied) pool.map(s => s.campaignId -> pushed.getOrElse(s.campaignId, s.dailyBudget)).toMap
+    else existing ++ pool.filterNot(s => existing.contains(s.campaignId)).map(s => s.campaignId -> s.dailyBudget)
+  }
+
   /** Minimum tap-throughs yesterday for the observed rate to seed the prior on its own. */
   val SeedMinCtas: Int = 5
 

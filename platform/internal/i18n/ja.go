@@ -487,7 +487,7 @@ var ja = map[string]string{
 	"Budget mode":          "予算モード",
 	"Manual":               "手動",
 	"Optimized":            "最適化",
-	"Manual: every campaign keeps its own daily budget and the account budget is a hard cap. Optimized: the account budget is re-split every few minutes across the campaigns whose budget strategy is Optimized, toward the ones earning the most tap-throughs per unit of spend. It needs at least two such campaigns; below that it does nothing.": "手動：各キャンペーンが自分の日予算を持ち、アカウント予算は上限として働きます。最適化：予算戦略が「最適化」のキャンペーン間で、支出あたりのタップスルーが多いものへアカウント予算を数分ごとに再配分します。対象キャンペーンが2件以上必要で、それ未満では何もしません。",
+	"Manual: every campaign keeps its own daily budget and the account budget is a hard cap on all of them. Optimized: campaigns whose budget strategy is Optimized share what is left of the account budget after the fixed-budget campaigns' daily budgets are reserved, re-split every few minutes toward the ones earning the most tap-throughs per unit of spend. The account budget stays a hard cap on every campaign, fixed or optimized. It needs at least two Optimized campaigns; below that it does nothing.": "手動：各キャンペーンが自分の日予算を持ち、アカウント予算は全キャンペーンの上限として働きます。最適化：固定予算のキャンペーンの日予算を差し引いた残りのアカウント予算を、予算戦略が「最適化」のキャンペーン間で、支出あたりのタップスルーが多いものへ数分ごとに再配分します。アカウント予算は固定・最適化を問わず全キャンペーンの上限のままです。「最適化」のキャンペーンが2件以上必要で、それ未満では何もしません。",
 	"Optimized budget mode": "最適化予算モード",
 	"The account budget is re-split across campaigns whose budget strategy is Optimized.": "予算戦略が「最適化」のキャンペーン間でアカウント予算を再配分しています。",
 	"Budget strategy":      "予算戦略",

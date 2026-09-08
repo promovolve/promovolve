@@ -104,6 +104,6 @@
     </button>
   </form>
   <p class="text-xs text-gray-400 mt-3">{{t "Changes apply immediately. Today's spend is not reset."}}</p>
-  <p class="text-xs text-gray-400 mt-1">{{t "Manual: every campaign keeps its own daily budget and the account budget is a hard cap. Optimized: the account budget is re-split every few minutes across the campaigns whose budget strategy is Optimized, toward the ones earning the most tap-throughs per unit of spend. It needs at least two such campaigns; below that it does nothing."}}</p>
+  <p class="text-xs text-gray-400 mt-1">{{t "Manual: every campaign keeps its own daily budget and the account budget is a hard cap on all of them. Optimized: campaigns whose budget strategy is Optimized share what is left of the account budget after the fixed-budget campaigns' daily budgets are reserved, re-split every few minutes toward the ones earning the most tap-throughs per unit of spend. The account budget stays a hard cap on every campaign, fixed or optimized. It needs at least two Optimized campaigns; below that it does nothing."}}</p>
 </div>
 {{end}}

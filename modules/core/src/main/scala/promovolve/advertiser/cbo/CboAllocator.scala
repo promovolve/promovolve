@@ -30,9 +30,11 @@ import scala.util.Random
  * Bounds per campaign (all on the forward allocation):
  *   - exploration floor: `explorationFloor * R / N` so a starved campaign
  *     can always prove itself (budget analogue of the newcomer boost);
- *   - hysteresis: within `[1 - maxMove, 1 + maxMove]` of the previous
+ *   - hysteresis: within `[1 - maxMove * w, 1 + maxMove]` of the previous
  *     forward allocation (`dailyBudget - spent`), so a downshift never reads
- *     as a hard over-pace to the campaign's PI controller;
+ *     as a hard over-pace to the campaign's PI controller; `w` is the
+ *     campaign's evidence weight (see `shrinkageCtas`), so a tick that
+ *     knows nothing moves nothing (#93);
  *   - capacity: a campaign whose pace is below `paceBindingThreshold` is
  *     inventory-limited, and its forward allocation is capped at its own
  *     projected remaining spend; extra budget would buy nothing.
@@ -125,12 +127,22 @@ object CboAllocator {
        */
       minPushFraction: Double = 0.01,
       /**
-       * Empirical-Bayes shrinkage toward the pool's tap-through rate: a
-       * campaign keeps `n / (n + shrinkageCtas)` of its deviation from the
-       * pool rate, where `n` is its own tap-throughs. A light value guards
-       * the first hours (the first count no longer decides the morning)
-       * without eating the gain: 3 keeps 23% of a threefold-gap gain in a
-       * two-day simulation where 20 keeps 13% (#89). 0 disables.
+       * Evidence scale, in tap-throughs. A campaign's evidence `n` is the
+       * larger of the tap-throughs its posterior has effectively seen
+       * (`alpha`, lifetime and decayed) and the number it would have
+       * expected at the pool rate over the spend it has seen, so spend
+       * without tap-throughs counts as evidence of a low rate, not as
+       * ignorance. The weight `w = n / (n + shrinkageCtas)` does two jobs:
+       *   - empirical-Bayes shrinkage: the sampled rate keeps `w` of its
+       *     deviation from the pool rate (#89);
+       *   - the cut band: a forward allocation may be cut by at most
+       *     `maxMovePerTick * w` per tick, and because the remainder is
+       *     conserved that bounds every raise too (#93).
+       * Keyed to TODAY's count this reset every morning: both rates
+       * collapsed onto the pool, the first ticks were a coin flip on 0-2
+       * tap-throughs, and the band let that flip move a fifth of the wall
+       * (#93). 3 keeps 23% of a threefold-gap gain in a two-day simulation
+       * where 20 keeps 13% (#89). 0 disables both.
        */
       shrinkageCtas: Double = 3.0,
       /**
@@ -271,28 +283,32 @@ object CboAllocator {
       // day's traffic shape, so in a quiet hour every one of them reads
       // under-paced on a flat clock and would be cut on nothing (#85). A
       // campaign clearly below its siblings still reads inventory-limited.
-      // Pool rate for shrinkage: the account's own tap-throughs per unit of
-      // spend today (None until the pool has spent anything).
-      val poolRate: Option[Double] = {
-        val ctasSum = inputs.map(_.ctas).sum.toDouble
-        if (spentSum > 0 && ctasSum > 0) Some(ctasSum / spentSum) else None
-      }
+      // Pool rate on LIFETIME evidence: the precision-weighted rate of the
+      // live posteriors, not today's counts. Today's counts reset at day
+      // roll while the posteriors carry decayed history, and a pool built
+      // from today alone made every morning a coin flip (#93).
+      val posteriors = inputs.map(in => in.prior.posterior(in.ctas, in.spent))
+      val poolRate = poolRateOf(posteriors)
       val wallSum = inputs.map(_.dailyBudget).sum
       val poolPace =
         if (f > 0 && wallSum > 0) (spentSum / (wallSum * f)).max(MinPoolPace).min(1.0) else 1.0
 
-      val prepared = inputs.map { in =>
-        val post = in.prior.posterior(in.ctas, in.spent)
-        val rate = shrinkToward(drawRate(post, rng, params), poolRate, in.ctas, params)
+      val prepared = inputs.zip(posteriors).map { case (in, post) =>
+        val evidence = evidenceOf(post, poolRate)
+        val w = evidenceWeight(evidence, params)
+        val rate = shrinkToward(drawRate(post, rng, params), Some(poolRate), evidence, params)
 
         val prev = in.previousForward
         // Hysteresis band around the previous forward allocation. Cuts and
         // raises are both bounded by the band (#82: an unbounded capacity
         // cut wound up the pacer and blacked out the campaign); a campaign
         // capped last tick probes upward by the smaller probeStep. The floor
-        // is a HARD lower bound (#38, #79).
+        // is a HARD lower bound (#38, #79). The cut side of the band scales
+        // with the campaign's evidence: a tick that knows nothing moves
+        // nothing, and since the remainder is conserved that also bounds
+        // what any sibling can be raised by (#93).
         val raiseStep = if (in.cappedLastTick) params.probeStep else params.maxMovePerTick
-        val lowerRaw = math.max(floor, (1.0 - params.maxMovePerTick) * prev)
+        val lowerRaw = math.max(floor, (1.0 - params.maxMovePerTick * w) * prev)
         val upperRaw = math.max(floor, (1.0 + raiseStep) * prev)
         val (capacity, capped, lower, upper) =
           if (!capacityKnown) (Double.PositiveInfinity, false, lowerRaw, upperRaw)
@@ -379,16 +395,35 @@ object CboAllocator {
    * When neither binds the campaign is inventory-limited and its capacity
    * is the larger of the two projections of its own remaining-day spend.
    */
+  /** Precision-weighted pool rate of the live posteriors: `sum(alpha) / sum(beta)`. */
+  def poolRateOf(posteriors: Vector[GammaPrior]): Double =
+    if (posteriors.isEmpty) MinRate else posteriors.map(_.alpha).sum / posteriors.map(_.beta).sum
+
+  /**
+   * A campaign's evidence in tap-throughs: the larger of what its posterior
+   * has effectively seen (`alpha`: prior pseudo-count plus lifetime decayed
+   * tap-throughs) and what it would have expected at the pool rate over the
+   * spend its posterior has seen (`poolRate * beta`). The second term makes
+   * spend without tap-throughs evidence of a low rate rather than an
+   * unknown, so such a campaign can still be cut (#93).
+   */
+  def evidenceOf(posterior: GammaPrior, poolRate: Double): Double =
+    math.max(posterior.alpha, poolRate * posterior.beta)
+
+  /** `n / (n + shrinkageCtas)`; 1 when shrinkage is disabled. */
+  def evidenceWeight(evidence: Double, params: Params): Double =
+    if (params.shrinkageCtas <= 0) 1.0
+    else math.max(0.0, evidence) / (math.max(0.0, evidence) + params.shrinkageCtas)
+
   /**
    * Shrink a campaign's rate toward the pool rate by its own evidence:
    * `pool + (rate - pool) * n / (n + shrinkageCtas)`. No pool rate or
    * `shrinkageCtas = 0` leaves the rate untouched.
    */
-  def shrinkToward(rate: Double, poolRate: Option[Double], ctas: Long, params: Params): Double =
+  def shrinkToward(rate: Double, poolRate: Option[Double], evidence: Double, params: Params): Double =
     poolRate match {
       case Some(p) if params.shrinkageCtas > 0 =>
-        val w = ctas.toDouble / (ctas.toDouble + params.shrinkageCtas)
-        math.max(MinRate, p + (rate - p) * w)
+        math.max(MinRate, p + (rate - p) * evidenceWeight(evidence, params))
       case _ => rate
     }
 

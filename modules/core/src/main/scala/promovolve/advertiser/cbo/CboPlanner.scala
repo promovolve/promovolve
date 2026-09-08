@@ -115,20 +115,34 @@ object CboPlanner {
       cappedLast: Set[CampaignId] = Set.empty
   ): Plan = {
     val pool = eligible(snapshots)
+    // Live fixed-strategy siblings keep their own walls, so their walls are
+    // reserved off the account budget and the allocator pools what is left.
+    // Handed the whole account budget it over-promised the auto campaigns:
+    // fixed siblings spent the same money first-come-first-served and the
+    // auto walls were then stopped by the account cap, not by the split (#99).
+    val reservedFixed = snapshots.filter(s => s.live && s.strategy != CboStrategy.Auto).map(_.dailyBudget).sum
+    val poolBudget = math.max(0.0, accountDaily - reservedFixed)
     if (pool.size < MinCampaigns)
       Plan(Vector.empty, priors, dayStartApplied = false, s"${pool.size} live auto campaign(s), need $MinCampaigns")
     else if (accountDaily <= 0.0)
       Plan(Vector.empty, priors, dayStartApplied = false, "account daily budget is zero")
+    else if (poolBudget <= 0.0)
+      Plan(
+        Vector.empty,
+        priors,
+        dayStartApplied = false,
+        f"fixed walls ($reservedFixed%.4f) reach the account budget ($accountDaily%.4f); nothing to allocate"
+      )
     else {
       // Seed priors for campaigns joining the pool; known ones are untouched.
       val seeded = pool.foldLeft(priors) { (acc, s) =>
-        if (acc.contains(s.campaignId)) acc else acc.updated(s.campaignId, seedPrior(s, acc, accountDaily))
+        if (acc.contains(s.campaignId)) acc else acc.updated(s.campaignId, seedPrior(s, acc, poolBudget))
       }
 
       if (dayStartPending) {
         val ids = pool.map(_.campaignId)
         val split =
-          CboAllocator.dayStartSplit(ids, pool.map(s => s.campaignId -> s.dailyBudget).toMap, accountDaily, params)
+          CboAllocator.dayStartSplit(ids, pool.map(s => s.campaignId -> s.dailyBudget).toMap, poolBudget, params)
         val pushes = pool.flatMap { s =>
           val target = s.spent + split.getOrElse(s.campaignId, 0.0)
           if (!material(s.dailyBudget, target, params)) None
@@ -156,7 +170,7 @@ object CboPlanner {
             wallSettled = lastPushTick.get(s.campaignId).forall(t => tick - t >= params.settleTicks)
           )
         }
-        val alloc = CboAllocator.allocate(inputs, accountDaily, elapsedFraction, rng, params, tickFraction)
+        val alloc = CboAllocator.allocate(inputs, poolBudget, elapsedFraction, rng, params, tickFraction)
         val bySnapshot = pool.map(s => s.campaignId -> s).toMap
         val pushes = alloc.results.flatMap { r =>
           val current = bySnapshot(r.id).dailyBudget

@@ -133,6 +133,40 @@ class CboPlannerSpec extends AnyWordSpec with Matchers {
     }
   }
 
+  "CboPlanner.plan with fixed siblings (#99)" should {
+    // Sum of the pool's daily budgets after the plan: pushed values where
+    // pushed, current walls otherwise.
+    def wallsAfter(p: Plan, snaps: Vector[Snapshot]): Double =
+      snaps.filter(_.strategy == CboStrategy.Auto).map { s =>
+        p.pushes.find(_.campaignId == s.campaignId).map(_.newDailyBudget).getOrElse(s.dailyBudget)
+      }.sum
+
+    "reserve a live fixed sibling's wall off the pool budget" in {
+      // Two auto campaigns holding 50 + 50 beside a fixed one on 40, account
+      // 100: the pool has 60, not 100. The auto walls exceed it, so the
+      // plan scales them down to spent + 40 of forward = 60 in total.
+      val auto = Vector(snap(ca, 50, 10, 1), snap(cb, 50, 10, 1))
+      val mixed = auto :+ snap(cc, 40, 5, 1, strategy = CboStrategy.Fixed)
+      wallsAfter(run(mixed), mixed) shouldBe 60.0 +- 1e-3
+      // Without the fixed sibling the same pool keeps the whole account budget.
+      wallsAfter(run(auto), auto) shouldBe 100.0 +- 1e-3
+    }
+
+    "reserve nothing for a fixed campaign that is not live" in {
+      val snaps = Vector(snap(ca, 50, 10, 1), snap(cb, 50, 10, 1),
+        snap(cc, 40, 0, 0, strategy = CboStrategy.Fixed, live = false))
+      wallsAfter(run(snaps), snaps) shouldBe 100.0 +- 1e-3
+    }
+
+    "push nothing and say so when fixed walls reach the account budget" in {
+      val snaps = Vector(snap(ca, 50, 10, 1), snap(cb, 50, 10, 1), snap(cc, 100, 5, 1, strategy = CboStrategy.Fixed))
+      val p = run(snaps)
+      p.pushes shouldBe empty
+      p.dayStartApplied shouldBe false
+      p.note should include("nothing to allocate")
+    }
+  }
+
   "CboPlanner.plan with wall memory (#82)" should {
     "hold a campaign whose wall was pushed within settleTicks and report capped campaigns" in {
       // b is inventory-limited (1 of 40 spent at mid-day) and would be cut when settled.

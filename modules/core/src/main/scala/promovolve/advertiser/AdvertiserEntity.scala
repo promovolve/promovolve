@@ -383,7 +383,7 @@ object AdvertiserEntity {
         Effect.none.thenReply(replyTo)(s => BudgetModeUpdated(s.advertiserId, s.budgetMode))
       else
         Effect
-          .persist(state.copy(budgetMode = mode, cboDayStart = Map.empty))
+          .persist(state.copy(budgetMode = mode, cboDayStart = Map.empty, cboAnchor = Map.empty))
           .thenRun { _ =>
             cboCtx.eph.reset()
             ctx.log.info("Budget mode for advertiser {}: '{}' -> '{}'", state.advertiserId.value, state.budgetMode,
@@ -427,6 +427,10 @@ object AdvertiserEntity {
             s.exhausted
           )
         }
+        // Anchor: a campaign's wall the first time the optimizer sees it,
+        // before any push — the value the advertiser typed (#106).
+        val anchor = state.cboAnchor ++
+          snapshots.filterNot(s => state.cboAnchor.contains(s.campaignId)).map(s => s.campaignId -> s.dailyBudget)
         val plan = CboPlanner.plan(
           snapshots,
           state.priorsForCbo,
@@ -438,7 +442,8 @@ object AdvertiserEntity {
           rng = eph.rng,
           tick = eph.tick,
           lastPushTick = eph.lastPushTick,
-          cappedLast = eph.cappedLast
+          cappedLast = eph.cappedLast,
+          anchor = anchor
         )
         eph.lastSpent = snapshots.map(s => s.campaignId -> s.spent).toMap
         eph.lastSnapshots = snapshots
@@ -468,9 +473,9 @@ object AdvertiserEntity {
           ctx.log.debug("CBO advertiser {}: {}", state.advertiserId.value, plan.note)
 
         val dayStartWalls = CboPlanner.dayStartWalls(state.cboDayStart, CboPlanner.eligible(snapshots), plan)
-        if (plan.priors != state.priorsForCbo || dayStartWalls != state.cboDayStart)
+        if (plan.priors != state.priorsForCbo || dayStartWalls != state.cboDayStart || anchor != state.cboAnchor)
           Effect
-            .persist(state.withCboPriors(plan.priors).copy(cboDayStart = dayStartWalls))
+            .persist(state.withCboPriors(plan.priors).copy(cboDayStart = dayStartWalls, cboAnchor = anchor))
             .thenRun(_ => pushBudgets())
         else {
           pushBudgets()
@@ -1196,7 +1201,12 @@ object AdvertiserEntity {
       // dashboard can say "started today at X, moved Y" (#103). Cleared at
       // the day roll and when the mode leaves optimized. Default-empty is
       // Jackson-safe.
-      cboDayStart: Map[CampaignId, Double] = Map.empty
+      cboDayStart: Map[CampaignId, Double] = Map.empty,
+      // The daily budgets the advertiser typed, recorded at first sight of
+      // each campaign while optimized (the input is disabled under optimized,
+      // so this is always the last typed value): the day-start anchor (#106).
+      // Cleared when the mode changes. Default-empty is Jackson-safe.
+      cboAnchor: Map[CampaignId, Double] = Map.empty
   ) extends CborSerializable {
     def addCampaign(campaignId: CampaignId): State =
       copy(campaignIds = campaignIds + campaignId)

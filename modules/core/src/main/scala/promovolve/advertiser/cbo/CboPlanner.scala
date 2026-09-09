@@ -121,7 +121,7 @@ object CboPlanner {
    * Plan one tick.
    *
    * @param lastSpent       each campaign's spend as of the previous tick (for instantaneous pace)
-   * @param dayStartPending true on the first tick after a budget-day roll: push the 20/80 split
+   * @param dayStartPending true on the first tick after a budget-day roll: push the evidence-weighted day-start split (#106)
    * @param tick            this tick's ordinal in the entity's incarnation
    * @param lastPushTick    the tick each campaign's wall was last pushed (for `wallSettled`)
    * @param cappedLast      campaigns capacity-capped on the previous tick (for `cappedLastTick`)
@@ -138,7 +138,9 @@ object CboPlanner {
       params: Params = Params(),
       tick: Long = 0L,
       lastPushTick: Map[CampaignId, Long] = Map.empty,
-      cappedLast: Set[CampaignId] = Set.empty
+      cappedLast: Set[CampaignId] = Set.empty,
+      /** The advertiser's typed daily budgets, the day-start anchor (#106); empty = equal shares. */
+      anchor: Map[CampaignId, Double] = Map.empty
   ): Plan = {
     val pool = eligible(snapshots)
     if (pool.size < MinCampaigns)
@@ -153,8 +155,16 @@ object CboPlanner {
 
       if (dayStartPending) {
         val ids = pool.map(_.campaignId)
+        // Trust yesterday's split per campaign exactly as much as the tick
+        // trusts the campaign's rate: the evidence weight of its day-roll
+        // posterior against the pool (#93, #106).
+        val poolRate = CboAllocator.poolRateOf(ids.map(seeded))
+        val weights = ids.map { id =>
+          id -> CboAllocator.evidenceWeight(CboAllocator.evidenceOf(seeded(id), poolRate), params)
+        }.toMap
         val split =
-          CboAllocator.dayStartSplit(ids, pool.map(s => s.campaignId -> s.dailyBudget).toMap, accountDaily, params)
+          CboAllocator.dayStartSplit(ids, pool.map(s => s.campaignId -> s.dailyBudget).toMap, anchor, weights,
+            accountDaily)
         val pushes = pool.flatMap { s =>
           val target = s.spent + split.getOrElse(s.campaignId, 0.0)
           if (!material(s.dailyBudget, target, params)) None

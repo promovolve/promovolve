@@ -167,9 +167,7 @@ object CboAllocator {
        */
       minDrawShape: Double = 2048.0,
       /** Posterior decay applied at day roll: `alpha <- factor * (alpha + ctas)`. 0.5 = two-day half-life. */
-      dayRollDecay: Double = 0.5,
-      /** Day-start split = blend * yesterday's final split + (1 - blend) * equal split. */
-      dayStartBlend: Double = 0.20
+      dayRollDecay: Double = 0.5
   ) {
     require(explorationFloor >= 0 && explorationFloor <= 1, "explorationFloor in [0,1]")
     require(maxMovePerTick > 0 && maxMovePerTick < 1, "maxMovePerTick in (0,1)")
@@ -181,7 +179,6 @@ object CboAllocator {
     require(minPushFraction >= 0 && minPushFraction < 1, "minPushFraction in [0,1)")
     require(shrinkageCtas >= 0, "shrinkageCtas >= 0")
     require(dayRollDecay > 0 && dayRollDecay <= 1, "dayRollDecay in (0,1]")
-    require(dayStartBlend >= 0 && dayStartBlend <= 1, "dayStartBlend in [0,1]")
   }
 
   /** One live `strategy = auto` campaign as the allocator sees it this tick. */
@@ -548,25 +545,46 @@ object CboAllocator {
   }
 
   /**
-   * Day-start forward split: yesterday's final split blended with equal
-   * split, scaled to `accountDaily`. Campaigns absent from `yesterdayFinal`
-   * (new today) count as 0 on the yesterday side and 1/N on the equal side.
+   * Day-start split (#106). Each campaign's share of the account budget is
+   * yesterday's final share weighted by the campaign's evidence weight `w`
+   * (see `shrinkageCtas`), plus the advertiser's anchor share weighted by
+   * `1 - w`; the shares are normalised and scaled to `accountDaily`. The
+   * anchor is the daily budgets the advertiser typed, as proportions: their
+   * stated intent, the prior when the optimizer knows nothing. So a cold
+   * pool starts at the typed walls, a well-evidenced pool starts where it
+   * ended, and a squeezed campaign that barely spent (little evidence)
+   * drifts back toward its anchor each morning — re-entry in proportion to
+   * ignorance. A fixed 20/80 blend toward an even split reset the
+   * advertiser's walls and the optimizer's learning every midnight.
+   *
+   * A campaign absent from `yesterdayFinal` (new today) takes its anchor
+   * share on the yesterday side; a campaign absent from `anchor` takes an
+   * equal share on the anchor side. Missing weights are 0.
    */
   def dayStartSplit[K](
       ids: Vector[K],
       yesterdayFinal: Map[K, Double],
-      accountDaily: Double,
-      params: Params = Params()
+      anchor: Map[K, Double],
+      weights: Map[K, Double],
+      accountDaily: Double
   ): Map[K, Double] = {
     val n = ids.size
     if (n == 0 || accountDaily <= 0) Map.empty
     else {
-      val ySum = ids.map(id => math.max(0.0, yesterdayFinal.getOrElse(id, 0.0))).sum
-      val blend = if (ySum > 0) params.dayStartBlend else 0.0
-      ids.map { id =>
-        val yShare = if (ySum > 0) math.max(0.0, yesterdayFinal.getOrElse(id, 0.0)) / ySum else 0.0
-        id -> accountDaily * (blend * yShare + (1.0 - blend) / n)
-      }.toMap
+      def positive(m: Map[K, Double], id: K): Option[Double] = m.get(id).filter(_ > 0.0)
+      val aSum = ids.flatMap(positive(anchor, _)).sum
+      val ySum = ids.flatMap(positive(yesterdayFinal, _)).sum
+      val aShare =
+        ids.map(id => id -> positive(anchor, id).filter(_ => aSum > 0).map(_ / aSum).getOrElse(1.0 / n)).toMap
+      val yShare =
+        ids.map(id =>
+          id -> positive(yesterdayFinal, id).filter(_ => ySum > 0).map(_ / ySum).getOrElse(aShare(id))).toMap
+      val raw = ids.map { id =>
+        val w = weights.getOrElse(id, 0.0).max(0.0).min(1.0)
+        id -> (w * yShare(id) + (1.0 - w) * aShare(id))
+      }
+      val total = raw.map(_._2).sum
+      raw.map { case (id, r) => id -> (if (total > 0) accountDaily * r / total else accountDaily / n) }.toMap
     }
   }
 }

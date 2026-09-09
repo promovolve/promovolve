@@ -34,8 +34,10 @@ class CboPlannerSpec extends AnyWordSpec with Matchers {
       elapsed: Double = 0.5,
       lastSpent: Map[CampaignId, Double] = Map.empty,
       dayStartPending: Boolean = false,
-      seed: Long = 1L
-  ): Plan = plan(snaps, priors, accountDaily, elapsed, 1.0 / 96, lastSpent, dayStartPending, new Random(seed))
+      seed: Long = 1L,
+      anchor: Map[CampaignId, Double] = Map.empty
+  ): Plan =
+    plan(snaps, priors, accountDaily, elapsed, 1.0 / 96, lastSpent, dayStartPending, new Random(seed), anchor = anchor)
 
   "CboPlanner.eligible" should {
     "keep every live campaign regardless of its strategy field (#98)" in {
@@ -105,13 +107,21 @@ class CboPlannerSpec extends AnyWordSpec with Matchers {
       p.pushes.foreach(push => math.abs(push.newDailyBudget - 50.0) should be < 2.0)
     }
 
-    "apply the 20/80 day-start split once when pending and report it" in {
-      // Yesterday's final walls 90/10; today spent 0. Blend: 0.2*share + 0.8*equal.
-      val p = run(Vector(snap(ca, 90, 0, 0), snap(cb, 10, 0, 0)), dayStartPending = true)
-      p.dayStartApplied shouldBe true
-      p.note shouldBe "day-start split"
-      p.pushes.find(_.campaignId == ca).get.newDailyBudget shouldBe (0.2 * 0.9 + 0.8 * 0.5) * 100 +- Eps
-      p.pushes.find(_.campaignId == cb).get.newDailyBudget shouldBe (0.2 * 0.1 + 0.8 * 0.5) * 100 +- Eps
+    "apply the evidence-weighted day-start split once when pending and report it (#106)" in {
+      // Yesterday's final walls 90/10, typed anchor 50/50, today spent 0.
+      val snaps = Vector(snap(ca, 90, 0, 0), snap(cb, 10, 0, 0))
+      val anchor = Map(ca -> 50.0, cb -> 50.0)
+      // Cold priors: little evidence, so the split sits near the anchor.
+      val cold = run(snaps, dayStartPending = true, anchor = anchor)
+      cold.dayStartApplied shouldBe true
+      cold.note shouldBe "day-start split"
+      val aCold = cold.pushes.find(_.campaignId == ca).get.newDailyBudget
+      aCold should (be > 50.0 and be < 65.0)
+      cold.pushes.map(_.newDailyBudget).sum shouldBe 100.0 +- Eps
+      // Strong priors (30 tap-throughs each, decayed): the split keeps most of yesterday.
+      val sure = run(snaps, priors = Map(ca -> GammaPrior(30, 10), cb -> GammaPrior(30, 10)),
+        dayStartPending = true, anchor = anchor)
+      sure.pushes.find(_.campaignId == ca).get.newDailyBudget should be > 80.0
     }
 
     "feed last tick's spend into the allocator as tickSpend (a just-raised campaign is not capped back)" in {

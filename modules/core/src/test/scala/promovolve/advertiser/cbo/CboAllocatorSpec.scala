@@ -590,24 +590,46 @@ class CboAllocatorSpec extends AnyWordSpec with Matchers with ScalaCheckProperty
     }
   }
 
-  "dayStartSplit" should {
-    "blend yesterday's final split 20/80 with equal split and sum to the account budget" in {
-      val split = dayStartSplit(Vector("a", "b"), Map("a" -> 90.0, "b" -> 10.0), 100.0)
-      split("a") shouldBe (0.2 * 0.9 + 0.8 * 0.5) * 100 +- Eps
-      split("b") shouldBe (0.2 * 0.1 + 0.8 * 0.5) * 100 +- Eps
-      split.values.sum shouldBe 100.0 +- Eps
+  "dayStartSplit (#106)" should {
+    val ids = Vector("a", "b", "c")
+    val typed = Map("a" -> 1000.0, "b" -> 1000.0, "c" -> 1000.0)
+    val yesterday = Map("a" -> 1800.0, "b" -> 900.0, "c" -> 300.0)
+
+    "trust yesterday per campaign by its evidence weight and fall back to the typed anchor" in {
+      // The worked example of #106: A well-evidenced keeps most of its 1800,
+      // C squeezed and barely spent drifts back toward its typed 1000.
+      val split = dayStartSplit(ids, yesterday, typed, Map("a" -> 0.9, "b" -> 0.6, "c" -> 0.2), 3000.0)
+      split("a") shouldBe 1465.9 +- 0.1
+      split("b") shouldBe 801.1 +- 0.1
+      split("c") shouldBe 733.0 +- 0.1
+      split.values.sum shouldBe 3000.0 +- Eps
     }
 
-    "give a campaign new today its equal share of the 80%" in {
-      val split = dayStartSplit(Vector("a", "b", "c"), Map("a" -> 60.0, "b" -> 40.0), 90.0)
-      split("c") shouldBe 0.8 / 3 * 90 +- Eps
-      split.values.sum shouldBe 90.0 +- Eps
+    "give the anchor exactly at zero evidence and yesterday exactly at full evidence" in {
+      val cold = dayStartSplit(ids, yesterday, typed, Map.empty, 3000.0)
+      ids.foreach(id => cold(id) shouldBe typed(id) +- Eps)
+      val sure = dayStartSplit(ids, yesterday, typed, ids.map(_ -> 1.0).toMap, 3000.0)
+      ids.foreach(id => sure(id) shouldBe yesterday(id) +- Eps)
     }
 
-    "fall back to an equal split when there is no yesterday" in {
-      val split = dayStartSplit(Vector("a", "b"), Map.empty[String, Double], 50.0)
-      split("a") shouldBe 25.0 +- Eps
-      split("b") shouldBe 25.0 +- Eps
+    "give a campaign new today its anchor share, and one without an anchor an equal share" in {
+      // c is new today (no yesterday): it enters at its anchor share of the
+      // pot (a third) on the yesterday side too, and the normalisation then
+      // spreads the dilution over everyone — a and b keep their 2:1.
+      val newToday = dayStartSplit(ids, yesterday - "c", typed, ids.map(_ -> 1.0).toMap, 3000.0)
+      newToday("c") shouldBe 750.0 +- Eps
+      newToday("a") shouldBe 1500.0 +- Eps
+      newToday("b") shouldBe 750.0 +- Eps
+      newToday.values.sum shouldBe 3000.0 +- Eps
+      // No anchor anywhere and no evidence: an even split.
+      val even = dayStartSplit(Vector("a", "b"), Map.empty[String, Double], Map.empty[String, Double], Map.empty, 50.0)
+      even("a") shouldBe 25.0 +- Eps
+      even("b") shouldBe 25.0 +- Eps
+    }
+
+    "scale to the account budget whatever yesterday and the anchor summed to" in {
+      val split = dayStartSplit(ids, yesterday, Map("a" -> 5.0, "b" -> 3.0, "c" -> 2.0), Map("a" -> 0.5), 900.0)
+      split.values.sum shouldBe 900.0 +- Eps
     }
   }
 }

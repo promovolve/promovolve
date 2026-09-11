@@ -322,32 +322,38 @@ still refuses a genuinely NEW budget that today's spend has passed.
    same browser; cap 1/hour → second page load shows a different
    advertiser or no fill).
 
-## Cross-site capping: deliberately deferred, with a trigger
+## Cross-site capping: ruled out
 
-Per-site is the v1 **decision** (2026-08-24), not an oversight. Because the
-network is contextual, a reader browsing a vertical can meet the same
-campaign on several publishers — up to N × sites-visited exposures — and
-that grows with the network. It is accepted for now because the cost of a
-cross-site identifier is not free: it turns the structural "nothing to opt
-out of" posture (`GPC.md`) into a policy promise, needs consent in the EU
-(capping is not "strictly necessary"), only works where third-party cookies
-still do (Chrome; not Safari/Firefox/Brave), and puts per-ID counts on the
-server. Nothing in v1 blocks adding it later — the store, the impression
-event and the `excludeCampaigns` path stay; only *where the count lives*
-changes.
+Per site is final (settled 2026-09-11), not a stage on the way to something
+wider. Capping a reader across publishers means recognising the same reader
+on different sites, and there is no way to do that here:
 
-**Revisit trigger:** when ≥ 5 live publishers share a campaign's target
-categories (or an advertiser reports cross-site repetition), decide between:
+- **Browsers forbid it.** Storage is partitioned by top-level site (ITP,
+  Total Cookie Protection, Chrome storage partitioning), so nothing the tag
+  writes on one publisher is visible on the next.
+- **Every working route is an identifier that follows the reader.** A
+  third-party cookie on the ads host is the viewer identity this architecture
+  refuses: it turns the structural "nothing to opt out of" (`GPC.md`) into a
+  policy promise and needs consent in the EU, where capping is not "strictly
+  necessary". It also only works where third-party cookies still do, which
+  means Chrome and not Safari, Firefox or Brave. Fingerprinting is not an
+  option at all.
+- **The rest do not reach readers.** A reader login covers only the readers
+  who sign up, which is almost none. Chrome's Shared Storage would have
+  required moving the render into fenced frames, it only ever worked in
+  Chrome, and Google has since announced its retirement.
 
-- **C. cap-only cross-site cookie** on the ads host — opaque counter ID,
-  never used for selection, skipped under `Sec-GPC: 1`, counts kept
-  server-side per ID with a short TTL; Chrome-only in practice; GPC.md
-  rewritten accordingly; publishers told they need consent in the EU.
-- **Reader opt-in account** (passkey) — cross-site and cross-device, keeps
-  the structural story; value limited to readers who opt in (they would get
-  cross-device dog-ears in return).
-- **Chrome Shared Storage** — identity-free cross-site cap, but selects among
-  fenced-frame URLs; a rework of the render model; Chrome-only.
+What that costs is bounded by the targeting. Cross-site repetition in the
+wider industry comes mostly from retargeting, where one reader is followed
+to every site they visit. Promovolve is contextual: a campaign appears only
+where the page matches its categories, so a reader meets it again only by
+reading matching pages on several of our publishers. That can still happen,
+up to N × the number of those publishers, but it is the exception.
+
+If it ever becomes an advertiser's complaint, the only lever that keeps the
+no-identity posture is an estimate rather than a cap. Lower the per-site N
+for a campaign that runs on many sites in the same vertical. That bounds
+the average exposure across sites, but it cannot bound any one reader's.
 
 ## Open
 

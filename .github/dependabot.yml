@@ -1,7 +1,7 @@
 version: 2
 
 # Keep Dependabot's default `dependencies` label.
-# Use allow.update-types so major security fixes are not excluded by an ignore rule.
+# Version-type filters restrict routine updates without excluding security fixes.
 updates:
   - package-ecosystem: "sbt"
     directory: "/"
@@ -17,14 +17,17 @@ updates:
         update-types:
           - "version-update:semver-minor"
           - "version-update:semver-patch"
+    # Slick uses PVP: 3.5 -> 3.6 can break Pekko JDBC/Projection binaries.
+    # Revisit with a compatible Pekko stack; type-only ignores leave security updates eligible.
+    ignore:
+      - dependency-name: "com.typesafe.slick:slick_*"
+        update-types: ["version-update:semver-minor"]
+      - dependency-name: "com.typesafe.slick:slick-hikaricp_*"
+        update-types: ["version-update:semver-minor"]
     labels:
       - dependencies
     # Slick modules share a release; unrelated dependencies need separate reviews.
     groups:
-      slick-minor:
-        applies-to: "version-updates"
-        patterns: ["com.typesafe.slick:slick_*", "com.typesafe.slick:slick-hikaricp_*"]
-        update-types: ["minor"]
       slick-patch:
         applies-to: "version-updates"
         patterns: ["com.typesafe.slick:slick_*", "com.typesafe.slick:slick-hikaricp_*"]

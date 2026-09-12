@@ -1,6 +1,7 @@
 version: 2
 
 # Keep Dependabot's default `dependencies` label.
+# Use allow.update-types so major security fixes are not excluded by an ignore rule.
 updates:
   - package-ecosystem: "sbt"
     directory: "/"
@@ -11,6 +12,11 @@ updates:
     cooldown:
       default-days: 7
     open-pull-requests-limit: 1
+    allow:
+      - dependency-name: "*"
+        update-types:
+          - "version-update:semver-minor"
+          - "version-update:semver-patch"
     labels:
       - dependencies
     # Slick modules share a release; unrelated dependencies need separate reviews.
@@ -37,6 +43,11 @@ updates:
     cooldown:
       default-days: 7
     open-pull-requests-limit: 1
+    allow:
+      - dependency-name: "*"
+        update-types:
+          - "version-update:semver-minor"
+          - "version-update:semver-patch"
     labels:
       - dependencies
 
@@ -49,6 +60,11 @@ updates:
     cooldown:
       default-days: 7
     open-pull-requests-limit: 1
+    allow:
+      - dependency-name: "*"
+        update-types:
+          - "version-update:semver-minor"
+          - "version-update:semver-patch"
     labels:
       - dependencies
 
@@ -61,6 +77,11 @@ updates:
     cooldown:
       default-days: 7
     open-pull-requests-limit: 1
+    allow:
+      - dependency-name: "*"
+        update-types:
+          - "version-update:semver-minor"
+          - "version-update:semver-patch"
     labels:
       - dependencies
 
@@ -73,6 +94,11 @@ updates:
     cooldown:
       default-days: 7
     open-pull-requests-limit: 1
+    allow:
+      - dependency-name: "*"
+        update-types:
+          - "version-update:semver-minor"
+          - "version-update:semver-patch"
     labels:
       - dependencies
 
@@ -87,6 +113,11 @@ updates:
     cooldown:
       default-days: 7
     open-pull-requests-limit: 1
+    allow:
+      - dependency-name: "*"
+        update-types:
+          - "version-update:semver-minor"
+          - "version-update:semver-patch"
     labels:
       - dependencies
 
@@ -101,6 +132,11 @@ updates:
     cooldown:
       default-days: 7
     open-pull-requests-limit: 1
+    allow:
+      - dependency-name: "*"
+        update-types:
+          - "version-update:semver-minor"
+          - "version-update:semver-patch"
     labels:
       - dependencies
 
@@ -113,5 +149,10 @@ updates:
     cooldown:
       default-days: 7
     open-pull-requests-limit: 1
+    allow:
+      - dependency-name: "*"
+        update-types:
+          - "version-update:semver-minor"
+          - "version-update:semver-patch"
     labels:
       - dependencies

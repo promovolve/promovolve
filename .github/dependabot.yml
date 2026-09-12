@@ -117,17 +117,29 @@ updates:
       default-days: 7
     open-pull-requests-limit: 1
     allow:
-      # Composite Java/sbt/Scala tags break Dependabot's SemVer allow filtering.
-      # Keep this exception even while ignored: allow filtering runs before exclusion.
-      - dependency-name: "sbtscala/scala-sbt"
-      - dependency-name: "*"
+      # Wildcard allow and explicit ignore rules both trigger parsing of unsupported
+      # sbtscala/scala-sbt composite tags. Maintain that image manually for now.
+      # Add new Dockerfile images here, using repository names without registry hosts.
+      - dependency-name: "eclipse-temurin"
         update-types:
           - "version-update:semver-minor"
           - "version-update:semver-patch"
-    # Tag comparison also rejects the composite version; update this image manually
-    # until Dependabot supports it, then remove this temporary ignore rule.
-    ignore:
-      - dependency-name: "sbtscala/scala-sbt"
+      - dependency-name: "playwright/java"
+        update-types:
+          - "version-update:semver-minor"
+          - "version-update:semver-patch"
+      - dependency-name: "node"
+        update-types:
+          - "version-update:semver-minor"
+          - "version-update:semver-patch"
+      - dependency-name: "golang"
+        update-types:
+          - "version-update:semver-minor"
+          - "version-update:semver-patch"
+      - dependency-name: "distroless/static-debian12"
+        update-types:
+          - "version-update:semver-minor"
+          - "version-update:semver-patch"
     labels:
       - dependencies
 

@@ -121,8 +121,9 @@ lazy val commonSettings = Seq(
     "org.apache.pekko"       %% "pekko-http-xml"               % pekkoHttpVersion,  // Explicit version to avoid conflict with pekko-connectors-s3
     // Persistence (PostgreSQL)
     "org.apache.pekko"       %% "pekko-persistence-jdbc"       % "1.2.0",
-    "com.typesafe.slick"     %% "slick"                        % "3.6.1",
-    "com.typesafe.slick"     %% "slick-hikaricp"               % "3.6.1",
+    // Slick 3.6 crosses the PVP binary-compatibility boundary used by the Pekko JDBC/Projection artifacts.
+    "com.typesafe.slick"     %% "slick"                        % "3.5.2",
+    "com.typesafe.slick"     %% "slick-hikaricp"               % "3.5.2",
     "org.postgresql"          % "postgresql"                   % "42.7.8",
     // Pekko Projection (for dashboard read-side)
     "org.apache.pekko"       %% "pekko-projection-core"        % pekkoProjectionVersion,

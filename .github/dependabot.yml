@@ -118,12 +118,16 @@ updates:
     open-pull-requests-limit: 1
     allow:
       # Composite Java/sbt/Scala tags break Dependabot's SemVer allow filtering.
-      # Review all component versions manually, including major updates.
+      # Keep this exception even while ignored: allow filtering runs before exclusion.
       - dependency-name: "sbtscala/scala-sbt"
       - dependency-name: "*"
         update-types:
           - "version-update:semver-minor"
           - "version-update:semver-patch"
+    # Tag comparison also rejects the composite version; update this image manually
+    # until Dependabot supports it, then remove this temporary ignore rule.
+    ignore:
+      - dependency-name: "sbtscala/scala-sbt"
     labels:
       - dependencies
 

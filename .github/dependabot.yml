@@ -117,6 +117,9 @@ updates:
       default-days: 7
     open-pull-requests-limit: 1
     allow:
+      # Composite Java/sbt/Scala tags break Dependabot's SemVer allow filtering.
+      # Review all component versions manually, including major updates.
+      - dependency-name: "sbtscala/scala-sbt"
       - dependency-name: "*"
         update-types:
           - "version-update:semver-minor"

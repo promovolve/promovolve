@@ -32,7 +32,7 @@ RUN sbt "api/stage"
 # Output: /src/modules/api/target/universal/stage/{bin,lib}
 
 # ---- jre stage: a pinned Java 21 runtime to copy in ----
-FROM eclipse-temurin:21-jre-jammy AS jre
+FROM eclipse-temurin:25-jre-jammy AS jre
 
 # ---- runtime stage: Playwright (Chromium + system libs) + JRE 21 ----
 FROM mcr.microsoft.com/playwright/java:v1.54.0-jammy

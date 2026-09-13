@@ -6,7 +6,7 @@ val pekkoVersion                = "1.4.0"
 val pekkoHttpVersion            = "1.2.0"
 val pekkoProjectionVersion      = "1.1.0"
 val pekkoManagementVersion      = "1.2.1"
-val logbackVersion              = "1.5.18"
+val logbackVersion              = "1.6.3"
 val pekkoQuartzSchedulerVersion = "1.3.0-pekko-1.1.x"
 val tapirVersion = "1.13.3"
 

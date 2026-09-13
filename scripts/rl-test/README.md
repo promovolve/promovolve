@@ -12,7 +12,7 @@ full Pekko serialization path.
 - Cluster running (`scripts/run-dev.sh`) with a verified site and a publisher
   whose advertiser already has the campaigns referenced in the scenario.
 - Publisher site reachable (the bootstrap site used by `simulate-traffic`).
-- Python 3.10+ and `pip install -r requirements.txt`.
+- Python 3.11+ and `pip install -r requirements.txt`.
 
 ## Run
 

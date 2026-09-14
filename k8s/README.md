@@ -68,7 +68,7 @@ nodes when possible but co-locate on a single node without changes (see
   which only exist with the `timescaledb` extension. Plain Postgres aborts at
   the first one.
 - **Playwright** runs *inside* the API JVM. The image is built on
-  `mcr.microsoft.com/playwright/java:v1.54.0-jammy` (browser build matched to
+  `mcr.microsoft.com/playwright/java:v1.62.0-jammy` (browser build matched to
   the pinned `playwright` dep) and `CHROMIUM_NO_SANDBOX=true` lets Chromium
   start as root in the container.
 

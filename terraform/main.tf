@@ -166,7 +166,7 @@ resource "google_container_node_pool" "default" {
 
 # --- Workload Identity Federation for GitHub Actions CI -------------------------
 #
-# deploy.yml authenticates with google-github-actions/auth@v2 using the
+# deploy.yml authenticates with google-github-actions/auth@v3 using the
 # provider path + SA email (see outputs). No key material ever reaches
 # GitHub. NOTE: deleted pools/providers linger soft-deleted for 30 days and
 # block re-creation under the same ID.

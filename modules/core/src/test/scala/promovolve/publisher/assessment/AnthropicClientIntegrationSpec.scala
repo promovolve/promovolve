@@ -4,6 +4,7 @@ import org.apache.pekko.actor.testkit.typed.scaladsl.ActorTestKit
 import org.scalatest.BeforeAndAfterAll
 import org.scalatest.matchers.should.Matchers
 import org.scalatest.wordspec.AnyWordSpec
+import promovolve.Integration
 
 import scala.concurrent.Await
 import scala.concurrent.duration.*
@@ -29,7 +30,7 @@ class AnthropicClientIntegrationSpec extends AnyWordSpec with Matchers with Befo
 
   "AnthropicClient" should {
 
-    "assess a simple test image" in {
+    "assess a simple test image" taggedAs Integration in {
       assume(apiKey.isDefined, "ANTHROPIC_API_KEY not set - skipping integration test")
 
       val client = new AnthropicClient(apiKey.get, model = "claude-sonnet-4-20250514")
@@ -60,7 +61,7 @@ class AnthropicClientIntegrationSpec extends AnyWordSpec with Matchers with Befo
       println(s"Assessment result: $result")
     }
 
-    "handle invalid API key gracefully" in {
+    "handle invalid API key gracefully" taggedAs Integration in {
       val client = new AnthropicClient("invalid-key")
 
       val imageBytes = loadTestImage()
@@ -77,11 +78,11 @@ class AnthropicClientIntegrationSpec extends AnyWordSpec with Matchers with Befo
     }
   }
 
-  /** Load simba.jpg test image from resources */
+  /** Load the test image from test resources (absolute — it is at the root). */
   private def loadTestImage(): Array[Byte] = {
-    val stream = getClass.getResourceAsStream("download-1.jpg")
+    val stream = getClass.getResourceAsStream("/download-1.jpg")
     if (stream == null) {
-      throw new RuntimeException("Test image simba.jpg not found in resources")
+      throw new RuntimeException("Test image download-1.jpg not found in resources")
     }
     try stream.readAllBytes()
     finally stream.close()

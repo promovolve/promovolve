@@ -4,6 +4,7 @@ import org.apache.pekko.actor.testkit.typed.scaladsl.ActorTestKit
 import org.scalatest.BeforeAndAfterAll
 import org.scalatest.matchers.should.Matchers
 import org.scalatest.wordspec.AnyWordSpec
+import promovolve.Integration
 
 import scala.concurrent.Await
 import scala.concurrent.duration.*
@@ -36,7 +37,7 @@ class GeminiClientIntegrationSpec extends AnyWordSpec with Matchers with BeforeA
 
   "GeminiClient integration" should {
 
-    "assess a real image using Gemini API" in {
+    "assess a real image using Gemini API" taggedAs Integration in {
       val apiKey = getApiKey.getOrElse {
         cancel("GEMINI_API_KEY not set, skipping integration test")
       }
@@ -87,7 +88,7 @@ class GeminiClientIntegrationSpec extends AnyWordSpec with Matchers with BeforeA
       result.model shouldBe "gemini-2.5-flash"
     }
 
-    "assess with gemini-2.5-flash" in {
+    "assess with gemini-2.5-flash" taggedAs Integration in {
       val apiKey = getApiKey.getOrElse {
         cancel("GEMINI_API_KEY not set, skipping integration test")
       }

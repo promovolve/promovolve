@@ -20,7 +20,8 @@ import promovolve.publisher.{
   FlaggedCreative,
   NoOpCreativeStatsSnapshotRepo,
   NoOpTrafficShapeSnapshotRepo,
-  PendingSelectionStore
+  PendingSelectionStore,
+  SiteEntity
 }
 import promovolve.publisher.delivery.Protocol.{
   BatchHostNotVerified,
@@ -56,6 +57,9 @@ class AdServerLifecycleSpec extends AnyWordSpec with Matchers with BeforeAndAfte
     """
       |pekko {
       |  loglevel = "WARNING"
+      |  # The SiteEntity stub region pushes cluster teardown past the testkit's
+      |  # 10s default — same problem, same fix as AuctioneerRestoreIdempotenceSpec.
+      |  actor.testkit.typed.system-shutdown-default = 60s
       |  actor {
       |    provider = "cluster"
       |    serializers {
@@ -72,6 +76,16 @@ class AdServerLifecycleSpec extends AnyWordSpec with Matchers with BeforeAndAfte
       |  cluster {
       |    seed-nodes = []
       |    downing-provider-class = "org.apache.pekko.cluster.sbr.SplitBrainResolverProvider"
+      |    sharding {
+      |      # Serve registers every request's slots with the site entity, so a
+      |      # stub region exists here. Its entities are plain sinks with no stop
+      |      # message, so handoff never completes: teardown waits out the
+      |      # cluster-sharding-shutdown-region phase and only then force-stops
+      |      # the region, which is why the shutdown budget above is raised.
+      |      # Fewer shards is less to hand off on the way there (this suite
+      |      # spread over 692 of the default 1000 before the cap).
+      |      number-of-shards = 10
+      |    }
       |  }
       |  persistence {
       |    state.plugin = "pekko.persistence.testkit.state"
@@ -124,6 +138,10 @@ class AdServerLifecycleSpec extends AnyWordSpec with Matchers with BeforeAndAfte
       Behaviors.same
     }
   ))
+  // Serve registers the request's slots with the site entity (ActivateServeSlots),
+  // so this shard type must exist too — entityRefFor throws without it and the
+  // AdServer dies mid-serve, which shows up only as probe timeouts.
+  sharding.init(Entity(SiteEntity.TypeKey)(_ => Behaviors.ignore[SiteEntity.Command]))
 
   override def afterAll(): Unit = testKit.shutdownTestKit()
 

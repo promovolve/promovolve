@@ -5,7 +5,7 @@ import org.apache.pekko.actor.typed.ActorRef
 import org.scalatest.BeforeAndAfterAll
 import org.scalatest.matchers.should.Matchers
 import org.scalatest.wordspec.AnyWordSpec
-import promovolve.{ AdProductCategoryId, CategoryId }
+import promovolve.{ AdProductCategoryId, CategoryId, Integration }
 import promovolve.publisher.{ AssessmentResult, CreativeMeta, CreativeMetadataRepo }
 
 import java.time.Instant
@@ -110,7 +110,7 @@ class BatchCreativeAssessorIntegrationSpec extends AnyWordSpec with Matchers wit
 
   "BatchCreativeAssessor integration" should {
 
-    "assess a real image using Anthropic batch API" in {
+    "assess a real image using Anthropic batch API" taggedAs Integration in {
       val apiKey = getApiKey.getOrElse {
         cancel("ANTHROPIC_API_KEY not set, skipping integration test")
       }
@@ -199,7 +199,7 @@ class BatchCreativeAssessorIntegrationSpec extends AnyWordSpec with Matchers wit
       updated.get.isAssessed shouldBe true
     }
 
-    "assess with adProductCategory and compute verification" in {
+    "assess with adProductCategory and compute verification" taggedAs Integration in {
       val apiKey = getApiKey.getOrElse {
         cancel("ANTHROPIC_API_KEY not set, skipping integration test")
       }

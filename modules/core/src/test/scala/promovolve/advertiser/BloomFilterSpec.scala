@@ -234,10 +234,12 @@ class BloomFilterSpec extends AnyWordSpec with Matchers with ScalaCheckPropertyC
 
       notFound shouldBe empty
 
-      // Check memory usage is reasonable (~12 KB for 5000@0.01% FPR)
-      // Much smaller than Map[String, ApprovalStatus] which would be ~250 KB
-      filter.length should be < 15000 // ~12 KB actual, leaves room for overhead
-      filter.length should be > 10000 // Sanity check it's actually using space
+      // Memory: these ops build a CuckooFilter (see CuckooFilter.scala — they
+      // moved off the Bloom filter in 2026-07). 5000 @ 0.01% FPR sizes to
+      // 2048 buckets x 4 slots x 2 B fingerprints + a 16 B header = 16400 B.
+      // Still far smaller than Map[String, ApprovalStatus] at ~250 KB.
+      filter.length should be < 20000 // one power-of-2 bucket step of headroom
+      filter.length should be > 10000 // sanity check it's actually using space
     }
 
     "have consistent hashing - same string always hashes to same value" in {

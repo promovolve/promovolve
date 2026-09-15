@@ -1,14 +1,13 @@
 package promovolve.taxonomy
 
 import org.apache.pekko.actor.testkit.typed.scaladsl.ActorTestKit
-import org.scalatest.{ BeforeAndAfterAll, Tag }
+import org.scalatest.BeforeAndAfterAll
 import org.scalatest.matchers.should.Matchers
 import org.scalatest.wordspec.AnyWordSpec
+import promovolve.Integration
 
 import scala.concurrent.Await
 import scala.concurrent.duration.*
-
-object Integration extends Tag("Integration")
 
 class IABTaxonomyIntegrationSpec extends AnyWordSpec with Matchers with BeforeAndAfterAll {
 

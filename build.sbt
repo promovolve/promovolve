@@ -62,7 +62,9 @@ lazy val browser = (project in file("modules/browser"))
   .settings(commonSettings)
 
 lazy val api = (project in file("modules/api"))
-  .dependsOn(core)
+  // test->test as well: api's specs use the shared `promovolve.Integration`
+  // tag that lives in core's test sources.
+  .dependsOn(core % "compile->compile;test->test")
   .enablePlugins(JavaAppPackaging)
   .settings(
     commonSettings,
@@ -149,5 +151,12 @@ lazy val commonSettings = Seq(
     "org.apache.pekko"       %% "pekko-testkit"                % pekkoVersion % Test,
     "org.apache.pekko"       %% "pekko-stream-testkit"         % pekkoVersion % Test,
     "org.apache.pekko"       %% "pekko-persistence-testkit"    % pekkoVersion % Test
-  )
+  ),
+  // `sbt test` is the behavioral gate CI runs, so it must be deterministic on
+  // a clean checkout: no credentials, no host tools. Tests that reach a live
+  // LLM provider or shell out to ffmpeg carry the `promovolve.Integration`
+  // tag (see modules/core/src/test/scala/promovolve/TestTags.scala) and are
+  // excluded here. Run them deliberately, keys in the environment:
+  //   sbt "testOnly * -- -n promovolve.Integration"
+  Test / testOptions += Tests.Argument(TestFrameworks.ScalaTest, "-l", "promovolve.Integration")
 )

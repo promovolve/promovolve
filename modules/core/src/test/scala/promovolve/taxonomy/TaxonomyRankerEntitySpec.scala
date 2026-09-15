@@ -14,8 +14,9 @@ import scala.concurrent.duration.*
 
 class TaxonomyRankerEntitySpec extends AnyWordSpec with Matchers with BeforeAndAfterAll {
 
-  val testKit: ActorTestKit = ActorTestKit(testConfig)
-  // Test configuration with persistence testkit
+  // Test configuration with persistence testkit. Declared BEFORE the testKit:
+  // vals initialize in source order, so a testKit above this line reads a null
+  // config and the suite aborts in its constructor (NPE in ActorSystemImpl).
   private val testConfig = PersistenceTestKitDurableStateStorePlugin.config.withFallback(
     ConfigFactory.parseString(
       """
@@ -38,6 +39,8 @@ class TaxonomyRankerEntitySpec extends AnyWordSpec with Matchers with BeforeAndA
         |""".stripMargin
     )
   )
+
+  val testKit: ActorTestKit = ActorTestKit(testConfig)
 
   override def afterAll(): Unit = testKit.shutdownTestKit()
 

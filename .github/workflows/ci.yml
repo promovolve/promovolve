@@ -303,6 +303,7 @@ jobs:
               - '.github/workflows/ci.yml'
               - 'Dockerfile.api'
               - 'docker/chromium-seccomp.json'
+              - 'k8s/runtime-security/**'
               - '.dockerignore'
               - 'build.sbt'
               - 'project/**'

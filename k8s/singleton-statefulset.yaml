@@ -41,6 +41,10 @@ spec:
         app: promovolve-api   # shared discovery label (joins the ONE cluster)
         tier: singleton       # distinguishes from app/crawler tiers
     spec:
+      securityContext:
+        # Always repair group access on existing root-owned LMDB files.
+        fsGroup: 1000
+        fsGroupChangePolicy: Always
       serviceAccountName: promovolve-api
       imagePullSecrets:
         - name: regcred
@@ -62,6 +66,16 @@ spec:
       containers:
         - name: singleton
           image: promovolve/api:dev
+          securityContext:
+            runAsNonRoot: true
+            runAsUser: 1000
+            runAsGroup: 1000
+            allowPrivilegeEscalation: false
+            capabilities:
+              drop: [ALL]
+            seccompProfile:
+              type: Localhost
+              localhostProfile: promovolve/chromium-v1.json
           imagePullPolicy: Always
           ports:
             - name: management
@@ -101,10 +115,6 @@ spec:
               value: "$(POD_IP)"
             - name: PEKKO_CLUSTER_BOOTSTRAP
               value: "on"
-            # No "api" role → no HTTP server here. Chromium isn't used (no
-            # crawler role), but the flag is harmless.
-            - name: CHROMIUM_NO_SANDBOX
-              value: "true"
             - name: DDATA_DIR
               value: /data/ddata
           envFrom:

@@ -308,6 +308,10 @@ if [ "${ALLOW_OPEN_PINS:-0}" -ne 1 ] && command -v gh >/dev/null 2>&1; then
   [ -z "$open_pins" ] || die "a CI pin-back PR is still open ($open_pins) — the repo's pins lag the cluster. Merge it (or wait for auto-merge), then re-run; --allow-open-pins overrides."
 fi
 
+echo "==> installing Chromium seccomp profiles"
+kubectl kustomize --load-restrictor LoadRestrictionsNone "$KDIR/../k8s/runtime-security" | kcg apply -f -
+kc rollout status daemonset/chromium-seccomp --timeout=180s
+
 echo "==> applying manifests (kustomize overlay k8s-gke, registry ${REGISTRY})"
 render | kcg apply -f -
 

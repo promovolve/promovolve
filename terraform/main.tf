@@ -202,9 +202,9 @@ resource "google_service_account" "github_deployer" {
   display_name = "GitHub Actions deployer"
 }
 
-# CI only moves images (`kubectl set image` + rollout status) — never
-# renders manifests or touches infra. container.developer is exactly that:
-# cluster credentials + in-cluster edit, no GCP mutations.
+# CI rolls images and pod security settings and applies the runtime profile's
+# ConfigMap/DaemonSet. container.developer grants cluster credentials and
+# in-cluster edits without GCP infrastructure management.
 resource "google_project_iam_member" "github_deployer_container" {
   project = var.project_id
   role    = "roles/container.developer"

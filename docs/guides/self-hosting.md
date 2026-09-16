@@ -126,8 +126,13 @@ Build and push the images, then apply:
 docker build -f Dockerfile.api -t <you>/promovolve-api:tag .
 docker build -f platform/Dockerfile -t <you>/promovolve-platform:tag platform/
 docker push <you>/promovolve-api:tag && docker push <you>/promovolve-platform:tag
+kubectl kustomize --load-restrictor LoadRestrictionsNone k8s/runtime-security | kubectl apply -f -
+kubectl -n promovolve rollout status daemonset/chromium-seccomp --timeout=180s
 kubectl kustomize --load-restrictor LoadRestrictionsNone k8s/ | kubectl apply -f -
 ```
+
+For an existing API deployment, use the [isolated image rollout](../../docker/README.md)
+to update the image and its runtime permissions together.
 
 > Plain `kubectl apply -k k8s/` fails with a `file is not in or below`
 > error: the DB-init ConfigMap sources `../docker/init-db.sql` from
@@ -292,6 +297,8 @@ secret, with correct restart ordering, and nothing else:
 
 ```bash
 $EDITOR k8s/secrets.env            # and/or k8s/platform-secrets.env
+kubectl kustomize --load-restrictor LoadRestrictionsNone k8s/runtime-security | kubectl apply -f -
+kubectl -n promovolve rollout status daemonset/chromium-seccomp --timeout=180s
 kubectl kustomize --load-restrictor LoadRestrictionsNone k8s/ | kubectl apply -f -
 kubectl rollout status statefulset/promovolve-api -n promovolve      # if core secrets changed
 kubectl rollout status deployment/promovolve-platform -n promovolve  # if platform secrets changed

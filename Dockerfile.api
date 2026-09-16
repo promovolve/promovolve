@@ -57,7 +57,11 @@ COPY --from=build /src/modules/api/target/universal/stage/ /app/
 
 # DData (LMDB) lives here; mount a PVC at this path in K8s.
 ENV DDATA_DIR=/data/ddata
-RUN mkdir -p /data/ddata
+RUN chmod 0755 /app/bin/api \
+ && chmod -R go-w /ms-playwright /ms-playwright-driver \
+ && install -d -o 1000 -g 1000 /data/ddata
+ENV HOME=/home/pwuser
+USER 1000:1000
 
 EXPOSE 8080
 # bin/api is the native-packager launcher (mainClass=promovolve.api.Main),

@@ -62,6 +62,9 @@ The root `Dockerfile` runs the development Creative Assessment UI; production us
 
 ### Container checks
 
+API runtime requirements and existing-volume migration are documented in
+[docker/README.md](docker/README.md).
+
 CI builds affected production images for arm64 on pull requests, and both images
 on main pushes and manual runs. It checks
 startup, shutdown, browser execution, and embedded assets using disposable local

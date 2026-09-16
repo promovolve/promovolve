@@ -302,6 +302,7 @@ jobs:
             api:
               - '.github/workflows/ci.yml'
               - 'Dockerfile.api'
+              - 'docker/chromium-seccomp.json'
               - '.dockerignore'
               - 'build.sbt'
               - 'project/**'

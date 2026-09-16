@@ -17,7 +17,7 @@ COPY project/ project/
 RUN sbt update
 
 # Copy source code
-COPY . .
+COPY modules/ modules/
 
 # Compile
 RUN sbt compile

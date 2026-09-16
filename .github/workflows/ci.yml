@@ -230,3 +230,13 @@ jobs:
         run: sbt dbIt/scalafmtCheckAll
       - name: Database integration tests
         run: sbt dbIt/test
+  docker-config:
+    name: Docker contexts and Compose configuration
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+      - uses: docker/setup-buildx-action@37fe631027851001ddb9b187196cc803df7f5f0e # v4.3.0
+      - run: python3 scripts/test-docker-config.py

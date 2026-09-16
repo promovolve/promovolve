@@ -147,6 +147,7 @@ jobs:
               - 'build.sbt'
               - 'project/**'
               - 'Dockerfile.api'
+              - '.dockerignore'
             platform:
               - 'platform/**'
             # The delivered banner runtime. It lives UNDER platform/, so a

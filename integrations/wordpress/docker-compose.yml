@@ -22,7 +22,7 @@ services:
     depends_on:
       - db
     ports:
-      - "8088:80"
+      - "${DEV_BIND_ADDRESS:-127.0.0.1}:8088:80"
     environment:
       WORDPRESS_DB_HOST: db
       WORDPRESS_DB_NAME: wordpress

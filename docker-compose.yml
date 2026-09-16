@@ -3,7 +3,7 @@ services:
     build: .
     container_name: promovolve-app
     ports:
-      - "9090:9090"  # Creative Assessment UI
+      - "${DEV_BIND_ADDRESS:-127.0.0.1}:9090:9090"  # Creative Assessment UI
     environment:
       - GEMINI_API_KEY=${GEMINI_API_KEY}
       - POSTGRES_HOST=postgres
@@ -22,7 +22,7 @@ services:
       POSTGRES_PASSWORD: promovolve
       POSTGRES_DB: promovolve
     ports:
-      - "5432:5432"
+      - "${DEV_BIND_ADDRESS:-127.0.0.1}:5432:5432"
     volumes:
       - postgres_data:/var/lib/postgresql/data
       - ./docker/init-db.sql:/docker-entrypoint-initdb.d/init.sql:ro

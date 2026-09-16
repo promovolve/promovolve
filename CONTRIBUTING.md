@@ -60,6 +60,33 @@ The root `Dockerfile` runs the development Creative Assessment UI; production us
 
 ## Building & testing
 
+### Container checks
+
+CI builds affected production images for arm64 (both on manual runs) and checks
+startup, shutdown, browser execution, and embedded assets using disposable local
+services. R2, LLM, and
+production cluster integration are outside these checks; no deployment credentials
+are required, and test containers, volumes, and networks are cleaned up automatically.
+
+On an arm64 Docker host, with JDK 21, Python 3, Buildx, and Docker Compose installed:
+
+```bash
+python3 scripts/test-docker-config.py
+docker buildx build --platform linux/arm64 --load -f Dockerfile.api -t promovolve-api:ci .
+docker buildx build --platform linux/arm64 --load -f platform/Dockerfile -t promovolve-platform:ci platform
+python3 scripts/smoke-docker.py api promovolve-api:ci
+python3 scripts/smoke-docker.py platform promovolve-platform:ci
+```
+
+For a standalone Buildx plugin, set `DOCKER_BUILDX=docker-buildx` when running
+`scripts/test-docker-config.py`.
+
+CI checks Designer asset consistency with `npm run fanout -- --check`. To update
+assets, run `npm run build && npm run fanout` in `platform/creative-designer` and
+commit the output with the source change.
+
+### Application checks
+
 ```bash
 # Scala core
 sbt compile

@@ -90,8 +90,8 @@ backend block if a team shares this). Never point it at the live
    Terraform-created resources and skip.)
 4. **Wait for the managed cert** (15–60 min after DNS resolves), then
    register the first account at `https://<dashboard-host>/setup`.
-5. **Push to main** — CI builds arm64 images and rolls the cluster by
-   digest.
+5. **Merge to main** (via a pull request — `main` is protected) — CI
+   builds arm64 images and rolls the cluster by digest.
 
 ## Notes
 

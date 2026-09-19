@@ -404,4 +404,51 @@ class CampaignEntityRolloverSpec extends AnyWordSpec with Matchers with BeforeAn
       )
     }
   }
+
+  // ==================== Campaign Budget Optimization plumbing (GH #59) ====================
+
+  private def cboSnapshot(c: ActorRef[CampaignEntity.Command]): CampaignEntity.CboSnapshot = {
+    val probe = testKit.createTestProbe[CampaignEntity.CboSnapshot]()
+    c ! CampaignEntity.GetCboSnapshot(probe.ref)
+    probe.receiveMessage(3.seconds)
+  }
+
+  "CampaignEntity CBO plumbing" should {
+
+    "default to strategy fixed, round-trip strategy through UpdateConfig, and ignore an invalid value" in {
+      val c = spawnCampaign("camp-cbo-strategy", "adv-cbo-1")
+      cboSnapshot(c).strategy shouldBe "fixed"
+
+      val probe = testKit.createTestProbe[CampaignEntity.ConfigUpdated]()
+      c ! CampaignEntity.UpdateConfig(maxCpm = None, dailyBudget = None, strategy = Some("auto"), replyTo = probe.ref)
+      probe.receiveMessage(3.seconds)
+      cboSnapshot(c).strategy shouldBe "auto"
+
+      val info = testKit.createTestProbe[CampaignEntity.CampaignInfo]()
+      c ! CampaignEntity.GetCampaign(info.ref)
+      info.receiveMessage(3.seconds).strategy shouldBe "auto"
+
+      c ! CampaignEntity.UpdateConfig(maxCpm = None, dailyBudget = None, strategy = Some("bogus"), replyTo = probe.ref)
+      probe.receiveMessage(3.seconds)
+      cboSnapshot(c).strategy shouldBe "auto"
+    }
+
+    "count tap-throughs and reset them with the budget day" in {
+      val c = spawnCampaign("camp-cbo-cta", "adv-cbo-2")
+      val um = futureUtcMidnight()
+      recordSpend(c, 10.0, um.minusSeconds(7200)).spendToday.toDouble shouldBe 10.0
+      c ! CampaignEntity.RecordTapThrough(um.minusSeconds(7000))
+      c ! CampaignEntity.RecordTapThrough(um.minusSeconds(6000))
+      val probe = testKit.createTestProbe[CampaignEntity.CboSnapshot]()
+      probe.awaitAssert({ cboSnapshot(c).ctaToday shouldBe 2L }, 3.seconds)
+      val snap = cboSnapshot(c)
+      snap.spent.toDouble shouldBe 10.0
+      snap.exhausted shouldBe false
+      snap.live shouldBe false // spawned Paused
+
+      // Cross UTC midnight: spend and tap-throughs both start over.
+      recordSpend(c, 3.0, um.plusSeconds(60)).spendToday.toDouble shouldBe 3.0
+      cboSnapshot(c).ctaToday shouldBe 0L
+    }
+  }
 }

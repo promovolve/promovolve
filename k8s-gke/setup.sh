@@ -92,6 +92,10 @@ while [ $# -gt 0 ]; do
     --apply-only)   APPLY_ONLY=1; DEPLOY_ONLY=1; shift ;;
     --pin-images)   PIN_IMAGES=1; shift ;;
     --build-images) BUILD_IMAGES=1; shift ;;
+    # Apply even though a CI pin-back pull request (branch ci/pins) is still
+    # open, i.e. the repo's pins are known to lag the cluster. See the guard
+    # below for what that costs.
+    --allow-open-pins) ALLOW_OPEN_PINS=1; shift ;;
     -h|--help) sed -n '2,52p' "$0"; exit 0 ;;
     *) echo "unknown arg: $1 (try --help)" >&2; exit 2 ;;
   esac
@@ -289,6 +293,19 @@ fi
 # override was pinning. Harmless when there is no override to remove.
 if kc get deployment promovolve-platform >/dev/null 2>&1; then
   kc set env deployment/promovolve-platform BANNER_SCRIPT_URL- >/dev/null 2>&1 || true
+fi
+
+# CI writes the live digests and banner URL back to k8s/kustomization.yaml
+# THROUGH A PULL REQUEST (deploy.yml -> scripts/pin-back-pr.sh, branch
+# ci/pins, auto-merged once CI is green) because the main Ruleset forbids
+# direct pushes. While that PR is open the pins here are stale: the image
+# restore above covers the digests, but the api-config render carries the
+# OLD BANNER_SCRIPT_URL and the override-drop above makes it authoritative,
+# so an apply now would point visitors back at the previous bundle. Refuse
+# unless told otherwise; the check is advisory-only where gh is absent.
+if [ "${ALLOW_OPEN_PINS:-0}" -ne 1 ] && command -v gh >/dev/null 2>&1; then
+  open_pins=$(gh pr list --head ci/pins --state open --json url --jq '.[0].url // empty' 2>/dev/null || true)
+  [ -z "$open_pins" ] || die "a CI pin-back PR is still open ($open_pins) — the repo's pins lag the cluster. Merge it (or wait for auto-merge), then re-run; --allow-open-pins overrides."
 fi
 
 echo "==> applying manifests (kustomize overlay k8s-gke, registry ${REGISTRY})"

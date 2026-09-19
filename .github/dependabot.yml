@@ -1,0 +1,180 @@
+version: 2
+
+# Keep Dependabot's default `dependencies` label.
+# Version-type filters restrict routine updates without excluding security fixes.
+updates:
+  - package-ecosystem: "sbt"
+    directory: "/"
+    schedule:
+      interval: "daily"
+      time: "02:00"
+      timezone: "Asia/Tokyo"
+    cooldown:
+      default-days: 7
+    open-pull-requests-limit: 1
+    allow:
+      - dependency-name: "*"
+        update-types:
+          - "version-update:semver-minor"
+          - "version-update:semver-patch"
+    # Slick uses PVP: 3.5 -> 3.6 can break Pekko JDBC/Projection binaries.
+    # Revisit with a compatible Pekko stack; type-only ignores leave security updates eligible.
+    ignore:
+      - dependency-name: "com.typesafe.slick:slick_*"
+        update-types: ["version-update:semver-minor"]
+      - dependency-name: "com.typesafe.slick:slick-hikaricp_*"
+        update-types: ["version-update:semver-minor"]
+    labels:
+      - dependencies
+    # Slick modules share a release; unrelated dependencies need separate reviews.
+    groups:
+      slick-patch:
+        applies-to: "version-updates"
+        patterns: ["com.typesafe.slick:slick_*", "com.typesafe.slick:slick-hikaricp_*"]
+        update-types: ["patch"]
+
+  - package-ecosystem: "npm"
+    directories:
+      - "/platform/banner-bootstrap"
+      - "/platform/banner-component"
+      - "/platform/creative-designer"
+      - "/platform/dashboard-tests"
+    schedule:
+      interval: "daily"
+      time: "02:00"
+      timezone: "Asia/Tokyo"
+    cooldown:
+      default-days: 7
+    open-pull-requests-limit: 1
+    allow:
+      - dependency-name: "*"
+        update-types:
+          - "version-update:semver-minor"
+          - "version-update:semver-patch"
+    labels:
+      - dependencies
+
+  - package-ecosystem: "gomod"
+    directory: "/platform"
+    schedule:
+      interval: "daily"
+      time: "02:00"
+      timezone: "Asia/Tokyo"
+    cooldown:
+      default-days: 7
+    open-pull-requests-limit: 1
+    allow:
+      - dependency-name: "*"
+        update-types:
+          - "version-update:semver-minor"
+          - "version-update:semver-patch"
+    labels:
+      - dependencies
+
+  - package-ecosystem: "pip"
+    directory: "/scripts/rl-test"
+    schedule:
+      interval: "daily"
+      time: "02:00"
+      timezone: "Asia/Tokyo"
+    cooldown:
+      default-days: 7
+    open-pull-requests-limit: 1
+    allow:
+      - dependency-name: "*"
+        update-types:
+          - "version-update:semver-minor"
+          - "version-update:semver-patch"
+    labels:
+      - dependencies
+
+  - package-ecosystem: "terraform"
+    directory: "/terraform"
+    schedule:
+      interval: "daily"
+      time: "02:00"
+      timezone: "Asia/Tokyo"
+    cooldown:
+      default-days: 7
+    open-pull-requests-limit: 1
+    allow:
+      - dependency-name: "*"
+        update-types:
+          - "version-update:semver-minor"
+          - "version-update:semver-patch"
+    labels:
+      - dependencies
+
+  - package-ecosystem: "docker"
+    directories:
+      - "/"
+      - "/platform"
+    schedule:
+      interval: "daily"
+      time: "02:00"
+      timezone: "Asia/Tokyo"
+    cooldown:
+      default-days: 7
+    open-pull-requests-limit: 1
+    allow:
+      # Wildcard allow and explicit ignore rules both trigger parsing of unsupported
+      # sbtscala/scala-sbt composite tags. Maintain that image manually for now.
+      # Add new Dockerfile images here, using repository names without registry hosts.
+      - dependency-name: "eclipse-temurin"
+        update-types:
+          - "version-update:semver-minor"
+          - "version-update:semver-patch"
+      - dependency-name: "playwright/java"
+        update-types:
+          - "version-update:semver-minor"
+          - "version-update:semver-patch"
+      - dependency-name: "node"
+        update-types:
+          - "version-update:semver-minor"
+          - "version-update:semver-patch"
+      - dependency-name: "golang"
+        update-types:
+          - "version-update:semver-minor"
+          - "version-update:semver-patch"
+      - dependency-name: "distroless/static-debian12"
+        update-types:
+          - "version-update:semver-minor"
+          - "version-update:semver-patch"
+    labels:
+      - dependencies
+
+  - package-ecosystem: "docker-compose"
+    directories:
+      - "/"
+      - "/integrations/wordpress"
+    schedule:
+      interval: "daily"
+      time: "02:00"
+      timezone: "Asia/Tokyo"
+    cooldown:
+      default-days: 7
+    open-pull-requests-limit: 1
+    allow:
+      - dependency-name: "*"
+        update-types:
+          - "version-update:semver-minor"
+          - "version-update:semver-patch"
+    labels:
+      - dependencies
+
+  - package-ecosystem: "github-actions"
+    directory: "/"
+    schedule:
+      interval: "daily"
+      time: "02:00"
+      timezone: "Asia/Tokyo"
+    cooldown:
+      default-days: 7
+    open-pull-requests-limit: 1
+    allow:
+      - dependency-name: "*"
+        update-types:
+          - "version-update:semver-minor"
+          - "version-update:semver-patch"
+    labels:
+      - dependencies

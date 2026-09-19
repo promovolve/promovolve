@@ -19,7 +19,7 @@
 // prepareForUpload), so any existing crop / box geometry on the item
 // stays valid after the src swap.
 
-import { applyHints } from "./matte-hints";
+import { applyHints, resampleHints, type HintPlane } from "./matte-hints";
 import { refineMatte } from "./matte-refine";
 import { runSaliencyMask, SALIENCY_MASK_SIZE } from "./saliency";
 
@@ -135,10 +135,15 @@ export interface CompositeOptions {
   /** Run the guided-filter edge refinement + decontamination pass
     * (matte-refine.ts) against the full-res source. Default on. */
   refine?: boolean;
-  /** Restore/erase brush hints at OUTPUT resolution (matte-hints.ts).
-    * Applied to the coarse alpha before refinement so strokes still
-    * get their edges snapped. */
-  hints?: Uint8Array | null;
+  /** Restore/erase brush hints (matte-hints.ts), at whatever resolution
+    * they were painted — resampled to the composite size if they differ.
+    * Applied to the coarse alpha before refinement so strokes still get
+    * their edges snapped. */
+  hints?: HintPlane | null;
+  /** Long-edge cap for THIS composite. The modal previews at a small
+    * cap (fast, interactive) and renders the real thing at the default
+    * MAX_EDGE once, on Apply. */
+  maxEdge?: number;
 }
 
 /** Draw the source with the alpha plane baked in and return the canvas
@@ -149,7 +154,7 @@ export function compositeCutout(
   alphaSmall: Uint8ClampedArray,
   opts: CompositeOptions = {},
 ): { canvas: HTMLCanvasElement; coverage: number } {
-  const { w, h } = outputSize(img.naturalWidth, img.naturalHeight);
+  const { w, h } = outputSize(img.naturalWidth, img.naturalHeight, opts.maxEdge);
   let alpha = upsampleAlpha(alphaSmall, SALIENCY_MASK_SIZE, w, h);
 
   const canvas = document.createElement("canvas");
@@ -160,7 +165,7 @@ export function compositeCutout(
   ctx.drawImage(img, 0, 0, w, h);
   const pixels = ctx.getImageData(0, 0, w, h); // throws SecurityError on taint
   const d = pixels.data;
-  if (opts.hints) applyHints(alpha, opts.hints);
+  if (opts.hints) applyHints(alpha, resampleHints(opts.hints, w, h));
   if (opts.refine ?? true) alpha = refineMatte(d, w, h, alpha);
   for (let i = 0; i < alpha.length; i++) d[i * 4 + 3] = alpha[i];
   ctx.putImageData(pixels, 0, 0);

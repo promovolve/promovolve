@@ -1,5 +1,7 @@
 package promovolve.advertiser
 
+import promovolve.advertiser.cbo.CboStrategy
+
 import com.github.blemale.scaffeine.{ Cache, Scaffeine }
 import com.typesafe.config.Config
 import org.apache.pekko.actor.typed.pubsub.Topic
@@ -654,6 +656,7 @@ object CampaignEntity {
 
                 val newState = state.copy(
                   spendToday = Spend.zero, // New day starts at zero
+                  ctaToday = 0L,
                   lastResetInstant = ts, // Reset to actual time (not midnight)
                   pendingReports = updatedPending,
                   processedFilter = Array.emptyByteArray // Fresh filter persisted on next flush
@@ -810,6 +813,7 @@ object CampaignEntity {
 
                 val newState = state.copy(
                   spendToday = Spend.zero,
+                  ctaToday = 0L,
                   lastResetInstant = now, // Reset to actual time
                   pendingReports = updatedPending,
                   processedFilter = Array.emptyByteArray // Fresh filter for new day
@@ -1004,7 +1008,8 @@ object CampaignEntity {
               placeTargeting = state.placeTargeting,
               suggestedCategories = state.suggestedCategories,
               name = state.name,
-              frequencyCap = state.frequencyCap
+              frequencyCap = state.frequencyCap,
+              strategy = state.strategy
             )
             Effect.none
 
@@ -1043,7 +1048,7 @@ object CampaignEntity {
 
           case UpdateConfig(maxCpm, dailyBudget, adProductCat, categoriesOpt, landingUrlOpt, bidOnUnmatchedCtx,
                 startAtOpt, endAtOpt, siteAllowlistOpt, audienceTargetingOpt, requireVerifiedOpt,
-                placeTargetingOpt, nameOpt, frequencyCapOpt, replyTo) =>
+                placeTargetingOpt, nameOpt, frequencyCapOpt, strategyOpt, replyTo) =>
             val newAdProductCategory = adProductCat.getOrElse(state.adProductCategory)
             // Target categories are now an explicit advertiser declaration —
             // no longer derived from adProductCategory. Any 2.x ids the
@@ -1073,7 +1078,8 @@ object CampaignEntity {
               placeTargeting = placeTargetingOpt.getOrElse(state.placeTargeting),
               name = nameOpt.map(_.trim).filter(_.nonEmpty).getOrElse(state.name),
               // Some(None) clears, Some(Some(cap)) sets, None = no change.
-              frequencyCap = frequencyCapOpt.getOrElse(state.frequencyCap)
+              frequencyCap = frequencyCapOpt.getOrElse(state.frequencyCap),
+              strategy = strategyOpt.filter(CboStrategy.isValid).getOrElse(state.strategy)
             )
             val nowWithin = withinBudget(newState)
             // Defer reply until directory registration completes
@@ -1258,6 +1264,27 @@ object CampaignEntity {
             )
             Effect.none
 
+          case RecordTapThrough(_) =>
+            // Fire-and-forget from the tracking path (non-suspect CTA clicks
+            // only, the same filter the dashboard projection applies). Rare
+            // enough that persisting per event is fine; the count feeds the
+            // advertiser's allocator through GetCboSnapshot.
+            Effect.persist(state.copy(ctaToday = state.ctaToday + 1))
+
+          case GetCboSnapshot(replyTo) =>
+            val now = Instant.now()
+            replyTo ! CboSnapshot(
+              campaignId = campaignId,
+              strategy = state.strategy,
+              live = state.status == Status.Active && state.isWithinSchedule(now),
+              dailyBudget = state.dailyBudget,
+              spent = totalSpend(state),
+              ctaToday = state.ctaToday,
+              exhausted = !withinBudget(state),
+              dayStart = state.lastResetInstant
+            )
+            Effect.none
+
           case ResetDayStart(replyTo, dayDuration) =>
             val now = Instant.now()
             val sinceLast = java.time.Duration.between(state.lastResetInstant, now).toMillis
@@ -1305,6 +1332,7 @@ object CampaignEntity {
 
               val newState = state.copy(
                 spendToday = Spend.zero,
+                ctaToday = 0L,
                 lastResetInstant = now,
                 pendingReports = updatedPending,
                 processedFilter = Array.emptyByteArray
@@ -1872,7 +1900,10 @@ object CampaignEntity {
       name: String = "",
       // Per-browser frequency cap policy; None = uncapped. Carried to the
       // ad tag on every served winner (ServeRes.frequencyCap).
-      frequencyCap: Option[FrequencyCap] = None
+      frequencyCap: Option[FrequencyCap] = None,
+      // "fixed" | "auto" (Campaign Budget Optimization). Default keeps
+      // replies from older nodes readable.
+      strategy: String = CboStrategy.Fixed
   ) extends promovolve.CborSerializable
 
   final case class UpdateStatus(status: Status, replyTo: ActorRef[StatusUpdated]) extends Command
@@ -1913,6 +1944,9 @@ object CampaignEntity {
       // Frequency cap. None = no change, Some(None) = clear (uncapped),
       // Some(Some(cap)) = set. Same tri-state as endAt.
       frequencyCap: Option[Option[FrequencyCap]] = None,
+      // Budget strategy: None = no change, Some("fixed" | "auto") = set.
+      // Anything else is ignored (the API validates; this is defense).
+      strategy: Option[String] = None,
       replyTo: ActorRef[ConfigUpdated]
   ) extends Command
 
@@ -2031,6 +2065,31 @@ object CampaignEntity {
       // (not UTC). Informational only — the sole consumer (AuctionRoutes'
       // test route) ignores it.
       epochDay: Long
+  ) extends promovolve.CborSerializable
+
+  /**
+   * A fraud-filtered tap-through (CTA click) landed for this campaign.
+   * Fire-and-forget from the api tier; counted into `State.ctaToday`.
+   */
+  final case class RecordTapThrough(ts: Instant) extends Command
+
+  /**
+   * Everything the advertiser's Campaign Budget Optimization tick needs
+   * from one campaign, in one reply (GH #38, #59).
+   */
+  final case class GetCboSnapshot(replyTo: ActorRef[CboSnapshot]) extends Command
+
+  final case class CboSnapshot(
+      campaignId: CampaignId,
+      strategy: String,
+      /** Active and within schedule: the allocator's "live" notion. */
+      live: Boolean,
+      dailyBudget: Budget,
+      spent: Spend,
+      ctaToday: Long,
+      /** Spend has reached the wall; the strongest absorb signal. */
+      exhausted: Boolean,
+      dayStart: Instant
   ) extends promovolve.CborSerializable
 
   /** Get budget info */
@@ -2229,7 +2288,17 @@ object CampaignEntity {
       timezone: String = "",
       // Per-browser frequency cap policy (docs/design/FREQUENCY_CAPPING.md).
       // None = uncapped. Default-None is Jackson-safe for older State.
-      frequencyCap: Option[FrequencyCap] = None
+      frequencyCap: Option[FrequencyCap] = None,
+      // Budget strategy (Campaign Budget Optimization, GH #38): "fixed" keeps
+      // this campaign's own daily wall; "auto" hands the wall to the
+      // advertiser's allocator, which re-splits the account budget across
+      // auto campaigns by tap-throughs per unit of spend. Plain String per
+      // the Jackson sealed-trait rule; default keeps legacy State fixed.
+      strategy: String = CboStrategy.Fixed,
+      // Today's fraud-filtered tap-throughs (CTA clicks), told by the
+      // tracking path; the allocator's objective. Resets with the budget
+      // day alongside spendToday. Default 0 is Jackson-safe.
+      ctaToday: Long = 0L
   ) extends CborSerializable {
 
     /**

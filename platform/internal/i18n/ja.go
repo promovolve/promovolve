@@ -483,6 +483,17 @@ var ja = map[string]string{
 	"Remaining Today":      "本日の残り",
 	"New Daily Budget":     "新しい日予算",
 	"Update Budget":        "予算を更新",
+	// ── Campaign Budget Optimization ──
+	"Budget mode":          "予算モード",
+	"Manual":               "手動",
+	"Optimized":            "最適化",
+	"Manual: every campaign keeps its own daily budget and the account budget is a hard cap on all of them. Optimized: the account budget is re-split every few minutes across all live campaigns, toward the ones earning the most tap-throughs per unit of spend; no campaign drops below a fifth of its equal share. It needs at least two live campaigns; below that it does nothing.": "手動：各キャンペーンが自分の日予算を持ち、アカウント予算は全キャンペーンの上限として働きます。最適化：稼働中の全キャンペーン間で、支出あたりのタップスルーが多いものへアカウント予算を数分ごとに再配分します。どのキャンペーンも均等配分の5分の1を下回ることはありません。稼働中のキャンペーンが2件以上必要で、それ未満では何もしません。",
+	"Optimized budget mode": "最適化予算モード",
+	"The account budget is re-split across all live campaigns.": "アカウント予算は稼働中の全キャンペーン間で再配分されます。",
+	"Managed by the account allocator while the account budget mode is Optimized. Switch the account to Manual to set it by hand.": "アカウントの予算モードが「最適化」の間はアカウントの配分器が管理します。手動で設定するにはアカウントを「手動」に切り替えてください。",
+	"started today at %s":                   "本日の開始時点は %s",
+	"moved %s between campaigns today":        "本日はキャンペーン間で %s を移動",
+	"Daily budget is set by the account allocator (Campaign Budget Optimization).": "日予算はアカウントの配分器（キャンペーン予算最適化）が設定しています。",
 	"Changes apply immediately. Today's spend is not reset.": "変更はすぐに適用されます。本日の消化額はリセットされません。",
 
 	// ── report ──

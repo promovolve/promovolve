@@ -32,6 +32,14 @@ const BRUSH_MIN = 4;
 const BRUSH_MAX = 80;
 const BRUSH_DEFAULT = 18;
 const UNDO_CAP = 20;
+
+// Interactive preview resolution (long edge). Every stroke / toggle
+// re-composites, and refineMatte is a per-pixel pass — at the full
+// 2000px output cap that is ~3 MP and a second-plus of main-thread
+// freeze per stroke on a laptop. 1000px is ~4× cheaper and still finer
+// than the stage can display; the full-res composite runs exactly once,
+// on Apply. Hints are painted at this resolution and resampled up.
+const PREVIEW_EDGE = 1000;
 const KEEP_TINT = "rgba(80,220,120,0.45)";
 const DROP_TINT = "rgba(240,80,80,0.45)";
 
@@ -387,7 +395,11 @@ export function openRemoveBgModal(store: Store, idx: number, item: ImageItem): v
   const render = (): void => {
     if (!matte) return;
     const t0 = performance.now();
-    const next = compositeCutout(img, matte, { refine: refineBox.checked, hints });
+    const next = compositeCutout(img, matte, {
+      refine: refineBox.checked,
+      hints: hints ? { data: hints, w: hintDims.w, h: hintDims.h } : null,
+      maxEdge: PREVIEW_EDGE,
+    });
     result?.canvas.remove();
     result = next;
     next.canvas.style.cssText = mediaCss;
@@ -430,7 +442,7 @@ export function openRemoveBgModal(store: Store, idx: number, item: ImageItem): v
     hint.textContent = "Detecting subject… (first run downloads the ~5 MB model)";
     try {
       matte = await computeMatte(img);
-      hintDims = outputSize(img.naturalWidth, img.naturalHeight);
+      hintDims = outputSize(img.naturalWidth, img.naturalHeight, PREVIEW_EDGE);
       hints = new Uint8Array(hintDims.w * hintDims.h);
       overlay.width = hintDims.w;
       overlay.height = hintDims.h;
@@ -472,9 +484,20 @@ export function openRemoveBgModal(store: Store, idx: number, item: ImageItem): v
     busy = true;
     applyBtn.disabled = true;
     cancelBtn.disabled = true;
-    hint.textContent = "Uploading cutout…";
+    hint.textContent = "Rendering full resolution…";
     try {
-      const blob = await encodeCanvas(result.canvas);
+      // The preview was composited at PREVIEW_EDGE; the asset gets the
+      // real output size. Yield a frame first so the status line paints
+      // before the synchronous full-res pass blocks the thread.
+      await new Promise<void>((r) => requestAnimationFrame(() => r()));
+      const t0 = performance.now();
+      const full = compositeCutout(img, matte as Uint8ClampedArray, {
+        refine: refineBox.checked,
+        hints: hints ? { data: hints, w: hintDims.w, h: hintDims.h } : null,
+      });
+      console.info("[remove-bg] full-res composite %d×%d %dms", full.canvas.width, full.canvas.height, Math.round(performance.now() - t0));
+      hint.textContent = "Uploading cutout…";
+      const blob = await encodeCanvas(full.canvas);
       const file = new File([blob], cutoutFilename(src as string), { type: "image/webp" });
       const { src: newSrc } = await uploadImage(file);
       applyCutout(store, idx, item, newSrc);

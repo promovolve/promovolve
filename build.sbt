@@ -6,7 +6,7 @@ val pekkoVersion                = "1.4.0"
 val pekkoHttpVersion            = "1.2.0"
 val pekkoProjectionVersion      = "1.1.0"
 val pekkoManagementVersion      = "1.2.1"
-val logbackVersion              = "1.5.18"
+val logbackVersion              = "1.6.3"
 val pekkoQuartzSchedulerVersion = "1.3.0-pekko-1.1.x"
 val tapirVersion = "1.13.3"
 
@@ -120,9 +120,10 @@ lazy val commonSettings = Seq(
     "org.apache.pekko"       %% "pekko-http-spray-json"        % pekkoHttpVersion,
     "org.apache.pekko"       %% "pekko-http-xml"               % pekkoHttpVersion,  // Explicit version to avoid conflict with pekko-connectors-s3
     // Persistence (PostgreSQL)
-    "org.apache.pekko"       %% "pekko-persistence-jdbc"       % "1.2.0",
-    "com.typesafe.slick"     %% "slick"                        % "3.5.1",
-    "com.typesafe.slick"     %% "slick-hikaricp"               % "3.5.1",
+    "org.apache.pekko"       %% "pekko-persistence-jdbc"       % "1.3.0",
+    // Slick 3.6 crosses the PVP binary-compatibility boundary used by the Pekko JDBC/Projection artifacts.
+    "com.typesafe.slick"     %% "slick"                        % "3.5.2",
+    "com.typesafe.slick"     %% "slick-hikaricp"               % "3.5.2",
     "org.postgresql"          % "postgresql"                   % "42.7.8",
     // Pekko Projection (for dashboard read-side)
     "org.apache.pekko"       %% "pekko-projection-core"        % pekkoProjectionVersion,
@@ -131,7 +132,7 @@ lazy val commonSettings = Seq(
     "io.github.samueleresca" %% "pekko-quartz-scheduler"       % pekkoQuartzSchedulerVersion,
     "ch.qos.logback"          % "logback-classic"              % logbackVersion,
     "com.github.jkugiya"     %% "ulid-scala"                   % "1.0.6",
-    "com.microsoft.playwright" % "playwright"                  % "1.54.0",
+    "com.microsoft.playwright" % "playwright"                  % "1.62.0",
     "org.apache.commons"      % "commons-math3"                % "3.6.1",  // Beta distribution for Thompson Sampling
     "com.github.blemale"     %% "scaffeine"                    % "5.3.0",  // Scala wrapper for Caffeine cache
     "com.google.guava"        % "guava"                        % "33.4.8-jre",  // InternetDomainName (public-suffix eTLD+1 for auto-approve trust)

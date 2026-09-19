@@ -331,8 +331,23 @@ object ClusterBootstrap {
         sharding: ClusterSharding,
         budgetTopic: ActorRef[Topic.Command[BudgetEvent]]
     ): Unit =
+      val appConfig = system.settings.config
+      val cboTickInterval =
+        if (appConfig.hasPath("promovolve.cbo.tick-interval"))
+          appConfig.getDuration("promovolve.cbo.tick-interval").toMillis.millis
+        else 15.minutes
+      val simDayDuration =
+        if (appConfig.hasPath("promovolve.sim.day-duration-seconds"))
+          appConfig.getDouble("promovolve.sim.day-duration-seconds")
+        else 86400.0
       sharding.init(Entity(AdvertiserEntity.TypeKey) { ctx =>
-        AdvertiserEntity(AdvertiserId(ctx.entityId), sharding, budgetTopic)(using system)
+        AdvertiserEntity(
+          AdvertiserId(ctx.entityId),
+          sharding,
+          budgetTopic,
+          cboTickInterval = cboTickInterval,
+          simDayDurationSeconds = simDayDuration
+        )(using system)
       }.withEntityProps(DispatcherSelector.fromConfig("entity-dispatcher")))
 
     private def initCampaignEntity(

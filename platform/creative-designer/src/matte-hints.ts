@@ -55,6 +55,34 @@ export function applyHints(alpha: Uint8ClampedArray, hints: Uint8Array): void {
   }
 }
 
+/** Hint plane with its dimensions — strokes are painted at the modal's
+  * PREVIEW resolution and resampled to the output size on Apply. */
+export interface HintPlane {
+  data: Uint8Array;
+  w: number;
+  h: number;
+}
+
+/** Nearest-neighbour resample of a hint plane to dw×dh. Hints are
+  * categorical (KEEP/DROP/NONE) so nearest is the only sensible filter;
+  * the blocky edge it leaves is exactly what the guided filter refines
+  * away afterwards. Returns the same array when dims already match. */
+export function resampleHints(src: HintPlane, dw: number, dh: number): Uint8Array {
+  if (src.w === dw && src.h === dh) return src.data;
+  const out = new Uint8Array(dw * dh);
+  const sx = src.w / dw;
+  const sy = src.h / dh;
+  for (let y = 0; y < dh; y++) {
+    const syi = Math.min(src.h - 1, Math.floor((y + 0.5) * sy));
+    const srow = syi * src.w;
+    const drow = y * dw;
+    for (let x = 0; x < dw; x++) {
+      out[drow + x] = src.data[srow + Math.min(src.w - 1, Math.floor((x + 0.5) * sx))];
+    }
+  }
+  return out;
+}
+
 /** True when any pixel carries a hint. */
 export function hasHints(hints: Uint8Array): boolean {
   for (let i = 0; i < hints.length; i++) if (hints[i] !== HINT_NONE) return true;

@@ -19,7 +19,7 @@
 <!-- Budget info line -->
 {{if .AdvBudget}}
 <div class="flex items-center justify-between mb-6 text-sm text-gray-500">
-  <span>{{t "Account budget: %s/day (%s remaining, %s spent today)" (money .AdvBudget.DailyBudget) (money .AdvBudget.Remaining) (money .AdvBudget.SpendToday)}}</span>
+  <span>{{t "Account budget: %s/day (%s remaining, %s spent today)" (money .AdvBudget.DailyBudget) (money .AdvBudget.Remaining) (money .AdvBudget.SpendToday)}}{{if eq .AdvBudget.BudgetMode "optimized"}} &middot; <span class="badge badge-info" title="{{t "The account budget is re-split across all live campaigns."}}">{{t "Optimized budget mode"}}</span>{{if .AdvBudget.MovedToday}} &middot; {{t "moved %s between campaigns today" .AdvBudget.MovedToday}}{{end}}{{end}}</span>
   <a href="/advertiser/account" class="text-brand hover:underline">{{t "Edit"}}</a>
 </div>
 {{end}}
@@ -353,6 +353,12 @@
             {{t "⚠ Untargeted"}}
           </span>
           {{end}}
+          {{if and $.AdvBudget (eq $.AdvBudget.BudgetMode "optimized")}}
+          <span class="badge badge-info"
+                title="{{t "Daily budget is set by the account allocator (Campaign Budget Optimization)."}}">
+            {{t "Optimized"}}
+          </span>
+          {{end}}
         </div>
         <p class="text-xs text-gray-500">{{if .AdProductCategoryName}}{{.AdProductCategoryName}}{{else if .AdProductCategory}}{{.AdProductCategory}}{{else}}{{t "No category"}}{{end}}</p>
       </div>
@@ -363,6 +369,9 @@
           <span>{{money .SpendToday}}</span>
           <span>{{money .DailyBudget}}</span>
         </div>
+        {{if .DayStartBudget}}
+        <p class="text-xs text-gray-400 mb-1 text-right" data-budget-moved>{{t "started today at %s" .DayStartBudget}}{{if .BudgetMoved}} &middot; <span class="{{if .BudgetMovedUp}}text-green-600{{else}}text-red-600{{end}}">{{.BudgetMoved}}</span>{{end}}</p>
+        {{end}}
         <div class="h-1.5 bg-gray-200 rounded-full">
           <div class="h-full rounded-full {{if gt .BudgetPct 90.0}}bg-red-500{{else if gt .BudgetPct 70.0}}bg-amber-500{{else}}bg-green-500{{end}}"
                style="width:{{if .BudgetPct}}{{.BudgetPct}}{{else}}0{{end}}%;"></div>
@@ -867,10 +876,18 @@
             <div>
               <label class="form-label">{{t "Daily Budget"}} ({{sym}})</label>
               <div >
+              {{/* Disabled while the ACCOUNT budget mode is Optimized (#98): a
+                   disabled input is not submitted, so the PATCH omits `budget`
+                   and the allocator's number is never clobbered by a stale
+                   resend (which would also fail the whole patch if it fell
+                   below today's spend). */}}
+              {{$managed := and $.AdvBudget (eq $.AdvBudget.BudgetMode "optimized")}}
               <input type="number" name="budget" step="{{moneystep}}" min="{{moneystep}}" value="{{.DailyBudget}}"
-                      class="form-input">
+                      {{if $managed}}disabled{{end}}
+                      class="form-input{{if $managed}} bg-gray-100 text-gray-500 cursor-not-allowed{{end}}">
               
               </div>
+              <p class="text-xs text-gray-400 mt-1" data-budget-managed {{if not $managed}}hidden{{end}}>{{t "Managed by the account allocator while the account budget mode is Optimized. Switch the account to Manual to set it by hand."}}</p>
             </div>
             <div>
               <label class="form-label">{{t "Max CPM"}} ({{sym}})</label>

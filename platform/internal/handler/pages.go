@@ -925,17 +925,22 @@ type campaignData struct {
 	AdProductCategory string
 	DailyBudget       string
 	MaxCPM            string
-	LandingURL        string
-	SpendToday        string
-	BudgetPct         float64
-	Impressions       int
-	Clicks            int
-	CTR               string
-	ECPM              string // effective CPM: spend / impressions * 1000
-	LifetimeSpend     string // projection totalSpend, base-currency formatted
-	BidsToday         int
-	WinRate           string // e.g. "45.2%"
-	WinRateClass      string // CSS class: text-red-600, text-amber-600, text-green-600
+	// While the account is optimized (#103): the wall this campaign started
+	// the day with, and the signed move since ("+2.40"); empty under manual.
+	DayStartBudget string
+	BudgetMoved    string
+	BudgetMovedUp  bool
+	LandingURL     string
+	SpendToday     string
+	BudgetPct      float64
+	Impressions    int
+	Clicks         int
+	CTR            string
+	ECPM           string // effective CPM: spend / impressions * 1000
+	LifetimeSpend  string // projection totalSpend, base-currency formatted
+	BidsToday      int
+	WinRate        string // e.g. "45.2%"
+	WinRateClass   string // CSS class: text-red-600, text-amber-600, text-green-600
 	// Opted in to bid on pages with no contextual match (filler
 	// auction). Drives the checkbox on campaigns.html.
 	BidOnUnmatchedContext bool
@@ -992,11 +997,44 @@ type campaignData struct {
 	EndAtPassed    bool
 }
 
+// budgetMoved renders a campaign's day-start wall and its move since, for
+// the campaigns page under an optimized account (#103). dayStart is the
+// money string from the core (empty when the campaign is not pooled or the
+// account is manual); daily is the current daily budget. Returns the
+// formatted day-start wall, the signed move ("+2.40" / "-1.10", empty when
+// unchanged), whether it went up, and the absolute move for the account
+// total.
+func budgetMoved(dayStart, daily string) (string, string, bool, float64) {
+	if dayStart == "" {
+		return "", "", false, 0
+	}
+	from, err1 := strconv.ParseFloat(dayStart, 64)
+	to, err2 := strconv.ParseFloat(daily, 64)
+	if err1 != nil || err2 != nil {
+		return "", "", false, 0
+	}
+	delta := to - from
+	if math.Abs(delta) < 0.00005 {
+		return money(dayStart), "", false, 0
+	}
+	sign := "+"
+	if delta < 0 {
+		sign = "-"
+	}
+	return money(dayStart), sign + money(strconv.FormatFloat(math.Abs(delta), 'f', 4, 64)), delta > 0, math.Abs(delta)
+}
+
 type advertiserBudget struct {
 	DailyBudget string
 	Remaining   string
 	SpendToday  string
 	IsZero      bool
+	// "manual" | "optimized" (Campaign Budget Optimization).
+	BudgetMode string
+	// Net budget moved between campaigns today while optimized (#103): half
+	// the sum of absolute per-campaign moves, so one transfer reads once.
+	// Empty when nothing moved.
+	MovedToday string
 }
 
 type servedSite struct {
@@ -1023,6 +1061,8 @@ func (h *Handler) AdvertiserCampaigns(w http.ResponseWriter, r *http.Request) {
 			Remaining   string `json:"remaining"`
 			SpendToday  string `json:"spendToday"`
 		} `json:"budget"`
+		BudgetMode  string            `json:"budgetMode"`
+		CboDayStart map[string]string `json:"cboDayStart"`
 	}
 	var servedSites []servedSite
 	servedBody, _ := h.coreGet("/v1/advertisers/me/served-sites?limit=50", claims)
@@ -1065,6 +1105,7 @@ func (h *Handler) AdvertiserCampaigns(w http.ResponseWriter, r *http.Request) {
 			Remaining:   money(advResp.Budget.Remaining),
 			SpendToday:  money(advResp.Budget.SpendToday),
 			IsZero:      parsed <= 0,
+			BudgetMode:  advResp.BudgetMode,
 		}
 		if advBudget.IsZero {
 			http.Redirect(w, r, "/advertiser/account", http.StatusSeeOther)
@@ -1093,7 +1134,8 @@ func (h *Handler) AdvertiserCampaigns(w http.ResponseWriter, r *http.Request) {
 			AdProductCategory string                 `json:"adProductCategory"`
 			Budget            struct{ Daily string } `json:"budget"`
 			Bidding           struct {
-				MaxCPM string `json:"maxCpm"`
+				MaxCPM   string `json:"maxCpm"`
+				Strategy string `json:"strategy"`
 			} `json:"bidding"`
 			LandingURL              string            `json:"landingUrl"`
 			Spent                   *string           `json:"spent"`
@@ -1202,6 +1244,7 @@ func (h *Handler) AdvertiserCampaigns(w http.ResponseWriter, r *http.Request) {
 	// same boundary the budget day rolls on. Stored instants are
 	// unchanged; only their interpretation and display shift.
 	schedTz, schedLoc := h.accountTimeContext(r.Context(), claims.AdvertiserID)
+	movedTotal := 0.0
 	for _, c := range campResp.Data {
 		var startLocal, startDisplay string
 		var startFuture bool
@@ -1223,6 +1266,8 @@ func (h *Handler) AdvertiserCampaigns(w http.ResponseWriter, r *http.Request) {
 			}
 		}
 		freqN, freqWindow := freqCapFields(c.FrequencyCap)
+		dayStart, moved, movedUp, movedAbs := budgetMoved(advResp.CboDayStart[c.ID], c.Budget.Daily)
+		movedTotal += movedAbs
 		cd := campaignData{
 			ID:                      c.ID,
 			Name:                    c.Name,
@@ -1230,6 +1275,9 @@ func (h *Handler) AdvertiserCampaigns(w http.ResponseWriter, r *http.Request) {
 			AdProductCategory:       c.AdProductCategory,
 			DailyBudget:             money(c.Budget.Daily),
 			MaxCPM:                  money(c.Bidding.MaxCPM),
+			DayStartBudget:          dayStart,
+			BudgetMoved:             moved,
+			BudgetMovedUp:           movedUp,
 			LandingURL:              c.LandingURL,
 			BidOnUnmatchedContext:   c.BidOnUnmatchedContext,
 			Untargeted:              c.Untargeted,
@@ -1323,6 +1371,9 @@ func (h *Handler) AdvertiserCampaigns(w http.ResponseWriter, r *http.Request) {
 			}
 		}
 		campaigns = append(campaigns, cd)
+	}
+	if advBudget != nil && movedTotal > 0 {
+		advBudget.MovedToday = money(strconv.FormatFloat(movedTotal/2, 'f', 4, 64))
 	}
 
 	var avgCTR, avgWinRate string
@@ -1571,6 +1622,7 @@ func (h *Handler) AdvertiserAccount(w http.ResponseWriter, r *http.Request) {
 			Remaining   string `json:"remaining"`
 			SpendToday  string `json:"spendToday"`
 		} `json:"budget"`
+		BudgetMode string `json:"budgetMode"`
 	}
 	budgetUnset := true
 	if json.Unmarshal(advBody, &advResp) == nil {
@@ -1584,6 +1636,7 @@ func (h *Handler) AdvertiserAccount(w http.ResponseWriter, r *http.Request) {
 			Remaining:   money(advResp.Budget.Remaining),
 			SpendToday:  money(advResp.Budget.SpendToday),
 			IsZero:      parsed <= 0,
+			BudgetMode:  advResp.BudgetMode,
 		}
 		budgetUnset = advBudget.IsZero
 	}
@@ -1625,7 +1678,13 @@ func (h *Handler) SetAdvertiserBudget(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	r.ParseForm()
-	body, _ := json.Marshal(map[string]string{"dailyBudget": r.FormValue("dailyBudget")})
+	req := map[string]string{"dailyBudget": r.FormValue("dailyBudget")}
+	// Budget mode rides on the same form (Campaign Budget Optimization).
+	// Absent or unknown = unchanged; the core validates too.
+	if mode := r.FormValue("budgetMode"); mode == "manual" || mode == "optimized" {
+		req["budgetMode"] = mode
+	}
+	body, _ := json.Marshal(req)
 	h.corePut("/v1/advertisers/me/budget", claims, string(body))
 	redirect := r.Referer()
 	if redirect == "" {
@@ -1669,7 +1728,7 @@ func (h *Handler) CreateCampaign(w http.ResponseWriter, r *http.Request) {
 		"budget":            map[string]string{"daily": r.FormValue("budget")},
 		"schedule":          schedule,
 		"adProductCategory": r.FormValue("adProductCategory"),
-		"bidding":           map[string]string{"strategy": "fixed", "maxCpm": r.FormValue("maxCpm")},
+		"bidding":           map[string]string{"maxCpm": r.FormValue("maxCpm")},
 		"landingUrl":        r.FormValue("landingUrl"),
 	}
 	// targetCategories (comma-separated chip values from the form) → JSON
@@ -1852,11 +1911,19 @@ func (h *Handler) UpdateCampaign(w http.ResponseWriter, r *http.Request) {
 	if v := strings.TrimSpace(r.FormValue("name")); v != "" {
 		payload["name"] = v
 	}
+	// While the account budget mode is Optimized the allocator owns every
+	// campaign's daily budget (#98): the edit form disables the field, so it
+	// is not submitted and the PATCH omits `budget`. Budget strategy is no
+	// longer a per-campaign setting; `bidding.strategy` is never sent.
 	if v := strings.TrimSpace(r.FormValue("budget")); v != "" {
 		payload["budget"] = map[string]string{"daily": v}
 	}
+	bidding := map[string]string{}
 	if v := strings.TrimSpace(r.FormValue("maxCpm")); v != "" {
-		payload["bidding"] = map[string]string{"strategy": "fixed", "maxCpm": v}
+		bidding["maxCpm"] = v
+	}
+	if len(bidding) > 0 {
+		payload["bidding"] = bidding
 	}
 	// Picker lists: present (even if empty) ⇒ send, so removing every chip
 	// clears the restriction. Absent ⇒ omit (no change).
@@ -3095,7 +3162,7 @@ func (h *Handler) UpdateCampaignCPM(w http.ResponseWriter, r *http.Request) {
 	campID := r.FormValue("campaignId")
 	maxCpm := r.FormValue("maxCpm")
 	body, _ := json.Marshal(map[string]any{
-		"bidding": map[string]string{"strategy": "fixed", "maxCpm": maxCpm},
+		"bidding": map[string]string{"maxCpm": maxCpm},
 	})
 	h.corePatch(fmt.Sprintf("/v1/advertisers/me/campaigns/%s", campID), claims, string(body))
 	http.Redirect(w, r, "/advertiser/campaigns", http.StatusSeeOther)

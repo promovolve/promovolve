@@ -1,0 +1,74 @@
+{
+  "name": "CBO Two-Campaign symmetric (auto)",
+  "description": "Symmetric-rate control for Campaign Budget Optimization (#38): the scarce setup (account 10, walls 5 + 5, both auto, account optimized) with EQUAL 20% tap-through rates. The allocator must not chase noise: the per-campaign wall share should stay within 0.425 to 0.575 at every report from day 2 on, and the day-3 split within 15% of equal. 3 days of 300s; server needs SIM_DAY_DURATION_SECONDS=300 CBO_TICK_INTERVAL=3s.",
+  "setup": {
+    "mode": "pacing",
+    "advertisers": 1,
+    "campaignsPerAdvertiser": 2,
+    "creativesPerCampaign": 2,
+    "adProductCategory": "1529",
+    "additionalCategories": [
+      "653",
+      "654",
+      "655"
+    ],
+    "budget": 5.0,
+    "campaignBudgets": [
+      5.0,
+      5.0
+    ],
+    "advertiserBudget": 10.0,
+    "cpm": 5.0,
+    "campaignCpms": [
+      5.0,
+      5.0
+    ],
+    "campaignStrategies": [
+      "auto",
+      "auto"
+    ],
+    "ctaRates": [
+      0.2,
+      0.2
+    ],
+    "ctaDelayMs": 150,
+    "budgetMode": "optimized"
+  },
+  "pacing": {
+    "dayDurationSeconds": 300,
+    "weekdayShapeVolumes": [
+      0.5,
+      0.3,
+      0.2,
+      0.2,
+      0.3,
+      0.5,
+      0.8,
+      1.5,
+      2.0,
+      2.5,
+      2.5,
+      2.0,
+      1.8,
+      2.0,
+      2.2,
+      2.5,
+      3.0,
+      2.5,
+      2.0,
+      1.5,
+      1.0,
+      0.8,
+      0.6,
+      0.4
+    ]
+  },
+  "traffic": {
+    "continuous": true,
+    "reportEvery": 400,
+    "clickRate": 0.05,
+    "variableDelay": false,
+    "delayMs": 10,
+    "stopAfterDays": 3
+  }
+}

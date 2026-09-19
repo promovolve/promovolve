@@ -68,3 +68,6 @@ private/
 
 ### Separate repo that lives in-tree (github.com/hanishi/promovolve-book) ###
 /book/
+
+# CBO gate harness (scripts/cbo-gate.sh builds it on first use)
+scripts/runscenario.jar

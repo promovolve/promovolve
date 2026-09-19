@@ -249,12 +249,23 @@ final class LearningEventLog(
   }
 
   private def processCTAClick(e: TrackEvent, category: String): Unit = {
-    // Write to journal for dashboard projection. CTA has no entity-
-    // level dispatches today, so the only effect of `e.dogeared` is in
-    // DashboardProjectionHandler, which gates the primary
+    // Write to journal for dashboard projection. `e.dogeared` only matters
+    // in DashboardProjectionHandler, which gates the primary
     // total_cta_clicks counter on !e.dogeared and bumps a parallel
     // dogeared_cta_clicks instead.
     trackingJournal.foreach(_.writeCTAClick(e))
+
+    // Campaign Budget Optimization signal (GH #38): count the tap-through
+    // on its campaign. Same filter as the projection's money/learning
+    // gates — a suspect event is evidence only. Fire-and-forget, like the
+    // impression path's RecordSpend.
+    if (e.suspectReason.isEmpty)
+      for {
+        adv <- e.advertiserId.filter(_.nonEmpty)
+        camp <- e.campaignId.filter(_.nonEmpty)
+      } sharding
+        .entityRefFor(CampaignEntity.TypeKey, s"$adv|$camp")
+        .tell(CampaignEntity.RecordTapThrough(Instant.ofEpochMilli(e.ts)))
 
     system.log.debug(
       "Recorded CTA click: pub={} cid={} category={} dogeared={}",

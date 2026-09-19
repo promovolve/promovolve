@@ -32,7 +32,8 @@ See the [README](README.md#repository-layout) for the map. The two build targets
 
 - **JDK 21 and sbt** (Scala 3.7)
 - **Go 1.26+**
-- **Node.js** (to build the Tailwind CSS and the JS ad bundles)
+- **GNU Make** (Go platform tasks)
+- **Node.js 24** (to build the Tailwind CSS and the JS ad bundles)
 - **Docker** (local Postgres/TimescaleDB)
 - To run the full system end-to-end you also need an S3-compatible bucket
   (Cloudflare R2) and one LLM API key (Gemini, OpenAI, or Anthropic) — the core
@@ -57,11 +58,12 @@ configuration surface.
 sbt compile
 sbt test                 # all modules; or e.g. `sbt "core/testOnly *FloorSweep*"`
 
-# Go platform
-cd platform
-go build ./...
-go test ./cmd/...        # server + tools
+# Go platform — build + vet + `go test -race` over every first-party package,
+# exactly what CI runs
+make -C platform check
 ```
+
+Run `make -C platform help` to list targets. `build`, `vet`, and `test` can also run individually; `build-server` writes `platform/server`.
 
 Notes:
 
@@ -78,7 +80,9 @@ Notes:
 
 - **Scala** — run `sbt scalafmtAll` before committing (config in
   `.scalafmt.conf`). CI-style check: `sbt scalafmtCheckAll`.
-- **Go** — `gofmt`/`goimports` and `go vet ./...`. Keep to standard Go style.
+- **Go** — `gofmt`/`goimports`; `make -C platform check` runs `go vet` over the
+  first-party packages (a bare `./...` also sweeps up Go snippets that npm
+  vendors under `node_modules`). Keep to standard Go style.
 - **Match the surrounding code.** Naming, comment density, and idiom should look
   like the file you're editing.
 
@@ -102,6 +106,10 @@ Two build traps worth knowing (both self-inflicted footguns if skipped):
 
 ## Commits & pull requests
 
+- **Everything lands on `main` through a pull request** — a repository
+  Ruleset requires one, with the CI checks green, and squash-merges it.
+  Maintainers included; CI's own digest pin-back goes through a PR too
+  (`scripts/pin-back-pr.sh`). Merging to `main` is what deploys.
 - **Conventional-commit style** subject lines (`feat:`, `fix:`, `chore:`,
   `docs:`, `refactor:`), matching the existing history.
 - Keep PRs **focused** — one logical change per PR is much easier to review.

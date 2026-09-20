@@ -313,15 +313,39 @@ that the deploy reads.
 ## Local development
 
 ```bash
-docker compose up postgres          # TimescaleDB on :5432, schema from docker/init-db.sql
-cp scripts/.env.example scripts/.env   # fill R2 + LLM key + CDN_BASE_URL
-scripts/run-dev.sh --fresh          # core API on :8080 (--fresh wipes DB + DData + projection offsets)
-scripts/run-dashboard.sh            # dashboard on :9091, DEV_AUTH=true, RP_ID=localhost
+cp scripts/.env.example scripts/.env   # add one LLM API key
+scripts/run-local.sh                   # dashboard :9091, API :8080, local R2 :8787
 ```
 
-`--fresh` matters: DData `remember-entities` state survives restarts and
-resurrects stale entities if you truncate the database without also
-clearing DData — the script does both.
+`run-local.sh` installs the locked project dependencies (including the
+project-local Wrangler package), then starts TimescaleDB, Wrangler's
+persistent local R2 simulation, the core API, and the dashboard. It also
+builds and uploads the banner component to local R2. Stop the foreground
+processes with Ctrl-C; PostgreSQL stays up and can be stopped with `docker
+compose stop postgres`.
+
+`R2_LOCAL_URL` may change the loopback hostname or port, for example
+`http://127.0.0.1:8788`. The all-in-one runner rejects non-loopback URLs so
+the unauthenticated development facade cannot be exposed to another host. The
+Worker also rejects requests addressed to non-loopback hosts.
+
+Cloudflare bindings are available to Worker code through `env`; Wrangler does
+not expose its local R2 simulation as an S3-compatible endpoint. The Worker in
+`dev/r2-local` therefore provides the HTTP facade used by the JVM and browser
+uploads. Objects persist under `dev/r2-local/.wrangler/state` and do not affect
+a remote bucket. See [Cloudflare's local-development documentation](https://developers.cloudflare.com/workers/local-development/#bindings-during-local-development)
+for the local binding behavior and the opt-in `remote: true` alternative.
+
+For separate terminals, install Wrangler with `npm ci --include=dev --prefix
+dev/r2-local`, then set `R2_LOCAL_URL=http://127.0.0.1:8787`. Start PostgreSQL
+with `docker compose up -d postgres`, the Worker with `npm --prefix
+dev/r2-local run dev -- --ip 127.0.0.1 --port 8787`, and the applications with
+`scripts/run-dev.sh` and `scripts/run-dashboard.sh`. The application scripts
+derive `CDN_BASE_URL` and `BANNER_SCRIPT_URL` from `R2_LOCAL_URL`.
+
+Use `scripts/run-dev.sh --fresh` only when you intend to clear DData and
+truncate the development database. DData `remember-entities` state survives
+restarts, so the option clears both stores together.
 
 Expect an **ad-dark window of ~1–2 minutes after any core restart** while
 in-memory demand state rebuilds; it self-heals, don't chase it.

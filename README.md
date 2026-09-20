@@ -77,15 +77,14 @@ Pick your role:
 For local development:
 
 ```bash
-docker compose up -d postgres          # TimescaleDB on :5432 (detached)
-cp scripts/.env.example scripts/.env   # fill in R2 credentials + an LLM API key
-scripts/run-dev.sh --fresh             # core API on :8080
-scripts/run-dashboard.sh               # dashboard on :9091
+cp scripts/.env.example scripts/.env   # add one LLM API key
+scripts/run-local.sh                    # dashboard :9091, API :8080, local R2 :8787
 ```
 
-You'll need JDK 21 and sbt, Go, Node.js 24, Docker, a Cloudflare R2 bucket, and
-one LLM API key (Gemini, OpenAI, or Anthropic) — the core refuses to boot
-without R2 and an LLM provider. Details in the
+You'll need JDK 21 and sbt, Go, Node.js 24, Docker, and one LLM API key
+(Gemini, OpenAI, or Anthropic). `run-local.sh` installs the project-local
+Wrangler dependency; a global Wrangler install, Cloudflare
+account, and R2 credentials are not needed. Details are in the
 [self-hosting guide](docs/guides/self-hosting.md).
 
 ## Documentation

@@ -1,6 +1,6 @@
 module github.com/hanishi/promovolve/platform
 
-go 1.26.1
+go 1.27
 
 require (
 	github.com/go-webauthn/webauthn v0.18.0
@@ -8,7 +8,7 @@ require (
 	github.com/google/uuid v1.6.0
 	github.com/jackc/pgx/v5 v5.10.0
 	github.com/yuin/goldmark v1.8.6
-	golang.org/x/crypto v0.56.0
+	golang.org/x/crypto v0.57.0
 )
 
 require (

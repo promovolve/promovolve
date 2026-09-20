@@ -31,7 +31,7 @@ See the [README](README.md#repository-layout) for the map. The two build targets
 ## Prerequisites
 
 - **JDK 21 and sbt** (Scala 3.7)
-- **Go 1.26+**
+- **Go 1.27+**
 - **GNU Make** (Go platform tasks)
 - **Node.js 24** (to build the Tailwind CSS and the JS ad bundles)
 - **Docker** (local Postgres/TimescaleDB)

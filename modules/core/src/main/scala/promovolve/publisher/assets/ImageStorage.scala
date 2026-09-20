@@ -99,6 +99,13 @@ trait ImageStorage {
     Future.successful(None)
 }
 
+object ImageStorage {
+
+  /** Prefer Wrangler's local R2 simulation when explicitly configured. */
+  def fromEnv()(using system: ActorSystem[?]): Option[ImageStorage] =
+    LocalR2ImageStorage.fromEnv().orElse(R2ImageStorage.fromEnv())
+}
+
 /** Cloudflare R2 storage using Pekko Connectors S3 (S3-compatible, zero egress fees). */
 final class R2ImageStorage(
     accountId: String,

@@ -2,6 +2,7 @@ package promovolve.api
 
 import org.scalatest.matchers.should.Matchers
 import org.scalatest.wordspec.AnyWordSpec
+import promovolve.Integration
 
 import java.nio.file.Files
 import java.util.concurrent.TimeUnit
@@ -23,7 +24,7 @@ class VideoTranscoderSpec extends AnyWordSpec with Matchers {
   }
 
   "VideoTranscoder" should {
-    "strip audio, clip to the loop cap, and emit a poster" in {
+    "strip audio, clip to the loop cap, and emit a poster" taggedAs Integration in {
       assume(VideoTranscoder.available, "ffmpeg not on PATH — skipping")
 
       val dir = Files.createTempDirectory("vtx-spec")
@@ -57,7 +58,7 @@ class VideoTranscoderSpec extends AnyWordSpec with Matchers {
       duration.trim.toDouble should be <= 15.5
     }
 
-    "cut the author's trim window instead of the head of the file" in {
+    "cut the author's trim window instead of the head of the file" taggedAs Integration in {
       assume(VideoTranscoder.available, "ffmpeg not on PATH — skipping")
       val dir = Files.createTempDirectory("vtx-spec-trim")
       val src = dir.resolve("src.mp4")
@@ -77,7 +78,7 @@ class VideoTranscoderSpec extends AnyWordSpec with Matchers {
       duration.trim.toDouble should be(3.0 +- 0.5)
     }
 
-    "normalizeSource keeps the full duration but strips audio and shrinks" in {
+    "normalizeSource keeps the full duration but strips audio and shrinks" taggedAs Integration in {
       assume(VideoTranscoder.available, "ffmpeg not on PATH — skipping")
       val dir = Files.createTempDirectory("vtx-spec-src")
       val src = dir.resolve("src.mp4")

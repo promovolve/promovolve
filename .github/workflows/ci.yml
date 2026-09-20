@@ -38,12 +38,14 @@ jobs:
       - name: scalafmt check
         run: sbt scalafmtCheckAll
 
-      # Compile main + test sources. This catches build breaks and type errors.
-      # NOTE: full `sbt test` is intentionally NOT run — the core suite has a
-      # known-failing baseline (see CONTRIBUTING.md); running it here would be
-      # red on arrival. Switch this to `sbt test` once that baseline is green.
-      - name: Compile (main + test)
-        run: sbt "compile; Test/compile"
+      # Behavioral gate. `test` compiles main + test sources and then RUNS the
+      # suite, so an actor/auction/pacing/serialization regression fails here
+      # instead of riding a green compile into a deploy. Tests that need a live
+      # LLM key or a host ffmpeg carry the `promovolve.Integration` tag and are
+      # excluded by build.sbt, which is what keeps this deterministic on a
+      # clean runner — do not add credentials to make more of them run.
+      - name: Test (main + test)
+        run: sbt test
 
   banner:
     name: Banner (unit + hostile environments)

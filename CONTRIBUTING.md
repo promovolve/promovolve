@@ -67,14 +67,22 @@ Run `make -C platform help` to list targets. `build`, `vet`, and `test` can also
 
 Notes:
 
-- **The core test suite has a known-failing baseline** (a handful of
-  pre-existing failures unrelated to most changes). Compare the *set of failing
-  test names* before and after your change — a non-zero exit code alone doesn't
-  mean you broke something. If your change adds a new failure, fix it or explain
-  why.
-- **Integration specs that need API keys skip themselves** when the relevant env
-  var is unset (`ANTHROPIC_API_KEY`, `GEMINI_API_KEY`). Never hardcode a key to
-  make one run — read it from the environment (see the existing specs).
+- **`sbt test` must be green, and CI runs it.** There is no known-failing
+  baseline any more: a non-zero exit code means something is broken. If your
+  change makes a test fail, fix it — don't work around it.
+- **Tests that leave the JVM are excluded by tag, not by luck.** Anything that
+  calls a live LLM provider or shells out to a host tool (ffmpeg) carries the
+  `promovolve.Integration` tag from
+  `modules/core/src/test/scala/promovolve/TestTags.scala`, and `build.sbt`
+  excludes that tag from `sbt test`. Run them deliberately, with the relevant
+  keys in the environment:
+
+  ```bash
+  sbt "testOnly * -- -n promovolve.Integration"
+  ```
+
+  Tag any new test of that kind the same way. Never hardcode a key to make one
+  run — read it from the environment (see the existing specs).
 
 ## Code style
 

@@ -4,6 +4,7 @@ import org.apache.pekko.actor.testkit.typed.scaladsl.ActorTestKit
 import org.scalatest.BeforeAndAfterAll
 import org.scalatest.matchers.should.Matchers
 import org.scalatest.wordspec.AnyWordSpec
+import promovolve.Integration
 
 import scala.concurrent.Await
 import scala.concurrent.duration.*
@@ -35,7 +36,7 @@ class CategoryVerificationClientIntegrationSpec extends AnyWordSpec with Matcher
 
   "CategoryVerificationClient" should {
 
-    "return suggestedContentCategories for an image with declared category" in {
+    "return suggestedContentCategories for an image with declared category" taggedAs Integration in {
       val apiKey = getApiKey.getOrElse {
         cancel("GEMINI_API_KEY not set, skipping integration test")
       }
@@ -79,7 +80,7 @@ class CategoryVerificationClientIntegrationSpec extends AnyWordSpec with Matcher
       }
     }
 
-    "return suggestedContentCategories even without declared category" in {
+    "return suggestedContentCategories even without declared category" taggedAs Integration in {
       val apiKey = getApiKey.getOrElse {
         cancel("GEMINI_API_KEY not set, skipping integration test")
       }
@@ -115,7 +116,7 @@ class CategoryVerificationClientIntegrationSpec extends AnyWordSpec with Matcher
       }
     }
 
-    "correctly flag adult content and return empty categories" in {
+    "correctly flag adult content and return empty categories" taggedAs Integration in {
       val apiKey = getApiKey.getOrElse {
         cancel("GEMINI_API_KEY not set, skipping integration test")
       }
@@ -150,7 +151,7 @@ class CategoryVerificationClientIntegrationSpec extends AnyWordSpec with Matcher
       println("  SUCCESS: Adult content correctly detected, no categories suggested")
     }
 
-    "return fewer categories than the static mapping would" in {
+    "return fewer categories than the static mapping would" taggedAs Integration in {
       val apiKey = getApiKey.getOrElse {
         cancel("GEMINI_API_KEY not set, skipping integration test")
       }

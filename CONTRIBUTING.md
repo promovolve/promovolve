@@ -84,6 +84,29 @@ Notes:
   Tag any new test of that kind the same way. Never hardcode a key to make one
   run — read it from the environment (see the existing specs).
 
+- **The Go billing suite has a database half, behind a build tag.** Ledger
+  transactionality, idempotency keys, local-day settlement, fraud holds and
+  clawbacks are SQL behavior, so those tests run against a real Postgres.
+  `make -C platform check` skips them and needs no Docker; CI runs them in a
+  separate mandatory job ("Platform billing (postgres)"). With Docker running:
+
+  ```bash
+  go test -tags=integration ./internal/billing/      # from platform/
+  ```
+
+  `TestMain` starts one pinned Postgres for the package run (Testcontainers)
+  and each test migrates its own throwaway schema with the production
+  `db.Migrate`. To use a server you already have instead of a container —
+  faster on repeat runs, and safe against the dev database since nothing is
+  created outside the per-test schema:
+
+  ```bash
+  BILLING_TEST_DATABASE_URL='postgres://promovolve:promovolve@localhost:5432/promovolve?sslmode=disable' \
+    go test -tags=integration ./internal/billing/
+  ```
+
+  Add database-backed tests to that build tag, never to the Docker-free job.
+
 ## Code style
 
 - **Scala** — run `sbt scalafmtAll` before committing (config in

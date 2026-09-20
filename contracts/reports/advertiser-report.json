@@ -1,0 +1,33 @@
+{
+  "advertiserId": "adv_7f3a",
+  "from": "2026-08-01",
+  "to": "2026-08-03",
+  "rows": [
+    {
+      "day": "2026-08-01",
+      "campaignId": "cmp_kinosaki",
+      "impressions": 120345,
+      "clicks": 981,
+      "ctaClicks": 77,
+      "spend": "1234.5678",
+      "dogearedImpressions": 4102,
+      "folds": 512,
+      "unfolds": 488,
+      "dogearedClicks": 61,
+      "dogearedCtaClicks": 9
+    },
+    {
+      "day": "2026-08-03",
+      "campaignId": "cmp_izu",
+      "impressions": 3,
+      "clicks": 0,
+      "ctaClicks": 0,
+      "spend": "0.0001",
+      "dogearedImpressions": 0,
+      "folds": 0,
+      "unfolds": 0,
+      "dogearedClicks": 0,
+      "dogearedCtaClicks": 0
+    }
+  ]
+}

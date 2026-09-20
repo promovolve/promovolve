@@ -1,0 +1,28 @@
+{
+  "publisherId": "pub_22c1",
+  "from": "2026-08-01",
+  "to": "2026-08-31",
+  "rows": [
+    {
+      "siteId": "site_8821",
+      "host": "onsen.example.jp",
+      "category": "52",
+      "impressions": 90210,
+      "clicks": 744,
+      "ctaClicks": 58,
+      "grossRevenue": "1000.0000",
+      "dogearedImpressions": 3011
+    },
+    {
+      "siteId": "site_9004",
+      "host": "",
+      "category": "",
+      "impressions": 12,
+      "clicks": 0,
+      "ctaClicks": 0,
+      "grossRevenue": "0.0001",
+      "dogearedImpressions": 0
+    }
+  ],
+  "coverageFrom": "2026-07-15"
+}

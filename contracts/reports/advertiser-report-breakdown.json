@@ -1,0 +1,27 @@
+{
+  "advertiserId": "adv_7f3a",
+  "from": "2026-08-01",
+  "to": "2026-08-31",
+  "dim": "site",
+  "rows": [
+    {
+      "key": "site_8821",
+      "label": "onsen.example.jp",
+      "impressions": 90210,
+      "clicks": 744,
+      "ctaClicks": 58,
+      "spend": "987.6543",
+      "dogearedImpressions": 3011
+    },
+    {
+      "key": "",
+      "label": "",
+      "impressions": 17,
+      "clicks": 1,
+      "ctaClicks": 0,
+      "spend": "0.0100",
+      "dogearedImpressions": 0
+    }
+  ],
+  "coverageFrom": "2026-07-15"
+}

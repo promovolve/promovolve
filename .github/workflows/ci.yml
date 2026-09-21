@@ -192,3 +192,27 @@ jobs:
           cache-dependency-path: platform/go.sum
       # Share first-party build, vet, and race checks with local development.
       - run: make check
+
+  scala-db:
+    name: Scala persistence (timescaledb)
+    runs-on: ubuntu-latest
+    # The `dbIt` project is not aggregated by root, so `sbt test` in the Scala
+    # job never reaches these — they need Docker, pull a TimescaleDB image and
+    # apply the real docker/init-db.sql. Nothing here skips on a missing
+    # daemon: a container that will not start fails the job.
+    timeout-minutes: 20
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+      - uses: actions/setup-java@de7274f081f381c8f8158605e0321c36c376e2e6 # v6.0.1
+        with:
+          distribution: temurin
+          java-version: "21"
+          cache: sbt
+      - uses: sbt/setup-sbt@82da71df4e122282484a99a8d70096bc2369dbd8 # v1.5.9
+      # The Scala job's `scalafmtCheckAll` runs on the ROOT project, which does
+      # not aggregate dbIt — so these sources need their own check or they
+      # drift unformatted.
+      - name: scalafmt check (dbIt)
+        run: sbt dbIt/scalafmtCheckAll
+      - name: Database integration tests
+        run: sbt dbIt/test

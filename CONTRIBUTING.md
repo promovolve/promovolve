@@ -84,6 +84,29 @@ Notes:
   Tag any new test of that kind the same way. Never hardcode a key to make one
   run — read it from the environment (see the existing specs).
 
+- **Scala database tests live in their own project, `dbIt`.** They check the
+  Slick repositories against a real TimescaleDB: the traffic-shape snapshot
+  round trip, the `ensureSchema` upgrade of a table written before the
+  weekday/weekend split, and `docker/init-db.sql` applied to an empty
+  database. `dbIt` is deliberately not aggregated by the root project, so
+  `sbt test` never runs it and stays Docker-free. CI runs it as its own job
+  ("Scala persistence (timescaledb)"). With Docker running:
+
+  ```bash
+  sbt dbIt/test
+  ```
+
+  It starts one pinned TimescaleDB container for the run. If Testcontainers
+  cannot find your Docker socket — Docker Desktop on macOS serves an API it
+  rejects — point the tests at a server you started yourself instead. It must
+  be TimescaleDB, because init-db.sql creates the extension:
+
+  ```bash
+  docker run -d --rm -e POSTGRES_USER=promovolve -e POSTGRES_PASSWORD=promovolve \
+    -e POSTGRES_DB=promovolve_test -p 55441:5432 timescale/timescaledb:2.17.2-pg15
+  DB_IT_DATABASE_URL='jdbc:postgresql://localhost:55441/promovolve_test' sbt dbIt/test
+  ```
+
 - **The Go billing suite has a database half, behind a build tag.** Ledger
   transactionality, idempotency keys, local-day settlement, fraud holds and
   clawbacks are SQL behavior, so those tests run against a real Postgres.

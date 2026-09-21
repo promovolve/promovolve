@@ -129,6 +129,26 @@ script always passes `--context` explicitly, so it can't land in
 - **DNS must stay grey-cloud** (DNS-only) at Cloudflare: managed-cert
   issuance/renewal needs the hostnames to resolve straight to the LB.
 
+## API runtime isolation verification
+
+After the API isolation rollout, run the read-only verifier against the GKE
+context obtained with `gcloud container clusters get-credentials`:
+
+```sh
+python3 scripts/verify-api-runtime-k8s.py "$(kubectl config current-context)"
+```
+
+It checks that the seccomp installer is ready on each API node, both active
+StatefulSet revisions are ready with pinned images and non-root security
+settings, and each running API container has UID/GID 1000 and read/write
+access to its mounted DData directory. Run it again after a pod restart to
+check the existing PVC mount. This does not write to PVCs or prove that
+Chromium's renderer installed its own seccomp filter; the Docker browser smoke
+test covers the latter, and a real browser request on GKE is still required
+for end-to-end confirmation. Before merging, confirm that the Deploy identity
+can apply ConfigMaps and DaemonSets and patch/watch StatefulSets in the
+`promovolve` namespace. Check the hosted Deploy result after the rollout.
+
 ## Spot caveats
 
 - A preemption (30s notice) looks like a full cluster restart: both api

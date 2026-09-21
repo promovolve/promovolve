@@ -35,6 +35,7 @@ jobs:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
         with:
           fetch-depth: 0 # gh release needs history to resolve/create the tag
+          persist-credentials: false
 
       # build-zip.sh refuses to package when the plugin header Version, the
       # PROMOVOLVE_VERSION constant and readme.txt's Stable tag disagree — so

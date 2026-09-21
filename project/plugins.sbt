@@ -10,4 +10,4 @@ addSbtPlugin("io.spray" % "sbt-revolver" % "0.10.0")
 // (bare tuples deserializing to null → Artery inbound stream death)
 // structurally impossible.
 addSbtPlugin("com.thesamet" % "sbt-protoc" % "1.0.7")
-libraryDependencies += "com.thesamet.scalapb" %% "compilerplugin" % "0.11.17"
+libraryDependencies += "com.thesamet.scalapb" %% "compilerplugin" % "0.11.20"

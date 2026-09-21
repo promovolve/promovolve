@@ -13,7 +13,7 @@ import promovolve.common.Aggregator
 import promovolve.publisher.SiteEntity
 import promovolve.publisher.delivery.AdServer
 import promovolve.publisher.FloorSweepOptimizer
-import promovolve.taxonomy.{ TaxonomyRankerEntity, TieredCategory }
+import promovolve.taxonomy.TaxonomyRankerEntity
 import promovolve.taxonomy.TaxonomyRankerEntity.{ Quote, Quoted }
 
 import java.time.Instant
@@ -404,7 +404,7 @@ private final class AuctioneerEntity private (
     ctx: ActorContext[Messages],
     affinityRegistry: Option[ActorRef[promovolve.taxonomy.AffinityRegistryDData.Cmd]],
     campaignDirectory: Option[ActorRef[promovolve.advertiser.CampaignDirectory.Command]],
-    livenessTopic: Option[ActorRef[Topic.Command[DemandLivenessMonitor.CategoryAuctionReport]]] = None
+    livenessTopic: Option[ActorRef[Topic.Command[DemandLivenessMonitor.CategoryAuctionReport]]]
 ) {
 
   // Pending affinity expansion state
@@ -929,7 +929,7 @@ private final class AuctioneerEntity private (
         if (approvedFloorRejects >= 2) Seq(maxApprovedRejectedCpm, minApprovedRejectedCpm)
         else Seq(maxApprovedRejectedCpm)
       val aggKnownBids = (approvedDeduped.map(_.cpm.toDouble) ++ aggRejBids).filter(_ > 0.0).sorted(
-        Ordering[Double].reverse)
+        using Ordering[Double].reverse)
       val outcome = FloorSweepOptimizer.AuctionOutcome(
         totalBidders = approvedDeduped.size + approvedFloorRejects,
         rejectedByFloor = approvedFloorRejects,
@@ -1679,7 +1679,7 @@ private final class AuctioneerEntity private (
                     if (r.approvedRejectedByFloor >= 2)
                       Seq(r.maxApprovedRejectedCpm, r.minApprovedRejectedCpm)
                     else Seq(r.maxApprovedRejectedCpm)
-                  val knownBids = (qual ++ rejBids).filter(_ > 0.0).sorted(Ordering[Double].reverse)
+                  val knownBids = (qual ++ rejBids).filter(_ > 0.0).sorted(using Ordering[Double].reverse)
                   val secondObs = knownBids.lift(1).getOrElse(0.0)
                   r.categoryId -> (maxObs, minObs, r.approvedRejectedByFloor, bidderCount, secondObs)
                 }.toMap

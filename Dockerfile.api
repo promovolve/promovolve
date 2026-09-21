@@ -6,7 +6,7 @@
 #      (crawl, LP extraction, banner render). The runtime stage is
 #      therefore Microsoft's official Playwright-for-Java image, whose
 #      bundled Chromium build is version-matched to the
-#      `com.microsoft.playwright % playwright % 1.62.0` dependency.
+#      `com.microsoft.playwright % playwright % 1.63.0` dependency.
 #   2. The app needs Java 21 + --add-opens for LMDB durable DData. We
 #      copy a Temurin 21 JRE into the runtime image so the Java version
 #      is deterministic regardless of what the Playwright image ships.
@@ -35,7 +35,7 @@ RUN sbt "api/stage"
 FROM eclipse-temurin:21-jre-jammy AS jre
 
 # ---- runtime stage: Playwright (Chromium + system libs) + JRE 21 ----
-FROM mcr.microsoft.com/playwright/java:v1.62.0-jammy
+FROM mcr.microsoft.com/playwright/java:v1.63.0-jammy
 
 # ffmpeg: CreativeProcessor normalizes video backgrounds at publish
 # (strip audio / clip / downscale / poster frame — VideoTranscoder.scala).

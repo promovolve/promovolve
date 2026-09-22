@@ -90,7 +90,7 @@ class CategoryBidderReconcileSpec extends AnyWordSpec with Matchers with BeforeA
         .expect {
           bidder ! ActiveCampaigns(Map(CampaignId("c1") -> AdvertiserId("a1")), ack.ref)
           ack.expectMessageType[ActiveCampaignsAck]
-        }(testKit.system)
+        }(using testKit.system)
     }
 
     "accept a real leave (rows deleted from category_demand) without restoring or crashing" in {

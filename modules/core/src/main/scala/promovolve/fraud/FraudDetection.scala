@@ -86,7 +86,6 @@ object FraudDetection {
       .flatMap { case (siteId, rows) =>
         val byDayDesc = rows.sortBy(_.day.toEpochDay).reverse
         byDayDesc match {
-          case Nil             => None
           case latest +: older =>
             def toSiteDay(e: EventDay): SiteDay =
               SiteDay(
@@ -97,6 +96,10 @@ object FraudDetection {
                 total = e.total
               )
             Some(SiteMetrics(siteId, latest.day, toSiteDay(latest), older.map(toSiteDay)))
+          // Only the empty Vector reaches here. `Nil` is a List pattern and never
+          // matched a Vector, so the old first case was unreachable and this one
+          // was missing.
+          case _ => None
         }
       }
 

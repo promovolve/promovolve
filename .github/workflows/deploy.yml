@@ -13,7 +13,8 @@
 # Consequence: the digests pinned in k8s/kustomization.yaml are what a
 # manual setup.sh deploy renders, so after every rollout the pin-images /
 # publish-banner jobs write the live digests and banner URL back — through
-# a pull request (branch `ci/pins`, auto-merged once CI is green), because
+# a pull request (branch `ci/pins`, approved after both pin jobs and
+# auto-merged once CI is green), because
 # the `main` Ruleset forbids direct pushes. Until that PR lands the pins
 # lag the cluster; setup.sh refuses to apply while it is open.
 #
@@ -270,8 +271,8 @@ jobs:
   # rollbacks that motivated it). Landed via a pull request on the shared
   # `ci/pins` branch — never a direct push: the `main` Ruleset requires a
   # PR + green checks, and a direct push failed with GH013 after an
-  # otherwise successful rollout (2026-08-30 ×3, GH #33). The PR auto-merges
-  # (squash) once CI passes; the push trigger above ignores the resulting
+  # otherwise successful rollout (2026-08-30 ×3, GH #33). The approval job
+  # below enables auto-merge (squash); the push trigger above ignores its
   # commit. The branch is pushed with the PIN_DEPLOY_KEY deploy key rather
   # than GITHUB_TOKEN because only a real push fires the CI run whose check
   # runs the Ruleset counts (workflow_dispatch runs do not — see the script).
@@ -281,8 +282,8 @@ jobs:
     if: "!cancelled() && needs.deploy.result == 'success'"
     runs-on: ubuntu-latest
     permissions:
-      contents: write        # gh needs it for auto-merge; the push itself uses the deploy key
-      pull-requests: write   # open the PR + enable auto-merge
+      contents: read         # the push uses the deploy key
+      pull-requests: write   # open or update the PR
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
         with:
@@ -340,7 +341,7 @@ jobs:
       && needs.deploy.result != 'failure'
     runs-on: ubuntu-latest
     permissions:
-      contents: write        # pins the published URL back (ci/pins branch).
+      contents: read         # the push uses the deploy key
       pull-requests: write   # Job-level permissions REPLACE the top-level
       id-token: write        # pair, so WIF's id-token must be respelled
                              # here or the gcloud auth step breaks.
@@ -419,6 +420,49 @@ jobs:
             "ci: pin published banner bundle url" \
             "Published by run ${GITHUB_RUN_ID} from ${GITHUB_SHA}." \
             scripts/pin-banner-url.sh "$URL"
+
+  approve-pin-back:
+    name: Approve pin-back PR
+    needs: [pin-images, publish-banner]
+    if: >-
+      ${{ always() && !cancelled() && github.ref == 'refs/heads/main' && needs.pin-images.result == 'success' &&
+          (needs.publish-banner.result == 'success' || needs.publish-banner.result == 'skipped') }}
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+      pull-requests: read
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          # The App token runs only with the main Deploy commit's code.
+          ref: ${{ github.sha }}
+          persist-credentials: false
+
+      - name: Find the final pin-back PR
+        id: pin-pr
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: scripts/approve-pin-back-pr.sh find
+
+      - name: Create pin-back App token
+        id: app-token
+        if: steps.pin-pr.outputs.pr != ''
+        uses: actions/create-github-app-token@bcd2ba49218906704ab6c1aa796996da409d3eb1 # v3.2.0
+        with:
+          client-id: ${{ vars.PIN_BACK_APP_CLIENT_ID }}
+          private-key: ${{ secrets.PIN_BACK_APP_PRIVATE_KEY }}
+          owner: ${{ github.repository_owner }}
+          repositories: promovolve
+          permission-pull-requests: write
+          permission-contents: write
+
+      - name: Approve final pin-back commit and enable auto-merge
+        if: steps.pin-pr.outputs.pr != ''
+        env:
+          GH_TOKEN: ${{ steps.app-token.outputs.token }}
+          PR: ${{ steps.pin-pr.outputs.pr }}
+          SHA: ${{ steps.pin-pr.outputs.sha }}
+        run: scripts/approve-pin-back-pr.sh approve
 
   # The publisher ad tag. Bootstrap releases used to be MANUAL (npm run
   # release from a laptop with scripts/.env) — a merged tag fix that nobody

@@ -207,3 +207,31 @@ jobs:
           cache-dependency-path: platform/go.sum
       # Share first-party build, vet, and race checks with local development.
       - run: make check
+
+  go-billing-db:
+    name: Platform billing (postgres)
+    runs-on: ubuntu-latest
+    # Separate from "Platform (go)" on purpose: this job pulls an image and
+    # starts a container, so it has failure modes (registry, daemon, initdb)
+    # the Docker-free job must never inherit.
+    #
+    # The money suite — transactionality, idempotency, local-day settlement,
+    # holds, clawbacks — used to skip itself unless a database URL happened to
+    # be set, which meant it protected nothing. Here it is mandatory: no
+    # skip-on-missing-Docker fallback, because a silently green money suite is
+    # worse than a red one.
+    timeout-minutes: 15
+    defaults:
+      run:
+        working-directory: platform
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+      - uses: actions/setup-go@b7ad1dad31e06c5925ef5d2fc7ad053ef454303e # v7.0.0
+        with:
+          go-version-file: platform/go.mod
+          cache-dependency-path: platform/go.sum
+      # Testcontainers provisions the pinned Postgres itself (TestMain), so
+      # there is no service container here and no wait-for-healthy shim; on a
+      # startup failure the test binary prints the container logs before
+      # exiting non-zero.
+      - run: go test -tags=integration ./internal/billing/ -count=1

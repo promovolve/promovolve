@@ -16,7 +16,7 @@
 
 # ---- build stage: compile + stage the app with sbt-native-packager ----
 # The bundled sbt/scala in the tag are irrelevant — the sbt launcher
-# auto-fetches the version pinned in project/build.properties (1.11.4)
+# auto-fetches the version pinned in project/build.properties
 # and build.sbt's scalaVersion. We only need a Java 21 base.
 FROM sbtscala/scala-sbt:eclipse-temurin-21.0.8_9_1.12.11_3.8.3 AS build
 WORKDIR /src

@@ -53,17 +53,53 @@ r2_address=$(node -e '
 }
 read -r r2_host r2_port <<< "$r2_address"
 
-if ! node -e '
-  const net = require("node:net");
-  const server = net.createServer();
-  server.once("error", () => process.exit(1));
-  server.listen({ host: process.argv[1], port: Number(process.argv[2]), exclusive: true }, () => {
-    server.close(() => process.exit(0));
-  });
-' "$r2_host" "$r2_port"; then
-  echo "Error: $R2_LOCAL_URL is already in use. Stop the existing process before starting Promovolve."
+if [ "${HTTP_HOST+x}" = "x" ] && [ "$HTTP_HOST" != "127.0.0.1" ]; then
+  echo "Error: scripts/run-local.sh requires HTTP_HOST=127.0.0.1."
   exit 1
 fi
+if [ "${HTTP_PORT+x}" = "x" ] && [ "$HTTP_PORT" != "8080" ]; then
+  echo "Error: scripts/run-local.sh requires HTTP_PORT=8080."
+  exit 1
+fi
+if [ "${LISTEN_ADDR+x}" = "x" ] && [ "$LISTEN_ADDR" != "127.0.0.1:9091" ]; then
+  echo "Error: scripts/run-local.sh requires LISTEN_ADDR=127.0.0.1:9091."
+  exit 1
+fi
+
+export HTTP_HOST=127.0.0.1
+export HTTP_PORT=8080
+export LISTEN_ADDR=127.0.0.1:9091
+
+if [ "$r2_port" = "$HTTP_PORT" ]; then
+  echo "Error: Local R2 and Core API must use different ports (both use $r2_port)."
+  exit 1
+fi
+if [ "$r2_port" = "9091" ]; then
+  echo "Error: Local R2 and Dashboard must use different ports (both use $r2_port)."
+  exit 1
+fi
+
+check_port_available() {
+  local service="$1"
+  local host="$2"
+  local port="$3"
+
+  if ! node -e '
+    const net = require("node:net");
+    const server = net.createServer();
+    server.once("error", () => process.exit(1));
+    server.listen({ host: process.argv[1], port: Number(process.argv[2]), exclusive: true }, () => {
+      server.close(() => process.exit(0));
+    });
+  ' "$host" "$port"; then
+    echo "Error: $service port $host:$port is already in use. Stop the existing process before starting Promovolve."
+    exit 1
+  fi
+}
+
+check_port_available "Local R2" "$r2_host" "$r2_port"
+check_port_available "Core API" "$HTTP_HOST" "$HTTP_PORT"
+check_port_available "Dashboard" "127.0.0.1" "9091"
 
 worker_pid=""
 api_pid=""
@@ -176,18 +212,18 @@ curl --silent --show-error --fail \
   --data-binary @platform/banner-component/dist/expandable-magazine-banner.js.map \
   "${R2_LOCAL_URL%/}/js/expandable-magazine-banner.js.map"
 
-echo "Starting core API on http://127.0.0.1:8080..."
+echo "Starting core API on http://localhost:8080..."
 scripts/run-dev.sh &
 api_pid=$!
 
-echo "Starting dashboard on http://127.0.0.1:9091..."
+echo "Starting dashboard on http://localhost:9091..."
 scripts/run-dashboard.sh &
 dashboard_pid=$!
 
 echo
 echo "Promovolve is starting:"
-echo "  Dashboard: http://127.0.0.1:9091"
-echo "  Core API: http://127.0.0.1:8080"
+echo "  Dashboard: http://localhost:9091"
+echo "  Core API: http://localhost:8080"
 echo "  Local R2: $R2_LOCAL_URL"
 echo "Press Ctrl-C to stop the application processes. PostgreSQL remains running."
 

@@ -51,6 +51,41 @@ test("returns a partial response for a satisfiable range", async () => {
   assert.equal(await result.text(), "2345");
 });
 
+test("returns object metadata without a body for HEAD", async () => {
+  const testEnv = env();
+  let getCalls = 0;
+  testEnv.BUCKET.get = async () => {
+    getCalls += 1;
+    return object();
+  };
+  const result = await worker.fetch(new Request("http://127.0.0.1:8787/video.mp4", {
+    method: "HEAD",
+  }), testEnv);
+
+  assert.equal(result.status, 200);
+  assert.equal(result.headers.get("Content-Length"), "10");
+  assert.equal(await result.text(), "");
+  assert.equal(getCalls, 0);
+});
+
+test("returns not found for HEAD when the object does not exist", async () => {
+  const testEnv = env();
+  let getCalls = 0;
+  testEnv.BUCKET.head = async () => null;
+  testEnv.BUCKET.get = async () => {
+    getCalls += 1;
+    return object();
+  };
+
+  const result = await worker.fetch(new Request("http://127.0.0.1:8787/missing.mp4", {
+    method: "HEAD",
+  }), testEnv);
+
+  assert.equal(result.status, 404);
+  assert.equal(await result.text(), "");
+  assert.equal(getCalls, 0);
+});
+
 test("ignores unsupported multiple ranges", async () => {
   const result = await worker.fetch(new Request("http://127.0.0.1:8787/video.mp4", {
     headers: { Range: "bytes=0-1,4-5" },

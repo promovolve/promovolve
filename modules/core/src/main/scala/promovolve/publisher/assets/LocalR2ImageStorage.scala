@@ -18,6 +18,7 @@ final class LocalR2ImageStorage(endpoint: String)(using system: ActorSystem[?]) 
 
   private given ExecutionContext = system.executionContext
   private val base = endpoint.stripSuffix("/")
+  private val assetExtensions = List("png", "jpg", "gif", "webp", "mp4", "webm", "bin")
 
   override def store(hash: String, bytes: Array[Byte], mimeType: String): Future[String] = {
     val key = s"assets/$hash.${mimeToExt(mimeType)}"
@@ -33,7 +34,7 @@ final class LocalR2ImageStorage(endpoint: String)(using system: ActorSystem[?]) 
         }
     }
 
-    next(List("png", "jpg", "gif", "webp", "mp4", "webm", "bin"))
+    next(assetExtensions)
   }
 
   override def fetchObject(key: String): Future[Option[Array[Byte]]] =
@@ -48,7 +49,17 @@ final class LocalR2ImageStorage(endpoint: String)(using system: ActorSystem[?]) 
       }
     }
 
-  override def exists(hash: String): Future[Boolean] = fetch(hash).map(_.isDefined)
+  override def exists(hash: String): Future[Boolean] = {
+    def next(extensions: List[String]): Future[Boolean] = extensions match {
+      case Nil         => Future.successful(false)
+      case ext :: rest => objectExists(s"assets/$hash.$ext").flatMap {
+          case true  => Future.successful(true)
+          case false => next(rest)
+        }
+    }
+
+    next(assetExtensions)
+  }
 
   override def deleteObject(key: String): Future[Unit] =
     Http().singleRequest(HttpRequest(method = HttpMethods.DELETE, uri = objectUri(key))).flatMap { response =>
@@ -67,7 +78,7 @@ final class LocalR2ImageStorage(endpoint: String)(using system: ActorSystem[?]) 
     put(fontKey(slug, variant), bytes, "font/woff2")
 
   override def fontExists(slug: String, variant: String): Future[Boolean] =
-    fetchObject(fontKey(slug, variant)).map(_.isDefined)
+    objectExists(fontKey(slug, variant))
 
   override def storeOriginalFont(hash: String, bytes: Array[Byte]): Future[Unit] =
     put(originalFontKey(hash), bytes, "font/woff2")
@@ -89,6 +100,17 @@ final class LocalR2ImageStorage(endpoint: String)(using system: ActorSystem[?]) 
       } else failResponse("store", key, response)
     }
   }
+
+  private def objectExists(key: String): Future[Boolean] =
+    Http().singleRequest(HttpRequest(method = HttpMethods.HEAD, uri = objectUri(key))).flatMap { response =>
+      if (response.status == StatusCodes.NotFound) {
+        response.discardEntityBytes()
+        Future.successful(false)
+      } else if (response.status.isSuccess()) {
+        response.discardEntityBytes()
+        Future.successful(true)
+      } else failResponse("check existence", key, response)
+    }
 
   private def failResponse(operation: String, key: String, response: HttpResponse): Future[Nothing] =
     response.entity.toStrict(10.seconds).flatMap { entity =>

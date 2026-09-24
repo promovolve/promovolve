@@ -17,7 +17,7 @@
     "test:hostile": "npm run build && node tests/hostile/run.mjs"
   },
   "devDependencies": {
-    "@aws-sdk/client-s3": "^3.1032.0",
+    "@aws-sdk/client-s3": "^3.1134.0",
     "@eslint/js": "^9.17.0",
     "eslint": "^9.17.0",
     "globals": "^17.9.0",

@@ -3,10 +3,9 @@ name: CI
 on:
   push:
     # ci/pins is the CI-generated pin-back branch (scripts/pin-back-pr.sh).
-    # Its PR is opened with GITHUB_TOKEN, which fires no pull_request run,
-    # and workflow_dispatch check runs do not satisfy the main Ruleset's
-    # required checks — so the deploy-key push to this branch is what has
-    # to run CI. Keep it listed here.
+    # Its PR is opened with the promovolve-pin-back App, but the deploy-key
+    # push is still the first event for a fresh branch and supplies the check
+    # runs the main Ruleset counts. Keep it listed here.
     branches: [main, ci/pins]
   pull_request:
   # Manual runs exist for the deploy gate: Deploy polls for a CI run on

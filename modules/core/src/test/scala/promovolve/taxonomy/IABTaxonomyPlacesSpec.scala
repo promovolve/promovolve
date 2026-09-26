@@ -16,7 +16,7 @@ import promovolve.taxonomy.IABTaxonomy.EmittedPlace
  */
 class IABTaxonomyPlacesSpec extends AnyWordSpec with Matchers {
 
-  private def named(city: String = "", region: String = "", country: String = "") =
+  private def named(city: String = "", region: String = "", country: String) =
     EmittedPlace(
       city = Option(city).filter(_.nonEmpty),
       region = Option(region).filter(_.nonEmpty),

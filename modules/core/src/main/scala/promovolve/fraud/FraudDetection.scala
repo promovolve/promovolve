@@ -86,7 +86,6 @@ object FraudDetection {
       .flatMap { case (siteId, rows) =>
         val byDayDesc = rows.sortBy(_.day.toEpochDay).reverse
         byDayDesc match {
-          case Nil             => None
           case latest +: older =>
             def toSiteDay(e: EventDay): SiteDay =
               SiteDay(
@@ -97,6 +96,7 @@ object FraudDetection {
                 total = e.total
               )
             Some(SiteMetrics(siteId, latest.day, toSiteDay(latest), older.map(toSiteDay)))
+          case _ => None // empty Vector
         }
       }
 

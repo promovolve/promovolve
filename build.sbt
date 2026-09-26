@@ -15,6 +15,7 @@ ThisBuild / scalacOptions :=
     "-feature",
     "-unchecked",
     "-deprecation",
+    "-Werror",
     "-encoding", "utf8",
     "-Xmax-inlines:128",
     // Permanent guardrails for the two unused-symbol categories with the

@@ -6,6 +6,7 @@ target/
 # Node build artefacts (banner-bootstrap, etc.)
 **/node_modules/
 **/dist/
+dev/r2-local/.wrangler/
 
 ### IntelliJ IDEA ###
 .idea/

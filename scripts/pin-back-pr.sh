@@ -28,9 +28,10 @@
 # SSH with a write deploy key (secret PIN_DEPLOY_KEY, created by
 # scripts/setup-pin-deploy-key.sh; deploy.yml hands it to actions/checkout
 # as `ssh-key`), so the push fires ci.yml's `push` trigger on `ci/pins` and
-# those check runs are the ones the Ruleset counts. `gh` keeps using
-# GITHUB_TOKEN for the PR itself — the "Actions may create pull requests"
-# setting covers that. A separate GitHub App reviews the PR.
+# those check runs are the ones the Ruleset counts. `gh` uses the
+# promovolve-pin-back App for the PR itself, so GitHub does not hold its
+# pull_request workflow for the special approval required for PRs created
+# with GITHUB_TOKEN. The workflow token remains a separate reviewer.
 #
 # ONE branch, ONE PR: digest and banner pins from the same deploy share it,
 # a rerun finds it already open, and delete-branch-on-merge retires it so
@@ -41,10 +42,10 @@
 #
 #   scripts/pin-back-pr.sh "<commit subject>" "<commit body>" <pin-command...>
 #
-# Requires: gh (authenticated with GITHUB_TOKEN), a checkout whose origin
-# pushes over SSH with the deploy key, and the calling job to hold
-# `contents: read` and `pull-requests: write`. Repository settings: "Allow
-# GitHub Actions to create and approve pull requests" and "Allow auto-merge"
+# Requires: gh authenticated with the promovolve-pin-back installation token
+# (`pull-requests: write`) and a checkout whose origin pushes over SSH with
+# the deploy key. Repository settings: "Allow GitHub Actions to create and
+# approve pull requests" (for the separate review job) and "Allow auto-merge"
 # must be on.
 #
 # Idempotent: with nothing to pin it exits 0 without a commit.

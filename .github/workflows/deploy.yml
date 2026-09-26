@@ -283,7 +283,6 @@ jobs:
     runs-on: ubuntu-latest
     permissions:
       contents: read         # the push uses the deploy key
-      pull-requests: write   # open or update the PR
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
         with:
@@ -292,9 +291,19 @@ jobs:
           ssh-key: ${{ secrets.PIN_DEPLOY_KEY }}   # push over SSH so ci.yml runs on ci/pins
           persist-credentials: true  # the pin-back script pushes
 
+      - name: Create pin-back App token
+        id: pin-back-app-token
+        uses: actions/create-github-app-token@bcd2ba49218906704ab6c1aa796996da409d3eb1 # v3.2.0
+        with:
+          client-id: ${{ vars.PIN_BACK_APP_CLIENT_ID }}
+          private-key: ${{ secrets.PIN_BACK_APP_PRIVATE_KEY }}
+          owner: ${{ github.repository_owner }}
+          repositories: promovolve
+          permission-pull-requests: write
+
       - name: Pin digests via pull request
         env:
-          GH_TOKEN: ${{ github.token }}
+          GH_TOKEN: ${{ steps.pin-back-app-token.outputs.token }}
           API_OK: ${{ needs.build-api.result == 'success' }}
           API_DIGEST: ${{ needs.build-api.outputs.digest }}
           PLATFORM_OK: ${{ needs.build-platform.result == 'success' }}
@@ -342,8 +351,8 @@ jobs:
     runs-on: ubuntu-latest
     permissions:
       contents: read         # the push uses the deploy key
-      pull-requests: write   # Job-level permissions REPLACE the top-level
-      id-token: write        # pair, so WIF's id-token must be respelled
+      id-token: write        # Job-level permissions REPLACE the top-level
+                             # pair, so WIF's id-token must be respelled
                              # here or the gcloud auth step breaks.
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
@@ -407,9 +416,19 @@ jobs:
       # manifest apply merges both and the API server rejects the Deployment.
       # k8s-gke/setup.sh drops that literal before applying, which is only
       # correct while this line is true.
+      - name: Create pin-back App token
+        id: pin-back-app-token
+        uses: actions/create-github-app-token@bcd2ba49218906704ab6c1aa796996da409d3eb1 # v3.2.0
+        with:
+          client-id: ${{ vars.PIN_BACK_APP_CLIENT_ID }}
+          private-key: ${{ secrets.PIN_BACK_APP_PRIVATE_KEY }}
+          owner: ${{ github.repository_owner }}
+          repositories: promovolve
+          permission-pull-requests: write
+
       - name: Pin the published URL back to the repo
         env:
-          GH_TOKEN: ${{ github.token }}
+          GH_TOKEN: ${{ steps.pin-back-app-token.outputs.token }}
           URL: ${{ steps.publish.outputs.url }}
         run: |
           set -euo pipefail
@@ -430,7 +449,7 @@ jobs:
     runs-on: ubuntu-latest
     permissions:
       contents: read
-      pull-requests: read
+      pull-requests: write
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
         with:
@@ -444,6 +463,14 @@ jobs:
           GH_TOKEN: ${{ github.token }}
         run: scripts/approve-pin-back-pr.sh find
 
+      - name: Approve final pin-back commit
+        if: steps.pin-pr.outputs.pr != ''
+        env:
+          GH_TOKEN: ${{ github.token }}
+          PR: ${{ steps.pin-pr.outputs.pr }}
+          SHA: ${{ steps.pin-pr.outputs.sha }}
+        run: scripts/approve-pin-back-pr.sh approve
+
       - name: Create pin-back App token
         id: app-token
         if: steps.pin-pr.outputs.pr != ''
@@ -456,13 +483,13 @@ jobs:
           permission-pull-requests: write
           permission-contents: write
 
-      - name: Approve final pin-back commit and enable auto-merge
+      - name: Enable auto-merge
         if: steps.pin-pr.outputs.pr != ''
         env:
           GH_TOKEN: ${{ steps.app-token.outputs.token }}
           PR: ${{ steps.pin-pr.outputs.pr }}
           SHA: ${{ steps.pin-pr.outputs.sha }}
-        run: scripts/approve-pin-back-pr.sh approve
+        run: scripts/approve-pin-back-pr.sh merge
 
   # The publisher ad tag. Bootstrap releases used to be MANUAL (npm run
   # release from a laptop with scripts/.env) — a merged tag fix that nobody

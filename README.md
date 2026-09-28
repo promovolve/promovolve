@@ -81,7 +81,7 @@ cp scripts/.env.example scripts/.env   # add one LLM API key
 scripts/run-local.sh                    # dashboard :9091, API :8080, local R2 :8787
 ```
 
-You'll need JDK 21 and sbt, Go, Node.js 24, Docker, and one LLM API key
+You'll need JDK 25 and sbt, Go, Node.js 24, Docker, and one LLM API key
 (Gemini, OpenAI, or Anthropic). `run-local.sh` installs the project-local
 Wrangler dependency; a global Wrangler install, Cloudflare
 account, and R2 credentials are not needed. Details are in the

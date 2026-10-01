@@ -1182,7 +1182,11 @@ object ApiModels {
   case class PresignedUploadResponse(
       uploadUrl: String, // presigned PUT URL with TTL — empty when alreadyExists
       s3Key: String, // assets/{hash}.{ext}
-      alreadyExists: Boolean // existing image_asset row found; skip the PUT
+      alreadyExists: Boolean, // existing image_asset row found; skip the PUT
+      // Content-Type the PUT must send — it is signed into uploadUrl.
+      // Differs from the requested type only for SVG (lands as
+      // application/octet-stream until register sanitizes it).
+      contentType: Option[String] = None
   )
 
   case class RegisterAssetRequest(

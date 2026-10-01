@@ -21,7 +21,7 @@ final class LocalR2ImageStorage(endpoint: String)(using system: ActorSystem[?]) 
   private val assetExtensions = List("png", "jpg", "gif", "webp", "mp4", "webm", "bin")
 
   override def store(hash: String, bytes: Array[Byte], mimeType: String): Future[String] = {
-    val key = s"assets/$hash.${mimeToExt(mimeType)}"
+    val key = s"assets/$hash.${ImageStorage.extFor(mimeType)}"
     put(key, bytes, mimeType).map(_ => key)
   }
 
@@ -70,7 +70,7 @@ final class LocalR2ImageStorage(endpoint: String)(using system: ActorSystem[?]) 
     }
 
   override def presignPutUrl(hash: String, mimeType: String, ttlSeconds: Int): Future[(String, String)] = {
-    val key = s"assets/$hash.${mimeToExt(mimeType)}"
+    val key = s"assets/$hash.${ImageStorage.extFor(mimeType)}"
     Future.successful(objectUri(key).toString -> key)
   }
 
@@ -128,15 +128,6 @@ final class LocalR2ImageStorage(endpoint: String)(using system: ActorSystem[?]) 
   private def fontKey(slug: String, variant: String): String = s"fonts/$slug-$variant.woff2"
   private def originalFontKey(hash: String): String = s"fonts/orig/$hash.woff2"
 
-  private def mimeToExt(mimeType: String): String = mimeType match {
-    case "image/png"  => "png"
-    case "image/jpeg" => "jpg"
-    case "image/gif"  => "gif"
-    case "image/webp" => "webp"
-    case "video/mp4"  => "mp4"
-    case "video/webm" => "webm"
-    case _            => "bin"
-  }
 }
 
 object LocalR2ImageStorage {

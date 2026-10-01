@@ -26,7 +26,8 @@ class PresignUploadSpec extends AnyWordSpec with Matchers with ScalaFutures with
   override def afterAll(): Unit = testKit.shutdownTestKit()
 
   private val storage =
-    new R2ImageStorage("acct123", "AKIDEXAMPLE", "wJalrXUtnFEMI/K7MDENG/bPxRfiCYEXAMPLEKEY", "bucket")(using testKit.system)
+    new R2ImageStorage("acct123", "AKIDEXAMPLE", "wJalrXUtnFEMI/K7MDENG/bPxRfiCYEXAMPLEKEY", "bucket")(
+      using testKit.system)
 
   private def query(url: String): Map[String, String] =
     URI.create(url).getRawQuery.split("&").map { kv =>

@@ -10,6 +10,7 @@
 
 import { addItem, addLocalImage, currentItem, currentLayout, currentPage, selectItem } from "../state";
 import { commitDeleteSelection } from "./confirm-delete";
+import { openFormulaModal } from "./formula-modal";
 import type { Store } from "../store";
 import type { DesignerState, LayoutItem, RectItem, TextItem } from "../types";
 import { pickContrast } from "../color-contrast";
@@ -62,6 +63,7 @@ export function mountToolbar(host: HTMLElement, store: Store): void {
     iconBtn(ICON_SELECT, "Select · V",  () => store.commit(selectItem(store.state, null))),
     iconBtn(ICON_TEXT,   "Text · T",    addText),
     iconBtn(ICON_IMAGE,  "Image · I",   () => openAssetModal(store, (asset) => store.commit(addLocalImage(store.state, asset.cdnUrl, asset.width && asset.height ? { w: asset.width, h: asset.height } : undefined)))),
+    iconBtn(ICON_FORMULA, "Formula (LaTeX)", () => openFormulaModal(store)),
     iconBtn(ICON_SCRIM,  "Scrim",       () => store.commit(addItem(store.state, defaultScrim()))),
     iconBtn(ICON_TEMPLATE, "Layout templates", () => openTemplateModal(store)),
     iconBtn(ICON_BRAND, "Brand kit", () => openBrandKitModal(window.__DESIGNER__?.campaignId ?? "")),
@@ -199,6 +201,7 @@ const ICON_TEMPLATE = `<svg viewBox="0 0 14 14" width="14" height="14" fill="non
 const ICON_BRAND = `<svg viewBox="0 0 14 14" width="14" height="14" fill="none" stroke="currentColor" stroke-width="1.4" stroke-linejoin="round"><circle cx="4" cy="5" r="2.2"/><circle cx="9" cy="4" r="1.6"/><circle cx="10" cy="9" r="2.2"/><circle cx="4.5" cy="10" r="1.6"/></svg>`;
 // Scrim: a rect half-filled with a fade — a box whose lower band is solid
 // and grades up to nothing.
+const ICON_FORMULA = `<svg viewBox="0 0 14 14" width="14" height="14" fill="none" stroke="currentColor" stroke-width="1.4" stroke-linejoin="round" stroke-linecap="round"><path d="M11 3H3.5l4 4-4 4H11"/></svg>`;
 const ICON_SCRIM = `<svg viewBox="0 0 14 14" width="14" height="14" fill="none" stroke="currentColor" stroke-width="1.4" stroke-linejoin="round"><rect x="2" y="2" width="10" height="10" rx="1"/><path d="M2 8h10" opacity="0.5"/><path d="M2 10.5h10"/></svg>`;
 const ICON_TRASH = `<svg viewBox="0 0 14 14" width="14" height="14" fill="none" stroke="currentColor" stroke-width="1.4" stroke-linecap="round"><path d="M3 4h8"/><path d="M4 4l.5 7a1 1 0 0 0 1 1h3a1 1 0 0 0 1-1l.5-7"/><path d="M5.5 4V3a1 1 0 0 1 1-1h1a1 1 0 0 1 1 1v1"/></svg>`;
 

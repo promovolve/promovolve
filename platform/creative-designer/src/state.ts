@@ -6,7 +6,7 @@
 // Shift+click toggles idx in the list; marquee builds a list from a
 // rectangle. Empty list = nothing selected.
 
-import type { BannerConfig, DesignerState, LayoutItem, Page, TextureBg, VideoBg } from "./types";
+import type { BannerConfig, DesignerState, ImageItem, LayoutItem, Page, TextureBg, VideoBg } from "./types";
 import { findMode, isMultiPage, MODES } from "./modes";
 import { presetLayoutFor } from "./presets";
 import { kitFont, type BrandKit } from "./brand-kit";
@@ -772,6 +772,7 @@ export function addLocalImage(
   state: DesignerState,
   src: string,
   natural?: { w: number; h: number },
+  extra?: Partial<ImageItem>,
 ): DesignerState {
   let width = 50;
   let height = 50;
@@ -793,6 +794,7 @@ export function addLocalImage(
     width,
     height,
     fillMode: "fill",
+    ...extra,
   } as LayoutItem;
   return addItem(state, item);
 }

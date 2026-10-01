@@ -25,6 +25,7 @@ import { loadBrandKit } from "../brand-kit";
 import { mountKitColorChips } from "./brand-kit-chips";
 import { openAssetModal } from "./asset-modal";
 import { openCropModal } from "./crop-modal";
+import { openFormulaModal } from "./formula-modal";
 import { openRemoveBgModal } from "./remove-bg-modal";
 import { tokens } from "./tokens";
 
@@ -382,6 +383,14 @@ function build(panel: HTMLElement, idx: number, item: LayoutItem, store: Store):
       appendToGroup(content, replaceBtn);
     } else {
       contentHint(content, "Image set in the Expanded view");
+    }
+    if (item.latex !== undefined) {
+      const formulaBtn = document.createElement("button");
+      formulaBtn.type = "button";
+      formulaBtn.textContent = "Edit formula…";
+      formulaBtn.style.cssText = `background:${tokens.ink700};color:${tokens.ink100};border:1px solid ${tokens.ink500};border-radius:4px;padding:4px 8px;font:inherit;font-size:11px;cursor:pointer;align-self:flex-start;`;
+      formulaBtn.addEventListener("click", () => openFormulaModal(store, { idx, item }));
+      appendToGroup(content, formulaBtn);
     }
     // "Remove background…" — in-browser u2netp matte, uploads a cutout
     // as a new asset. The main image is only editable from the expanded

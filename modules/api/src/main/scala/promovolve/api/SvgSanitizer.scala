@@ -1,5 +1,11 @@
 package promovolve.api
 
+import promovolve.publisher.{ ImageAsset, ImageAssetRepo }
+import promovolve.publisher.assets.ImageStorage
+
+import java.time.Instant
+import scala.concurrent.{ ExecutionContext, Future }
+
 /**
  * Strip executable content from uploaded SVG before storing on the
  * CDN. Required because banner-component renders ImageItem via
@@ -73,4 +79,33 @@ object SvgSanitizer {
           }
       }
     } catch { case _: Throwable => (0, 0) }
+
+  /**
+   * Register-time step for a presigned SVG upload. The PUT landed at
+   * `s3Key` as an opaque download (ImageStorage.putContentType), so
+   * nothing has been servable yet. Sanitize it, rewrite the same key as
+   * image/svg+xml, then record the image_asset row. Not best-effort: if
+   * the object is missing, fail and record nothing.
+   */
+  def registerUpload(
+      storage: ImageStorage,
+      imgRepo: ImageAssetRepo,
+      hash: String,
+      s3Key: String,
+      fallbackDims: (Int, Int)
+  )(using ExecutionContext): Future[(String, String, Int, Int)] =
+    storage.fetchObject(s3Key).flatMap {
+      case Some(raw) =>
+        val cleaned = sanitize(raw)
+        val (w, h) = extractDims(cleaned) match {
+          case (w, h) if w > 0 && h > 0 => (w, h)
+          case _                        => fallbackDims
+        }
+        for {
+          key <- storage.store(hash, cleaned, ImageStorage.SvgMime)
+          _ <- imgRepo.put(ImageAsset(hash, key, ImageStorage.SvgMime, w, h, Instant.now()))
+        } yield (key, ImageStorage.SvgMime, w, h)
+      case None =>
+        Future.failed(new RuntimeException(s"uploaded object not found at $s3Key — did the PUT succeed?"))
+    }
 }

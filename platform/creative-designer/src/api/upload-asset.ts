@@ -44,18 +44,22 @@ export async function uploadImageDirect(file: File): Promise<UploadedAsset> {
     body: JSON.stringify(presignReq),
   });
   if (!presignResp.ok) throw new Error(`presign HTTP ${presignResp.status}`);
-  const { uploadUrl, alreadyExists } = (await presignResp.json()) as {
+  const { uploadUrl, alreadyExists, contentType } = (await presignResp.json()) as {
     uploadUrl: string;
     s3Key: string;
     alreadyExists: boolean;
+    contentType?: string;
   };
 
   if (!alreadyExists) {
-    // PUT bytes directly to R2 — bytes never touch the dashboard.
+    // PUT bytes directly to R2 — bytes never touch the dashboard. The
+    // Content-Type is signed into uploadUrl, so send exactly what the
+    // server signed (an SVG goes up as an opaque download; register
+    // sanitizes it before it becomes servable as an image).
     const putResp = await fetch(uploadUrl, {
       method: "PUT",
       body: file,
-      headers: { "Content-Type": file.type || "application/octet-stream" },
+      headers: { "Content-Type": contentType ?? (file.type || "application/octet-stream") },
     });
     if (!putResp.ok) throw new Error(`R2 PUT HTTP ${putResp.status}`);
   }

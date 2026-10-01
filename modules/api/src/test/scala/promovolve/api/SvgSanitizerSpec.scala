@@ -86,3 +86,60 @@ class SvgSanitizerSpec extends AnyWordSpec with Matchers {
     }
   }
 }
+
+class SvgRegisterUploadSpec extends AnyWordSpec with Matchers with org.scalatest.concurrent.ScalaFutures {
+  import promovolve.publisher.{ ImageAsset, ImageAssetRepo }
+  import promovolve.publisher.assets.ImageStorage
+  import scala.concurrent.{ ExecutionContext, Future }
+  import scala.collection.mutable
+
+  private given ExecutionContext = ExecutionContext.global
+
+  /** In-memory R2: object bytes + the Content-Type each was stored with. */
+  private class FakeStorage extends ImageStorage {
+    val objects = mutable.Map.empty[String, (Array[Byte], String)]
+    def store(hash: String, bytes: Array[Byte], mimeType: String): Future[String] = {
+      val key = s"assets/$hash.${ImageStorage.extFor(mimeType)}"
+      objects(key) = (bytes, mimeType)
+      Future.successful(key)
+    }
+    def fetch(hash: String): Future[Option[Array[Byte]]] = Future.successful(None)
+    def exists(hash: String): Future[Boolean] = Future.successful(false)
+    override def fetchObject(s3Key: String): Future[Option[Array[Byte]]] =
+      Future.successful(objects.get(s3Key).map(_._1))
+  }
+  private class FakeRepo extends ImageAssetRepo {
+    val rows = mutable.Map.empty[String, ImageAsset]
+    def put(asset: ImageAsset): Future[Unit] = Future.successful(rows(asset.hash) = asset)
+    def get(hash: String): Future[Option[ImageAsset]] = Future.successful(rows.get(hash))
+  }
+
+  "SvgSanitizer.registerUpload" should {
+    "rewrite the uploaded object sanitized, as image/svg+xml, and record it" in {
+      val storage = new FakeStorage
+      val repo = new FakeRepo
+      // What the browser's presigned PUT left behind: an opaque download.
+      storage.objects("assets/h1.svg") =
+        ("""<svg width="40" height="20"><script>alert(1)</script><rect onclick="x()"/></svg>""".getBytes("UTF-8"),
+          "application/octet-stream")
+
+      val (key, mime, w, h) = SvgSanitizer.registerUpload(storage, repo, "h1", "assets/h1.svg", (0, 0)).futureValue
+
+      key shouldBe "assets/h1.svg"
+      mime shouldBe "image/svg+xml"
+      (w, h) shouldBe (40, 20)
+      val (bytes, storedType) = storage.objects("assets/h1.svg")
+      storedType shouldBe "image/svg+xml"
+      val body = new String(bytes, "UTF-8")
+      (body should not).include("script")
+      (body should not).include("onclick")
+      repo.rows("h1").mime shouldBe "image/svg+xml"
+    }
+
+    "record nothing when the PUT never landed" in {
+      val repo = new FakeRepo
+      SvgSanitizer.registerUpload(new FakeStorage, repo, "h2", "assets/h2.svg", (0, 0)).failed.futureValue
+      repo.rows shouldBe empty
+    }
+  }
+}

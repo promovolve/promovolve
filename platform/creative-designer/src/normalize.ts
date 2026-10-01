@@ -11,6 +11,7 @@ import { resolveLayoutColors } from "./color-contrast";
 import { kitFont, kitColor, type BrandKit } from "./brand-kit";
 import { MOBILE_EXPANDED_KEY } from "./state";
 import type { LayoutItem, Page, TextItem } from "./types";
+import { isFormula } from "./formula";
 
 const DESIGN_ASPECT = "16/9";
 
@@ -84,7 +85,7 @@ function normalizePage(p: Page, fillDefaultLayout: boolean, kit: BrandKit | null
 // page.layout (the wide artifact) is the fallback definition source.
 function reconcileMainImage(page: Page): void {
   const firstImage = (arr?: LayoutItem[]): (LayoutItem & { field?: string; src?: string }) | undefined =>
-    arr?.find((it) => it.type === "image") as (LayoutItem & { field?: string; src?: string }) | undefined;
+    arr?.find(isPhoto) as (LayoutItem & { field?: string; src?: string }) | undefined;
   const banners = (page.banners ?? {}) as Record<string, LayoutItem[]>;
   const expandedHero = firstImage(banners[MOBILE_EXPANDED_KEY]) ?? firstImage(page.layout);
   if (expandedHero) {
@@ -92,7 +93,7 @@ function reconcileMainImage(page: Page): void {
   }
   if (!page.img) return; // nothing to bind against — leave views as stored
   const bindHero = (arr: LayoutItem[]): LayoutItem[] => {
-    const i = arr.findIndex((it) => it.type === "image");
+    const i = arr.findIndex(isPhoto);
     if (i < 0) return arr;
     const hero = arr[i] as LayoutItem & { field?: string; src?: string };
     if (hero.field === "img" && hero.src == null) return arr;
@@ -108,12 +109,17 @@ function reconcileMainImage(page: Page): void {
   }
 }
 
-// Stable reorder: image items first (back of the z-stack), everything else
+// A photo is an image item that isn't a formula. Formulas are content the
+// author layers deliberately (e.g. on a card), so they keep their z-order
+// and never become the page's main image.
+const isPhoto = (it: LayoutItem): boolean => it.type === "image" && !isFormula(it);
+
+// Stable reorder: photos first (back of the z-stack), everything else
 // after, each group keeping its relative order.
 export function imagesToBack(items: LayoutItem[]): LayoutItem[] {
-  const images = items.filter((it) => it.type === "image");
+  const images = items.filter(isPhoto);
   if (images.length === 0) return items;
-  const rest = items.filter((it) => it.type !== "image");
+  const rest = items.filter((it) => !isPhoto(it));
   return [...images, ...rest];
 }
 

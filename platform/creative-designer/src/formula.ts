@@ -6,11 +6,18 @@
 // every TeX extension bundled, so it never fetches more at runtime) and
 // loaded on first use — the designer bundle itself doesn't grow.
 
-const MATHJAX_URL = "/static/vendor/mathjax/tex-svg-full.js?v=3.2.2";
+import type { LayoutItem } from "./types";
 
 // Natural pixel size of 1em in the exported SVG. Vector output, so this
 // only sets the intrinsic size/aspect the image item starts from.
 const EM_PX = 32;
+
+// A formula is an image item that carries its LaTeX source. It is NOT a
+// photo: the one-main-image rules (hero binding, images-to-back, Replace
+// image, auto-crop) must skip it.
+export function isFormula(item: LayoutItem): boolean {
+  return item.type === "image" && item.latex !== undefined;
+}
 
 interface MathJaxApi {
   tex2svg(tex: string, opts: { display: boolean }): HTMLElement;
@@ -23,27 +30,30 @@ export function loadMathJax(): Promise<MathJaxApi> {
   if (loading) return loading;
   loading = new Promise<MathJaxApi>((resolve, reject) => {
     const w = window as unknown as { MathJax?: unknown };
-    // Config must be on window before the script runs. fontCache "local"
-    // keeps glyph <defs> inside each SVG so the exported file stands alone.
-    // noundefined/noerrors would draw a typo in red and let it ship —
-    // without them a bad macro surfaces as data-mjx-error, caught below.
+    // Config must be on window before the script runs.
+    //  - fontCache "local" keeps glyph <defs> inside each SVG so the
+    //    exported file stands alone.
+    //  - noundefined/noerrors would draw a typo in red and let it ship;
+    //    without them a bad macro surfaces as data-mjx-error (caught below).
+    //  - html (\href \class \style \cssId) and require are dropped: an ad
+    //    formula needs neither, and the SVG goes to the CDN unsanitized.
     w.MathJax = {
       startup: { typeset: false },
       svg: { fontCache: "local" },
-      tex: { packages: { "[-]": ["noundefined", "noerrors"] } },
+      tex: { packages: { "[-]": ["noundefined", "noerrors", "html", "require"] } },
     };
     const s = document.createElement("script");
-    s.src = MATHJAX_URL;
+    s.src = window.__DESIGNER__?.mathjaxUrl ?? "/static/vendor/mathjax/tex-svg-full.js";
     s.async = true;
     s.onload = () => {
       const mj = w.MathJax as MathJaxApi;
       mj.startup.promise.then(() => resolve(mj), reject);
     };
-    s.onerror = () => {
-      loading = null; // allow a retry on the next open
-      reject(new Error("Couldn't load the formula renderer"));
-    };
+    s.onerror = () => reject(new Error("Couldn't load the formula renderer"));
     document.head.appendChild(s);
+  }).catch((e: unknown) => {
+    loading = null; // any failure: let the next open retry
+    throw e;
   });
   return loading;
 }
@@ -67,13 +77,17 @@ export function texToSvg(mj: MathJaxApi, latex: string, color: string): FormulaS
 
 // Make MathJax's SVG fit for an <img>: bake the ink color in (an <img>
 // can't inherit currentColor from the page) and swap the ex-based size
-// for pixels derived from the viewBox (MathJax units = 1/1000 em).
+// for pixels derived from the viewBox (MathJax units = 1/1000 em). Also
+// drops every link that isn't an in-file glyph reference ("#…") — belt
+// and braces with the dropped html package, since this file is served
+// from the CDN as-is.
 export function finishSvg(raw: string, color: string): FormulaSvg {
   const vb = /viewBox="([-\d.]+) ([-\d.]+) ([\d.]+) ([\d.]+)"/.exec(raw);
   if (!vb) throw new Error("Invalid formula");
   const width = Math.max(1, Math.round((Number(vb[3]) / 1000) * EM_PX));
   const height = Math.max(1, Math.round((Number(vb[4]) / 1000) * EM_PX));
   const svg = raw
+    .replace(/\s(?:xlink:)?href="(?!#)[^"]*"/g, "")
     .replace(/currentColor/g, color)
     .replace(/ style="[^"]*"/, "")
     .replace(/ width="[^"]*"/, ` width="${width}"`)

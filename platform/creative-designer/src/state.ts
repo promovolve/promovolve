@@ -11,6 +11,7 @@ import { findMode, isMultiPage, MODES } from "./modes";
 import { presetLayoutFor } from "./presets";
 import { kitFont, type BrandKit } from "./brand-kit";
 import { itemBoundsPct } from "./geometry";
+import { isFormula } from "./formula";
 
 // ─── Constructors ───────────────────────────────────────────────────
 
@@ -964,8 +965,10 @@ export function setMainImage(state: DesignerState, src: string): DesignerState {
   // behind the text. Only a view with no image at all gets a fresh preset slot.
   // This is the "set THE single main" op (asset-replace).
   const ensureMainImage = (items: LayoutItem[], modeKey: string): LayoutItem[] => {
-    const keep = items.find((it) => it.type === "image");
-    const rest = items.filter((it) => it.type !== "image");
+    // Formulas aren't photos: they survive a Replace untouched.
+    const isPhoto = (it: LayoutItem): boolean => it.type === "image" && !isFormula(it);
+    const keep = items.find(isPhoto);
+    const rest = items.filter((it) => !isPhoto(it));
     if (!keep) {
       const s = slotFor(modeKey);
       return s ? [s, ...rest] : rest;

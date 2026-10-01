@@ -20,3 +20,15 @@ describe("finishSvg", () => {
     expect(() => finishSvg("<svg></svg>", "#000")).toThrow();
   });
 });
+
+describe("finishSvg link stripping", () => {
+  it("drops external links but keeps in-file glyph references", () => {
+    const raw =
+      '<svg viewBox="0 0 1000 1000" width="1ex" height="1ex"><defs><path id="g1" d="M0 0"/></defs>' +
+      '<a href="javascript:alert(1)"><use xlink:href="#g1"/></a><a xlink:href="https://evil.example"/></svg>';
+    const { svg } = finishSvg(raw, "#000");
+    expect(svg).not.toContain("javascript:");
+    expect(svg).not.toContain("evil.example");
+    expect(svg).toContain('xlink:href="#g1"');
+  });
+});

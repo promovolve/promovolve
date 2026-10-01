@@ -8,7 +8,7 @@
 import { uploadImage } from "../api/upload-asset";
 import { pickContrast } from "../color-contrast";
 import { loadMathJax, texToSvg, type FormulaSvg } from "../formula";
-import { addLocalImage, currentPage, updateItem } from "../state";
+import { addLocalImage, currentLayout, currentPage, updateItem } from "../state";
 import type { Store } from "../store";
 import type { ImageItem } from "../types";
 import { tokens } from "./tokens";
@@ -77,7 +77,17 @@ export function openFormulaModal(store: Store, edit?: { idx: number; item: Image
   status.style.cssText = `flex:1;font-size:11px;color:${tokens.ink300};`;
   status.textContent = "Loading formula renderer…";
 
-  const cancelBtn = button("Cancel", false, () => root.remove());
+  // `closed` lets an in-flight upload notice the modal was cancelled;
+  // `busy` keeps Insert locked until that upload settles.
+  let closed = false;
+  let busy = false;
+  const close = (): void => {
+    closed = true;
+    root.remove();
+    window.removeEventListener("keydown", onKey, true);
+  };
+
+  const cancelBtn = button("Cancel", false, close);
   const doneBtn = button(edit ? "Update" : "Insert", true, () => void commit());
   const setDone = (on: boolean): void => {
     doneBtn.disabled = !on;
@@ -98,7 +108,7 @@ export function openFormulaModal(store: Store, edit?: { idx: number; item: Image
   let mj: Awaited<ReturnType<typeof loadMathJax>> | null = null;
 
   const render = (): void => {
-    if (!mj) return;
+    if (!mj || busy) return;
     try {
       rendered = texToSvg(mj, input.value.trim() || "\\,", color.value);
       previewImg.src = `data:image/svg+xml;charset=utf-8,${encodeURIComponent(rendered.svg)}`;
@@ -113,44 +123,76 @@ export function openFormulaModal(store: Store, edit?: { idx: number; item: Image
     }
   };
 
+  const setBusy = (on: boolean): void => {
+    busy = on;
+    input.readOnly = on; // what you see is what uploads
+    color.disabled = on;
+  };
+
   const commit = async (): Promise<void> => {
-    if (!rendered || doneBtn.disabled) return;
+    if (!rendered || busy || doneBtn.disabled) return;
     const { svg, width, height } = rendered;
     const latex = input.value.trim();
     const latexColor = color.value;
+    setBusy(true);
     setDone(false);
     status.style.color = tokens.ink300;
     status.textContent = "Uploading…";
     try {
       const file = new File([svg], "formula.svg", { type: "image/svg+xml" });
       const { src } = await uploadImage(file);
+      if (closed) return; // cancelled mid-upload: discard
       if (edit) {
-        // Keep the box's width and position; re-derive height so the
-        // new formula keeps its aspect (same math as addLocalImage).
+        // The modal blocks the canvas, but don't trust a stale index:
+        // write only if the slot still holds the formula we opened.
+        const cur = currentLayout(store.state)[edit.idx];
+        if (cur?.type !== "image" || cur.src !== edit.item.src || cur.latex !== edit.item.latex) {
+          throw new Error("the formula changed while uploading — close and reopen it");
+        }
+        // Keep the box's width and position; re-derive height so the new
+        // formula keeps its aspect, with addLocalImage's 80% cap and a
+        // top clamp so a taller formula can't run off the canvas.
         const { w: cw, h: ch } = store.state.mode;
-        store.commit(updateItem(store.state, edit.idx, (it) => ({
-          ...it, src, latex, latexColor,
-          height: Math.round(((it.width ?? 50) * (cw * height) / (ch * width)) * 10) / 10,
-        })));
+        const r = (n: number): number => Math.round(n * 10) / 10;
+        store.commit(updateItem(store.state, edit.idx, (it) => {
+          let w = it.width ?? 50;
+          let h = (w * (cw * height)) / (ch * width);
+          const over = Math.max(h / 80, 1);
+          w /= over;
+          h /= over;
+          return {
+            ...it, src, latex, latexColor, crop: undefined,
+            width: r(w), height: r(h), top: r(Math.min(it.top ?? 0, 100 - h)),
+          };
+        }));
       } else {
         store.commit(addLocalImage(store.state, src, { w: width, h: height },
           { fillMode: "fit", latex, latexColor }));
       }
-      root.remove();
+      close();
     } catch (e) {
+      if (closed) return;
+      setBusy(false);
       status.style.color = tokens.err;
-      status.textContent = `Upload failed: ${(e as Error).message}`;
+      status.textContent = `Couldn't save: ${(e as Error).message}`;
       setDone(true);
     }
   };
 
+  // The modal owns the keyboard while open. Capture phase on window runs
+  // before the designer's own window listener (interaction/keyboard.ts),
+  // so ⌫ / undo / Esc can't reach the canvas behind — even when focus
+  // has wandered off the textarea. Typing still works: only propagation
+  // is stopped, never the default action.
+  function onKey(e: KeyboardEvent): void {
+    if (e.key === "Escape") { e.preventDefault(); close(); }
+    else if (e.key === "Enter" && (e.metaKey || e.ctrlKey)) { e.preventDefault(); void commit(); }
+    e.stopPropagation();
+  }
+  window.addEventListener("keydown", onKey, true);
+
   input.addEventListener("input", render);
   color.addEventListener("input", render);
-  root.addEventListener("keydown", (e) => {
-    if (e.key === "Escape") root.remove();
-    else if (e.key === "Enter" && (e.metaKey || e.ctrlKey)) void commit();
-    e.stopPropagation(); // keep designer shortcuts (⌫ delete, T, I…) out of the textarea
-  });
 
   loadMathJax().then(
     (api) => { mj = api; render(); },

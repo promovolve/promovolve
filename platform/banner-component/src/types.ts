@@ -181,6 +181,13 @@ export interface ImageItem extends LayoutItemBase {
    * the box (ignores `crop`). Lets the author keep the original aspect.
    */
   fillMode?: "fill" | "fit";
+  /**
+   * Designer-only: the LaTeX source (and ink color) a formula image was
+   * rendered from, so the designer can re-open it for editing. The
+   * renderer ignores both — `src` is the already-rendered SVG.
+   */
+  latex?: string;
+  latexColor?: string;
   // ---- Edge effects (all optional, all default to off) ----
   // The four below are applied by the shared image-effects helper so the
   // collapsed and expanded renderers stay byte-identical.

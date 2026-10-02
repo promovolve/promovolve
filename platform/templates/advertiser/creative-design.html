@@ -13,6 +13,9 @@
     creativeName: {{.CreativeName}},
     bannerSize: {{.BannerSize}},
     bannerScriptUrl: {{.BannerScriptURL}},
+    // Vendored MathJax for the Formula tool, loaded on first use. The
+    // asset helper's ?v= hits the immutable static cache (2 MB file).
+    mathjaxUrl: {{asset "vendor/mathjax/tex-svg-full.js"}},
     creativeId: {{.CreativeID}},
     lpTextSnapshot: {{.LPTextSnapshot}},
     pages: {{.PagesJSON}},

@@ -32,6 +32,9 @@ export interface DesignerContext {
   bannerSize: string;
   pages: unknown;         // JSON-parsed Page[]; validated on boot
   bannerScriptUrl: string;
+  // Versioned URL of the vendored MathJax (formula tool). Absent in the
+  // dev harness, which falls back to the unversioned path.
+  mathjaxUrl?: string;
   // Saved creative-wide BannerConfig JSON (logo, paper stock, reading
   // direction, entrance). Set on resume; empty/absent on first-time
   // authoring. MUST seed the store or the next save wipes the stored

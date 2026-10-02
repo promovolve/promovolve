@@ -1,7 +1,7 @@
 import scala.collection.Seq
 
 ThisBuild / organization := "promovolve"
-scalaVersion := "3.7.4"
+ThisBuild / scalaVersion := "3.9.0"
 val pekkoVersion                = "1.4.0"
 val pekkoHttpVersion            = "1.2.0"
 val pekkoProjectionVersion      = "1.1.0"
@@ -137,7 +137,6 @@ lazy val dbIt = (project in file("modules/db-it"))
   )
 
 lazy val commonSettings = Seq(
-  scalaVersion := "3.7.4",
   libraryDependencies ++= Seq(
     // Pekko
     "org.apache.pekko"       %% "pekko-actor-typed"            % pekkoVersion,

@@ -35,7 +35,7 @@ jobs:
           distribution: temurin
           java-version: "21"
           cache: sbt
-      - uses: sbt/setup-sbt@82da71df4e122282484a99a8d70096bc2369dbd8 # v1.5.9
+      - uses: sbt/setup-sbt@6158cb0903b8ceeae04f830055f3155e1b6a5ad7 # v1.5.11
 
       # Hard gate — the tree is scalafmt-clean (scala3 dialect); any drift fails
       # CI. Run `sbt scalafmtAll` before committing.
@@ -222,7 +222,7 @@ jobs:
           distribution: temurin
           java-version: "21"
           cache: sbt
-      - uses: sbt/setup-sbt@82da71df4e122282484a99a8d70096bc2369dbd8 # v1.5.9
+      - uses: sbt/setup-sbt@6158cb0903b8ceeae04f830055f3155e1b6a5ad7 # v1.5.11
       # The Scala job's `scalafmtCheckAll` runs on the ROOT project, which does
       # not aggregate dbIt — so these sources need their own check or they
       # drift unformatted.

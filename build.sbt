@@ -9,6 +9,8 @@ val pekkoManagementVersion      = "1.2.1"
 val logbackVersion              = "1.6.3"
 val pekkoQuartzSchedulerVersion = "1.3.0-pekko-1.1.x"
 val tapirVersion = "1.13.3"
+// Pinned with the image it starts (see PostgresTestContainer).
+val testcontainersVersion       = "1.21.3"
 
 ThisBuild / scalacOptions :=
   Seq(
@@ -106,6 +108,31 @@ lazy val api = (project in file("modules/api"))
     bashScriptExtraDefines ++= Seq(
       """addJava "--add-opens=java.base/java.nio=ALL-UNNAMED"""",
       """addJava "--add-opens=java.base/sun.nio.ch=ALL-UNNAMED""""
+    )
+  )
+
+// Database integration tests (GH #23). DELIBERATELY NOT aggregated by root,
+// so `sbt test` — the deterministic gate CI runs — never reaches it: this
+// project needs Docker, pulls a TimescaleDB image and runs the real
+// docker/init-db.sql. Run it on purpose:
+//
+//   sbt dbIt/test
+//
+// Forked so the container's JDBC pools and the shutdown hook that stops it
+// live in their own JVM, away from the gate's test JVM.
+lazy val dbIt = (project in file("modules/db-it"))
+  .dependsOn(core % "compile->compile;test->test")
+  .settings(
+    commonSettings,
+    publish / skip := true,
+    Test / fork := true,
+    // A forked JVM starts with an EMPTY environment, so Testcontainers cannot
+    // see DOCKER_HOST / the Docker Desktop socket and reports "no Docker
+    // environment" on a machine where Docker is running fine.
+    Test / envVars ++= sys.env,
+    libraryDependencies ++= Seq(
+      "org.testcontainers" % "testcontainers" % testcontainersVersion % Test,
+      "org.testcontainers" % "postgresql"     % testcontainersVersion % Test
     )
   )
 

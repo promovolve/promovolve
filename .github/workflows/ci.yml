@@ -33,7 +33,7 @@ jobs:
       - uses: actions/setup-java@de7274f081f381c8f8158605e0321c36c376e2e6 # v6.0.1
         with:
           distribution: temurin
-          java-version: "21"
+          java-version: "25"
           cache: sbt
       - uses: sbt/setup-sbt@6158cb0903b8ceeae04f830055f3155e1b6a5ad7 # v1.5.11
 
@@ -50,6 +50,14 @@ jobs:
       # clean runner — do not add credentials to make more of them run.
       - name: Test (main + test)
         run: sbt test
+
+      # Package the production launcher and keep Java 25 native-access needs
+      # explicit. LMDB (jnr-jffi) and Pekko's LZ4 support are classpath code,
+      # so the expected module name is ALL-UNNAMED.
+      - name: Stage API and scan native access
+        run: |
+          sbt "api / Universal / stage"
+          test "$(jnativescan --release 25 --class-path 'modules/api/target/universal/stage/lib/*' --print-native-access)" = ALL-UNNAMED
 
   banner:
     name: Banner (unit + hostile environments)
@@ -220,7 +228,7 @@ jobs:
       - uses: actions/setup-java@de7274f081f381c8f8158605e0321c36c376e2e6 # v6.0.1
         with:
           distribution: temurin
-          java-version: "21"
+          java-version: "25"
           cache: sbt
       - uses: sbt/setup-sbt@6158cb0903b8ceeae04f830055f3155e1b6a5ad7 # v1.5.11
       # The Scala job's `scalafmtCheckAll` runs on the ROOT project, which does

@@ -31,7 +31,7 @@
   <script src="{{asset "htmx.min.js"}}"></script>
   <script src="{{asset "htmx-sse.js"}}"></script>
 </head>
-<body class="bg-gray-50 text-gray-900 min-h-screen">
+<body class="bg-gray-50 text-gray-900 {{if .User}}h-dvh overflow-hidden flex flex-col{{else}}min-h-screen{{end}}">
   {{if .User}}
   {{if .User.ViewAsBy}}
   {{/* Read-only admin view-as: unmistakable, sticky, with the one allowed
@@ -54,7 +54,7 @@
       opacity: .45;
     }
   </style>
-  <div class="sticky top-0 z-50 bg-amber-400 text-gray-950 text-sm px-4 py-2 flex items-center justify-between gap-4">
+  <div class="shrink-0 sticky top-0 z-50 bg-amber-400 text-gray-950 text-sm px-4 py-2 flex items-center justify-between gap-4">
     <span>👁 {{t "Viewing as"}} <strong>{{.User.Email}}</strong> — {{t "read-only admin session"}} ({{.User.ViewAsBy}})</span>
     <form method="POST" action="/view-as/exit" data-viewas-allowed>
       <button type="submit" class="font-semibold underline hover:no-underline">{{t "Exit view"}}</button>
@@ -65,12 +65,15 @@
        content on the right (long URLs, tables) used to steal width from it
        and squash the footer links. min-w-0 + overflow-x-auto on <main>
        makes wide content scroll inside the pane instead. */}}
-  <div class="flex min-h-screen">
+  {{/* A content-sized row would stretch the sidebar when the main pane
+       wraps or grows. Keep scrolling inside each pane so account controls
+       remain reachable without scrolling through the main content. */}}
+  <div class="flex flex-1 min-h-0">
     {{/* theme-light-scope freezes the gray/white variables to their light
          values inside the sidebar, so this always-dark chrome (dark bg, light
          text) looks identical in both themes instead of inverting. */}}
-    <aside class="theme-light-scope w-60 shrink-0 bg-gray-900 text-gray-100 p-4 flex flex-col">
-      <div class="mb-8">
+    <aside class="theme-light-scope w-60 shrink-0 overflow-y-auto bg-gray-900 text-gray-100 p-4 flex flex-col">
+      <div class="mb-8 shrink-0">
         <h2 class="text-lg font-semibold">Promovolve</h2>
         <p class="text-xs text-gray-400 mt-1">
           {{if eq .User.Role "publisher"}}{{t "Publisher Dashboard"}}{{else if eq .User.Role "advertiser"}}{{t "Advertiser Dashboard"}}{{else}}{{t "Admin Dashboard"}}{{end}}
@@ -127,7 +130,7 @@
            end the whole session instead of exiting view; the banner's
            "Exit view" is the way out). */}}
       {{if not .User.ViewAsBy}}
-      <div class="border-t border-gray-700 pt-4 mt-4">
+      <div class="shrink-0 border-t border-gray-700 pt-4 mt-4">
         {{/* Email + theme toggle share a row so the account links below have
              the full width. Theme is icon-only (designer-style) to save
              space — the tooltip carries the current mode. */}}

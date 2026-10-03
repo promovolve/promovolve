@@ -32,6 +32,9 @@ preparation or post-deploy manifest apply is required:
 If profile installation fails, application templates are left unchanged. A failed
 singleton rollout stops before changing the API tier. A failed API rollout is
 reported by Deploy; it does not trigger automatic rollback or delete data.
+`k8s-gke/setup.sh` refuses an infra-only apply while it detects legacy root-run
+API templates; use the CI rollout or `--build-images` so the compatible image and
+UID change together.
 
 The installer writes only `/var/lib/kubelet/seccomp/promovolve` and provisions
 replacement nodes. Clusters with a different kubelet root need a matching

@@ -284,7 +284,9 @@ jobs:
       contents: read
       pull-requests: read
     outputs:
-      images: ${{ github.event_name == 'workflow_dispatch' && '["api","platform"]' || steps.filter.outputs.changes }}
+      # Deploy can retry accumulated changes after a failed run. Every main
+      # commit must therefore validate both images, even on an unrelated push.
+      images: ${{ (github.event_name == 'workflow_dispatch' || (github.event_name == 'push' && github.ref == 'refs/heads/main')) && '["api","platform"]' || steps.filter.outputs.changes }}
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
         with:
@@ -292,7 +294,7 @@ jobs:
           fetch-depth: 0
       - uses: dorny/paths-filter@ceb8a2b8f2d89434be7ff52d3de7ec3738c5cc9d # v4.0.3
         id: filter
-        if: github.event_name != 'workflow_dispatch'
+        if: github.event_name != 'workflow_dispatch' && !(github.event_name == 'push' && github.ref == 'refs/heads/main')
         with:
           # PRs use their full diff; pushes use the range delivered to that branch.
           base: ${{ github.ref }}

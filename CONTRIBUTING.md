@@ -62,7 +62,8 @@ The root `Dockerfile` runs the development Creative Assessment UI; production us
 
 ### Container checks
 
-CI builds affected production images for arm64 (both on manual runs) and checks
+CI builds affected production images for arm64 on pull requests, and both images
+on main pushes and manual runs. It checks
 startup, shutdown, browser execution, and embedded assets using disposable local
 services. R2, LLM, and
 production cluster integration are outside these checks; no deployment credentials

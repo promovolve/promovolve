@@ -195,6 +195,9 @@ spec:
               value: "$(POD_IP)"
             - name: PEKKO_CLUSTER_BOOTSTRAP
               value: "on"
+            # Override any legacy ConfigMap value that disabled Chromium isolation.
+            - name: CHROMIUM_NO_SANDBOX
+              value: "false"
             # Points request-hygiene at the ASN db the init container fetched.
             # Absent/corrupt → HttpBootstrap fails open (see FRAUD_PREVENTION.md).
             - name: FRAUD_ASN_DB_PATH

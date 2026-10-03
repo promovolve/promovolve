@@ -115,6 +115,9 @@ spec:
               value: "$(POD_IP)"
             - name: PEKKO_CLUSTER_BOOTSTRAP
               value: "on"
+            # Keep both tiers on the same explicit runtime-isolation contract.
+            - name: CHROMIUM_NO_SANDBOX
+              value: "false"
             - name: DDATA_DIR
               value: /data/ddata
           envFrom:

@@ -1,66 +1,17 @@
 package billing
 
-// Full-cycle ledger test against a real Postgres, gated on
-// BILLING_TEST_DATABASE_URL (skipped otherwise). Everything runs inside a
-// throwaway schema so it is safe to point at the dev database:
+// Full-cycle ledger test against a real Postgres. The server, the per-test
+// schema and the skip-without-the-tag behavior live in
+// pgtest_integration_test.go / pgtest_default_test.go:
 //
-//   BILLING_TEST_DATABASE_URL='postgres://promovolve:promovolve@localhost:5432/promovolve?sslmode=disable' \
-//     go test ./internal/billing/
+//   go test -tags=integration ./internal/billing
 
 import (
 	"context"
 	"errors"
-	"fmt"
-	"os"
 	"testing"
 	"time"
-
-	"github.com/jackc/pgx/v5/pgxpool"
-
-	"github.com/hanishi/promovolve/platform/internal/db"
 )
-
-func testPool(t *testing.T) *pgxpool.Pool {
-	t.Helper()
-	url := os.Getenv("BILLING_TEST_DATABASE_URL")
-	if url == "" {
-		t.Skip("BILLING_TEST_DATABASE_URL not set; skipping ledger integration test")
-	}
-	ctx := context.Background()
-
-	schema := fmt.Sprintf("billing_test_%d", os.Getpid())
-
-	admin, err := pgxpool.New(ctx, url)
-	if err != nil {
-		t.Fatalf("connect: %v", err)
-	}
-	if _, err := admin.Exec(ctx, "DROP SCHEMA IF EXISTS "+schema+" CASCADE"); err != nil {
-		t.Fatalf("drop stale schema: %v", err)
-	}
-	if _, err := admin.Exec(ctx, "CREATE SCHEMA "+schema); err != nil {
-		t.Fatalf("create schema: %v", err)
-	}
-	t.Cleanup(func() {
-		admin.Exec(context.Background(), "DROP SCHEMA IF EXISTS "+schema+" CASCADE")
-		admin.Close()
-	})
-
-	cfg, err := pgxpool.ParseConfig(url)
-	if err != nil {
-		t.Fatalf("parse config: %v", err)
-	}
-	cfg.ConnConfig.RuntimeParams["search_path"] = schema
-	pool, err := pgxpool.NewWithConfig(ctx, cfg)
-	if err != nil {
-		t.Fatalf("connect with search_path: %v", err)
-	}
-	t.Cleanup(pool.Close)
-
-	if err := db.Migrate(pool); err != nil {
-		t.Fatalf("migrate: %v", err)
-	}
-	return pool
-}
 
 func TestLedgerFullCycle(t *testing.T) {
 	pool := testPool(t)

@@ -109,14 +109,14 @@ object Main {
           val cdnBase = appCfg.getString("cdn-base-url")
           val bannerScriptUrl = appCfg.getString("banner-script-url")
           val analyzer = new promovolve.browser.LPAnalyzer(bannerScriptUrl, browserPool)
-          promovolve.publisher.assets.R2ImageStorage.fromEnv()(using system) match {
+          promovolve.publisher.assets.ImageStorage.fromEnv()(using system) match {
             case Some(storage) =>
               context.log.info("LPWorker: analysis runner enabled on crawler node")
               LPAnalysisRunner(analyzer, storage, None, cdnBase)(using system)
             case None =>
-              context.log.warn("LPWorker: R2 not configured on crawler node — LP analysis will fail until R2_* set")
+              context.log.warn("LPWorker: storage not configured on crawler node — set R2_LOCAL_URL or R2_*")
               (_: promovolve.browser.LPWorker.AnalyzeLP) =>
-                scala.concurrent.Future.failed(new IllegalStateException("R2 not configured on crawler node"))
+                scala.concurrent.Future.failed(new IllegalStateException("Storage not configured on crawler node"))
           }
         } else
           // Non-crawler node: the role-pinned entity factory never runs here, so

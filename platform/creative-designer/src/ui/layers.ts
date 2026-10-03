@@ -425,6 +425,7 @@ function itemName(item: LayoutItem): string {
     return first.length > 40 ? first.slice(0, 40) + "…" : first;
   }
   if (item.type === "image") {
+    if (item.latex) return item.latex.length > 40 ? item.latex.slice(0, 40) + "…" : item.latex;
     const src = (item.src ?? item.field ?? "").trim();
     if (!src) return "Image";
     const parts = src.split("/");

@@ -25,6 +25,8 @@ import { loadBrandKit } from "../brand-kit";
 import { mountKitColorChips } from "./brand-kit-chips";
 import { openAssetModal } from "./asset-modal";
 import { openCropModal } from "./crop-modal";
+import { isFormula } from "../formula";
+import { openFormulaModal } from "./formula-modal";
 import { openRemoveBgModal } from "./remove-bg-modal";
 import { tokens } from "./tokens";
 
@@ -78,6 +80,8 @@ interface RenderedState {
 // flag (colour picker ↔ "synced from page 1" hint swap).
 function structuralMarker(state: DesignerState, item: LayoutItem): string {
   let m = hasLocalTextOverride(item) ? "|ov" : "";
+  // Formula ↔ photo swaps the whole Image/Formula group.
+  if (isFormula(item)) m += "|fx";
   const field = item.type === "text" ? (item as { field?: string }).field : undefined;
   if (field && fieldColorSyncKey(field) != null) {
     m += `|pg${state.pageIdx}|cs${isFieldColorSynced(state, field) ? 1 : 0}`;
@@ -363,6 +367,24 @@ function build(panel: HTMLElement, idx: number, item: LayoutItem, store: Store):
     );
     panel.appendChild(layoutGroup);
     sections.push(layoutGroup);
+  } else if (item.type === "image" && isFormula(item)) {
+    // A formula is a rendered SVG, not a photo: Replace / Remove
+    // background / crop / fill mode / edge effects don't apply. Its
+    // content is edited as LaTeX.
+    const content = group("Formula");
+    const formulaBtn = document.createElement("button");
+    formulaBtn.type = "button";
+    formulaBtn.textContent = "Edit formula…";
+    formulaBtn.style.cssText = `background:${tokens.ink700};color:${tokens.ink100};border:1px solid ${tokens.ink500};border-radius:4px;padding:4px 8px;font:inherit;font-size:11px;cursor:pointer;align-self:flex-start;`;
+    // Read the LIVE item: after an Update the panel isn't rebuilt (same
+    // key), so the build-time `item` would reopen the previous formula.
+    formulaBtn.addEventListener("click", () => {
+      const live = currentItem(store.state);
+      if (live?.type === "image" && isFormula(live)) openFormulaModal(store, { idx, item: live });
+    });
+    appendToGroup(content, formulaBtn);
+    panel.appendChild(content);
+    sections.push(content);
   } else if (item.type === "image") {
     const content = group("Image");
     // No pin/sync toggle here (removed 2026-07-13, user decision): THE

@@ -102,6 +102,14 @@ else
   exit 1
 fi
 
+# Wrangler's local R2 facade replaces the cloud endpoint and public CDN for
+# the all-in-one local runner. scripts/.env intentionally leaves these blank,
+# so derive the URLs here after loading it.
+if [ -n "${R2_LOCAL_URL:-}" ]; then
+  export CDN_BASE_URL="$R2_LOCAL_URL"
+  export BANNER_SCRIPT_URL="${R2_LOCAL_URL%/}/js/expandable-magazine-banner.js"
+fi
+
 export ENABLE_TEST_ROUTES=${ENABLE_TEST_ROUTES:-true}
 
 # Show where the banner web component will be fetched from so it's

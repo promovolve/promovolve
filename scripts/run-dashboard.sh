@@ -20,6 +20,11 @@ else
   echo "Warning: $ENV_FILE not found — running with defaults only."
 fi
 
+if [ -n "${R2_LOCAL_URL:-}" ]; then
+  export CDN_BASE_URL="$R2_LOCAL_URL"
+  export BANNER_SCRIPT_URL="${R2_LOCAL_URL%/}/js/expandable-magazine-banner.js"
+fi
+
 # Dashboard-specific defaults (Go side only)
 export DATABASE_URL="${DATABASE_URL:-postgres://promovolve:promovolve@localhost:5432/promovolve?sslmode=disable}"
 export CORE_API_URL="${CORE_API_URL:-http://localhost:8080}"

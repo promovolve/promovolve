@@ -128,15 +128,16 @@ object FraudFlagRepo {
   import slick.jdbc.GetResult
 
   given GetResult[(String, LocalDate, Long, Long, Long, Long)] =
-    GetResult(r => (r.nextString(), r.nextDate().toLocalDate, r.nextLong(), r.nextLong(), r.nextLong(), r.nextLong()))
+    GetResult(
+      using r => (r.nextString(), r.nextDate().toLocalDate, r.nextLong(), r.nextLong(), r.nextLong(), r.nextLong()))
 
   given GetResult[(String, LocalDate, Long)] =
-    GetResult(r => (r.nextString(), r.nextDate().toLocalDate, r.nextLong()))
+    GetResult(using r => (r.nextString(), r.nextDate().toLocalDate, r.nextLong()))
 
   given GetResult[(String, Long)] =
-    GetResult(r => (r.nextString(), r.nextLong()))
+    GetResult(using r => (r.nextString(), r.nextLong()))
 
-  given GetResult[FraudFlagRow] = GetResult(r =>
+  given GetResult[FraudFlagRow] = GetResult(using r =>
     FraudFlagRow(
       id = r.nextLong(),
       siteId = r.nextString(),

@@ -30,8 +30,8 @@ See the [README](README.md#repository-layout) for the map. The two build targets
 
 ## Prerequisites
 
-- **JDK 21 and sbt** (Scala 3.7)
-- **Go 1.26+**
+- **JDK 21 and sbt** (Scala 3.9)
+- **Go 1.27+**
 - **GNU Make** (Go platform tasks)
 - **Node.js 24** (to build the Tailwind CSS and the JS ad bundles)
 - **Docker** (local Postgres/TimescaleDB)
@@ -50,6 +50,13 @@ scripts/run-dashboard.sh               # dashboard on :9091
 
 See the [Self-Hosting guide](docs/guides/self-hosting.md) for the full
 configuration surface.
+
+Development Compose ports default to `127.0.0.1`. For access from other machines,
+set `DEV_BIND_ADDRESS` to a host IP or `0.0.0.0`, restrict network access, and
+replace the example credentials.
+
+The root `Dockerfile` runs the development Creative Assessment UI; production uses
+`Dockerfile.api` and `platform/Dockerfile`.
 
 ## Building & testing
 
@@ -106,6 +113,29 @@ Notes:
   ```
 
   Add database-backed tests to that build tag, never to the Docker-free job.
+
+- **Scala database tests live in their own project, `dbIt`.** They check the
+  Slick repositories against a real TimescaleDB: the traffic-shape snapshot
+  round trip, the `ensureSchema` upgrade of a table written before the
+  weekday/weekend split, and `docker/init-db.sql` applied to an empty
+  database. `dbIt` is deliberately not aggregated by the root project, so
+  `sbt test` never runs it and stays Docker-free. CI runs it as its own job
+  ("Scala persistence (timescaledb)"). With Docker running:
+
+  ```bash
+  sbt dbIt/test
+  ```
+
+  It starts one pinned TimescaleDB container for the run. If Testcontainers
+  cannot find your Docker socket — Docker Desktop on macOS serves an API it
+  rejects — point the tests at a server you started yourself instead. It must
+  be TimescaleDB, because init-db.sql creates the extension:
+
+  ```bash
+  docker run -d --rm -e POSTGRES_USER=promovolve -e POSTGRES_PASSWORD=promovolve \
+    -e POSTGRES_DB=promovolve_test -p 55441:5432 timescale/timescaledb:2.17.2-pg15
+  DB_IT_DATABASE_URL='jdbc:postgresql://localhost:55441/promovolve_test' sbt dbIt/test
+  ```
 
 ## Code style
 

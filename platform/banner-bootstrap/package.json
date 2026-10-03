@@ -16,14 +16,14 @@
     "release": "npm run typecheck && npm run lint && npm run test && npm run build && npm run fanout && npm run publish:r2"
   },
   "devDependencies": {
-    "@aws-sdk/client-s3": "^3.1032.0",
+    "@aws-sdk/client-s3": "^3.1134.0",
     "@eslint/js": "^9.17.0",
     "@types/node": "24",
     "eslint": "^9.17.0",
     "fake-indexeddb": "^6.0.0",
     "happy-dom": "^20.9.0",
     "typescript": "~5.9.3",
-    "typescript-eslint": "^8.19.0",
+    "typescript-eslint": "^8.70.0",
     "vite": "^7.3.5",
     "vitest": "^4.1.11"
   },

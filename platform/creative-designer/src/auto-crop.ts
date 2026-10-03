@@ -23,6 +23,7 @@ import { findSalientBox, prewarmSaliency, rewriteForSaliency } from "./saliency"
 import { currentLayout, currentPage, updateItem } from "./state";
 import type { Store } from "./store";
 import type { DesignerState } from "./types";
+import { isFormula } from "./formula";
 
 type CropBox = { x: number; y: number; w: number; h: number };
 
@@ -41,7 +42,7 @@ function findUncroppedImages(state: DesignerState): ItemRef[] {
   const refs: ItemRef[] = [];
   state.pages.forEach((page, pageIdx) => {
     (page.layout ?? []).forEach((item, itemIdx) => {
-      if (item.type !== "image") return;
+      if (item.type !== "image" || isFormula(item)) return;
       if (item.crop) return;
       const src = item.src;
       if (!src) return;

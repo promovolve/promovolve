@@ -1536,9 +1536,9 @@ object SiteEntity {
                     )(scala.concurrent.Future.successful(
                       VerificationCheckResult(success = false, host,
                         Some("Verification timed out after 20s — site too slow to respond"), replyTo)))(
-                      ctx.executionContext)
+                      using ctx.executionContext)
                     ctx.pipeToSelf(scala.concurrent.Future.firstCompletedOf(Seq(verifyF, deadline))(
-                      ctx.executionContext)) {
+                      using ctx.executionContext)) {
                       case Success(result) => result
                       case Failure(ex)     =>
                         VerificationCheckResult(success = false, host, Some(s"Verification failed: ${ex.getMessage}"),

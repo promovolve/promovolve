@@ -24,7 +24,7 @@ import promovolve.publisher.{
   SlickImageAssetRepo,
   SlickPublisherEmailRepo
 }
-import promovolve.publisher.assets.{ ImageStorage, R2ImageStorage }
+import promovolve.publisher.assets.ImageStorage
 import promovolve.advertiser.{ AdvertiserEmailRepo, SlickAdvertiserEmailRepo }
 import scala.util.Try
 import promovolve.taxonomy.CategoryRegistry
@@ -106,12 +106,15 @@ object HttpBootstrap {
 
       // Image storage: R2 is required. No in-memory fallback — it loses
       // creatives on restart and silently masks a misconfigured deploy.
-      val imageStorage: ImageStorage = R2ImageStorage.fromEnv()(using system).getOrElse {
+      val imageStorage: ImageStorage = ImageStorage.fromEnv()(using system).getOrElse {
         throw new IllegalStateException(
-          "R2 not configured. Set R2_ACCOUNT_ID, R2_ACCESS_KEY_ID, R2_SECRET_ACCESS_KEY, and R2_BUCKET."
+          "Storage not configured. Set R2_LOCAL_URL for local development or the four R2_* variables for Cloudflare R2."
         )
       }
-      val storageType = "R2 (Cloudflare)"
+      val storageType = imageStorage match {
+        case _: promovolve.publisher.assets.LocalR2ImageStorage => "R2 (Wrangler local simulation)"
+        case _                                                  => "R2 (Cloudflare)"
+      }
 
       // Database-backed repos for creative storage (required)
       // NOTE: creativeRepo is passed in from ClusterBootstrap.Repositories to ensure

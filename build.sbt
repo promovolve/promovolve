@@ -1,7 +1,7 @@
 import scala.collection.Seq
 
 ThisBuild / organization := "promovolve"
-scalaVersion := "3.7.4"
+ThisBuild / scalaVersion := "3.9.0"
 val pekkoVersion                = "1.4.0"
 val pekkoHttpVersion            = "1.2.0"
 val pekkoProjectionVersion      = "1.1.0"
@@ -9,12 +9,15 @@ val pekkoManagementVersion      = "1.2.1"
 val logbackVersion              = "1.6.3"
 val pekkoQuartzSchedulerVersion = "1.3.0-pekko-1.1.x"
 val tapirVersion = "1.13.3"
+// Pinned with the image it starts (see PostgresTestContainer).
+val testcontainersVersion       = "1.21.3"
 
 ThisBuild / scalacOptions :=
   Seq(
     "-feature",
     "-unchecked",
     "-deprecation",
+    "-Werror",
     "-encoding", "utf8",
     "-Xmax-inlines:128",
     // Permanent guardrails for the two unused-symbol categories with the
@@ -108,8 +111,32 @@ lazy val api = (project in file("modules/api"))
     )
   )
 
+// Database integration tests (GH #23). DELIBERATELY NOT aggregated by root,
+// so `sbt test` — the deterministic gate CI runs — never reaches it: this
+// project needs Docker, pulls a TimescaleDB image and runs the real
+// docker/init-db.sql. Run it on purpose:
+//
+//   sbt dbIt/test
+//
+// Forked so the container's JDBC pools and the shutdown hook that stops it
+// live in their own JVM, away from the gate's test JVM.
+lazy val dbIt = (project in file("modules/db-it"))
+  .dependsOn(core % "compile->compile;test->test")
+  .settings(
+    commonSettings,
+    publish / skip := true,
+    Test / fork := true,
+    // A forked JVM starts with an EMPTY environment, so Testcontainers cannot
+    // see DOCKER_HOST / the Docker Desktop socket and reports "no Docker
+    // environment" on a machine where Docker is running fine.
+    Test / envVars ++= sys.env,
+    libraryDependencies ++= Seq(
+      "org.testcontainers" % "testcontainers" % testcontainersVersion % Test,
+      "org.testcontainers" % "postgresql"     % testcontainersVersion % Test
+    )
+  )
+
 lazy val commonSettings = Seq(
-  scalaVersion := "3.7.4",
   libraryDependencies ++= Seq(
     // Pekko
     "org.apache.pekko"       %% "pekko-actor-typed"            % pekkoVersion,
@@ -134,7 +161,7 @@ lazy val commonSettings = Seq(
     "io.github.samueleresca" %% "pekko-quartz-scheduler"       % pekkoQuartzSchedulerVersion,
     "ch.qos.logback"          % "logback-classic"              % logbackVersion,
     "com.github.jkugiya"     %% "ulid-scala"                   % "1.0.6",
-    "com.microsoft.playwright" % "playwright"                  % "1.62.0",
+    "com.microsoft.playwright" % "playwright"                  % "1.63.0",
     "org.apache.commons"      % "commons-math3"                % "3.6.1",  // Beta distribution for Thompson Sampling
     "com.github.blemale"     %% "scaffeine"                    % "5.3.0",  // Scala wrapper for Caffeine cache
     "com.google.guava"        % "guava"                        % "33.4.8-jre",  // InternetDomainName (public-suffix eTLD+1 for auto-approve trust)

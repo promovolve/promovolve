@@ -15,3 +15,19 @@ scripts
 *.md
 .scalafmt.conf
 .DS_Store
+private
+# Git exclusions do not apply to Docker build contexts.
+**/.env
+**/.env.*
+**/*.env
+**/*.pem
+**/*.key
+**/*.p12
+**/*.pfx
+**/id_rsa*
+**/id_ed25519*
+**/*.tfstate
+**/*.tfstate.*
+**/.terraform
+**/.ssh
+**/.kube

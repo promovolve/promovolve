@@ -6,11 +6,12 @@
 // Shift+click toggles idx in the list; marquee builds a list from a
 // rectangle. Empty list = nothing selected.
 
-import type { BannerConfig, DesignerState, LayoutItem, Page, TextureBg, VideoBg } from "./types";
+import type { BannerConfig, DesignerState, ImageItem, LayoutItem, Page, TextureBg, VideoBg } from "./types";
 import { findMode, isMultiPage, MODES } from "./modes";
 import { presetLayoutFor } from "./presets";
 import { kitFont, type BrandKit } from "./brand-kit";
 import { itemBoundsPct } from "./geometry";
+import { isFormula } from "./formula";
 
 // ─── Constructors ───────────────────────────────────────────────────
 
@@ -772,6 +773,7 @@ export function addLocalImage(
   state: DesignerState,
   src: string,
   natural?: { w: number; h: number },
+  extra?: Partial<ImageItem>,
 ): DesignerState {
   let width = 50;
   let height = 50;
@@ -793,6 +795,7 @@ export function addLocalImage(
     width,
     height,
     fillMode: "fill",
+    ...extra,
   } as LayoutItem;
   return addItem(state, item);
 }
@@ -962,8 +965,10 @@ export function setMainImage(state: DesignerState, src: string): DesignerState {
   // behind the text. Only a view with no image at all gets a fresh preset slot.
   // This is the "set THE single main" op (asset-replace).
   const ensureMainImage = (items: LayoutItem[], modeKey: string): LayoutItem[] => {
-    const keep = items.find((it) => it.type === "image");
-    const rest = items.filter((it) => it.type !== "image");
+    // Formulas aren't photos: they survive a Replace untouched.
+    const isPhoto = (it: LayoutItem): boolean => it.type === "image" && !isFormula(it);
+    const keep = items.find(isPhoto);
+    const rest = items.filter((it) => !isPhoto(it));
     if (!keep) {
       const s = slotFor(modeKey);
       return s ? [s, ...rest] : rest;

@@ -6,7 +6,7 @@
 #      (crawl, LP extraction, banner render). The runtime stage is
 #      therefore Microsoft's official Playwright-for-Java image, whose
 #      bundled Chromium build is version-matched to the
-#      `com.microsoft.playwright % playwright % 1.62.0` dependency.
+#      `com.microsoft.playwright % playwright % 1.63.0` dependency.
 #   2. The app needs Java 21 + --add-opens for LMDB durable DData. We
 #      copy a Temurin 21 JRE into the runtime image so the Java version
 #      is deterministic regardless of what the Playwright image ships.
@@ -16,7 +16,7 @@
 
 # ---- build stage: compile + stage the app with sbt-native-packager ----
 # The bundled sbt/scala in the tag are irrelevant — the sbt launcher
-# auto-fetches the version pinned in project/build.properties (1.11.4)
+# auto-fetches the version pinned in project/build.properties
 # and build.sbt's scalaVersion. We only need a Java 21 base.
 FROM sbtscala/scala-sbt:eclipse-temurin-21.0.8_9_1.12.11_3.8.3 AS build
 WORKDIR /src
@@ -35,7 +35,7 @@ RUN sbt "api/stage"
 FROM eclipse-temurin:21-jre-jammy AS jre
 
 # ---- runtime stage: Playwright (Chromium + system libs) + JRE 21 ----
-FROM mcr.microsoft.com/playwright/java:v1.62.0-jammy
+FROM mcr.microsoft.com/playwright/java:v1.63.0-jammy
 
 # ffmpeg: CreativeProcessor normalizes video backgrounds at publish
 # (strip audio / clip / downscale / poster frame — VideoTranscoder.scala).

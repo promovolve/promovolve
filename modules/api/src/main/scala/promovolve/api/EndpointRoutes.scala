@@ -11,6 +11,7 @@ import org.apache.pekko.pattern.StatusReply
 import org.apache.pekko.util.Timeout
 import promovolve.BudgetEvent
 import promovolve.advertiser.cbo.{ CboBudgetMode, CboStrategy }
+import promovolve.publisher.assets.ImageStorage
 import sttp.tapir.server.pekkohttp.PekkoHttpServerInterpreter
 import sttp.tapir.swagger.bundle.SwaggerInterpreter
 
@@ -1115,6 +1116,12 @@ class EndpointRoutes(
                       complete(StatusCodes.ContentTooLarge,
                         ErrorResponse("file_too_large",
                           s"upload exceeds ${MaxUploadBytes / (1024 * 1024)} MB limit"))
+                    else if (!ImageStorage.uploadable(req.mimeType))
+                      // Anything but image/video could be served as a live
+                      // document from the CDN origin (e.g. text/html).
+                      complete(StatusCodes.UnsupportedMediaType,
+                        ErrorResponse("unsupported_type",
+                          s"only images and video can be uploaded, got ${req.mimeType}"))
                     else (imageStorage, imageAssetRepo) match {
                       case (Some(storage), Some(imgRepo)) =>
                         val f = imgRepo.get(req.hash).flatMap {
@@ -1129,7 +1136,8 @@ class EndpointRoutes(
                           case None =>
                             storage.presignPutUrl(req.hash, req.mimeType, ttlSeconds = 600)
                               .map { case (url, key) =>
-                                PresignedUploadResponse(uploadUrl = url, s3Key = key, alreadyExists = false)
+                                PresignedUploadResponse(uploadUrl = url, s3Key = key, alreadyExists = false,
+                                  contentType = Some(ImageStorage.putContentType(req.mimeType)))
                               }
                         }
                         onComplete(f) {
@@ -1157,15 +1165,7 @@ class EndpointRoutes(
                   entity(as[RegisterAssetRequest]) { req =>
                     (imageStorage, imageAssetRepo) match {
                       case (Some(_), Some(imgRepo)) =>
-                        val ext = req.mimeType match {
-                          case "image/png"  => "png"
-                          case "image/jpeg" => "jpg"
-                          case "image/gif"  => "gif"
-                          case "image/webp" => "webp"
-                          case "video/mp4"  => "mp4"
-                          case "video/webm" => "webm"
-                          case _            => "bin"
-                        }
+                        val ext = ImageStorage.extFor(req.mimeType)
                         val s3Key = s"assets/${req.hash}.$ext"
                         val w = req.width.getOrElse(0)
                         val h = req.height.getOrElse(0)
@@ -1202,11 +1202,21 @@ class EndpointRoutes(
                               Future.failed(new RuntimeException(
                                 s"uploaded object not found at $s3Key — did the PUT succeed?"))
                           }
+                        // SVG: the PUT landed as an opaque download (see
+                        // ImageStorage.putContentType). Sanitize it NOW and
+                        // rewrite the same key as image/svg+xml — this is the
+                        // only way an uploaded SVG becomes renderable, so no
+                        // unsanitized SVG is ever served. Unlike video this is
+                        // NOT best-effort: no object → no row.
+                        def recordSvg(): Future[(String, String, Int, Int)] =
+                          SvgSanitizer.registerUpload(imageStorage.get, imgRepo, req.hash, s3Key, (w, h))
                         val f = imgRepo.get(req.hash).flatMap {
                           case Some(existing) =>
                             Future.successful((existing.s3Key, existing.mime, existing.width, existing.height))
                           case None if req.mimeType.startsWith("video/") =>
                             recordVideo()
+                          case None if req.mimeType == ImageStorage.SvgMime =>
+                            recordSvg()
                           case None =>
                             imgRepo.put(promovolve.publisher.ImageAsset(req.hash, s3Key, req.mimeType, w, h,
                               Instant.now()))

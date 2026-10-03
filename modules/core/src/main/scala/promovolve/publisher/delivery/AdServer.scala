@@ -1164,7 +1164,7 @@ private[delivery] class AdServer(
   // waiting for the periodic backstop.
   private var lastReauctionRequestMs: Map[String, Long] = Map.empty
   private val selfHealThrottleMs: Long = 15000L
-  private def selfHealReauction(url: URL, requestSlots: Vector[Protocol.BatchSlotSpec] = Vector.empty): Unit = {
+  private def selfHealReauction(url: URL, requestSlots: Vector[Protocol.BatchSlotSpec]): Unit = {
     val now = System.currentTimeMillis()
     if (now - lastReauctionRequestMs.getOrElse(url.value, 0L) >= selfHealThrottleMs) {
       lastReauctionRequestMs = lastReauctionRequestMs.updated(url.value, now)
@@ -4659,7 +4659,7 @@ private[delivery] class AdServer(
   // Returns (state', action) — caller dispatches selection logic on Proceed.
   // ═══════════════════════════════════════════════════════════════════════════
 
-  private def recordRequestArrival(state: State, slotCount: Int = 1): (State, ArrivalAction) = {
+  private def recordRequestArrival(state: State, slotCount: Int): (State, ArrivalAction) = {
     import state.*
     val nowMs = System.currentTimeMillis()
     val newRate = trafficObserver.recordRequest(nowMs)

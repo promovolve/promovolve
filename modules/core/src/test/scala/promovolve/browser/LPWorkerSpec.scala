@@ -41,8 +41,9 @@ class LPWorkerSpec extends AnyWordSpec with Matchers {
   private final class StubRuns(report: ActorRef[String]) {
     private val promises = TrieMap.empty[String, Promise[AnalyzeLPDone]]
     val run: RunAnalysis = (req: AnalyzeLP) => {
+      val promise = promises.getOrElseUpdate(req.url, Promise[AnalyzeLPDone]())
       report ! req.url
-      promises.getOrElseUpdate(req.url, Promise[AnalyzeLPDone]()).future
+      promise.future
     }
     def finish(url: String): Unit = promises.get(url).foreach(_.trySuccess(doneFor(url)))
   }

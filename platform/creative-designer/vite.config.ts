@@ -52,7 +52,15 @@ export default defineConfig(({ mode }) => {
           // breaks. NOTE: the designer's own dev shell boots from /src
           // (HMR), so this only affects proxied dashboard pages, which use
           // the platform's *embedded* designer bundle, not HMR.
-          "/static": opts,
+          // Vendored libs (MathJax for the formula tool) are served from
+          // disk so the harness works without the dashboard running.
+          "/static": {
+            ...opts,
+            bypass: (req) =>
+              req.url?.startsWith("/static/vendor/")
+                ? `/@fs${resolve(__dirname, "..")}${req.url.split("?")[0]}`
+                : undefined,
+          },
         };
       })(),
     },

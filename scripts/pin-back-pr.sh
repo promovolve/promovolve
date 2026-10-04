@@ -20,18 +20,9 @@
 #   4. open the PR if none is open for the branch; deploy.yml approves and
 #      enables auto-merge after both pin jobs finish
 #
-# THE PUSH MUST NOT USE GITHUB_TOKEN. A push made with the workflow token
-# triggers no workflows, and check runs from a `workflow_dispatch` run do
-# NOT count toward a pull request's required status checks (verified
-# 2026-09-04: six green check runs on the head commit, statusCheckRollup
-# null, PR #41 BLOCKED forever). The pin branch is therefore pushed over
-# SSH with a write deploy key (secret PIN_DEPLOY_KEY, created by
-# scripts/setup-pin-deploy-key.sh; deploy.yml hands it to actions/checkout
-# as `ssh-key`), so the push fires ci.yml's `push` trigger on `ci/pins` and
-# those check runs are the ones the Ruleset counts. `gh` uses the
-# promovolve-pin-back App for the PR itself, so GitHub does not hold its
-# pull_request workflow for the special approval required for PRs created
-# with GITHUB_TOKEN. The workflow token remains a separate reviewer.
+# Use the deploy key for pushes and the promovolve-pin-back App for PR
+# creation so pull_request CI runs without manual workflow approval.
+# GITHUB_TOKEN would require that approval. It remains a separate reviewer.
 #
 # ONE branch, ONE PR: digest and banner pins from the same deploy share it,
 # a rerun finds it already open, and delete-branch-on-merge retires it so
@@ -64,9 +55,8 @@ PR_TITLE="ci: pin deployed digests / banner url"
 cd "$(git rev-parse --show-toplevel)"
 case "$(git remote get-url --push origin)" in
   git@github.com:*|ssh://*) ;;
-  *) echo "WARNING: origin pushes over HTTPS (GITHUB_TOKEN) — that push triggers no CI run, so the" >&2
-     echo "         pin PR will never satisfy its required checks. Is secret PIN_DEPLOY_KEY set?" >&2
-     echo "         (scripts/setup-pin-deploy-key.sh creates it.)" >&2 ;;
+  *) echo "WARNING: GITHUB_TOKEN pushes require manual PR workflow approval." >&2
+     echo "         Use PIN_DEPLOY_KEY (scripts/setup-pin-deploy-key.sh)." >&2 ;;
 esac
 git config user.name  "github-actions[bot]"
 git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
@@ -153,10 +143,5 @@ else
     gh pr edit "$pr" --title "$PR_TITLE" >/dev/null && echo "retitled #$pr"
   fi
 fi
-
-# The push above (deploy key, not GITHUB_TOKEN) fired ci.yml on the branch —
-# as a `push` run and, once the PR exists, a `pull_request` run too; both
-# are cheap and the first push of a fresh branch has only the former, which
-# is why ci.yml keeps ci/pins in its push branches. Nothing to dispatch.
 
 echo "pull request: $(gh pr view "$pr" --json url --jq .url)"

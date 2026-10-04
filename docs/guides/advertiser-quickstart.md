@@ -213,7 +213,7 @@ midnight your budget does.
 Each campaign row shows:
 
 - **Spend today** vs. daily budget (the pacing bar)
-- **Impressions** — creative rendered and viewable
+- **Impressions** — your ad was viewable, by the IAB/MRC standard: at least half of it on screen (30% for ads of 970×250 or larger), on a visible browser tab, for one continuous second. A click also counts. Ads scrolled past in under a second are not counted or billed.
 - **Clicks / CTR** — reader engaged with the creative (e.g. expanded it)
 - **Imp share** — the fraction of eligible auctions you're winning; low
   share with healthy budget usually means your max CPM is uncompetitive

@@ -15,6 +15,7 @@ import {
 import { trustedHTML } from "./trusted-html";
 import { collectExpandedImageUrls, parseJSON, pickCollapsedLayout, pickExpandedLayout, sheetFitPct, sheetSizeFor } from "./utils";
 import { resolveExpandedFonts } from "./font-catalog";
+import { createViewableGate, viewableThreshold, type ViewableGate } from "./viewability";
 import { animatePageTurn, createInteractivePeel, buildGrainOverlay, dogEarPeelFrame, DOGEAR_PEEL_TRAVEL, PAPER_CSS, PAPER_BACK_BLEND, paperBackBackground, paperBackStock } from "./paper";
 
 // The reader deals its sheets in by default (the kawaraban lifecycle);
@@ -116,6 +117,10 @@ export class ExpandableMagazineBanner extends HTMLElement {
   // banner scrolls out and back in.
   private _impressionFired = false;
   private _impressionObserver: IntersectionObserver | null = null;
+  // The MRC 1-continuous-second clock (viewability.ts) and the tab
+  // visibility listener feeding it. Live only until the impression fires.
+  private _impressionGate: ViewableGate | null = null;
+  private _onImpressionVisibility: (() => void) | null = null;
   // One-shot ≥50% viewability latch for the collapsed item animations —
   // same threshold as the impression gate, so motion greets the reader
   // instead of playing off-screen on render. Latched per mount: once
@@ -330,8 +335,10 @@ export class ExpandableMagazineBanner extends HTMLElement {
     this.removeEventListener("dogear-unfold", this.onDogearUnfold);
     this._preloadObserver?.disconnect();
     this._preloadObserver = null;
-    this._impressionObserver?.disconnect();
-    this._impressionObserver = null;
+    this.stopImpressionWatch();
+    // An unresolved viewability latch dies with its observer; re-arm it so
+    // a remount (SPA navigation) can still resolve — the teaser hangs off it.
+    if (this._viewableObserver) this._viewablePromise = null;
     this._viewableObserver?.disconnect();
     this._viewableObserver = null;
     this._hiddenRenderRO?.disconnect();
@@ -460,11 +467,14 @@ export class ExpandableMagazineBanner extends HTMLElement {
     }
   }
 
-  /** Fire the impression beacon (1×1 tracking pixel) when the banner
-    * first becomes ≥50% visible — IAB MRC-style viewability gate, so
-    * we don't bill the advertiser for a banner the reader never saw.
-    * One-shot per mount; the `_impressionFired` flag prevents re-fire
-    * on scroll-out/scroll-in, attribute thrash, or any later render.
+  /** Fire the impression beacon (1×1 tracking pixel) once the banner is
+    * viewable by the MRC display standard (viewability.ts): 50% of its
+    * pixels on screen — 30% for ads of 970×250 and bigger — on a visible
+    * tab for one continuous second. A click counts at once (see
+    * wireCollapsedClick). So we don't bill the advertiser for an ad the
+    * reader scrolled straight past. One-shot per mount; the
+    * `_impressionFired` flag prevents re-fire on scroll-out/scroll-in,
+    * attribute thrash, or any later render.
     *
     * Skipped in edit/preview modes (the designer doesn't bill) and
     * when no `imp-url` was provided (defensive — bootstrap always
@@ -476,24 +486,45 @@ export class ExpandableMagazineBanner extends HTMLElement {
     if (this.getAttribute("preview-frame") === "1") return;
     const impUrl = this.getAttribute("imp-url");
     if (!impUrl) return;
+    // The dog-ear teaser stays instant: it greets the reader the moment
+    // the banner is 50% on screen, without waiting out the viewability
+    // second. (playTeaserPeel is one-shot per mount.)
+    void this.whenViewable().then(() => this.playTeaserPeel());
     if (typeof IntersectionObserver !== "function") {
       // Old browsers — fall through to immediate fire. Same trade-off
       // as preload: small accuracy loss for a tiny share of traffic.
       this.fireImpression(impUrl);
       return;
     }
+    const tabVisible = (): boolean => document.visibilityState !== "hidden";
+    const gate = createViewableGate(() => this.fireImpression(impUrl), tabVisible());
+    const onVisibility = (): void => gate.setTabVisible(tabVisible());
+    document.addEventListener("visibilitychange", onVisibility);
+    // Both thresholds, so the callback runs when the visible share
+    // crosses either; which one applies depends on the ad's rendered size.
     const observer = new IntersectionObserver((entries) => {
       for (const entry of entries) {
-        if (!entry.isIntersecting) continue;
-        if (entry.intersectionRatio < 0.5) continue;
-        this.fireImpression(impUrl);
-        observer.disconnect();
-        this._impressionObserver = null;
-        return;
+        const r = entry.boundingClientRect;
+        gate.setInView(entry.isIntersecting && entry.intersectionRatio >= viewableThreshold(r.width, r.height));
       }
-    }, { threshold: [0.5] });
+    }, { threshold: [0.3, 0.5] });
     observer.observe(this);
     this._impressionObserver = observer;
+    this._impressionGate = gate;
+    this._onImpressionVisibility = onVisibility;
+  }
+
+  /** Tear down the viewability watch (after the impression fires, or on
+    * unmount before it does — a remount starts a fresh clock). */
+  private stopImpressionWatch(): void {
+    this._impressionGate?.dispose();
+    this._impressionGate = null;
+    this._impressionObserver?.disconnect();
+    this._impressionObserver = null;
+    if (this._onImpressionVisibility) {
+      document.removeEventListener("visibilitychange", this._onImpressionVisibility);
+      this._onImpressionVisibility = null;
+    }
   }
 
   /** Resolves the first time the banner is ≥50% visible — the same
@@ -529,6 +560,7 @@ export class ExpandableMagazineBanner extends HTMLElement {
   private fireImpression(impUrl: string): void {
     if (this._impressionFired) return;
     this._impressionFired = true;
+    this.stopImpressionWatch();
     // 1×1 image beacon — survives adblockers better than fetch and
     // doesn't compete with banner asset loads at default priority.
     const pixel = new Image();
@@ -538,10 +570,6 @@ export class ExpandableMagazineBanner extends HTMLElement {
     // capping (docs/design/FREQUENCY_CAPPING.md). Presentation stays
     // here; storage and policy live in the bootstrap, like dog-ears.
     this.dispatchEvent(new CustomEvent("impression", { bubbles: true, composed: true }));
-    // Tie the teaser to the viewability moment: the corner-lift hint
-    // plays exactly when the impression counts (and the reader is
-    // looking), not on mount where it'd fire off-screen.
-    this.playTeaserPeel();
   }
 
   /** One-shot teaser peel on the collapsed banner: lift the dog-ear
@@ -1260,6 +1288,10 @@ export class ExpandableMagazineBanner extends HTMLElement {
     if (this.editMode) return;
     const banner = this.shadowRoot?.querySelector<HTMLElement>(".banner");
     banner?.addEventListener("click", () => {
+      // A click is the MRC's "strong user interaction": it makes the ad
+      // viewable at once, so count the impression now — before the click
+      // beacon — if the viewability second hadn't completed yet.
+      this._impressionGate?.fireNow();
       // Click beacon — banner-expansion event in the three-tier model
       // (impression → click → CTA). 1×1 pixel mirrors how the
       // impression and CTA beacons fire; the bootstrap puts the

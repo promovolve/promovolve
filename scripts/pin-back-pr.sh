@@ -29,7 +29,7 @@
 # scripts/setup-pin-deploy-key.sh; deploy.yml hands it to actions/checkout
 # as `ssh-key`), so the push fires ci.yml's `push` trigger on `ci/pins` and
 # those check runs are the ones the Ruleset counts. `gh` uses the
-# promovolve-pin-back App for the PR itself, so GitHub does not hold its
+# promovolve App (formerly promovolve-pin-back) for the PR itself, so GitHub does not hold its
 # pull_request workflow for the special approval required for PRs created
 # with GITHUB_TOKEN. The workflow token remains a separate reviewer.
 #
@@ -42,7 +42,7 @@
 #
 #   scripts/pin-back-pr.sh "<commit subject>" "<commit body>" <pin-command...>
 #
-# Requires: gh authenticated with the promovolve-pin-back installation token
+# Requires: gh authenticated with the promovolve App installation token (formerly promovolve-pin-back)
 # (`pull-requests: write`) and a checkout whose origin pushes over SSH with
 # the deploy key. Repository settings: "Allow GitHub Actions to create and
 # approve pull requests" (for the separate review job) and "Allow auto-merge"

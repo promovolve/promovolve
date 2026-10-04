@@ -126,8 +126,13 @@ if (CDN_BASE_URL && existsSync(ENV_FILE)) {
 // every publish, the k8s dashboard/preview silently lags on an old banner
 // (e.g. losing keep-frame / fit / the magazine preview). Always keep it in
 // lockstep with scripts/.env.
+//
+// NOT in CI: there scripts/pin-banner-url.sh owns this line and lands it via
+// the ci/pins pull request. Editing it here left the checkout dirty, so
+// pin-back-pr.sh could not switch to ci/pins once the image pin had pushed
+// a different kustomization.yaml there (GH #227).
 const KUSTOMIZATION = resolve(REPO_ROOT, "k8s/kustomization.yaml");
-if (CDN_BASE_URL && existsSync(KUSTOMIZATION)) {
+if (CDN_BASE_URL && existsSync(KUSTOMIZATION) && process.env.GITHUB_ACTIONS !== "true") {
   const kText = readFileSync(KUSTOMIZATION, "utf8");
   const re = /^(\s*-\s*BANNER_SCRIPT_URL=).*$/m;
   if (re.test(kText)) {

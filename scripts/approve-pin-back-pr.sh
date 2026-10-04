@@ -18,7 +18,7 @@ find_pin_pr() {
   fi
   [ "$count" -eq 1 ] || { echo "Expected one pin-back PR, found $count" >&2; return 1; }
   jq -e --arg repo "$GITHUB_REPOSITORY" '
-    .[0].user.login == "promovolve-pin-back[bot]" and
+    .[0].user.login == "promovolve[bot]" and
     .[0].head.ref == "ci/pins" and
     .[0].head.repo.full_name == $repo and
     .[0].base.ref == "main" and

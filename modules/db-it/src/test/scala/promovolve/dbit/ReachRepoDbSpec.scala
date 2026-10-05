@@ -103,5 +103,39 @@ class ReachRepoDbSpec extends AnyWordSpec with Matchers with BeforeAndAfterAll w
           scoped.run(sql"SELECT SUM(reports) FROM campaign_reach_daily WHERE days_since = 0".as[Long].head)) shouldBe 2L
       }
     }
+
+    "report reach per site and per day for the advertiser's own campaigns only" in failAfter(limit) {
+      withSchema("reach_report") { (repo, scoped) =>
+        await(scoped.run(sqlu"""CREATE TABLE campaign_stats (campaign_id TEXT PRIMARY KEY, advertiser_id TEXT)"""))
+        await(scoped.run(sqlu"""CREATE TABLE publisher_sites (site_id TEXT PRIMARY KEY, host TEXT)"""))
+        await(scoped.run(sqlu"""INSERT INTO campaign_stats VALUES ('c1', 'adv-1'), ('other', 'adv-2')"""))
+        await(scoped.run(sqlu"""INSERT INTO publisher_sites VALUES ('site-a', 'news.example.jp')"""))
+
+        // Browser A on site-a: days 1, 2, 5. Browser B on site-b: day 4 only.
+        await(repo.record("c1", "site-a", day1, ReachRepo.Never, fresh(30)))
+        await(repo.record("c1", "site-a", day1.plusDays(1), 1, fresh(31)))
+        await(repo.record("c1", "site-a", day1.plusDays(4), 3, fresh(32)))
+        await(repo.record("c1", "site-b", day1.plusDays(3), ReachRepo.Never, fresh(40)))
+        // Another advertiser's campaign must never show up.
+        await(repo.record("other", "site-a", day1, ReachRepo.Never, fresh(50)))
+
+        val sites = await(repo.bySite("adv-1", day1.plusDays(2), day1.plusDays(4)))
+        sites shouldBe Vector(
+          ("c1", "site-a", "news.example.jp", 1L, 0L), // A, returning (seen day 2)
+          ("c1", "site-b", "", 1L, 1L) // B, new; no publisher_sites row
+        )
+
+        val daily = await(repo.daily("adv-1", day1, day1.plusDays(6)))
+        // (day, campaign, reach, newReach, firstInRange) for days 1–7. A's
+        // returns on days 2 and 5 are not first-in-range; the running sum of
+        // the last column (1, 1, 2, 2) ends at the range's reach, 2.
+        daily shouldBe Vector(
+          (day1.toString, "c1", 1L, 1L, 1L),
+          (day1.plusDays(1).toString, "c1", 1L, 0L, 0L),
+          (day1.plusDays(3).toString, "c1", 1L, 1L, 1L),
+          (day1.plusDays(4).toString, "c1", 1L, 0L, 0L)
+        )
+      }
+    }
   }
 }

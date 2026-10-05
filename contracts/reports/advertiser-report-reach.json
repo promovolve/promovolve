@@ -1,0 +1,14 @@
+{
+  "advertiserId": "adv-1",
+  "from": "2026-10-01",
+  "to": "2026-10-07",
+  "sites": [
+    { "campaignId": "camp-a", "siteId": "site-1", "host": "news.example.jp", "reach": 1200, "newReach": 900 },
+    { "campaignId": "camp-a", "siteId": "site-2", "host": "", "reach": 30, "newReach": 30 },
+    { "campaignId": "camp-b", "siteId": "site-1", "host": "news.example.jp", "reach": 0, "newReach": 0 }
+  ],
+  "daily": [
+    { "day": "2026-10-01", "campaignId": "camp-a", "reach": 400, "newReach": 400, "firstInRange": 400 },
+    { "day": "2026-10-02", "campaignId": "camp-a", "reach": 350, "newReach": 210, "firstInRange": 260 }
+  ]
+}

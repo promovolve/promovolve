@@ -127,6 +127,7 @@
     <button @click="tab='site'" :class="tab==='site' ? 'border-brand text-gray-900' : 'border-transparent text-gray-500 hover:text-gray-700'" class="px-4 py-2 text-sm font-medium border-b-2 -mb-px">{{t "By Site"}}</button>
     <button @click="tab='category'" :class="tab==='category' ? 'border-brand text-gray-900' : 'border-transparent text-gray-500 hover:text-gray-700'" class="px-4 py-2 text-sm font-medium border-b-2 -mb-px">{{t "By Category"}}</button>
     <button @click="tab='publisher'" :class="tab==='publisher' ? 'border-brand text-gray-900' : 'border-transparent text-gray-500 hover:text-gray-700'" class="px-4 py-2 text-sm font-medium border-b-2 -mb-px">{{t "By Publisher"}}</button>
+    <button @click="tab='reach'" :class="tab==='reach' ? 'border-brand text-gray-900' : 'border-transparent text-gray-500 hover:text-gray-700'" class="px-4 py-2 text-sm font-medium border-b-2 -mb-px">{{t "Reach"}}</button>
     <a :href="'/advertiser/report?{{$r.RangeQS}}&format=csv' + (tab==='daily' ? '' : '&dim='+tab)" class="btn btn-sm btn-secondary ml-auto mb-1">{{t "Download CSV"}}</a>
   </div>
 
@@ -197,6 +198,7 @@
   {{template "report-breakdown-grouped" dict "Groups" $r.SiteGroups "Head" (t "Site") "Noun" (t "site") "Tab" "site" "CanBlock" true}}
   {{template "report-breakdown-grouped" dict "Groups" $r.CategoryGroups "Head" (t "Category") "Noun" (t "category") "Tab" "category" "CanBlock" false}}
   {{template "report-breakdown" dict "Rows" $r.Publishers "Head" (t "Publisher (sites)") "Noun" (t "publisher") "Tab" "publisher" "CanBlock" false}}
+  {{template "report-reach" $r}}
 </div>
 
 <script src="{{asset "chart.umd.min.js"}}"></script>
@@ -294,6 +296,34 @@
     mline('report-chart-' + dim + '-spend', d.labels, d.series, 'spend', true);
     mline('report-chart-' + dim + '-imps', d.labels, d.series, 'imps', false);
   }
+
+  // Reach tab: one chart, redrawn for the chosen campaign when the tab is
+  // visible (a chart created inside a hidden tab would size to zero).
+  // Never inline an empty value here: it would be a syntax error that takes
+  // every chart in this script down (any render path without reach data).
+  const reachCharts = {{if $r.ReachCharts}}{{$r.ReachCharts}}{{else}}{}{{end}};
+  let reachChart = null;
+  window.promovolveReach = (key) => {
+    const d = reachCharts[key], el = document.getElementById('report-chart-reach');
+    if (!d || !el) return;
+    if (reachChart) reachChart.destroy();
+    reachChart = new Chart(el, {
+      data: { labels: d.labels, datasets: [
+        { type: 'bar', label: {{t "New"}}, data: d.new, backgroundColor: SPEND, stack: 'reach', order: 2 },
+        { type: 'bar', label: {{t "Returning"}}, data: d.returning, backgroundColor: '#f2c8a6', stack: 'reach', order: 2 },
+        { type: 'line', label: {{t "Cumulative reach"}}, data: d.cumulative, borderColor: IMPS, borderWidth: 2, pointRadius: 0, yAxisID: 'cum', order: 1 }
+      ] },
+      options: {
+        responsive: true, maintainAspectRatio: false,
+        plugins: { legend: { display: true, position: 'bottom', labels: { color: INK, usePointStyle: true, boxWidth: 8, boxHeight: 8 } } },
+        scales: {
+          x: { stacked: true, grid: { display: false }, ticks: { color: INK, maxRotation: 0, autoSkip: true } },
+          y: { stacked: true, beginAtZero: true, grid: { color: GRID }, ticks: { color: INK } },
+          cum: { position: 'right', beginAtZero: true, grid: { display: false }, ticks: { color: INK } }
+        }
+      }
+    });
+  };
 })();
 </script>
 
@@ -445,5 +475,77 @@
   {{end}}
   {{if not .ShowConv}}<p class="text-xs text-gray-400 mt-2 px-1">{{t "CPA is campaign-level — per-site attribution would need the cross-site tracking Promovolve doesn't do."}}</p>{{end}}
 </div>
+</div>
+{{end}}
+
+{{define "report-reach"}}
+<div x-show="tab==='reach'" x-cloak x-data="{camp: '{{if .Reach}}{{(index .Reach 0).Key}}{{end}}'}"
+     x-effect="if (tab==='reach' && camp) $nextTick(() => window.promovolveReach && window.promovolveReach(camp))">
+  <p class="text-sm text-gray-500 mb-3">{{t "Unique browsers that saw the ad, counted without tracking."}}</p>
+  {{if .ReachFrom}}
+  <div class="bg-yellow-50 border border-yellow-200 rounded-lg px-4 py-2 mb-4 text-sm text-yellow-800">
+    {{t "Reach covers %s onward: it is exact for ranges up to 91 days." .ReachFrom}}
+  </div>
+  {{end}}
+  {{if not .Reach}}
+  <div class="card card-tight"><p class="text-sm text-gray-500 text-center py-6">{{t "No reach data in this range."}}</p></div>
+  {{else}}
+  <div class="card card-tight mb-6">
+    <div class="flex items-center gap-2 mb-2">
+      <label class="text-sm font-semibold" for="reach-campaign">{{t "Campaign"}}</label>
+      <select id="reach-campaign" x-model="camp" class="text-sm border rounded px-2 py-1">
+        {{range .Reach}}<option value="{{.Key}}">{{.Name}}</option>{{end}}
+      </select>
+    </div>
+    <div class="h-56"><canvas id="report-chart-reach"></canvas></div>
+    {{range .Reach}}{{if .Explain}}<p x-show="camp==='{{.Key}}'" class="text-sm text-gray-700 mt-3">{{.Explain}}</p>{{end}}{{end}}
+  </div>
+  <div class="card card-tight overflow-x-auto">
+    <table class="w-full text-sm">
+      <thead>
+        <tr class="text-left text-xs text-gray-500 border-b">
+          <th class="py-2 pr-4">{{t "Campaign"}}</th>
+          <th class="py-2 pr-4 text-right">{{t "Impressions"}}</th>
+          <th class="py-2 pr-4 text-right">{{t "Reach"}}</th>
+          <th class="py-2 pr-4 text-right">{{t "New reach"}}</th>
+          <th class="py-2 pr-4 text-right">{{t "New share"}}</th>
+          <th class="py-2 pr-4 text-right">{{t "Frequency"}}</th>
+          <th class="py-2 pr-4 text-right">{{t "Re-reach"}}</th>
+          <th class="py-2 pr-4 text-right">{{t "Spend"}}</th>
+          <th class="py-2 text-right">{{t "Cost / new reach"}}</th>
+        </tr>
+      </thead>
+      <tbody>
+        {{range .Reach}}
+        <tr class="border-b border-gray-100 font-medium">
+          <td class="py-2 pr-4">{{.Name}}</td>
+          <td class="py-2 pr-4 text-right">{{.Impressions}}</td>
+          <td class="py-2 pr-4 text-right">{{if .UpTo}}<span class="text-xs text-gray-400">{{t "up to"}}</span> {{end}}{{.Reach}}</td>
+          <td class="py-2 pr-4 text-right">{{if .UpTo}}<span class="text-xs text-gray-400">{{t "up to"}}</span> {{end}}{{.NewReach}}</td>
+          <td class="py-2 pr-4 text-right">{{.NewShare}}</td>
+          <td class="py-2 pr-4 text-right">{{.Frequency}}</td>
+          <td class="py-2 pr-4 text-right">{{.ReReach}}</td>
+          <td class="py-2 pr-4 text-right">{{money .SpendDisp}}</td>
+          <td class="py-2 text-right">{{if eq .CostPerNew "—"}}—{{else}}{{money .CostPerNew}}{{end}}</td>
+        </tr>
+        {{if .UpTo}}{{range .Sites}}
+        <tr class="border-b border-gray-50 text-gray-600">
+          <td class="py-1 pr-4 pl-4">{{.Label}}</td>
+          <td class="py-1 pr-4 text-right">{{.Impressions}}</td>
+          <td class="py-1 pr-4 text-right">{{.Reach}}</td>
+          <td class="py-1 pr-4 text-right">{{.NewReach}}</td>
+          <td class="py-1 pr-4 text-right">{{.NewShare}}</td>
+          <td class="py-1 pr-4 text-right">{{.Frequency}}</td>
+          <td class="py-1 pr-4 text-right">{{.ReReach}}</td>
+          <td class="py-1 pr-4 text-right">{{money .SpendDisp}}</td>
+          <td class="py-1 text-right">{{if eq .CostPerNew "—"}}—{{else}}{{money .CostPerNew}}{{end}}</td>
+        </tr>
+        {{end}}{{end}}
+        {{end}}
+      </tbody>
+    </table>
+    <p class="text-xs text-gray-400 mt-2 px-1">{{t "Counted in browsers on each site, without tracking. One person on two devices or two sites counts twice, so totals across sites are upper bounds."}}</p>
+  </div>
+  {{end}}
 </div>
 {{end}}

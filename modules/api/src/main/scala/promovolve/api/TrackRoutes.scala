@@ -73,7 +73,10 @@ final class TrackRoutes(
     // COUNTRY per site so a publisher's audience declaration is checkable.
     // Counted on the mount beacon only — see the call site for why — and
     // aggregate-only by construction. None = off.
-    audienceCounter: Option[promovolve.publisher.AudienceObservationCounter] = None
+    audienceCounter: Option[promovolve.publisher.AudienceObservationCounter] = None,
+    // Per-site campaign reach (GH #238): counts of first-of-day viewable
+    // impressions by days since last seen. None = off.
+    reach: Option[promovolve.publisher.ReachRepo] = None
 )(using system: ActorSystem[?]) extends DogearEventJson with MountBeaconJson {
 
   val routes: Route =
@@ -136,6 +139,38 @@ final class TrackRoutes(
                             suspectReason = suspectReason
                           )
                         )
+                        complete(StatusCodes.NoContent)
+                    }
+                }
+              }
+            }
+          } ~
+          // Reach report (GH #238): the tag's first viewable impression of a
+          // campaign on this site today. Signed like the impression (day
+          // included); prev/fresh are browser-reported. Always 204 once the
+          // signature and replay checks pass — the count is fire-and-forget.
+          pathPrefix("reach") {
+            get {
+              parameters(
+                "pub", "url", "slot", "cid", "v".as[Long], "b".as[Long], "tok",
+                "camp", "adv", "day".as[Long], "rid", "prev", "fresh"
+              ) { (pub, url, slot, cid, v, b, tok, camp, adv, day, rid, prev, fresh) =>
+                onSuccess(validateReach(pub, url, slot, cid, v, b, tok, camp, adv, day, rid)) {
+                  case false => complete(StatusCodes.Forbidden)
+                  case true  =>
+                    val canonical = Signer.canonical(pub, url, slot, cid, v, b, "reach") + s"|$rid"
+                    onSuccess(checkReplay(canonical)) {
+                      case false => complete(StatusCodes.Conflict)
+                      case true  =>
+                        val prevDay = if (prev == "never") Some(None) else prev.toLongOption.map(Some(_))
+                        for {
+                          repo <- reach
+                          if suspectReason.isEmpty // bot/datacenter/over-rate: not a reader
+                          if promovolve.publisher.ReachRepo.validFresh(fresh)
+                          p <- prevDay
+                          ds <- promovolve.publisher.ReachRepo.daysSince(day, p)
+                        } repo.record(camp, pub, java.time.LocalDate.ofEpochDay(day), ds, fresh)
+                          .failed.foreach(e => system.log.warn("reach record failed: {}", e.getMessage))
                         complete(StatusCodes.NoContent)
                     }
                 }
@@ -377,6 +412,16 @@ final class TrackRoutes(
    * campaign/advertiser (spend redirection) or cpm (amount inflation). cpm is
    * verified as its raw URL string to stay byte-identical to the mint.
    */
+  /** Reach beacon signature (ReachBeacon) plus the usual time-bucket check. */
+  private def validateReach(
+      pub: String, url: String, slot: String, cid: String, ver: Long, b: Long, tok: String,
+      camp: String, adv: String, day: Long, rid: String
+  ): Future[Boolean] =
+    secrets.secretFor(pub).map {
+      case Some(sec) => ReachBeacon.verify(sec, tok, pub, url, slot, cid, ver, b, camp, adv, day, rid) && freshBucket(b)
+      case None      => false
+    }
+
   private def validateImp(
       pub: String,
       url: String,

@@ -35,7 +35,8 @@ const DB_NAME = "promovolve-dogear";
 // `ts_counted` is purely additive (deduping fold POSTs that were
 // previously always sent).
 // 3 adds the `impressions` store (frequency capping — see recordImpression).
-const DB_VERSION = 3;
+// 4 adds the `reach` store (reach counting — see takeReachReport).
+const DB_VERSION = 4;
 const STORE = "pins";
 const COUNTED_STORE = "ts_counted";
 // Frequency capping (docs/design/FREQUENCY_CAPPING.md): one row per BILLED
@@ -43,6 +44,10 @@ const COUNTED_STORE = "ts_counted";
 // stood at that moment. Read before every batch to compute the campaigns
 // this browser declines; never leaves the browser except as that list.
 const IMPRESSIONS_STORE = "impressions";
+// Reach (GH #238): per campaign, the server-defined day this browser last
+// had a viewable impression of it on this site, and a one-time freshness
+// value. Only ever leaves the browser as one first-of-day report.
+const REACH_STORE = "reach";
 
 // Sentinel used when no campaign endAt is provided — the pin (and the
 // matching ts_counted record) lives forever. Number.POSITIVE_INFINITY
@@ -171,6 +176,9 @@ function openDb(): Promise<IDBDatabase> {
       }
       if (!db.objectStoreNames.contains(IMPRESSIONS_STORE)) {
         db.createObjectStore(IMPRESSIONS_STORE, { keyPath: "id", autoIncrement: true });
+      }
+      if (!db.objectStoreNames.contains(REACH_STORE)) {
+        db.createObjectStore(REACH_STORE, { keyPath: "campaignId" });
       }
     };
     req.onsuccess = () => resolve(req.result);
@@ -568,5 +576,52 @@ export function getImpressions(now: number = Date.now()): Promise<Impression[]> 
       resolve(fresh);
     };
     req.onerror = () => resolve([]);
+  });
+}
+
+// ─── Reach: one report per campaign per day ──────────────────────
+
+interface ReachRecord {
+  campaignId: string;
+  day: number;   // the server's day number (advertiser-local epoch day)
+  fresh: string; // sent with the NEXT report, then replaced
+}
+
+export interface ReachReport {
+  prev: number | null; // day last seen here; null = never
+  fresh: string;
+}
+
+/** 16 random bytes as lowercase hex. */
+export function newFresh(): string {
+  const b = new Uint8Array(16);
+  crypto.getRandomValues(b);
+  return Array.from(b, (x) => x.toString(16).padStart(2, "0")).join("");
+}
+
+/** Claim today's reach report for a campaign, in ONE transaction so two
+ *  slots of the same campaign on a page can't both report. Returns null
+ *  when it was already reported today, or when storage is unavailable —
+ *  without storage we can't tell a repeat visit from a new one, so we
+ *  don't count rather than overcount. The returned `fresh` is the value
+ *  stored with the previous day (Chrome updater protocol v4's
+ *  ping_freshness); a new one is stored with `day`. */
+export function takeReachReport(campaignId: string, day: number): Promise<ReachReport | null> {
+  return idb<ReachReport | null>(null, (db, resolve) => {
+    const tx = db.transaction(REACH_STORE, "readwrite");
+    const store = tx.objectStore(REACH_STORE);
+    let out: ReachReport | null = null;
+    const req = store.get(campaignId);
+    req.onsuccess = () => {
+      const prev = req.result as ReachRecord | undefined;
+      // Same day (or a day number going backwards after a timezone change):
+      // nothing new to report.
+      if (prev && prev.day >= day) return;
+      out = { prev: prev ? prev.day : null, fresh: prev ? prev.fresh : newFresh() };
+      store.put({ campaignId, day, fresh: newFresh() } satisfies ReachRecord);
+    };
+    tx.oncomplete = () => resolve(out);
+    tx.onerror = () => resolve(null);
+    tx.onabort = () => resolve(null);
   });
 }

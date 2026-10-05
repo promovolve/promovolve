@@ -1009,7 +1009,8 @@ object CampaignEntity {
               suggestedCategories = state.suggestedCategories,
               name = state.name,
               frequencyCap = state.frequencyCap,
-              strategy = state.strategy
+              strategy = state.strategy,
+              timezone = state.timezone
             )
             Effect.none
 
@@ -1903,7 +1904,10 @@ object CampaignEntity {
       frequencyCap: Option[FrequencyCap] = None,
       // "fixed" | "auto" (Campaign Budget Optimization). Default keeps
       // replies from older nodes readable.
-      strategy: String = CboStrategy.Fixed
+      strategy: String = CboStrategy.Fixed,
+      // The advertiser's IANA zone ("" = UTC). The serve path stamps each
+      // winner with the campaign's advertiser-local day for reach (GH #238).
+      timezone: String = ""
   ) extends promovolve.CborSerializable
 
   final case class UpdateStatus(status: Status, replyTo: ActorRef[StatusUpdated]) extends Command

@@ -67,6 +67,9 @@ export interface FontFaceRef {
   family: string;
   weight: number;
   url: string;
+  /** Base family in its original casing — Google's css2 `family=` value
+    * (e.g. "Montserrat" for a layout's "Montserrat Thin"). */
+  cssFamily: string;
 }
 
 // Weight/style descriptors peeled off a family name to recover the BASE
@@ -279,6 +282,7 @@ export function collectExpandedFonts(pages: Page[], origin: string): FontFaceRef
           family: literal,
           weight,
           url: `${origin}/fonts/${slug}-${weight}-${variant}.woff2`,
+          cssFamily: norm.display,
         });
       }
     }

@@ -46,7 +46,7 @@ describe("collectExpandedFonts", () => {
   it("resolves an allow-listed family to its per-weight woff2 URL (default 400)", () => {
     const faces = collectExpandedFonts([page([{ type: "text", fontFamily: "Montserrat, sans-serif" }])], origin);
     expect(faces).toEqual([
-      { family: "Montserrat", weight: 400, url: "https://cdn.example.com/fonts/montserrat-400-latin.woff2" },
+      { family: "Montserrat", weight: 400, url: "https://cdn.example.com/fonts/montserrat-400-latin.woff2", cssFamily: "Montserrat" },
     ]);
   });
 
@@ -64,27 +64,27 @@ describe("collectExpandedFonts", () => {
       { type: "text", fontFamily: "Montserrat, メイリオ, sans-serif" },
     ])], origin);
     expect(faces).toEqual([
-      { family: "Montserrat", weight: 400, url: "https://cdn.example.com/fonts/montserrat-400-latin.woff2" },
+      { family: "Montserrat", weight: 400, url: "https://cdn.example.com/fonts/montserrat-400-latin.woff2", cssFamily: "Montserrat" },
     ]);
   });
 
   it("parses a named-instance weight (Montserrat Thin → 100), keeps the literal family, base slug", () => {
     const faces = collectExpandedFonts([page([{ type: "text", fontFamily: "Montserrat Thin, sans-serif" }])], origin);
     expect(faces).toEqual([
-      { family: "Montserrat Thin", weight: 100, url: "https://cdn.example.com/fonts/montserrat-100-latin.woff2" },
+      { family: "Montserrat Thin", weight: 100, url: "https://cdn.example.com/fonts/montserrat-100-latin.woff2", cssFamily: "Montserrat" },
     ]);
   });
 
   it("matches a variable-font family (Montserrat Variable) to the base slug", () => {
     const faces = collectExpandedFonts([page([{ type: "text", fontFamily: "Montserrat Variable, ui-sans-serif, sans-serif", fontWeight: 100 }])], origin);
     expect(faces).toEqual([
-      { family: "Montserrat Variable", weight: 100, url: "https://cdn.example.com/fonts/montserrat-100-latin.woff2" },
+      { family: "Montserrat Variable", weight: 100, url: "https://cdn.example.com/fonts/montserrat-100-latin.woff2", cssFamily: "Montserrat" },
     ]);
   });
 
   it("uses the CSS font-weight when the name carries none", () => {
     const faces = collectExpandedFonts([page([{ type: "text", fontFamily: "Poppins, sans-serif", fontWeight: 600 }])], origin);
-    expect(faces[0]).toEqual({ family: "Poppins", weight: 600, url: "https://cdn.example.com/fonts/poppins-600-latin.woff2" });
+    expect(faces[0]).toEqual({ family: "Poppins", weight: 600, url: "https://cdn.example.com/fonts/poppins-600-latin.woff2", cssFamily: "Poppins" });
   });
 
   it("uses the catalog slug for multi-word families", () => {
@@ -151,6 +151,7 @@ describe("collectExpandedFonts", () => {
       family: "Noto Sans JP",
       weight: 700,
       url: "https://cdn.example.com/fonts/noto-sans-jp-700-a42feb55.woff2",
+      cssFamily: "Noto Sans JP",
     });
   });
 
@@ -203,7 +204,7 @@ describe("resolveExpandedFonts", () => {
       { type: "image", src: "https://cdn.example.com/assets/x.webp" },
     ])];
     expect(resolveExpandedFonts(pages)).toEqual([
-      { family: "Lato", weight: 400, url: "https://cdn.example.com/fonts/lato-400-latin.woff2" },
+      { family: "Lato", weight: 400, url: "https://cdn.example.com/fonts/lato-400-latin.woff2", cssFamily: "Lato" },
     ]);
   });
 

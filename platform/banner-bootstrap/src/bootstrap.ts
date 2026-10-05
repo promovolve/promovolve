@@ -43,6 +43,7 @@ import { attachLpPrefetch } from "./lp-prefetch.js";
 import { capChecks, cappedCampaigns, type CapCheck } from "./frequency-cap.js";
 import { clearRemovedPin, isCreativeRemoved, processDogearResponse } from "./dogear-response.js";
 import { hbArmFlush, hbInit, hbMounted, hbSend, hbServe, hbSlots } from "./heartbeat.js";
+import { reportReach, type ReachWire } from "./reach.js";
 
 // ─── Types mirroring server-side BatchServeReq / BatchServeRes ────
 
@@ -114,6 +115,7 @@ interface ServeRes {
   pinExpiresAt?: number;
   // Absent = uncapped campaign: nothing to record, nothing to exclude.
   frequencyCap?: FrequencyCapWire;
+  reach?: ReachWire;
 }
 
 interface BatchImpResult {
@@ -488,6 +490,13 @@ async function renderWinner(slot: Slot, winner: ServeRes, pin?: Pin): Promise<vo
         windowMs: cap.windowMs,
       });
     }, { once: true });
+  }
+  // Reach (GH #238): every winner, pin-honoured ones included — the reader
+  // saw the ad. Same viewable moment as the impression; at most one report
+  // per campaign per day (takeReachReport).
+  const reach = winner.reach;
+  if (reach) {
+    banner.addEventListener("impression", () => { void reportReach(reach); }, { once: true });
   }
   // Wire LP prefetch / preconnect / prerender to the banner's
   // lifecycle events before mount so the listeners are live by the

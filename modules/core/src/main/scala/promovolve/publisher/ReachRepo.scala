@@ -116,4 +116,50 @@ class SlickReachRepo(db: slick.jdbc.JdbcBackend#Database)(using ec: ExecutionCon
       else DBIO.successful(0)
     db.run(upsert).flatMap(n => db.run(prune).map(_ => n > 0))
   }
+
+  /**
+   * (campaignId, siteId, host, reach, newReach) for an advertiser's campaigns
+   * over from..to. A report on day d counts toward the range when it is
+   * "never" or its previous visit was before `from` (days_since > d − from):
+   * each browser's first visit inside the range. Exact while d − from ≤
+   * CapDays; callers limit the range accordingly.
+   */
+  def bySite(advertiserId: String, from: LocalDate, to: LocalDate)
+      : Future[Vector[(String, String, String, Long, Long)]] = {
+    val (f, t) = (java.sql.Date.valueOf(from), java.sql.Date.valueOf(to))
+    db.run(sql"""
+      SELECT r.campaign_id, r.site_id, COALESCE(MAX(ps.host), ''),
+             COALESCE(SUM(r.reports) FILTER (WHERE r.days_since = 0 OR r.days_since > r.day_bucket - $f), 0),
+             COALESCE(SUM(r.reports) FILTER (WHERE r.days_since = 0), 0)
+      FROM campaign_reach_daily r
+      LEFT JOIN publisher_sites ps ON ps.site_id = r.site_id
+      WHERE EXISTS (SELECT 1 FROM campaign_stats cs
+                    WHERE cs.campaign_id = r.campaign_id AND cs.advertiser_id = $advertiserId)
+        AND r.day_bucket BETWEEN $f AND $t
+      GROUP BY r.campaign_id, r.site_id
+      ORDER BY r.campaign_id, r.site_id
+    """.as[(String, String, String, Long, Long)]).map(_.toVector)
+  }
+
+  /**
+   * (day, campaignId, reach, newReach, firstInRange) per advertiser-local day,
+   * summed over sites. firstInRange counts browsers whose first visit inside
+   * from..to was that day; its running sum is the reach curve and ends at
+   * the range's reach.
+   */
+  def daily(advertiserId: String, from: LocalDate, to: LocalDate)
+      : Future[Vector[(String, String, Long, Long, Long)]] = {
+    val (f, t) = (java.sql.Date.valueOf(from), java.sql.Date.valueOf(to))
+    db.run(sql"""
+      SELECT r.day_bucket::text, r.campaign_id, SUM(r.reports),
+             COALESCE(SUM(r.reports) FILTER (WHERE r.days_since = 0), 0),
+             COALESCE(SUM(r.reports) FILTER (WHERE r.days_since = 0 OR r.days_since > r.day_bucket - $f), 0)
+      FROM campaign_reach_daily r
+      WHERE EXISTS (SELECT 1 FROM campaign_stats cs
+                    WHERE cs.campaign_id = r.campaign_id AND cs.advertiser_id = $advertiserId)
+        AND r.day_bucket BETWEEN $f AND $t
+      GROUP BY r.day_bucket, r.campaign_id
+      ORDER BY r.day_bucket, r.campaign_id
+    """.as[(String, String, Long, Long, Long)]).map(_.toVector)
+  }
 }

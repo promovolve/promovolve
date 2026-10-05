@@ -147,6 +147,10 @@ type reportPageData struct {
 	ChartSpend      template.JS
 	ChartImps       template.JS
 	HasData         bool
+	// Reach tab (GH #238).
+	Reach       []reachCampaign
+	ReachCharts template.JS // campaign id → reachChart
+	ReachFrom   string      // set when reach covers less than From..To (91-day limit)
 }
 
 func (h *Handler) AdvertiserReport(w http.ResponseWriter, r *http.Request) {
@@ -175,6 +179,11 @@ func (h *Handler) AdvertiserReport(w http.ResponseWriter, r *http.Request) {
 			names := h.campaignNames("/v1/advertisers/me/campaigns?limit=100", claims)
 			camps, _ := campaignBreakdown(h.fetchReportRows(rangeQS, names, claims))
 			writeBreakdownCSV(w, dim, from, to, camps)
+		case "reach":
+			names := h.campaignNames("/v1/advertisers/me/campaigns?limit=100", claims)
+			rFrom, rQS := reachRange(from, to)
+			groups := h.fetchBreakdownByCampaign(rQS, "site", names, nil, claims)
+			writeReachCSV(w, rFrom, to, buildReach(h.fetchReach(rQS, claims), names, groups))
 		default:
 			names := h.campaignNames("/v1/advertisers/me/campaigns?limit=100", claims)
 			writeDailyCSV(w, from, to, h.fetchReportRows(rangeQS, names, claims))
@@ -233,6 +242,7 @@ func (h *Handler) AdvertiserReport(w http.ResponseWriter, r *http.Request) {
 		h.fetchBreakdownDayPoints(rangeQS, "category", taxonomy, claims))
 	rep.PublisherSeries = buildReportSeriesChart(from, to,
 		h.fetchBreakdownDayPoints(rangeQS, "publisher", taxonomy, claims))
+	h.addReach(rep, from, to, names, h.lang(r, user), claims)
 	// The dimensional rollup accrues from its ship date (+ ~30-day
 	// backfill); flag ranges that reach behind its horizon.
 	if coverageFrom != "" && coverageFrom > from {

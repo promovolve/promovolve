@@ -129,6 +129,9 @@ object ApiSchemas {
   given Schema[ReportBreakdownByCampaignRow] = Schema.derived
   given Schema[AdvertiserReportBreakdownByCampaignResponse] = Schema.derived
   given Schema[ReportBreakdownDailyRow] = Schema.derived
+  given Schema[ReachSiteRow] = Schema.derived
+  given Schema[ReachDailyRow] = Schema.derived
+  given Schema[AdvertiserReachResponse] = Schema.derived
   given Schema[AdvertiserReportBreakdownDailyResponse] = Schema.derived
   given Schema[PublisherSiteCategoryDailyRow] = Schema.derived
   given Schema[PublisherSiteCategoryDailyReportResponse] = Schema.derived

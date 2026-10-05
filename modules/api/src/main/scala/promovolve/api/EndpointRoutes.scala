@@ -5176,6 +5176,41 @@ class EndpointRoutes(
       }
   }
 
+  /**
+   * Reach for a range (GH #238). A report on day d counts toward a..b when
+   * it is "never" (days_since 0) or its previous visit was before a
+   * (days_since > d − a): each browser's first visit inside the range.
+   * Exact while d − a ≤ 90 (stored gaps cap at 91 = "more than 90"), so
+   * ranges are limited to 91 days.
+   */
+  private val getAdvertiserReportReachLogic
+      : ((String, Option[String], Option[String])) => Future[Either[ErrorResponse, AdvertiserReachResponse]] = {
+    case (advertiserId, fromOpt, toOpt) =>
+      resolveReportRange(fromOpt, toOpt) match {
+        case Left(err) => Future.successful(Left(err))
+        case Right((from, to))
+            if java.time.temporal.ChronoUnit.DAYS
+              .between(java.time.LocalDate.parse(from), java.time.LocalDate.parse(to)) >
+            promovolve.publisher.ReachRepo.CapDays =>
+          Future.successful(Left(ErrorResponse("range_too_wide", "reach is exact for ranges up to 91 days")))
+        case Right((from, to)) =>
+          dashboardDb match {
+            case None =>
+              Future.successful(Right(AdvertiserReachResponse(advertiserId, from, to, Vector.empty, Vector.empty)))
+            case Some(db) =>
+              val repo = new promovolve.publisher.SlickReachRepo(db)
+              val (f, t) = (java.time.LocalDate.parse(from), java.time.LocalDate.parse(to))
+              repo.bySite(advertiserId, f, t).zip(repo.daily(advertiserId, f, t)).map { case (sites, daily) =>
+                Right(AdvertiserReachResponse(
+                  advertiserId, from, to,
+                  sites.map(ReachSiteRow.apply.tupled),
+                  daily.map(ReachDailyRow.apply.tupled)
+                ))
+              }.recover { case ex => Left(ErrorResponse("report_failed", ex.getMessage)) }
+          }
+      }
+  }
+
   private val getAdvertiserReportBreakdownDailyLogic: ((String, Option[String], Option[String], String)) => Future[
     Either[ErrorResponse, AdvertiserReportBreakdownDailyResponse]] = {
     case (advertiserId, fromOpt, toOpt, dim) =>
@@ -6385,6 +6420,8 @@ class EndpointRoutes(
       Endpoints.getPublisherSiteCategoryReport.serverLogic(getPublisherSiteCategoryReportLogic)),
     PekkoHttpServerInterpreter().toRoute(
       Endpoints.getAdvertiserReportBreakdownDaily.serverLogic(getAdvertiserReportBreakdownDailyLogic)),
+    PekkoHttpServerInterpreter().toRoute(
+      Endpoints.getAdvertiserReportReach.serverLogic(getAdvertiserReportReachLogic)),
     PekkoHttpServerInterpreter().toRoute(
       Endpoints.getAdvertiserReportBreakdownByCampaign.serverLogic(getAdvertiserReportBreakdownByCampaignLogic)),
     PekkoHttpServerInterpreter().toRoute(

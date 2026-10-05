@@ -113,6 +113,21 @@ class ReportContractSpec extends AnyWordSpec with Matchers with ApiJsonFormats {
     }
   }
 
+  "AdvertiserReachResponse" should {
+    "match the canonical body, including a blank host and a zero row" in {
+      pin[AdvertiserReachResponse]("advertiser-report-reach.json") { r =>
+        r.sites.map(_.siteId) shouldBe Vector("site-1", "site-2", "site-1")
+        r.sites.head.reach shouldBe 1200L
+        r.sites.head.newReach shouldBe 900L
+        // '' = the site row is gone; the platform falls back to the site id.
+        r.sites(1).host shouldBe ""
+        r.daily.map(_.day) shouldBe Vector("2026-10-01", "2026-10-02")
+        r.daily(1).newReach shouldBe 210L
+        r.daily(1).firstInRange shouldBe 260L
+      }
+    }
+  }
+
   "PublisherSiteCategoryReportResponse" should {
     "match the canonical multi-row body" in {
       pin[PublisherSiteCategoryReportResponse]("publisher-site-categories.json") { r =>

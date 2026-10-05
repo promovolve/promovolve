@@ -12,6 +12,7 @@ body per response. Both sides read these same files in CI.
 | `advertiser-report.json` | `AdvertiserReportResponse` | `fetchReportRows` |
 | `advertiser-report-empty.json` | same, no rows | `fetchReportRows` |
 | `advertiser-report-breakdown.json` | `AdvertiserReportBreakdownResponse` | `fetchReportBreakdown` |
+| `advertiser-report-reach.json` | `AdvertiserReachResponse` | `fetchReach` |
 | `publisher-site-categories.json` | `PublisherSiteCategoryReportResponse` | `fetchPublisherSiteCategories` |
 | `publisher-site-categories-empty.json` | same, no rows | `fetchPublisherSiteCategories` |
 

@@ -125,12 +125,12 @@ func TestReachTabRenders(t *testing.T) {
 	}
 }
 
-// No reach data yet (every advertiser at launch) must still leave the
-// report's chart script valid: an empty ReachCharts inlined there was a
-// syntax error that broke every chart on the page.
+// A report rendered without reach data (every advertiser at launch, or any
+// render path that never fills ReachCharts) must still leave the chart
+// script valid: an empty value inlined there was a syntax error that broke
+// every chart on the page.
 func TestReportWithoutReachKeepsChartScriptValid(t *testing.T) {
 	SetFS(platform.Templates, platform.Static)
-	h := coreServing(t, "advertiser-report-empty.json") // any body without reach rows
 	from, to := "2026-10-01", "2026-10-07"
 	rep := &reportPageData{From: from, To: to, Preset: "custom", HasData: true,
 		Presets: reportPresets("/advertiser/report", time.UTC), RangeQS: "from=" + from + "&to=" + to}
@@ -138,13 +138,12 @@ func TestReportWithoutReachKeepsChartScriptValid(t *testing.T) {
 	for _, s := range []*reportSeriesChart{&rep.CampaignSeries, &rep.SiteSeries, &rep.CategorySeries, &rep.PublisherSeries} {
 		*s = buildReportSeriesChart(from, to, nil)
 	}
-	h.addReach(rep, from, to, nil, i18n.LangEN, advertiserClaims())
 	var buf bytes.Buffer
 	data := pageData{Title: "Report", Nav: "report", User: &model.User{Email: "a@b.c", Role: "advertiser"}, Report: rep}
 	if err := getPage(i18n.LangEN, "advertiser/report.html").ExecuteTemplate(&buf, "layout", data); err != nil {
 		t.Fatal(err)
 	}
-	if !strings.Contains(buf.String(), "const reachCharts = {} ||") {
+	if !strings.Contains(buf.String(), "const reachCharts = {};") {
 		t.Fatal("reachCharts must be inlined as a valid object when there is no reach data")
 	}
 }

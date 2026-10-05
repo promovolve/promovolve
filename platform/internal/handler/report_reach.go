@@ -271,10 +271,6 @@ func reachRange(from, to string) (string, string) {
 // the daily charts, and each campaign's cost-per-new-reach explanation
 // against the previous range of the same length.
 func (h *Handler) addReach(rep *reportPageData, from, to string, names map[string]string, lang string, claims *model.Claims) {
-	// Always valid JS: the template inlines this into the report's single
-	// chart script, and an empty value would be a syntax error there that
-	// takes every chart on the page down with it.
-	rep.ReachCharts = template.JS("{}")
 	rFrom, rQS := reachRange(from, to)
 	if rFrom != from {
 		rep.ReachFrom = rFrom

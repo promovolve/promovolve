@@ -299,7 +299,9 @@
 
   // Reach tab: one chart, redrawn for the chosen campaign when the tab is
   // visible (a chart created inside a hidden tab would size to zero).
-  const reachCharts = {{$r.ReachCharts}} || {};
+  // Never inline an empty value here: it would be a syntax error that takes
+  // every chart in this script down (any render path without reach data).
+  const reachCharts = {{if $r.ReachCharts}}{{$r.ReachCharts}}{{else}}{}{{end}};
   let reachChart = null;
   window.promovolveReach = (key) => {
     const d = reachCharts[key], el = document.getElementById('report-chart-reach');

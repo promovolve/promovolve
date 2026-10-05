@@ -60,8 +60,10 @@ class ReachRepoDbSpec extends AnyWordSpec with Matchers with BeforeAndAfterAll w
   private def fresh(n: Int): String = f"$n%032x"
   private def await[A](f: scala.concurrent.Future[A]): A = Await.result(f, 30.seconds)
 
-  /** The report's range formula: a report on day d counts toward a..b when
-    * it is "never" or its previous visit was before a. */
+  /**
+   * The report's range formula: a report on day d counts toward a..b when
+   * it is "never" or its previous visit was before a.
+   */
   private def reach(scoped: Database, a: LocalDate, b: LocalDate): Long = {
     val (sa, sb) = (java.sql.Date.valueOf(a), java.sql.Date.valueOf(b))
     await(scoped.run(sql"""
@@ -92,12 +94,13 @@ class ReachRepoDbSpec extends AnyWordSpec with Matchers with BeforeAndAfterAll w
         // Browser B sees it only on day 4, for the first time.
         await(repo.record("c1", "site-a", day1.plusDays(3), ReachRepo.Never, fresh(20)))
 
-        reach(scoped, day1, day1.plusDays(6)) shouldBe 2L            // days 1–7: A and B
+        reach(scoped, day1, day1.plusDays(6)) shouldBe 2L // days 1–7: A and B
         reach(scoped, day1.plusDays(2), day1.plusDays(4)) shouldBe 2L // days 3–5: A (day 5) and B
         reach(scoped, day1.plusDays(1), day1.plusDays(1)) shouldBe 1L // day 2: A
         reach(scoped, day1.plusDays(2), day1.plusDays(2)) shouldBe 0L // day 3: nobody
         // New reach (first ever) sums over any range.
-        await(scoped.run(sql"SELECT SUM(reports) FROM campaign_reach_daily WHERE days_since = 0".as[Long].head)) shouldBe 2L
+        await(
+          scoped.run(sql"SELECT SUM(reports) FROM campaign_reach_daily WHERE days_since = 0".as[Long].head)) shouldBe 2L
       }
     }
   }

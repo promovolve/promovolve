@@ -29,8 +29,10 @@ import scala.concurrent.{ Await, ExecutionContext, Future }
  */
 trait ReachRepo {
 
-  /** Count one report. False when its freshness value was already seen, so
-    * nothing was counted. */
+  /**
+   * Count one report. False when its freshness value was already seen, so
+   * nothing was counted.
+   */
   def record(campaignId: String, siteId: String, day: LocalDate, daysSince: Int, fresh: String): Future[Boolean]
 }
 
@@ -45,13 +47,15 @@ object ReachRepo {
   /** days_since for "more than CapDays" — new for every range we report. */
   val Beyond: Int = CapDays + 1
 
-  /** days_since from the advertiser-local epoch day of the report and the
-    * previous day the tag stored. None when prev isn't before today
-    * (clock or timezone change): such a report says nothing about reach. */
+  /**
+   * days_since from the advertiser-local epoch day of the report and the
+   * previous day the tag stored. None when prev isn't before today
+   * (clock or timezone change): such a report says nothing about reach.
+   */
   def daysSince(today: Long, prev: Option[Long]): Option[Int] = prev match {
-    case None                => Some(Never)
+    case None                 => Some(Never)
     case Some(p) if p < today => Some(math.min(today - p, Beyond.toLong).toInt)
-    case _                   => None
+    case _                    => None
   }
 
   private val FreshPattern = "^[0-9a-f]{32}$".r

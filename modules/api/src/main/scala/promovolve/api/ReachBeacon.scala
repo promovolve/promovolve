@@ -16,7 +16,7 @@ object ReachBeacon {
       camp: String, adv: String, day: Long, rid: String
   ): String =
     Signer.canonical(pub, url, slot, cid, ver, b, "reach") +
-      Signer.bind(Some(camp), Some(adv), Some(day.toString), Some(rid))
+    Signer.bind(Some(camp), Some(adv), Some(day.toString), Some(rid))
 
   def url(
       trackingBase: String, secret: Array[Byte],
@@ -26,7 +26,7 @@ object ReachBeacon {
     val tok = Signer.hmac256(data(pub, url, slot, cid, ver, b, camp, adv, day, rid), secret)
     val encU = java.net.URLEncoder.encode(url, "UTF-8")
     s"$trackingBase/reach?pub=$pub&url=$encU&slot=$slot&cid=$cid&v=$ver&b=$b&tok=$tok" +
-      s"&camp=$camp&adv=$adv&day=$day&rid=$rid"
+    s"&camp=$camp&adv=$adv&day=$day&rid=$rid"
   }
 
   /** Signature only; the caller also checks the time bucket. */

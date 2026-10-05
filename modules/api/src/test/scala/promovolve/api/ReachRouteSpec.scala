@@ -18,9 +18,11 @@ import java.time.LocalDate
 import scala.collection.mutable
 import scala.concurrent.Future
 
-/** The reach beacon end to end through the route (GH #238): a URL minted by
-  * ReachBeacon is accepted and counted with the right days-since; anything
-  * tampered, malformed or from a bot is not counted. */
+/**
+ * The reach beacon end to end through the route (GH #238): a URL minted by
+ * ReachBeacon is accepted and counted with the right days-since; anything
+ * tampered, malformed or from a bot is not counted.
+ */
 class ReachRouteSpec extends AnyWordSpec with Matchers with ScalaFutures with BeforeAndAfterAll {
 
   private val testKit = ActorTestKit()

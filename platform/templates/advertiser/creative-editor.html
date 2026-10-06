@@ -40,8 +40,13 @@
       <h1 class="text-2xl font-semibold">{{t "Creative Editor"}}</h1>
       <p class="text-sm text-gray-500 mt-1">{{t "Build an expandable banner from your landing page"}}</p>
     </div>
+    {{if .NoCreatives}}
+    <span aria-disabled="true"
+          class="px-4 py-2 border border-gray-200 rounded-md text-sm text-gray-300 cursor-not-allowed">{{t "Back to Creatives"}}</span>
+    {{else}}
     <a href="/advertiser/creatives?campaignId={{.CampaignID}}"
        class="px-4 py-2 border rounded-md text-sm hover:bg-gray-50">{{t "Back to Creatives"}}</a>
+    {{end}}
   </div>
 
   <!-- ============ Landing page URL — pinned at the top ============ -->

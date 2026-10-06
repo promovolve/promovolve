@@ -576,6 +576,9 @@ type pageData struct {
 	// in — the advertiser's account timezone, "UTC" when unset.
 	ScheduleTz string
 	LandingURL string
+	// Creative editor: the campaign has no creatives yet, so there is no
+	// list to go back to.
+	NoCreatives bool
 	// CDN URL for the <expandable-magazine-banner> web component.
 	// Used by templates that need to load the banner script to render
 	// a live creative (e.g., the publisher approval page).

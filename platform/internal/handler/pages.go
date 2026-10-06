@@ -4370,13 +4370,18 @@ func (h *Handler) CreativeEditor(w http.ResponseWriter, r *http.Request) {
 		landingUrl = detail.LandingUrl
 	}
 
+	// With no creatives yet there is no list to go back to — the template
+	// disables "Back to Creatives" rather than link to an empty page.
+	crBody, _ := h.coreGet(fmt.Sprintf("/v1/advertisers/me/campaigns/%s/creatives?limit=1", campID), claims)
+
 	h.render(w, r, "advertiser/creative-editor.html", pageData{
-		Title:      "Creative Editor",
-		Nav:        "creatives",
-		User:       user,
-		CampaignID: campID,
-		Campaigns:  campaigns,
-		LandingURL: landingUrl,
+		Title:       "Creative Editor",
+		Nav:         "creatives",
+		User:        user,
+		CampaignID:  campID,
+		Campaigns:   campaigns,
+		LandingURL:  landingUrl,
+		NoCreatives: isEmptyList(crBody),
 	})
 }
 

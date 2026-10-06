@@ -5196,16 +5196,18 @@ class EndpointRoutes(
         case Right((from, to)) =>
           dashboardDb match {
             case None =>
-              Future.successful(Right(AdvertiserReachResponse(advertiserId, from, to, Vector.empty, Vector.empty)))
+              Future.successful(Right(AdvertiserReachResponse(advertiserId, from, to, Vector.empty, Vector.empty, "")))
             case Some(db) =>
               val repo = new promovolve.publisher.SlickReachRepo(db)
               val (f, t) = (java.time.LocalDate.parse(from), java.time.LocalDate.parse(to))
-              repo.bySite(advertiserId, f, t).zip(repo.daily(advertiserId, f, t)).map { case (sites, daily) =>
-                Right(AdvertiserReachResponse(
-                  advertiserId, from, to,
-                  sites.map(ReachSiteRow.apply.tupled),
-                  daily.map(ReachDailyRow.apply.tupled)
-                ))
+              repo.bySite(advertiserId, f, t).zip(repo.daily(advertiserId, f, t)).zip(repo.coverageFrom()).map {
+                case ((sites, daily), coverageFrom) =>
+                  Right(AdvertiserReachResponse(
+                    advertiserId, from, to,
+                    sites.map(ReachSiteRow.apply.tupled),
+                    daily.map(ReachDailyRow.apply.tupled),
+                    coverageFrom
+                  ))
               }.recover { case ex => Left(ErrorResponse("report_failed", ex.getMessage)) }
           }
       }

@@ -142,6 +142,13 @@ class SlickReachRepo(db: slick.jdbc.JdbcBackend#Database)(using ec: ExecutionCon
   }
 
   /**
+   * First day any reach was recorded (reach collection's start), "" when none.
+   * Impressions and spend before it have no reach to pair with.
+   */
+  def coverageFrom(): Future[String] =
+    db.run(sql"SELECT COALESCE(MIN(day_bucket)::text, '') FROM campaign_reach_daily".as[String].head)
+
+  /**
    * (day, campaignId, reach, newReach, firstInRange) per advertiser-local day,
    * summed over sites. firstInRange counts browsers whose first visit inside
    * from..to was that day; its running sum is the reach curve and ends at

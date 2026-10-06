@@ -1410,7 +1410,8 @@ object ApiModels {
       from: String,
       to: String,
       sites: Vector[ReachSiteRow],
-      daily: Vector[ReachDailyRow]
+      daily: Vector[ReachDailyRow],
+      coverageFrom: String // first day reach was collected; "" = none yet
   )
   case class AdvertiserReportBreakdownDailyResponse(
       advertiserId: String,

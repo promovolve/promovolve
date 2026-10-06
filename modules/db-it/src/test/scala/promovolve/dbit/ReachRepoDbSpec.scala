@@ -77,6 +77,8 @@ class ReachRepoDbSpec extends AnyWordSpec with Matchers with BeforeAndAfterAll w
 
     "count a report once, and refuse a repeated freshness value" in failAfter(limit) {
       withSchema("reach_dedupe") { (repo, scoped) =>
+        // No reports yet: collection has not started.
+        await(repo.coverageFrom()) shouldBe ""
         await(repo.record("c1", "site-a", day1, ReachRepo.Never, fresh(1))) shouldBe true
         // Same storage replayed (cloned profile): same freshness, not counted.
         await(repo.record("c1", "site-a", day1, ReachRepo.Never, fresh(1))) shouldBe false
@@ -118,6 +120,9 @@ class ReachRepoDbSpec extends AnyWordSpec with Matchers with BeforeAndAfterAll w
         await(repo.record("c1", "site-b", day1.plusDays(3), ReachRepo.Never, fresh(40)))
         // Another advertiser's campaign must never show up.
         await(repo.record("other", "site-a", day1, ReachRepo.Never, fresh(50)))
+
+        // Collection started on the earliest day anything was recorded.
+        await(repo.coverageFrom()) shouldBe day1.toString
 
         val sites = await(repo.bySite("adv-1", day1.plusDays(2), day1.plusDays(4)))
         sites shouldBe Vector(

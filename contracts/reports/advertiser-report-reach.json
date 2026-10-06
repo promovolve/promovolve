@@ -10,5 +10,6 @@
   "daily": [
     { "day": "2026-10-01", "campaignId": "camp-a", "reach": 400, "newReach": 400, "firstInRange": 400 },
     { "day": "2026-10-02", "campaignId": "camp-a", "reach": 350, "newReach": 210, "firstInRange": 260 }
-  ]
+  ],
+  "coverageFrom": "2026-10-01"
 }

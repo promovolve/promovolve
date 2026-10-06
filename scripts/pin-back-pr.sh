@@ -20,7 +20,7 @@
 #   4. open the PR if none is open for the branch; deploy.yml approves and
 #      enables auto-merge after both pin jobs finish
 #
-# Use the deploy key for pushes and the promovolve-pin-back App for PR
+# Use the deploy key for pushes and the promovolve App (formerly promovolve-pin-back) for PR
 # creation so pull_request CI runs without manual workflow approval.
 # GITHUB_TOKEN would require that approval. It remains a separate reviewer.
 #
@@ -33,7 +33,7 @@
 #
 #   scripts/pin-back-pr.sh "<commit subject>" "<commit body>" <pin-command...>
 #
-# Requires: gh authenticated with the promovolve-pin-back installation token
+# Requires: gh authenticated with the promovolve App installation token (formerly promovolve-pin-back)
 # (`pull-requests: write`) and a checkout whose origin pushes over SSH with
 # the deploy key. Repository settings: "Allow GitHub Actions to create and
 # approve pull requests" (for the separate review job) and "Allow auto-merge"

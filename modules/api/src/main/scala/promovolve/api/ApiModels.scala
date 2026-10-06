@@ -1385,6 +1385,34 @@ object ApiModels {
       spend: String, // dollars, %.4f
       dogearedImpressions: Long
   )
+
+  /**
+   * Reach for one (campaign, site) over the requested range (GH #238):
+   * unique browsers that had a viewable impression, counted without viewer
+   * identity. Exact per site; summing sites gives an upper bound.
+   */
+  case class ReachSiteRow(
+      campaignId: String,
+      siteId: String,
+      host: String, // "" when the site row is gone
+      reach: Long,
+      newReach: Long // first time ever on this site
+  )
+
+  /**
+   * Reach for one (advertiser-local day, campaign), summed over sites.
+   * firstInRange: browsers whose first visit inside the requested range was
+   * this day; its running sum is the reach curve.
+   */
+  case class ReachDailyRow(day: String, campaignId: String, reach: Long, newReach: Long, firstInRange: Long)
+  case class AdvertiserReachResponse(
+      advertiserId: String,
+      from: String,
+      to: String,
+      sites: Vector[ReachSiteRow],
+      daily: Vector[ReachDailyRow],
+      coverageFrom: String // first day reach was collected; "" = none yet
+  )
   case class AdvertiserReportBreakdownDailyResponse(
       advertiserId: String,
       from: String,

@@ -3357,6 +3357,16 @@ type creativeMediaChart struct {
 	Series template.JS
 }
 
+// isEmptyList reports whether a core list response is a real, empty
+// {"data": []}. coreGet doesn't fail on non-2xx, so an error body (no data
+// key) must not read as "nothing here".
+func isEmptyList(body []byte) bool {
+	var v struct {
+		Data []json.RawMessage `json:"data"`
+	}
+	return json.Unmarshal(body, &v) == nil && v.Data != nil && len(v.Data) == 0
+}
+
 func (h *Handler) AdvertiserCreatives(w http.ResponseWriter, r *http.Request) {
 	user, claims := h.sessionUser(r)
 	if user == nil {
@@ -3416,6 +3426,15 @@ func (h *Handler) AdvertiserCreatives(w http.ResponseWriter, r *http.Request) {
 			} `json:"data"`
 		}
 		json.Unmarshal(crBody, &crResp)
+		// A brand-new campaign has nothing to list — skip the empty page and
+		// open the editor, as if "Create Creative" had been clicked. Opt-in
+		// via auto=1 (only the Campaigns-row link sends it) so the editor's
+		// back link and post-delete redirects still land on the list instead
+		// of bouncing back. View-as is read-only.
+		if r.URL.Query().Get("auto") == "1" && claims.ActorID == "" && isEmptyList(crBody) {
+			http.Redirect(w, r, "/advertiser/creatives/editor?campaignId="+url.QueryEscape(campID), http.StatusSeeOther)
+			return
+		}
 
 		// Load per-creative stats from dashboard projection
 		type creativeStatRow struct {
@@ -4351,13 +4370,18 @@ func (h *Handler) CreativeEditor(w http.ResponseWriter, r *http.Request) {
 		landingUrl = detail.LandingUrl
 	}
 
+	// With no creatives yet there is no list to go back to — the template
+	// disables "Back to Creatives" rather than link to an empty page.
+	crBody, _ := h.coreGet(fmt.Sprintf("/v1/advertisers/me/campaigns/%s/creatives?limit=1", campID), claims)
+
 	h.render(w, r, "advertiser/creative-editor.html", pageData{
-		Title:      "Creative Editor",
-		Nav:        "creatives",
-		User:       user,
-		CampaignID: campID,
-		Campaigns:  campaigns,
-		LandingURL: landingUrl,
+		Title:       "Creative Editor",
+		Nav:         "creatives",
+		User:        user,
+		CampaignID:  campID,
+		Campaigns:   campaigns,
+		LandingURL:  landingUrl,
+		NoCreatives: isEmptyList(crBody),
 	})
 }
 

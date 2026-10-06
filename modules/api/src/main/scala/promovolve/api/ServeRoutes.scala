@@ -38,7 +38,8 @@ final case class ServeRes(
     foldToken: Option[String] = None, // Server-issued fold token, only set when canFold=true
     dogear: Option[DogearInfo] = None, // Pin-honoring outcome; only set when the request carried a pin hint for this slot
     pinExpiresAt: Option[Long] = None, // Campaign endAt as epoch millis — bootstrap caps the pin's expiresAt at this value
-    frequencyCap: Option[FrequencyCapWire] = None // Campaign's per-browser cap; None = uncapped
+    frequencyCap: Option[FrequencyCapWire] = None, // Campaign's per-browser cap; None = uncapped
+    reach: Option[ReachWire] = None // Where/when to report reach on the viewable impression (GH #238)
 )
 
 /**
@@ -54,6 +55,15 @@ final case class DogearInfo(honored: Boolean, reason: Option[String] = None)
  * browser's `excludeCampaigns` on the way back. docs/design/FREQUENCY_CAPPING.md.
  */
 final case class FrequencyCapWire(campaignId: String, n: Int, windowMs: Long)
+
+/**
+ * Reach reporting for the winner's campaign (GH #238). `day` is the
+ * campaign's advertiser-local epoch day, signed into `url`. On the first
+ * viewable impression of a day the tag appends the day it last saw this
+ * campaign on this site (`prev`, or "never") and a one-time `fresh` value,
+ * then stores `day`. The tag does no date arithmetic.
+ */
+final case class ReachWire(campaignId: String, day: Long, url: String)
 
 /**
  * Pin hint from the bootstrap. Tells the server "this slot is pinned to
@@ -292,7 +302,8 @@ trait ServeJson extends DefaultJsonProtocol {
   given RootJsonFormat[PinHint] = jsonFormat2(PinHint.apply)
   given RootJsonFormat[CapCheck] = jsonFormat2(CapCheck.apply)
   given RootJsonFormat[FrequencyCapWire] = jsonFormat3(FrequencyCapWire.apply)
-  given RootJsonFormat[ServeRes] = jsonFormat17(ServeRes.apply)
+  given RootJsonFormat[ReachWire] = jsonFormat3(ReachWire.apply)
+  given RootJsonFormat[ServeRes] = jsonFormat18(ServeRes.apply)
   given RootJsonFormat[BatchImp] = jsonFormat4(BatchImp.apply)
   given RootJsonFormat[BatchServeReq] = jsonFormat7(BatchServeReq.apply)
   given RootJsonFormat[ClassifyImp] = jsonFormat7(ClassifyImp.apply)
@@ -500,8 +511,11 @@ final class ServeRoutes(
                           foldToken <-
                             foldTokenFor(req.pub, pageUrl, outcome.slotId.value, cand.creativeId.value, version,
                               cand.campaignId.value, cand.advertiserId.value)
-                          (pinExpiresAt, frequencyCap) <-
+                          (pinExpiresAt, frequencyCap, timezone) <-
                             campaignServeFacts(cand.advertiserId.value, cand.campaignId.value)
+                          reachDay = promovolve.common.Timezones.localEpochDay(java.time.Instant.now(), timezone)
+                          reach <- reachUrl(req.pub, pageUrl, outcome.slotId.value, cand.creativeId.value, version,
+                            cand.campaignId.value, cand.advertiserId.value, reachDay, outcome.requestId)
                         } yield {
                           val pagesJson = creativeOpt.flatMap(_.pagesJson)
                           val bannerConfigJson = creativeOpt.flatMap(_.bannerConfigJson)
@@ -537,7 +551,8 @@ final class ServeRoutes(
                                   foldToken = foldToken,
                                   dogear = slotDogear,
                                   pinExpiresAt = pinExpiresAt,
-                                  frequencyCap = frequencyCap
+                                  frequencyCap = frequencyCap,
+                                  reach = reach.map(ReachWire(cand.campaignId.value, reachDay, _))
                                 )),
                                 dogear = slotDogear
                               )
@@ -688,6 +703,16 @@ final class ServeRoutes(
     }
   }
 
+  /** Signed reach beacon URL for a winner (GH #238); see ReachBeacon. */
+  private def reachUrl(
+      pub: String, url: String, slot: String, cid: String, ver: Long,
+      campaignId: String, advertiserId: String, day: Long, requestId: String
+  ): Future[Option[String]] = {
+    val b = nowBucket()
+    secretsRepo.secretFor(pub).map(_.map(sec =>
+      ReachBeacon.url(trackingBase, sec, pub, url, slot, cid, ver, b, campaignId, advertiserId, day, requestId)))
+  }
+
   private def nowBucket(): Long = System.currentTimeMillis() / BucketMs
 
   /**
@@ -733,7 +758,7 @@ final class ServeRoutes(
   private def campaignServeFacts(
       advertiserId: String,
       campaignId: String
-  ): Future[(Option[Long], Option[FrequencyCapWire])] = {
+  ): Future[(Option[Long], Option[FrequencyCapWire], String)] = {
     given Timeout = Timeout(300.millis)
     val entityId = s"$advertiserId|$campaignId"
     val ref = sharding.entityRefFor(promovolve.advertiser.CampaignEntity.TypeKey, entityId)
@@ -746,9 +771,10 @@ final class ServeRoutes(
           info.endAt.map(_.toEpochMilli),
           info.frequencyCap.flatMap(cap =>
             promovolve.advertiser.CampaignEntity.FrequencyCap.windowMs(cap.window)
-              .map(ms => FrequencyCapWire(campaignId, cap.impressions, ms)))
+              .map(ms => FrequencyCapWire(campaignId, cap.impressions, ms))),
+          info.timezone
         ))
-      .recover { case _ => (None, None) }
+      .recover { case _ => (None, None, "") }
   }
 
   /**

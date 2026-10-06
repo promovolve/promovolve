@@ -580,6 +580,20 @@ object Endpoints extends ApiJsonFormats {
       .out(jsonBody[AdvertiserReportBreakdownDailyResponse])
       .errorOut(jsonBody[ErrorResponse])
 
+  val getAdvertiserReportReach
+      : PublicEndpoint[(String, Option[String], Option[String]), ErrorResponse, AdvertiserReachResponse, Any] =
+    endpoint
+      .tag("Advertisers")
+      .summary("Unique browsers reached per campaign and site for a date range (GH #238)")
+      .description(
+        "Reach counted without viewer identity: each browser reports once per campaign per day the day it last saw the campaign on that site. Exact per site for ranges up to 91 days (longer ranges are rejected); summing sites or campaigns is an upper bound. Days are advertiser-local. Defaults to the last 7 days including today.")
+      .get
+      .in(advertisersBase / path[String]("advertiserId") / "report" / "reach")
+      .in(query[Option[String]]("from").description("Owner-local day, YYYY-MM-DD, inclusive"))
+      .in(query[Option[String]]("to").description("Owner-local day, YYYY-MM-DD, inclusive"))
+      .out(jsonBody[AdvertiserReachResponse])
+      .errorOut(jsonBody[ErrorResponse])
+
   val getPublisherSiteCategoryReportDaily: PublicEndpoint[(String, Option[String], Option[String]), ErrorResponse,
     PublisherSiteCategoryDailyReportResponse, Any] =
     endpoint

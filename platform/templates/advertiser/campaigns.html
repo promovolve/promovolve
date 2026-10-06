@@ -409,7 +409,7 @@
       <!-- Creatives live under their campaign — this is THE way in since
            the top-level nav item was dropped. @click.stop so it doesn't
            toggle the row. -->
-      <a href="/advertiser/creatives?campaignId={{.ID}}" @click.stop
+      <a href="/advertiser/creatives?campaignId={{.ID}}&amp;auto=1" @click.stop
          class="px-2.5 py-1 text-xs border rounded-md hover:bg-gray-100 text-gray-600 shrink-0">
         {{t "Creatives"}}
       </a>

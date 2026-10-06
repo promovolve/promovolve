@@ -275,8 +275,8 @@ jobs:
   # otherwise successful rollout (2026-08-30 ×3, GH #33). The approval job
   # below enables auto-merge (squash); the push trigger above ignores its
   # commit. The branch is pushed with the PIN_DEPLOY_KEY deploy key rather
-  # than GITHUB_TOKEN because only a real push fires the CI run whose check
-  # runs the Ruleset counts (workflow_dispatch runs do not — see the script).
+  # than GITHUB_TOKEN so updates to an existing PR trigger pull_request CI.
+  # The App-created PR triggers the initial CI run when it opens.
   pin-images:
     name: Pin deployed digests back to the repo
     needs: [build-api, build-platform, deploy]
@@ -289,7 +289,7 @@ jobs:
         with:
           ref: main
           fetch-depth: 0             # merge-base / merge need real history
-          ssh-key: ${{ secrets.PIN_DEPLOY_KEY }}   # push over SSH so ci.yml runs on ci/pins
+          ssh-key: ${{ secrets.PIN_DEPLOY_KEY }}   # SSH pushes trigger PR updates for CI
           persist-credentials: true  # the pin-back script pushes
 
       - name: Create pin-back App token
@@ -360,7 +360,7 @@ jobs:
         with:
           ref: main
           fetch-depth: 0              # pin-back merges main into ci/pins
-          ssh-key: ${{ secrets.PIN_DEPLOY_KEY }}   # push over SSH so ci.yml runs on ci/pins
+          ssh-key: ${{ secrets.PIN_DEPLOY_KEY }}   # SSH pushes trigger PR updates for CI
           persist-credentials: true   # the pin-back step pushes
       - uses: actions/setup-node@820762786026740c76f36085b0efc47a31fe5020 # v7.0.0
         with:

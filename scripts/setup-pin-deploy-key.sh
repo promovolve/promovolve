@@ -2,14 +2,9 @@
 #
 # Create (or rotate) the deploy key deploy.yml's pin-back jobs push with.
 #
-# WHY: the pin-back pull request (scripts/pin-back-pr.sh) needs the main
-# Ruleset's required checks on its head commit, and only a real push can
-# produce them — a push made with GITHUB_TOKEN fires no workflow, and check
-# runs from a workflow_dispatch run are not counted (2026-09-04, PR #41 sat
-# BLOCKED with six green check runs). A write deploy key is the smallest
-# identity that pushes like a user: repo-scoped, git-only, no account, no
-# expiry to babysit, and it needs no Ruleset bypass because ci/pins is not
-# a protected branch.
+# Use a repo-scoped write deploy key so pin-back PR updates run CI without
+# the manual workflow approval required for GITHUB_TOKEN pushes.
+# ci/pins is unprotected, so no Ruleset bypass is needed.
 #
 #   scripts/setup-pin-deploy-key.sh            # this repo (gh's current repo)
 #   scripts/setup-pin-deploy-key.sh owner/repo # a fork

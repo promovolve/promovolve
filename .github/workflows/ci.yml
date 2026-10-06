@@ -2,11 +2,9 @@ name: CI
 
 on:
   push:
-    # ci/pins is the CI-generated pin-back branch (scripts/pin-back-pr.sh).
-    # Its PR is opened with the promovolve App (formerly promovolve-pin-back), but the deploy-key
-    # push is still the first event for a fresh branch and supplies the check
-    # runs the main Ruleset counts. Keep it listed here.
-    branches: [main, ci/pins]
+    # Pin-back uses pull_request CI; also running on ci/pins pushes would
+    # duplicate the checks for the same update.
+    branches: [main]
   pull_request:
   # Manual runs exist for the deploy gate: Deploy polls for a CI run on
   # its commit; if a HEAD somehow has none (an older "[skip ci]" pin

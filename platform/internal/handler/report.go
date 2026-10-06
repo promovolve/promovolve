@@ -150,7 +150,9 @@ type reportPageData struct {
 	// Reach tab (GH #238).
 	Reach       []reachCampaign
 	ReachCharts template.JS // campaign id → reachChart
-	ReachFrom   string      // set when reach covers less than From..To (91-day limit)
+	ReachFrom   string      // set when reach covers less than From..To
+	// ReachFrom is when reach collection began (else the 91-day limit).
+	ReachSinceLaunch bool
 }
 
 func (h *Handler) AdvertiserReport(w http.ResponseWriter, r *http.Request) {
@@ -181,9 +183,8 @@ func (h *Handler) AdvertiserReport(w http.ResponseWriter, r *http.Request) {
 			writeBreakdownCSV(w, dim, from, to, camps)
 		case "reach":
 			names := h.campaignNames("/v1/advertisers/me/campaigns?limit=100", claims)
-			rFrom, rQS := reachRange(from, to)
-			groups := h.fetchBreakdownByCampaign(rQS, "site", names, nil, claims)
-			writeReachCSV(w, rFrom, to, buildReach(h.fetchReach(rQS, claims), names, groups))
+			_, camps, start, _ := h.loadReach(from, to, names, nil, claims)
+			writeReachCSV(w, start, to, camps)
 		default:
 			names := h.campaignNames("/v1/advertisers/me/campaigns?limit=100", claims)
 			writeDailyCSV(w, from, to, h.fetchReportRows(rangeQS, names, claims))

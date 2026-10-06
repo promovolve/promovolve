@@ -40,6 +40,9 @@ type reachResponse struct {
 		NewReach     int64  `json:"newReach"`
 		FirstInRange int64  `json:"firstInRange"`
 	} `json:"daily"`
+	// First day reach was collected anywhere; "" = none yet. Impressions and
+	// spend before it have no reach to pair with.
+	CoverageFrom string `json:"coverageFrom"`
 }
 
 func (h *Handler) fetchReach(rangeQS string, claims *model.Claims) reachResponse {
@@ -267,26 +270,45 @@ func reachRange(from, to string) (string, string) {
 	return from, "from=" + url.QueryEscape(from) + "&to=" + url.QueryEscape(to)
 }
 
+// loadReach fetches reach for from..to and pairs it with impressions and
+// spend over the SAME days. Those days start at the later of the 91-day
+// limit and the day reach collection began: pairing a week of impressions
+// with a day of reach would inflate frequency and cost per new reach. The
+// reach figures themselves need no trimming (nothing was recorded earlier).
+// start is the first day the figures cover; sinceLaunch says collection's
+// start is what limited it.
+func (h *Handler) loadReach(from, to string, names map[string]string, siteGroups []reportDimCampaignGroup,
+	claims *model.Claims) (resp reachResponse, camps []reachCampaign, start string, sinceLaunch bool) {
+	start, rQS := reachRange(from, to)
+	resp = h.fetchReach(rQS, claims)
+	if resp.CoverageFrom > start {
+		start, sinceLaunch = resp.CoverageFrom, true
+	}
+	if len(resp.Sites) == 0 {
+		return resp, nil, start, sinceLaunch
+	}
+	if start != from || siteGroups == nil {
+		siteGroups = h.fetchBreakdownByCampaign("from="+url.QueryEscape(start)+"&to="+url.QueryEscape(to),
+			"site", names, nil, claims)
+	}
+	return resp, buildReach(resp, names, siteGroups), start, sinceLaunch
+}
+
 // addReach fills the Reach tab: this range's figures per campaign and site,
 // the daily charts, and each campaign's cost-per-new-reach explanation
 // against the previous range of the same length.
 func (h *Handler) addReach(rep *reportPageData, from, to string, names map[string]string, lang string, claims *model.Claims) {
-	rFrom, rQS := reachRange(from, to)
-	if rFrom != from {
-		rep.ReachFrom = rFrom
+	resp, camps, start, sinceLaunch := h.loadReach(from, to, names, rep.SiteGroups, claims)
+	if start != from {
+		rep.ReachFrom, rep.ReachSinceLaunch = start, sinceLaunch
 	}
-	resp := h.fetchReach(rQS, claims)
-	if len(resp.Sites) == 0 {
+	if len(camps) == 0 {
 		return
 	}
-	groups := rep.SiteGroups
-	if rFrom != from {
-		groups = h.fetchBreakdownByCampaign(rQS, "site", names, nil, claims)
-	}
-	rep.Reach = buildReach(resp, names, groups)
-	rep.ReachCharts = buildReachCharts(resp, rFrom, to)
+	rep.Reach = camps
+	rep.ReachCharts = buildReachCharts(resp, start, to)
 
-	pf, pt, days, ok := previousRange(rFrom, to)
+	pf, pt, days, ok := previousRange(start, to)
 	if !ok {
 		return
 	}

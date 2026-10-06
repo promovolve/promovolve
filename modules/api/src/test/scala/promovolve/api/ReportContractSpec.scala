@@ -124,6 +124,9 @@ class ReportContractSpec extends AnyWordSpec with Matchers with ApiJsonFormats {
         r.daily.map(_.day) shouldBe Vector("2026-10-01", "2026-10-02")
         r.daily(1).newReach shouldBe 210L
         r.daily(1).firstInRange shouldBe 260L
+        // First day reach was collected: the platform pairs reach with
+        // impressions and spend from this day only.
+        r.coverageFrom shouldBe "2026-10-01"
       }
     }
   }

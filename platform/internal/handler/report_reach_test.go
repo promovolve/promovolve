@@ -2,6 +2,8 @@ package handler
 
 import (
 	"bytes"
+	"net/http"
+	"net/http/httptest"
 	"strings"
 	"testing"
 	"time"
@@ -145,5 +147,43 @@ func TestReportWithoutReachKeepsChartScriptValid(t *testing.T) {
 	}
 	if !strings.Contains(buf.String(), "const reachCharts = {};") {
 		t.Fatal("reachCharts must be inlined as a valid object when there is no reach data")
+	}
+}
+
+// Reach collection starting inside the selected range (production, 2026-10-05:
+// a 7-day range, reach from day 6): impressions and spend must come from the
+// collection day onward, or frequency and cost per new reach are inflated by
+// a week of impressions over a day of reach.
+func TestReachPairsDeliveryFromCollectionStart(t *testing.T) {
+	var breakdownQueries []string // current range first, then the previous-range comparison
+	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		w.Header().Set("Content-Type", "application/json")
+		switch {
+		case strings.HasSuffix(r.URL.Path, "/report/reach"):
+			_, _ = w.Write([]byte(`{"sites":[{"campaignId":"C1","siteId":"s1","host":"news.example.jp","reach":10,"newReach":10}],
+				"daily":[],"coverageFrom":"2026-10-05"}`))
+		case strings.HasSuffix(r.URL.Path, "/report/breakdown-by-campaign"):
+			breakdownQueries = append(breakdownQueries, r.URL.RawQuery)
+			_, _ = w.Write([]byte(`{"rows":[{"key":"s1","label":"news.example.jp","campaignId":"C1","impressions":20,"spend":"2.0000"}]}`))
+		default:
+			_, _ = w.Write([]byte(`{}`))
+		}
+	}))
+	defer srv.Close()
+	h := New(Deps{CoreAPIURL: srv.URL})
+
+	rep := &reportPageData{SiteGroups: []reportDimCampaignGroup{ // the full-range By Site data: must NOT be used
+		{Key: "s1", Rows: []reportBreakdownRow{{Key: "C1", Impressions: 700, Spend: 70}}},
+	}}
+	h.addReach(rep, "2026-09-30", "2026-10-06", map[string]string{"C1": "Autumn"}, i18n.LangEN, advertiserClaims())
+
+	if len(breakdownQueries) == 0 || !strings.HasPrefix(breakdownQueries[0], "from=2026-10-05&to=2026-10-06") {
+		t.Fatalf("impressions must be fetched from the collection day, got queries %q", breakdownQueries)
+	}
+	if len(rep.Reach) != 1 || rep.Reach[0].Impressions != 20 || rep.Reach[0].Frequency != "2.00" {
+		t.Fatalf("reach must pair with same-days delivery: %+v", rep.Reach)
+	}
+	if rep.ReachFrom != "2026-10-05" || !rep.ReachSinceLaunch {
+		t.Fatalf("the tab must say where the data starts: from=%q sinceLaunch=%v", rep.ReachFrom, rep.ReachSinceLaunch)
 	}
 }

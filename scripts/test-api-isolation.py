@@ -2,6 +2,7 @@
 """Image and UID migrate in one rollout after the node profiles are ready."""
 
 import json
+import hashlib
 import os
 from pathlib import Path
 import subprocess
@@ -49,6 +50,9 @@ with tempfile.TemporaryDirectory(prefix="promovolve-isolation-test-") as directo
             assert all(operations.index(args) > wait for args in patches)
             assert len(patches) == (1 if failure == "statefulset/promovolve-singleton" else 2)
             for patch in patches:
+                template = json.loads(patch[patch.index("--patch") + 1])["spec"]["template"]
+                expected_revision = hashlib.sha256((ROOT / "docker/chromium-seccomp.json").read_bytes()).hexdigest()
+                assert template["metadata"]["annotations"]["promovolve.io/seccomp-sha256"] == expected_revision
                 spec = json.loads(patch[patch.index("--patch") + 1])["spec"]["template"]["spec"]
                 assert spec["securityContext"]["fsGroup"] == 1000
                 container = spec["containers"][0]

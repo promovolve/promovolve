@@ -32,10 +32,25 @@ def get_json(kubectl, *args):
     return json.loads(subprocess.check_output([*kubectl, "get", *args, "-o", "json"], text=True))
 
 
+def check_container_runtime(container, name):
+    overrides = [entry for entry in container.get("env", [])
+                 if entry.get("name") == "CHROMIUM_NO_SANDBOX"]
+    require(len(overrides) == 1 and overrides[0].get("value") == "false",
+            f"{name}: Chromium sandbox override is missing, disabled or duplicated")
+    require(any(mount["name"] == "ddata" and mount["mountPath"] == "/data" and
+                not mount.get("readOnly", False) and
+                not mount.get("subPath") and not mount.get("subPathExpr")
+                for mount in container.get("volumeMounts", [])),
+            f"{name}: DData volume is not mounted read/write at /data")
+
+
 def check_tier(kubectl, tier, installer_nodes, profile_revision):
     name = f"promovolve-{tier}"
     statefulset = get_json(kubectl, "statefulset", name)
     spec = statefulset["spec"]
+    require(any(claim.get("metadata", {}).get("name") == "ddata"
+                for claim in spec.get("volumeClaimTemplates", [])),
+            f"{name}: DData volume claim template is missing")
     require(spec["template"].get("metadata", {}).get("annotations", {}).get(PROFILE_ANNOTATION)
             == profile_revision, f"{name}: seccomp profile revision differs or is missing")
     replicas = spec.get("replicas", 1)
@@ -64,13 +79,7 @@ def check_tier(kubectl, tier, installer_nodes, profile_revision):
     require(security.get("allowPrivilegeEscalation") is False and
             "ALL" in security.get("capabilities", {}).get("drop", []),
             f"{name}: privilege restrictions are missing")
-    require(any(entry.get("name") == "CHROMIUM_NO_SANDBOX" and
-                entry.get("value") == "false" for entry in container.get("env", [])),
-            f"{name}: Chromium sandbox override is missing")
-    require(any(mount["name"] == "ddata" and mount["mountPath"] == "/data" and
-                not mount.get("readOnly", False)
-                for mount in container.get("volumeMounts", [])),
-            f"{name}: DData volume is not mounted read/write")
+    check_container_runtime(container, name)
 
     selector = "app=promovolve-api,tier=" + ("app" if tier == "api" else "singleton")
     pods = get_json(kubectl, "pods", "-l", selector)["items"]
@@ -81,7 +90,7 @@ def check_tier(kubectl, tier, installer_nodes, profile_revision):
                 f"{pod_name}: seccomp profile revision differs or is missing")
         require(ready(pod), f"{pod_name}: pod is not ready")
         require(any(volume.get("name") == "ddata" and
-                    volume.get("persistentVolumeClaim", {}).get("claimName") and
+                    volume.get("persistentVolumeClaim", {}).get("claimName") == f"ddata-{pod_name}" and
                     not volume["persistentVolumeClaim"].get("readOnly", False)
                     for volume in pod["spec"].get("volumes", [])),
                 f"{pod_name}: DData volume is not backed by a writable PVC")
@@ -93,6 +102,7 @@ def check_tier(kubectl, tier, installer_nodes, profile_revision):
         require(pod_container["image"] == container["image"] and
                 pod_container.get("securityContext") == security,
                 f"{pod_name}: image or security settings differ from StatefulSet")
+        check_container_runtime(pod_container, pod_name)
         subprocess.run([*kubectl, "exec", pod_name, "-c", tier, "--", "sh", "-ec",
                         'test "$(id -u)" = 1000; test "$(id -g)" = 1000; '
                         "test -r /data/ddata; test -w /data/ddata"], check=True)
@@ -119,6 +129,16 @@ def main():
     require(len(installer_nodes) == status["desiredNumberScheduled"],
             "Ready seccomp installers do not cover scheduled nodes")
     profile_revision = hashlib.sha256(PROFILE_PATH.read_bytes()).hexdigest()
+    for pod in installers:
+        if not ready(pod):
+            continue
+        pod_name = pod["metadata"]["name"]
+        paths = ("/source/chromium.json", "/profiles/chromium-v1.json")
+        result = subprocess.run(
+            [*kubectl, "exec", pod_name, "-c", "install", "--", "sha256sum", *paths],
+            check=True, capture_output=True, text=True)
+        require(result.stdout.splitlines() == [f"{profile_revision}  {path}" for path in paths],
+                f"{pod_name}: installed seccomp profile revision differs or is missing")
     images = [check_tier(kubectl, tier, installer_nodes, profile_revision)
               for tier in ("singleton", "api")]
     require(images[0] == images[1], "Singleton and API image references differ")

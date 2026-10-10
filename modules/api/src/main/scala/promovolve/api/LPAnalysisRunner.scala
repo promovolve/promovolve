@@ -13,7 +13,7 @@ import scala.concurrent.{ ExecutionContext, Future, Promise }
 import scala.concurrent.duration.*
 
 /**
- * Builds the default [[LPWorker.RunAnalysis]]: run [[LPAnalyzer]] (Playwright)
+ * Builds the default [[https://github.com/promovolve/promovolve/blob/main/modules/core/src/main/scala/promovolve/browser/LPWorker.scala LPWorker.RunAnalysis]]: run [[https://github.com/promovolve/promovolve/blob/main/modules/browser/src/main/scala/promovolve/browser/LPAnalyzer.scala LPAnalyzer]] (Playwright)
  * on the crawler tier, upload the captured bot-protected-origin bytes + the
  * hero screenshot to R2 RIGHT HERE, rewrite each section `src` to its CDN URL,
  * and complete with a finished `AnalyzeLPDone`. Net effect: the raw bytes
@@ -21,7 +21,7 @@ import scala.concurrent.duration.*
  * the api node. This is the relocation of EndpointRoutes' `storeImageAsset` +
  * `persistCapturedImages` onto the crawler tier, so Chromium + the byte
  * handling leave the bid/serve JVMs. Constructed on crawler-role nodes (which
- * carry R2 + JDBC creds) and passed to [[LPWorker.initSharding]].
+ * carry R2 + JDBC creds) and passed to [[https://github.com/promovolve/promovolve/blob/main/modules/core/src/main/scala/promovolve/browser/LPWorker.scala LPWorker.initSharding]].
  */
 object LPAnalysisRunner {
   private val log = LoggerFactory.getLogger("promovolve.api.LPAnalysisRunner")

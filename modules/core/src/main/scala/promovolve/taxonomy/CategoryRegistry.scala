@@ -39,7 +39,7 @@ import promovolve.{ CategoryId, SiteId }
  *  - '''CategoryRegistry''': Tracks which publishers have which categories (supply side)
  *  - '''TaxonomyRankerEntity''': Scores categories per-site using Thompson Sampling
  *
- * @see [[TAXONOMY_RANKING.md]] for category scoring details
+ * @see [[https://github.com/promovolve/promovolve/blob/main/modules/core/src/main/scala/promovolve/taxonomy/TAXONOMY_RANKING.md TAXONOMY_RANKING.md]] for category scoring details
  */
 object CategoryRegistry {
 

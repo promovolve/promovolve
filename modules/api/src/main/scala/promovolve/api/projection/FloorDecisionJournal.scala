@@ -21,7 +21,7 @@ import scala.concurrent.duration.*
  *
  * `candidatesJson` is an opaque JSON blob (same shape the API's
  * `/sweep-evidence` endpoint emits) so we can later answer "what was
- * revenue at $X on date Y" without schema migrations.
+ * revenue at \$X on date Y" without schema migrations.
  */
 case class FloorDecision(
     sequenceNr: Long,

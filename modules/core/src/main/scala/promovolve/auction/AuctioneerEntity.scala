@@ -47,7 +47,7 @@ import scala.concurrent.duration.*
  *  - CampaignChanged/BudgetReset → targeted re-auction (affected URLs only)
  *  - AdvertiserBudgetExhausted/Reset → full site re-auction (recent pages)
  *
- * @see [[AUCTION.md]] for detailed architecture documentation
+ * @see [[https://github.com/promovolve/promovolve/blob/main/modules/core/src/main/scala/promovolve/auction/AUCTION.md AUCTION.md]] for detailed architecture documentation
  */
 object AuctioneerEntity {
 

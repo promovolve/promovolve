@@ -11,7 +11,7 @@ import scala.util.{ Failure, Success }
 /**
  * Cluster-singleton runner for the Layer-2 economics detector
  * (docs/design/FRAUD_PREVENTION.md). On a timer it pulls the two
- * per-site aggregations, runs the pure [[FraudDetection]] core, and
+ * per-site aggregations, runs the pure [[https://github.com/promovolve/promovolve/blob/main/modules/core/src/main/scala/promovolve/fraud/FraudDetection.scala FraudDetection]] core, and
  * upserts flags. Singleton so flags are written once, not once-per-pod.
  *
  * Read-only over live traffic + append-only to fraud_flags — it never

@@ -2503,7 +2503,7 @@ object SiteEntity {
   /**
    * Get per-category floor overrides.
    * Reply is a protobuf message, NOT a bare Map/tuple: specialized Scala
-   * tuples (Tuple2$mcDD$sp) silently deserialize to null under
+   * tuples (Tuple2\$mcDD\$sp) silently deserialize to null under
    * jackson-cbor, and a null message crashes Artery's whole inbound stream
    * (heartbeats included) — the root cause of the 2026-06/07 multi-node
    * self-down cascades, caught live on GKE and pinned by

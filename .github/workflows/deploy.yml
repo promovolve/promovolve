@@ -4,12 +4,12 @@
 # Flow: push to main -> build the CHANGED image(s) natively on an arm64
 # runner (the cluster runs ARM c4a nodes; x86 images die with exec format
 # error) -> push to Docker Hub with an immutable main-<sha> tag -> point
-# the GKE workloads at the new image BY DIGEST with `kubectl set image`.
+# the GKE workloads at the new image BY DIGEST.
 #
-# Deliberately NOT a manifest apply: CI never renders k8s-gke/ (the
-# kustomize secretGenerator needs k8s/*.env, which stay on the laptop and
-# out of GitHub). Infra/config changes deploy via `k8s-gke/setup.sh
-# --deploy-only` from a machine that has them; CI only moves images.
+# CI applies only the API runtime profile and targeted pod security/image patches.
+# It never renders k8s-gke/: the secretGenerator needs k8s/*.env, which stay
+# on the laptop and out of GitHub. Other infra/config changes deploy via `k8s-gke/setup.sh
+# --deploy-only` from a machine that has them.
 # Consequence: the digests pinned in k8s/kustomization.yaml are what a
 # manual setup.sh deploy renders, so after every rollout the pin-images /
 # publish-banner jobs write the live digests and banner URL back — through
@@ -147,6 +147,9 @@ jobs:
               - 'build.sbt'
               - 'project/**'
               - 'Dockerfile.api'
+              - 'docker/chromium-seccomp.json'
+              - 'k8s/runtime-security/**'
+              - 'k8s/roll-api.sh'
               - '.dockerignore'
             platform:
               - 'platform/**'
@@ -232,6 +235,9 @@ jobs:
       (needs.build-api.result == 'success' || needs.build-platform.result == 'success')
     runs-on: ubuntu-latest
     steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
       - uses: google-github-actions/auth@7c6bc770dae815cd3e89ee6cdf493a5fab2cc093 # v3.0.0
         with:
           workload_identity_provider: projects/138573052500/locations/global/workloadIdentityPools/github/providers/github-oidc
@@ -242,15 +248,11 @@ jobs:
           location: asia-northeast1-b
           project_id: promovolve
 
-      - name: Roll api (by digest)
+      - name: Roll api with runtime isolation (by digest)
         if: needs.build-api.result == 'success'
-        run: |
-          kubectl -n promovolve set image statefulset/promovolve-api \
-            api=${API_IMAGE}@${{ needs.build-api.outputs.digest }}
-          # Keep the parked singleton tier's spec current so un-parking it
-          # never resurrects a stale build.
-          kubectl -n promovolve set image statefulset/promovolve-singleton \
-            singleton=${API_IMAGE}@${{ needs.build-api.outputs.digest }}
+        env:
+          API_DIGEST: ${{ needs.build-api.outputs.digest }}
+        run: k8s/roll-api.sh "$(kubectl config current-context)" "${API_IMAGE}@${API_DIGEST}"
 
       - name: Roll platform (by digest)
         if: needs.build-platform.result == 'success'
@@ -258,14 +260,9 @@ jobs:
           kubectl -n promovolve set image deployment/promovolve-platform \
             platform=${PLATFORM_IMAGE}@${{ needs.build-platform.outputs.digest }}
 
-      - name: Wait for rollout
-        run: |
-          if [ "${{ needs.build-api.result }}" = "success" ]; then
-            kubectl -n promovolve rollout status statefulset/promovolve-api --timeout=600s
-          fi
-          if [ "${{ needs.build-platform.result }}" = "success" ]; then
-            kubectl -n promovolve rollout status deployment/promovolve-platform --timeout=300s
-          fi
+      - name: Wait for platform rollout
+        if: needs.build-platform.result == 'success'
+        run: kubectl -n promovolve rollout status deployment/promovolve-platform --timeout=300s
 
   # Write the deployed digests back to k8s/kustomization.yaml so the pins
   # describe what is running (see scripts/pin-image-digest.sh for the two

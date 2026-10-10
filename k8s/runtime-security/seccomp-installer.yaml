@@ -1,0 +1,68 @@
+apiVersion: apps/v1
+kind: DaemonSet
+metadata:
+  name: chromium-seccomp
+spec:
+  selector:
+    matchLabels:
+      app: chromium-seccomp
+  template:
+    metadata:
+      labels:
+        app: chromium-seccomp
+    spec:
+      automountServiceAccountToken: false
+      nodeSelector:
+        kubernetes.io/os: linux
+      tolerations:
+        - key: kubernetes.io/arch
+          operator: Equal
+          value: arm64
+          effect: NoSchedule
+      containers:
+        - name: install
+          # This root process writes a kubelet hostPath, so never trust a mutable tag.
+          image: curlimages/curl:8.11.1@sha256:c1fe1679c34d9784c1b0d1e5f62ac0a79fca01fb6377cdd33e90473c6f9f9a69
+          command:
+            - sh
+            - -ec
+            - |
+              cp /source/chromium.json /profiles/chromium-v1.json.tmp
+              chmod 0644 /profiles/chromium-v1.json.tmp
+              mv /profiles/chromium-v1.json.tmp /profiles/chromium-v1.json
+              trap 'exit 0' TERM INT
+              while :; do sleep 3600 & wait $!; done
+          securityContext:
+            # Kubelet creates this host directory as root; no other host path is mounted.
+            runAsUser: 0
+            runAsGroup: 0
+            allowPrivilegeEscalation: false
+            readOnlyRootFilesystem: true
+            capabilities:
+              drop: [ALL]
+            seccompProfile:
+              type: RuntimeDefault
+          readinessProbe:
+            exec:
+              command: [sh, -ec, 'cmp -s /source/chromium.json /profiles/chromium-v1.json']
+            periodSeconds: 10
+          resources:
+            requests:
+              cpu: 5m
+              memory: 8Mi
+            limits:
+              memory: 32Mi
+          volumeMounts:
+            - name: source
+              mountPath: /source
+              readOnly: true
+            - name: profiles
+              mountPath: /profiles
+      volumes:
+        - name: source
+          configMap:
+            name: chromium-seccomp
+        - name: profiles
+          hostPath:
+            path: /var/lib/kubelet/seccomp/promovolve
+            type: DirectoryOrCreate

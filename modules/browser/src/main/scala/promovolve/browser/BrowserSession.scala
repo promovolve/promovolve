@@ -37,6 +37,17 @@ import scala.util.{ Failure, Random, Success, Try }
  */
 object BrowserSession {
 
+  def launchOptions(): BrowserType.LaunchOptions =
+    new BrowserType.LaunchOptions()
+      .setHeadless(true)
+      // Playwright disables Chromium's sandbox unless explicitly enabled.
+      .setChromiumSandbox(!sys.env.get("CHROMIUM_NO_SANDBOX").contains("true"))
+      .setArgs(java.util.List.of(
+        "--disable-blink-features=AutomationControlled",
+        "--headless=new"
+      ))
+      .setIgnoreDefaultArgs(java.util.List.of("--enable-automation"))
+
   // -- Protocol --
 
   sealed trait Command
@@ -189,37 +200,7 @@ object BrowserSession {
         log.info("Initializing Playwright + Chromium (proxy={})",
           proxyConfig.map(_.provider).getOrElse("none"))
         playwright = Playwright.create()
-        // Stealth launch profile shared across crawl + LP work.
-        //   --disable-blink-features=AutomationControlled strips the
-        //   `navigator.webdriver=true` signal that bot managers read
-        //   before deeper fingerprinting.
-        //   --headless=new uses the new headless Chrome mode (full
-        //   Chrome binary, much harder to fingerprint than the
-        //   legacy headless-shell).
-        //   --disable-features=IsolateOrigins,site-per-process keeps
-        //   site isolation off so cross-frame access works for SPA
-        //   shells that span subdomains.
-        //   Strip --enable-automation from defaults — it leaks CDP.
-        // In a container (CHROMIUM_NO_SANDBOX=true) Chromium can't use
-        // its namespace sandbox as root, and /dev/shm is tiny — add the
-        // two flags that make headless Chrome start there. Off by
-        // default so local/dev launches keep the hardened profile.
-        val baseArgs = {
-          val core = new java.util.ArrayList[String](java.util.List.of(
-            "--disable-blink-features=AutomationControlled",
-            "--disable-features=IsolateOrigins,site-per-process",
-            "--headless=new"
-          ))
-          if (sys.env.get("CHROMIUM_NO_SANDBOX").contains("true")) {
-            core.add("--no-sandbox")
-            core.add("--disable-dev-shm-usage")
-          }
-          core
-        }
-        val launchOpts = new BrowserType.LaunchOptions()
-          .setHeadless(true)
-          .setArgs(baseArgs)
-          .setIgnoreDefaultArgs(java.util.List.of("--enable-automation"))
+        val launchOpts = launchOptions()
         proxyConfig.foreach { p =>
           launchOpts.setProxy(
             new PlaywrightProxy(p.server)

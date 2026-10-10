@@ -5,6 +5,7 @@ namespace: promovolve
 
 resources:
   - namespace.yaml
+  - runtime-security
   - db-statefulset.yaml
   - db-service.yaml
   - api-rbac.yaml
@@ -68,8 +69,6 @@ configMapGenerator:
       # a standalone cluster, so exactly one cluster ever exists.
       # If you change the member count, set this to the new majority ⌊total/2⌋+1.
       - PEKKO_BOOTSTRAP_REQUIRED_CONTACT_POINTS=2
-      # Lets headless Chromium start as root in a container (see BrowserSession.scala).
-      - CHROMIUM_NO_SANDBOX=true
       # LP-worker ShardedDaemonProcess sizing (hash(siteId)%N addressing). The
       # N worker shards are role-pinned to "crawler", which the api pods now
       # carry (the dedicated crawler tier was deleted 2026-07-02).

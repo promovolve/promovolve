@@ -32,6 +32,23 @@ def best_effort(args):
         print(f"Warning: {shlex.join(args)}: {error}", flush=True)
 
 
+def wait_for_http(database, app, url, kind):
+    for _ in range(90):
+        if docker("inspect", "--format", "{{.State.Running}}", app) != "true":
+            raise AssertionError("Application exited before serving HTTP")
+        response = subprocess.run(["docker", "exec", database, "wget", "-q", "-T", "2",
+                                   "-O", "-", url], capture_output=True, text=True, timeout=10)
+        if response.returncode == 0 and response.stdout:
+            if kind == "api" and not response.stdout.startswith("openapi:"):
+                raise AssertionError("API did not return its OpenAPI document")
+            if kind == "platform" and json.loads(response.stdout) != {"status": "ok"}:
+                raise AssertionError("Platform did not return a healthy status")
+            break
+        time.sleep(1)
+    else:
+        raise AssertionError("Application did not serve HTTP before timeout")
+
+
 def smoke(kind, image):
     suffix = uuid.uuid4().hex[:12]
     network = f"promovolve-smoke-{suffix}"
@@ -40,14 +57,16 @@ def smoke(kind, image):
     browser = f"{network}-browser"
     containers = []
     network_created = False
+    volume_created = False
+    volume = f"{network}-ddata"
     with tempfile.TemporaryDirectory(prefix="promovolve-smoke-") as directory:
         temp = Path(directory)
         try:
             metadata = json.loads(docker("image", "inspect", image))[0]
             if metadata["Architecture"] != "arm64":
                 raise AssertionError("Smoke test requires the production arm64 image")
-            if kind == "platform" and metadata["Config"].get("User", "").split(":")[0] in ("", "0", "root"):
-                raise AssertionError("Platform image must run as non-root")
+            if metadata["Config"].get("User", "").split(":")[0] in ("", "0", "root"):
+                raise AssertionError("Image must run as non-root")
 
             # Pull before creating the isolated network; workloads cannot reach cloud APIs.
             present = subprocess.run(["docker", "image", "inspect", DATABASE_IMAGE],
@@ -76,7 +95,10 @@ def smoke(kind, image):
             port = "8080" if kind == "api" else "9090"
             args = ["create", "--name", app, "--network", network,
                     "--network-alias", "app"]
+            isolation = ["--cap-drop", "ALL", "--security-opt", "no-new-privileges",
+                         "--security-opt", f"seccomp={ROOT / 'docker/chromium-seccomp.json'}"]
             if kind == "api":
+                args += isolation
                 conf = temp / "smoke.conf"
                 conf.write_text('include classpath("application.conf")\npekko.cluster.roles = ["api"]\n')
                 environment = {
@@ -84,7 +106,7 @@ def smoke(kind, image):
                     "JDBC_PASSWORD": "smoke-only", "CDN_BASE_URL": "http://127.0.0.1",
                     "R2_ACCOUNT_ID": "smoke", "R2_ACCESS_KEY_ID": "smoke",
                     "R2_SECRET_ACCESS_KEY": "smoke", "R2_BUCKET": "smoke",
-                    "GEMINI_API_KEY": "smoke", "CHROMIUM_NO_SANDBOX": "true",
+                    "GEMINI_API_KEY": "smoke",
                 }
             else:
                 environment = {
@@ -101,23 +123,12 @@ def smoke(kind, image):
             if kind == "api":
                 docker("cp", str(conf), f"{app}:/smoke.conf")
             docker("start", app)
+            if kind == "api" and docker("exec", app, "id", "-u") != "1000":
+                raise AssertionError("API process must run as UID 1000")
             # Internal networks need no published host ports. The DB image includes wget.
             address = f"http://app:{port}"
             url = address + ("/openapi.yaml" if kind == "api" else "/health")
-            for _ in range(90):
-                if docker("inspect", "--format", "{{.State.Running}}", app) != "true":
-                    raise AssertionError("Application exited before serving HTTP")
-                response = subprocess.run(["docker", "exec", database, "wget", "-q", "-T", "2",
-                                           "-O", "-", url], capture_output=True, text=True, timeout=10)
-                if response.returncode == 0 and response.stdout:
-                    if kind == "api" and not response.stdout.startswith("openapi:"):
-                        raise AssertionError("API did not return its OpenAPI document")
-                    if kind == "platform" and json.loads(response.stdout) != {"status": "ok"}:
-                        raise AssertionError("Platform did not return a healthy status")
-                    break
-                time.sleep(1)
-            else:
-                raise AssertionError("Application did not serve HTTP before timeout")
+            wait_for_http(database, app, url, kind)
             print(f"PASS {kind}: production entrypoint serves HTTP with a disposable database", flush=True)
 
             if kind == "platform":
@@ -131,25 +142,77 @@ def smoke(kind, image):
                         raise AssertionError("Embedded Tailwind stylesheet missing")
                 print("PASS platform: embedded Designer and Tailwind assets", flush=True)
             else:
+                if docker("exec", app, "find", "/ms-playwright", "/ms-playwright-driver",
+                          "-writable", "-print", "-quit"):
+                    raise AssertionError("The API user can modify packaged browser executables")
                 docker("cp", f"{app}:/app/lib", str(temp / "lib"))
                 run(["javac", "--release", "21", "-cp", str(temp / "lib" / "*"),
-                     "-d", str(temp), str(ROOT / "scripts/docker-smoke/BrowserSmoke.java")])
+                     "-d", str(temp), str(ROOT / "scripts/docker-smoke/BrowserSmoke.java"),
+                     str(ROOT / "scripts/docker-smoke/LmdbSmoke.java")])
                 # Use the final image's jars, JRE and browser; never download a browser at runtime.
-                containers.append(browser)
-                docker("create", "--name", browser, "--network", "none", "--init",
-                       "--entrypoint", "java", image, "-cp", "/app/lib/*:/tmp", "BrowserSmoke")
-                docker("cp", str(temp / "BrowserSmoke.class"), f"{browser}:/tmp/BrowserSmoke.class")
-                result = docker("start", "-a", browser)
-                if docker("inspect", "--format", "{{.State.ExitCode}}", browser) != "0":
-                    raise AssertionError("Packaged browser smoke test failed")
-                print(result, flush=True)
+                for name, arguments, expected_error in (
+                    (browser, [], None),
+                    (f"{browser}-no-seccomp", ["--disable-seccomp-filter-sandbox"],
+                     "java.lang.AssertionError: Chromium renderer seccomp filter is missing"),
+                ):
+                    containers.append(name)
+                    docker("create", "--name", name, "--network", "none", "--init",
+                           *isolation, "--entrypoint", "java", image,
+                           "-cp", "/app/lib/*:/tmp", "BrowserSmoke", *arguments)
+                    docker("cp", str(temp / "BrowserSmoke.class"), f"{name}:/tmp/BrowserSmoke.class")
+                    result = subprocess.run(["docker", "start", "-a", name],
+                                            capture_output=True, text=True, timeout=180)
+                    code = docker("inspect", "--format", "{{.State.ExitCode}}", name)
+                    output = result.stdout + result.stderr
+                    if expected_error:
+                        if code == "0" or expected_error not in output:
+                            raise AssertionError(f"Disabled renderer seccomp was not detected: {output}")
+                        print("PASS negative: disabled Chromium seccomp filter rejected", flush=True)
+                    else:
+                        if result.returncode != 0 or code != "0":
+                            raise AssertionError(f"Packaged browser smoke test failed: {output}")
+                        print(output.strip(), flush=True)
                 print(docker("exec", app, "ffmpeg", "-version").splitlines()[0], flush=True)
+
+                docker("volume", "create", volume)
+                volume_created = True
+                for phase in ("seed", "migrate", "restart"):
+                    name = f"{network}-lmdb-{phase}"
+                    containers.append(name)
+                    options = ["--user", "0:0"] if phase == "seed" else isolation
+                    docker("create", "--name", name, "--network", "none", *options,
+                           "--mount", f"type=volume,source={volume},target=/data",
+                           "--entrypoint", "java", image,
+                           "--add-opens=java.base/java.nio=ALL-UNNAMED",
+                           "--add-opens=java.base/sun.nio.ch=ALL-UNNAMED",
+                           "-cp", "/app/lib/*:/tmp", "LmdbSmoke", phase)
+                    docker("cp", str(temp / "LmdbSmoke.class"), f"{name}:/tmp/LmdbSmoke.class")
+                    result = docker("start", "-a", name)
+                    if docker("inspect", "--format", "{{.State.ExitCode}}", name) != "0":
+                        raise AssertionError(f"LMDB migration failed: {phase}")
+                    print(result, flush=True)
+                    if phase == "seed":
+                        repair = f"{network}-permissions"
+                        containers.append(repair)
+                        # Reproduce kubelet fsGroup's group/mode repair without changing the owner.
+                        docker("run", "--name", repair, "--network", "none", "--user", "0:0",
+                               "--mount", f"type=volume,source={volume},target=/data",
+                               "--entrypoint", "sh", image, "-ec",
+                               "chown -R 0:0 /data; chmod -R go-rwx /data; "
+                               "chgrp -R 1000 /data; chmod -R g+rwX /data")
 
             docker("stop", "--time", "30", app)
             code = int(docker("inspect", "--format", "{{.State.ExitCode}}", app))
             if code not in (0, 143):
                 raise AssertionError(f"Application failed to stop gracefully: exit {code}")
             print(f"PASS {kind}: stops without SIGKILL", flush=True)
+            if kind == "api":
+                docker("start", app)
+                wait_for_http(database, app, url, kind)
+                docker("stop", "--time", "30", app)
+                if int(docker("inspect", "--format", "{{.State.ExitCode}}", app)) not in (0, 143):
+                    raise AssertionError("API failed to stop after restart")
+                print("PASS api: restarts and serves HTTP as non-root", flush=True)
         except BaseException as error:
             if isinstance(error, subprocess.CalledProcessError) and error.stderr:
                 print(error.stderr, flush=True)
@@ -159,6 +222,8 @@ def smoke(kind, image):
         finally:
             for container in reversed(containers):
                 best_effort(["docker", "rm", "-f", "-v", container])
+            if volume_created:
+                best_effort(["docker", "volume", "rm", volume])
             if network_created:
                 best_effort(["docker", "network", "rm", network])
 

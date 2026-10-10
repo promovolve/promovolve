@@ -38,11 +38,18 @@ target/ddata-{system-name}-replicator-{port}/data.mdb
 # Example: target/ddata-promovolve-replicator-25520/data.mdb
 ```
 
-**JVM flags required (Java 21+):**
+**JVM flags required (Java 25):**
 ```bash
 --add-opens=java.base/java.nio=ALL-UNNAMED
 --add-opens=java.base/sun.nio.ch=ALL-UNNAMED
+--enable-native-access=ALL-UNNAMED
 ```
+
+JDK 25 `jnativescan --release 25` over the staged API classpath reports
+`ALL-UNNAMED`. The native users are `jnr-jffi`, used by LMDB through
+lmdbjava, and `lz4-java`, used by Pekko serialization. Keep native access
+enabled on every supported API launch path; omitting it makes
+`--illegal-native-access=deny` reject those classpath dependencies.
 
 **Pros:**
 - Fast local reads

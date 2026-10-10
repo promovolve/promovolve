@@ -33,10 +33,11 @@ ThisBuild / scalacOptions :=
 Compile / run / fork := true
 Compile / run / connectInput := true
 
-// JVM flags for Java 21+ compatibility (LMDB durable DData requires access to java.nio internals)
+// LMDB durable DData uses java.nio internals and JNI on Java 25.
 Compile / run / javaOptions ++= Seq(
   "--add-opens", "java.base/java.nio=ALL-UNNAMED",
-  "--add-opens", "java.base/sun.nio.ch=ALL-UNNAMED"
+  "--add-opens", "java.base/sun.nio.ch=ALL-UNNAMED",
+  "--enable-native-access=ALL-UNNAMED"
 )
 
 lazy val root = (project in file("."))
@@ -86,10 +87,11 @@ lazy val api = (project in file("modules/api"))
     Compile / run / connectInput := true,
     // Pass environment variables to forked JVM
     Compile / run / envVars ++= sys.env,
-    // JVM flags for Java 21+ compatibility (LMDB durable DData requires access to java.nio internals)
+    // LMDB durable DData uses java.nio internals and JNI on Java 25.
     Compile / run / javaOptions ++= Seq(
       "--add-opens", "java.base/java.nio=ALL-UNNAMED",
-      "--add-opens", "java.base/sun.nio.ch=ALL-UNNAMED"
+      "--add-opens", "java.base/sun.nio.ch=ALL-UNNAMED",
+      "--enable-native-access=ALL-UNNAMED"
     ),
     // Fast dev loop (sbt-revolver): `sbt "api / ~reStart"` (scripts/dev.sh)
     // recompiles + restarts the API on every source change — same fork/env as
@@ -100,14 +102,16 @@ lazy val api = (project in file("modules/api"))
     reStart / envVars := sys.env,
     reStart / javaOptions ++= Seq(
       "--add-opens", "java.base/java.nio=ALL-UNNAMED",
-      "--add-opens", "java.base/sun.nio.ch=ALL-UNNAMED"
+      "--add-opens", "java.base/sun.nio.ch=ALL-UNNAMED",
+      "--enable-native-access=ALL-UNNAMED"
     ),
-    // Bake the same --add-opens flags into the `sbt api/stage` launcher
+    // Bake the same LMDB access flags into the `sbt api/stage` launcher
     // (modules/api/target/universal/stage/bin/api) so the container image
     // doesn't have to re-declare them. Used by Dockerfile.api.
     bashScriptExtraDefines ++= Seq(
       """addJava "--add-opens=java.base/java.nio=ALL-UNNAMED"""",
-      """addJava "--add-opens=java.base/sun.nio.ch=ALL-UNNAMED""""
+      """addJava "--add-opens=java.base/sun.nio.ch=ALL-UNNAMED"""",
+      """addJava "--enable-native-access=ALL-UNNAMED""""
     )
   )
 

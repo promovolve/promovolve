@@ -91,6 +91,22 @@ class VerifyApiRuntimeTests(unittest.TestCase):
         with self.assertRaisesRegex(RuntimeError, "no ready seccomp installer"):
             self.run_check(data)
 
+    def test_scaled_down_api_fails(self):
+        data = fixtures()
+        statefulset = data[("statefulset", "promovolve-api")]
+        statefulset["spec"]["replicas"] = 0
+        statefulset["status"]["readyReplicas"] = 0
+        data[("pods", "-l", "app=promovolve-api,tier=app")]["items"] = []
+        with self.assertRaisesRegex(RuntimeError, "no active replicas"):
+            self.run_check(data)
+
+    def test_mixed_tier_images_fail(self):
+        data = fixtures()
+        data[("statefulset", "promovolve-singleton")]["spec"]["template"]["spec"]["containers"][0]["image"] = (
+            "registry.example/api@sha256:" + "b" * 64)
+        with self.assertRaisesRegex(RuntimeError, "image references differ"):
+            self.run_check(data)
+
     def test_unreadable_or_unwritable_ddata_fails(self):
         with self.assertRaises(subprocess.CalledProcessError):
             self.run_check(fixtures(), exec_failure=True)

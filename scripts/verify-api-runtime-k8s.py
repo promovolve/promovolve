@@ -71,6 +71,11 @@ def check_tier(kubectl, tier, installer_nodes):
     for pod in pods:
         pod_name = pod["metadata"]["name"]
         require(ready(pod), f"{pod_name}: pod is not ready")
+        require(any(volume.get("name") == "ddata" and
+                    volume.get("persistentVolumeClaim", {}).get("claimName") and
+                    not volume["persistentVolumeClaim"].get("readOnly", False)
+                    for volume in pod["spec"].get("volumes", [])),
+                f"{pod_name}: DData volume is not backed by a writable PVC")
         require(pod["spec"].get("securityContext", {}).get("fsGroup") == 1000,
                 f"{pod_name}: pod fsGroup is not 1000")
         require(pod["spec"]["nodeName"] in installer_nodes,

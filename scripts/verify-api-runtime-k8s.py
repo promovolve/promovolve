@@ -2,13 +2,17 @@
 """Check the deployed API isolation contract without changing cluster state."""
 
 import argparse
+import hashlib
 import json
+from pathlib import Path
 import re
 import subprocess
 import sys
 
 
 PROFILE = "promovolve/chromium-v1.json"
+PROFILE_PATH = Path(__file__).resolve().parents[1] / "docker/chromium-seccomp.json"
+PROFILE_ANNOTATION = "promovolve.io/seccomp-sha256"
 IMAGE_DIGEST = re.compile(r"@sha256:[0-9a-f]{64}$")
 
 
@@ -28,10 +32,12 @@ def get_json(kubectl, *args):
     return json.loads(subprocess.check_output([*kubectl, "get", *args, "-o", "json"], text=True))
 
 
-def check_tier(kubectl, tier, installer_nodes):
+def check_tier(kubectl, tier, installer_nodes, profile_revision):
     name = f"promovolve-{tier}"
     statefulset = get_json(kubectl, "statefulset", name)
     spec = statefulset["spec"]
+    require(spec["template"].get("metadata", {}).get("annotations", {}).get(PROFILE_ANNOTATION)
+            == profile_revision, f"{name}: seccomp profile revision differs or is missing")
     replicas = spec.get("replicas", 1)
     require(tier != "api" or replicas > 0, f"{name}: API has no active replicas")
     require(statefulset.get("status", {}).get("readyReplicas", 0) == replicas,
@@ -71,6 +77,8 @@ def check_tier(kubectl, tier, installer_nodes):
     require(len(pods) == replicas, f"{name}: expected {replicas} pods, found {len(pods)}")
     for pod in pods:
         pod_name = pod["metadata"]["name"]
+        require(pod["metadata"].get("annotations", {}).get(PROFILE_ANNOTATION) == profile_revision,
+                f"{pod_name}: seccomp profile revision differs or is missing")
         require(ready(pod), f"{pod_name}: pod is not ready")
         require(any(volume.get("name") == "ddata" and
                     volume.get("persistentVolumeClaim", {}).get("claimName") and
@@ -110,7 +118,9 @@ def main():
     installer_nodes = {pod["spec"]["nodeName"] for pod in installers if ready(pod)}
     require(len(installer_nodes) == status["desiredNumberScheduled"],
             "Ready seccomp installers do not cover scheduled nodes")
-    images = [check_tier(kubectl, tier, installer_nodes) for tier in ("singleton", "api")]
+    profile_revision = hashlib.sha256(PROFILE_PATH.read_bytes()).hexdigest()
+    images = [check_tier(kubectl, tier, installer_nodes, profile_revision)
+              for tier in ("singleton", "api")]
     require(images[0] == images[1], "Singleton and API image references differ")
     print("PASS API runtime isolation checks")
 

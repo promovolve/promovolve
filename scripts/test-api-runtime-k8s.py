@@ -33,6 +33,7 @@ def fixtures():
     pod_spec = {
         "securityContext": {"fsGroup": 1000, "fsGroupChangePolicy": "Always"},
         "nodeName": "node-a", "containers": [container],
+        "volumes": [{"name": "ddata", "persistentVolumeClaim": {"claimName": "ddata-api-0"}}],
     }
     return {
         ("daemonset", "chromium-seccomp"): {
@@ -93,6 +94,18 @@ class VerifyApiRuntimeTests(unittest.TestCase):
     def test_unreadable_or_unwritable_ddata_fails(self):
         with self.assertRaises(subprocess.CalledProcessError):
             self.run_check(fixtures(), exec_failure=True)
+
+    def test_non_pvc_ddata_fails(self):
+        for volumes in ([], [{"name": "ddata", "emptyDir": {}}],
+                        [{"name": "ddata", "hostPath": {"path": "/data"}}],
+                        [{"name": "ddata", "persistentVolumeClaim": {"claimName": ""}}],
+                        [{"name": "ddata", "persistentVolumeClaim": {
+                            "claimName": "ddata-api-0", "readOnly": True}}]):
+            with self.subTest(volumes=volumes):
+                data = fixtures()
+                data[("pods", "-l", "app=promovolve-api,tier=app")]["items"][0]["spec"]["volumes"] = volumes
+                with self.assertRaisesRegex(RuntimeError, "writable PVC"):
+                    self.run_check(data)
 
     def test_old_statefulset_revision_fails(self):
         data = fixtures()

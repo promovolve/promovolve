@@ -6,7 +6,7 @@ package promovolve.publisher.assets
  *
  * There is no curated allow-list: Google Fonts only serves free-to-embed
  * (OFL/Apache) families, so we simply *try* to fetch whatever family a
- * creative references (see `promovolve.api.GoogleFontProvisioner`). If Google serves it,
+ * creative references (see [[https://github.com/promovolve/promovolve/blob/main/modules/api/src/main/scala/promovolve/api/GoogleFontProvisioner.scala GoogleFontProvisioner]]). If Google serves it,
  * we self-host it; a licensed / non-Google family's css2 fetch just fails and
  * the creative falls back to the snapped system font in its CSS stack. Only
  * generic CSS families and common system faces (sans-serif, Georgia, …) are

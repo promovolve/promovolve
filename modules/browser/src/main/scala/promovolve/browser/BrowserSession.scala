@@ -26,9 +26,9 @@ import scala.util.{ Failure, Random, Success, Try }
  * One session = one Chromium process. The system-wide
  * [[BrowserSessionPool]] keeps a small fixed number of sessions
  * (configured at `promovolve.browser.browser-pool.size`) and routes
- * `Render` requests across them. Per-crawl concurrency from
- * [[PlaywrightCrawler]] is now an in-flight cap against the shared
- * pool rather than a count of browsers.
+ * `Render` requests across them. Per-worker concurrency on the crawler
+ * tier caps in-flight requests against the shared pool rather than
+ * the number of browsers.
  *
  * Lazy initialization: Playwright + Browser are launched on the
  * first `Render`, not at `Behaviors.setup`. Idle sessions cost

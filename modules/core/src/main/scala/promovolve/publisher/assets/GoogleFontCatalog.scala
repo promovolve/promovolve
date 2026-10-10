@@ -6,14 +6,14 @@ package promovolve.publisher.assets
  *
  * There is no curated allow-list: Google Fonts only serves free-to-embed
  * (OFL/Apache) families, so we simply *try* to fetch whatever family a
- * creative references (see [[GoogleFontProvisioner]]). If Google serves it,
+ * creative references (see `promovolve.api.GoogleFontProvisioner`). If Google serves it,
  * we self-host it; a licensed / non-Google family's css2 fetch just fails and
  * the creative falls back to the snapped system font in its CSS stack. Only
  * generic CSS families and common system faces (sans-serif, Georgia, …) are
  * skipped outright via [[isGeneric]].
  *
  * The R2 stem is derived from the family name (lowercased, spaces→hyphens) so
- * the server and the banner ([[platform/banner-component/src/font-catalog.ts]])
+ * the server and the banner ([[https://github.com/promovolve/promovolve/blob/main/platform/banner-component/src/font-catalog.ts platform/banner-component/src/font-catalog.ts]])
  * compute the SAME slug without sharing a list. Full key:
  * `fonts/<slug>-<weight>-<variant>.woff2`, where variant is `latin` (the latin
  * subset block, deduped across creatives) or — when the creative has CJK text

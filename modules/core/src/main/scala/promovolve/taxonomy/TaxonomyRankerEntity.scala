@@ -64,7 +64,7 @@ import scala.concurrent.duration.*
  * Uses DurableStateBehavior for persistence. Stats survive restarts and are
  * recovered automatically from PostgreSQL.
  *
- * @see [[TAXONOMY_RANKING.md]] for detailed architecture documentation
+ * @see [[https://github.com/promovolve/promovolve/blob/main/modules/core/src/main/scala/promovolve/taxonomy/TAXONOMY_RANKING.md TAXONOMY_RANKING.md]] for detailed architecture documentation
  */
 object TaxonomyRankerEntity {
 

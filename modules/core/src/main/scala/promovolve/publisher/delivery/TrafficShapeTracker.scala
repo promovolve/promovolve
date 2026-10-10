@@ -9,12 +9,12 @@ import java.time.Instant
  *
  * Linear pacing assumes uniform traffic throughout the day:
  * {{{
- * Budget: $30/day
+ * Budget: \$30/day
  *
  * Linear Target:
  * Hour:    0    6    12   18   24
  *          |----|----|----|----|
- * Target:  $0  $7.5  $15  $22.5 $30
+ * Target:  \$0  \$7.5  \$15  \$22.5 \$30
  *          └─────────────────────┘ straight line
  * }}}
  *
@@ -38,7 +38,7 @@ import java.time.Instant
  * Traffic-Shaped Target:
  * Hour:    0    6    12   18   24
  *          |----|----|----|----|
- * Target:  $1   $5   $18   $26  $30
+ * Target:  \$1   \$5   \$18   \$26  \$30
  *            ╱      ╱╲
  *           ╱      ╱  ╲
  *          ╱──────╱    ╲────────
@@ -46,7 +46,7 @@ import java.time.Instant
  * }}}
  *
  * With traffic-shaped targeting:
- *  - '''Night (0-6)''': Only expect $5 spend (not $7.5) — less aggressive catch-up
+ *  - '''Night (0-6)''': Only expect \$5 spend (not \$7.5) — less aggressive catch-up
  *  - '''Peak (9-15)''': Expect bulk of budget — allow more serving
  *  - '''Evening (18-24)''': Gentle decline — smooth finish
  *

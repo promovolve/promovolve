@@ -134,6 +134,11 @@ script always passes `--context` explicitly, so it can't land in
 After the API isolation rollout, run the read-only verifier against the GKE
 context obtained with `gcloud container clusters get-credentials`:
 
+The verifier requires the StatefulSet and Pod profile-hash annotations written
+by `k8s/roll-api.sh` to match the checked-out seccomp profile. A manifest-only
+setup does not create this evidence; complete a CI Deploy or run
+`k8s/roll-api.sh YOUR_CONTEXT YOUR_API_IMAGE@sha256:DIGEST` before verification.
+
 ```sh
 python3 scripts/verify-api-runtime-k8s.py "$(kubectl config current-context)"
 ```

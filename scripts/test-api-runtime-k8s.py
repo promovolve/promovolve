@@ -2,6 +2,7 @@
 """Verify that a ready rollout passes and broken node or volume checks fail."""
 
 import importlib.util
+import hashlib
 from pathlib import Path
 import subprocess
 import sys
@@ -25,6 +26,10 @@ SECURITY = {
 
 
 def fixtures():
+    revision = hashlib.sha256(MODULE.PROFILE_PATH.read_bytes()).hexdigest()
+    def metadata():
+        return {"annotations": {MODULE.PROFILE_ANNOTATION: revision}}
+
     container = {
         "name": "api", "image": IMAGE, "securityContext": SECURITY,
         "env": [{"name": "CHROMIUM_NO_SANDBOX", "value": "false"}],
@@ -49,7 +54,7 @@ def fixtures():
             "metadata": {"generation": 2},
             "status": {"readyReplicas": 0, "observedGeneration": 2,
                        "currentRevision": "v2", "updateRevision": "v2"},
-            "spec": {"replicas": 0, "template": {"spec": {
+            "spec": {"replicas": 0, "template": {"metadata": metadata(), "spec": {
                 "securityContext": {"fsGroup": 1000, "fsGroupChangePolicy": "Always"},
                 "containers": [dict(container, name="singleton")],
             }}},
@@ -58,11 +63,11 @@ def fixtures():
             "metadata": {"generation": 2},
             "status": {"readyReplicas": 1, "observedGeneration": 2,
                        "currentRevision": "v2", "updateRevision": "v2"},
-            "spec": {"replicas": 1, "template": {"spec": pod_spec}},
+            "spec": {"replicas": 1, "template": {"metadata": metadata(), "spec": pod_spec}},
         },
         ("pods", "-l", "app=promovolve-api,tier=singleton"): {"items": []},
         ("pods", "-l", "app=promovolve-api,tier=app"): {
-            "items": [{"metadata": {"name": "promovolve-api-0"}, "spec": pod_spec,
+            "items": [{"metadata": dict(metadata(), name="promovolve-api-0"), "spec": pod_spec,
                        "status": {"conditions": [{"type": "Ready", "status": "True"}]}}],
         },
     }
@@ -84,6 +89,25 @@ class VerifyApiRuntimeTests(unittest.TestCase):
 
     def test_ready_pod_with_installer_and_ddata_access_passes(self):
         self.run_check(fixtures())
+
+    def test_missing_or_stale_profile_revision_fails(self):
+        for target in ("singleton", "api", "pod"):
+            for revision in (None, "0" * 64):
+                with self.subTest(target=target, revision=revision):
+                    data = fixtures()
+                    if target == "pod":
+                        metadata = data[("pods", "-l", "app=promovolve-api,tier=app")]["items"][0]["metadata"]
+                    else:
+                        metadata = data[("statefulset", "promovolve-" + target)]["spec"]["template"]["metadata"]
+                    metadata["annotations"] = {} if revision is None else {MODULE.PROFILE_ANNOTATION: revision}
+                    with self.assertRaisesRegex(RuntimeError, "seccomp profile revision"):
+                        self.run_check(data)
+
+    def test_changed_local_profile_requires_new_rollout(self):
+        data = fixtures()
+        with patch.object(Path, "read_bytes", return_value=b"changed profile"):
+            with self.assertRaisesRegex(RuntimeError, "seccomp profile revision"):
+                self.run_check(data)
 
     def test_pod_without_node_profile_fails(self):
         data = fixtures()

@@ -33,6 +33,7 @@ def check_tier(kubectl, tier, installer_nodes):
     statefulset = get_json(kubectl, "statefulset", name)
     spec = statefulset["spec"]
     replicas = spec.get("replicas", 1)
+    require(tier != "api" or replicas > 0, f"{name}: API has no active replicas")
     require(statefulset.get("status", {}).get("readyReplicas", 0) == replicas,
             f"{name}: StatefulSet is not fully ready")
     require(statefulset.get("status", {}).get("observedGeneration", 0) >=
@@ -88,6 +89,7 @@ def check_tier(kubectl, tier, installer_nodes):
                         'test "$(id -u)" = 1000; test "$(id -g)" = 1000; '
                         "test -r /data/ddata; test -w /data/ddata"], check=True)
         print(f"PASS {pod_name}: ready, isolated, DData accessible")
+    return container["image"]
 
 
 def main():
@@ -108,8 +110,8 @@ def main():
     installer_nodes = {pod["spec"]["nodeName"] for pod in installers if ready(pod)}
     require(len(installer_nodes) == status["desiredNumberScheduled"],
             "Ready seccomp installers do not cover scheduled nodes")
-    for tier in ("singleton", "api"):
-        check_tier(kubectl, tier, installer_nodes)
+    images = [check_tier(kubectl, tier, installer_nodes) for tier in ("singleton", "api")]
+    require(images[0] == images[1], "Singleton and API image references differ")
     print("PASS API runtime isolation checks")
 
 

@@ -129,6 +129,35 @@ script always passes `--context` explicitly, so it can't land in
 - **DNS must stay grey-cloud** (DNS-only) at Cloudflare: managed-cert
   issuance/renewal needs the hostnames to resolve straight to the LB.
 
+## API runtime isolation verification
+
+After the API isolation rollout, run the read-only verifier against the GKE
+context obtained with `gcloud container clusters get-credentials`:
+
+The verifier identity needs get/list access to DaemonSets, StatefulSets and Pods,
+plus create access to `pods/exec` for the non-mutating runtime checks.
+
+The verifier requires the StatefulSet and Pod profile-hash annotations written
+by `k8s/roll-api.sh` to match the checked-out seccomp profile. A manifest-only
+setup does not create this evidence; complete a CI Deploy or run
+`k8s/roll-api.sh YOUR_CONTEXT YOUR_API_IMAGE@sha256:DIGEST` before verification.
+
+```sh
+python3 scripts/verify-api-runtime-k8s.py "$(kubectl config current-context)"
+```
+
+It checks that each ready seccomp installer's mounted source and installed
+profile match the checkout, the installer covers each API node, both active
+StatefulSet revisions are ready with pinned images and non-root security
+settings, and each running API container has UID/GID 1000 and read/write
+access to its mounted DData directory. Run it again after a pod restart to
+check the existing PVC mount. This does not write to PVCs or prove that
+Chromium's renderer installed its own seccomp filter; the Docker browser smoke
+test covers the latter, and a real browser request on GKE is still required
+for end-to-end confirmation. Before merging, confirm that the Deploy identity
+can apply ConfigMaps and DaemonSets and patch/watch StatefulSets in the
+`promovolve` namespace. Check the hosted Deploy result after the rollout.
+
 ## Spot caveats
 
 - A preemption (30s notice) looks like a full cluster restart: both api

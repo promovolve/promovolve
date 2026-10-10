@@ -134,6 +134,9 @@ script always passes `--context` explicitly, so it can't land in
 After the API isolation rollout, run the read-only verifier against the GKE
 context obtained with `gcloud container clusters get-credentials`:
 
+The verifier identity needs get/list access to DaemonSets, StatefulSets and Pods,
+plus create access to `pods/exec` for the non-mutating runtime checks.
+
 The verifier requires the StatefulSet and Pod profile-hash annotations written
 by `k8s/roll-api.sh` to match the checked-out seccomp profile. A manifest-only
 setup does not create this evidence; complete a CI Deploy or run
@@ -143,7 +146,8 @@ setup does not create this evidence; complete a CI Deploy or run
 python3 scripts/verify-api-runtime-k8s.py "$(kubectl config current-context)"
 ```
 
-It checks that the seccomp installer is ready on each API node, both active
+It checks that each ready seccomp installer's mounted source and installed
+profile match the checkout, the installer covers each API node, both active
 StatefulSet revisions are ready with pinned images and non-root security
 settings, and each running API container has UID/GID 1000 and read/write
 access to its mounted DData directory. Run it again after a pod restart to

@@ -1,19 +1,4 @@
 services:
-  app:
-    build: .
-    container_name: promovolve-app
-    ports:
-      - "${DEV_BIND_ADDRESS:-127.0.0.1}:9090:9090"  # Creative Assessment UI
-    environment:
-      - GEMINI_API_KEY=${GEMINI_API_KEY}
-      - POSTGRES_HOST=postgres
-      - POSTGRES_USER=promovolve
-      - POSTGRES_PASSWORD=promovolve
-      - POSTGRES_DB=promovolve
-    depends_on:
-      postgres:
-        condition: service_healthy
-
   postgres:
     image: timescale/timescaledb:latest-pg15
     container_name: promovolve-db

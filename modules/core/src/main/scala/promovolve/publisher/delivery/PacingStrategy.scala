@@ -14,11 +14,11 @@ import java.time.{ Duration, Instant }
  * {{{
  * Linear (no trafficShape):
  * Hour:    0    6    12   18   24
- * Target:  $0  $7.5  $15  $22.5 $30  (straight line)
+ * Target:  \$0  \$7.5  \$15  \$22.5 \$30  (straight line)
  *
  * Traffic-Shaped (with trafficShape):
  * Hour:    0    6    12   18   24
- * Target:  $1   $5   $18   $26  $30  (follows traffic CDF)
+ * Target:  \$1   \$5   \$18   \$26  \$30  (follows traffic CDF)
  * }}}
  *
  * @see [[TrafficShapeTracker]] for traffic pattern learning

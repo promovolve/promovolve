@@ -157,7 +157,7 @@ lazy val commonSettings = Seq(
     // Slick 3.6 crosses the PVP binary-compatibility boundary used by the Pekko JDBC/Projection artifacts.
     "com.typesafe.slick"     %% "slick"                        % "3.5.2",
     "com.typesafe.slick"     %% "slick-hikaricp"               % "3.5.2",
-    "org.postgresql"          % "postgresql"                   % "42.7.8",
+    "org.postgresql"          % "postgresql"                   % "42.7.13",
     // Pekko Projection (for dashboard read-side)
     "org.apache.pekko"       %% "pekko-projection-core"        % pekkoProjectionVersion,
     "org.apache.pekko"       %% "pekko-projection-slick"       % pekkoProjectionVersion,

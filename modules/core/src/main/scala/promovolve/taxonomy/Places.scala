@@ -365,29 +365,62 @@ object Places {
     def named(o: Option[String]): Option[String] = o.map(_.trim).filter(_.nonEmpty)
     val (cityName, regionName, countryName) = (named(city), named(region), named(country))
 
-    countryName.flatMap(resolveCountry).map { countryPlace =>
-      val sub = regionName.flatMap(n => resolveSubdivision(n, countryPlace.code))
-      val inSub = for { s <- sub; n <- cityName; p <- resolveCity(n, s.code) } yield p
-      val cityPlace = inSub.orElse(cityName.flatMap(n => resolveCity(n, countryPlace.code)))
-
-      // A city that resolved only OUTSIDE the stated region, while
-      // carrying a region of its own, says the region was wrong. A city
-      // with no region at all says only that our table never linked it.
-      val contradiction = for {
-        s <- sub if inSub.isEmpty
-        p <- cityPlace
-        owner <- ancestors(p.code).find(_.kind == PlaceKind.Subdivision)
-        if owner.code != s.code
-        stated <- regionName
-      } yield s"$stated (${p.name} is in ${owner.name})"
-
-      val unresolved =
-        regionName.filter(_ => sub.isEmpty).toList ++
-        cityName.filter(_ => cityPlace.isEmpty).toList ++
-        contradiction.toList
-
-      ResolvedPlace(cityPlace.orElse(sub).getOrElse(countryPlace).code, unresolved)
+    countryName.flatMap(resolveCountry).map { stated =>
+      val viaRegion = regionName.flatMap(ownCountry(_, stated))
+      val viaCity = cityName.filter(resolveCity(_, stated.code).isEmpty).flatMap(ownCountry(_, stated))
+      viaRegion.orElse(viaCity) match {
+        case Some(own) =>
+          // The name that identified the country is used up by it — kept
+          // as the city only where it is one too (Macau is both).
+          val ownCity = if (viaRegion.isDefined) cityName else cityName.filter(resolveCity(_, own.code).isDefined)
+          resolveWithin(own, None, ownCity)
+        case None => resolveWithin(stated, regionName, cityName)
+      }
     }
+  }
+
+  /**
+   * Places ISO 3166-2 lists BOTH as a subdivision and as a country of their
+   * own: CN-MO and MO are both Macau. Cities hang off the country, and so
+   * does an advertiser who targets Macao, so a page about Macau must land on
+   * MO even when the model files it under China — as most English text does.
+   * Explicit rather than derived from the codes: CN-MO ↔ MO is the same
+   * place, but US-IN ↔ IN is Indiana and India.
+   */
+  private val AlsoCountries: Set[String] = Set(
+    "CN-HK", "CN-MO", "CN-TW", "NL-AW", "NL-CW", "NL-SX",
+    "US-AS", "US-GU", "US-MP", "US-PR", "US-UM", "US-VI")
+
+  /** The country `name` refers to, when it is one of `within`'s [[AlsoCountries]]. */
+  private def ownCountry(name: String, within: Place): Option[Place] =
+    resolveSubdivision(name, within.code).map(_.code)
+      .orElse(resolveCountry(name).map(c => s"${within.code}-${c.code}"))
+      .filter(AlsoCountries)
+      .flatMap(sub => byCode.get(sub.drop(within.code.length + 1)))
+
+  private def resolveWithin(countryPlace: Place, regionName: Option[String], cityName: Option[String])
+      : ResolvedPlace = {
+    val sub = regionName.flatMap(n => resolveSubdivision(n, countryPlace.code))
+    val inSub = for { s <- sub; n <- cityName; p <- resolveCity(n, s.code) } yield p
+    val cityPlace = inSub.orElse(cityName.flatMap(n => resolveCity(n, countryPlace.code)))
+
+    // A city that resolved only OUTSIDE the stated region, while
+    // carrying a region of its own, says the region was wrong. A city
+    // with no region at all says only that our table never linked it.
+    val contradiction = for {
+      s <- sub if inSub.isEmpty
+      p <- cityPlace
+      owner <- ancestors(p.code).find(_.kind == PlaceKind.Subdivision)
+      if owner.code != s.code
+      stated <- regionName
+    } yield s"$stated (${p.name} is in ${owner.name})"
+
+    val unresolved =
+      regionName.filter(_ => sub.isEmpty).toList ++
+      cityName.filter(_ => cityPlace.isEmpty).toList ++
+      contradiction.toList
+
+    ResolvedPlace(cityPlace.orElse(sub).getOrElse(countryPlace).code, unresolved)
   }
 
   /** Keep only codes this vocabulary knows. The validation gate. */

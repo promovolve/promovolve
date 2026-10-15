@@ -275,6 +275,7 @@ jobs:
           persist-credentials: false
       - uses: docker/setup-buildx-action@f87e5991a6d7451dcb8d9637bfbc97413f497069 # v4.4.1
       - run: python3 scripts/test-docker-config.py
+      - run: python3 scripts/test-api-isolation.py
 
   docker-changes:
     name: Select Docker image checks
@@ -302,6 +303,9 @@ jobs:
             api:
               - '.github/workflows/ci.yml'
               - 'Dockerfile.api'
+              - 'docker/chromium-seccomp.json'
+              - 'k8s/roll-api.sh'
+              - 'k8s/runtime-security/**'
               - '.dockerignore'
               - 'build.sbt'
               - 'project/**'

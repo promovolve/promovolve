@@ -17,6 +17,11 @@ staging-grade and cost-shaped (~**$65–75/mo**, see below).
 
 ## Bring-up
 
+This setup targets GKE Standard. It installs a node-local Chromium seccomp
+profile before applying the application workloads; the installer requires root
+access to its dedicated kubelet hostPath. Autopilot and policies forbidding that
+hostPath need a different profile provisioning mechanism. Deploy includes the [API runtime migration](../docker/README.md) automatically.
+
 ```sh
 gcloud auth login                 # interactive, once
 k8s-gke/setup.sh                  # idempotent: project → IP → cluster → deploy → verify

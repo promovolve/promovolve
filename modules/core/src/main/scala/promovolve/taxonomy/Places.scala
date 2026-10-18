@@ -428,6 +428,20 @@ object Places {
 
   def size: Int = byCode.size
 
+  // GeoNames continent code per country ("JP" -> "AS"); the third column
+  // of countries.tsv, blank for none.
+  private lazy val continents: Map[String, String] =
+    loadTsv(s"$CountriesPath.tsv", 3)(cols => cols(0) -> cols(2)).filter(_._2.nonEmpty).toMap
+
+  /**
+   * The continent (GeoNames code: AF, AN, AS, EU, NA, OC, SA) a place is
+   * in, from its country — `GN1860243` (Kanazawa) → `AS`. None for an
+   * unknown code.
+   */
+  def continentOf(code: String): Option[String] = (byCode.get(code).toList ++ ancestors(code))
+    .find(_.kind == PlaceKind.Country)
+    .flatMap(c => continents.get(c.code))
+
   /**
    * Enclosing places, nearest first: `GN1860672` → `[JP-14, JP]`.
    * Excludes the place itself. Cycle-guarded — a malformed table must
@@ -574,7 +588,7 @@ object Places {
     java.text.Normalizer.normalize(decomposed, java.text.Normalizer.Form.NFC)
   }
 
-  private def loadTsv(resourcePath: String, minCols: Int)(build: Array[String] => Place): Vector[Place] =
+  private def loadTsv[A](resourcePath: String, minCols: Int)(build: Array[String] => A): Vector[A] =
     Option(getClass.getResourceAsStream(resourcePath)) match {
       case None =>
         // A missing table is a packaging fault, not a runtime condition —

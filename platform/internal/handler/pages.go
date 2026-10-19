@@ -349,7 +349,9 @@ func (h *Handler) renderPublisherSites(w http.ResponseWriter, r *http.Request, e
 			Domain:       sr.Domain,
 			SiteID:       sr.SiteID,
 			Status:       sr.Status,
-			RejectReason: sr.RejectReason,
+			// A system reason (released, #285) is a catalog key; an
+			// admin-typed reason has no entry and passes through as written.
+			RejectReason: i18n.T(h.lang(r, user), sr.RejectReason),
 			RequestedAt:  sr.CreatedAt.In(user.Location()).Format("2006-01-02 15:04"),
 		})
 	}

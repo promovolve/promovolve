@@ -6,6 +6,7 @@ import (
 	"encoding/json"
 	"fmt"
 	"io"
+	"log/slog"
 	"net/http"
 	"strings"
 	"time"
@@ -237,4 +238,90 @@ func reservedHost(domain string, hosts []string) bool {
 		}
 	}
 	return false
+}
+
+// UnverifiedReleaseReason is the card text a publisher sees after release.
+// A fixed sentence so the Sites page can translate it.
+const UnverifiedReleaseReason = "Released: the site was not verified within 14 days of approval. Add it again to retry."
+
+// ReleaseUnverified deletes every site approved more than maxAge ago that
+// still has not verified, so an abandoned registration stops holding the
+// domain against its real owner (#285). The core decides: a site is
+// released only when it answers with this request's domain and
+// "unverified". A failed lookup, a deleted site or a verified one is left
+// alone; the next sweep looks again.
+func (s *Service) ReleaseUnverified(ctx context.Context, maxAge time.Duration) {
+	reqs, err := s.repo.ListApprovedBefore(ctx, time.Now().Add(-maxAge))
+	if err != nil {
+		slog.Error("unverified-site sweep: list failed", "error", err)
+		return
+	}
+	for _, req := range reqs {
+		if !s.siteUnverified(ctx, req) {
+			continue
+		}
+		if err := s.deleteSite(ctx, req); err != nil {
+			slog.Error("unverified-site sweep: delete failed", "siteId", req.SiteID, "error", err)
+			continue
+		}
+		if err := s.repo.MarkReleased(ctx, req.ID, UnverifiedReleaseReason); err != nil {
+			slog.Error("unverified-site sweep: mark released failed", "siteId", req.SiteID, "error", err)
+			continue
+		}
+		slog.Warn("released unverified site", "siteId", req.SiteID, "domain", req.Domain,
+			"publisherId", req.PublisherID, "approvedAt", req.ReviewedAt)
+	}
+}
+
+// RunReleaseLoop sweeps once at start, then every interval until ctx ends.
+func (s *Service) RunReleaseLoop(ctx context.Context, maxAge, interval time.Duration) {
+	t := time.NewTicker(interval)
+	defer t.Stop()
+	for {
+		s.ReleaseUnverified(ctx, maxAge)
+		select {
+		case <-ctx.Done():
+			return
+		case <-t.C:
+		}
+	}
+}
+
+func (s *Service) siteUnverified(ctx context.Context, req model.SiteRequest) bool {
+	url := fmt.Sprintf("%s/v1/publishers/%s/sites/%s", s.coreAPIURL, req.PublisherID, req.SiteID)
+	httpReq, err := http.NewRequestWithContext(ctx, http.MethodGet, url, nil)
+	if err != nil {
+		return false
+	}
+	resp, err := coreClient.Do(httpReq)
+	if err != nil {
+		return false
+	}
+	defer resp.Body.Close()
+	var site struct {
+		Domain             string `json:"domain"`
+		VerificationStatus string `json:"verificationStatus"`
+	}
+	if resp.StatusCode != http.StatusOK || json.NewDecoder(resp.Body).Decode(&site) != nil {
+		return false
+	}
+	return site.VerificationStatus == "unverified" && strings.EqualFold(site.Domain, req.Domain)
+}
+
+func (s *Service) deleteSite(ctx context.Context, req model.SiteRequest) error {
+	url := fmt.Sprintf("%s/v1/publishers/%s/sites/%s", s.coreAPIURL, req.PublisherID, req.SiteID)
+	httpReq, err := http.NewRequestWithContext(ctx, http.MethodDelete, url, nil)
+	if err != nil {
+		return err
+	}
+	resp, err := coreClient.Do(httpReq)
+	if err != nil {
+		return err
+	}
+	defer resp.Body.Close()
+	if resp.StatusCode != http.StatusNoContent {
+		body, _ := io.ReadAll(resp.Body)
+		return fmt.Errorf("core delete: %d %s", resp.StatusCode, body)
+	}
+	return nil
 }

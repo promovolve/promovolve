@@ -125,6 +125,9 @@ func main() {
 	settleCtx, stopSettler := context.WithCancel(context.Background())
 	defer stopSettler()
 	go settler.Run(settleCtx)
+	// An approved site that never verifies is released after 14 days, so it
+	// stops holding the domain against its real owner (#285).
+	go siteReqSvc.RunReleaseLoop(settleCtx, 14*24*time.Hour, time.Hour)
 
 	// The deployment's currency is a setup-time constant. Read it once, before
 	// anything renders. An unreadable or unsupported stored code is fatal:

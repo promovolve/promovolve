@@ -5,6 +5,8 @@ import (
 	"net/http"
 	"net/http/httptest"
 	"testing"
+
+	"github.com/hanishi/promovolve/platform/internal/model"
 )
 
 // siteLive turns a publisher_sites projection hit into a block only when the
@@ -73,5 +75,37 @@ func TestReservedHost(t *testing.T) {
 		if got := reservedHost(domain, hosts); got != want {
 			t.Errorf("reservedHost(%q) = %v, want %v", domain, got, want)
 		}
+	}
+}
+
+// A site is released only on an explicit "unverified" for THIS domain. Every
+// other answer — verified, gone, a placeholder, a core error — keeps it.
+func TestSiteUnverified(t *testing.T) {
+	cases := []struct {
+		name   string
+		status int
+		body   string
+		want   bool
+	}{
+		{"unverified, same domain", http.StatusOK, `{"domain":"Promovolve.org","verificationStatus":"unverified"}`, true},
+		{"verified", http.StatusOK, `{"domain":"promovolve.org","verificationStatus":"verified"}`, false},
+		{"empty placeholder", http.StatusOK, `{"domain":"","verificationStatus":"unverified"}`, false},
+		{"deleted", http.StatusBadRequest, `{"code":"site_not_found"}`, false},
+		{"core error", http.StatusInternalServerError, `{"code":"get_site_failed"}`, false},
+		{"unparseable", http.StatusOK, `<html>`, false},
+	}
+	for _, tc := range cases {
+		t.Run(tc.name, func(t *testing.T) {
+			srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+				w.WriteHeader(tc.status)
+				w.Write([]byte(tc.body))
+			}))
+			defer srv.Close()
+			s := &Service{coreAPIURL: srv.URL}
+			req := model.SiteRequest{PublisherID: "pub-1", SiteID: "promovolve-org", Domain: "promovolve.org"}
+			if got := s.siteUnverified(context.Background(), req); got != tc.want {
+				t.Errorf("siteUnverified = %v, want %v", got, tc.want)
+			}
+		})
 	}
 }

@@ -4,6 +4,7 @@ import (
 	"context"
 	"errors"
 	"strings"
+	"time"
 
 	"github.com/jackc/pgx/v5"
 	"github.com/jackc/pgx/v5/pgxpool"
@@ -192,4 +193,36 @@ func (r *Repository) Delete(ctx context.Context, id, publisherID string) error {
 		return ErrNotFound
 	}
 	return nil
+}
+
+// ListApprovedBefore returns approved requests reviewed before cutoff — the
+// candidates for releasing a site that never verified (#285). Approved rows
+// for sites that did verify, or were deleted since, come back too; the
+// caller asks the core which they are.
+func (r *Repository) ListApprovedBefore(ctx context.Context, cutoff time.Time) ([]model.SiteRequest, error) {
+	rows, err := r.pool.Query(ctx, `
+		SELECT `+requestColumns+` FROM site_requests
+		WHERE status = 'approved' AND reviewed_at < $1`, cutoff)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	var out []model.SiteRequest
+	for rows.Next() {
+		req, err := scanRequest(rows)
+		if err != nil {
+			return nil, err
+		}
+		out = append(out, *req)
+	}
+	return out, rows.Err()
+}
+
+// MarkReleased turns an approved request whose site was released back into a
+// rejected card, so the publisher sees why the site is gone.
+func (r *Repository) MarkReleased(ctx context.Context, id, reason string) error {
+	_, err := r.pool.Exec(ctx, `
+		UPDATE site_requests SET status = 'rejected', reject_reason = $2, updated_at = NOW()
+		WHERE id = $1 AND status = 'approved'`, id, reason)
+	return err
 }

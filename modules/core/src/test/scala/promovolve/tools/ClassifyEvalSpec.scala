@@ -3,7 +3,7 @@ package promovolve.tools
 import org.scalatest.matchers.should.Matchers
 import org.scalatest.wordspec.AnyWordSpec
 
-import promovolve.tools.ClassifyEval.{Expect, Verdict}
+import promovolve.tools.ClassifyEval.{ Expect, Verdict }
 
 class ClassifyEvalSpec extends AnyWordSpec with Matchers {
 

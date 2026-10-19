@@ -146,7 +146,7 @@ cleanup() {
 trap cleanup EXIT INT TERM
 
 echo "Starting PostgreSQL..."
-"${compose[@]}" up -d postgres
+"${compose[@]}" up -d
 for _ in {1..60}; do
   db_status=$(docker inspect --format '{{if .State.Health}}{{.State.Health.Status}}{{else}}{{.State.Status}}{{end}}' promovolve-db 2>/dev/null || true)
   if [ "$db_status" = "healthy" ] || [ "$db_status" = "running" ]; then

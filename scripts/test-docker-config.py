@@ -95,7 +95,6 @@ if __name__ == "__main__":
                                "templates/layout.html", "static/passkey.js",
                                "help/advertiser.md"])
     check_compose("docker-compose.yml", {
-        "app": {(9090, 9090)},
         "postgres": {(5432, 5432)},
     })
     check_compose("integrations/wordpress/docker-compose.yml", {

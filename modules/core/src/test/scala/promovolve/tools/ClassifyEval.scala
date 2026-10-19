@@ -143,7 +143,14 @@ object ClassifyEval {
       val hit = actual.exists(a => accepted.contains(a) || ancestorsOf(a).exists(accepted.contains))
       // the model stopped at a parent of what we wanted
       val broad = actual.exists(a => accepted.exists(x => ancestorsOf(x).contains(a)))
-      if (hit) Verdict.Hit else if (broad) Verdict.Broad else Verdict.Wrong
+      // a SIBLING of what we wanted contradicts it — Europe Travel on a
+      // Japan page is wrong even beside Asia Travel. Unrelated extras
+      // (Food & Drink on a travel page) are not judged.
+      def related(a: String, x: String) = a == x || ancestorsOf(a).contains(x) || ancestorsOf(x).contains(a)
+      def parentOf(id: String) = TieredCategory.get(id).flatMap(_.parent).map(_.id)
+      val contradicts = actual.exists(a =>
+        parentOf(a).isDefined && !accepted.exists(related(a, _)) && accepted.exists(x => parentOf(x) == parentOf(a)))
+      if (contradicts) Verdict.Wrong else if (hit) Verdict.Hit else if (broad) Verdict.Broad else Verdict.Wrong
     }
 
   private[tools] def scorePlaces(e: Expect, actual: Vector[String]): Verdict =

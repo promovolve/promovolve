@@ -51,6 +51,10 @@ spec:
         tier: app             # distinguishes from the crawler tier (LB targets this)
     spec:
       # ServiceAccount with pod-list RBAC for Kubernetes API discovery.
+      securityContext:
+        # Always repair group access on existing root-owned LMDB files.
+        fsGroup: 1000
+        fsGroupChangePolicy: Always
       serviceAccountName: promovolve-api
       # Private Docker Hub repos → credentials needed to pull.
       # Create `regcred` in the promovolve namespace (see k8s/README.md).
@@ -110,6 +114,16 @@ spec:
       containers:
         - name: api
           image: promovolve/api:dev
+          securityContext:
+            runAsNonRoot: true
+            runAsUser: 1000
+            runAsGroup: 1000
+            allowPrivilegeEscalation: false
+            capabilities:
+              drop: [ALL]
+            seccompProfile:
+              type: Localhost
+              localhostProfile: promovolve/chromium-v1.json
           # Pulled from Docker Hub (via Docker Desktop's registry mirror).
           # kustomize rewrites the name to docker.io/<your-namespace>/...
           # Always, because the :dev tag is mutable.
@@ -181,6 +195,9 @@ spec:
               value: "$(POD_IP)"
             - name: PEKKO_CLUSTER_BOOTSTRAP
               value: "on"
+            # Override any legacy ConfigMap value that disabled Chromium isolation.
+            - name: CHROMIUM_NO_SANDBOX
+              value: "false"
             # Points request-hygiene at the ASN db the init container fetched.
             # Absent/corrupt → HttpBootstrap fails open (see FRAUD_PREVENTION.md).
             - name: FRAUD_ASN_DB_PATH
@@ -257,8 +274,7 @@ spec:
               # including the Chromium pool.
               memory: 2048Mi
       volumes:
-        # Chromium is unhappy with the default 64MB /dev/shm; --disable-dev-shm-usage
-        # (set via CHROMIUM_NO_SANDBOX) plus this larger tmpfs keeps renders stable.
+        # Keep shared-memory capacity available for Chromium renderers.
         - name: dshm
           emptyDir:
             medium: Memory

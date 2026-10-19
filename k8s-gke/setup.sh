@@ -308,6 +308,35 @@ if [ "${ALLOW_OPEN_PINS:-0}" -ne 1 ] && command -v gh >/dev/null 2>&1; then
   [ -z "$open_pins" ] || die "a CI pin-back PR is still open ($open_pins) — the repo's pins lag the cluster. Merge it (or wait for auto-merge), then re-run; --allow-open-pins overrides."
 fi
 
+echo "==> installing Chromium seccomp profiles"
+kubectl kustomize --load-restrictor LoadRestrictionsNone "$KDIR/../k8s/runtime-security" | kcg apply -f -
+kc rollout status daemonset/chromium-seccomp --timeout=180s
+
+# Applying the new securityContext to a legacy root-only image would make its
+# launcher unexecutable. Existing clusters must migrate image and UID together.
+migration_needed=0
+existing_tiers=0
+for tier in singleton api; do
+  if lookup=$(kc get statefulset "promovolve-$tier" -o name 2>&1); then
+    existing_tiers=$((existing_tiers + 1))
+    run_as_user=$(kc get statefulset "promovolve-$tier" \
+      -o jsonpath='{.spec.template.spec.containers[0].securityContext.runAsUser}')
+    [ "$run_as_user" = "1000" ] || migration_needed=1
+  elif [[ "$lookup" != *"(NotFound)"* ]]; then
+    die "cannot inspect promovolve-$tier before runtime migration: $lookup"
+  fi
+done
+if [ "$existing_tiers" -eq 1 ]; then
+  die "partial API deployment detected; restore both StatefulSets before runtime migration"
+fi
+if [ "$migration_needed" -eq 1 ]; then
+  if [ "$BUILD_IMAGES" -eq 1 ]; then
+    "$KDIR/../k8s/roll-api.sh" "$CTX" "${REGISTRY}/promovolve-api@${API_DIGEST}"
+  else
+    die "existing API workloads need an atomic runtime migration; wait for CI Deploy or re-run with --build-images"
+  fi
+fi
+
 echo "==> applying manifests (kustomize overlay k8s-gke, registry ${REGISTRY})"
 render | kcg apply -f -
 

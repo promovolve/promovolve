@@ -109,6 +109,10 @@ else
 fi
 
 # --- 3. deploy (idempotent; apply reconciles) ------------------------------
+echo "==> installing Chromium seccomp profiles"
+kubectl kustomize --load-restrictor LoadRestrictionsNone "$KDIR/runtime-security" | kubectl apply -f -
+kc rollout status daemonset/chromium-seccomp --timeout=180s
+
 echo "==> applying manifests (kustomize)"
 kubectl kustomize --load-restrictor LoadRestrictionsNone "$KDIR" | kubectl apply -f -
 

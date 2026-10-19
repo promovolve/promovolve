@@ -6,10 +6,10 @@
 #   empty = not checked.   `-` = must be empty (inventing one is a fail).
 # Ids: IAB Content Taxonomy 3.0 (modules/core/src/main/resources/iab_content_taxonomy/3_0.tsv);
 #      places = codes from the Places table (JP, JP-17, GN1860243).
-https://programmer.llc/kanazawa-3days/	653|664|655|657	GN1860243|JP-17	金沢、二泊三日の歩き方 — the Kanazawa test page
-https://programmer.llc/kanazawa-oden/	210|214|218|653	GN1860243|JP-17	金沢おでん — food in a named city
-https://programmer.llc/kinosaki-sotoyu/	671|653|664	GN1849831|JP-28	城崎温泉 — smaller than a city: Toyooka or Hyogo, never empty
-https://programmer.llc/tainan-breakfast/	210|218|653|657	TW-TNN|TW	台南の朝ごはん
+https://programmer.llc/kanazawa-3days/	657	GN1860243|JP-17	金沢、二泊三日の歩き方 — the Kanazawa test page
+https://programmer.llc/kanazawa-oden/	210|214|218|657	GN1860243|JP-17	金沢おでん — food in a named city
+https://programmer.llc/kinosaki-sotoyu/	657|671	GN1849831|JP-28	城崎温泉 — smaller than a city: Toyooka or Hyogo, never empty
+https://programmer.llc/tainan-breakfast/	210|218|657	TW-TNN|TW	台南の朝ごはん
 https://programmer.llc/business-halfday/	676|653|53		出張の半日 — business travel; names 金沢/台南 as examples and the live tag sends data-place=Kanazawa, so place is deliberately not asserted
 https://programmer.llc/carry-on-only/	654|653|675	-	機内持ち込みだけで一週間 — gear, about nowhere in particular
 https://programmer.llc/category/travel/	653		archive: 旅行
@@ -18,3 +18,11 @@ https://programmer.llc/category/food/	210		archive: 食べる
 https://programmer.llc/category/gear/	654|653		archive: 道具
 https://programmer.llc/category/trip/	676|653		archive: 出張
 https://programmer.llc/	653		homepage — a blend; travel at most, no place asserted
+# #275: a page about visiting somewhere is Travel Locations (Asia Travel 657), not plain Travel 653 (scored broad).
+https://demo.promovolve.org/en/macau-weekend-guide/	657	MO	Macau, EN — was plain Travel + CN
+https://demo.promovolve.org/macau-weekend/	657	MO	マカオ, JA — was Asia Travel + no place
+https://demo.promovolve.org/en/seoul-weekend-guide/	657	KR	Seoul, EN
+https://demo.promovolve.org/en/bangkok-weekend-guide/	657	TH	Bangkok, EN
+https://demo.promovolve.org/en/taipei-weekend-guide/	657	TW	Taipei, EN — Taiwan as its own country
+https://demo.promovolve.org/en/hakone-hot-springs/	657|671	JP	Hakone onsen, EN
+https://demo.promovolve.org/en/packing-light-for-japan/	654|663		packing advice — must NOT be pulled to Asia Travel by the new rule

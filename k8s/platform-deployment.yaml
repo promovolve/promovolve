@@ -46,6 +46,15 @@ spec:
                 configMapKeyRef:
                   name: api-config
                   key: BANNER_SCRIPT_URL
+            # The ad server's public host. Read only to refuse it as a
+            # publisher site (config.ReservedHosts); optional so a cluster
+            # without it still boots.
+            - name: TRACKING_BASE_URL
+              valueFrom:
+                configMapKeyRef:
+                  name: api-config
+                  key: TRACKING_BASE_URL
+                  optional: true
           envFrom:
             - configMapRef:
                 name: platform-config

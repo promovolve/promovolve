@@ -7,6 +7,7 @@ import (
 	"fmt"
 	"io"
 	"net/http"
+	"strings"
 	"time"
 
 	"github.com/hanishi/promovolve/platform/internal/model"
@@ -24,6 +25,11 @@ type Service struct {
 	// install: a floor is the one setting with no sensible cross-currency
 	// default, since $0.50 reads as a reserve and ¥0.50 as none at all.
 	floors FloorDefaults
+	// ReservedHosts are the deployment's own public hosts (dashboard, ad
+	// server, CDN). A site request for one of them, or a subdomain of one,
+	// is refused before it reaches the admin queue. Sibling hosts stay
+	// open: the operator may run real publisher sites next to them.
+	ReservedHosts []string
 }
 
 // FloorDefaults reads the operator's configured floors. Satisfied by
@@ -67,6 +73,9 @@ func floorStrings(ctx context.Context, f FloorDefaults) (start, min string) {
 // this flow. A projection hit is therefore confirmed against the core API
 // before it blocks the request.
 func (s *Service) Request(ctx context.Context, publisherID, requestedBy, siteID, domain, pageURL string) error {
+	if reservedHost(domain, s.ReservedHosts) {
+		return ErrReservedHost
+	}
 	if owner, found, err := s.repo.LiveSiteOwner(ctx, siteID, domain); err != nil {
 		return err
 	} else if found && s.siteLive(ctx, owner, siteID) {
@@ -217,4 +226,15 @@ func (s *Service) provisionSite(req *model.SiteRequest) error {
 		return fmt.Errorf("core API returned %d", resp.StatusCode)
 	}
 	return nil
+}
+
+// reservedHost reports whether domain is one of hosts or a subdomain of one.
+func reservedHost(domain string, hosts []string) bool {
+	d := strings.TrimSuffix(strings.ToLower(domain), ".")
+	for _, h := range hosts {
+		if d == h || strings.HasSuffix(d, "."+h) {
+			return true
+		}
+	}
+	return false
 }

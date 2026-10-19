@@ -55,3 +55,23 @@ func TestSiteLiveUnreachableCoreStaysLive(t *testing.T) {
 		t.Error("unreachable core must count as live (conservative)")
 	}
 }
+
+// The deployment's own hosts and their subdomains are refused; sibling hosts
+// on the same registrable domain are real publisher sites and stay open.
+func TestReservedHost(t *testing.T) {
+	hosts := []string{"promovolve.programmer.llc", "ads.programmer.llc"}
+	for domain, want := range map[string]bool{
+		"ads.programmer.llc":        true,
+		"ADS.programmer.llc.":       true,
+		"x.ads.programmer.llc":      true,
+		"promovolve.programmer.llc": true,
+		"programmer.llc":            false,
+		"blog.programmer.llc":       false,
+		"demo.promovolve.org":       false,
+		"badads.programmer.llc":     false,
+	} {
+		if got := reservedHost(domain, hosts); got != want {
+			t.Errorf("reservedHost(%q) = %v, want %v", domain, got, want)
+		}
+	}
+}

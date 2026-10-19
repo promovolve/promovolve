@@ -976,6 +976,7 @@ var ja = map[string]string{
 	// ── publisher Go-side: flash + status lines ──
 	"could not load pending site requests":                                        "審査待ちのサイト申請を読み込めませんでした",
 	"%s is already registered":                                                    "%s はすでに登録されています",
+	"%s is a Promovolve host and cannot be registered as a site":                  "%s は Promovolve のホストのため、サイトとして登録できません",
 	"%s is already registered to another publisher":                               "%s はすでに別のパブリッシャーに登録されています",
 	"a request for %s is already awaiting approval":                               "%s の申請はすでに承認待ちです",
 	"could not remove the site":                                                   "サイトを削除できませんでした",

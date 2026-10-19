@@ -413,6 +413,10 @@ func (h *Handler) CreateSite(w http.ResponseWriter, r *http.Request) {
 		h.renderPublisherSites(w, r, i18n.T(h.lang(r, user), "%s is already registered", domain))
 		return
 	}
+	if errors.Is(err, siterequest.ErrReservedHost) {
+		h.renderPublisherSites(w, r, i18n.T(h.lang(r, user), "%s is a Promovolve host and cannot be registered as a site", domain))
+		return
+	}
 	if errors.Is(err, siterequest.ErrSiteTaken) {
 		h.renderPublisherSites(w, r, i18n.T(h.lang(r, user), "%s is already registered to another publisher", domain))
 		return

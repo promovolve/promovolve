@@ -974,9 +974,9 @@ var ja = map[string]string{
 	"Revenue":                       "収益",
 
 	// ── publisher Go-side: flash + status lines ──
-	"could not load pending site requests": "審査待ちのサイト申請を読み込めませんでした",
-	"%s is already registered":             "%s はすでに登録されています",
-	"Released: the site was not verified within 14 days of approval. Add it again to retry.": "解除済み: 承認から14日以内にサイトが確認されませんでした。再度追加してやり直してください。",
+	"could not load pending site requests":                                                   "審査待ちのサイト申請を読み込めませんでした",
+	"%s is already registered":                                                               "%s はすでに登録されています",
+	"%s is a Promovolve host and cannot be registered as a site":                             "%s は Promovolve のホストのため、サイトとして登録できません",
 	"%s is already registered to another publisher":                                          "%s はすでに別のパブリッシャーに登録されています",
 	"a request for %s is already awaiting approval":                                          "%s の申請はすでに承認待ちです",
 	"could not remove the site":                                                              "サイトを削除できませんでした",
@@ -992,6 +992,7 @@ var ja = map[string]string{
 	"Recent picks: %s (σ=%s)":                                                                "直近の選択: %s(σ=%s)",
 	"Recent picks: %s (σ=%s over %d cycles)":                                                 "直近の選択: %s(σ=%s、%d サイクル)",
 	"2 consecutive cycles agree on %s (collect more cycles to confirm stability)":            "連続する2サイクルが %s で一致(安定の確認にはさらにサイクルが必要です)",
+	"Released: the site was not verified within 14 days of approval. Add it again to retry.": "解除済み: 承認から14日以内にサイトが確認されませんでした。再度追加してやり直してください。",
 
 	// ══ batch 4: admin billing ══
 	"Advertiser wallets, publisher payouts, and the platform ledger. All money movement is recorded here; bank transfers happen outside and are recorded manually.": "広告主ウォレット、パブリッシャーへの支払い、プラットフォームの台帳です。すべてのお金の動きがここに記録されます。銀行振込は外部で行われ、手動で記録します。",

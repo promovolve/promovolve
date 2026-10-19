@@ -106,6 +106,7 @@ func main() {
 	// Newly approved sites open at the floors the operator set at install,
 	// which billing owns (they are money, in the deployment's base currency).
 	siteReqSvc := siterequest.NewService(siteReqRepo, cfg.CoreAPIURL, billingSvc)
+	siteReqSvc.ReservedHosts = cfg.ReservedHosts()
 	coreInternal := billing.NewHTTPCoreClient(cfg.CoreAPIURL, cfg.InternalAPIKey)
 	settler := billing.NewSettler(
 		billingSvc, pool,

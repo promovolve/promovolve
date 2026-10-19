@@ -2,7 +2,9 @@ package config
 
 import (
 	"log/slog"
+	"net/url"
 	"os"
+	"slices"
 	"strings"
 	"time"
 )
@@ -56,6 +58,29 @@ func Load() Config {
 		slog.Warn("DEV_AUTH enabled — password auth endpoints are active; never use in production")
 	}
 	return cfg
+}
+
+// ReservedHosts are the hostnames this deployment serves from — the
+// dashboard (RP_ID, ALLOWED_ORIGIN, RP_ORIGINS), the ad server
+// (TRACKING_BASE_URL) and the asset hosts (CDN_BASE_URL, BANNER_SCRIPT_URL).
+// No publisher may register them as a site. localhost is left out so local
+// development can still register test sites.
+func (c Config) ReservedHosts() []string {
+	urls := append([]string{c.AllowedOrigin, c.BannerScriptURL,
+		os.Getenv("TRACKING_BASE_URL"), os.Getenv("CDN_BASE_URL")}, c.RPOrigins...)
+	hosts := []string{strings.ToLower(c.RPID)}
+	for _, raw := range urls {
+		if u, err := url.Parse(raw); err == nil && u.Hostname() != "" {
+			hosts = append(hosts, strings.ToLower(u.Hostname()))
+		}
+	}
+	var out []string
+	for _, h := range hosts {
+		if h != "" && h != "localhost" && !slices.Contains(out, h) {
+			out = append(out, h)
+		}
+	}
+	return out
 }
 
 func splitCSV(s string) []string {

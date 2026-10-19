@@ -22,6 +22,7 @@ var ErrNotFound = errors.New("site request not found")
 var ErrDuplicatePending = errors.New("a request for this site is already awaiting approval")
 var ErrSiteAlreadyOwned = errors.New("the requesting publisher already owns this site")
 var ErrSiteTaken = errors.New("this site is already registered to another publisher")
+var ErrReservedHost = errors.New("this host belongs to the Promovolve deployment itself")
 
 type Repository struct {
 	pool *pgxpool.Pool

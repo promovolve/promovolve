@@ -345,10 +345,10 @@ func (h *Handler) renderPublisherSites(w http.ResponseWriter, r *http.Request, e
 	}
 	for _, sr := range reqs {
 		reqRows = append(reqRows, siteRequestRow{
-			ID:           sr.ID,
-			Domain:       sr.Domain,
-			SiteID:       sr.SiteID,
-			Status:       sr.Status,
+			ID:     sr.ID,
+			Domain: sr.Domain,
+			SiteID: sr.SiteID,
+			Status: sr.Status,
 			// A system reason (released, #285) is a catalog key; an
 			// admin-typed reason has no entry and passes through as written.
 			RejectReason: i18n.T(h.lang(r, user), sr.RejectReason),
@@ -413,6 +413,10 @@ func (h *Handler) CreateSite(w http.ResponseWriter, r *http.Request) {
 	}
 	if errors.Is(err, siterequest.ErrSiteAlreadyOwned) {
 		h.renderPublisherSites(w, r, i18n.T(h.lang(r, user), "%s is already registered", domain))
+		return
+	}
+	if errors.Is(err, siterequest.ErrReservedHost) {
+		h.renderPublisherSites(w, r, i18n.T(h.lang(r, user), "%s is a Promovolve host and cannot be registered as a site", domain))
 		return
 	}
 	if errors.Is(err, siterequest.ErrSiteTaken) {

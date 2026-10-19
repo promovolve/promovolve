@@ -7,6 +7,14 @@
 #   promovolve.programmer.llc -> platform :9090  (dashboard/BFF)
 #   ads.programmer.llc        -> api      :8080  (serve + tracking beacons)
 #
+# ads.programmer.llc forwards ONLY the paths browsers and publisher sites
+# call. Everything else on the api — site, campaign and creative management,
+# /v1/internal — trusts the publisher/advertiser id in its URL and has no
+# auth of its own: the platform reaches it over the ClusterIP
+# (CORE_API_URL) and it must never be public. Any other path falls through
+# to the LB's default backend (404). A NEW public endpoint has to be added
+# here, or it is unreachable from the internet.
+#
 # The static IP is created by setup.sh:
 #   gcloud compute addresses create promovolve-ingress --global
 apiVersion: networking.k8s.io/v1
@@ -33,7 +41,72 @@ spec:
     - host: ads.programmer.llc
       http:
         paths:
-          - path: /
+          # ad tag: /v1/serve/batch
+          - path: /v1/serve
+            pathType: Prefix
+            backend:
+              service:
+                name: promovolve-api
+                port:
+                  number: 8080
+          # ad tag: page text for classification
+          - path: /v1/classify-page
+            pathType: Prefix
+            backend:
+              service:
+                name: promovolve-api
+                port:
+                  number: 8080
+          # tracking (impUrl)
+          - path: /v1/imp
+            pathType: Prefix
+            backend:
+              service:
+                name: promovolve-api
+                port:
+                  number: 8080
+          # tracking (reach beacon)
+          - path: /v1/reach
+            pathType: Prefix
+            backend:
+              service:
+                name: promovolve-api
+                port:
+                  number: 8080
+          # tracking (clickUrl)
+          - path: /v1/click
+            pathType: Prefix
+            backend:
+              service:
+                name: promovolve-api
+                port:
+                  number: 8080
+          # tracking (ctaUrl)
+          - path: /v1/cta
+            pathType: Prefix
+            backend:
+              service:
+                name: promovolve-api
+                port:
+                  number: 8080
+          # banner: fold events
+          - path: /v1/dogear-event
+            pathType: Prefix
+            backend:
+              service:
+                name: promovolve-api
+                port:
+                  number: 8080
+          # ad tag: mount heartbeat
+          - path: /v1/beacon/mount
+            pathType: Prefix
+            backend:
+              service:
+                name: promovolve-api
+                port:
+                  number: 8080
+          # WordPress plugin token check (/v1/sites/{id}/token-check); also exposes the verified-site list, which is public anyway
+          - path: /v1/sites
             pathType: Prefix
             backend:
               service:

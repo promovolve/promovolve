@@ -70,7 +70,7 @@
 }
 
 /* Canonical component classes — the design system's shared vocabulary
-   (dev_docs/DESIGN_SYSTEM.md). Moved verbatim from layout.html's
+   (DESIGN.md). Moved verbatim from layout.html's
    text/tailwindcss block when the Play CDN was replaced by this build. */
 @layer components {
   .btn { @apply inline-flex items-center justify-center gap-1.5 px-4 py-2 text-sm font-medium rounded-md cursor-pointer transition-colors disabled:opacity-50 disabled:cursor-not-allowed; }

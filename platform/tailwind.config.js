@@ -1,6 +1,6 @@
 /** Tailwind config for the dashboard — the compiled replacement for the
  * Play-CDN inline config that used to live in templates/layout.html.
- * Design tokens: see dev_docs/DESIGN_SYSTEM.md.
+ * Design tokens: see DESIGN.md.
  *
  * Rebuild static/tailwind.css after ANY template class change:
  *   scripts/build-tailwind.sh

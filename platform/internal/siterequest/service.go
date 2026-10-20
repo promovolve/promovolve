@@ -274,22 +274,26 @@ func (s *Service) ReleaseUnverified(ctx context.Context, maxAge time.Duration) {
 	}
 }
 
-// ListUnverified returns the approved requests whose site the core still
-// reports as unverified — the admin's view of what the sweep will release.
+// ListApprovedSites splits the approved requests by what the core reports
+// now: still unverified (what the sweep will release) or verified (live). A
+// site the core no longer has, or no longer has under this domain, is in
+// neither list.
 // ponytail: one core GET per approved site per page load; batch it in the
 // core if the approved list grows into the hundreds.
-func (s *Service) ListUnverified(ctx context.Context) ([]PendingRow, error) {
+func (s *Service) ListApprovedSites(ctx context.Context) (unverified, verified []PendingRow, err error) {
 	approved, err := s.repo.ListApproved(ctx)
 	if err != nil {
-		return nil, err
+		return nil, nil, err
 	}
-	var out []PendingRow
 	for _, p := range approved {
-		if s.siteUnverified(ctx, p.SiteRequest) {
-			out = append(out, p)
+		switch s.siteStatus(ctx, p.SiteRequest) {
+		case "unverified":
+			unverified = append(unverified, p)
+		case "verified":
+			verified = append(verified, p)
 		}
 	}
-	return out, nil
+	return unverified, verified, nil
 }
 
 // ReleaseNow is the admin's early release of one unverified site. It
@@ -333,14 +337,21 @@ func (s *Service) RunReleaseLoop(ctx context.Context, maxAge, interval time.Dura
 }
 
 func (s *Service) siteUnverified(ctx context.Context, req model.SiteRequest) bool {
+	return s.siteStatus(ctx, req) == "unverified"
+}
+
+// siteStatus is the core's verificationStatus for the request's site
+// ("verified" or "unverified"), or "" when the core is unreachable, the site
+// is gone, or it now holds a different domain.
+func (s *Service) siteStatus(ctx context.Context, req model.SiteRequest) string {
 	url := fmt.Sprintf("%s/v1/publishers/%s/sites/%s", s.coreAPIURL, req.PublisherID, req.SiteID)
 	httpReq, err := http.NewRequestWithContext(ctx, http.MethodGet, url, nil)
 	if err != nil {
-		return false
+		return ""
 	}
 	resp, err := coreClient.Do(httpReq)
 	if err != nil {
-		return false
+		return ""
 	}
 	defer resp.Body.Close()
 	var site struct {
@@ -348,9 +359,12 @@ func (s *Service) siteUnverified(ctx context.Context, req model.SiteRequest) boo
 		VerificationStatus string `json:"verificationStatus"`
 	}
 	if resp.StatusCode != http.StatusOK || json.NewDecoder(resp.Body).Decode(&site) != nil {
-		return false
+		return ""
 	}
-	return site.VerificationStatus == "unverified" && strings.EqualFold(site.Domain, req.Domain)
+	if !strings.EqualFold(site.Domain, req.Domain) {
+		return ""
+	}
+	return site.VerificationStatus
 }
 
 func (s *Service) deleteSite(ctx context.Context, req model.SiteRequest) error {

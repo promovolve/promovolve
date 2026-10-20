@@ -17,7 +17,7 @@
   <div class="space-y-4 mt-6">
     {{range .AdminSiteRequests}}
     <div class="card">
-      <div class="flex items-start justify-between gap-4">
+      <div class="flex flex-wrap items-start justify-between gap-x-4 gap-y-1">
         <div>
           <div class="flex items-center gap-2 mb-1">
             <h2 class="font-semibold text-lg">{{.Domain}}</h2>
@@ -41,12 +41,13 @@
           <input type="hidden" name="requestId" value="{{.ID}}">
           <button type="submit" class="btn btn-success">{{t "Approve"}}</button>
         </form>
-        <form method="POST" action="/admin/sites/reject" class="flex items-end gap-2"
+        <form method="POST" action="/admin/sites/reject" class="flex flex-wrap items-end gap-2"
           onsubmit="return confirm('{{t "Deny %s? The publisher will only be able to delete the request." .Domain}}')">
           <input type="hidden" name="requestId" value="{{.ID}}">
           <button type="submit" class="btn btn-danger">{{t "Deny"}}</button>
           <input type="text" name="reason" placeholder="{{t "Reason (optional, shown to the publisher)"}}"
-            class="border rounded-md px-3 py-2 text-sm w-72">
+            aria-label="{{t "Reason (optional, shown to the publisher)"}}"
+            class="border rounded-md px-3 py-2 text-sm w-full sm:w-72">
         </form>
       </div>
     </div>
@@ -60,7 +61,7 @@
   <div class="space-y-4 mt-6">
     {{range .AdminUnverifiedSites}}
     <div class="card border-l-4 border-amber-400">
-      <div class="flex items-start justify-between gap-4">
+      <div class="flex flex-wrap items-start justify-between gap-x-4 gap-y-1">
         <div class="flex items-center gap-2">
           <h2 class="font-semibold text-lg">{{.Domain}}</h2>
           <span class="badge badge-warning">{{t "Unverified"}}</span>
@@ -91,7 +92,7 @@
   <div class="space-y-4 mt-6">
     {{range .AdminSuspendedSites}}
     <div class="card border-l-4 {{if .Confirmed}}border-red-600{{else}}border-amber-400{{end}}">
-      <div class="flex items-start justify-between gap-4">
+      <div class="flex flex-wrap items-start justify-between gap-x-4 gap-y-1">
         <div>
           <div class="flex items-center gap-2 mb-1">
             <h2 class="font-semibold text-lg font-mono">{{.SiteID}}</h2>
@@ -123,6 +124,35 @@
     </div>
     {{end}}
   </div>
+  {{end}}
+
+  <h2 class="page-title mt-10">{{t "Verified sites"}}</h2>
+  <p class="page-sub">{{t "Approved sites whose publisher has verified the domain. These are the sites that can serve ads."}}</p>
+  {{if .AdminVerifiedSites}}
+  <div class="card mt-6 overflow-x-auto p-0">
+    <table class="w-full text-sm">
+      <thead>
+        <tr class="border-b text-left text-gray-500">
+          <th class="px-4 py-3 font-medium">{{t "Domain"}}</th>
+          <th class="px-4 py-3 font-medium">{{t "Site ID"}}</th>
+          <th class="px-4 py-3 font-medium">{{t "Publisher"}}</th>
+          <th class="px-4 py-3 font-medium">{{t "Approved"}}</th>
+        </tr>
+      </thead>
+      <tbody>
+        {{range .AdminVerifiedSites}}
+        <tr class="border-b last:border-0">
+          <td class="px-4 py-3 font-medium whitespace-nowrap">{{.Domain}}</td>
+          <td class="px-4 py-3 font-mono text-xs whitespace-nowrap">{{.SiteID}}</td>
+          <td class="px-4 py-3">{{.Publisher}}{{if .Company}} <span class="text-gray-500">· {{.Company}}</span>{{end}}</td>
+          <td class="px-4 py-3 whitespace-nowrap text-gray-500">{{.ApprovedAt}}</td>
+        </tr>
+        {{end}}
+      </tbody>
+    </table>
+  </div>
+  {{else}}
+  <p class="card mt-6 text-sm text-gray-500">{{t "No verified sites yet."}}</p>
   {{end}}
 </div>
 {{end}}

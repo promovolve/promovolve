@@ -80,19 +80,20 @@ func TestReservedHost(t *testing.T) {
 
 // A site is released only on an explicit "unverified" for THIS domain. Every
 // other answer — verified, gone, a placeholder, a core error — keeps it.
-func TestSiteUnverified(t *testing.T) {
+func TestSiteStatus(t *testing.T) {
 	cases := []struct {
 		name   string
 		status int
 		body   string
-		want   bool
+		want   string
 	}{
-		{"unverified, same domain", http.StatusOK, `{"domain":"Promovolve.org","verificationStatus":"unverified"}`, true},
-		{"verified", http.StatusOK, `{"domain":"promovolve.org","verificationStatus":"verified"}`, false},
-		{"empty placeholder", http.StatusOK, `{"domain":"","verificationStatus":"unverified"}`, false},
-		{"deleted", http.StatusBadRequest, `{"code":"site_not_found"}`, false},
-		{"core error", http.StatusInternalServerError, `{"code":"get_site_failed"}`, false},
-		{"unparseable", http.StatusOK, `<html>`, false},
+		{"unverified, same domain", http.StatusOK, `{"domain":"Promovolve.org","verificationStatus":"unverified"}`, "unverified"},
+		{"verified", http.StatusOK, `{"domain":"promovolve.org","verificationStatus":"verified"}`, "verified"},
+		{"verified, other domain", http.StatusOK, `{"domain":"other.example","verificationStatus":"verified"}`, ""},
+		{"empty placeholder", http.StatusOK, `{"domain":"","verificationStatus":"unverified"}`, ""},
+		{"deleted", http.StatusBadRequest, `{"code":"site_not_found"}`, ""},
+		{"core error", http.StatusInternalServerError, `{"code":"get_site_failed"}`, ""},
+		{"unparseable", http.StatusOK, `<html>`, ""},
 	}
 	for _, tc := range cases {
 		t.Run(tc.name, func(t *testing.T) {
@@ -103,8 +104,8 @@ func TestSiteUnverified(t *testing.T) {
 			defer srv.Close()
 			s := &Service{coreAPIURL: srv.URL}
 			req := model.SiteRequest{PublisherID: "pub-1", SiteID: "promovolve-org", Domain: "promovolve.org"}
-			if got := s.siteUnverified(context.Background(), req); got != tc.want {
-				t.Errorf("siteUnverified = %v, want %v", got, tc.want)
+			if got := s.siteStatus(context.Background(), req); got != tc.want {
+				t.Errorf("siteStatus = %q, want %q", got, tc.want)
 			}
 		})
 	}

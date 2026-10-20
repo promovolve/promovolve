@@ -250,6 +250,7 @@ const UnverifiedMaxAge = 14 * 24 * time.Hour
 const (
 	UnverifiedReleaseReason = "Released: the site was not verified within 14 days of approval. Add it again to retry."
 	ManualReleaseReason     = "Released by an administrator: the site was not verified. Add it again to retry."
+	AdminRemovedReason      = "Removed by an administrator. Contact the operator before adding it again."
 )
 
 // ReleaseUnverified deletes every site approved more than maxAge ago that
@@ -308,6 +309,21 @@ func (s *Service) ReleaseNow(ctx context.Context, requestID string) (*model.Site
 		return nil, ErrNotUnverified
 	}
 	return req, s.release(ctx, *req, ManualReleaseReason)
+}
+
+// Remove is the admin's removal of a live (approved) site: the core deletes
+// it, so serving stops now, and the request closes with a reason the
+// publisher sees. Earnings and delivery history are keyed by site_id
+// elsewhere and stay.
+func (s *Service) Remove(ctx context.Context, requestID string) (*model.SiteRequest, error) {
+	req, err := s.repo.GetByID(ctx, requestID)
+	if err != nil {
+		return nil, err
+	}
+	if req.Status != StatusApproved {
+		return nil, ErrNotFound
+	}
+	return req, s.release(ctx, *req, AdminRemovedReason)
 }
 
 func (s *Service) release(ctx context.Context, req model.SiteRequest, reason string) error {

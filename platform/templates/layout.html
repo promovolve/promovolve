@@ -104,11 +104,11 @@
          text) looks identical in both themes instead of inverting. */}}
     <aside id="app-nav" :data-open="navOpen ? 'true' : 'false'"
            class="theme-light-scope w-60 shrink-0 overflow-y-auto bg-gray-900 text-gray-100 p-4 flex flex-col
-                  fixed inset-y-0 left-0 z-40 invisible -translate-x-full transition-[transform,visibility] duration-200 ease-out
+                  fixed inset-y-0 left-0 z-40 invisible -translate-x-full transition-[transform,visibility] duration-200 ease-out motion-reduce:transition-none
                   data-[open=true]:visible data-[open=true]:translate-x-0
                   md:static md:z-auto md:visible md:translate-x-0 md:transition-none">
       <div class="mb-8 shrink-0">
-        <h2 class="text-lg font-semibold">Promovolve</h2>
+        <p class="text-lg font-semibold">Promovolve</p>
         <p class="text-xs text-gray-400 mt-1">
           {{if eq .User.Role "publisher"}}{{t "Publisher Dashboard"}}{{else if eq .User.Role "advertiser"}}{{t "Advertiser Dashboard"}}{{else}}{{t "Admin Dashboard"}}{{end}}
         </p>

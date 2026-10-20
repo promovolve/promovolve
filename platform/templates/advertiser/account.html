@@ -8,18 +8,18 @@
 {{if eq .WalletNotice "suspended"}}
 <div class="bg-red-50 border border-red-200 rounded-lg p-4 mb-6 max-w-2xl">
   <p class="font-medium text-red-800">{{t "Serving is paused — your wallet is out of funds."}}</p>
-  <p class="text-sm text-red-600 mt-1">{{t "See"}} <a href="/advertiser/wallet" class="text-brand hover:underline">{{t "Wallet"}}</a> {{t "for details, and contact the platform operator to top up."}}</p>
+  <p class="text-sm text-red-600 mt-1">{{t "See"}} <a href="/advertiser/wallet" class="text-brand-ink hover:underline">{{t "Wallet"}}</a> {{t "for details, and contact the platform operator to top up."}}</p>
 </div>
 {{else if eq .WalletNotice "low"}}
 <div class="bg-amber-50 border border-amber-200 rounded-lg p-4 mb-6 max-w-2xl">
   <p class="font-medium text-amber-800">{{t "Your wallet balance is running low."}}</p>
-  <p class="text-sm text-amber-600 mt-1">{{t "Serving pauses when it reaches zero — see"}} <a href="/advertiser/wallet" class="text-brand hover:underline">{{t "Wallet"}}</a>.</p>
+  <p class="text-sm text-amber-700 mt-1">{{t "Serving pauses when it reaches zero — see"}} <a href="/advertiser/wallet" class="text-brand-ink hover:underline">{{t "Wallet"}}</a>.</p>
 </div>
 {{end}}
 {{if and .AdvBudget .AdvBudget.IsZero}}
 <div class="bg-amber-50 border border-amber-200 rounded-lg p-4 mb-6 max-w-2xl">
   <p class="font-medium text-amber-800">{{t "Set your daily budget to start advertising"}}</p>
-  <p class="text-sm text-amber-600 mt-1">{{t "Your campaigns won't run until a daily budget is set."}}</p>
+  <p class="text-sm text-amber-700 mt-1">{{t "Your campaigns won't run until a daily budget is set."}}</p>
 </div>
 {{end}}
 
@@ -32,16 +32,16 @@
   <div class="flex items-center justify-between">
     <div>
       <p class="text-xs text-gray-500 uppercase tracking-wide">{{t "Wallet balance"}}</p>
-      <p class="text-2xl font-semibold mt-1 {{if .WalletUnfunded}}text-amber-600{{end}}">{{.WalletBalance}}</p>
+      <p class="text-2xl font-semibold mt-1 {{if .WalletUnfunded}}text-amber-700{{end}}">{{.WalletBalance}}</p>
     </div>
-    <a href="/advertiser/wallet" class="text-brand hover:underline text-sm">{{t "Wallet & statement"}} &rarr;</a>
+    <a href="/advertiser/wallet" class="text-brand-ink hover:underline text-sm">{{t "Wallet & statement"}} &rarr;</a>
   </div>
   {{if .WalletUnfunded}}
-  <p class="text-sm text-amber-600 mt-2">
+  <p class="text-sm text-amber-700 mt-2">
     {{t "Your wallet is unfunded. The daily budget only paces delivery — impressions are paid from the wallet, and serving pauses while it's at zero. Contact the platform operator to top up."}}
   </p>
   {{else}}
-  <p class="text-xs text-gray-400 mt-2">{{t "Impressions are paid from this balance; the daily budget paces how fast it spends."}}</p>
+  <p class="text-xs text-gray-500 mt-2">{{t "Impressions are paid from this balance; the daily budget paces how fast it spends."}}</p>
   {{end}}
 </div>
 {{end}}
@@ -56,7 +56,7 @@
   </div>
 
   {{if .AdvBudget}}
-  <div class="grid grid-cols-3 gap-4 mb-6">
+  <div class="grid grid-cols-1 sm:grid-cols-3 gap-4 mb-6">
     <div class="bg-gray-50 p-4 rounded">
       <p class="text-xs text-gray-500 uppercase tracking-wide">{{t "Current Daily Budget"}}</p>
       <p class="text-2xl font-semibold mt-1">{{money .AdvBudget.DailyBudget}}</p>
@@ -75,18 +75,18 @@
   {{$mode := "manual"}}{{if .AdvBudget}}{{if eq .AdvBudget.BudgetMode "optimized"}}{{$mode = "optimized"}}{{end}}{{end}}
   <form method="POST" action="/advertiser/budget" class="flex items-end gap-3 flex-wrap">
     <div>
-      <label class="form-label">{{t "New Daily Budget"}}</label>
+      <label for="account-dailybudget" class="form-label">{{t "New Daily Budget"}}</label>
       <div class="flex items-center gap-2" >
         <span class="text-gray-500">{{sym}}</span>
-        <input type="number" name="dailyBudget" required step="{{moneystep}}" min="0" 
+        <input id="account-dailybudget" type="number" name="dailyBudget" required step="{{moneystep}}" min="0" 
                value="{{if .AdvBudget}}{{.AdvBudget.DailyBudget}}{{end}}"
                placeholder="{{moneyhint 500.0}}"
                class="form-input w-40">
         
       </div>
     </div>
-    <div>
-      <label class="form-label">{{t "Budget mode"}}</label>
+    <fieldset>
+      <legend class="form-label">{{t "Budget mode"}}</legend>
       <div class="flex items-center gap-4 h-10">
         <label class="flex items-center gap-2 text-sm cursor-pointer">
           <input type="radio" name="budgetMode" value="manual" {{if ne $mode "optimized"}}checked{{end}} class="border-gray-300">
@@ -97,13 +97,13 @@
           <span>{{t "Optimized"}}</span>
         </label>
       </div>
-    </div>
+    </fieldset>
     <button type="submit"
             class="btn btn-primary">
       {{t "Update Budget"}}
     </button>
   </form>
-  <p class="text-xs text-gray-400 mt-3">{{t "Changes apply immediately. Today's spend is not reset."}}</p>
-  <p class="text-xs text-gray-400 mt-1">{{t "Manual: every campaign keeps its own daily budget and the account budget is a hard cap on all of them. Optimized: the account budget is re-split every few minutes across all live campaigns, toward the ones earning the most tap-throughs per unit of spend; no campaign drops below a fifth of its equal share. It needs at least two live campaigns; below that it does nothing."}}</p>
+  <p class="text-xs text-gray-500 mt-3">{{t "Changes apply immediately. Today's spend is not reset."}}</p>
+  <p class="text-xs text-gray-500 mt-1">{{t "Manual: every campaign keeps its own daily budget and the account budget is a hard cap on all of them. Optimized: the account budget is re-split every few minutes across all live campaigns, toward the ones earning the most tap-throughs per unit of spend; no campaign drops below a fifth of its equal share. It needs at least two live campaigns; below that it does nothing."}}</p>
 </div>
 {{end}}

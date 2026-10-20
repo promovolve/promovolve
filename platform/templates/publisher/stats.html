@@ -17,14 +17,14 @@
 </div>
 
 {{if not .Stats}}
-<div class="text-center py-20 text-gray-400">
+<div class="text-center py-20 text-gray-500">
   <p class="text-lg">{{t "No stats available"}}</p>
   <p class="text-sm mt-2">{{t "Stats will appear once ads start serving on your site"}}</p>
 </div>
 {{else}}
 <!-- Headline metrics — all three share the same persistent local-midnight
      window (tracking_events), so they always reconcile with each other. -->
-<div class="grid grid-cols-3 gap-6 mb-4">
+<div class="grid grid-cols-1 sm:grid-cols-3 gap-6 mb-4">
   <div class="bg-white p-6 rounded-lg border" title="{{t "Impressions served on this site since midnight of your organization's timezone. Sourced from tracking_events."}}">
     <p class="text-sm text-gray-500">{{t "Impressions Today"}}</p>
     <p class="text-3xl font-semibold mt-2">{{.Stats.Impressions}}</p>
@@ -37,7 +37,7 @@
     <p class="text-sm text-gray-500">{{t "Revenue Today"}}</p>
     <p class="text-3xl font-semibold mt-2">{{money .Stats.Revenue}}</p>
     {{if .Stats.FeePct}}
-    <p class="text-xs text-gray-400 mt-1">{{t "%s gross − %s platform fee (%s%%)" (money .Stats.GrossRevenue) (money .Stats.Fee) .Stats.FeePct}}</p>
+    <p class="text-xs text-gray-500 mt-1">{{t "%s gross − %s platform fee (%s%%)" (money .Stats.GrossRevenue) (money .Stats.Fee) .Stats.FeePct}}</p>
     {{end}}
   </div>
 </div>
@@ -46,12 +46,12 @@
      session (resets on every restart/deploy), so they are shown as a muted
      footnote rather than headline tiles a publisher would compare against
      Impressions Today. -->
-<p class="text-xs text-gray-400 mb-8" title="{{t "From in-memory serve stats since the last cluster restart — a different scope than the day-scoped tiles above. tracking_events doesn't log no-candidate batches, so true daily fill rate can't be derived from the persistent store."}}">
+<p class="text-xs text-gray-500 mb-8" title="{{t "From in-memory serve stats since the last cluster restart — a different scope than the day-scoped tiles above. tracking_events doesn't log no-candidate batches, so true daily fill rate can't be derived from the persistent store."}}">
   {{if eq .Stats.Requests 1}}{{t "Since last restart: 1 serve request · %s fill rate" .Stats.FillRate}}{{else}}{{t "Since last restart: %d serve requests · %s fill rate" .Stats.Requests .Stats.FillRate}}{{end}}
 </p>
 
 <!-- Activity cards -->
-<div class="grid grid-cols-2 gap-6">
+<div class="grid grid-cols-1 md:grid-cols-2 gap-6">
   <div class="bg-white p-6 rounded-lg border">
     <p class="text-sm text-gray-500">{{t "Creatives Served"}}</p>
     <p class="text-2xl font-semibold mt-2">{{.Stats.CreativesServed}}</p>
@@ -60,7 +60,7 @@
     <p class="text-sm text-gray-500">{{t "Pending Creatives"}}</p>
     <p class="text-2xl font-semibold mt-2">{{.Stats.PendingCreatives}}</p>
     {{if .Stats.PendingCreatives}}
-    <p class="text-xs text-brand mt-2">
+    <p class="text-xs text-brand-ink mt-2">
       <a href="/publisher/approval{{if .SiteID}}?siteId={{.SiteID}}{{end}}" class="hover:underline">{{t "Review now"}} &rarr;</a>
     </p>
     {{end}}

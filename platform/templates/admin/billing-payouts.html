@@ -17,7 +17,7 @@
     <p class="text-sm text-gray-500 px-6 mt-1">{{t "Publishers with settled, unpaid earnings. Creating a payout moves the balance out of the ledger; send the transfer, then mark it paid below."}}</p>
     <table class="w-full text-sm mt-3">
       <thead>
-        <tr class="border-b text-left text-gray-400">
+        <tr class="border-b text-left text-gray-500">
           <th class="px-6 py-2 font-medium">{{t "Publisher"}}</th>
           <th class="px-6 py-2 font-medium">{{t "Owed"}}</th>
           <th class="px-6 py-2 font-medium">{{t "Threshold"}}</th>
@@ -28,10 +28,10 @@
       <tbody>
         {{range .Queue}}
         <tr class="border-b last:border-0">
-          <td class="px-6 py-2 font-medium"><a href="/admin/billing/accounts/publisher/{{.PublisherID}}" class="text-brand hover:underline" title="{{.PublisherID}}">{{.PublisherLabel}}</a></td>
+          <td class="px-6 py-2 font-medium"><a href="/admin/billing/accounts/publisher/{{.PublisherID}}" class="text-brand-ink hover:underline" title="{{.PublisherID}}">{{.PublisherLabel}}</a></td>
           <td class="px-6 py-2">{{money .Payable}}</td>
           <td class="px-6 py-2 text-gray-500">{{money .MinPayout}}</td>
-          <td class="px-6 py-2 text-gray-500">{{if .Method}}{{.Method}}{{else}}<span class="text-gray-400">{{t "not set"}}</span>{{end}}</td>
+          <td class="px-6 py-2 text-gray-500">{{if .Method}}{{.Method}}{{else}}<span class="text-gray-500">{{t "not set"}}</span>{{end}}</td>
           <td class="px-6 py-2 text-right">
             {{if .Over}}
             <form method="POST" action="/admin/billing/payouts/create" class="inline" onsubmit="return confirm('{{t "Create a payout for the full %s owed to %s?" (money .Payable) .PublisherLabel}}')">
@@ -45,7 +45,7 @@
           </td>
         </tr>
         {{else}}
-        <tr><td class="px-6 py-4 text-gray-400" colspan="5">{{t "No publishers are owed money."}}</td></tr>
+        <tr><td class="px-6 py-4 text-gray-500" colspan="5">{{t "No publishers are owed money."}}</td></tr>
         {{end}}
       </tbody>
     </table>
@@ -56,7 +56,7 @@
     <h2 class="font-semibold text-lg px-6 pt-6">{{t "Payouts"}}</h2>
     <table class="w-full text-sm mt-3">
       <thead>
-        <tr class="border-b text-left text-gray-400">
+        <tr class="border-b text-left text-gray-500">
           <th class="px-6 py-2 font-medium">{{t "Publisher"}}</th>
           <th class="px-6 py-2 font-medium">{{t "Amount"}}</th>
           <th class="px-6 py-2 font-medium">{{t "Period"}}</th>
@@ -69,7 +69,7 @@
       <tbody>
         {{range .Payouts}}
         <tr class="border-b last:border-0">
-          <td class="px-6 py-2 font-medium"><a href="/admin/billing/accounts/publisher/{{.PublisherID}}" class="text-brand hover:underline" title="{{.PublisherID}}">{{.PublisherLabel}}</a></td>
+          <td class="px-6 py-2 font-medium"><a href="/admin/billing/accounts/publisher/{{.PublisherID}}" class="text-brand-ink hover:underline" title="{{.PublisherID}}">{{.PublisherLabel}}</a></td>
           <td class="px-6 py-2">{{money .Amount}}</td>
           <td class="px-6 py-2 text-gray-500">{{.Period}}</td>
           <td class="px-6 py-2"><span class="badge {{.StatusBadge}}">{{t .Status}}</span></td>
@@ -90,7 +90,7 @@
           </td>
         </tr>
         {{else}}
-        <tr><td class="px-6 py-4 text-gray-400" colspan="7">{{t "No payouts yet."}}</td></tr>
+        <tr><td class="px-6 py-4 text-gray-500" colspan="7">{{t "No payouts yet."}}</td></tr>
         {{end}}
       </tbody>
     </table>

@@ -12,49 +12,49 @@
 
   <form method="POST" action="/account/preferences" class="card mt-6 p-6 space-y-6">
     <div>
-      <label class="form-label">{{t "Display name"}}</label>
-      <input name="displayName" value="{{.User.DisplayName}}" maxlength="80" class="form-input w-full">
-      <p class="text-xs text-gray-400 mt-1">{{t "Shown to teammates and in the operator views."}}</p>
+      <label for="account-preferences-displayname" class="form-label">{{t "Display name"}}</label>
+      <input id="account-preferences-displayname" name="displayName" value="{{.User.DisplayName}}" maxlength="80" class="form-input w-full">
+      <p class="text-xs text-gray-500 mt-1">{{t "Shown to teammates and in the operator views."}}</p>
     </div>
 
     <div>
-      <label class="form-label">{{t "Sign-in email"}}</label>
-      <input value="{{.User.Email}}" disabled class="form-input w-full bg-gray-50 text-gray-500">
-      <p class="text-xs text-gray-400 mt-1">
+      <label for="account-preferences-email" class="form-label">{{t "Sign-in email"}}</label>
+      <input id="account-preferences-email" value="{{.User.Email}}" disabled class="form-input w-full bg-gray-50 text-gray-500">
+      <p class="text-xs text-gray-500 mt-1">
         {{t "Cannot be changed: the email domain is what binds this account to your organization (and your passkeys to this account). Moving to a new address means an admin invites it and you register a passkey there."}}
       </p>
     </div>
 
     <div>
-      <label class="form-label">{{t "Timezone"}}</label>
-      <select name="timezone" class="form-input w-full">
+      <label for="account-preferences-timezone" class="form-label">{{t "Timezone"}}</label>
+      <select id="account-preferences-timezone" name="timezone" class="form-input w-full">
         <option value="" {{if not .User.Timezone}}selected{{end}}>{{t "Platform default (%s)" platformZone}}</option>
         {{$current := .User.Timezone}}
         {{range .Timezones}}
         {{if ne . "UTC"}}<option value="{{.}}" {{if eq . $current}}selected{{end}}>{{.}}</option>{{end}}
         {{end}}
       </select>
-      <p class="text-xs text-gray-400 mt-1">
+      <p class="text-xs text-gray-500 mt-1">
         {{t "Changes how dates and times are displayed to you. Budget, billing, and report days follow your organization's timezone, set by the platform operator."}}
       </p>
     </div>
 
     <div>
-      <label class="form-label">{{t "Language"}}</label>
-      <select name="locale" class="form-input w-full">
+      <label for="account-preferences-locale" class="form-label">{{t "Language"}}</label>
+      <select id="account-preferences-locale" name="locale" class="form-input w-full">
         <option value="" {{if not .User.Locale}}selected{{end}}>{{t "Auto (follow browser)"}}</option>
         {{range .Languages}}
         <option value="{{.Tag}}" {{if eq $.User.Locale .Tag}}selected{{end}}>{{.Name}}</option>
         {{end}}
       </select>
-      <p class="text-xs text-gray-400 mt-1">
+      <p class="text-xs text-gray-500 mt-1">
         {{t "Dashboard language. Auto follows your browser."}}
       </p>
     </div>
 
     {{if .LandingSides}}
-    <div>
-      <label class="form-label">{{t "Sign-in lands on"}}</label>
+    <fieldset>
+      <legend class="form-label">{{t "Sign-in lands on"}}</legend>
       <div class="flex items-center gap-6 mt-1">
         {{$side := .LandingSide}}
         {{range .LandingSides}}
@@ -64,10 +64,10 @@
         </label>
         {{end}}
       </div>
-      <p class="text-xs text-gray-400 mt-1">
+      <p class="text-xs text-gray-500 mt-1">
         {{t "Your organization holds both sides; pick where a fresh sign-in starts. Switching sides in the dashboard updates this too."}}
       </p>
-    </div>
+    </fieldset>
     {{end}}
 
     <div class="pt-2">

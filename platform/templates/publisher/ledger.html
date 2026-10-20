@@ -1,6 +1,6 @@
 {{define "content"}}
 <div class="max-w-4xl">
-  <a href="/publisher/approval" class="inline-flex items-center gap-1 text-sm text-brand hover:underline mb-3">&larr; {{t "Approval Queue"}}</a>
+  <a href="/publisher/approval" class="inline-flex items-center gap-1 text-sm text-brand-ink hover:underline mb-3">&larr; {{t "Approval Queue"}}</a>
   <h1 class="page-title">{{t "Creative Ledger"}}</h1>
   <p class="page-sub">
     {{t "Every creative ever offered to your sites, grouped by advertiser, with its current state. Unlike the approval queue — which only shows items awaiting a decision and changes as auctions run — this list is stable: your decisions stay visible here."}}
@@ -13,12 +13,12 @@
     <div class="mt-4">
       <div class="flex items-center gap-2">
         <span class="font-medium text-sm">{{if .Email}}{{.Email}}{{else}}{{.AdvertiserID}}{{end}}</span>
-        <span class="text-xs text-gray-400">{{t "%d creatives" (len .Creatives)}}</span>
+        <span class="text-xs text-gray-500">{{t "%d creatives" (len .Creatives)}}</span>
       </div>
       <div class="mt-2 overflow-x-auto">
         <table class="w-full text-sm">
           <thead>
-            <tr class="text-left text-xs text-gray-400">
+            <tr class="text-left text-xs text-gray-500">
               <th class="py-1 pr-4 font-medium">{{t "Creative"}}</th>
               <th class="py-1 pr-4 font-medium">{{t "Approval"}}</th>
               <th class="py-1 pr-4 font-medium">{{t "Advertiser status"}}</th>
@@ -63,11 +63,11 @@
       </div>
     </div>
     {{else}}
-    <p class="text-sm text-gray-400 mt-2">{{t "No advertisers have offered creatives to this site yet."}}</p>
+    <p class="text-sm text-gray-500 mt-2">{{t "No advertisers have offered creatives to this site yet."}}</p>
     {{end}}
   </div>
   {{else}}
-  <p class="text-sm text-gray-400 mt-6">{{t "No sites yet."}}</p>
+  <p class="text-sm text-gray-500 mt-6">{{t "No sites yet."}}</p>
   {{end}}
 </div>
 {{end}}

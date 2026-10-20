@@ -5,7 +5,7 @@
     <p class="text-gray-500 text-center mb-10">{{t "Request access"}}</p>
 
     <div id="request-card" class="bg-white rounded-lg shadow-sm border p-8">
-      <a href="/login" class="text-sm text-gray-400 hover:text-gray-600 mb-4 block">&larr; {{t "Back to sign in"}}</a>
+      <a href="/login" class="text-sm text-gray-500 hover:text-gray-600 mb-4 block">&larr; {{t "Back to sign in"}}</a>
       <h2 class="text-2xl font-semibold mb-1">{{t "Request an account"}}</h2>
       <p class="text-sm text-gray-500 mb-6">
         {{t "Tell us about your company. An administrator reviews every request; you will be able to sign in with your passkey once it is approved."}}
@@ -14,8 +14,8 @@
       <div id="request-error" class="hidden bg-red-50 border border-red-200 text-red-700 rounded-lg p-3 mb-4 text-sm"></div>
 
       <form id="request-form" class="space-y-4" onsubmit="return false">
-        <div>
-          <label class="form-label">{{t "I am a"}}</label>
+        <fieldset>
+          <legend class="form-label">{{t "I am a"}}</legend>
           <div class="grid grid-cols-2 gap-3">
             <label class="border rounded-md px-4 py-3 flex items-center gap-2 cursor-pointer has-[:checked]:border-brand has-[:checked]:bg-brand-soft/40">
               <input type="radio" name="role" value="publisher" checked>
@@ -26,25 +26,25 @@
               <span class="text-sm font-medium">{{t "Advertiser"}}</span>
             </label>
           </div>
-        </div>
+        </fieldset>
         <div>
-          <label class="form-label">{{t "Company / publication name"}}</label>
+          <label for="req-company" class="form-label">{{t "Company / publication name"}}</label>
           <input type="text" id="req-company" placeholder="{{t "e.g., Tokyo Travel Media K.K."}}" class="form-input">
         </div>
         <div>
-          <label class="form-label">{{t "Website"}}</label>
+          <label for="req-website" class="form-label">{{t "Website"}}</label>
           <input type="url" id="req-website" placeholder="https://example.com" class="form-input">
         </div>
         <div>
-          <label class="form-label">{{t "Contact name"}}</label>
+          <label for="req-contact" class="form-label">{{t "Contact name"}}</label>
           <input type="text" id="req-contact" placeholder="{{t "Your full name"}}" class="form-input">
         </div>
         <div>
-          <label class="form-label">{{t "Email"}}</label>
+          <label for="req-email" class="form-label">{{t "Email"}}</label>
           <input type="email" id="req-email" autocomplete="username" placeholder="you@company.com" class="form-input">
         </div>
         <div>
-          <label class="form-label">{{t "Anything we should know?"}} <span class="text-gray-400 font-normal">{{t "(optional)"}}</span></label>
+          <label for="req-message" class="form-label">{{t "Anything we should know?"}} <span class="text-gray-500 font-normal">{{t "(optional)"}}</span></label>
           <textarea id="req-message" rows="3" class="form-input"
             placeholder="{{t "What you publish or advertise, expected volume, etc."}}"></textarea>
         </div>

@@ -240,9 +240,17 @@ func reservedHost(domain string, hosts []string) bool {
 	return false
 }
 
-// UnverifiedReleaseReason is the card text a publisher sees after release.
-// A fixed sentence so the Sites page can translate it.
-const UnverifiedReleaseReason = "Released: the site was not verified within 14 days of approval. Add it again to retry."
+// UnverifiedMaxAge is how long an approved site may stay unverified before
+// the sweep releases it.
+const UnverifiedMaxAge = 14 * 24 * time.Hour
+
+// UnverifiedReleaseReason and ManualReleaseReason are the card text a
+// publisher sees after release, by the sweep or by an admin. Fixed sentences
+// so the Sites page can translate them.
+const (
+	UnverifiedReleaseReason = "Released: the site was not verified within 14 days of approval. Add it again to retry."
+	ManualReleaseReason     = "Released by an administrator: the site was not verified. Add it again to retry."
+)
 
 // ReleaseUnverified deletes every site approved more than maxAge ago that
 // still has not verified, so an abandoned registration stops holding the
@@ -260,17 +268,54 @@ func (s *Service) ReleaseUnverified(ctx context.Context, maxAge time.Duration) {
 		if !s.siteUnverified(ctx, req) {
 			continue
 		}
-		if err := s.deleteSite(ctx, req); err != nil {
-			slog.Error("unverified-site sweep: delete failed", "siteId", req.SiteID, "error", err)
-			continue
+		if err := s.release(ctx, req, UnverifiedReleaseReason); err != nil {
+			slog.Error("unverified-site sweep: release failed", "siteId", req.SiteID, "error", err)
 		}
-		if err := s.repo.MarkReleased(ctx, req.ID, UnverifiedReleaseReason); err != nil {
-			slog.Error("unverified-site sweep: mark released failed", "siteId", req.SiteID, "error", err)
-			continue
-		}
-		slog.Warn("released unverified site", "siteId", req.SiteID, "domain", req.Domain,
-			"publisherId", req.PublisherID, "approvedAt", req.ReviewedAt)
 	}
+}
+
+// ListUnverified returns the approved requests whose site the core still
+// reports as unverified — the admin's view of what the sweep will release.
+// ponytail: one core GET per approved site per page load; batch it in the
+// core if the approved list grows into the hundreds.
+func (s *Service) ListUnverified(ctx context.Context) ([]PendingRow, error) {
+	approved, err := s.repo.ListApproved(ctx)
+	if err != nil {
+		return nil, err
+	}
+	var out []PendingRow
+	for _, p := range approved {
+		if s.siteUnverified(ctx, p.SiteRequest) {
+			out = append(out, p)
+		}
+	}
+	return out, nil
+}
+
+// ReleaseNow is the admin's early release of one unverified site. It
+// applies the same core check as the sweep, so a site that verified since
+// the page loaded is kept.
+func (s *Service) ReleaseNow(ctx context.Context, requestID string) (*model.SiteRequest, error) {
+	req, err := s.repo.GetByID(ctx, requestID)
+	if err != nil {
+		return nil, err
+	}
+	if req.Status != StatusApproved || !s.siteUnverified(ctx, *req) {
+		return nil, ErrNotUnverified
+	}
+	return req, s.release(ctx, *req, ManualReleaseReason)
+}
+
+func (s *Service) release(ctx context.Context, req model.SiteRequest, reason string) error {
+	if err := s.deleteSite(ctx, req); err != nil {
+		return err
+	}
+	if err := s.repo.MarkReleased(ctx, req.ID, reason); err != nil {
+		return fmt.Errorf("mark released: %w", err)
+	}
+	slog.Warn("released unverified site", "siteId", req.SiteID, "domain", req.Domain,
+		"publisherId", req.PublisherID, "approvedAt", req.ReviewedAt, "reason", reason)
+	return nil
 }
 
 // RunReleaseLoop sweeps once at start, then every interval until ctx ends.

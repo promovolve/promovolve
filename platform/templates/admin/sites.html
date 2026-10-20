@@ -53,6 +53,37 @@
     {{end}}
   </div>
 
+  {{if .AdminUnverifiedSites}}
+  <h2 class="page-title mt-10">{{t "Approved, not verified"}}</h2>
+  <p class="page-sub">{{t "These sites were approved but the publisher has not verified the domain. Each holds its domain until it is verified or released; it is released automatically 14 days after approval."}}</p>
+
+  <div class="space-y-4 mt-6">
+    {{range .AdminUnverifiedSites}}
+    <div class="card border-l-4 border-amber-400">
+      <div class="flex items-start justify-between gap-4">
+        <div class="flex items-center gap-2">
+          <h2 class="font-semibold text-lg">{{.Domain}}</h2>
+          <span class="badge badge-warning">{{t "Unverified"}}</span>
+        </div>
+        <span class="text-xs text-gray-400 whitespace-nowrap">{{t "Released in %d days" .DaysLeft}}</span>
+      </div>
+
+      <dl class="grid grid-cols-2 gap-x-6 gap-y-2 mt-4 text-sm">
+        <div><dt class="text-gray-400">{{t "Site ID"}}</dt><dd class="font-mono text-xs">{{.SiteID}}</dd></div>
+        <div><dt class="text-gray-400">{{t "Publisher"}}</dt><dd>{{.Publisher}}{{if .Company}} · {{.Company}}{{end}}</dd></div>
+        <div><dt class="text-gray-400">{{t "Approved"}}</dt><dd>{{.ApprovedAt}}</dd></div>
+      </dl>
+
+      <form method="POST" action="/admin/sites/release" class="mt-4"
+        onsubmit="return confirm('{{t "Release %s now? The site is deleted from the ad server and the domain can be registered again." .Domain}}')">
+        <input type="hidden" name="requestId" value="{{.ID}}">
+        <button type="submit" class="btn btn-danger">{{t "Release now"}}</button>
+      </form>
+    </div>
+    {{end}}
+  </div>
+  {{end}}
+
   {{if .AdminSuspendedSites}}
   <h2 class="page-title mt-10">{{t "Suspended by fraud detection"}}</h2>
   <p class="page-sub">{{t "Serving is frozen on these sites. Pending-review sites were auto-suspended the moment the detector flagged them; confirmed sites had the fraud upheld (earnings already reversed). Resume restores serving; for a pending site that also pays out any held earnings, treating the flag as a false positive."}}</p>

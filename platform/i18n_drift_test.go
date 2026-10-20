@@ -33,6 +33,7 @@ import (
 // honest — every entry should name where the dynamic lookup happens.
 var dynamicKeys = map[string]string{
 	"Released: the site was not verified within 14 days of approval. Add it again to retry.": "pages.go publisher Sites request card i18n.T(lang, sr.RejectReason) — siterequest.UnverifiedReleaseReason",
+	"Released by an administrator: the site was not verified. Add it again to retry.":        "pages.go publisher Sites request card i18n.T(lang, sr.RejectReason) — siterequest.ManualReleaseReason",
 	"advertiser":                     "account-preferences.html landing-side radios ({{t .}})",
 	"violence":                       "creatives.html / approval.html safety flags ({{t $a}})",
 	"hate_speech":                    "creatives.html / approval.html safety flags ({{t $a}})",

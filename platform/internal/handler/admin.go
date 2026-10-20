@@ -17,6 +17,7 @@ import (
 	"github.com/hanishi/promovolve/platform/internal/billing"
 	"github.com/hanishi/promovolve/platform/internal/i18n"
 	"github.com/hanishi/promovolve/platform/internal/model"
+	"github.com/hanishi/promovolve/platform/internal/siterequest"
 )
 
 // adminRequestRow is one pending account request on /admin/requests.
@@ -152,6 +153,18 @@ type adminSiteRequestRow struct {
 	Publisher   string // requester email; falls back to the publisher entity id
 	Company     string
 	RequestedAt string
+}
+
+// adminUnverifiedSiteRow is an approved site the publisher never verified,
+// shown on /admin/sites until the sweep (or an admin) releases it.
+type adminUnverifiedSiteRow struct {
+	ID         string
+	Domain     string
+	SiteID     string
+	Publisher  string
+	Company    string
+	ApprovedAt string
+	DaysLeft   int
 }
 
 // adminFraudFlagRow is one open fraud flag on /admin/fraud
@@ -479,13 +492,81 @@ func (h *Handler) renderAdminSiteRequests(w http.ResponseWriter, r *http.Request
 		})
 	}
 	h.render(w, r, "admin/sites.html", pageData{
-		Title:               "Site Requests",
-		Nav:                 "admin-sites",
-		User:                user,
-		Error:               errMsg,
-		AdminSiteRequests:   rows,
-		AdminSuspendedSites: h.suspendedSiteRows(r.Context(), user),
+		Title:                "Site Requests",
+		Nav:                  "admin-sites",
+		User:                 user,
+		Error:                errMsg,
+		AdminSiteRequests:    rows,
+		AdminUnverifiedSites: h.unverifiedSiteRows(r.Context(), user),
+		AdminSuspendedSites:  h.suspendedSiteRows(r.Context(), user),
 	})
+}
+
+// unverifiedSiteRows lists approved sites that are still unverified, with
+// the days left before the sweep releases them. Best-effort like
+// suspendedSiteRows: on error it logs and returns nil.
+func (h *Handler) unverifiedSiteRows(ctx context.Context, user *model.User) []adminUnverifiedSiteRow {
+	unverified, err := h.siteReqSvc.ListUnverified(ctx)
+	if err != nil {
+		slog.Error("list unverified sites failed", "error", err)
+		return nil
+	}
+	rows := make([]adminUnverifiedSiteRow, 0, len(unverified))
+	for _, p := range unverified {
+		publisher := p.RequesterEmail
+		if publisher == "" {
+			publisher = p.PublisherID
+		}
+		approved := p.CreatedAt
+		if p.ReviewedAt != nil {
+			approved = *p.ReviewedAt
+		}
+		rows = append(rows, adminUnverifiedSiteRow{
+			ID:         p.ID,
+			Domain:     p.Domain,
+			SiteID:     p.SiteID,
+			Publisher:  publisher,
+			Company:    p.RequesterCompany,
+			ApprovedAt: approved.In(user.Location()).Format("2006-01-02 15:04"),
+			DaysLeft:   daysLeft(approved.Add(siterequest.UnverifiedMaxAge), time.Now()),
+		})
+	}
+	return rows
+}
+
+// daysLeft rounds up the whole days from now until release, floored at 0
+// (the sweep runs hourly, so 0 means within the hour).
+func daysLeft(release, now time.Time) int {
+	d := release.Sub(now)
+	if d <= 0 {
+		return 0
+	}
+	return int((d + 24*time.Hour - 1) / (24 * time.Hour))
+}
+
+// ReleaseUnverifiedSite releases one approved-but-unverified site before the
+// sweep would, freeing its domain for another account.
+func (h *Handler) ReleaseUnverifiedSite(w http.ResponseWriter, r *http.Request) {
+	admin, _, ok := h.requireRole(w, r, model.RoleAdmin)
+	if !ok {
+		return
+	}
+	r.ParseForm()
+	requestID := r.FormValue("requestId")
+	if requestID == "" {
+		h.renderAdminSiteRequests(w, r, "missing request id")
+		return
+	}
+	req, err := h.siteReqSvc.ReleaseNow(r.Context(), requestID)
+	if err != nil {
+		slog.Error("release unverified site failed", "requestId", requestID, "error", err)
+		h.renderAdminSiteRequests(w, r, fmt.Sprintf("could not release the site: %v", err))
+		return
+	}
+	if h.auditRepo != nil {
+		h.auditRepo.Log(r.Context(), admin.ID, admin.Email, "", "site_release_unverified", req.SiteID, req.Domain)
+	}
+	http.Redirect(w, r, "/admin/sites", http.StatusSeeOther)
 }
 
 // suspendedSiteRows lists every currently-suspended site (auto-suspended

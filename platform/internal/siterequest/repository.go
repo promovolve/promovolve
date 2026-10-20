@@ -23,6 +23,7 @@ var ErrDuplicatePending = errors.New("a request for this site is already awaitin
 var ErrSiteAlreadyOwned = errors.New("the requesting publisher already owns this site")
 var ErrSiteTaken = errors.New("this site is already registered to another publisher")
 var ErrReservedHost = errors.New("this host belongs to the Promovolve deployment itself")
+var ErrNotUnverified = errors.New("the site is verified, already released, or the ad server could not be reached")
 
 type Repository struct {
 	pool *pgxpool.Pool
@@ -133,14 +134,24 @@ type PendingRow struct {
 }
 
 func (r *Repository) ListPending(ctx context.Context) ([]PendingRow, error) {
+	return r.listWithRequester(ctx, "pending")
+}
+
+// ListApproved returns every approved request with its requester, verified
+// or not; the caller asks the core which are still unverified.
+func (r *Repository) ListApproved(ctx context.Context) ([]PendingRow, error) {
+	return r.listWithRequester(ctx, "approved")
+}
+
+func (r *Repository) listWithRequester(ctx context.Context, status string) ([]PendingRow, error) {
 	rows, err := r.pool.Query(ctx, `
 		SELECT sr.id, sr.publisher_id, sr.requested_by, sr.site_id, sr.domain, sr.page_url,
 		       sr.status, sr.reject_reason, sr.reviewed_by, sr.reviewed_at, sr.created_at, sr.updated_at,
 		       COALESCE(u.email, ''), COALESCE(u.company_name, '')
 		FROM site_requests sr
 		LEFT JOIN platform_users u ON u.id = sr.requested_by
-		WHERE sr.status = 'pending'
-		ORDER BY sr.created_at`)
+		WHERE sr.status = $1
+		ORDER BY sr.created_at`, status)
 	if err != nil {
 		return nil, err
 	}

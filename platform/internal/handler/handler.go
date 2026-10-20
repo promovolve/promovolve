@@ -490,6 +490,9 @@ type pageData struct {
 	AdminRequests []adminRequestRow
 	// Admin site-request queue (/admin/sites)
 	AdminSiteRequests []adminSiteRequestRow
+	// Approved sites never verified, until the sweep releases them
+	// (also /admin/sites)
+	AdminUnverifiedSites []adminUnverifiedSiteRow
 	// Sites the fraud detector auto-suspended, pending operator review
 	// (also /admin/sites)
 	AdminSuspendedSites []adminSuspendedSiteRow

@@ -155,9 +155,10 @@ type adminSiteRequestRow struct {
 	RequestedAt string
 }
 
-// adminUnverifiedSiteRow is an approved site the publisher never verified,
-// shown on /admin/sites until the sweep (or an admin) releases it.
-type adminUnverifiedSiteRow struct {
+// adminApprovedSiteRow is an approved site on /admin/sites: either still
+// unverified (until the sweep or an admin releases it; DaysLeft set) or
+// verified and live.
+type adminApprovedSiteRow struct {
 	ID         string
 	Domain     string
 	SiteID     string
@@ -491,28 +492,34 @@ func (h *Handler) renderAdminSiteRequests(w http.ResponseWriter, r *http.Request
 			RequestedAt: p.CreatedAt.In(user.Location()).Format("2006-01-02 15:04"),
 		})
 	}
+	unverified, verified := h.approvedSiteRows(r.Context(), user)
 	h.render(w, r, "admin/sites.html", pageData{
 		Title:                "Site Requests",
 		Nav:                  "admin-sites",
 		User:                 user,
 		Error:                errMsg,
 		AdminSiteRequests:    rows,
-		AdminUnverifiedSites: h.unverifiedSiteRows(r.Context(), user),
+		AdminUnverifiedSites: unverified,
+		AdminVerifiedSites:   verified,
 		AdminSuspendedSites:  h.suspendedSiteRows(r.Context(), user),
 	})
 }
 
-// unverifiedSiteRows lists approved sites that are still unverified, with
-// the days left before the sweep releases them. Best-effort like
-// suspendedSiteRows: on error it logs and returns nil.
-func (h *Handler) unverifiedSiteRows(ctx context.Context, user *model.User) []adminUnverifiedSiteRow {
-	unverified, err := h.siteReqSvc.ListUnverified(ctx)
+// approvedSiteRows lists approved sites in two groups: still unverified,
+// with the days left before the sweep releases them, and verified (live).
+// Best-effort like suspendedSiteRows: on error it logs and returns nil.
+func (h *Handler) approvedSiteRows(ctx context.Context, user *model.User) (unverified, verified []adminApprovedSiteRow) {
+	u, v, err := h.siteReqSvc.ListApprovedSites(ctx)
 	if err != nil {
-		slog.Error("list unverified sites failed", "error", err)
-		return nil
+		slog.Error("list approved sites failed", "error", err)
+		return nil, nil
 	}
-	rows := make([]adminUnverifiedSiteRow, 0, len(unverified))
-	for _, p := range unverified {
+	return approvedRows(u, user, true), approvedRows(v, user, false)
+}
+
+func approvedRows(sites []siterequest.PendingRow, user *model.User, unverified bool) []adminApprovedSiteRow {
+	rows := make([]adminApprovedSiteRow, 0, len(sites))
+	for _, p := range sites {
 		publisher := p.RequesterEmail
 		if publisher == "" {
 			publisher = p.PublisherID
@@ -521,15 +528,18 @@ func (h *Handler) unverifiedSiteRows(ctx context.Context, user *model.User) []ad
 		if p.ReviewedAt != nil {
 			approved = *p.ReviewedAt
 		}
-		rows = append(rows, adminUnverifiedSiteRow{
+		row := adminApprovedSiteRow{
 			ID:         p.ID,
 			Domain:     p.Domain,
 			SiteID:     p.SiteID,
 			Publisher:  publisher,
 			Company:    p.RequesterCompany,
 			ApprovedAt: approved.In(user.Location()).Format("2006-01-02 15:04"),
-			DaysLeft:   daysLeft(approved.Add(siterequest.UnverifiedMaxAge), time.Now()),
-		})
+		}
+		if unverified {
+			row.DaysLeft = daysLeft(approved.Add(siterequest.UnverifiedMaxAge), time.Now())
+		}
+		rows = append(rows, row)
 	}
 	return rows
 }

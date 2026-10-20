@@ -209,7 +209,8 @@
       const CUR_DEC = {{decimals}};
 
 (() => {
-  const INK = '#7d7a75', GRID = '#eae7e4', SPEND = '#d35f00', IMPS = '#7d7a75';
+  const T = chartTheme();
+  const INK = T.ink, GRID = T.grid, SPEND = T.brand, IMPS = T.ink;
 
   // Daily tab: line per calendar day (zero-delivery days are real zero
   // points, so the line never implies delivery that didn't happen).
@@ -221,7 +222,7 @@
     borderJoinStyle: 'round', borderCapStyle: 'round',
     backgroundColor: wash, fill: true,
     pointRadius: labels.length > 31 ? 0 : 4, pointHoverRadius: 5,
-    pointBackgroundColor: color, pointBorderColor: '#ffffff', pointBorderWidth: 2
+    pointBackgroundColor: color, pointBorderColor: T.surface, pointBorderWidth: 2
   });
   const base = {
     type: 'line',
@@ -254,7 +255,7 @@
   // CVD-validated; identity also carried by the legend and the table
   // below. Canvases sit in x-cloak'd tabs; Chart.js's ResizeObserver
   // draws them when the tab first shows.
-  const PAL = ['#2a78d6', '#1baf7a', '#eda100', '#008300', '#4a3aa7'], OTHER = '#7d7a75';
+  const PAL = T.pal.slice(0, 5), OTHER = T.ink;
   const mline = (id, labels, series, key, money) => {
     const el = document.getElementById(id);
     if (!el || !labels || !series) return;
@@ -268,7 +269,7 @@
           borderColor: color, backgroundColor: color,
           borderWidth: 2, borderJoinStyle: 'round', borderCapStyle: 'round',
           pointRadius: pr, pointHoverRadius: 5,
-          pointBackgroundColor: color, pointBorderColor: '#ffffff', pointBorderWidth: 2,
+          pointBackgroundColor: color, pointBorderColor: T.surface, pointBorderWidth: 2,
           fill: false
         };
       }) },
@@ -310,7 +311,7 @@
     reachChart = new Chart(el, {
       data: { labels: d.labels, datasets: [
         { type: 'bar', label: {{t "New"}}, data: d.new, backgroundColor: SPEND, stack: 'reach', order: 2 },
-        { type: 'bar', label: {{t "Returning"}}, data: d.returning, backgroundColor: '#f2c8a6', stack: 'reach', order: 2 },
+        { type: 'bar', label: {{t "Returning"}}, data: d.returning, backgroundColor: T.brandTint, stack: 'reach', order: 2 },
         { type: 'line', label: {{t "Cumulative reach"}}, data: d.cumulative, borderColor: IMPS, borderWidth: 2, pointRadius: 0, yAxisID: 'cum', order: 1 }
       ] },
       options: {

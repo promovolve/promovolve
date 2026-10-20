@@ -279,29 +279,29 @@
            (see ArgmaxYTicks) rather than fixed at $0-10: a hardcoded dollar
            ceiling pinned every yen floor to the top of the chart. */}}
       {{range $i, $t := $fo.ArgmaxYTicks}}
-      <line x1="0" x2="100" y1="{{$t.Y}}" y2="{{$t.Y}}" stroke="{{if or (eq $t.Y 0) (eq $t.Y 40)}}#9ca3af{{else}}#e5e7eb{{end}}"
+      <line x1="0" x2="100" y1="{{$t.Y}}" y2="{{$t.Y}}" class="{{if or (eq $t.Y 0) (eq $t.Y 40)}}stroke-gray-400{{else}}stroke-gray-200{{end}}"
             stroke-width="{{if eq $t.Y 40}}0.2{{else}}0.15{{end}}"{{if and (ne $t.Y 0) (ne $t.Y 40)}} stroke-dasharray="0.5,0.5"{{end}}/>
       <text x="-2" y="{{if eq $t.Y 40}}41.5{{else}}{{addf $t.Y 1}}{{end}}" font-size="2"
-            fill="{{if or (eq $t.Y 0) (eq $t.Y 40)}}#6b7280{{else}}#9ca3af{{end}}" text-anchor="end">{{$t.Label}}</text>
+            class="fill-gray-500" text-anchor="end">{{$t.Label}}</text>
       {{end}}
 
       {{if gt (len $fo.ArgmaxHistory) 1}}
-      <polyline fill="none" stroke="#d35f00" stroke-width="0.3" stroke-linejoin="round" points="{{range $fo.ArgmaxHistory}}{{.X}},{{.Y}} {{end}}"/>
+      <polyline fill="none" class="stroke-brand" stroke-width="0.3" stroke-linejoin="round" points="{{range $fo.ArgmaxHistory}}{{.X}},{{.Y}} {{end}}"/>
       {{end}}
 
       {{$showLabels := le (len $fo.ArgmaxHistory) 12}}
       {{range $fo.ArgmaxHistory}}
-      <circle cx="{{.X}}" cy="{{.Y}}" r="0.7" fill="#d35f00" stroke="white" stroke-width="0.2">
+      <circle cx="{{.X}}" cy="{{.Y}}" r="0.7" class="fill-brand stroke-white" stroke-width="0.2">
         <title>{{.TS}} → {{.Label}}</title>
       </circle>
       {{if $showLabels}}
-      <text x="{{.X}}" y="{{.Y}}" dy="-1.5" font-size="2" fill="#374151" text-anchor="middle">{{.Label}}</text>
+      <text x="{{.X}}" y="{{.Y}}" dy="-1.5" font-size="2" class="fill-gray-700" text-anchor="middle">{{.Label}}</text>
       {{end}}
       {{end}}
 
       {{range $fo.ArgmaxXTicks}}
-      <line x1="{{.X}}" x2="{{.X}}" y1="40" y2="41" stroke="#9ca3af" stroke-width="0.15"/>
-      <text x="{{.X}}" y="45" font-size="2" fill="#6b7280" text-anchor="middle">{{.Label}}</text>
+      <line x1="{{.X}}" x2="{{.X}}" y1="40" y2="41" class="stroke-gray-400" stroke-width="0.15"/>
+      <text x="{{.X}}" y="45" font-size="2" class="fill-gray-500" text-anchor="middle">{{.Label}}</text>
       {{end}}
     </svg>
     <div class="flex items-center justify-between text-xs text-gray-500 mt-3 px-2 gap-2 flex-wrap">
@@ -319,7 +319,7 @@
         {{if $nav.NextDate}}
           <a href="?date={{$nav.NextDate}}" class="text-brand-ink hover:underline whitespace-nowrap">{{$nav.NextDate}} →</a>
         {{else}}
-          <span class="text-gray-300 whitespace-nowrap">{{t "at today"}}</span>
+          <span class="text-gray-500 whitespace-nowrap">{{t "at today"}}</span>
         {{end}}
       {{else}}
         <span>← {{t "older cycles"}}</span>
@@ -331,7 +331,7 @@
   {{else}}
   <div class="px-5 py-12 text-center">
     <p class="text-sm text-gray-500">{{t "No completed cycles yet"}}</p>
-    <p class="text-xs text-gray-300 mt-1">{{t "First dot appears after the optimizer finishes its first full probe cycle"}}{{if $fo.Sweep}}{{if $fo.Sweep.HoldMins}}{{if $fo.Sweep.CandidateCount}} {{t "(~%dm × %d candidates)" $fo.Sweep.HoldMins $fo.Sweep.CandidateCount}}{{end}}{{end}}{{end}}</p>
+    <p class="text-xs text-gray-500 mt-1">{{t "First dot appears after the optimizer finishes its first full probe cycle"}}{{if $fo.Sweep}}{{if $fo.Sweep.HoldMins}}{{if $fo.Sweep.CandidateCount}} {{t "(~%dm × %d candidates)" $fo.Sweep.HoldMins $fo.Sweep.CandidateCount}}{{end}}{{end}}{{end}}</p>
   </div>
   {{end}}
 </div>

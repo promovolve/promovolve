@@ -24,6 +24,24 @@
        After ANY template class change run scripts/build-tailwind.sh and
        commit static/tailwind.css, or the new class silently has no styles. */}}
   <link rel="stylesheet" href="{{asset "tailwind.css"}}">
+  {{/* Chart colors for the current theme, read when a chart is drawn. The
+       categorical steps are validated per surface (dataviz validator):
+       light vs white, dark vs the dark surface. Identity is also carried by
+       the legend and the table under each chart (dark green/amber sit in the
+       CVD 6-8 band). A theme toggle mid-page applies on the next load. */}}
+  <script>
+    window.chartTheme = function () {
+      var cs = getComputedStyle(document.documentElement);
+      var v = function (n) { return 'rgb(' + cs.getPropertyValue(n).trim().split(/\s+/).join(',') + ')'; };
+      var dark = document.documentElement.classList.contains('dark');
+      return {
+        ink: v('--c-gray-500'), grid: v('--c-gray-200'), surface: v('--c-white'), brand: '#d35f00',
+        brandTint: dark ? 'rgba(211,95,0,0.45)' : '#f2c8a6',
+        pal: dark ? ['#3987e5', '#199e70', '#c98500', '#008300', '#9085e9', '#d95926']
+                  : ['#2a78d6', '#1baf7a', '#eda100', '#008300', '#4a3aa7', '#d35f00']
+      };
+    };
+  </script>
   {{/* Alpine loads deferred; x-cloak'd elements must stay hidden until it
        initializes or every x-show panel flashes on load. */}}
   <style>[x-cloak] { display: none !important; }</style>

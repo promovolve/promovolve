@@ -63,8 +63,9 @@
   if (!labels || !labels.length || typeof Chart === 'undefined') return;
   // Same categorical palette as the report's breakdown charts; the tail
   // "Other" dataset (always last when present) goes gray.
-  var PAL = ['#2a78d6', '#1baf7a', '#eda100', '#008300', '#4a3aa7', '#d35f00'], OTHER = '#7d7a75';
-  var INK = '#7d7a75', GRID = 'rgba(125,122,117,0.15)';
+  var T = chartTheme();
+  var PAL = T.pal, OTHER = T.ink;
+  var INK = T.ink, GRID = T.grid;
   // Horizontal bars: height scales with the creative count.
   document.getElementById('media-chart-box').style.height = (labels.length * 44 + 72) + 'px';
   new Chart(document.getElementById('creative-media-chart'), {

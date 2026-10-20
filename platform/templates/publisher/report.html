@@ -169,10 +169,11 @@
       const CUR_DEC = {{decimals}};
 
 (() => {
-  const INK = '#7d7a75', GRID = '#eae7e4';
+  const T = chartTheme();
+  const INK = T.ink, GRID = T.grid;
   // Daily time series, one line per category (top 5 + gray "Other") —
   // same palette and mark specs as the advertiser report's category tab.
-  const PAL = ['#2a78d6', '#1baf7a', '#eda100', '#008300', '#4a3aa7'], OTHER = '#7d7a75';
+  const PAL = T.pal.slice(0, 5), OTHER = T.ink;
   const mline = (id, labels, series, key, money) => {
     const el = document.getElementById(id);
     if (!el || !labels || !series) return;
@@ -186,7 +187,7 @@
           borderColor: color, backgroundColor: color,
           borderWidth: 2, borderJoinStyle: 'round', borderCapStyle: 'round',
           pointRadius: pr, pointHoverRadius: 5,
-          pointBackgroundColor: color, pointBorderColor: '#ffffff', pointBorderWidth: 2,
+          pointBackgroundColor: color, pointBorderColor: T.surface, pointBorderWidth: 2,
           fill: false
         };
       }) },

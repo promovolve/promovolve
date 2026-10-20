@@ -993,6 +993,12 @@ var ja = map[string]string{
 	"Recent picks: %s (σ=%s over %d cycles)":                                                 "直近の選択: %s(σ=%s、%d サイクル)",
 	"2 consecutive cycles agree on %s (collect more cycles to confirm stability)":            "連続する2サイクルが %s で一致(安定の確認にはさらにサイクルが必要です)",
 	"Released: the site was not verified within 14 days of approval. Add it again to retry.": "解除済み: 承認から14日以内にサイトが確認されませんでした。再度追加してやり直してください。",
+	"Released by an administrator: the site was not verified. Add it again to retry.":        "管理者により解除されました: サイトが検証されていませんでした。再度追加してやり直してください。",
+	"Approved, not verified":                                                                 "承認済み・未検証",
+	"These sites were approved but the publisher has not verified the domain. Each holds its domain until it is verified or released; it is released automatically 14 days after approval.": "承認済みですが、パブリッシャーがドメインを検証していないサイトです。検証または解除されるまでドメインを保持し続けます。承認から14日後に自動的に解除されます。",
+	"Released in %d days": "あと %d 日で解除",
+	"Release %s now? The site is deleted from the ad server and the domain can be registered again.": "%s を今すぐ解除しますか?サイトは広告サーバーから削除され、ドメインは再登録できるようになります。",
+	"Release now": "今すぐ解除",
 
 	// ══ batch 4: admin billing ══
 	"Advertiser wallets, publisher payouts, and the platform ledger. All money movement is recorded here; bank transfers happen outside and are recorded manually.": "広告主ウォレット、パブリッシャーへの支払い、プラットフォームの台帳です。すべてのお金の動きがここに記録されます。銀行振込は外部で行われ、手動で記録します。",

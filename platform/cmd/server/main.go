@@ -127,7 +127,7 @@ func main() {
 	go settler.Run(settleCtx)
 	// An approved site that never verifies is released after 14 days, so it
 	// stops holding the domain against its real owner (#285).
-	go siteReqSvc.RunReleaseLoop(settleCtx, 14*24*time.Hour, time.Hour)
+	go siteReqSvc.RunReleaseLoop(settleCtx, siterequest.UnverifiedMaxAge, time.Hour)
 
 	// The deployment's currency is a setup-time constant. Read it once, before
 	// anything renders. An unreadable or unsupported stored code is fatal:
@@ -280,6 +280,7 @@ func main() {
 	mux.HandleFunc("GET /admin/sites", adm(h.AdminSiteRequests))
 	mux.HandleFunc("POST /admin/sites/approve", adm(h.SiteRequestDecision("approve")))
 	mux.HandleFunc("POST /admin/sites/reject", adm(h.SiteRequestDecision("reject")))
+	mux.HandleFunc("POST /admin/sites/release", adm(h.ReleaseUnverifiedSite))
 	mux.HandleFunc("POST /admin/sites/resume", adm(h.ResumeSuspendedSite))
 	mux.HandleFunc("POST /admin/sites/restore", adm(h.RestoreSuspendedSiteEarnings))
 	mux.HandleFunc("GET /admin/fraud", adm(h.AdminFraudFlags))

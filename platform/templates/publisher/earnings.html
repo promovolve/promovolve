@@ -5,7 +5,7 @@
 
   {{with .Earnings}}
 
-  <div class="grid grid-cols-3 gap-6 mt-6">
+  <div class="grid grid-cols-1 sm:grid-cols-3 gap-6 mt-6">
     <div class="bg-white p-6 rounded-lg border" title="{{t "Settled net earnings not yet paid out"}}">
       <p class="text-sm text-gray-500">{{t "Balance owed"}}</p>
       <p class="text-3xl font-semibold mt-2">{{money .Accrued}}</p>

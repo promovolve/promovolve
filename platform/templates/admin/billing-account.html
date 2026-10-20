@@ -13,7 +13,7 @@
 
   {{with .AdminAccount}}
 
-  <div class="grid grid-cols-3 gap-6 mt-6">
+  <div class="grid grid-cols-1 sm:grid-cols-3 gap-6 mt-6">
     <div class="bg-white p-6 rounded-lg border">
       <p class="text-sm text-gray-500">{{if .IsPublisher}}{{t "Balance owed"}}{{else}}{{t "Wallet balance"}}{{end}}</p>
       <p class="text-3xl font-semibold mt-2">{{.Balance}}</p>

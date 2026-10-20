@@ -25,7 +25,7 @@
 {{end}}
 
 <!-- Summary cards -->
-<div class="grid grid-cols-4 gap-4 mb-6">
+<div class="grid grid-cols-2 sm:grid-cols-4 gap-4 mb-6">
   <div class="bg-white p-4 rounded-lg border">
     <p class="text-xs text-gray-500 uppercase tracking-wide">{{t "Today's Spend"}}</p>
     <p class="text-2xl font-semibold mt-1">{{if .AdvBudget}}{{money .AdvBudget.SpendToday}}{{else}}{{money 0.0}}{{end}}</p>
@@ -258,7 +258,7 @@
         {{t "Example:"}} <code class="text-gray-500">?utm_source={source}&utm_campaign={campaign_id}</code>
       </p>
     </div>
-    <div class="grid grid-cols-2 gap-4 mb-4">
+    <div class="grid grid-cols-1 sm:grid-cols-2 gap-4 mb-4">
       <div>
         <label for="campaigns-budget" class="form-label">{{t "Daily Budget"}} ({{sym}})</label>
         <div >
@@ -304,7 +304,7 @@
       </div>
       <p class="text-xs text-gray-500 mt-1">{{t "Per browser, per site: the reader's own browser keeps the count and simply declines this campaign once it has seen enough. Promovolve never identifies readers, so the cap does not follow them across devices or sites."}}</p>
     </div>
-    <div class="grid grid-cols-2 gap-4 mb-4">
+    <div class="grid grid-cols-1 sm:grid-cols-2 gap-4 mb-4">
       <div>
         <label id="campaigns-start-label" for="campaigns-start" class="form-label">{{t "Start date"}} <span class="font-normal text-gray-500">{{t "(optional — blank = start now)"}}</span></label>
         {{template "date-picker" dict "Id" "campaigns-start" "Name" "startAt" "Time" "1" "Clear" "1"}}
@@ -454,7 +454,7 @@
 
     <!-- Expanded details -->
     <div class="hidden border-t px-4 py-4 bg-gray-50">
-      <div class="grid grid-cols-3 gap-6 text-sm">
+      <div class="grid grid-cols-1 sm:grid-cols-3 gap-6 text-sm">
         <div>
           <p class="text-gray-500 text-xs uppercase mb-2">{{t "Campaign"}}</p>
           {{/* UTM-laden landing URLs are too long to print whole: show the
@@ -872,7 +872,7 @@
             <p class="text-xs text-gray-500 mt-1">{{t "A campaign's landing page can't be changed after it's created. To promote a different page, create a new campaign."}}</p>
           </div>
 
-          <div class="grid grid-cols-2 gap-4 mb-4">
+          <div class="grid grid-cols-1 sm:grid-cols-2 gap-4 mb-4">
             <div>
               <label for="edit-budget-{{.ID}}" class="form-label">{{t "Daily Budget"}} ({{sym}})</label>
               <div >
@@ -923,7 +923,7 @@
             </div>
             <p class="text-xs text-gray-500 mt-1">{{t "Per browser, per site: the reader's own browser keeps the count and simply declines this campaign once it has seen enough. Promovolve never identifies readers, so the cap does not follow them across devices or sites."}}</p>
           </div>
-          <div class="grid grid-cols-2 gap-4 mb-4">
+          <div class="grid grid-cols-1 sm:grid-cols-2 gap-4 mb-4">
             <div>
               <label id="edit-start-{{.ID}}-label" for="edit-start-{{.ID}}" class="form-label">{{t "Start date"}} <span class="font-normal text-gray-500">({{$.ScheduleTz}})</span></label>
               {{template "date-picker" dict "Id" "edit-start-{{.ID}}" "Name" "startAt" "Value" .StartAtLocal "Time" "1" "Clear" "1"}}

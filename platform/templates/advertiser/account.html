@@ -56,7 +56,7 @@
   </div>
 
   {{if .AdvBudget}}
-  <div class="grid grid-cols-3 gap-4 mb-6">
+  <div class="grid grid-cols-1 sm:grid-cols-3 gap-4 mb-6">
     <div class="bg-gray-50 p-4 rounded">
       <p class="text-xs text-gray-500 uppercase tracking-wide">{{t "Current Daily Budget"}}</p>
       <p class="text-2xl font-semibold mt-1">{{money .AdvBudget.DailyBudget}}</p>

@@ -88,6 +88,7 @@ var ja = map[string]string{
 	"Passkeys":    "パスキー",
 	"Sign out":    "サインアウト",
 	"Theme":       "テーマ",
+	"Menu":        "メニュー",
 	"Theme: auto (follows your OS) — click to cycle": "テーマ: 自動(OSに追従)— クリックで切り替え",
 	"Theme: light — click to cycle":                  "テーマ: ライト — クリックで切り替え",
 	"Theme: dark — click to cycle":                   "テーマ: ダーク — クリックで切り替え",

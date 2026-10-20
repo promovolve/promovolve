@@ -24,7 +24,7 @@
 {{else}}
 <!-- Headline metrics — all three share the same persistent local-midnight
      window (tracking_events), so they always reconcile with each other. -->
-<div class="grid grid-cols-3 gap-6 mb-4">
+<div class="grid grid-cols-1 sm:grid-cols-3 gap-6 mb-4">
   <div class="bg-white p-6 rounded-lg border" title="{{t "Impressions served on this site since midnight of your organization's timezone. Sourced from tracking_events."}}">
     <p class="text-sm text-gray-500">{{t "Impressions Today"}}</p>
     <p class="text-3xl font-semibold mt-2">{{.Stats.Impressions}}</p>
@@ -51,7 +51,7 @@
 </p>
 
 <!-- Activity cards -->
-<div class="grid grid-cols-2 gap-6">
+<div class="grid grid-cols-1 md:grid-cols-2 gap-6">
   <div class="bg-white p-6 rounded-lg border">
     <p class="text-sm text-gray-500">{{t "Creatives Served"}}</p>
     <p class="text-2xl font-semibold mt-2">{{.Stats.CreativesServed}}</p>

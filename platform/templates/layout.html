@@ -46,8 +46,8 @@
        initializes or every x-show panel flashes on load. */}}
   <style>[x-cloak] { display: none !important; }</style>
   <script defer src="{{asset "alpine.min.js"}}"></script>
-  <script src="{{asset "htmx.min.js"}}"></script>
-  <script src="{{asset "htmx-sse.js"}}"></script>
+  <script defer src="{{asset "htmx.min.js"}}"></script>
+  <script defer src="{{asset "htmx-sse.js"}}"></script>
 </head>
 <body class="bg-gray-50 text-gray-900 {{if .User}}h-dvh overflow-hidden flex flex-col{{else}}min-h-screen{{end}}">
   {{if .User}}

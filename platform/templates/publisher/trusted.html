@@ -31,8 +31,8 @@
 
   <form method="GET" action="/publisher/trusted" class="flex items-end gap-3 mt-6">
     <div>
-      <label class="form-label">{{t "Search"}}</label>
-      <input name="q" value="{{.Query}}" class="form-input w-72" placeholder="{{t "domain, campaign, advertiser, or site"}}">
+      <label for="trusted-q" class="form-label">{{t "Search"}}</label>
+      <input id="trusted-q" name="q" value="{{.Query}}" class="form-input w-72" placeholder="{{t "domain, campaign, advertiser, or site"}}">
     </div>
     <button type="submit" class="btn btn-secondary">{{t "Search"}}</button>
     {{if .Query}}<a href="/publisher/trusted" class="text-sm text-brand hover:underline pb-2">{{t "clear"}}</a>{{end}}

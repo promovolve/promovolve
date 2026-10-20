@@ -89,6 +89,9 @@
   .badge-warning { @apply bg-yellow-100 text-yellow-800 dark:bg-yellow-500/15 dark:text-yellow-300; }
   .badge-danger { @apply bg-red-100 text-red-700 dark:bg-red-500/15 dark:text-red-300; }
   .badge-neutral { @apply bg-gray-100 text-gray-600; }
+  /* × inside a badge: inherits the badge's text color, 24px hit area
+     (WCAG 2.5.8) pulled back with negative margins so the pill doesn't grow. */
+  .chip-x { @apply inline-flex items-center justify-center min-w-6 min-h-6 -my-1 -mr-1.5 ml-0.5 rounded-full font-bold opacity-70 hover:opacity-100 hover:bg-black/5 cursor-pointer; }
   .form-label { @apply block text-sm font-medium text-gray-700 mb-1; }
   /* bg-white + text-gray-900 both route through the inverting vars: white bg
      / dark text in light mode, dark surface / light text in dark mode. Before

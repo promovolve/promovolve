@@ -309,8 +309,8 @@
         {{$nav := $fo.ArgmaxNav}}
         <a href="?date={{$nav.PrevDate}}" class="text-brand hover:underline whitespace-nowrap">← {{$nav.PrevDate}}</a>
         <form method="GET" class="flex items-center gap-2">
-          <label class="text-xs text-gray-500">{{t "Date:"}}</label>
-          {{template "date-picker" dict "Name" "date" "Value" (or $nav.SelectedDate $nav.Today) "Max" $nav.Today "Submit" "1" "Sm" "1"}}
+          <label id="obs-date-label" for="obs-date" class="text-xs text-gray-500">{{t "Date:"}}</label>
+          {{template "date-picker" dict "Id" "obs-date" "Name" "date" "Value" (or $nav.SelectedDate $nav.Today) "Max" $nav.Today "Submit" "1" "Sm" "1"}}
           {{if $nav.SelectedDate}}
             <a href="?" class="text-brand hover:underline">{{t "recent"}} →</a>
           {{end}}

@@ -47,13 +47,13 @@
 <!-- Blocked Domains -->
 <div class="bg-white p-4 rounded-lg border mb-6">
   <div class="flex items-center gap-2 flex-wrap">
-    <label class="text-sm font-medium text-gray-700">{{t "Blocked Domains:"}}</label>
+    <span class="text-sm font-medium text-gray-700">{{t "Blocked Domains:"}}</span>
     {{range .BlockedDomains}}
     <span class="badge badge-danger gap-1">
       {{.}}
       <form method="POST" action="/advertiser/unblock-site" class="inline">
         <input type="hidden" name="domain" value="{{.}}">
-        <button type="submit" class="text-red-500 hover:text-red-700 font-bold">&times;</button>
+        <button type="submit" aria-label="{{t "Unblock %s" .}}" class="chip-x">×</button>
       </form>
     </span>
     {{end}}
@@ -76,8 +76,8 @@
   <h2 class="font-semibold mb-4">{{t "Create Campaign"}}</h2>
   <form method="POST" action="/advertiser/campaigns/create">
     <div class="mb-4">
-      <label class="form-label">{{t "Campaign Name"}}</label>
-      <input type="text" name="name" required placeholder="{{t "Summer sale - shoes"}}"
+      <label for="campaigns-name" class="form-label">{{t "Campaign Name"}}</label>
+      <input id="campaigns-name" type="text" name="name" required placeholder="{{t "Summer sale - shoes"}}"
              class="form-input">
     </div>
     <div class="mb-4" x-data="{ query: '', results: [], selectedId: '', selectedName: '', open: false, err: false,
@@ -103,10 +103,10 @@
           });
         }
       }">
-      <label class="form-label">{{t "What are you advertising?"}}</label>
+      <label for="campaigns-adproduct" class="form-label">{{t "What are you advertising?"}}</label>
       <input type="hidden" name="adProductCategory" :value="selectedId">
       <div class="relative">
-        <input type="text" :value="selectedName || query"
+        <input id="campaigns-adproduct" type="text" :value="selectedName || query"
           @input="query = $event.target.value; selectedId = ''; selectedName = ''"
           @input.debounce.150ms="if (!$event.isComposing) search()"
           @compositionend="search()"
@@ -161,7 +161,7 @@
           } else { this.results = []; this.open = false; }
         }
       }">
-      <label class="form-label">{{t "Target content topics (optional)"}}</label>
+      <label for="campaigns-targets" class="form-label">{{t "Target content topics (optional)"}}</label>
       <input type="hidden" name="targetCategories" :value="ids()">
       <div class="flex flex-wrap gap-1 mb-1" x-show="selected.length > 0">
         <template x-for="c in selected" :key="c.id">
@@ -169,12 +169,12 @@
             {{template "inv-dot" "c"}}
             <span x-text="c.name"></span>
             <span class="font-mono text-gray-500 ml-1" x-text="'(' + c.id + ')'"></span>
-            <button type="button" @click="remove(c.id)" class="ml-1.5 text-brand hover:text-blue-900 font-bold">×</button>
+            <button type="button" @click="remove(c.id)" :aria-label="'{{t "Remove %s"}}'.replace('%s', c.name)" class="chip-x">×</button>
           </span>
         </template>
       </div>
       <div class="relative">
-        <input type="text" x-model="query"
+        <input id="campaigns-targets" type="text" x-model="query"
           @input.debounce.150ms="if (!$event.isComposing) search()"
           @compositionend="search()"
           @click.outside="open = false"
@@ -209,18 +209,18 @@
         remove(id) { this.selected = this.selected.filter(x => x.siteId !== id); },
         ids() { return this.selected.map(s => s.siteId).join(','); }
       }">
-      <label class="form-label">{{t "Run only on these media (optional)"}}</label>
+      <label for="campaigns-media" class="form-label">{{t "Run only on these media (optional)"}}</label>
       <input type="hidden" name="siteAllowlist" :value="ids()">
       <div class="flex flex-wrap gap-1 mb-1" x-show="selected.length > 0">
         <template x-for="s in selected" :key="s.siteId">
           <span class="badge badge-info">
             <span x-text="s.domain"></span>
-            <button type="button" @click="remove(s.siteId)" class="ml-1.5 text-brand hover:text-blue-900 font-bold">×</button>
+            <button type="button" @click="remove(s.siteId)" :aria-label="'{{t "Remove %s"}}'.replace('%s', s.domain)" class="chip-x">×</button>
           </span>
         </template>
       </div>
       <div class="relative">
-        <input type="text" x-model="query"
+        <input id="campaigns-media" type="text" x-model="query"
           @input="if (query.length > 0) {
               fetch('/api/sites?q=' + encodeURIComponent(query))
                 .then(r => r.json())
@@ -242,10 +242,10 @@
       <p class="text-xs text-gray-400 mt-1">{{t "Leave empty to run everywhere your topics match. Pick one or more registered sites to restrict this campaign to them (still subject to topic matching on their pages)."}}</p>
     </div>
     <div class="mb-4">
-      <label class="form-label">{{t "Landing URL"}}</label>
+      <label for="campaigns-landingurl" class="form-label">{{t "Landing URL"}}</label>
       {{/* type=text (not url) so {curly} attribution macros aren't rejected by
            browser URL validation; inputmode keeps the URL keyboard on mobile. */}}
-      <input type="text" inputmode="url" name="landingUrl" required placeholder="https://example.com/promo"
+      <input id="campaigns-landingurl" type="text" inputmode="url" name="landingUrl" required placeholder="https://example.com/promo"
              class="form-input">
       <p class="text-xs text-gray-400 mt-1">
         {{t "Optional attribution macros — filled at click time from the ad's context (no personal data):"}}
@@ -260,17 +260,17 @@
     </div>
     <div class="grid grid-cols-2 gap-4 mb-4">
       <div>
-        <label class="form-label">{{t "Daily Budget"}} ({{sym}})</label>
+        <label for="campaigns-budget" class="form-label">{{t "Daily Budget"}} ({{sym}})</label>
         <div >
-        <input type="number" name="budget" step="{{moneystep}}" min="{{moneystep}}" required placeholder="{{moneyhint 25.0}}"
+        <input id="campaigns-budget" type="number" name="budget" step="{{moneystep}}" min="{{moneystep}}" required placeholder="{{moneyhint 25.0}}"
                 class="form-input">
         
         </div>
       </div>
       <div>
-        <label class="form-label">{{t "Max CPM"}} ({{sym}})</label>
+        <label for="campaigns-maxcpm" class="form-label">{{t "Max CPM"}} ({{sym}})</label>
         <div >
-        <input type="number" name="maxCpm" step="{{moneystep}}" min="{{moneystep}}" required placeholder="{{moneyhint 5.0}}"
+        <input id="campaigns-maxcpm" type="number" name="maxCpm" step="{{moneystep}}" min="{{moneystep}}" required placeholder="{{moneyhint 5.0}}"
                 class="form-input">
         
         </div>
@@ -278,7 +278,7 @@
       </div>
     </div>
     <div class="mb-4">
-      <label class="form-label">{{t "Frequency cap"}} <span class="font-normal text-gray-500">{{t "(optional)"}}</span></label>
+      <label for="campaigns-freqcapn" class="form-label">{{t "Frequency cap"}} <span class="font-normal text-gray-500">{{t "(optional)"}}</span></label>
       {{/* The window only means something when there IS a cap: "no cap per
            week" is not a policy. Disabled rather than hidden so the control
            stays where the eye expects it. A disabled select is not submitted,
@@ -286,7 +286,7 @@
            is 0 (FrequencyCap.fromApi), and the edit path keys "was this
            field present?" on freqCapN, which is never disabled. */}}
       <div class="flex items-center gap-2" x-data="{ freqN: '0' }">
-        <select name="freqCapN" class="form-input w-28" @change="freqN = $event.target.value">
+        <select id="campaigns-freqcapn" name="freqCapN" class="form-input w-28" @change="freqN = $event.target.value">
           <option value="0">{{t "No cap"}}</option>
           <option value="1">1</option>
           <option value="2">2</option>
@@ -306,13 +306,13 @@
     </div>
     <div class="grid grid-cols-2 gap-4 mb-4">
       <div>
-        <label class="form-label">{{t "Start date"}} <span class="font-normal text-gray-500">{{t "(optional — blank = start now)"}}</span></label>
-        {{template "date-picker" dict "Name" "startAt" "Time" "1" "Clear" "1"}}
+        <label id="campaigns-start-label" for="campaigns-start" class="form-label">{{t "Start date"}} <span class="font-normal text-gray-500">{{t "(optional — blank = start now)"}}</span></label>
+        {{template "date-picker" dict "Id" "campaigns-start" "Name" "startAt" "Time" "1" "Clear" "1"}}
         <p class="text-xs text-gray-500 mt-1">{{t "Campaign stays inactive (no bids) until this date."}}</p>
       </div>
       <div>
-        <label class="form-label">{{t "End date"}} <span class="font-normal text-gray-500">{{t "(optional — blank = open-ended)"}}</span></label>
-        {{template "date-picker" dict "Name" "endAt" "Time" "1" "Clear" "1"}}
+        <label id="campaigns-end-label" for="campaigns-end" class="form-label">{{t "End date"}} <span class="font-normal text-gray-500">{{t "(optional — blank = open-ended)"}}</span></label>
+        {{template "date-picker" dict "Id" "campaigns-end" "Name" "endAt" "Time" "1" "Clear" "1"}}
         <p class="text-xs text-gray-500 mt-1">{{t "Campaign stops bidding after this date. Dog-ear pins expire then."}}</p>
       </div>
     </div>
@@ -479,12 +479,12 @@
           <form method="POST" action="/advertiser/campaigns/schedule" class="flex flex-col gap-2 mt-1">
             <input type="hidden" name="campaignId" value="{{.ID}}">
             <div class="flex items-center gap-2">
-              <label class="text-xs text-gray-500 w-10">{{t "Start"}}</label>
-              {{template "date-picker" dict "Name" "startAt" "Value" .StartAtLocal "Time" "1" "Clear" "1" "Sm" "1"}}
+              <label id="sched-start-{{.ID}}-label" for="sched-start-{{.ID}}" class="text-xs text-gray-500 w-10">{{t "Start"}}</label>
+              {{template "date-picker" dict "Id" "sched-start-{{.ID}}" "Name" "startAt" "Value" .StartAtLocal "Time" "1" "Clear" "1" "Sm" "1"}}
             </div>
             <div class="flex items-center gap-2">
-              <label class="text-xs text-gray-500 w-10">{{t "End"}}</label>
-              {{template "date-picker" dict "Name" "endAt" "Value" .EndAtLocal "Time" "1" "Clear" "1" "Sm" "1"}}
+              <label id="sched-end-{{.ID}}-label" for="sched-end-{{.ID}}" class="text-xs text-gray-500 w-10">{{t "End"}}</label>
+              {{template "date-picker" dict "Id" "sched-end-{{.ID}}" "Name" "endAt" "Value" .EndAtLocal "Time" "1" "Clear" "1" "Sm" "1"}}
               <button type="submit" class="btn btn-primary btn-sm">{{t "Update"}}</button>
             </div>
             <p class="text-xs text-gray-400">{{t "Times are in your account timezone (%s) — the same boundary your daily budget resets at." $.ScheduleTz}}</p>
@@ -579,22 +579,22 @@
       <div>
         <div class="flex items-center justify-between mb-4">
           <h2 class="font-semibold">{{t "Edit Campaign"}}</h2>
-          <button type="button" @click="editOpen = false" class="text-gray-400 hover:text-gray-600 text-xl leading-none">&times;</button>
+          <button type="button" @click="editOpen = false" aria-label="{{t "Close"}}" class="-m-2 p-2 text-gray-500 hover:text-gray-700 text-xl leading-none">&times;</button>
         </div>
         <form method="POST" action="/advertiser/campaigns/update">
           <input type="hidden" name="campaignId" value="{{.ID}}">
 
           <!-- Campaign name (editable — backed by the entity now) -->
           <div class="mb-4">
-            <label class="form-label">{{t "Campaign Name"}}</label>
-            <input type="text" name="name" required value="{{.Name}}"
+            <label for="edit-name-{{.ID}}" class="form-label">{{t "Campaign Name"}}</label>
+            <input id="edit-name-{{.ID}}" type="text" name="name" required value="{{.Name}}"
                    class="form-input">
           </div>
 
           <!-- What are you advertising? (read-only: fixed at creation) -->
           <div class="mb-4">
-            <label class="form-label">{{t "What are you advertising?"}} <span class="font-normal text-gray-500">{{t "(fixed — set at creation)"}}</span></label>
-            <input type="text" disabled
+            <label for="edit-adproduct-{{.ID}}" class="form-label">{{t "What are you advertising?"}} <span class="font-normal text-gray-500">{{t "(fixed — set at creation)"}}</span></label>
+            <input id="edit-adproduct-{{.ID}}" type="text" disabled
                    value="{{if .AdProductCategoryName}}{{.AdProductCategoryName}} ({{.AdProductCategory}}){{else if .AdProductCategory}}{{.AdProductCategory}}{{else}}{{t "No category"}}{{end}}"
                    class="w-full px-3 py-2 border rounded-md text-sm bg-gray-100 text-gray-500 cursor-not-allowed">
             <p class="text-xs text-gray-400 mt-1">{{t "What a campaign advertises can't be changed after it's created. To advertise something different, create a new campaign."}}</p>
@@ -631,7 +631,7 @@
                 } else { this.results = []; this.open = false; }
               }
             }">
-            <label class="form-label">{{t "Target content topics"}}</label>
+            <label for="edit-targets-{{.ID}}" class="form-label">{{t "Target content topics"}}</label>
             <input type="hidden" name="targetCategories" :value="ids()">
             <div class="flex flex-wrap gap-1 mb-1" x-show="locked.length > 0 || selected.length > 0">
               <!-- Auto-derived: locked, always targeted, can't be removed.
@@ -652,12 +652,12 @@
                 <span class="badge badge-info">
                   {{template "inv-dot" "c"}}
                   <span x-text="c.name"></span>
-                  <button type="button" @click="remove(c.id)" class="ml-1.5 text-brand hover:text-blue-900 font-bold">×</button>
+                  <button type="button" @click="remove(c.id)" :aria-label="'{{t "Remove %s"}}'.replace('%s', c.name)" class="chip-x">×</button>
                 </span>
               </template>
             </div>
             <div class="relative">
-              <input type="text" x-model="query"
+              <input id="edit-targets-{{.ID}}" type="text" x-model="query"
                 @input.debounce.150ms="if (!$event.isComposing) search()"
                 @compositionend="search()"
                 @click.outside="open = false"
@@ -712,18 +712,18 @@
               remove(c) { this.selected = this.selected.filter(x => x.code !== c); this.onPlaces(this.codes()); },
               codes() { return this.selected.map(p => p.code).join(','); }
             }" x-init="onPlaces(codes())">
-            <label class="form-label">{{t "Places the page is about"}}</label>
+            <label for="edit-places-{{.ID}}" class="form-label">{{t "Places the page is about"}}</label>
             <input type="hidden" name="placeTargeting" :value="codes()">
             <div class="flex flex-wrap gap-1 mb-1" x-show="selected.length > 0">
               <template x-for="p in selected" :key="p.code">
                 <span class="badge badge-info">
                   <span x-text="p.name"></span>
-                  <button type="button" @click="remove(p.code)" class="ml-1.5 text-brand hover:text-blue-900 font-bold">&times;</button>
+                  <button type="button" @click="remove(p.code)" :aria-label="'{{t "Remove %s"}}'.replace('%s', p.name)" class="chip-x">×</button>
                 </span>
               </template>
             </div>
             <div class="relative">
-              <input type="text" x-model="query"
+              <input id="edit-places-{{.ID}}" type="text" x-model="query"
                 @input="if (query.length > 0) {
                     fetch('/api/places?q=' + encodeURIComponent(query))
                       .then(r => r.json()).then(d => { results = (d.data || []).filter(p => !selected.find(x => x.code === p.code)); open = results.length > 0; });
@@ -759,18 +759,18 @@
               remove(c) { this.selected = this.selected.filter(x => x.code !== c); this.onAudience(this.codes()); },
               codes() { return this.selected.map(p => p.code).join(','); }
             }" x-init="onAudience(codes())">
-            <label class="form-label">{{t "Reader audience"}}</label>
+            <label for="edit-audience-{{.ID}}" class="form-label">{{t "Reader audience"}}</label>
             <input type="hidden" name="audienceTargeting" :value="codes()">
             <div class="flex flex-wrap gap-1 mb-1" x-show="selected.length > 0">
               <template x-for="p in selected" :key="p.code">
                 <span class="badge badge-info">
                   <span x-text="p.name"></span>
-                  <button type="button" @click="remove(p.code)" class="ml-1.5 text-brand hover:text-blue-900 font-bold">×</button>
+                  <button type="button" @click="remove(p.code)" :aria-label="'{{t "Remove %s"}}'.replace('%s', p.name)" class="chip-x">×</button>
                 </span>
               </template>
             </div>
             <div class="relative">
-              <input type="text" x-model="query"
+              <input id="edit-audience-{{.ID}}" type="text" x-model="query"
                 @input="if (query.length > 0) {
                     fetch('/api/places?q=' + encodeURIComponent(query))
                       .then(r => r.json()).then(d => { results = (d.data || []).filter(p => !selected.find(x => x.code === p.code)); open = results.length > 0; });
@@ -834,18 +834,18 @@
               remove(id) { this.selected = this.selected.filter(x => x.siteId !== id); },
               ids() { return this.selected.map(s => s.siteId).join(','); }
             }">
-            <label class="form-label">{{t "Run only on these media"}}</label>
+            <label for="edit-media-{{.ID}}" class="form-label">{{t "Run only on these media"}}</label>
             <input type="hidden" name="siteAllowlist" :value="ids()">
             <div class="flex flex-wrap gap-1 mb-1" x-show="selected.length > 0">
               <template x-for="s in selected" :key="s.siteId">
                 <span class="badge badge-info">
                   <span x-text="s.domain"></span>
-                  <button type="button" @click="remove(s.siteId)" class="ml-1.5 text-brand hover:text-blue-900 font-bold">×</button>
+                  <button type="button" @click="remove(s.siteId)" :aria-label="'{{t "Remove %s"}}'.replace('%s', s.domain)" class="chip-x">×</button>
                 </span>
               </template>
             </div>
             <div class="relative">
-              <input type="text" x-model="query"
+              <input id="edit-media-{{.ID}}" type="text" x-model="query"
                 @input="if (query.length > 0) {
                     fetch('/api/sites?q=' + encodeURIComponent(query))
                       .then(r => r.json()).then(d => { results = (d.data || []).filter(s => !selected.find(x => x.siteId === s.siteId)); open = results.length > 0; });
@@ -866,15 +866,15 @@
 
           <!-- Landing URL (read-only: a campaign's LP is fixed at creation) -->
           <div class="mb-4">
-            <label class="form-label">{{t "Landing URL"}} <span class="font-normal text-gray-500">{{t "(fixed — set at creation)"}}</span></label>
-            <input type="url" name="landingUrl" value="{{.LandingURL}}" disabled
+            <label for="edit-landing-{{.ID}}" class="form-label">{{t "Landing URL"}} <span class="font-normal text-gray-500">{{t "(fixed — set at creation)"}}</span></label>
+            <input id="edit-landing-{{.ID}}" type="url" name="landingUrl" value="{{.LandingURL}}" disabled
                    class="w-full px-3 py-2 border rounded-md text-sm bg-gray-100 text-gray-500 cursor-not-allowed">
             <p class="text-xs text-gray-400 mt-1">{{t "A campaign's landing page can't be changed after it's created. To promote a different page, create a new campaign."}}</p>
           </div>
 
           <div class="grid grid-cols-2 gap-4 mb-4">
             <div>
-              <label class="form-label">{{t "Daily Budget"}} ({{sym}})</label>
+              <label for="edit-budget-{{.ID}}" class="form-label">{{t "Daily Budget"}} ({{sym}})</label>
               <div >
               {{/* Disabled while the ACCOUNT budget mode is Optimized (#98): a
                    disabled input is not submitted, so the PATCH omits `budget`
@@ -882,7 +882,7 @@
                    resend (which would also fail the whole patch if it fell
                    below today's spend). */}}
               {{$managed := and $.AdvBudget (eq $.AdvBudget.BudgetMode "optimized")}}
-              <input type="number" name="budget" step="{{moneystep}}" min="{{moneystep}}" value="{{.DailyBudget}}"
+              <input id="edit-budget-{{.ID}}" type="number" name="budget" step="{{moneystep}}" min="{{moneystep}}" value="{{.DailyBudget}}"
                       {{if $managed}}disabled{{end}}
                       class="form-input{{if $managed}} bg-gray-100 text-gray-500 cursor-not-allowed{{end}}">
               
@@ -890,9 +890,9 @@
               <p class="text-xs text-gray-400 mt-1" data-budget-managed {{if not $managed}}hidden{{end}}>{{t "Managed by the account allocator while the account budget mode is Optimized. Switch the account to Manual to set it by hand."}}</p>
             </div>
             <div>
-              <label class="form-label">{{t "Max CPM"}} ({{sym}})</label>
+              <label for="edit-maxcpm-{{.ID}}" class="form-label">{{t "Max CPM"}} ({{sym}})</label>
               <div >
-              <input type="number" name="maxCpm" step="{{moneystep}}" min="{{moneystep}}" value="{{.MaxCPM}}"
+              <input id="edit-maxcpm-{{.ID}}" type="number" name="maxCpm" step="{{moneystep}}" min="{{moneystep}}" value="{{.MaxCPM}}"
                       class="form-input">
               
               </div>
@@ -900,12 +900,12 @@
             </div>
           </div>
           <div class="mb-4">
-            <label class="form-label">{{t "Frequency cap"}} <span class="font-normal text-gray-500">{{t "(optional)"}}</span></label>
+            <label for="edit-freqcap-{{.ID}}" class="form-label">{{t "Frequency cap"}} <span class="font-normal text-gray-500">{{t "(optional)"}}</span></label>
             {{/* See the create form above: the window is disabled while the
                  cap is "No cap". Seeded from the campaign's stored value so
                  an already-uncapped campaign opens with it greyed out. */}}
             <div class="flex items-center gap-2" x-data="{ freqN: '{{.FrequencyCapN}}' }">
-              <select name="freqCapN" class="form-input w-28" @change="freqN = $event.target.value">
+              <select id="edit-freqcap-{{.ID}}" name="freqCapN" class="form-input w-28" @change="freqN = $event.target.value">
                 <option value="0" {{if eq .FrequencyCapN 0}}selected{{end}}>{{t "No cap"}}</option>
                 <option value="1" {{if eq .FrequencyCapN 1}}selected{{end}}>1</option>
                 <option value="2" {{if eq .FrequencyCapN 2}}selected{{end}}>2</option>
@@ -925,12 +925,12 @@
           </div>
           <div class="grid grid-cols-2 gap-4 mb-4">
             <div>
-              <label class="form-label">{{t "Start date"}} <span class="font-normal text-gray-500">({{$.ScheduleTz}})</span></label>
-              {{template "date-picker" dict "Name" "startAt" "Value" .StartAtLocal "Time" "1" "Clear" "1"}}
+              <label id="edit-start-{{.ID}}-label" for="edit-start-{{.ID}}" class="form-label">{{t "Start date"}} <span class="font-normal text-gray-500">({{$.ScheduleTz}})</span></label>
+              {{template "date-picker" dict "Id" "edit-start-{{.ID}}" "Name" "startAt" "Value" .StartAtLocal "Time" "1" "Clear" "1"}}
             </div>
             <div>
-              <label class="form-label">{{t "End date"}} <span class="font-normal text-gray-500">{{t "(blank = open-ended)"}}</span></label>
-              {{template "date-picker" dict "Name" "endAt" "Value" .EndAtLocal "Time" "1" "Clear" "1"}}
+              <label id="edit-end-{{.ID}}-label" for="edit-end-{{.ID}}" class="form-label">{{t "End date"}} <span class="font-normal text-gray-500">{{t "(blank = open-ended)"}}</span></label>
+              {{template "date-picker" dict "Id" "edit-end-{{.ID}}" "Name" "endAt" "Value" .EndAtLocal "Time" "1" "Clear" "1"}}
             </div>
           </div>
 

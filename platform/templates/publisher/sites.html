@@ -26,7 +26,7 @@
     <form method="POST" action="/publisher/unblock-advertiser-domain" class="badge badge-danger gap-1">
       <input type="hidden" name="domain" value="{{.}}">
       <span>{{.}}</span>
-      <button type="submit" title="{{t "Unblock"}}" class="text-red-600 hover:text-red-900 font-bold">×</button>
+      <button type="submit" aria-label="{{t "Unblock %s" .}}" class="chip-x">×</button>
     </form>
     {{end}}
     {{if not .BlockedAdvertiserDomains}}<span class="text-sm text-gray-400">{{t "None blocked"}}</span>{{end}}
@@ -61,8 +61,8 @@
   <h2 class="font-semibold mb-4">{{t "Add a Page to Monetize"}}</h2>
   <form method="POST" action="/publisher/sites/create">
     <div class="mb-4">
-      <label class="form-label">{{t "Page URL"}}</label>
-      <input type="url" name="pageUrl" placeholder="https://myblog.com/article" required
+      <label for="sites-pageurl" class="form-label">{{t "Page URL"}}</label>
+      <input id="sites-pageurl" type="url" name="pageUrl" placeholder="https://myblog.com/article" required
              class="form-input">
       <p class="text-xs text-gray-400 mt-1">
         {{t "Pages are classified on-demand from real traffic — no crawl needed. Ad slots are discovered as the page serves."}}
@@ -386,17 +386,17 @@
       <div class="mt-3 pt-3 border-t flex flex-wrap items-end gap-x-6 gap-y-3" onclick="event.stopPropagation();">
         <form method="POST" action="/publisher/sites/min-floor" class="flex flex-col gap-1">
           <input type="hidden" name="siteId" value="{{.ID}}">
-          <label class="text-xs text-gray-500">{{t "Min Floor:"}} ({{sym}})</label>
+          <label for="minfloor-{{.ID}}" class="text-xs text-gray-500">{{t "Min Floor:"}} ({{sym}})</label>
           <div class="flex items-center gap-2">
-            <input type="number" name="minFloorCpm" step="{{moneystep}}" min="{{moneystep}}" value="{{if .MinFloorCpm}}{{.MinFloorCpm}}{{end}}" placeholder="{{t "unset"}}"
+            <input id="minfloor-{{.ID}}" type="number" name="minFloorCpm" step="{{moneystep}}" min="{{moneystep}}" value="{{if .MinFloorCpm}}{{.MinFloorCpm}}{{end}}" placeholder="{{t "unset"}}"
                    class="w-24 px-2 py-1 border rounded-md text-sm focus:outline-none focus:ring-2 focus:ring-brand/20 focus:border-brand">
             <button type="submit" class="btn btn-primary btn-sm">{{t "Set"}}</button>
           </div>
         </form>
         <form method="POST" action="/publisher/sites/bid-weight" class="flex flex-col gap-1">
           <input type="hidden" name="siteId" value="{{.ID}}">
-          <label class="text-xs text-gray-500">{{t "Ad Priority:"}}</label>
-          <select name="bidWeight" onchange="this.form.submit()"
+          <label for="bidweight-{{.ID}}" class="text-xs text-gray-500">{{t "Ad Priority:"}}</label>
+          <select id="bidweight-{{.ID}}" name="bidWeight" onchange="this.form.submit()"
                   class="px-2 py-1 border rounded-md text-sm focus:outline-none focus:ring-2 focus:ring-brand/20 focus:border-brand">
             <option value="0.30" {{if eq .BidWeightLabel "Discovery"}}selected{{end}}>{{t "Discovery"}}</option>
             <option value="0.50" {{if eq .BidWeightLabel "Balanced"}}selected{{end}}>{{t "Balanced"}}</option>
@@ -414,16 +414,16 @@
               title="{{t "Where this site's readers are. Optional — most sites have no geographic audience to claim, and leaving it empty is normal. Advertisers targeting an audience will not run here until you declare one."}}">
           <input type="hidden" name="siteId" value="{{.ID}}">
           <input type="hidden" name="audienceRegions" :value="codes()">
-          <label class="text-xs text-gray-500">{{t "Reader audience:"}}</label>
+          <label for="audience-{{.ID}}" class="text-xs text-gray-500">{{t "Reader audience:"}}</label>
           <div class="flex flex-wrap items-center gap-1">
             <template x-for="p in selected" :key="p.code">
               <span class="badge badge-info">
                 <span x-text="p.name"></span>
-                <button type="button" @click="remove(p.code)" class="ml-1.5 text-brand hover:text-blue-900 font-bold">×</button>
+                <button type="button" @click="remove(p.code)" :aria-label="'{{t "Remove %s"}}'.replace('%s', p.name)" class="chip-x">×</button>
               </span>
             </template>
             <div class="relative">
-              <input type="text" x-model="query"
+              <input id="audience-{{.ID}}" type="text" x-model="query"
                 @input="if (query.length > 0) {
                     fetch('/api/places?q=' + encodeURIComponent(query))
                       .then(r => r.json()).then(d => { results = (d.data || []).filter(p => !selected.find(x => x.code === p.code)); open = results.length > 0; });
@@ -550,7 +550,7 @@
       {{end}}
       <div class="mt-3 pt-3 border-t" onclick="event.stopPropagation();">
         <div class="flex items-center gap-2 flex-wrap">
-          <label class="text-xs text-gray-500">{{t "Blocked Categories:"}}</label>
+          <span class="text-xs text-gray-500">{{t "Blocked Categories:"}}</span>
           {{/* $ is the root pageData here, not the site — capture the site id
                before ranging or the unblock form breaks the whole render. */}}
           {{$blockSiteID := .ID}}
@@ -560,7 +560,7 @@
             <form method="POST" action="/publisher/sites/unblock-ad-product" class="inline">
               <input type="hidden" name="siteId" value="{{$blockSiteID}}">
               <input type="hidden" name="category" value="{{.}}">
-              <button type="submit" class="text-red-500 hover:text-red-700 font-bold">&times;</button>
+              <button type="submit" aria-label="{{t "Unblock %s" .}}" class="chip-x">×</button>
             </form>
           </span>
           {{end}}

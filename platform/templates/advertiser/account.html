@@ -75,18 +75,18 @@
   {{$mode := "manual"}}{{if .AdvBudget}}{{if eq .AdvBudget.BudgetMode "optimized"}}{{$mode = "optimized"}}{{end}}{{end}}
   <form method="POST" action="/advertiser/budget" class="flex items-end gap-3 flex-wrap">
     <div>
-      <label class="form-label">{{t "New Daily Budget"}}</label>
+      <label for="account-dailybudget" class="form-label">{{t "New Daily Budget"}}</label>
       <div class="flex items-center gap-2" >
         <span class="text-gray-500">{{sym}}</span>
-        <input type="number" name="dailyBudget" required step="{{moneystep}}" min="0" 
+        <input id="account-dailybudget" type="number" name="dailyBudget" required step="{{moneystep}}" min="0" 
                value="{{if .AdvBudget}}{{.AdvBudget.DailyBudget}}{{end}}"
                placeholder="{{moneyhint 500.0}}"
                class="form-input w-40">
         
       </div>
     </div>
-    <div>
-      <label class="form-label">{{t "Budget mode"}}</label>
+    <fieldset>
+      <legend class="form-label">{{t "Budget mode"}}</legend>
       <div class="flex items-center gap-4 h-10">
         <label class="flex items-center gap-2 text-sm cursor-pointer">
           <input type="radio" name="budgetMode" value="manual" {{if ne $mode "optimized"}}checked{{end}} class="border-gray-300">
@@ -97,7 +97,7 @@
           <span>{{t "Optimized"}}</span>
         </label>
       </div>
-    </div>
+    </fieldset>
     <button type="submit"
             class="btn btn-primary">
       {{t "Update Budget"}}

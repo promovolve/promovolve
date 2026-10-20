@@ -9,8 +9,8 @@
 
   <form method="GET" action="/admin/billing/accounts" class="flex items-end gap-3 mt-6">
     <div>
-      <label class="form-label">{{t "Search"}}</label>
-      <input name="q" value="{{.Query}}" class="form-input w-72" placeholder="{{t "email or account id"}}">
+      <label for="billing-accounts-q" class="form-label">{{t "Search"}}</label>
+      <input id="billing-accounts-q" name="q" value="{{.Query}}" class="form-input w-72" placeholder="{{t "email or account id"}}">
     </div>
     <button type="submit" class="btn btn-secondary">{{t "Search"}}</button>
     {{if .Query}}<a href="/admin/billing/accounts" class="text-sm text-brand hover:underline pb-2">{{t "clear"}}</a>{{end}}

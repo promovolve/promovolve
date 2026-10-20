@@ -71,26 +71,26 @@
       <input type="hidden" name="from" value="{{$r.From}}">
       <input type="hidden" name="to" value="{{$r.To}}">
       <div>
-        <label class="form-label">{{t "Campaign"}}</label>
-        <select name="campaignId" class="form-input" required>
+        <label for="report-campaignid" class="form-label">{{t "Campaign"}}</label>
+        <select id="report-campaignid" name="campaignId" class="form-input" required>
           {{range $r.Campaigns}}<option value="{{.Key}}">{{.Label}}</option>{{end}}
         </select>
       </div>
       <div>
-        <label class="form-label">{{t "Date"}}</label>
-        {{template "date-picker" dict "Name" "date" "Value" $r.To "Max" $r.Today}}
+        <label id="report-date-label" for="report-date" class="form-label">{{t "Date"}}</label>
+        {{template "date-picker" dict "Id" "report-date" "Name" "date" "Value" $r.To "Max" $r.Today}}
       </div>
       <div>
-        <label class="form-label">{{t "Conversions"}}</label>
-        <input type="number" name="conversions" min="0" step="1" class="form-input w-28" required>
+        <label for="report-conversions" class="form-label">{{t "Conversions"}}</label>
+        <input id="report-conversions" type="number" name="conversions" min="0" step="1" class="form-input w-28" required>
       </div>
       <div>
-        <label class="form-label">{{t "Value"}} ({{sym}}, {{t "optional"}})</label>
-        <input type="number" name="value" min="0" step="{{moneystep}}" class="form-input w-32" placeholder="{{t "for ROAS"}}">
+        <label for="report-value" class="form-label">{{t "Value"}} ({{sym}}, {{t "optional"}})</label>
+        <input id="report-value" type="number" name="value" min="0" step="{{moneystep}}" class="form-input w-32" placeholder="{{t "for ROAS"}}">
       </div>
       <div class="grow">
-        <label class="form-label">{{t "Note (optional)"}}</label>
-        <input type="text" name="note" class="form-input" placeholder="{{t "e.g. Shopify orders, 7-day last-click"}}">
+        <label for="report-note" class="form-label">{{t "Note (optional)"}}</label>
+        <input id="report-note" type="text" name="note" class="form-input" placeholder="{{t "e.g. Shopify orders, 7-day last-click"}}">
       </div>
       <button type="submit" class="btn btn-primary">{{t "Save"}}</button>
     </form>

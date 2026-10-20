@@ -22,7 +22,7 @@
 
       <form id="passkey-form" class="space-y-4" onsubmit="return false">
         <div>
-          <label class="form-label">{{t "Email"}}</label>
+          <label for="passkey-email" class="form-label">{{t "Email"}}</label>
           <input type="email" id="passkey-email" autocomplete="username webauthn"
             placeholder="you@company.com" class="form-input">
         </div>
@@ -117,22 +117,22 @@
         <input type="hidden" name="role" value="{{.Role}}">
         {{if eq .Mode "register"}}
         <div>
-          <label class="form-label">
+          <label for="login-displayname" class="form-label">
             {{if eq .Role "publisher"}}Publication Name{{else}}Business Name{{end}}
           </label>
-          <input type="text" name="displayName"
+          <input id="login-displayname" type="text" name="displayName"
             placeholder="{{if eq .Role "publisher"}}e.g., Tokyo Travel Blog{{else}}e.g., Hakone Ryokan{{end}}"
             class="form-input">
         </div>
         {{end}}
         <div>
-          <label class="form-label">Email</label>
-          <input type="email" name="email" required
+          <label for="login-email" class="form-label">Email</label>
+          <input id="login-email" type="email" name="email" required
             class="form-input">
         </div>
         <div>
-          <label class="form-label">Password</label>
-          <input type="password" name="password" required
+          <label for="login-password" class="form-label">Password</label>
+          <input id="login-password" type="password" name="password" required
             class="form-input">
         </div>
         <button type="submit"

@@ -83,12 +83,12 @@
     <p class="text-sm text-gray-500 mb-4">{{t "Invitees must use your organization's email domain (@%s). You'll get a one-time link to send them — no operator approval needed." .OrgPage.Domain}}</p>
     <form method="POST" action="/org/invite" class="flex flex-wrap items-end gap-3">
       <div>
-        <label class="form-label">{{t "Email"}}</label>
-        <input name="email" type="email" required class="form-input w-72" placeholder="colleague@{{.OrgPage.Domain}}">
+        <label for="members-email" class="form-label">{{t "Email"}}</label>
+        <input id="members-email" name="email" type="email" required class="form-input w-72" placeholder="colleague@{{.OrgPage.Domain}}">
       </div>
       <div>
-        <label class="form-label">{{t "Name"}} <span class="text-gray-400">{{t "(optional)"}}</span></label>
-        <input name="displayName" class="form-input w-56">
+        <label for="members-displayname" class="form-label">{{t "Name"}} <span class="text-gray-400">{{t "(optional)"}}</span></label>
+        <input id="members-displayname" name="displayName" class="form-input w-56">
       </div>
       <button type="submit" class="btn btn-primary">{{t "Create invite"}}</button>
     </form>
@@ -107,8 +107,8 @@
     <form method="POST" action="/org/request-side" class="flex flex-wrap items-end gap-3">
       <input type="hidden" name="side" value="{{.OrgPage.MissingSide}}">
       <div class="flex-1 min-w-64">
-        <label class="form-label">{{t "Message"}} <span class="text-gray-400">{{t "(optional)"}}</span></label>
-        <input name="message" class="form-input" placeholder="{{t "What will you use it for?"}}">
+        <label for="members-message" class="form-label">{{t "Message"}} <span class="text-gray-400">{{t "(optional)"}}</span></label>
+        <input id="members-message" name="message" class="form-input" placeholder="{{t "What will you use it for?"}}">
       </div>
       <button type="submit" class="btn btn-primary">{{t "Request %s account" (t .OrgPage.MissingSide)}}</button>
     </form>

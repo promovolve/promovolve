@@ -124,8 +124,8 @@
 
   <form method="GET" action="/admin/users" class="flex items-end gap-3 mt-6">
     <div>
-      <label class="form-label">{{t "Search"}}</label>
-      <input name="q" value="{{.Query}}" class="form-input w-72" placeholder="{{t "email, name, company, or id"}}">
+      <label for="users-q" class="form-label">{{t "Search"}}</label>
+      <input id="users-q" name="q" value="{{.Query}}" class="form-input w-72" placeholder="{{t "email, name, company, or id"}}">
     </div>
     <button type="submit" class="btn btn-secondary">{{t "Search"}}</button>
     {{if .Query}}<a href="/admin/users" class="text-sm text-brand hover:underline pb-2">{{t "clear"}}</a>{{end}}
@@ -198,12 +198,12 @@
     <form method="POST" action="/admin/users/invite-admin" class="flex flex-wrap items-end gap-3"
       onsubmit="return confirm('{{t "Add %s as a platform admin with full operator access?"}}'.replace('%s', this.email.value))">
       <div>
-        <label class="form-label">{{t "Email"}}</label>
-        <input name="email" type="email" required class="form-input w-72" placeholder="colleague@yourcompany.com">
+        <label for="users-email" class="form-label">{{t "Email"}}</label>
+        <input id="users-email" name="email" type="email" required class="form-input w-72" placeholder="colleague@yourcompany.com">
       </div>
       <div>
-        <label class="form-label">{{t "Name"}} <span class="text-gray-400">{{t "(optional)"}}</span></label>
-        <input name="displayName" class="form-input w-56">
+        <label for="users-displayname" class="form-label">{{t "Name"}} <span class="text-gray-400">{{t "(optional)"}}</span></label>
+        <input id="users-displayname" name="displayName" class="form-input w-56">
       </div>
       <button type="submit" class="btn btn-primary">{{t "Create admin invite"}}</button>
     </form>

@@ -82,18 +82,18 @@
     <form method="POST" action="/publisher/payout-method" class="mt-4 space-y-4 max-w-xl">
       <div class="flex gap-3">
         <div>
-          <label class="form-label">{{t "Method"}}</label>
-          <input name="method" class="form-input w-48" value="{{.Method}}" placeholder="{{t "bank transfer"}}">
+          <label for="earnings-method" class="form-label">{{t "Method"}}</label>
+          <input id="earnings-method" name="method" class="form-input w-48" value="{{.Method}}" placeholder="{{t "bank transfer"}}">
         </div>
         <div>
-          <label class="form-label">{{t "Minimum payout"}} ({{sym}})</label>
-          <input name="minPayout" class="form-input w-36" value="{{.MinPayout}}">
+          <label for="earnings-minpayout" class="form-label">{{t "Minimum payout"}} ({{sym}})</label>
+          <input id="earnings-minpayout" name="minPayout" class="form-input w-36" value="{{.MinPayout}}">
           <p class="form-hint">{{t "payouts are offered once your balance passes this — platform minimum %s" (money .PayoutFloor)}}</p>
         </div>
       </div>
       <div>
-        <label class="form-label">{{t "Details"}}</label>
-        <textarea name="details" class="form-input" rows="3" placeholder="{{t "account holder, IBAN/account number, bank name…"}}">{{.MethodDetails}}</textarea>
+        <label for="earnings-details" class="form-label">{{t "Details"}}</label>
+        <textarea id="earnings-details" name="details" class="form-input" rows="3" placeholder="{{t "account holder, IBAN/account number, bank name…"}}">{{.MethodDetails}}</textarea>
       </div>
       <button type="submit" class="btn btn-primary">{{t "Save payout method"}}</button>
     </form>

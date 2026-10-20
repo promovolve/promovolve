@@ -133,8 +133,8 @@
 <div class="flex items-center justify-end mb-2">
   <form method="GET" class="flex items-center gap-2">
     <input type="hidden" name="campaignId" value="{{.CampaignID}}">
-    <label class="text-xs text-gray-500">{{t "Sort:"}}</label>
-    <select name="sort" onchange="this.form.submit()" class="px-2 py-1 border rounded text-sm bg-white">
+    <label for="creatives-sort" class="text-xs text-gray-500">{{t "Sort:"}}</label>
+    <select id="creatives-sort" name="sort" onchange="this.form.submit()" class="px-2 py-1 border rounded text-sm bg-white">
       <option value="newest" {{if or (not .ListNav.Sort) (eq .ListNav.Sort "newest")}}selected{{end}}>{{t "Newest first"}}</option>
       <option value="name" {{if eq .ListNav.Sort "name"}}selected{{end}}>{{t "Name A–Z"}}</option>
       <option value="impressions" {{if eq .ListNav.Sort "impressions"}}selected{{end}}>{{t "Impressions"}}</option>

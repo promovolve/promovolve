@@ -28,9 +28,9 @@
         } }">
       <input type="hidden" name="nonce" value="{{.Nonce}}">
       <div>
-        <label class="form-label">{{t "Advertiser"}}</label>
+        <label for="billing-topups-q" class="form-label">{{t "Advertiser"}}</label>
         <div class="relative">
-          <input type="text" x-model="q" autocomplete="off" placeholder="{{t "Search org, domain, or email"}}"
+          <input id="billing-topups-q" type="text" x-model="q" autocomplete="off" placeholder="{{t "Search org, domain, or email"}}"
             @input.debounce.150ms="id = ''; search()" @focus="search()" @click.outside="open = false"
             class="form-input w-64">
           <input type="hidden" name="advertiserId" :value="id">
@@ -44,12 +44,12 @@
         </div>
       </div>
       <div>
-        <label class="form-label">{{t "Amount"}} ({{sym}})</label>
-        <input name="amount" class="form-input w-32" placeholder="{{moneyhint 100.0}}">
+        <label for="billing-topups-amount" class="form-label">{{t "Amount"}} ({{sym}})</label>
+        <input id="billing-topups-amount" name="amount" class="form-input w-32" placeholder="{{moneyhint 100.0}}">
       </div>
       <div class="flex-1">
-        <label class="form-label">{{t "Reference / memo"}}</label>
-        <input name="memo" class="form-input" placeholder="{{t "bank transfer ref"}}">
+        <label for="billing-topups-memo" class="form-label">{{t "Reference / memo"}}</label>
+        <input id="billing-topups-memo" name="memo" class="form-input" placeholder="{{t "bank transfer ref"}}">
       </div>
       <button type="submit" class="btn btn-primary" :disabled="!id">{{t "Record top-up"}}</button>
     </form>

@@ -25,11 +25,11 @@
       <input type="hidden" name="nonce" value="{{.Nonce}}">
       <div class="flex items-end gap-3 flex-wrap">
         <div>
-          <label class="form-label">{{t "Type"}}</label>
+          <label for="billing-journal-action" class="form-label">{{t "Type"}}</label>
           {{/* Switching to refund drops a publisher selection — refunds are
                advertiser-only (the server enforces it too): money owed to a
                publisher is a payout, never a refund. */}}
-          <select name="action" x-model="action" class="form-input w-36"
+          <select id="billing-journal-action" name="action" x-model="action" class="form-input w-36"
             @change="if (action === 'refund' && side === 'publisher') { id = ''; q = ''; side = ''; }">
             <option value="credit">{{t "Credit"}}</option>
             <option value="charge">{{t "Charge"}}</option>
@@ -37,9 +37,9 @@
           </select>
         </div>
         <div>
-          <label class="form-label">{{t "Account"}}</label>
+          <label for="billing-journal-q" class="form-label">{{t "Account"}}</label>
           <div class="relative">
-            <input type="text" x-model="q" autocomplete="off" placeholder="{{t "Search org, domain, or email"}}"
+            <input id="billing-journal-q" type="text" x-model="q" autocomplete="off" placeholder="{{t "Search org, domain, or email"}}"
               @input.debounce.150ms="id = ''; search()" @focus="search()" @click.outside="open = false"
               class="form-input w-64">
             <input type="hidden" name="owner" :value="id ? side + '|' + id : ''">
@@ -56,12 +56,12 @@
           </div>
         </div>
         <div>
-          <label class="form-label">{{t "Amount"}} ({{sym}})</label>
-          <input name="amount" class="form-input w-28" placeholder="{{moneyhint 10.0}}">
+          <label for="billing-journal-amount" class="form-label">{{t "Amount"}} ({{sym}})</label>
+          <input id="billing-journal-amount" name="amount" class="form-input w-28" placeholder="{{moneyhint 10.0}}">
         </div>
         <div class="flex-1 min-w-48">
-          <label class="form-label">{{t "Memo (required)"}}</label>
-          <input name="memo" class="form-input" required placeholder="{{t "why this adjustment exists"}}">
+          <label for="billing-journal-memo" class="form-label">{{t "Memo (required)"}}</label>
+          <input id="billing-journal-memo" name="memo" class="form-input" required placeholder="{{t "why this adjustment exists"}}">
         </div>
         <button type="submit" class="btn btn-primary" :disabled="!id" onclick="return confirm('{{t "Post this adjustment to the ledger? It cannot be edited, only reversed."}}')">{{t "Post adjustment"}}</button>
       </div>

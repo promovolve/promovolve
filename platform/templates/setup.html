@@ -18,15 +18,15 @@
 
       <form id="setup-form" class="space-y-4" onsubmit="return false">
         <div>
-          <label class="form-label">{{t "Your name"}}</label>
+          <label for="setup-name" class="form-label">{{t "Your name"}}</label>
           <input type="text" id="setup-name" placeholder="e.g., Haruhiko Nishi" class="form-input">
         </div>
         <div>
-          <label class="form-label">{{t "Email"}}</label>
+          <label for="setup-email" class="form-label">{{t "Email"}}</label>
           <input type="email" id="setup-email" autocomplete="username" placeholder="you@company.com" class="form-input">
         </div>
         <div>
-          <label class="form-label">{{t "Currency"}}</label>
+          <label for="setup-currency" class="form-label">{{t "Currency"}}</label>
           <select id="setup-currency" class="form-input">
             {{range .Currencies}}<option value="{{.Code}}">{{.Code}} ({{.Symbol}})</option>{{end}}
           </select>
@@ -35,14 +35,14 @@
           </p>
         </div>
         <div>
-          <label class="form-label">{{t "Platform margin (%)"}}</label>
+          <label for="setup-margin" class="form-label">{{t "Platform margin (%)"}}</label>
           <input type="number" id="setup-margin" min="0" max="99.99" step="0.01" value="15" class="form-input">
           <p class="form-hint">
             {{t "Deducted from publisher earnings as the platform fee. Publishers see their net revenue with this fee itemized. You can change it later in Settings; changes never rewrite past earnings."}}
           </p>
         </div>
         <div>
-          <label class="form-label">{{t "Minimum payout"}} (<span data-cur-sym>$</span>)</label>
+          <label for="setup-payout-floor" class="form-label">{{t "Minimum payout"}} (<span data-cur-sym>$</span>)</label>
           <input type="number" id="setup-payout-floor" min="0" step="any" value="50" class="form-input">
           <p class="form-hint">
             {{t "Publisher earnings accrue until they pass this before a payout is offered — each payout costs you a transfer. Publishers can raise their own threshold above it, never below. Changeable in Settings."}}
@@ -50,11 +50,11 @@
         </div>
         <div class="grid grid-cols-2 gap-4">
           <div>
-            <label class="form-label">{{t "Starting floor CPM"}} (<span data-cur-sym>$</span>)</label>
+            <label for="setup-floor-cpm" class="form-label">{{t "Starting floor CPM"}} (<span data-cur-sym>$</span>)</label>
             <input type="number" id="setup-floor-cpm" min="0" step="any" value="0.50" class="form-input">
           </div>
           <div>
-            <label class="form-label">{{t "Minimum floor CPM"}} (<span data-cur-sym>$</span>)</label>
+            <label for="setup-min-floor-cpm" class="form-label">{{t "Minimum floor CPM"}} (<span data-cur-sym>$</span>)</label>
             <input type="number" id="setup-min-floor-cpm" min="0" step="any" value="0.10" class="form-input">
           </div>
         </div>
@@ -65,7 +65,7 @@
           {{t "Currency changed — the amounts above were cleared. Enter them in the currency you just chose."}}
         </p>
         <div>
-          <label class="form-label">{{t "Default advertiser timezone"}}</label>
+          <label for="setup-timezone" class="form-label">{{t "Default advertiser timezone"}}</label>
           <select id="setup-timezone" class="form-input">
             <option value="">{{t "UTC (default)"}}</option>
             {{range .Timezones}}{{if ne . "UTC"}}<option value="{{.}}">{{.}}</option>{{end}}{{end}}

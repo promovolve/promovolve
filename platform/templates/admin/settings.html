@@ -14,8 +14,8 @@
     </p>
     <form method="POST" action="/admin/settings/margin" class="flex items-end gap-3">
       <div>
-        <label class="form-label">{{t "Margin (%)"}}</label>
-        <input type="number" name="marginPercent" min="0" max="99.99" step="0.01"
+        <label for="settings-marginpercent" class="form-label">{{t "Margin (%)"}}</label>
+        <input id="settings-marginpercent" type="number" name="marginPercent" min="0" max="99.99" step="0.01"
           value="{{.MarginPct}}" class="form-input w-32">
       </div>
       <button type="submit" class="btn btn-primary">{{t "Update margin"}}</button>
@@ -29,8 +29,8 @@
     </p>
     <form method="POST" action="/admin/settings/payout-floor" class="flex items-end gap-3">
       <div>
-        <label class="form-label">{{t "Floor"}} ({{sym}})</label>
-        <input type="number" name="payoutFloor" min="{{moneystep}}" step="{{moneystep}}"
+        <label for="settings-payoutfloor" class="form-label">{{t "Floor"}} ({{sym}})</label>
+        <input id="settings-payoutfloor" type="number" name="payoutFloor" min="{{moneystep}}" step="{{moneystep}}"
           value="{{.PayoutFloor}}" class="form-input w-32">
       </div>
       <button type="submit" class="btn btn-primary">{{t "Update floor"}}</button>
@@ -42,8 +42,8 @@
     <p class="text-sm text-gray-500 mt-1 mb-4">{{t "Maximum members per organization (the first admin plus invitees). Existing larger orgs keep their members; the cap gates new invites and approvals."}}</p>
     <form method="POST" action="/admin/settings/org-max-members" class="flex items-end gap-3">
       <div>
-        <label class="form-label">{{t "Max members"}}</label>
-        <input type="number" name="orgMaxMembers" min="1" max="100" step="1"
+        <label for="settings-orgmaxmembers" class="form-label">{{t "Max members"}}</label>
+        <input id="settings-orgmaxmembers" type="number" name="orgMaxMembers" min="1" max="100" step="1"
           value="{{.OrgMaxMembers}}" class="form-input w-32">
       </div>
       <button type="submit" class="btn btn-primary">{{t "Update cap"}}</button>
@@ -55,8 +55,8 @@
     <p class="text-sm text-gray-500 mt-1 mb-4">{{t "Budget days for new advertiser accounts roll at this zone's midnight. Applied to organizations at creation only — existing organizations keep their zone (per-org override on Users). Billing always uses UTC days."}}</p>
     <form method="POST" action="/admin/settings/default-timezone" class="flex items-end gap-3">
       <div>
-        <label class="form-label">{{t "Timezone"}}</label>
-        <select name="timezone" class="form-input">
+        <label for="settings-timezone" class="form-label">{{t "Timezone"}}</label>
+        <select id="settings-timezone" name="timezone" class="form-input">
           <option value="">{{t "UTC (default)"}}</option>
           {{range .Timezones}}{{if ne . "UTC"}}<option value="{{.}}" {{if eq . $.DefaultOrgTimezone}}selected{{end}}>{{.}}</option>{{end}}{{end}}
         </select>
@@ -77,8 +77,8 @@
         {{end}}
       </div>
       <div>
-        <label class="form-label">{{t "Default"}}</label>
-        <select name="defaultLang" class="form-input">
+        <label for="settings-defaultlang" class="form-label">{{t "Default"}}</label>
+        <select id="settings-defaultlang" name="defaultLang" class="form-input">
           {{range .AllLanguages}}<option value="{{.Tag}}" {{if .Default}}selected{{end}}>{{.Name}}</option>{{end}}
         </select>
       </div>
@@ -95,7 +95,7 @@
         {{.Name}} <span class="font-mono text-xs opacity-60">({{.Tag}})</span>
         <form method="POST" action="/admin/settings/prohibited-ad-products/remove" class="inline">
           <input type="hidden" name="category" value="{{.Tag}}">
-          <button type="submit" class="text-red-500 hover:text-red-700 font-bold">&times;</button>
+          <button type="submit" aria-label="{{t "Remove %s" .Name}}" class="chip-x">×</button>
         </form>
       </span>
       {{end}}

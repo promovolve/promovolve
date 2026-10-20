@@ -8,7 +8,7 @@
     </p>
   </div>
   <div class="flex items-center gap-3">
-    <a href="/publisher/sites" class="text-sm text-brand hover:underline">← {{t "Back to sites"}}</a>
+    <a href="/publisher/sites" class="text-sm text-brand-ink hover:underline">← {{t "Back to sites"}}</a>
   </div>
 </div>
 
@@ -17,7 +17,7 @@
 <div class="bg-white border rounded-lg mb-6 px-5 py-4">
   <div class="flex items-baseline justify-between">
     <h2 class="text-sm font-semibold">{{t "Traffic shape (learned)"}}</h2>
-    <p class="text-xs text-gray-400">{{t "relative request volume per hour (%s) · amber = current hour" $fo.TrafficShape.TzLabel}}</p>
+    <p class="text-xs text-gray-500">{{t "relative request volume per hour (%s) · amber = current hour" $fo.TrafficShape.TzLabel}}</p>
   </div>
   {{if $fo.TrafficShape.Learning}}
   <p class="text-xs text-gray-500 mt-1">{{t "Still learning — the shape is uniform, so budget pacing behaves linearly. It converges over ~5 days of traffic."}}</p>
@@ -39,7 +39,7 @@
         {{end}}
       </div>
     </div>
-    <div class="flex justify-between text-[10px] text-gray-400 -mt-2 px-0.5">
+    <div class="flex justify-between text-[10px] text-gray-500 -mt-2 px-0.5">
       <span>00</span><span>06</span><span>12</span><span>18</span><span>23&nbsp;{{$fo.TrafficShape.TzLabel}}</span>
     </div>
   </div>
@@ -109,18 +109,18 @@
       {{range $fo.CategoryFloors}}
       <tr class="border-b last:border-0{{if .Historical}} opacity-40{{end}}">
         <td class="px-5 py-2" title="{{.Category}}">
-          {{if and .CategoryName (ne .CategoryName .Category)}}{{t .CategoryName}} <span class="text-gray-400 font-mono text-xs">{{.Category}}</span>{{else}}<span class="font-mono text-xs">{{.Category}}</span>{{end}}
+          {{if and .CategoryName (ne .CategoryName .Category)}}{{t .CategoryName}} <span class="text-gray-500 font-mono text-xs">{{.Category}}</span>{{else}}<span class="font-mono text-xs">{{.Category}}</span>{{end}}
         </td>
-        <td class="px-5 py-2 text-right font-semibold {{if .Historical}}text-gray-400 line-through{{else}}text-gray-900{{end}}">{{.Floor}}</td>
+        <td class="px-5 py-2 text-right font-semibold {{if .Historical}}text-gray-500 line-through{{else}}text-gray-900{{end}}">{{.Floor}}</td>
         <td class="px-5 py-2">
           {{if .Historical}}
-          <span class="text-xs text-gray-400">{{.DemandNow}}</span>
+          <span class="text-xs text-gray-500">{{.DemandNow}}</span>
           {{else}}
           <span class="badge {{if eq .Bidders 1}}badge-info{{else}}badge-success{{end}}">{{.DemandNow}}</span>
           {{if .SweepStatus}}<div class="text-xs text-gray-500 mt-1">{{.SweepStatus}}</div>{{end}}
           {{end}}
         </td>
-        <td class="px-5 py-2 text-right text-gray-400 text-xs">{{.LastUpdate}}</td>
+        <td class="px-5 py-2 text-right text-gray-500 text-xs">{{.LastUpdate}}</td>
       </tr>
       {{end}}
     </tbody>
@@ -134,7 +134,7 @@
 <details class="mb-6">
   <summary class="cursor-pointer text-sm font-medium text-gray-600 hover:text-gray-900 select-none py-2">
     {{t "Site-wide fallback floor & sweep evidence"}}
-    <span class="text-xs text-gray-400 font-normal">{{t "— used only for categories without their own floor; not what your targeted advertisers pay"}}</span>
+    <span class="text-xs text-gray-500 font-normal">{{t "— used only for categories without their own floor; not what your targeted advertisers pay"}}</span>
   </summary>
   <div class="mt-4">
     {{template "sweepAndChart" $fo}}
@@ -172,14 +172,14 @@
           {{$sw.BestFloor}}
           {{if ne $sw.BestFloorDelta "—"}}
             <span class="ml-3 text-base font-normal
-              {{if eq $sw.BestFloorTrendArrow "▲"}}text-green-600{{end}}
+              {{if eq $sw.BestFloorTrendArrow "▲"}}text-green-700{{end}}
               {{if eq $sw.BestFloorTrendArrow "▼"}}text-red-600{{end}}
               {{if eq $sw.BestFloorTrendArrow "="}}text-gray-500{{end}}">
               {{$sw.BestFloorTrendArrow}} {{$sw.BestFloorDelta}}
-              <span class="text-xs text-gray-400">{{t "vs last cycle (%s)" $sw.PreviousBestFloor}}</span>
+              <span class="text-xs text-gray-500">{{t "vs last cycle (%s)" $sw.PreviousBestFloor}}</span>
             </span>
           {{else}}
-            <span class="ml-3 text-sm text-gray-400">{{t "first cycle in progress…"}}</span>
+            <span class="ml-3 text-sm text-gray-500">{{t "first cycle in progress…"}}</span>
           {{end}}
         </p>
       </div>
@@ -221,7 +221,7 @@
         <td class="px-4 py-2 font-mono whitespace-nowrap">
           {{.Floor}}
           {{if .IsBest}}<span class="ml-1 text-green-700 text-xs">★</span>{{end}}
-          {{if .WasBest}}<span class="ml-1 text-gray-400 text-xs" title="{{t "was the argmax last cycle"}}">★</span>{{end}}
+          {{if .WasBest}}<span class="ml-1 text-gray-500 text-xs" title="{{t "was the argmax last cycle"}}">★</span>{{end}}
         </td>
         <td class="px-4 py-2 text-right font-mono">{{.Revenue}}</td>
         <td class="px-4 py-2 text-right text-gray-500">{{.Impressions}}</td>
@@ -239,16 +239,16 @@
         </td>
       </tr>
       {{else}}
-      <tr><td colspan="6" class="px-4 py-6 text-center text-gray-400">
+      <tr><td colspan="6" class="px-4 py-6 text-center text-gray-500">
         {{t "No measurements yet — sweep optimizer is initializing. Refresh in a moment."}}
       </td></tr>
       {{end}}
     </tbody>
   </table>
 
-  <div class="px-5 py-2 bg-gray-50 border-t text-xs text-gray-400">
+  <div class="px-5 py-2 bg-gray-50 border-t text-xs text-gray-500">
     <span class="text-green-700">★</span> {{t "= argmax this cycle"}} ·
-    <span class="text-gray-400">★</span> {{t "= was argmax last cycle"}} ·
+    <span class="text-gray-500">★</span> {{t "= was argmax last cycle"}} ·
     {{t "Δ shows revenue change vs last cycle's measurement of that same floor"}}
   </div>
 </div>
@@ -268,7 +268,7 @@
     {{if $fo.ArgmaxStability}}
     <p class="text-xs text-gray-600 mt-1">{{$fo.ArgmaxStability.Summary}}</p>
     {{end}}
-    <p class="text-xs text-gray-400 mt-1">
+    <p class="text-xs text-gray-500 mt-1">
       {{t "Each dot = one completed cycle's pick. Flat line → optimizer converged. Zig-zag → flat-revenue zone (picks vary but revenue is similar). Trend → bidder market is shifting."}}
     </p>
   </div>
@@ -304,20 +304,20 @@
       <text x="{{.X}}" y="45" font-size="2" fill="#6b7280" text-anchor="middle">{{.Label}}</text>
       {{end}}
     </svg>
-    <div class="flex items-center justify-between text-xs text-gray-400 mt-3 px-2 gap-2 flex-wrap">
+    <div class="flex items-center justify-between text-xs text-gray-500 mt-3 px-2 gap-2 flex-wrap">
       {{if $fo.ArgmaxNav}}
         {{$nav := $fo.ArgmaxNav}}
-        <a href="?date={{$nav.PrevDate}}" class="text-brand hover:underline whitespace-nowrap">← {{$nav.PrevDate}}</a>
+        <a href="?date={{$nav.PrevDate}}" class="text-brand-ink hover:underline whitespace-nowrap">← {{$nav.PrevDate}}</a>
         <form method="GET" class="flex items-center gap-2">
           <label id="obs-date-label" for="obs-date" class="text-xs text-gray-500">{{t "Date:"}}</label>
           {{template "date-picker" dict "Id" "obs-date" "Name" "date" "Value" (or $nav.SelectedDate $nav.Today) "Max" $nav.Today "Submit" "1" "Sm" "1"}}
           {{if $nav.SelectedDate}}
-            <a href="?" class="text-brand hover:underline">{{t "recent"}} →</a>
+            <a href="?" class="text-brand-ink hover:underline">{{t "recent"}} →</a>
           {{end}}
           <span class="text-gray-500"><strong class="text-gray-700">{{len $fo.ArgmaxHistory}}</strong> {{t "cycle(s)"}}{{if not $showLabels}} · {{t "hover dots for values"}}{{end}}</span>
         </form>
         {{if $nav.NextDate}}
-          <a href="?date={{$nav.NextDate}}" class="text-brand hover:underline whitespace-nowrap">{{$nav.NextDate}} →</a>
+          <a href="?date={{$nav.NextDate}}" class="text-brand-ink hover:underline whitespace-nowrap">{{$nav.NextDate}} →</a>
         {{else}}
           <span class="text-gray-300 whitespace-nowrap">{{t "at today"}}</span>
         {{end}}
@@ -330,7 +330,7 @@
   </div>
   {{else}}
   <div class="px-5 py-12 text-center">
-    <p class="text-sm text-gray-400">{{t "No completed cycles yet"}}</p>
+    <p class="text-sm text-gray-500">{{t "No completed cycles yet"}}</p>
     <p class="text-xs text-gray-300 mt-1">{{t "First dot appears after the optimizer finishes its first full probe cycle"}}{{if $fo.Sweep}}{{if $fo.Sweep.HoldMins}}{{if $fo.Sweep.CandidateCount}} {{t "(~%dm × %d candidates)" $fo.Sweep.HoldMins $fo.Sweep.CandidateCount}}{{end}}{{end}}{{end}}</p>
   </div>
   {{end}}

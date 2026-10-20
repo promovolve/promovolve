@@ -17,12 +17,13 @@
     --c-gray-200: 234 231 228;
     --c-gray-300: 211 208 205;
     --c-gray-400: 168 164 159;
-    --c-gray-500: 125 122 117;
+    --c-gray-500: 107 103 98;
     --c-gray-600: 91 87 83;
     --c-gray-700: 64 60 56;
     --c-gray-800: 39 35 32;
     --c-gray-900: 20 17 14;
     --c-gray-950: 12 8 6;
+    --c-brand-ink: 176 80 0; /* amber for TEXT: 5.0:1 on paper (brand itself is 3.9:1) */
   }
   /* Pin an element's subtree to the LIGHT scale regardless of `.dark` — for
      chrome that is intentionally dark in BOTH themes (the sidebar), so its
@@ -34,7 +35,7 @@
     --c-gray-200: 234 231 228;
     --c-gray-300: 211 208 205;
     --c-gray-400: 168 164 159;
-    --c-gray-500: 125 122 117;
+    --c-gray-500: 107 103 98;
     --c-gray-600: 91 87 83;
     --c-gray-700: 64 60 56;
     --c-gray-800: 39 35 32;
@@ -66,6 +67,7 @@
     --c-gray-800: 235 232 227;
     --c-gray-900: 245 243 239; /* headings → near-white */
     --c-gray-950: 250 249 246;
+    --c-brand-ink: 236 140 69; /* 7.2:1 on the dark surface */
   }
 }
 
@@ -98,8 +100,8 @@
      this, the input had NO bg/text of its own — it kept the browser's white
      background while text inherited the page's dark-mode light color, i.e.
      invisible light-on-white. */
-  .form-input { @apply w-full px-3 py-2 border border-gray-300 rounded-md text-sm bg-white text-gray-900 placeholder:text-gray-400 focus:outline-none focus:ring-2 focus:ring-brand/20 focus:border-brand; }
-  .form-hint { @apply text-xs text-gray-400 mt-1; }
+  .form-input { @apply w-full px-3 py-2 border border-gray-300 rounded-md text-sm bg-white text-gray-900 placeholder:text-gray-500 focus:outline-none focus:ring-2 focus:ring-brand/20 focus:border-brand; }
+  .form-hint { @apply text-xs text-gray-500 mt-1; }
   .page-title { @apply text-2xl font-semibold; }
   .page-sub { @apply text-sm text-gray-500 mt-1; }
 
@@ -113,7 +115,7 @@
   .prose-doc p { @apply my-3; }
   .prose-doc ul { @apply list-disc pl-5 my-3 space-y-1; }
   .prose-doc ol { @apply list-decimal pl-5 my-3 space-y-1; }
-  .prose-doc a { @apply text-brand hover:underline; }
+  .prose-doc a { @apply text-brand-ink underline underline-offset-2 hover:no-underline; }
   .prose-doc strong { @apply font-semibold text-gray-900; }
   .prose-doc code { @apply font-mono text-xs bg-gray-100 rounded px-1 py-0.5; }
   /* Code blocks stay a dark slab in BOTH themes (literal colors so the gray
@@ -121,7 +123,7 @@
   .prose-doc pre { @apply rounded-lg p-4 my-4 overflow-x-auto; background: #14110e; color: #f5f3f0; }
   .prose-doc pre code { @apply bg-transparent p-0 text-xs leading-relaxed; }
   .prose-doc table { @apply w-full text-sm my-4 border-collapse; }
-  .prose-doc th { @apply text-left text-gray-400 font-medium border-b px-3 py-2; }
+  .prose-doc th { @apply text-left text-gray-500 font-medium border-b px-3 py-2; }
   .prose-doc td { @apply border-b border-gray-100 px-3 py-2; }
   .prose-doc blockquote { @apply border-l-4 border-gray-200 pl-4 text-gray-500 my-4; }
   .prose-doc hr { @apply my-6 border-gray-100; }

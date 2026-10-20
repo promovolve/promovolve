@@ -22,7 +22,7 @@
   <div class="card card-tight">
     <p class="text-xs text-gray-500">{{t "Impressions"}}</p>
     <p class="text-xl font-semibold mt-1">{{$r.Totals.Impressions}}</p>
-    {{if $r.Totals.DogearedImps}}<p class="text-xs text-gray-400">{{t "+%d dog-eared" $r.Totals.DogearedImps}}</p>{{end}}
+    {{if $r.Totals.DogearedImps}}<p class="text-xs text-gray-500">{{t "+%d dog-eared" $r.Totals.DogearedImps}}</p>{{end}}
   </div>
   <div class="card card-tight">
     <p class="text-xs text-gray-500">{{t "Clicks"}}</p>
@@ -94,7 +94,7 @@
       </div>
       <button type="submit" class="btn btn-primary">{{t "Save"}}</button>
     </form>
-    <p class="text-xs text-gray-400 mt-2">{{t "You report your own aggregate conversions; Promovolve never tracks users across sites, so CPA/ROAS are campaign-level by design. Re-reporting a campaign+day overwrites the previous number."}}</p>
+    <p class="text-xs text-gray-500 mt-2">{{t "You report your own aggregate conversions; Promovolve never tracks users across sites, so CPA/ROAS are campaign-level by design. Re-reporting a campaign+day overwrites the previous number."}}</p>
   </div>
 </div>
 
@@ -109,12 +109,12 @@
       <p class="text-xs text-gray-500">{{t "Dog-ears (reader bookmarks)"}}</p>
       <p class="text-xl font-semibold mt-1">{{$r.Totals.Folds}}
         {{if $r.Totals.FoldRate}}<span class="text-sm font-normal text-gray-500">· {{t "%s of impressions" $r.Totals.FoldRate}}</span>{{end}}
-        {{if $r.Totals.Unfolds}}<span class="text-sm font-normal text-gray-400">({{t "%d removed" $r.Totals.Unfolds}})</span>{{end}}
+        {{if $r.Totals.Unfolds}}<span class="text-sm font-normal text-gray-500">({{t "%d removed" $r.Totals.Unfolds}})</span>{{end}}
       </p>
     </div>
     <div>
       <p class="text-xs text-gray-500">{{t "Free re-exposure earned"}}</p>
-      <p class="text-sm mt-1">{{t "%d views · %d clicks · %d CTA clicks" $r.Totals.DogearedImps $r.Totals.DogearedClicks $r.Totals.DogearedCTAClicks}} <span class="text-gray-400">{{t "— %s, not in the totals above" (money 0.0)}}</span></p>
+      <p class="text-sm mt-1">{{t "%d views · %d clicks · %d CTA clicks" $r.Totals.DogearedImps $r.Totals.DogearedClicks $r.Totals.DogearedCTAClicks}} <span class="text-gray-500">{{t "— %s, not in the totals above" (money 0.0)}}</span></p>
     </div>
   </div>
 </div>
@@ -169,7 +169,7 @@
             {{if eq $i 0}}{{$g.Day}}{{if $g.IsToday}} <span class="badge badge-neutral">{{t "partial"}}</span>{{end}}{{end}}
           </td>
           <td class="py-2 pr-4">{{$row.CampaignName}}</td>
-          <td class="py-2 pr-4 text-right">{{$row.Impressions}}{{if $row.DogearedImps}} <span class="text-xs text-gray-400">{{t "(+%d dog-eared)" $row.DogearedImps}}</span>{{end}}</td>
+          <td class="py-2 pr-4 text-right">{{$row.Impressions}}{{if $row.DogearedImps}} <span class="text-xs text-gray-500">{{t "(+%d dog-eared)" $row.DogearedImps}}</span>{{end}}</td>
           <td class="py-2 pr-4 text-right">{{$row.Clicks}}</td>
           <td class="py-2 pr-4 text-right">{{$row.CTR}}</td>
           <td class="py-2 pr-4 text-right">{{$row.CTAClicks}}</td>
@@ -368,7 +368,7 @@
       <tr class="border-b border-gray-100">
         <td class="py-2 pr-4">{{if eq $i 0}}{{$g.Label}}{{end}}</td>
         <td class="py-2 pr-4">{{$row.Label}}</td>
-        <td class="py-2 pr-4 text-right">{{$row.Impressions}}{{if $row.DogearedImps}} <span class="text-xs text-gray-400">{{t "(+%d dog-eared)" $row.DogearedImps}}</span>{{end}}</td>
+        <td class="py-2 pr-4 text-right">{{$row.Impressions}}{{if $row.DogearedImps}} <span class="text-xs text-gray-500">{{t "(+%d dog-eared)" $row.DogearedImps}}</span>{{end}}</td>
         <td class="py-2 pr-4 text-right">{{$row.Clicks}}</td>
         <td class="py-2 pr-4 text-right">{{$row.CTR}}</td>
         <td class="py-2 pr-4 text-right">{{$row.CTAClicks}}</td>
@@ -403,7 +403,7 @@
     </tbody>
   </table>
   {{end}}
-  <p class="text-xs text-gray-400 mt-2 px-1">{{t "CPA is campaign-level — per-site attribution would need the cross-site tracking Promovolve doesn't do."}}</p>
+  <p class="text-xs text-gray-500 mt-2 px-1">{{t "CPA is campaign-level — per-site attribution would need the cross-site tracking Promovolve doesn't do."}}</p>
 </div>
 </div>
 {{end}}
@@ -447,7 +447,7 @@
       {{range .Rows}}
       <tr class="border-b border-gray-100">
         <td class="py-2 pr-4">{{.Label}}</td>
-        <td class="py-2 pr-4 text-right">{{.Impressions}}{{if .DogearedImps}} <span class="text-xs text-gray-400">{{t "(+%d dog-eared)" .DogearedImps}}</span>{{end}}</td>
+        <td class="py-2 pr-4 text-right">{{.Impressions}}{{if .DogearedImps}} <span class="text-xs text-gray-500">{{t "(+%d dog-eared)" .DogearedImps}}</span>{{end}}</td>
         <td class="py-2 pr-4 text-right">{{.Clicks}}</td>
         <td class="py-2 pr-4 text-right">{{.CTR}}</td>
         <td class="py-2 pr-4 text-right">{{.CTAClicks}}</td>
@@ -473,7 +473,7 @@
     </tbody>
   </table>
   {{end}}
-  {{if not .ShowConv}}<p class="text-xs text-gray-400 mt-2 px-1">{{t "CPA is campaign-level — per-site attribution would need the cross-site tracking Promovolve doesn't do."}}</p>{{end}}
+  {{if not .ShowConv}}<p class="text-xs text-gray-500 mt-2 px-1">{{t "CPA is campaign-level — per-site attribution would need the cross-site tracking Promovolve doesn't do."}}</p>{{end}}
 </div>
 </div>
 {{end}}
@@ -520,8 +520,8 @@
         <tr class="border-b border-gray-100 font-medium">
           <td class="py-2 pr-4">{{.Name}}</td>
           <td class="py-2 pr-4 text-right">{{.Impressions}}</td>
-          <td class="py-2 pr-4 text-right">{{if .UpTo}}<span class="text-xs text-gray-400">{{t "up to"}}</span> {{end}}{{.Reach}}</td>
-          <td class="py-2 pr-4 text-right">{{if .UpTo}}<span class="text-xs text-gray-400">{{t "up to"}}</span> {{end}}{{.NewReach}}</td>
+          <td class="py-2 pr-4 text-right">{{if .UpTo}}<span class="text-xs text-gray-500">{{t "up to"}}</span> {{end}}{{.Reach}}</td>
+          <td class="py-2 pr-4 text-right">{{if .UpTo}}<span class="text-xs text-gray-500">{{t "up to"}}</span> {{end}}{{.NewReach}}</td>
           <td class="py-2 pr-4 text-right">{{.NewShare}}</td>
           <td class="py-2 pr-4 text-right">{{.Frequency}}</td>
           <td class="py-2 pr-4 text-right">{{.ReReach}}</td>
@@ -544,7 +544,7 @@
         {{end}}
       </tbody>
     </table>
-    <p class="text-xs text-gray-400 mt-2 px-1">{{t "Counted in browsers on each site, without tracking. One person on two devices or two sites counts twice, so totals across sites are upper bounds."}}</p>
+    <p class="text-xs text-gray-500 mt-2 px-1">{{t "Counted in browsers on each site, without tracking. One person on two devices or two sites counts twice, so totals across sites are upper bounds."}}</p>
   </div>
   {{end}}
 </div>

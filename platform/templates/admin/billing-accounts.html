@@ -13,13 +13,13 @@
       <input id="billing-accounts-q" name="q" value="{{.Query}}" class="form-input w-72" placeholder="{{t "email or account id"}}">
     </div>
     <button type="submit" class="btn btn-secondary">{{t "Search"}}</button>
-    {{if .Query}}<a href="/admin/billing/accounts" class="text-sm text-brand hover:underline pb-2">{{t "clear"}}</a>{{end}}
+    {{if .Query}}<a href="/admin/billing/accounts" class="text-sm text-brand-ink hover:underline pb-2">{{t "clear"}}</a>{{end}}
   </form>
 
   <div class="card mt-4 p-0 overflow-x-auto">
     <table class="w-full text-sm mt-3">
       <thead>
-        <tr class="border-b text-left text-gray-400">
+        <tr class="border-b text-left text-gray-500">
           <th class="px-6 py-2 font-medium">{{t "Account"}}</th>
           <th class="px-6 py-2 font-medium">{{t "Type"}}</th>
           <th class="px-6 py-2 font-medium">{{t "Status"}}</th>
@@ -30,14 +30,14 @@
         {{range .Rows}}
         <tr class="border-b last:border-0">
           <td class="px-6 py-2 font-medium">
-            <a href="{{.URL}}" class="text-brand hover:underline" title="{{.ID}}">{{.Label}}</a>
+            <a href="{{.URL}}" class="text-brand-ink hover:underline" title="{{.ID}}">{{.Label}}</a>
           </td>
           <td class="px-6 py-2 text-gray-500">{{t .Type}}</td>
           <td class="px-6 py-2"><span class="badge {{.StatusBadge}}">{{t .Status}}</span></td>
           <td class="px-6 py-2 text-right font-medium">{{.Balance}}</td>
         </tr>
         {{else}}
-        <tr><td class="px-6 py-4 text-gray-400" colspan="4">{{if .Query}}{{t "No accounts match \"%s\"." .Query}}{{else}}{{t "No billing accounts yet — they appear with the first top-up or settlement."}}{{end}}</td></tr>
+        <tr><td class="px-6 py-4 text-gray-500" colspan="4">{{if .Query}}{{t "No accounts match \"%s\"." .Query}}{{else}}{{t "No billing accounts yet — they appear with the first top-up or settlement."}}{{end}}</td></tr>
         {{end}}
       </tbody>
     </table>

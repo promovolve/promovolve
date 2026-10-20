@@ -30,7 +30,7 @@
       </form>
 
       <p class="mt-6 text-center text-sm text-gray-500">
-        {{t "Need an account?"}} <a href="/request-account" class="text-brand hover:underline">{{t "Request access"}}</a>
+        {{t "Need an account?"}} <a href="/request-account" class="text-brand-ink hover:underline">{{t "Request access"}}</a>
       </p>
     </div>
 
@@ -38,7 +38,7 @@
     <div class="w-full max-w-md mx-auto mt-8">
       <div class="flex items-center gap-3 mb-4">
         <div class="h-px bg-gray-200 flex-1"></div>
-        <span class="text-xs uppercase tracking-wide text-gray-400">{{t "Development only"}}</span>
+        <span class="text-xs uppercase tracking-wide text-gray-500">{{t "Development only"}}</span>
         <div class="h-px bg-gray-200 flex-1"></div>
       </div>
       <div class="grid grid-cols-2 gap-4">
@@ -107,7 +107,7 @@
     </script>
     {{else}}
     <div class="w-full max-w-md mx-auto bg-white rounded-lg shadow-sm border p-8">
-      <a href="/login" class="text-sm text-gray-400 hover:text-gray-600 mb-4 block">&larr; Back</a>
+      <a href="/login" class="text-sm text-gray-500 hover:text-gray-600 mb-4 block">&larr; Back</a>
       <h2 class="text-2xl font-semibold mb-1">
         {{if eq .Mode "register"}}Create {{.RoleLabel}} Account{{else}}{{.RoleLabel}} Sign In{{end}}
       </h2>
@@ -141,8 +141,8 @@
         </button>
       </form>
       <p class="mt-4 text-center text-sm text-gray-500">
-        {{if eq .Mode "register"}}Already have an account? <a href="/login?mode=login&role={{.Role}}" class="text-brand hover:underline">Sign in</a>
-        {{else}}Don't have an account? <a href="/login?mode=register&role={{.Role}}" class="text-brand hover:underline">Register</a>{{end}}
+        {{if eq .Mode "register"}}Already have an account? <a href="/login?mode=login&role={{.Role}}" class="text-brand-ink hover:underline">Sign in</a>
+        {{else}}Don't have an account? <a href="/login?mode=register&role={{.Role}}" class="text-brand-ink hover:underline">Register</a>{{end}}
       </p>
     </div>
     {{end}}

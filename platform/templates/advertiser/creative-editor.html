@@ -25,7 +25,7 @@
        class="fixed inset-0 z-50 bg-white/70 backdrop-blur-sm flex items-center justify-center"
        @click.stop @keydown.stop>
     <div class="flex flex-col items-center gap-3 rounded-lg bg-white shadow-lg border px-6 py-5">
-      <svg class="animate-spin h-8 w-8 text-orange-600" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24">
+      <svg class="animate-spin h-8 w-8 text-orange-700" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24">
         <circle class="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" stroke-width="4"></circle>
         <path class="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8v4a4 4 0 00-4 4H4z"></path>
       </svg>
@@ -63,7 +63,7 @@
           <span x-show="analyzing">{{t "Analyzing..."}}</span>
         </button>
       </div>
-      {{if .LandingURL}}<p class="mt-2 text-xs text-gray-400">{{t "The landing page is set by the campaign and can't be changed here."}}</p>{{end}}
+      {{if .LandingURL}}<p class="mt-2 text-xs text-gray-500">{{t "The landing page is set by the campaign and can't be changed here."}}</p>{{end}}
       <p x-show="analyzeError" x-text="analyzeError" class="mt-2 text-sm text-red-600"></p>
     </div>
   </div>
@@ -89,13 +89,13 @@
     <div x-show="!lpScreenshotUrl" class="absolute inset-0 animate-pulse bg-gradient-to-br from-gray-100 to-gray-200"></div>
     <!-- Foreground: spinner + caption -->
     <div class="relative flex flex-col items-center justify-center gap-3 py-24 text-center">
-      <svg class="animate-spin h-8 w-8" :class="lpScreenshotUrl ? 'text-white/90' : 'text-orange-500'" viewBox="0 0 24 24" fill="none">
+      <svg class="animate-spin h-8 w-8" :class="lpScreenshotUrl ? 'text-white/90' : 'text-orange-700'" viewBox="0 0 24 24" fill="none">
         <circle class="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" stroke-width="4"></circle>
         <path class="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4z"></path>
       </svg>
       <p class="text-sm font-medium" :class="lpScreenshotUrl ? 'text-white' : 'text-gray-600'"
          x-text="lpScreenshotUrl ? '{{t "Reading your landing page…"}}' : '{{t "Opening your landing page…"}}'"></p>
-      <p class="text-xs" :class="lpScreenshotUrl ? 'text-white/75' : 'text-gray-400'">{{t "Extracting text, images and brand colours"}}</p>
+      <p class="text-xs" :class="lpScreenshotUrl ? 'text-white/75' : 'text-gray-500'">{{t "Extracting text, images and brand colours"}}</p>
     </div>
   </div>
 
@@ -108,7 +108,7 @@
        x-transition:enter-start="opacity-0 translate-y-3"
        x-transition:enter-end="opacity-100 translate-y-0">
     <div class="mb-4">
-      <span class="text-sm text-gray-400">{{t "Pick the story arc, add anything to emphasize, then generate the 3 pages. Pick an image for each."}}</span>
+      <span class="text-sm text-gray-500">{{t "Pick the story arc, add anything to emphasize, then generate the 3 pages. Pick an image for each."}}</span>
     </div>
 
     <!-- Persuasion arc picker. On first generate the AI curates which arcs FIT
@@ -117,20 +117,20 @@
     <div class="mb-4">
       <div class="flex items-center justify-between mb-2">
         <h3 class="text-sm font-medium text-gray-700">{{t "Story arc"}}
-          <span class="font-normal text-gray-400">{{t "— how the 3 pages persuade"}}</span></h3>
+          <span class="font-normal text-gray-500">{{t "— how the 3 pages persuade"}}</span></h3>
         <button type="button" x-show="fitArcIds.length > 0 && fitArcIds.length < arcs.length"
                 @click="showAllArcs = !showAllArcs"
-                class="text-[11px] text-gray-400 hover:text-gray-600"
+                class="text-[11px] text-gray-500 hover:text-gray-600"
                 x-text="showAllArcs ? '{{t "show recommended only"}}' : '{{t "show all arcs"}}'"></button>
       </div>
-      <p x-show="arcReason" x-cloak class="text-[11px] text-orange-600 mb-2">{{t "✓ Recommended:"}} <span x-text="arcReason"></span></p>
+      <p x-show="arcReason" x-cloak class="text-[11px] text-orange-700 mb-2">{{t "✓ Recommended:"}} <span x-text="arcReason"></span></p>
       <div class="grid grid-cols-2 sm:grid-cols-4 gap-2">
         <template x-for="a in arcs.filter(a => showAllArcs || fitArcIds.length === 0 || fitArcIds.includes(a.id))" :key="a.id">
           <button type="button" @click="selectedArcId = a.id" :disabled="generating"
                   class="border rounded-lg p-2 text-left transition hover:border-orange-400 disabled:opacity-50 disabled:cursor-not-allowed"
                   :class="selectedArcId === a.id ? 'border-orange-500 ring-2 ring-orange-200 bg-orange-50' : 'border-gray-200'">
             <div class="text-xs font-medium text-gray-800" x-text="a.label"></div>
-            <div class="text-[11px] text-gray-400 mt-0.5 leading-tight" x-text="a.desc"></div>
+            <div class="text-[11px] text-gray-500 mt-0.5 leading-tight" x-text="a.desc"></div>
           </button>
         </template>
       </div>
@@ -140,12 +140,12 @@
          the chosen arc by the single Generate action below (no per-field apply). -->
     <div class="mb-4">
       <label for="creative-editor-brief" class="block text-sm font-medium text-gray-700 mb-1">{{t "Anything to emphasize?"}}
-        <span class="font-normal text-gray-400">{{t "(optional)"}}</span></label>
+        <span class="font-normal text-gray-500">{{t "(optional)"}}</span></label>
       <input id="creative-editor-brief" type="text" x-model="brief" maxlength="300"
              @keydown.enter.prevent
              placeholder="{{t "e.g. push the limited edition; warm, playful tone; mention free shipping"}}"
              class="w-full px-3 py-2 border rounded-md text-sm focus:outline-none focus:ring-2 focus:ring-orange-500">
-      <p class="text-[11px] text-gray-400 mt-1">{{t "Steers the copy. Facts you add are trusted; the AI still won’t invent beyond your landing page + this note."}}</p>
+      <p class="text-[11px] text-gray-500 mt-1">{{t "Steers the copy. Facts you add are trusted; the AI still won’t invent beyond your landing page + this note."}}</p>
     </div>
 
     <!-- ONE generate action: applies the selected arc + the brief together. -->
@@ -174,7 +174,7 @@
           {{t "Use my site’s own fonts"}}
           (<span class="font-medium" x-text="[...new Set(originalFonts.map(f => f.family))].join(', ')"></span>)
           {{t "in this ad."}}
-          <span class="block text-[11px] text-gray-400 mt-0.5">
+          <span class="block text-[11px] text-gray-500 mt-0.5">
             {{t "I confirm I hold a license permitting these font files to be embedded in ads served from Promovolve’s CDN. Left unticked, the ad uses the closest free (Google Fonts) or system face instead."}}
           </span>
         </span>
@@ -224,7 +224,7 @@
                   <img :src="allImages[page.imageIdx].src" class="w-full h-full object-cover rounded">
                 </template>
                 <template x-if="page.imageIdx === null">
-                  <span class="text-xs text-gray-400 text-center px-2">{{t "Click to pick image"}}</span>
+                  <span class="text-xs text-gray-500 text-center px-2">{{t "Click to pick image"}}</span>
                 </template>
               </div>
 
@@ -233,7 +233,7 @@
                 <template x-if="synthesizedPages[idx]">
                   <div>
                     <span x-show="synthesizedPages[idx].tag"
-                          class="inline-block text-[10px] font-semibold uppercase tracking-wider text-orange-500 mb-0.5"
+                          class="inline-block text-[10px] font-semibold uppercase tracking-wider text-orange-700 mb-0.5"
                           x-text="synthesizedPages[idx].tag"></span>
                     <p class="text-sm font-semibold text-gray-800" x-text="synthesizedPages[idx].headline || '—'"></p>
                     <p class="text-xs text-gray-600 mt-0.5" x-text="synthesizedPages[idx].sub || ''"></p>
@@ -242,7 +242,7 @@
                 </template>
                 <template x-if="!synthesizedPages[idx]">
                   <div class="h-full flex items-center">
-                    <span class="text-xs text-gray-400" x-text="generating ? '{{t "Writing copy…"}}' : '{{t "Copy will appear here"}}'"></span>
+                    <span class="text-xs text-gray-500" x-text="generating ? '{{t "Writing copy…"}}' : '{{t "Copy will appear here"}}'"></span>
                   </div>
                 </template>
               </div>
@@ -268,9 +268,9 @@
              @drop.prevent="onImageDrop($event)">
           <div class="flex items-center justify-between mb-2">
             <h3 class="text-sm font-semibold text-gray-700">
-              {{t "Images"}} <span class="font-normal text-gray-400" x-text="'(' + allImages.length + ')'"></span>
+              {{t "Images"}} <span class="font-normal text-gray-500" x-text="'(' + allImages.length + ')'"></span>
             </h3>
-            <label class="text-xs text-orange-600 hover:text-orange-800 cursor-pointer"
+            <label class="text-xs text-orange-700 hover:text-orange-800 cursor-pointer"
                    :class="uploadingImage ? 'opacity-50 pointer-events-none' : ''">
               <span x-show="!uploadingImage">{{t "+ Upload"}}</span>
               <span x-show="uploadingImage">{{t "Uploading…"}}</span>
@@ -297,14 +297,14 @@
                         @click.stop="toggleLibrarySave(img)"
                         :title="libSaved[img.src] && libSaved[img.src] !== 'saving' ? '{{t "In your image library — click to remove"}}' : '{{t "Save to your image library for reuse in other creatives"}}'"
                         class="absolute top-1 right-1 w-6 h-6 rounded-full flex items-center justify-center text-sm leading-none shadow"
-                        :class="libSaved[img.src] === 'saving' ? 'bg-white/80 text-gray-300' : (libSaved[img.src] ? 'bg-amber-400 text-white' : 'bg-white/80 text-gray-400 hover:text-amber-500')"
+                        :class="libSaved[img.src] === 'saving' ? 'bg-white/80 text-gray-300' : (libSaved[img.src] ? 'bg-amber-400 text-white' : 'bg-white/80 text-gray-500 hover:text-amber-700')"
                         x-text="libSaved[img.src] && libSaved[img.src] !== 'saving' ? '★' : '☆'"></button>
               </div>
             </template>
           </div>
-          <p x-show="allImages.length === 0" class="text-xs text-gray-400 py-4 text-center">
+          <p x-show="allImages.length === 0" class="text-xs text-gray-500 py-4 text-center">
             <span x-show="!imageDragActive">{{t "No images yet — drag & drop or use Upload."}}</span>
-            <span x-show="imageDragActive" class="text-orange-600 font-medium">{{t "Drop to upload"}}</span>
+            <span x-show="imageDragActive" class="text-orange-700 font-medium">{{t "Drop to upload"}}</span>
           </p>
           <p x-show="uploadError" x-cloak x-text="'{{t "Upload error:"}} ' + uploadError" class="mt-2 text-xs text-red-600"></p>
 
@@ -338,7 +338,7 @@
          via selectedTemplateId), so the creative is never silently defaulted. -->
     <div class="bg-white rounded-lg border p-4 mt-6">
       <h3 class="text-sm font-medium text-gray-700 mb-1">{{t "Layout template"}}</h3>
-      <p class="text-xs text-gray-400 mb-3">{{t "Pick a layout. Colours are set later in the designer."}}</p>
+      <p class="text-xs text-gray-500 mb-3">{{t "Pick a layout. Colours are set later in the designer."}}</p>
       <div class="grid grid-cols-2 sm:grid-cols-4 gap-3">
         <template x-for="t in templates" :key="t.id">
           <button type="button" @click="selectedTemplateId = t.id"
@@ -350,7 +350,7 @@
               </template>
             </div>
             <div class="text-xs font-medium text-gray-700 truncate" x-text="t.name"></div>
-            <div class="text-[11px] text-gray-400 leading-tight" x-text="t.description"></div>
+            <div class="text-[11px] text-gray-500 leading-tight" x-text="t.description"></div>
           </button>
         </template>
       </div>
@@ -363,7 +363,7 @@
              @keydown.enter.prevent
              placeholder="{{t "e.g. Summer sale — hero v1"}}"
              class="w-full px-3 py-2 border rounded-md text-sm focus:outline-none focus:ring-2 focus:ring-orange-500">
-      <p class="text-xs text-gray-400 mt-1">{{t "Shown on your creatives list and in reports."}}</p>
+      <p class="text-xs text-gray-500 mt-1">{{t "Shown on your creatives list and in reports."}}</p>
     </div>
     <button @click="generateCopy()" :disabled="generating || !canGenerate()"
             class="btn btn-primary w-full mt-3">

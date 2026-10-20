@@ -14,13 +14,13 @@
     <div>
       <label for="account-preferences-displayname" class="form-label">{{t "Display name"}}</label>
       <input id="account-preferences-displayname" name="displayName" value="{{.User.DisplayName}}" maxlength="80" class="form-input w-full">
-      <p class="text-xs text-gray-400 mt-1">{{t "Shown to teammates and in the operator views."}}</p>
+      <p class="text-xs text-gray-500 mt-1">{{t "Shown to teammates and in the operator views."}}</p>
     </div>
 
     <div>
       <label for="account-preferences-email" class="form-label">{{t "Sign-in email"}}</label>
       <input id="account-preferences-email" value="{{.User.Email}}" disabled class="form-input w-full bg-gray-50 text-gray-500">
-      <p class="text-xs text-gray-400 mt-1">
+      <p class="text-xs text-gray-500 mt-1">
         {{t "Cannot be changed: the email domain is what binds this account to your organization (and your passkeys to this account). Moving to a new address means an admin invites it and you register a passkey there."}}
       </p>
     </div>
@@ -34,7 +34,7 @@
         {{if ne . "UTC"}}<option value="{{.}}" {{if eq . $current}}selected{{end}}>{{.}}</option>{{end}}
         {{end}}
       </select>
-      <p class="text-xs text-gray-400 mt-1">
+      <p class="text-xs text-gray-500 mt-1">
         {{t "Changes how dates and times are displayed to you. Budget, billing, and report days follow your organization's timezone, set by the platform operator."}}
       </p>
     </div>
@@ -47,7 +47,7 @@
         <option value="{{.Tag}}" {{if eq $.User.Locale .Tag}}selected{{end}}>{{.Name}}</option>
         {{end}}
       </select>
-      <p class="text-xs text-gray-400 mt-1">
+      <p class="text-xs text-gray-500 mt-1">
         {{t "Dashboard language. Auto follows your browser."}}
       </p>
     </div>
@@ -64,7 +64,7 @@
         </label>
         {{end}}
       </div>
-      <p class="text-xs text-gray-400 mt-1">
+      <p class="text-xs text-gray-500 mt-1">
         {{t "Your organization holds both sides; pick where a fresh sign-in starts. Switching sides in the dashboard updates this too."}}
       </p>
     </fieldset>

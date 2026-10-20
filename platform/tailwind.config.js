@@ -23,7 +23,14 @@ module.exports = {
            white — the designer's convention; white fails AA on this amber.
            Intentionally NOT variable-driven: the accent is stable across
            themes. */
-        brand: { DEFAULT: '#d35f00', hover: '#c35800', soft: '#fce4c4' },
+        brand: {
+          DEFAULT: '#d35f00', hover: '#c35800', soft: '#fce4c4',
+          /* Amber for TEXT (links, inline emphasis). The brand fill is
+             3.9:1 on white — fine under dark ink, too light AS text — so
+             text uses this theme-aware step instead (5.0:1 light, 7.2:1
+             dark; tailwind.input.css --c-brand-ink). */
+          ink: 'rgb(var(--c-brand-ink) / <alpha-value>)',
+        },
         /* Neutrals + white route through CSS variables (space-separated RGB
            triples, defined in tailwind.input.css :root / .dark). Every
            bg-white / bg-gray-* / text-gray-* / border-gray-* across the

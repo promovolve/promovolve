@@ -20,7 +20,7 @@
 {{if .AdvBudget}}
 <div class="flex items-center justify-between mb-6 text-sm text-gray-500">
   <span>{{t "Account budget: %s/day (%s remaining, %s spent today)" (money .AdvBudget.DailyBudget) (money .AdvBudget.Remaining) (money .AdvBudget.SpendToday)}}{{if eq .AdvBudget.BudgetMode "optimized"}} &middot; <span class="badge badge-info" title="{{t "The account budget is re-split across all live campaigns."}}">{{t "Optimized budget mode"}}</span>{{if .AdvBudget.MovedToday}} &middot; {{t "moved %s between campaigns today" .AdvBudget.MovedToday}}{{end}}{{end}}</span>
-  <a href="/advertiser/account" class="text-brand hover:underline">{{t "Edit"}}</a>
+  <a href="/advertiser/account" class="text-brand-ink hover:underline">{{t "Edit"}}</a>
 </div>
 {{end}}
 
@@ -57,7 +57,7 @@
       </form>
     </span>
     {{end}}
-    {{if not .BlockedDomains}}<span class="text-sm text-gray-400">{{t "None"}}</span>{{end}}
+    {{if not .BlockedDomains}}<span class="text-sm text-gray-500">{{t "None"}}</span>{{end}}
     <form method="POST" action="/advertiser/block-site" class="inline-flex items-center gap-1 ml-2">
       <input type="text" name="domain" placeholder="example.com" list="served-sites-domains"
              class="form-input w-56">
@@ -121,14 +121,14 @@
             <button type="button"
               @click="selectedId = cat.id; selectedName = cat.name + ' (' + cat.id + ')'; open = false; query = ''; err = false;"
               class="w-full text-left px-3 py-2 hover:bg-gray-50 text-sm">
-              <span class="font-mono text-xs text-gray-400 mr-2" x-text="cat.id"></span>
+              <span class="font-mono text-xs text-gray-500 mr-2" x-text="cat.id"></span>
               <span x-text="cat.name"></span>
             </button>
           </template>
         </div>
       </div>
       <p x-show="err && !selectedId" x-cloak class="text-xs text-red-600 mt-1">{{t "Pick a category from the suggestions — typing alone does not select one."}}</p>
-      <p class="text-xs text-gray-400 mt-1">{{t "Search for your product category — used for verification and reporting. Matching topics are derived from your creative's landing page."}}</p>
+      <p class="text-xs text-gray-500 mt-1">{{t "Search for your product category — used for verification and reporting. Matching topics are derived from your creative's landing page."}}</p>
     </div>
     <div class="mb-4" x-data="{
         query: '',
@@ -185,17 +185,17 @@
           <template x-for="cat in results" :key="cat.id">
             <button type="button" @click="add(cat)"
               class="w-full text-left px-3 py-2 hover:bg-gray-50 text-sm">
-              <span class="font-mono text-xs text-gray-400 mr-2" x-text="cat.id"></span>
+              <span class="font-mono text-xs text-gray-500 mr-2" x-text="cat.id"></span>
               {{template "inv-dot" "cat"}}
               <span x-text="cat.name"></span>
-              <span x-show="cat.inv === 'none'" class="text-xs text-gray-400 ml-1">{{t "no inventory yet"}}</span>
-              <span x-show="cat.inv === 'declared'" class="text-xs text-amber-600 ml-1">{{t "declared only"}}</span>
+              <span x-show="cat.inv === 'none'" class="text-xs text-gray-500 ml-1">{{t "no inventory yet"}}</span>
+              <span x-show="cat.inv === 'declared'" class="text-xs text-amber-700 ml-1">{{t "declared only"}}</span>
             </button>
           </template>
         </div>
       </div>
-      <p class="text-xs text-gray-400 mt-1">{{t "Leave empty to auto-derive from your creative's landing-page content. Set explicitly when you want the campaign to bid only on specific topics, or as a fallback when LLM verification can't suggest a topic confidently."}}</p>
-      <p class="text-xs text-gray-400 mt-1">{{t "Dots show real inventory: green = publishers are serving ads on this topic now, amber = publishers declare matching content but nothing has traded yet, gray = no publisher inventory matches yet."}}</p>
+      <p class="text-xs text-gray-500 mt-1">{{t "Leave empty to auto-derive from your creative's landing-page content. Set explicitly when you want the campaign to bid only on specific topics, or as a fallback when LLM verification can't suggest a topic confidently."}}</p>
+      <p class="text-xs text-gray-500 mt-1">{{t "Dots show real inventory: green = publishers are serving ads on this topic now, amber = publishers declare matching content but nothing has traded yet, gray = no publisher inventory matches yet."}}</p>
     </div>
     <div class="mb-4" x-data="{
         query: '',
@@ -239,7 +239,7 @@
           </template>
         </div>
       </div>
-      <p class="text-xs text-gray-400 mt-1">{{t "Leave empty to run everywhere your topics match. Pick one or more registered sites to restrict this campaign to them (still subject to topic matching on their pages)."}}</p>
+      <p class="text-xs text-gray-500 mt-1">{{t "Leave empty to run everywhere your topics match. Pick one or more registered sites to restrict this campaign to them (still subject to topic matching on their pages)."}}</p>
     </div>
     <div class="mb-4">
       <label for="campaigns-landingurl" class="form-label">{{t "Landing URL"}}</label>
@@ -247,7 +247,7 @@
            browser URL validation; inputmode keeps the URL keyboard on mobile. */}}
       <input id="campaigns-landingurl" type="text" inputmode="url" name="landingUrl" required placeholder="https://example.com/promo"
              class="form-input">
-      <p class="text-xs text-gray-400 mt-1">
+      <p class="text-xs text-gray-500 mt-1">
         {{t "Optional attribution macros — filled at click time from the ad's context (no personal data):"}}
         <code class="text-gray-500">{source}</code>
         <code class="text-gray-500">{campaign_id}</code>
@@ -302,7 +302,7 @@
           <option value="week">{{t "per week"}}</option>
         </select>
       </div>
-      <p class="text-xs text-gray-400 mt-1">{{t "Per browser, per site: the reader's own browser keeps the count and simply declines this campaign once it has seen enough. Promovolve never identifies readers, so the cap does not follow them across devices or sites."}}</p>
+      <p class="text-xs text-gray-500 mt-1">{{t "Per browser, per site: the reader's own browser keeps the count and simply declines this campaign once it has seen enough. Promovolve never identifies readers, so the cap does not follow them across devices or sites."}}</p>
     </div>
     <div class="grid grid-cols-2 gap-4 mb-4">
       <div>
@@ -316,7 +316,7 @@
         <p class="text-xs text-gray-500 mt-1">{{t "Campaign stops bidding after this date. Dog-ear pins expire then."}}</p>
       </div>
     </div>
-    <p class="text-xs text-gray-400 -mt-2 mb-4">{{t "Times are in your account timezone (%s) — the same boundary your daily budget resets at." $.ScheduleTz}}</p>
+    <p class="text-xs text-gray-500 -mt-2 mb-4">{{t "Times are in your account timezone (%s) — the same boundary your daily budget resets at." $.ScheduleTz}}</p>
     <div class="flex justify-end gap-3 pt-4 border-t">
       <button type="button" onclick="document.getElementById('new-campaign-form').classList.add('hidden')"
               class="btn btn-secondary">{{t "Cancel"}}</button>
@@ -328,7 +328,7 @@
 
 <!-- Campaign list -->
 {{if not .Campaigns}}
-<div class="flex flex-col items-center justify-center py-32 text-gray-400">
+<div class="flex flex-col items-center justify-center py-32 text-gray-500">
   <p class="text-lg font-medium">{{t "No campaigns yet"}}</p>
   <p class="text-sm mt-2">{{t "Create your first campaign to start advertising"}}</p>
 </div>
@@ -370,7 +370,7 @@
           <span>{{money .DailyBudget}}</span>
         </div>
         {{if .DayStartBudget}}
-        <p class="text-xs text-gray-400 mb-1 text-right" data-budget-moved>{{t "started today at %s" .DayStartBudget}}{{if .BudgetMoved}} &middot; <span class="{{if .BudgetMovedUp}}text-green-600{{else}}text-red-600{{end}}">{{.BudgetMoved}}</span>{{end}}</p>
+        <p class="text-xs text-gray-500 mb-1 text-right" data-budget-moved>{{t "started today at %s" .DayStartBudget}}{{if .BudgetMoved}} &middot; <span class="{{if .BudgetMovedUp}}text-green-700{{else}}text-red-600{{end}}">{{.BudgetMoved}}</span>{{end}}</p>
         {{end}}
         <div class="h-1.5 bg-gray-200 rounded-full">
           <div class="h-full rounded-full {{if gt .BudgetPct 90.0}}bg-red-500{{else if gt .BudgetPct 70.0}}bg-amber-500{{else}}bg-green-500{{end}}"
@@ -447,7 +447,7 @@
       {{end}}
 
       <!-- Expand chevron -->
-      <svg data-chevron class="w-4 h-4 text-gray-400 transition-transform" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+      <svg data-chevron class="w-4 h-4 text-gray-500 transition-transform" fill="none" viewBox="0 0 24 24" stroke="currentColor">
         <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 9l-7 7-7-7" />
       </svg>
     </div>
@@ -461,7 +461,7 @@
                trimmed URL, but keep the FULL url one interaction away — the
                link opens it (params included, the real "is it set right"
                check) and the tooltip shows it. Grey +N hint = params exist. */}}
-          <p class="break-all">{{t "Landing:"}} {{if .LandingURL}}<a href="{{.LandingURL}}" target="_blank" rel="noopener" title="{{.LandingURL}}" class="text-brand hover:underline">{{stripQuery .LandingURL}}</a>{{with queryCount .LandingURL}} <span class="text-gray-400 text-xs whitespace-nowrap">{{t "+%d params" .}}</span>{{end}}{{else}}&mdash;{{end}}</p>
+          <p class="break-all">{{t "Landing:"}} {{if .LandingURL}}<a href="{{.LandingURL}}" target="_blank" rel="noopener" title="{{.LandingURL}}" class="text-brand-ink hover:underline">{{stripQuery .LandingURL}}</a>{{with queryCount .LandingURL}} <span class="text-gray-500 text-xs whitespace-nowrap">{{t "+%d params" .}}</span>{{end}}{{else}}&mdash;{{end}}</p>
           <p class="mt-1">{{t "ID:"}} <span class="font-mono text-xs">{{.ID}}</span></p>
         </div>
         <div>
@@ -473,9 +473,9 @@
                    class="w-24 px-2 py-1 border rounded-md text-sm focus:outline-none focus:ring-2 focus:ring-brand/20 focus:border-brand">
             <button type="submit" class="btn btn-primary btn-sm">{{t "Update"}}</button>
           </form>
-          <p class="text-xs text-gray-400 mt-2">{{t "You bid your max — you pay based on competition and creative quality"}}</p>
+          <p class="text-xs text-gray-500 mt-2">{{t "You bid your max — you pay based on competition and creative quality"}}</p>
 
-          <p class="text-gray-500 text-xs uppercase mb-2 mt-4">{{t "Schedule"}} {{if .StartAtFuture}}<span class="text-amber-600">{{t "(starts %s)" .StartAtDisplay}}</span>{{else if .EndAtPassed}}<span class="text-red-600">{{t "(ended)"}}</span>{{end}}</p>
+          <p class="text-gray-500 text-xs uppercase mb-2 mt-4">{{t "Schedule"}} {{if .StartAtFuture}}<span class="text-amber-700">{{t "(starts %s)" .StartAtDisplay}}</span>{{else if .EndAtPassed}}<span class="text-red-600">{{t "(ended)"}}</span>{{end}}</p>
           <form method="POST" action="/advertiser/campaigns/schedule" class="flex flex-col gap-2 mt-1">
             <input type="hidden" name="campaignId" value="{{.ID}}">
             <div class="flex items-center gap-2">
@@ -487,9 +487,9 @@
               {{template "date-picker" dict "Id" "sched-end-{{.ID}}" "Name" "endAt" "Value" .EndAtLocal "Time" "1" "Clear" "1" "Sm" "1"}}
               <button type="submit" class="btn btn-primary btn-sm">{{t "Update"}}</button>
             </div>
-            <p class="text-xs text-gray-400">{{t "Times are in your account timezone (%s) — the same boundary your daily budget resets at." $.ScheduleTz}}</p>
+            <p class="text-xs text-gray-500">{{t "Times are in your account timezone (%s) — the same boundary your daily budget resets at." $.ScheduleTz}}</p>
           </form>
-          <p class="text-xs text-gray-400 mt-2">{{if .EndAtDisplay}}{{t "Stops bidding %s. Dog-ear pins expire then." .EndAtDisplay}}{{else}}{{t "Open-ended — runs until paused."}}{{end}}</p>
+          <p class="text-xs text-gray-500 mt-2">{{if .EndAtDisplay}}{{t "Stops bidding %s. Dog-ear pins expire then." .EndAtDisplay}}{{else}}{{t "Open-ended — runs until paused."}}{{end}}</p>
 
           {{/* The bid checker. "I targeted X and the page I care about shows
                no ads" has five possible answers (category, place, audience,
@@ -565,7 +565,7 @@
             <label class="inline-flex items-center gap-1.5 text-xs text-gray-500 cursor-pointer">
               <input type="checkbox" name="bidOnUnmatchedContext" {{if .BidOnUnmatchedContext}}checked{{end}}
                      onchange="this.form.submit()"
-                     class="rounded border-gray-300 text-brand focus:ring-brand">
+                     class="rounded border-gray-300 text-brand-ink focus:ring-brand">
               {{t "Bid on unmatched-context traffic"}}
             </label>
           </form>
@@ -597,7 +597,7 @@
             <input id="edit-adproduct-{{.ID}}" type="text" disabled
                    value="{{if .AdProductCategoryName}}{{.AdProductCategoryName}} ({{.AdProductCategory}}){{else if .AdProductCategory}}{{.AdProductCategory}}{{else}}{{t "No category"}}{{end}}"
                    class="w-full px-3 py-2 border rounded-md text-sm bg-gray-100 text-gray-500 cursor-not-allowed">
-            <p class="text-xs text-gray-400 mt-1">{{t "What a campaign advertises can't be changed after it's created. To advertise something different, create a new campaign."}}</p>
+            <p class="text-xs text-gray-500 mt-1">{{t "What a campaign advertises can't be changed after it's created. To advertise something different, create a new campaign."}}</p>
           </div>
 
           <!-- Target content topics -->
@@ -644,7 +644,7 @@
                   <span class="mr-1">✨</span>
                   {{template "inv-dot" "c"}}
                   <span x-text="c.name"></span>
-                  <span class="ml-1.5 text-gray-400" title="{{t "Always targeted (auto-derived)"}}">🔒</span>
+                  <span class="ml-1.5 text-gray-500" title="{{t "Always targeted (auto-derived)"}}">🔒</span>
                 </span>
               </template>
               <!-- Advertiser-added: removable -->
@@ -666,16 +666,16 @@
               <div x-show="open" x-transition class="absolute z-10 w-full mt-1 bg-white border rounded-md shadow-lg max-h-48 overflow-y-auto">
                 <template x-for="cat in results" :key="cat.id">
                   <button type="button" @click="add(cat)" class="w-full text-left px-3 py-2 hover:bg-gray-50 text-sm">
-                    <span class="font-mono text-xs text-gray-400 mr-2" x-text="cat.id"></span>
+                    <span class="font-mono text-xs text-gray-500 mr-2" x-text="cat.id"></span>
                     {{template "inv-dot" "cat"}}
                     <span x-text="cat.name"></span>
-                    <span x-show="cat.inv === 'none'" class="text-xs text-gray-400 ml-1">{{t "no inventory yet"}}</span>
-                    <span x-show="cat.inv === 'declared'" class="text-xs text-amber-600 ml-1">{{t "declared only"}}</span>
+                    <span x-show="cat.inv === 'none'" class="text-xs text-gray-500 ml-1">{{t "no inventory yet"}}</span>
+                    <span x-show="cat.inv === 'declared'" class="text-xs text-amber-700 ml-1">{{t "declared only"}}</span>
                   </button>
                 </template>
               </div>
             </div>
-            <p class="text-xs text-gray-400 mt-1">
+            <p class="text-xs text-gray-500 mt-1">
               <span x-show="locked.length > 0">✨ {{t "Topics auto-derived from your landing page are always targeted and can't be removed. Add more above to broaden targeting."}}</span>
               <span x-show="locked.length === 0">{{t "Add the content topics this campaign should target. Leave empty to auto-derive from your landing page."}}</span>
               <span class="block">{{t "Dots show real inventory: green = publishers are serving ads on this topic now, amber = publishers declare matching content but nothing has traded yet, gray = no publisher inventory matches yet."}}</span>
@@ -737,12 +737,12 @@
                   <button type="button" @click="add(p)"
                           class="block w-full text-left px-3 py-2 text-sm hover:bg-gray-100">
                     <span x-text="p.name"></span>
-                    <span class="text-gray-400 text-xs" x-show="p.path" x-text="' &mdash; ' + p.path"></span>
+                    <span class="text-gray-500 text-xs" x-show="p.path" x-text="' &mdash; ' + p.path"></span>
                   </button>
                 </template>
               </div>
             </div>
-            <p class="text-xs text-gray-400 mt-1">{{t "Runs on articles about these places. A broader choice still runs on articles about somewhere inside it, but ranks below a campaign that named the place exactly."}}</p>
+            <p class="text-xs text-gray-500 mt-1">{{t "Runs on articles about these places. A broader choice still runs on articles about somewhere inside it, but ranks below a campaign that named the place exactly."}}</p>
           </div>
 
           <!-- Reader audience (tier 2 of docs/design/GEOGRAPHIC_CONTEXT.md).
@@ -784,17 +784,17 @@
                   <button type="button" @click="add(p)"
                           class="block w-full text-left px-3 py-2 text-sm hover:bg-gray-100">
                     <span x-text="p.name"></span>
-                    <span class="text-gray-400 text-xs" x-show="p.path" x-text="' — ' + p.path"></span>
+                    <span class="text-gray-500 text-xs" x-show="p.path" x-text="' — ' + p.path"></span>
                   </button>
                 </template>
               </div>
             </div>
-            <p class="text-xs text-gray-400 mt-1">{{t "Only sites whose publisher has declared a matching reader audience. Leave empty to bid regardless of audience — most inventory declares nothing."}}</p>
+            <p class="text-xs text-gray-500 mt-1">{{t "Only sites whose publisher has declared a matching reader audience. Leave empty to bid regardless of audience — most inventory declares nothing."}}</p>
             <label class="inline-flex items-center gap-1.5 text-sm text-gray-600 cursor-pointer mt-2"
                    x-show="selected.length > 0" x-cloak
                    title="{{t "Reader location is observed at country granularity, so a region or town target cannot be verified. Such a campaign is rejected on save rather than left to never serve."}}">
               <input type="checkbox" name="requireVerifiedAudience" x-model="verifiedOnly"
-                     class="rounded border-gray-300 text-brand focus:ring-brand">
+                     class="rounded border-gray-300 text-brand-ink focus:ring-brand">
               {{t "Verified audiences only (fewer sites)"}}
             </label>
             <p class="text-xs text-red-600 mt-1" x-show="unverifiable()" x-cloak>
@@ -814,12 +814,12 @@
           {{/* Honest about WHICH half is empty: an advertiser told only "no
                inventory" cannot tell whether to widen the place, drop the
                audience, or wait for publishers to declare. */}}
-          <p class="text-xs text-amber-600 mb-4" x-cloak
+          <p class="text-xs text-amber-700 mb-4" x-cloak
              x-show="geo && audienceCodes && geo.audienceSites === 0">
             {{t "No publisher has declared a matching reader audience yet — a campaign targeting only this audience will not serve today."}}
             <span x-show="geo && geo.declaringSites === 0">{{t "No site has declared any audience so far."}}</span>
           </p>
-          <p class="text-xs text-amber-600 mb-4" x-cloak
+          <p class="text-xs text-amber-700 mb-4" x-cloak
              x-show="geo && placeCodes && geo.placeSites === 0">
             {{t "No classified page is about these places yet — a campaign targeting only these places will not serve today."}}
             <span x-show="geo && geo.classifyingSites === 0">{{t "No page has been classified with a place so far."}}</span>
@@ -861,7 +861,7 @@
                 </template>
               </div>
             </div>
-            <p class="text-xs text-gray-400 mt-1">{{t "Remove all to run everywhere your topics match."}}</p>
+            <p class="text-xs text-gray-500 mt-1">{{t "Remove all to run everywhere your topics match."}}</p>
           </div>
 
           <!-- Landing URL (read-only: a campaign's LP is fixed at creation) -->
@@ -869,7 +869,7 @@
             <label for="edit-landing-{{.ID}}" class="form-label">{{t "Landing URL"}} <span class="font-normal text-gray-500">{{t "(fixed — set at creation)"}}</span></label>
             <input id="edit-landing-{{.ID}}" type="url" name="landingUrl" value="{{.LandingURL}}" disabled
                    class="w-full px-3 py-2 border rounded-md text-sm bg-gray-100 text-gray-500 cursor-not-allowed">
-            <p class="text-xs text-gray-400 mt-1">{{t "A campaign's landing page can't be changed after it's created. To promote a different page, create a new campaign."}}</p>
+            <p class="text-xs text-gray-500 mt-1">{{t "A campaign's landing page can't be changed after it's created. To promote a different page, create a new campaign."}}</p>
           </div>
 
           <div class="grid grid-cols-2 gap-4 mb-4">
@@ -887,7 +887,7 @@
                       class="form-input{{if $managed}} bg-gray-100 text-gray-500 cursor-not-allowed{{end}}">
               
               </div>
-              <p class="text-xs text-gray-400 mt-1" data-budget-managed {{if not $managed}}hidden{{end}}>{{t "Managed by the account allocator while the account budget mode is Optimized. Switch the account to Manual to set it by hand."}}</p>
+              <p class="text-xs text-gray-500 mt-1" data-budget-managed {{if not $managed}}hidden{{end}}>{{t "Managed by the account allocator while the account budget mode is Optimized. Switch the account to Manual to set it by hand."}}</p>
             </div>
             <div>
               <label for="edit-maxcpm-{{.ID}}" class="form-label">{{t "Max CPM"}} ({{sym}})</label>
@@ -921,7 +921,7 @@
                 <option value="week" {{if eq .FrequencyCapWindow "week"}}selected{{end}}>{{t "per week"}}</option>
               </select>
             </div>
-            <p class="text-xs text-gray-400 mt-1">{{t "Per browser, per site: the reader's own browser keeps the count and simply declines this campaign once it has seen enough. Promovolve never identifies readers, so the cap does not follow them across devices or sites."}}</p>
+            <p class="text-xs text-gray-500 mt-1">{{t "Per browser, per site: the reader's own browser keeps the count and simply declines this campaign once it has seen enough. Promovolve never identifies readers, so the cap does not follow them across devices or sites."}}</p>
           </div>
           <div class="grid grid-cols-2 gap-4 mb-4">
             <div>
@@ -1029,7 +1029,7 @@
 {{define "market-rates-hint"}}
 {{if .}}
 <div class="mt-1.5 text-xs text-gray-500" data-market-hint data-ladder="{{.ReachLadderJSON}}">
-  <p class="text-gray-400">{{if .ScopeLabel}}{{t "Context: %s" .ScopeLabel}}{{else}}{{t "Context: all topics — narrows when you pick target topics"}}{{end}}</p>
+  <p class="text-gray-500">{{if .ScopeLabel}}{{t "Context: %s" .ScopeLabel}}{{else}}{{t "Context: all topics — narrows when you pick target topics"}}{{end}}</p>
   {{/* Inventory honesty: rates only ever come from topics that actually
        traded, so say how many of the selected topics that is. Silence
        when everything is live (the numbers speak) or when availability
@@ -1037,9 +1037,9 @@
   {{if and .AvailabilityKnown (gt .TotalTopics 0)}}
     {{if eq .LiveTopics 0}}
       {{if gt .DeclaredTopics 0}}
-  <p class="text-amber-600">{{t "No live trading in these topics yet — publisher sites declare matching content, so serving can begin once campaigns create demand here."}}</p>
+  <p class="text-amber-700">{{t "No live trading in these topics yet — publisher sites declare matching content, so serving can begin once campaigns create demand here."}}</p>
       {{else}}
-  <p class="text-amber-600">{{t "No publisher inventory matches these topics yet — a campaign targeting only these topics will not serve today."}}</p>
+  <p class="text-amber-700">{{t "No publisher inventory matches these topics yet — a campaign targeting only these topics will not serve today."}}</p>
       {{end}}
     {{else if lt .LiveTopics .TotalTopics}}
   <p>{{t "%d of %d selected topics have live inventory — the going rate reflects only those." .LiveTopics .TotalTopics}}</p>
@@ -1056,7 +1056,7 @@
   <p data-reach class="hidden font-medium text-gray-600"
      data-fmt="{{t "A bid this high reaches roughly %s of all network impressions (last %d days)" "%s" .Days}}"></p>
   {{if .FloorFrom}}
-  <p class="text-gray-400">{{t "Entry floors from %s" (money .FloorFrom)}}</p>
+  <p class="text-gray-500">{{t "Entry floors from %s" (money .FloorFrom)}}</p>
   {{end}}
 </div>
 {{end}}

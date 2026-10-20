@@ -8,18 +8,18 @@
 {{if eq .WalletNotice "suspended"}}
 <div class="bg-red-50 border border-red-200 rounded-lg p-4 mb-6 max-w-2xl">
   <p class="font-medium text-red-800">{{t "Serving is paused — your wallet is out of funds."}}</p>
-  <p class="text-sm text-red-600 mt-1">{{t "See"}} <a href="/advertiser/wallet" class="text-brand hover:underline">{{t "Wallet"}}</a> {{t "for details, and contact the platform operator to top up."}}</p>
+  <p class="text-sm text-red-600 mt-1">{{t "See"}} <a href="/advertiser/wallet" class="text-brand-ink hover:underline">{{t "Wallet"}}</a> {{t "for details, and contact the platform operator to top up."}}</p>
 </div>
 {{else if eq .WalletNotice "low"}}
 <div class="bg-amber-50 border border-amber-200 rounded-lg p-4 mb-6 max-w-2xl">
   <p class="font-medium text-amber-800">{{t "Your wallet balance is running low."}}</p>
-  <p class="text-sm text-amber-600 mt-1">{{t "Serving pauses when it reaches zero — see"}} <a href="/advertiser/wallet" class="text-brand hover:underline">{{t "Wallet"}}</a>.</p>
+  <p class="text-sm text-amber-700 mt-1">{{t "Serving pauses when it reaches zero — see"}} <a href="/advertiser/wallet" class="text-brand-ink hover:underline">{{t "Wallet"}}</a>.</p>
 </div>
 {{end}}
 {{if and .AdvBudget .AdvBudget.IsZero}}
 <div class="bg-amber-50 border border-amber-200 rounded-lg p-4 mb-6 max-w-2xl">
   <p class="font-medium text-amber-800">{{t "Set your daily budget to start advertising"}}</p>
-  <p class="text-sm text-amber-600 mt-1">{{t "Your campaigns won't run until a daily budget is set."}}</p>
+  <p class="text-sm text-amber-700 mt-1">{{t "Your campaigns won't run until a daily budget is set."}}</p>
 </div>
 {{end}}
 
@@ -32,16 +32,16 @@
   <div class="flex items-center justify-between">
     <div>
       <p class="text-xs text-gray-500 uppercase tracking-wide">{{t "Wallet balance"}}</p>
-      <p class="text-2xl font-semibold mt-1 {{if .WalletUnfunded}}text-amber-600{{end}}">{{.WalletBalance}}</p>
+      <p class="text-2xl font-semibold mt-1 {{if .WalletUnfunded}}text-amber-700{{end}}">{{.WalletBalance}}</p>
     </div>
-    <a href="/advertiser/wallet" class="text-brand hover:underline text-sm">{{t "Wallet & statement"}} &rarr;</a>
+    <a href="/advertiser/wallet" class="text-brand-ink hover:underline text-sm">{{t "Wallet & statement"}} &rarr;</a>
   </div>
   {{if .WalletUnfunded}}
-  <p class="text-sm text-amber-600 mt-2">
+  <p class="text-sm text-amber-700 mt-2">
     {{t "Your wallet is unfunded. The daily budget only paces delivery — impressions are paid from the wallet, and serving pauses while it's at zero. Contact the platform operator to top up."}}
   </p>
   {{else}}
-  <p class="text-xs text-gray-400 mt-2">{{t "Impressions are paid from this balance; the daily budget paces how fast it spends."}}</p>
+  <p class="text-xs text-gray-500 mt-2">{{t "Impressions are paid from this balance; the daily budget paces how fast it spends."}}</p>
   {{end}}
 </div>
 {{end}}
@@ -103,7 +103,7 @@
       {{t "Update Budget"}}
     </button>
   </form>
-  <p class="text-xs text-gray-400 mt-3">{{t "Changes apply immediately. Today's spend is not reset."}}</p>
-  <p class="text-xs text-gray-400 mt-1">{{t "Manual: every campaign keeps its own daily budget and the account budget is a hard cap on all of them. Optimized: the account budget is re-split every few minutes across all live campaigns, toward the ones earning the most tap-throughs per unit of spend; no campaign drops below a fifth of its equal share. It needs at least two live campaigns; below that it does nothing."}}</p>
+  <p class="text-xs text-gray-500 mt-3">{{t "Changes apply immediately. Today's spend is not reset."}}</p>
+  <p class="text-xs text-gray-500 mt-1">{{t "Manual: every campaign keeps its own daily budget and the account budget is a hard cap on all of them. Optimized: the account budget is re-split every few minutes across all live campaigns, toward the ones earning the most tap-throughs per unit of spend; no campaign drops below a fifth of its equal share. It needs at least two live campaigns; below that it does nothing."}}</p>
 </div>
 {{end}}

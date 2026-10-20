@@ -14,7 +14,7 @@
          Campaigns page, not here). The sub line anchors the context:
          back link + which campaign these creatives belong to. */}}
     <p class="page-sub">
-      <a href="/advertiser/campaigns" class="text-brand hover:underline">← {{t "Campaigns"}}</a>
+      <a href="/advertiser/campaigns" class="text-brand-ink hover:underline">← {{t "Campaigns"}}</a>
       <span class="mx-1">·</span>
       <span class="font-medium">{{range .Campaigns}}{{if eq .ID $.CampaignID}}{{if .Name}}{{.Name}}{{else}}{{.ID}}{{end}}{{end}}{{end}}</span>
       <span class="mx-1">·</span>
@@ -50,7 +50,7 @@
      so the pending-render poll swap never tears the chart down. */}}
 <div class="bg-white rounded-lg border p-4 mb-6">
   <h2 class="text-sm font-semibold mb-1">{{t "Impressions by media"}}</h2>
-  <p class="text-xs text-gray-400 mb-3">{{t "Last 30 days"}}</p>
+  <p class="text-xs text-gray-500 mb-3">{{t "Last 30 days"}}</p>
   <div id="media-chart-box" class="relative">
     <canvas id="creative-media-chart"></canvas>
   </div>
@@ -119,11 +119,11 @@
      hx-select="#creatives-area"
      hx-swap="outerHTML">
 {{if not .CampaignID}}
-<div class="text-center py-20 text-gray-400">
+<div class="text-center py-20 text-gray-500">
   <p class="text-lg">{{t "Create a campaign first"}}</p>
 </div>
 {{else if not .Creatives}}
-<div class="text-center py-20 text-gray-400">
+<div class="text-center py-20 text-gray-500">
   <p class="text-lg">{{t "No creatives yet"}}</p>
   <p class="text-sm mt-2">{{t "Create your first ad from a landing page"}}</p>
 </div>
@@ -174,11 +174,11 @@
       </button>
       {{else}}
       <div class="w-full h-full flex flex-col items-center justify-center gap-2 border-2 border-dashed border-gray-200 rounded relative" data-pending-render>
-        <svg class="animate-spin h-6 w-6 text-brand" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24">
+        <svg class="animate-spin h-6 w-6 text-brand-ink" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24">
           <circle class="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" stroke-width="4"></circle>
           <path class="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8v4a4 4 0 00-4 4H4z"></path>
         </svg>
-        <span class="text-xs text-gray-400">{{t "Rendering…"}}</span>
+        <span class="text-xs text-gray-500">{{t "Rendering…"}}</span>
       </div>
       {{end}}
     </div>
@@ -232,7 +232,7 @@
         <summary class="cursor-pointer text-gray-500 hover:text-gray-700 select-none">{{t "By media"}}</summary>
         <table class="w-full mt-1.5">
           <thead>
-            <tr class="text-gray-400 text-left">
+            <tr class="text-gray-500 text-left">
               <th class="font-normal pb-0.5">{{t "Media"}}</th>
               <th class="font-normal pb-0.5 text-right">{{t "imps"}}</th>
               <th class="font-normal pb-0.5 text-right">{{t "clicks"}}</th>
@@ -259,7 +259,7 @@
         <form method="POST" action="/advertiser/creatives/resume-draft">
           <input type="hidden" name="campaignId" value="{{$.CampaignID}}">
           <input type="hidden" name="creativeId" value="{{.ID}}">
-          <button type="submit" class="text-xs text-brand hover:underline">{{t "Continue editing"}}</button>
+          <button type="submit" class="text-xs text-brand-ink hover:underline">{{t "Continue editing"}}</button>
         </form>
         {{else}}
         <form method="POST" action="/advertiser/creatives/toggle">
@@ -270,7 +270,7 @@
           <button type="submit" class="text-xs text-red-600 hover:underline">{{t "Pause"}}</button>
           {{else}}
           <input type="hidden" name="status" value="Active">
-          <button type="submit" class="text-xs text-green-600 hover:underline">{{t "Activate"}}</button>
+          <button type="submit" class="text-xs text-green-700 hover:underline">{{t "Activate"}}</button>
           {{end}}
         </form>
         {{end}}
@@ -328,7 +328,7 @@
     <div class="flex items-center justify-between mb-2">
       <h3 class="text-sm font-semibold text-gray-700">{{t "Creative preview"}}</h3>
       <button type="button" onclick="document.getElementById('previewDialog').close()"
-              class="p-1.5 rounded-md text-gray-400 hover:text-gray-700 hover:bg-gray-100" title="{{t "Close"}}">
+              class="p-1.5 rounded-md text-gray-500 hover:text-gray-700 hover:bg-gray-100" title="{{t "Close"}}">
         <svg class="w-4 h-4" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" d="M6 18L18 6M6 6l12 12"/></svg>
       </button>
     </div>
@@ -343,7 +343,7 @@ const I18N = {
 async function openCreativePreview(creativeId, campaignId, assetUrl) {
   const dlg = document.getElementById('previewDialog');
   const body = document.getElementById('previewDialogBody');
-  body.innerHTML = '<p class="text-sm text-gray-400">' + I18N.loadingPreview + '</p>';
+  body.innerHTML = '<p class="text-sm text-gray-500">' + I18N.loadingPreview + '</p>';
   dlg.showModal();
   try {
     const r = await fetch(`/advertiser/creatives/${encodeURIComponent(creativeId)}/pages?campaignId=${encodeURIComponent(campaignId)}`);
@@ -371,7 +371,7 @@ async function openCreativePreview(creativeId, campaignId, assetUrl) {
     img.style.maxHeight = '70vh';
     body.replaceChildren(img);
   } else {
-    body.innerHTML = '<p class="text-sm text-gray-400">' + I18N.noPreview + '</p>';
+    body.innerHTML = '<p class="text-sm text-gray-500">' + I18N.noPreview + '</p>';
   }
 }
 document.getElementById('previewDialog').addEventListener('close', () => {

@@ -65,7 +65,7 @@
          refund gets a badge, right where its red amount is. */}}
     <table class="w-full text-sm mt-3">
       <thead>
-        <tr class="border-b text-left text-gray-400">
+        <tr class="border-b text-left text-gray-500">
           <th class="px-6 py-2 font-medium">{{t "When"}}</th>
           <th class="px-6 py-2 font-medium">{{t "Advertiser"}}</th>
           <th class="px-6 py-2 font-medium text-right">{{t "Amount"}}</th>
@@ -81,7 +81,7 @@
           <td class="px-6 py-2 text-gray-500">{{if .Memo}}{{.Memo}}{{else}}<span class="text-gray-300">—</span>{{end}}</td>
         </tr>
         {{else}}
-        <tr><td class="px-6 py-4 text-gray-400" colspan="4">{{t "No top-ups yet."}}</td></tr>
+        <tr><td class="px-6 py-4 text-gray-500" colspan="4">{{t "No top-ups yet."}}</td></tr>
         {{end}}
       </tbody>
     </table>

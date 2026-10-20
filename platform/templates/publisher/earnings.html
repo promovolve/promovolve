@@ -9,7 +9,7 @@
     <div class="bg-white p-6 rounded-lg border" title="{{t "Settled net earnings not yet paid out"}}">
       <p class="text-sm text-gray-500">{{t "Balance owed"}}</p>
       <p class="text-3xl font-semibold mt-2">{{money .Accrued}}</p>
-      <p class="text-xs text-gray-400 mt-1">{{t "settled through yesterday, after platform fee"}}</p>
+      <p class="text-xs text-gray-500 mt-1">{{t "settled through yesterday, after platform fee"}}</p>
     </div>
     <div class="bg-white p-6 rounded-lg border">
       <p class="text-sm text-gray-500">{{t "Lifetime paid"}}</p>
@@ -22,7 +22,7 @@
     <h2 class="font-semibold text-lg px-6 pt-6">{{t "Payouts"}}</h2>
     <table class="w-full text-sm mt-3">
       <thead>
-        <tr class="border-b text-left text-gray-400">
+        <tr class="border-b text-left text-gray-500">
           <th class="px-6 py-2 font-medium">{{t "Created"}}</th>
           <th class="px-6 py-2 font-medium">{{t "Period"}}</th>
           <th class="px-6 py-2 font-medium">{{t "Status"}}</th>
@@ -40,7 +40,7 @@
           <td class="px-6 py-2 text-right font-medium">{{money .Amount}}</td>
         </tr>
         {{else}}
-        <tr><td class="px-6 py-4 text-gray-400" colspan="5">{{t "No payouts yet — they appear once your settled balance passes your minimum payout."}}</td></tr>
+        <tr><td class="px-6 py-4 text-gray-500" colspan="5">{{t "No payouts yet — they appear once your settled balance passes your minimum payout."}}</td></tr>
         {{end}}
       </tbody>
     </table>
@@ -51,7 +51,7 @@
     <h2 class="font-semibold text-lg px-6 pt-6">{{t "Monthly earnings"}}</h2>
     <table class="w-full text-sm mt-3">
       <thead>
-        <tr class="border-b text-left text-gray-400">
+        <tr class="border-b text-left text-gray-500">
           <th class="px-6 py-2 font-medium">{{t "Month"}}</th>
           <th class="px-6 py-2 font-medium">{{t "Impressions"}}</th>
           <th class="px-6 py-2 font-medium text-right">{{t "Gross"}}</th>
@@ -69,7 +69,7 @@
           <td class="px-6 py-2 text-right font-medium">{{money .Net}}</td>
         </tr>
         {{else}}
-        <tr><td class="px-6 py-4 text-gray-400" colspan="5">{{t "Nothing settled yet."}}</td></tr>
+        <tr><td class="px-6 py-4 text-gray-500" colspan="5">{{t "Nothing settled yet."}}</td></tr>
         {{end}}
       </tbody>
     </table>

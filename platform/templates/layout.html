@@ -308,7 +308,7 @@
     class="{{if .Sm}}px-2 py-1 border rounded-md text-xs{{else}}form-input text-sm{{end}} inline-flex items-center gap-2 whitespace-nowrap cursor-pointer bg-white hover:bg-gray-50"
     style="width:auto">
     <svg class="w-4 h-4 text-gray-500 shrink-0" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24"><rect x="3" y="5" width="18" height="16" rx="2"/><path d="M8 3v4M16 3v4M3 11h18"/></svg>
-    <span x-text="val || '{{t "Pick a date"}}'" :class="val ? '' : 'text-gray-400'"></span>
+    <span x-text="val || '{{t "Pick a date"}}'" :class="val ? '' : 'text-gray-500'"></span>
   </button>
   {{if .Time}}
   <input type="time" x-model="time" aria-label="{{t "Time"}}"
@@ -316,7 +316,7 @@
   {{end}}
   {{if .Clear}}
   <button type="button" x-show="val" @click="clear()" aria-label="{{t "Clear"}}"
-    class="text-gray-400 hover:text-gray-600 font-bold">&times;</button>
+    class="text-gray-500 hover:text-gray-600 font-bold">&times;</button>
   {{end}}
   <div x-show="open" x-cloak @click.outside="open=false"
     :class="up ? 'bottom-full mb-1' : 'top-full mt-1'"
@@ -326,7 +326,7 @@
       <span class="text-sm font-medium" x-text="monthLabel()"></span>
       <button type="button" @click="nav(1)" aria-label="{{t "Next month"}}" class="w-7 h-7 rounded-md hover:bg-gray-100 text-gray-600">&rsaquo;</button>
     </div>
-    <div class="grid grid-cols-7 text-center text-xs text-gray-400 mb-1">
+    <div class="grid grid-cols-7 text-center text-xs text-gray-500 mb-1">
       <span>{{t "Su"}}</span><span>{{t "Mo"}}</span><span>{{t "Tu"}}</span><span>{{t "We"}}</span><span>{{t "Th"}}</span><span>{{t "Fr"}}</span><span>{{t "Sa"}}</span>
     </div>
     <div class="grid grid-cols-7 gap-y-0.5 text-center text-sm">
@@ -386,9 +386,9 @@
 <div class="flex items-center justify-between mt-4 text-sm text-gray-500">
   <span>{{t "%d–%d of %d" .ListNav.From .ListNav.To .ListNav.Total}}</span>
   <div class="flex items-center gap-3">
-    {{if .ListNav.PrevURL}}<a href="{{.ListNav.PrevURL}}" class="text-brand hover:underline">&larr; {{t "Prev"}}</a>{{else}}<span class="text-gray-300">&larr; {{t "Prev"}}</span>{{end}}
+    {{if .ListNav.PrevURL}}<a href="{{.ListNav.PrevURL}}" class="text-brand-ink hover:underline">&larr; {{t "Prev"}}</a>{{else}}<span class="text-gray-300">&larr; {{t "Prev"}}</span>{{end}}
     <span>{{t "Page %d / %d" .ListNav.Page .ListNav.TotalPages}}</span>
-    {{if .ListNav.NextURL}}<a href="{{.ListNav.NextURL}}" class="text-brand hover:underline">{{t "Next"}} &rarr;</a>{{else}}<span class="text-gray-300">{{t "Next"}} &rarr;</span>{{end}}
+    {{if .ListNav.NextURL}}<a href="{{.ListNav.NextURL}}" class="text-brand-ink hover:underline">{{t "Next"}} &rarr;</a>{{else}}<span class="text-gray-300">{{t "Next"}} &rarr;</span>{{end}}
   </div>
 </div>
 {{end}}

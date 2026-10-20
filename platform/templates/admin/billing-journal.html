@@ -96,7 +96,7 @@
     </div>
     <table class="w-full text-sm mt-3">
       <thead>
-        <tr class="border-b text-left text-gray-400">
+        <tr class="border-b text-left text-gray-500">
           <th class="px-6 py-2 font-medium">{{t "When"}}</th>
           <th class="px-6 py-2 font-medium">{{t "Kind"}}</th>
           <th class="px-6 py-2 font-medium">{{t "What happened"}}</th>
@@ -110,9 +110,9 @@
           <td class="px-6 py-2 align-top"><span class="badge {{.KindBadge}}">{{t .Kind}}</span></td>
           <td class="px-6 py-2">
             {{.Summary}}
-            {{if .Memo}}<span class="block text-xs text-gray-400 mt-0.5">{{.Memo}}</span>{{end}}
+            {{if .Memo}}<span class="block text-xs text-gray-500 mt-0.5">{{.Memo}}</span>{{end}}
           </td>
-          <td class="px-6 py-2 text-gray-400 text-right">
+          <td class="px-6 py-2 text-gray-500 text-right">
             <span x-text="open ? '▾' : '▸'">▸</span>
           </td>
         </tr>
@@ -130,7 +130,7 @@
         </tr>
       </tbody>
       {{else}}
-      <tbody><tr><td class="px-6 py-4 text-gray-400" colspan="4">{{if .KindFilter}}{{t "No transactions of this kind yet."}}{{else}}{{t "No transactions yet."}}{{end}}</td></tr></tbody>
+      <tbody><tr><td class="px-6 py-4 text-gray-500" colspan="4">{{if .KindFilter}}{{t "No transactions of this kind yet."}}{{else}}{{t "No transactions yet."}}{{end}}</td></tr></tbody>
       {{end}}
     </table>
   </div>

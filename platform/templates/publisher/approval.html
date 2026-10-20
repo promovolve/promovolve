@@ -14,7 +14,7 @@
     <h1 class="page-title">{{t "Creative Inbox"}}</h1>
     <p class="page-sub">
       {{t "%d pending" (len .Pending)}} &middot; {{t "%d serving" (len .Serving)}} &middot; {{t "%d flagged" (len .Flagged)}}
-      &middot; <a href="/publisher/ledger" class="text-brand hover:underline">{{t "Creative Ledger"}}</a>
+      &middot; <a href="/publisher/ledger" class="text-brand-ink hover:underline">{{t "Creative Ledger"}}</a>
     </p>
   </div>
 </div>
@@ -25,7 +25,7 @@
          placeholder="{{t "Filter by advertiser, campaign, landing domain, or state…"}}"
          oninput="applyInboxFilter()"
          class="form-input max-w-lg">
-  <p id="inbox-nomatch" class="text-sm text-gray-400 mt-2 hidden">{{t "No creatives match your filter."}}</p>
+  <p id="inbox-nomatch" class="text-sm text-gray-500 mt-2 hidden">{{t "No creatives match your filter."}}</p>
 </div>
 
 <!-- SSE: real-time updates via htmx SSE extension. Publisher-level stream:
@@ -318,7 +318,7 @@ document.body.addEventListener('inboxActed', function(){
 {{/* A group can exist with an empty inbox (auto-approve toggle/anchors on a
      quiet site) — key the empty state off groups so the panel stays reachable. */}}
 {{if not .SiteGroups}}
-<div class="flex flex-col items-center justify-center flex-1 min-h-0 text-gray-400">
+<div class="flex flex-col items-center justify-center flex-1 min-h-0 text-gray-500">
   <div class="text-5xl mb-4">&#x2713;</div>
   <p class="text-lg font-medium">{{t "Inbox zero"}}</p>
   <p class="text-sm mt-2">{{t "Creatives awaiting review, serving, and flagged ones all appear here"}}</p>
@@ -329,7 +329,7 @@ document.body.addEventListener('inboxActed', function(){
        All). The badge is the site's NEW (pending) count, so you can see at a
        glance which properties have creatives waiting. -->
   <div class="w-52 shrink-0 overflow-y-auto min-h-0 space-y-1 border-r border-gray-100 pr-3">
-    <div class="px-3 pt-1 pb-2 text-xs font-semibold text-gray-400 uppercase tracking-wide">{{t "Sites"}}</div>
+    <div class="px-3 pt-1 pb-2 text-xs font-semibold text-gray-500 uppercase tracking-wide">{{t "Sites"}}</div>
     <button type="button" data-site-rail="all" onclick="selectSite('all')"
             class="w-full flex items-center justify-between gap-2 px-3 py-2 rounded-lg text-sm text-left hover:bg-gray-50">
       <span class="font-medium">{{t "All sites"}}</span>
@@ -370,8 +370,8 @@ document.body.addEventListener('inboxActed', function(){
              bound, so the inbox panel carries only the toggle + a count. */}}
         {{$anchorCount := len $group.TrustedCampaigns | add (len $group.TrustedDomains)}}
         {{if or $group.TrustedCampaigns $group.TrustedDomains}}
-        <a href="/publisher/trusted" class="mt-1.5 inline-block text-xs text-brand hover:underline">
-          {{t "%d trusted" $anchorCount}}{{if not $group.AutoApprove}} <span class="text-gray-400">{{t "(paused)"}}</span>{{end}} &rarr;
+        <a href="/publisher/trusted" class="mt-1.5 inline-block text-xs text-brand-ink hover:underline">
+          {{t "%d trusted" $anchorCount}}{{if not $group.AutoApprove}} <span class="text-gray-500">{{t "(paused)"}}</span>{{end}} &rarr;
         </a>
         {{end}}
       </div>
@@ -421,10 +421,10 @@ document.body.addEventListener('inboxActed', function(){
           <div class="bg-gray-50 rounded-lg divide-y divide-gray-200 max-h-40 overflow-y-auto">
             {{range $pi, $p := $c.Placements}}
             <div class="px-3 py-2 flex items-center gap-3 text-sm">
-              <span class="text-gray-400 text-xs w-5 shrink-0">{{$pi}}.</span>
+              <span class="text-gray-500 text-xs w-5 shrink-0">{{$pi}}.</span>
               <div class="min-w-0 flex-1">
                 <p class="truncate text-gray-700">{{$p.URL}}</p>
-                <p class="text-xs text-gray-400">{{$p.SlotID}} &middot; {{t "Max bid %s" (money $p.CPM)}}{{if $p.Filler}} &middot; <span class="text-amber-700">{{t "Filler"}}</span>{{else if $p.CategoryName}} &middot; <span class="text-gray-600">{{$p.CategoryName}}</span>{{end}}</p>
+                <p class="text-xs text-gray-500">{{$p.SlotID}} &middot; {{t "Max bid %s" (money $p.CPM)}}{{if $p.Filler}} &middot; <span class="text-amber-700">{{t "Filler"}}</span>{{else if $p.CategoryName}} &middot; <span class="text-gray-600">{{$p.CategoryName}}</span>{{end}}</p>
               </div>
             </div>
             {{end}}
@@ -517,26 +517,26 @@ document.body.addEventListener('inboxActed', function(){
         <div class="grid grid-cols-2 gap-4 text-sm mb-6">
           <div><p class="text-gray-500">{{t "Advertiser"}}</p><p class="font-medium" title="{{$c.AdvertiserID}}">{{if $c.AdvertiserName}}{{$c.AdvertiserName}}{{else}}&mdash;{{end}}</p></div>
           <div><p class="text-gray-500">{{t "Campaign"}}</p><p class="font-medium" title="{{$c.CampaignID}}">{{if $c.CampaignName}}{{$c.CampaignName}}{{else}}&mdash;{{end}}</p></div>
-          <div><p class="text-gray-500">{{t "Max Bid"}}</p><p class="font-medium">{{money $c.CPM}}{{if $c.BelowFloor}} <span class="text-amber-600 text-xs">{{t "(floor %s)" (money $c.FloorCPM)}}</span>{{end}}</p></div>
+          <div><p class="text-gray-500">{{t "Max Bid"}}</p><p class="font-medium">{{money $c.CPM}}{{if $c.BelowFloor}} <span class="text-amber-700 text-xs">{{t "(floor %s)" (money $c.FloorCPM)}}</span>{{end}}</p></div>
           <div><p class="text-gray-500">{{t "Landing Domain"}}</p><p class="font-medium">{{if $c.LandingDomain}}{{$c.LandingDomain}}{{else}}&mdash;{{end}}</p></div>
         </div>
         {{if $c.Placements}}
         <div class="mb-6">
-          <h3 class="text-sm font-medium text-gray-700 mb-2">{{t "Delivered to %d placements" (len $c.Placements)}} <span class="text-gray-400 font-normal">{{t "(last 24h)"}}</span></h3>
+          <h3 class="text-sm font-medium text-gray-700 mb-2">{{t "Delivered to %d placements" (len $c.Placements)}} <span class="text-gray-500 font-normal">{{t "(last 24h)"}}</span></h3>
           <div class="bg-gray-50 rounded-lg divide-y divide-gray-200 max-h-40 overflow-y-auto">
             {{range $pi, $p := $c.Placements}}
             <div class="px-3 py-2 flex items-center gap-3 text-sm">
-              <span class="text-gray-400 text-xs w-5 shrink-0">{{$pi}}.</span>
+              <span class="text-gray-500 text-xs w-5 shrink-0">{{$pi}}.</span>
               <div class="min-w-0 flex-1">
                 <p class="truncate text-gray-700">{{$p.URL}}</p>
-                <p class="text-xs text-gray-400">{{$p.SlotID}} &middot; {{t "%d imps" $p.Impressions}}{{if $p.CategoryName}} &middot; <span class="text-gray-600">{{$p.CategoryName}}</span>{{end}}</p>
+                <p class="text-xs text-gray-500">{{$p.SlotID}} &middot; {{t "%d imps" $p.Impressions}}{{if $p.CategoryName}} &middot; <span class="text-gray-600">{{$p.CategoryName}}</span>{{end}}</p>
               </div>
             </div>
             {{end}}
           </div>
         </div>
         {{else}}
-        <p class="mb-6 text-xs text-gray-400">{{t "No deliveries recorded in the last 24h."}}</p>
+        <p class="mb-6 text-xs text-gray-500">{{t "No deliveries recorded in the last 24h."}}</p>
         {{end}}
         <div class="pt-4 border-t">
           <form method="POST" action="/publisher/approval/revoke" hx-post="/publisher/approval/revoke" hx-swap="none">
@@ -589,7 +589,7 @@ document.body.addEventListener('inboxActed', function(){
     <div class="flex items-center justify-between mb-2">
       <h3 class="text-sm font-semibold text-gray-700">{{t "Creative preview"}}</h3>
       <button type="button" onclick="document.getElementById('previewDialog').close()"
-              class="p-1.5 rounded-md text-gray-400 hover:text-gray-700 hover:bg-gray-100" title="{{t "Close"}}">
+              class="p-1.5 rounded-md text-gray-500 hover:text-gray-700 hover:bg-gray-100" title="{{t "Close"}}">
         <svg class="w-4 h-4" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" d="M6 18L18 6M6 6l12 12"/></svg>
       </button>
     </div>
@@ -690,7 +690,7 @@ document.getElementById('previewDialog').addEventListener('close', () => {
 </div>
 {{else}}
 <div class="bg-gray-50 rounded-lg p-4 flex items-center justify-center mb-6" style="min-height:250px;">
-  <div class="text-gray-400 text-sm">{{if .Width}}{{.Width}}{{else}}300{{end}} &times; {{if .Height}}{{.Height}}{{else}}250{{end}}</div>
+  <div class="text-gray-500 text-sm">{{if .Width}}{{.Width}}{{else}}300{{end}} &times; {{if .Height}}{{.Height}}{{else}}250{{end}}</div>
 </div>
 {{end}}
 {{end}}

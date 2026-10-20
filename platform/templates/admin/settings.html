@@ -125,7 +125,7 @@
           <template x-for="cat in results" :key="cat.id">
             <button type="button" @click="selectedId = cat.id; query = cat.name; open = false;"
               class="w-full text-left px-2 py-1 hover:bg-gray-50 text-xs">
-              <span class="font-mono text-gray-400 mr-1" x-text="cat.id"></span><span x-text="cat.name"></span>
+              <span class="font-mono text-gray-500 mr-1" x-text="cat.id"></span><span x-text="cat.name"></span>
             </button>
           </template>
         </div>
@@ -137,7 +137,7 @@
     <h2 class="font-semibold text-lg px-6 pt-6">{{t "History"}}</h2>
     <table class="w-full text-sm mt-3">
       <thead>
-        <tr class="border-b text-left text-gray-400">
+        <tr class="border-b text-left text-gray-500">
           <th class="px-6 py-2 font-medium">{{t "Margin"}}</th>
           <th class="px-6 py-2 font-medium">{{t "Effective from"}}</th>
           <th class="px-6 py-2 font-medium">{{t "Set by"}}</th>

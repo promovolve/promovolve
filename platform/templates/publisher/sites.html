@@ -29,7 +29,7 @@
       <button type="submit" aria-label="{{t "Unblock %s" .}}" class="chip-x">×</button>
     </form>
     {{end}}
-    {{if not .BlockedAdvertiserDomains}}<span class="text-sm text-gray-400">{{t "None blocked"}}</span>{{end}}
+    {{if not .BlockedAdvertiserDomains}}<span class="text-sm text-gray-500">{{t "None blocked"}}</span>{{end}}
   </div>
   <form method="POST" action="/publisher/block-advertiser-domain"
         class="relative inline-flex items-center gap-1"
@@ -64,7 +64,7 @@
       <label for="sites-pageurl" class="form-label">{{t "Page URL"}}</label>
       <input id="sites-pageurl" type="url" name="pageUrl" placeholder="https://myblog.com/article" required
              class="form-input">
-      <p class="text-xs text-gray-400 mt-1">
+      <p class="text-xs text-gray-500 mt-1">
         {{t "Pages are classified on-demand from real traffic — no crawl needed. Ad slots are discovered as the page serves."}}
       </p>
     </div>
@@ -99,7 +99,7 @@
         <p class="text-xs text-gray-500 mt-1">{{t "An admin must approve this site before you can verify it."}}</p>
         {{end}}
       </div>
-      <div class="text-xs text-gray-400 whitespace-nowrap">{{.RequestedAt}}</div>
+      <div class="text-xs text-gray-500 whitespace-nowrap">{{.RequestedAt}}</div>
       {{if eq .Status "rejected"}}
       <form method="POST" action="/publisher/sites/requests/{{.ID}}/delete"
             onsubmit="return confirm('{{t "Delete the denied request for %s?" .Domain}}')">
@@ -119,7 +119,7 @@
 
 <!-- Sites list -->
 {{if and (not .SitesData) (not .SiteRequests)}}
-<div class="flex flex-col items-center justify-center py-32 text-gray-400">
+<div class="flex flex-col items-center justify-center py-32 text-gray-500">
   <p class="text-lg font-medium">{{t "No sites registered"}}</p>
   <p class="text-sm mt-2">{{t "Add your first page to start monetizing with ads"}}</p>
 </div>
@@ -151,11 +151,11 @@
       <div onclick="event.stopPropagation();">
         {{if ne .VerificationStatus "verified"}}
         <form method="POST" action="/publisher/sites/{{.ID}}/verify" onclick="event.stopPropagation();">
-          <button type="submit" class="text-sm text-amber-600 hover:underline">{{t "Verify"}}</button>
+          <button type="submit" class="text-sm text-amber-700 hover:underline">{{t "Verify"}}</button>
         </form>
         {{end}}
       </div>
-      <svg data-chevron class="w-4 h-4 text-gray-400 transition-transform" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+      <svg data-chevron class="w-4 h-4 text-gray-500 transition-transform" fill="none" viewBox="0 0 24 24" stroke="currentColor">
         <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 9l-7 7-7-7" />
       </svg>
     </div>
@@ -184,7 +184,7 @@
            their earnings must not be made to think delivery is at risk. */}}
       <template x-if="probe">
         <p class="text-xs mb-3"
-           :class="probe.state === 'missing' ? 'text-amber-600' : 'text-gray-400'">
+           :class="probe.state === 'missing' ? 'text-amber-700' : 'text-gray-500'">
           <template x-if="probe.state === 'present' && probe.method === 'file'">
             <span>{{t "Ownership re-checked: verification file in place."}}</span>
           </template>
@@ -205,7 +205,7 @@
       <div class="grid grid-cols-2 gap-6 text-sm">
         <div>
           <p class="text-gray-500 text-xs uppercase mb-2">{{t "Classification"}}</p>
-          <p class="text-gray-400">{{t "Pages classified on-demand from live traffic"}}</p>
+          <p class="text-gray-500">{{t "Pages classified on-demand from live traffic"}}</p>
         </div>
         <div>
           <p class="text-gray-500 text-xs uppercase mb-2">{{t "Categories"}}</p>
@@ -216,7 +216,7 @@
             {{end}}
           </div>
           {{else}}
-          <p class="text-gray-400">{{t "Auto-classified by LLM"}}</p>
+          <p class="text-gray-500">{{t "Auto-classified by LLM"}}</p>
           {{end}}
         </div>
       </div>
@@ -235,7 +235,7 @@
             .catch(() => { loading = false; });
         ">
           <template x-if="loading">
-            <p class="text-xs text-gray-400">{{t "Loading token..."}}</p>
+            <p class="text-xs text-gray-500">{{t "Loading token..."}}</p>
           </template>
           <template x-if="token">
             <div class="space-y-2">
@@ -313,7 +313,7 @@
         <div x-show="open" x-cloak class="mt-2 space-y-2">
           <p class="text-xs text-gray-500">{{t "Already verified — you do not need this again unless you reinstall the integration. Keep a copy if you are about to delete the WordPress plugin."}}</p>
           <template x-if="loading">
-            <p class="text-xs text-gray-400">{{t "Loading token..."}}</p>
+            <p class="text-xs text-gray-500">{{t "Loading token..."}}</p>
           </template>
           <template x-if="token">
             <div class="flex items-center gap-2" x-data="{ copied: false }">
@@ -328,8 +328,8 @@
       {{end}}
       <!-- Site ID + floor decisions -->
       <div class="mt-4 pt-3 border-t flex items-center justify-between gap-2 flex-wrap">
-        <p class="text-xs text-gray-400">{{t "Site ID:"}} <span class="font-mono">{{.ID}}</span></p>
-        <a href="/publisher/sites/{{.ID}}/observations" class="text-xs text-brand hover:underline" onclick="event.stopPropagation();">{{t "Floor decisions"}} →</a>
+        <p class="text-xs text-gray-500">{{t "Site ID:"}} <span class="font-mono">{{.ID}}</span></p>
+        <a href="/publisher/sites/{{.ID}}/observations" class="text-xs text-brand-ink hover:underline" onclick="event.stopPropagation();">{{t "Floor decisions"}} →</a>
       </div>
 
       <!-- Read-only metrics -->
@@ -346,17 +346,17 @@
               <span class="text-lg font-semibold text-green-700">{{.OptimizedFloor}}</span>
               {{if .OptimizedFloorDelta}}
                 <span class="text-xs
-                  {{if eq .OptimizedFloorTrend "▲"}}text-green-600{{end}}
+                  {{if eq .OptimizedFloorTrend "▲"}}text-green-700{{end}}
                   {{if eq .OptimizedFloorTrend "▼"}}text-red-600{{end}}
-                  {{if eq .OptimizedFloorTrend "="}}text-gray-400{{end}}">
+                  {{if eq .OptimizedFloorTrend "="}}text-gray-500{{end}}">
                   {{.OptimizedFloorTrend}} {{.OptimizedFloorDelta}}
                 </span>
               {{end}}
             {{else}}
-              <span class="text-sm text-gray-400 italic">{{t "measuring…"}}</span>
+              <span class="text-sm text-gray-500 italic">{{t "measuring…"}}</span>
             {{end}}
           </div>
-          <p class="text-xs text-gray-400 mt-1" title="{{t "Manually-set fallback floor. The optimizer overrides this within seconds of starting. Treat as a startup default only."}}">
+          <p class="text-xs text-gray-500 mt-1" title="{{t "Manually-set fallback floor. The optimizer overrides this within seconds of starting. Treat as a startup default only."}}">
             {{t "Starting floor:"}} {{if .FloorCpm}}{{money .FloorCpm}}{{else}}&mdash;{{end}}
           </p>
         </div>
@@ -369,12 +369,12 @@
              title="{{t "The ad tag reports its own lifecycle on every pageview. Healthy means an ad rendered or the auction genuinely had no ad to show; failures mean the integration is broken on some pageviews — the reasons say where it stopped."}}">
           <p class="text-xs text-gray-500 mb-1">{{t "Integration health (7d):"}}</p>
           <div class="flex items-baseline gap-2">
-            <span class="text-lg font-semibold {{if eq .HealthFailures 0}}text-green-700{{else}}text-amber-600{{end}}">{{.HealthOkPct}}%</span>
-            <span class="text-xs text-gray-400">{{t "healthy"}}</span>
+            <span class="text-lg font-semibold {{if eq .HealthFailures 0}}text-green-700{{else}}text-amber-700{{end}}">{{.HealthOkPct}}%</span>
+            <span class="text-xs text-gray-500">{{t "healthy"}}</span>
           </div>
-          <p class="text-xs text-gray-400 mt-1 whitespace-nowrap overflow-x-auto">
+          <p class="text-xs text-gray-500 mt-1 whitespace-nowrap overflow-x-auto">
             {{.HealthPageviews}} {{t "pageviews"}} · {{.HealthRendered}} {{t "rendered"}} · {{.HealthNoFill}} {{t "no fill"}}{{if gt .HealthFailures 0}} ·
-            <span class="text-amber-600">{{.HealthFailures}} {{t "failed"}}</span>
+            <span class="text-amber-700">{{.HealthFailures}} {{t "failed"}}</span>
             <span class="font-mono">({{range $i, $fr := .HealthTopReasons}}{{if $i}}, {{end}}{{$fr.Reason}} ×{{$fr.Count}}{{end}})</span>
             {{end}}
           </p>
@@ -437,7 +437,7 @@
                   <button type="button" @click="add(p)"
                           class="block w-full text-left px-2 py-1 text-sm hover:bg-gray-100">
                     <span x-text="p.name"></span>
-                    <span class="text-gray-400 text-xs" x-show="p.path" x-text="' — ' + p.path"></span>
+                    <span class="text-gray-500 text-xs" x-show="p.path" x-text="' — ' + p.path"></span>
                   </button>
                 </template>
               </div>
@@ -449,7 +449,7 @@
                Advisory only — nothing gates on it yet. Shown only above the
                sample floor, so a publisher is never invited to "correct" a
                true declaration against noise. */}}
-          <p class="text-xs text-gray-400">
+          <p class="text-xs text-gray-500">
             {{t "Observed (30d):"}}
             {{range $i, $o := .AudienceObserved}}{{if $i}} · {{end}}{{$o.Name}} {{$o.Share}}{{end}}
           </p>
@@ -458,7 +458,7 @@
           {{/* A PROMPT, never a pre-filled value — a guess from the domain
                presented as the publisher's own declaration would be exactly
                the confidently-wrong failure this design avoids. */}}
-          <p class="text-xs text-gray-400">{{t "Your domain suggests %s — declare it only if it is true of your readers." .AudienceSuggestion}}</p>
+          <p class="text-xs text-gray-500">{{t "Your domain suggests %s — declare it only if it is true of your readers." .AudienceSuggestion}}</p>
           {{end}}
         </form>
         <form method="POST" action="/publisher/sites/filler-traffic" class="flex items-center pb-1.5"
@@ -467,7 +467,7 @@
           <label class="inline-flex items-center gap-1.5 text-sm text-gray-600 cursor-pointer">
             <input type="checkbox" name="acceptsFillerTraffic" {{if .AcceptsFillerTraffic}}checked{{end}}
                    onchange="this.form.submit()"
-                   class="rounded border-gray-300 text-brand focus:ring-brand">
+                   class="rounded border-gray-300 text-brand-ink focus:ring-brand">
             {{t "Accept filler traffic"}}
           </label>
         </form>
@@ -479,7 +479,7 @@
           <summary class="cursor-pointer text-gray-600 hover:text-gray-900">
             {{t "Slots (%d) — admin floor overrides" (len .Slots)}}
           </summary>
-          <p class="mt-1 mb-2 text-gray-400">
+          <p class="mt-1 mb-2 text-gray-500">
             {{t "Per-slot floors are normally automatic (the slot quality prior scales the site floor by ±50% based on slot position + viewability). Use this only to override. Edit any rows, then Save all once. Leave a field blank to clear that slot's override."}}
           </p>
           <form method="POST" action="/publisher/sites/slot-floor"
@@ -510,7 +510,7 @@
                       <span class="badge badge-info">{{t .MatchedCategory}}</span>
                     {{end}}
                     {{if .MatchedPagePath}}
-                      <div class="text-gray-400 font-mono truncate max-w-48" title="{{.MatchedPageURL}}">{{.MatchedPagePath}}</div>
+                      <div class="text-gray-500 font-mono truncate max-w-48" title="{{.MatchedPageURL}}">{{.MatchedPagePath}}</div>
                     {{end}}
                   {{else}}
                     <span class="text-gray-300" title="{{t "page not yet classified"}}">—</span>
@@ -542,7 +542,7 @@
           </table>
           <div class="mt-2 flex items-center gap-2">
             <button type="submit" class="btn btn-primary btn-sm">{{t "Save all overrides"}}</button>
-            <span class="save-status text-green-600 text-xs"></span>
+            <span class="save-status text-green-700 text-xs"></span>
           </div>
           </form>
         </details>
@@ -592,7 +592,7 @@
               <template x-for="cat in results" :key="cat.id">
                 <button type="button" @click="selectedId = cat.id; query = cat.name; open = false;"
                   class="w-full text-left px-2 py-1 hover:bg-gray-50 text-xs">
-                  <span class="font-mono text-gray-400 mr-1" x-text="cat.id"></span><span x-text="cat.name"></span>
+                  <span class="font-mono text-gray-500 mr-1" x-text="cat.id"></span><span x-text="cat.name"></span>
                 </button>
               </template>
             </div>
@@ -600,7 +600,7 @@
         </div>
       </div>
       <div class="mt-3 pt-3 border-t flex items-center justify-between" onclick="event.stopPropagation();">
-        <p class="text-xs text-gray-400">{{t "Removing the site stops ad serving immediately. Earnings and delivery history are kept."}}</p>
+        <p class="text-xs text-gray-500">{{t "Removing the site stops ad serving immediately. Earnings and delivery history are kept."}}</p>
         <form method="POST" action="/publisher/sites/{{.ID}}/delete"
               onsubmit="return confirm('{{t "Remove %s? Ad serving stops immediately and the site disappears from this list. Earnings and delivery history are kept. Re-adding it later goes through admin approval and domain verification again." .Domain}}')">
           <button type="submit" class="text-sm text-red-600 hover:underline">{{t "Remove site"}}</button>

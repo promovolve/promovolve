@@ -8,16 +8,16 @@
 {{if eq .WalletNotice "suspended"}}
 <div class="bg-red-50 border border-red-200 rounded-lg p-4 mb-6 max-w-2xl">
   <p class="font-medium text-red-800">{{t "Serving is paused — your wallet is out of funds."}}</p>
-  <p class="text-sm text-red-600 mt-1">{{t "See"}} <a href="/advertiser/wallet" class="text-brand hover:underline">{{t "Wallet"}}</a> {{t "for details, and contact the platform operator to top up."}}</p>
+  <p class="text-sm text-red-600 mt-1">{{t "See"}} <a href="/advertiser/wallet" class="text-brand-ink hover:underline">{{t "Wallet"}}</a> {{t "for details, and contact the platform operator to top up."}}</p>
 </div>
 {{else if eq .WalletNotice "low"}}
 <div class="bg-amber-50 border border-amber-200 rounded-lg p-4 mb-6 max-w-2xl">
   <p class="font-medium text-amber-800">{{t "Your wallet balance is running low."}}</p>
-  <p class="text-sm text-amber-600 mt-1">{{t "Serving pauses when it reaches zero — see"}} <a href="/advertiser/wallet" class="text-brand hover:underline">{{t "Wallet"}}</a>.</p>
+  <p class="text-sm text-amber-700 mt-1">{{t "Serving pauses when it reaches zero — see"}} <a href="/advertiser/wallet" class="text-brand-ink hover:underline">{{t "Wallet"}}</a>.</p>
 </div>
 {{end}}
 {{if not .Campaigns}}
-<div class="text-center py-20 text-gray-400">
+<div class="text-center py-20 text-gray-500">
   <p class="text-lg">{{t "No campaign data"}}</p>
   <p class="text-sm mt-2">{{t "Create campaigns to see performance stats"}}</p>
 </div>
@@ -33,7 +33,7 @@
 <div class="bg-white p-4 rounded-lg border mb-6">
   <div class="flex items-baseline justify-between mb-2">
     <h2 class="text-sm font-semibold">{{t "Today's delivery"}}</h2>
-    <span class="text-xs text-gray-400">{{t "%d impressions · per hour, your time zone · hover for spend" .AdvHourlyTotal}}</span>
+    <span class="text-xs text-gray-500">{{t "%d impressions · per hour, your time zone · hover for spend" .AdvHourlyTotal}}</span>
   </div>
   <div class="flex items-end gap-1 h-24">
     {{range .AdvHourly}}
@@ -46,7 +46,7 @@
     </div>
     {{end}}
   </div>
-  <div class="flex justify-between text-xs text-gray-400 mt-1">
+  <div class="flex justify-between text-xs text-gray-500 mt-1">
     <span>00:00</span><span>06:00</span><span>12:00</span><span>18:00</span><span>23:00</span>
   </div>
 </div>
@@ -93,7 +93,7 @@
         <div class="mt-1 h-4 bg-gray-200 rounded-full overflow-hidden">
           <div class="h-full bg-brand rounded-full" style="width:{{if .BudgetPct}}{{.BudgetPct}}{{else}}0{{end}}%;"></div>
         </div>
-        <p class="text-xs text-gray-400 mt-1">{{printf "%.0f" .BudgetPct}}%</p>
+        <p class="text-xs text-gray-500 mt-1">{{printf "%.0f" .BudgetPct}}%</p>
       </div>
     </div>
 

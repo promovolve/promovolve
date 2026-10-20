@@ -20,7 +20,7 @@
   <div class="card mt-6 overflow-x-auto p-0">
     <table class="w-full text-sm">
       <thead>
-        <tr class="border-b text-left text-gray-400">
+        <tr class="border-b text-left text-gray-500">
           <th class="px-4 py-3 font-medium">{{t "Member"}}</th>
           <th class="px-4 py-3 font-medium">{{t "Role"}}</th>
           <th class="px-4 py-3 font-medium">{{t "Passkeys"}}</th>
@@ -33,14 +33,14 @@
         {{range .OrgPage.Members}}
         <tr class="border-b last:border-0">
           <td class="px-4 py-3">
-            {{.Email}}{{if eq .UserID $page.SelfID}} <span class="text-gray-400">{{t "(you)"}}</span>{{end}}
-            {{if .DisplayName}}<span class="block text-xs text-gray-400">{{.DisplayName}}</span>{{end}}
+            {{.Email}}{{if eq .UserID $page.SelfID}} <span class="text-gray-500">{{t "(you)"}}</span>{{end}}
+            {{if .DisplayName}}<span class="block text-xs text-gray-500">{{.DisplayName}}</span>{{end}}
           </td>
           <td class="px-4 py-3">
             <span class="badge {{if eq .OrgRole "admin"}}badge-info{{else}}badge-neutral{{end}}">{{t (printf "%s" .OrgRole)}}</span>
           </td>
-          <td class="px-4 py-3">{{.Passkeys}}{{if eq .Passkeys 0}} <span class="text-xs text-amber-600">{{t "(hasn't joined yet)"}}</span>{{end}}</td>
-          <td class="px-4 py-3 text-gray-400">{{.JoinedAt}}</td>
+          <td class="px-4 py-3">{{.Passkeys}}{{if eq .Passkeys 0}} <span class="text-xs text-amber-700">{{t "(hasn't joined yet)"}}</span>{{end}}</td>
+          <td class="px-4 py-3 text-gray-500">{{.JoinedAt}}</td>
           <td class="px-4 py-3 text-right whitespace-nowrap">
             {{if $page.IsAdmin}}
               {{if eq .Passkeys 0}}
@@ -83,18 +83,18 @@
     <p class="text-sm text-gray-500 mb-4">{{t "Invitees must use your organization's email domain (@%s). You'll get a one-time link to send them — no operator approval needed." .OrgPage.Domain}}</p>
     <form method="POST" action="/org/invite" class="flex flex-wrap items-end gap-3">
       <div>
-        <label class="form-label">{{t "Email"}}</label>
-        <input name="email" type="email" required class="form-input w-72" placeholder="colleague@{{.OrgPage.Domain}}">
+        <label for="members-email" class="form-label">{{t "Email"}}</label>
+        <input id="members-email" name="email" type="email" required class="form-input w-72" placeholder="colleague@{{.OrgPage.Domain}}">
       </div>
       <div>
-        <label class="form-label">{{t "Name"}} <span class="text-gray-400">{{t "(optional)"}}</span></label>
-        <input name="displayName" class="form-input w-56">
+        <label for="members-displayname" class="form-label">{{t "Name"}} <span class="text-gray-500">{{t "(optional)"}}</span></label>
+        <input id="members-displayname" name="displayName" class="form-input w-56">
       </div>
       <button type="submit" class="btn btn-primary">{{t "Create invite"}}</button>
     </form>
   </div>
   {{else if .OrgPage.IsAdmin}}
-  <p class="text-sm text-gray-400 mt-6">{{t "Your organization has reached the maximum of %d members." .OrgPage.MaxMembers}}</p>
+  <p class="text-sm text-gray-500 mt-6">{{t "Your organization has reached the maximum of %d members." .OrgPage.MaxMembers}}</p>
   {{end}}
 
   {{if and .OrgPage.IsAdmin .OrgPage.MissingSide}}
@@ -107,8 +107,8 @@
     <form method="POST" action="/org/request-side" class="flex flex-wrap items-end gap-3">
       <input type="hidden" name="side" value="{{.OrgPage.MissingSide}}">
       <div class="flex-1 min-w-64">
-        <label class="form-label">{{t "Message"}} <span class="text-gray-400">{{t "(optional)"}}</span></label>
-        <input name="message" class="form-input" placeholder="{{t "What will you use it for?"}}">
+        <label for="members-message" class="form-label">{{t "Message"}} <span class="text-gray-500">{{t "(optional)"}}</span></label>
+        <input id="members-message" name="message" class="form-input" placeholder="{{t "What will you use it for?"}}">
       </div>
       <button type="submit" class="btn btn-primary">{{t "Request %s account" (t .OrgPage.MissingSide)}}</button>
     </form>

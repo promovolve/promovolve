@@ -1,6 +1,6 @@
 {
   "schemaVersion": 2,
-  "generatedAt": "2026-10-20T09:01:14.857967+00:00",
+  "generatedAt": "2026-10-20T09:37:52.366114+00:00",
   "title": "Design System: Promovolve",
   "extensions": {
     "colorMeta": {
@@ -311,6 +311,34 @@
           "#fde68a",
           "#fffbeb"
         ]
+      },
+      "brand-ink": {
+        "role": "primary",
+        "displayName": "Amber Ink",
+        "tonalRamp": [
+          "#3d1b00",
+          "#5e2a00",
+          "#843b00",
+          "#ab4d00",
+          "#d35f00",
+          "#e9883f",
+          "#f4b77e",
+          "#fce4c4"
+        ]
+      },
+      "brand-ink-night": {
+        "role": "primary",
+        "displayName": "Amber Ink, Night",
+        "tonalRamp": [
+          "#3d1b00",
+          "#5e2a00",
+          "#843b00",
+          "#ab4d00",
+          "#d35f00",
+          "#e9883f",
+          "#f4b77e",
+          "#fce4c4"
+        ]
       }
     },
     "typographyMeta": {
@@ -404,7 +432,7 @@
       "refersTo": "input",
       "description": "Labeled field with amber focus ring.",
       "html": "<label class=\"ds-label\">Daily budget<input class=\"ds-input\" placeholder=\"¥5,000\"></label><p class=\"ds-hint\">Spent evenly across the local day.</p>",
-      "css": ".ds-label{display:block;font:500 14px/20px ui-sans-serif, system-ui, sans-serif;color:#403c38} .ds-input{display:block;width:100%;margin-top:4px;padding:8px 12px;font:400 14px/20px ui-sans-serif, system-ui, sans-serif;background:#fff;color:#14110e;border:1px solid #d3d0cd;border-radius:6px;box-sizing:border-box} .ds-input::placeholder{color:#a8a49f} .ds-input:focus{outline:none;border-color:#d35f00;box-shadow:0 0 0 2px rgba(211,95,0,.2)} .ds-hint{margin:4px 0 0;font:400 12px/16px ui-sans-serif, system-ui, sans-serif;color:#5b5753}"
+      "css": ".ds-label{display:block;font:500 14px/20px ui-sans-serif, system-ui, sans-serif;color:#403c38} .ds-input{display:block;width:100%;margin-top:4px;padding:8px 12px;font:400 14px/20px ui-sans-serif, system-ui, sans-serif;background:#fff;color:#14110e;border:1px solid #d3d0cd;border-radius:6px;box-sizing:border-box} .ds-input::placeholder{color:#6b6762} .ds-input:focus{outline:none;border-color:#d35f00;box-shadow:0 0 0 2px rgba(211,95,0,.2)} .ds-hint{margin:4px 0 0;font:400 12px/16px ui-sans-serif, system-ui, sans-serif;color:#5b5753}"
     },
     {
       "name": "Card",
@@ -418,9 +446,9 @@
       "name": "Badges",
       "kind": "chip",
       "refersTo": "badge-neutral",
-      "description": "Status pills: pale fill, dark text.",
-      "html": "<span class=\"ds-badge ds-badge-success\">Serving</span> <span class=\"ds-badge ds-badge-warning\">Pending</span> <span class=\"ds-badge ds-badge-danger\">Rejected</span> <span class=\"ds-badge ds-badge-neutral\">Paused</span>",
-      "css": ".ds-badge{display:inline-flex;align-items:center;padding:2px 8px;border-radius:9999px;font:500 12px/16px ui-sans-serif, system-ui, sans-serif} .ds-badge-success{background:#dcfce7;color:#15803d} .ds-badge-warning{background:#fef9c3;color:#854d0e} .ds-badge-danger{background:#fee2e2;color:#b91c1c} .ds-badge-neutral{background:#f5f3f0;color:#5b5753}"
+      "description": "Status pills: pale fill, dark text; × removes with a 24px hit area.",
+      "html": "<span class=\"ds-badge ds-badge-success\">Serving</span> <span class=\"ds-badge ds-badge-info\">Travel<button class=\"ds-chip-x\" aria-label=\"Remove Travel\">×</button></span> <span class=\"ds-badge ds-badge-warning\">Pending</span> <span class=\"ds-badge ds-badge-danger\">spam.example<button class=\"ds-chip-x\" aria-label=\"Unblock spam.example\">×</button></span> <span class=\"ds-badge ds-badge-neutral\">Paused</span>",
+      "css": ".ds-badge{display:inline-flex;align-items:center;padding:2px 8px;border-radius:9999px;font:500 12px/16px ui-sans-serif, system-ui, sans-serif} .ds-badge-success{background:#dcfce7;color:#15803d} .ds-badge-warning{background:#fef9c3;color:#854d0e} .ds-badge-danger{background:#fee2e2;color:#b91c1c} .ds-badge-neutral{background:#f5f3f0;color:#5b5753} .ds-badge-info{background:#dbeafe;color:#1e40af} .ds-chip-x{display:inline-flex;align-items:center;justify-content:center;min-width:24px;min-height:24px;margin:-4px -6px -4px 2px;border:0;background:none;color:inherit;font:700 12px/1 inherit;border-radius:9999px;opacity:.7;cursor:pointer} .ds-chip-x:hover{opacity:1;background:rgba(0,0,0,.05)} .ds-chip-x:focus-visible{opacity:1;outline:2px solid #d35f00;outline-offset:1px}"
     },
     {
       "name": "Sidebar Navigation",
@@ -478,8 +506,10 @@
     "donts": [
       "**Don't** add a second accent colour. Indigo and blue as primaries are deprecated.",
       "**Don't** put shadows on resting cards or panels.",
-      "**Don't** use `ink-muted` (`gray-500`, 4.3:1 on white) or `ink-faint` (`gray-400`, 2.5:1) for small text that carries meaning. Both fall short of the WCAG AA commitment. Use `ink-soft` (`gray-600`, 7.2:1). This is existing debt: `.page-sub` and `.form-hint` still break the rule.",
-      "**Don't** set amber as body-size link text on white (3.9:1, fails AA). Existing debt: `.prose-doc a`.",
+      "**Don't** use `ink-faint` (`gray-400`, 2.5:1) or lighter for text that carries meaning on a light surface. The floor for secondary text is `ink-muted` (`gray-500`). The always-dark sidebar is the exception: there `gray-400` is 7.6:1.",
+      "**Don't** use `text-brand` for text. The fill amber is 3.9:1 on white. Use `text-brand-ink`.",
+      "**Don't** use 500/600 steps of amber, orange or green for status text. They are about 3.2–3.6:1. Use 700.",
+      "**Don't** hard-code chart colours. Take them from `chartTheme()` (see Components), which follows the theme.",
       "**Don't** hard-code neutral hex values in templates. They won't follow the theme.",
       "**Don't** use bare `rounded`. Use `rounded-md` for controls and `rounded-lg` for surfaces."
     ]

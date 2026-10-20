@@ -5,13 +5,15 @@ colors:
   brand-amber: "#d35f00"
   brand-amber-hover: "#c35800"
   brand-amber-soft: "#fce4c4"
+  brand-ink: "#b05000"
+  brand-ink-night: "#ec8c45"
   surface: "#ffffff"
   paper: "#fcfaf7"
   paper-shade: "#f5f3f0"
   rule: "#eae7e4"
   rule-strong: "#d3d0cd"
   ink-faint: "#a8a49f"
-  ink-muted: "#7d7a75"
+  ink-muted: "#6b6762"
   ink-soft: "#5b5753"
   ink-body: "#403c38"
   ink-deep: "#272320"
@@ -146,13 +148,14 @@ A warm paper-and-ink neutral scale carries almost everything. One amber accent m
 - **Press Amber** (`brand-amber`): primary buttons, the active side-switcher pill, focus rings (at 20% alpha), and the accent bar on a selected inbox row. It is the same in both themes on purpose.
 - **Press Amber, Pressed** (`brand-amber-hover`): hover state for primary buttons.
 - **Amber Wash** (`brand-amber-soft`): selected-row and selected-option fill in light mode. In dark mode it becomes translucent amber at 22% alpha.
+- **Amber Ink** (`brand-ink`, `text-brand-ink`): amber for *text*, meaning links and inline emphasis. It is theme-aware: `brand-ink` in light mode (5.0:1 on Paper) and `brand-ink-night` in dark mode (7.2:1). The fill amber is never used as text.
 
 ### Neutral
 - **Surface** (`surface`): cards, inputs and table bodies. In dark mode it becomes **Night Surface** (`night-surface`).
 - **Paper** (`paper`): the page background behind cards. In dark mode it becomes **Night Void** (`night-void`).
 - **Paper Shade** (`paper-shade`): subtle fills, neutral badges and faint dividers.
 - **Rule** (`rule`) and **Strong Rule** (`rule-strong`): the standard card border and the input/secondary-button border. In dark mode the standard border is **Night Rule** (`night-rule`).
-- **Ink scale**, faintest to darkest: Faint (`ink-faint`) for placeholders, Muted (`ink-muted`) for secondary metadata, Soft (`ink-soft`), Body (`ink-body`) for button and label text, Deep (`ink-deep`), and **Ink** (`ink`) for headings, body text and the sidebar background.
+- **Ink scale**, faintest to darkest: Faint (`ink-faint`) for decorative marks and disabled controls only, Muted (`ink-muted`) for secondary text, hints and placeholders (5.0:1 or better on every light surface), Soft (`ink-soft`), Body (`ink-body`) for button and label text, Deep (`ink-deep`), and **Ink** (`ink`) for headings, body text and the sidebar background.
 
 ### Semantic
 - **Danger** (`danger`): destructive buttons and error text. Error callouts use a red-50 fill with a red-200 border.
@@ -191,6 +194,8 @@ The signed-in shell is a full-height row. On the left is a fixed 240px sidebar t
 
 Content columns are capped per page type: `max-w-2xl` for forms and settings, `max-w-4xl`/`max-w-5xl` for tables and reports. Rhythm is a 4px grid. Gaps of 8–12px sit inside groups, 16–24px between them, and cards pad 24px (16px when tight). Table cells pad 24px horizontally and 8px vertically.
 
+Below `md` (768px) the sidebar becomes an off-canvas drawer behind a 48px always-dark top bar holding the wordmark, the role and a menu button. A closed drawer is `visibility: hidden`, so its links leave the tab order. A backdrop or Escape closes it. Main padding drops to 16px. Stat-card rows go to two columns (`grid-cols-2 sm:grid-cols-4`), and two-column forms stack to one column below `sm`. Tab strips scroll sideways rather than wrap.
+
 The read-only admin view-as session pins an amber banner (`amber-400`, Ink text) to the top and dims every mutating control to 45% opacity, so read-only is visible before anyone tries to act.
 
 ## Elevation & Depth
@@ -222,6 +227,7 @@ Flat and restrained. Components are defined once as `@layer components` classes 
 
 ### Badges
 - **Style** (`.badge` + `-info`/`-success`/`-warning`/`-danger`/`-neutral`): a 12px weight-500 pill, padded 2px × 8px, with a pale fill and dark text, or a translucent fill and light text in dark mode.
+- **Remove × button** (`.chip-x`): inherits the badge's text colour at 70% opacity and reaches 100% on hover. It has a 24px hit area, pulled back with negative margins so the pill stays 20px tall. It always carries an `aria-label` from `Remove %s` or `Unblock %s`.
 
 ### Cards / Containers
 - **Corner Style:** 8px.
@@ -232,18 +238,23 @@ Flat and restrained. Components are defined once as `@layer components` classes 
 
 ### Inputs / Fields
 - **Style** (`.form-input`): full width, 8px × 12px padding, 1px Strong Rule border, 6px radius, Surface fill and Ink text, with Faint placeholders.
+- **Labels:** every `.form-label` points at its field with `for`/`id`. Ids inside a `{{range}}` carry the row's `.ID`. A radio group is a `<fieldset>` with a `<legend class="form-label">`, and a date picker takes `"Id"`, which its label also targets.
 - **Focus:** the border turns amber and a 2px amber ring at 20% alpha appears. The default outline is removed in favour of that ring.
 - **Label / Hint:** `.form-label` above the field, `.form-hint` 12px below it.
 - **Safety net:** any raw `<input>`, `<select>` or `<textarea>` gets themed Surface and Ink from the base layer, so it can never render white-on-dark.
 
 ### Navigation
 - **Sidebar:** Ink background and light text, frozen to the light scale (`.theme-light-scope`) so it looks identical in both themes. The wordmark sits at 18px weight 600 with the role ("Advertiser Dashboard") under it at 12px.
+- **Phones:** below `md` the sidebar is the drawer described in Layout.
 - **Items:** 14px text, 8px × 12px padding, 4px radius. The active item gets an `ink-body` fill with white text. Idle items hover to `ink-deep`.
 - **Side switcher:** when one org holds both accounts, a two-button segmented control shows the active side as an amber pill with Ink text.
 - **Account footer:** the email, an icon-only theme toggle (auto/light/dark), then account links, set off by a top rule.
 
+### Charts
+Charts call `chartTheme()` (defined in `layout.html`) when they are drawn. It returns axis ink (`ink-muted`), grid (`rule`), the surface colour (for the 2px rings on points) and a categorical palette with separate light and dark steps of the same five hues: blue, aqua, yellow, green and violet, plus amber as a sixth. Both sets were checked with the dataviz validator. Every chart with two or more series has a legend and a table, so colour is never the only way to tell series apart. Inline SVG charts use theme classes (`stroke-gray-*`, `fill-brand`) rather than fixed hex values.
+
 ### Help prose (`.prose-doc`)
-In-app help renders markdown at 14px with relaxed leading. H2s are separated by a top Rule, links are amber, inline code is set on Paper Shade, and code blocks stay a dark Ink slab in both themes.
+In-app help renders markdown at 14px with relaxed leading. H2s are separated by a top Rule, links are underlined `brand-ink`, inline code is set on Paper Shade, and code blocks stay a dark Ink slab in both themes.
 
 ## Do's and Don'ts
 
@@ -257,7 +268,9 @@ In-app help renders markdown at 14px with relaxed leading. H2s are separated by 
 ### Don't:
 - **Don't** add a second accent colour. Indigo and blue as primaries are deprecated.
 - **Don't** put shadows on resting cards or panels.
-- **Don't** use `ink-muted` (`gray-500`, 4.3:1 on white) or `ink-faint` (`gray-400`, 2.5:1) for small text that carries meaning. Both fall short of the WCAG AA commitment. Use `ink-soft` (`gray-600`, 7.2:1). This is existing debt: `.page-sub` and `.form-hint` still break the rule.
-- **Don't** set amber as body-size link text on white (3.9:1, fails AA). Existing debt: `.prose-doc a`.
+- **Don't** use `ink-faint` (`gray-400`, 2.5:1) or lighter for text that carries meaning on a light surface. The floor for secondary text is `ink-muted` (`gray-500`). The always-dark sidebar is the exception: there `gray-400` is 7.6:1.
+- **Don't** use `text-brand` for text. The fill amber is 3.9:1 on white. Use `text-brand-ink`.
+- **Don't** use 500/600 steps of amber, orange or green for status text. They are about 3.2–3.6:1. Use 700.
+- **Don't** hard-code chart colours. Take them from `chartTheme()` (see Components), which follows the theme.
 - **Don't** hard-code neutral hex values in templates. They won't follow the theme.
 - **Don't** use bare `rounded`. Use `rounded-md` for controls and `rounded-lg` for surfaces.

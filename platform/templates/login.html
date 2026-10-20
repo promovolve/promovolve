@@ -22,7 +22,7 @@
 
       <form id="passkey-form" class="space-y-4" onsubmit="return false">
         <div>
-          <label class="form-label">{{t "Email"}}</label>
+          <label for="passkey-email" class="form-label">{{t "Email"}}</label>
           <input type="email" id="passkey-email" autocomplete="username webauthn"
             placeholder="you@company.com" class="form-input">
         </div>
@@ -30,7 +30,7 @@
       </form>
 
       <p class="mt-6 text-center text-sm text-gray-500">
-        {{t "Need an account?"}} <a href="/request-account" class="text-brand hover:underline">{{t "Request access"}}</a>
+        {{t "Need an account?"}} <a href="/request-account" class="text-brand-ink hover:underline">{{t "Request access"}}</a>
       </p>
     </div>
 
@@ -38,7 +38,7 @@
     <div class="w-full max-w-md mx-auto mt-8">
       <div class="flex items-center gap-3 mb-4">
         <div class="h-px bg-gray-200 flex-1"></div>
-        <span class="text-xs uppercase tracking-wide text-gray-400">{{t "Development only"}}</span>
+        <span class="text-xs uppercase tracking-wide text-gray-500">{{t "Development only"}}</span>
         <div class="h-px bg-gray-200 flex-1"></div>
       </div>
       <div class="grid grid-cols-2 gap-4">
@@ -107,7 +107,7 @@
     </script>
     {{else}}
     <div class="w-full max-w-md mx-auto bg-white rounded-lg shadow-sm border p-8">
-      <a href="/login" class="text-sm text-gray-400 hover:text-gray-600 mb-4 block">&larr; Back</a>
+      <a href="/login" class="text-sm text-gray-500 hover:text-gray-600 mb-4 block">&larr; Back</a>
       <h2 class="text-2xl font-semibold mb-1">
         {{if eq .Mode "register"}}Create {{.RoleLabel}} Account{{else}}{{.RoleLabel}} Sign In{{end}}
       </h2>
@@ -117,22 +117,22 @@
         <input type="hidden" name="role" value="{{.Role}}">
         {{if eq .Mode "register"}}
         <div>
-          <label class="form-label">
+          <label for="login-displayname" class="form-label">
             {{if eq .Role "publisher"}}Publication Name{{else}}Business Name{{end}}
           </label>
-          <input type="text" name="displayName"
+          <input id="login-displayname" type="text" name="displayName"
             placeholder="{{if eq .Role "publisher"}}e.g., Tokyo Travel Blog{{else}}e.g., Hakone Ryokan{{end}}"
             class="form-input">
         </div>
         {{end}}
         <div>
-          <label class="form-label">Email</label>
-          <input type="email" name="email" required
+          <label for="login-email" class="form-label">Email</label>
+          <input id="login-email" type="email" name="email" required
             class="form-input">
         </div>
         <div>
-          <label class="form-label">Password</label>
-          <input type="password" name="password" required
+          <label for="login-password" class="form-label">Password</label>
+          <input id="login-password" type="password" name="password" required
             class="form-input">
         </div>
         <button type="submit"
@@ -141,8 +141,8 @@
         </button>
       </form>
       <p class="mt-4 text-center text-sm text-gray-500">
-        {{if eq .Mode "register"}}Already have an account? <a href="/login?mode=login&role={{.Role}}" class="text-brand hover:underline">Sign in</a>
-        {{else}}Don't have an account? <a href="/login?mode=register&role={{.Role}}" class="text-brand hover:underline">Register</a>{{end}}
+        {{if eq .Mode "register"}}Already have an account? <a href="/login?mode=login&role={{.Role}}" class="text-brand-ink hover:underline">Sign in</a>
+        {{else}}Don't have an account? <a href="/login?mode=register&role={{.Role}}" class="text-brand-ink hover:underline">Register</a>{{end}}
       </p>
     </div>
     {{end}}

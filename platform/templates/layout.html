@@ -24,12 +24,30 @@
        After ANY template class change run scripts/build-tailwind.sh and
        commit static/tailwind.css, or the new class silently has no styles. */}}
   <link rel="stylesheet" href="{{asset "tailwind.css"}}">
+  {{/* Chart colors for the current theme, read when a chart is drawn. The
+       categorical steps are validated per surface (dataviz validator):
+       light vs white, dark vs the dark surface. Identity is also carried by
+       the legend and the table under each chart (dark green/amber sit in the
+       CVD 6-8 band). A theme toggle mid-page applies on the next load. */}}
+  <script>
+    window.chartTheme = function () {
+      var cs = getComputedStyle(document.documentElement);
+      var v = function (n) { return 'rgb(' + cs.getPropertyValue(n).trim().split(/\s+/).join(',') + ')'; };
+      var dark = document.documentElement.classList.contains('dark');
+      return {
+        ink: v('--c-gray-500'), grid: v('--c-gray-200'), surface: v('--c-white'), brand: '#d35f00',
+        brandTint: dark ? 'rgba(211,95,0,0.45)' : '#f2c8a6',
+        pal: dark ? ['#3987e5', '#199e70', '#c98500', '#008300', '#9085e9', '#d95926']
+                  : ['#2a78d6', '#1baf7a', '#eda100', '#008300', '#4a3aa7', '#d35f00']
+      };
+    };
+  </script>
   {{/* Alpine loads deferred; x-cloak'd elements must stay hidden until it
        initializes or every x-show panel flashes on load. */}}
   <style>[x-cloak] { display: none !important; }</style>
   <script defer src="{{asset "alpine.min.js"}}"></script>
-  <script src="{{asset "htmx.min.js"}}"></script>
-  <script src="{{asset "htmx-sse.js"}}"></script>
+  <script defer src="{{asset "htmx.min.js"}}"></script>
+  <script defer src="{{asset "htmx-sse.js"}}"></script>
 </head>
 <body class="bg-gray-50 text-gray-900 {{if .User}}h-dvh overflow-hidden flex flex-col{{else}}min-h-screen{{end}}">
   {{if .User}}
@@ -68,13 +86,29 @@
   {{/* A content-sized row would stretch the sidebar when the main pane
        wraps or grows. Keep scrolling inside each pane so account controls
        remain reachable without scrolling through the main content. */}}
-  <div class="flex flex-1 min-h-0">
+  {{/* Below md the sidebar becomes an off-canvas drawer behind a top bar.
+       `invisible` (not just off-screen) keeps the closed drawer's links out
+       of the tab order and the accessibility tree. */}}
+  <div class="flex flex-col md:flex-row flex-1 min-h-0" x-data="{ navOpen: false }" @keydown.escape.window="navOpen = false">
+    <div class="theme-light-scope md:hidden shrink-0 h-12 px-4 flex items-center justify-between gap-3 bg-gray-900 text-gray-100">
+      <p class="min-w-0 truncate"><span class="font-semibold">Promovolve</span>
+        <span class="text-xs text-gray-400 ml-2">{{if eq .User.Role "publisher"}}{{t "Publisher Dashboard"}}{{else if eq .User.Role "advertiser"}}{{t "Advertiser Dashboard"}}{{else}}{{t "Admin Dashboard"}}{{end}}</span></p>
+      <button type="button" @click="navOpen = !navOpen" :aria-expanded="navOpen ? 'true' : 'false'" aria-expanded="false" aria-controls="app-nav"
+              aria-label="{{t "Menu"}}" class="-mr-2 p-2 rounded-md text-gray-300 hover:text-white hover:bg-gray-800">
+        <svg class="w-5 h-5" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" viewBox="0 0 24 24" aria-hidden="true"><path d="M4 7h16M4 12h16M4 17h16"/></svg>
+      </button>
+    </div>
+    <div x-show="navOpen" x-cloak x-transition.opacity @click="navOpen = false" class="md:hidden fixed inset-0 z-30 bg-black/40"></div>
     {{/* theme-light-scope freezes the gray/white variables to their light
          values inside the sidebar, so this always-dark chrome (dark bg, light
          text) looks identical in both themes instead of inverting. */}}
-    <aside class="theme-light-scope w-60 shrink-0 overflow-y-auto bg-gray-900 text-gray-100 p-4 flex flex-col">
+    <aside id="app-nav" :data-open="navOpen ? 'true' : 'false'"
+           class="theme-light-scope w-60 shrink-0 overflow-y-auto bg-gray-900 text-gray-100 p-4 flex flex-col
+                  fixed inset-y-0 left-0 z-40 invisible -translate-x-full transition-[transform,visibility] duration-200 ease-out motion-reduce:transition-none
+                  data-[open=true]:visible data-[open=true]:translate-x-0
+                  md:static md:z-auto md:visible md:translate-x-0 md:transition-none">
       <div class="mb-8 shrink-0">
-        <h2 class="text-lg font-semibold">Promovolve</h2>
+        <p class="text-lg font-semibold">Promovolve</p>
         <p class="text-xs text-gray-400 mt-1">
           {{if eq .User.Role "publisher"}}{{t "Publisher Dashboard"}}{{else if eq .User.Role "advertiser"}}{{t "Advertiser Dashboard"}}{{else}}{{t "Admin Dashboard"}}{{end}}
         </p>
@@ -136,8 +170,8 @@
              space — the tooltip carries the current mode. */}}
         <div class="flex items-center justify-between gap-2 mb-2">
           <p class="text-xs text-gray-400 truncate">{{.User.Email}}</p>
-          <button type="button" id="theme-cycle" title="{{t "Theme"}}"
-                  class="shrink-0 text-base leading-none text-gray-400 hover:text-white">
+          <button type="button" id="theme-cycle" title="{{t "Theme"}}" aria-label="{{t "Theme"}}"
+                  class="shrink-0 -m-1 p-1 text-base leading-none text-gray-400 hover:text-white">
             <span data-icon aria-hidden="true">◐</span>
           </button>
         </div>
@@ -154,7 +188,7 @@
       </div>
       {{end}}
     </aside>
-    <main class="flex-1 min-w-0 overflow-x-auto p-8">
+    <main class="flex-1 min-w-0 overflow-x-auto p-4 md:p-8">
       {{template "content" .}}
     </main>
   </div>
@@ -183,6 +217,7 @@
         if (b) {
           b.querySelector('[data-icon]').textContent = ICON[m];
           b.title = TITLE[m];
+          b.setAttribute('aria-label', TITLE[m]);
         }
       }
       var btn = document.getElementById('theme-cycle');
@@ -297,15 +332,17 @@
                 datetime-local contract); empty date submits ""
        "Clear"  "1" → an × empties the value (optional schedules)
        "Submit" "1" → submit the enclosing form on pick
-       "Sm"     "1" → compact card sizing instead of form-input */}}
+       "Sm"     "1" → compact card sizing instead of form-input
+       "Id"     "x" → id for the trigger button; the caller's <label> gets
+                id="x-label" for="x", so the button reads as label + date */}}
 {{define "date-picker"}}
 <div class="relative inline-flex items-center gap-2" x-data="dateCal('{{.Value}}', '{{.Min}}', '{{.Max}}', {{if .Submit}}true{{else}}false{{end}})">
   <input type="hidden" name="{{.Name}}" {{if .Time}}:value="val ? val + 'T' + (time || '00:00') : ''"{{else}}:value="val"{{end}}>
-  <button type="button" @click="toggle()"
+  <button type="button" @click="toggle()" {{if .Id}}id="{{.Id}}" aria-labelledby="{{.Id}}-label {{.Id}}"{{end}}
     class="{{if .Sm}}px-2 py-1 border rounded-md text-xs{{else}}form-input text-sm{{end}} inline-flex items-center gap-2 whitespace-nowrap cursor-pointer bg-white hover:bg-gray-50"
     style="width:auto">
     <svg class="w-4 h-4 text-gray-500 shrink-0" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24"><rect x="3" y="5" width="18" height="16" rx="2"/><path d="M8 3v4M16 3v4M3 11h18"/></svg>
-    <span x-text="val || '{{t "Pick a date"}}'" :class="val ? '' : 'text-gray-400'"></span>
+    <span x-text="val || '{{t "Pick a date"}}'" :class="val ? '' : 'text-gray-500'"></span>
   </button>
   {{if .Time}}
   <input type="time" x-model="time" aria-label="{{t "Time"}}"
@@ -313,7 +350,7 @@
   {{end}}
   {{if .Clear}}
   <button type="button" x-show="val" @click="clear()" aria-label="{{t "Clear"}}"
-    class="text-gray-400 hover:text-gray-600 font-bold">&times;</button>
+    class="text-gray-500 hover:text-gray-600 font-bold">&times;</button>
   {{end}}
   <div x-show="open" x-cloak @click.outside="open=false"
     :class="up ? 'bottom-full mb-1' : 'top-full mt-1'"
@@ -323,7 +360,7 @@
       <span class="text-sm font-medium" x-text="monthLabel()"></span>
       <button type="button" @click="nav(1)" aria-label="{{t "Next month"}}" class="w-7 h-7 rounded-md hover:bg-gray-100 text-gray-600">&rsaquo;</button>
     </div>
-    <div class="grid grid-cols-7 text-center text-xs text-gray-400 mb-1">
+    <div class="grid grid-cols-7 text-center text-xs text-gray-500 mb-1">
       <span>{{t "Su"}}</span><span>{{t "Mo"}}</span><span>{{t "Tu"}}</span><span>{{t "We"}}</span><span>{{t "Th"}}</span><span>{{t "Fr"}}</span><span>{{t "Sa"}}</span>
     </div>
     <div class="grid grid-cols-7 gap-y-0.5 text-center text-sm">
@@ -354,8 +391,8 @@
 {{define "list-sort"}}
 <div class="flex items-center justify-end mb-2">
   <form method="GET" class="flex items-center gap-2">
-    <label class="text-xs text-gray-500">{{t "Sort:"}}</label>
-    <select name="sort" onchange="this.form.submit()" class="px-2 py-1 border rounded text-sm bg-white">
+    <label for="layout-sort" class="text-xs text-gray-500">{{t "Sort:"}}</label>
+    <select id="layout-sort" name="sort" onchange="this.form.submit()" class="px-2 py-1 border rounded text-sm bg-white">
       <option value="newest" {{if or (not .ListNav.Sort) (eq .ListNav.Sort "newest")}}selected{{end}}>{{t "Newest first"}}</option>
       <option value="name" {{if eq .ListNav.Sort "name"}}selected{{end}}>{{t "Name A–Z"}}</option>
       <option value="spend" {{if eq .ListNav.Sort "spend"}}selected{{end}}>{{t "Spend today"}}</option>
@@ -383,9 +420,9 @@
 <div class="flex items-center justify-between mt-4 text-sm text-gray-500">
   <span>{{t "%d–%d of %d" .ListNav.From .ListNav.To .ListNav.Total}}</span>
   <div class="flex items-center gap-3">
-    {{if .ListNav.PrevURL}}<a href="{{.ListNav.PrevURL}}" class="text-brand hover:underline">&larr; {{t "Prev"}}</a>{{else}}<span class="text-gray-300">&larr; {{t "Prev"}}</span>{{end}}
+    {{if .ListNav.PrevURL}}<a href="{{.ListNav.PrevURL}}" class="text-brand-ink hover:underline">&larr; {{t "Prev"}}</a>{{else}}<span class="text-gray-300">&larr; {{t "Prev"}}</span>{{end}}
     <span>{{t "Page %d / %d" .ListNav.Page .ListNav.TotalPages}}</span>
-    {{if .ListNav.NextURL}}<a href="{{.ListNav.NextURL}}" class="text-brand hover:underline">{{t "Next"}} &rarr;</a>{{else}}<span class="text-gray-300">{{t "Next"}} &rarr;</span>{{end}}
+    {{if .ListNav.NextURL}}<a href="{{.ListNav.NextURL}}" class="text-brand-ink hover:underline">{{t "Next"}} &rarr;</a>{{else}}<span class="text-gray-300">{{t "Next"}} &rarr;</span>{{end}}
   </div>
 </div>
 {{end}}
@@ -405,12 +442,12 @@
 <div class="card card-tight mb-6">
   <form method="get" class="flex flex-wrap items-end gap-3">
     <div>
-      <label class="form-label">{{t "From"}}</label>
-      {{template "date-picker" dict "Name" "from" "Value" .From "Max" .Today}}
+      <label id="range-from-label" for="range-from" class="form-label">{{t "From"}}</label>
+      {{template "date-picker" dict "Id" "range-from" "Name" "from" "Value" .From "Max" .Today}}
     </div>
     <div>
-      <label class="form-label">{{t "To"}}</label>
-      {{template "date-picker" dict "Name" "to" "Value" .To "Max" .Today}}
+      <label id="range-to-label" for="range-to" class="form-label">{{t "To"}}</label>
+      {{template "date-picker" dict "Id" "range-to" "Name" "to" "Value" .To "Max" .Today}}
     </div>
     <button type="submit" class="btn btn-primary">{{t "Apply"}}</button>
     <div class="flex items-center gap-2 ml-auto">

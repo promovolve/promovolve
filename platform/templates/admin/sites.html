@@ -24,15 +24,15 @@
             <span class="badge badge-info">{{t "site"}}</span>
           </div>
           <p class="text-sm text-gray-500">
-            <a href="{{.PageURL}}" target="_blank" rel="noopener noreferrer" class="text-brand hover:underline">{{.PageURL}}</a>
+            <a href="{{.PageURL}}" target="_blank" rel="noopener noreferrer" class="text-brand-ink hover:underline">{{.PageURL}}</a>
           </p>
         </div>
-        <span class="text-xs text-gray-400 whitespace-nowrap">{{.RequestedAt}}</span>
+        <span class="text-xs text-gray-500 whitespace-nowrap">{{.RequestedAt}}</span>
       </div>
 
       <dl class="grid grid-cols-2 gap-x-6 gap-y-2 mt-4 text-sm">
-        <div><dt class="text-gray-400">{{t "Site ID"}}</dt><dd class="font-mono text-xs">{{.SiteID}}</dd></div>
-        <div><dt class="text-gray-400">{{t "Publisher"}}</dt><dd>{{.Publisher}}{{if .Company}} · {{.Company}}{{end}}</dd></div>
+        <div><dt class="text-gray-500">{{t "Site ID"}}</dt><dd class="font-mono text-xs">{{.SiteID}}</dd></div>
+        <div><dt class="text-gray-500">{{t "Publisher"}}</dt><dd>{{.Publisher}}{{if .Company}} · {{.Company}}{{end}}</dd></div>
       </dl>
 
       <div class="flex flex-wrap items-end gap-3 mt-4">
@@ -65,13 +65,13 @@
           <h2 class="font-semibold text-lg">{{.Domain}}</h2>
           <span class="badge badge-warning">{{t "Unverified"}}</span>
         </div>
-        <span class="text-xs text-gray-400 whitespace-nowrap">{{t "Released in %d days" .DaysLeft}}</span>
+        <span class="text-xs text-gray-500 whitespace-nowrap">{{t "Released in %d days" .DaysLeft}}</span>
       </div>
 
       <dl class="grid grid-cols-2 gap-x-6 gap-y-2 mt-4 text-sm">
-        <div><dt class="text-gray-400">{{t "Site ID"}}</dt><dd class="font-mono text-xs">{{.SiteID}}</dd></div>
-        <div><dt class="text-gray-400">{{t "Publisher"}}</dt><dd>{{.Publisher}}{{if .Company}} · {{.Company}}{{end}}</dd></div>
-        <div><dt class="text-gray-400">{{t "Approved"}}</dt><dd>{{.ApprovedAt}}</dd></div>
+        <div><dt class="text-gray-500">{{t "Site ID"}}</dt><dd class="font-mono text-xs">{{.SiteID}}</dd></div>
+        <div><dt class="text-gray-500">{{t "Publisher"}}</dt><dd>{{.Publisher}}{{if .Company}} · {{.Company}}{{end}}</dd></div>
+        <div><dt class="text-gray-500">{{t "Approved"}}</dt><dd>{{.ApprovedAt}}</dd></div>
       </dl>
 
       <form method="POST" action="/admin/sites/release" class="mt-4"
@@ -100,7 +100,7 @@
           </div>
           <p class="text-sm text-gray-600">{{.Evidence}}</p>
         </div>
-        <span class="text-xs text-gray-400 whitespace-nowrap">{{.FlaggedAt}}</span>
+        <span class="text-xs text-gray-500 whitespace-nowrap">{{.FlaggedAt}}</span>
       </div>
 
       <div class="flex flex-wrap items-end gap-3 mt-4">

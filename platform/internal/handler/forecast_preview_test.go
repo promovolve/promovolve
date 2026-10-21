@@ -69,3 +69,32 @@ func TestCampaignsForecastRenders(t *testing.T) {
 		}
 	}
 }
+
+// TestWalletForecastRenders renders the wallet with its outlook strip;
+// with PREVIEW_OUT set it writes advertiser-wallet-<lang>.
+func TestWalletForecastRenders(t *testing.T) {
+	SetFS(platform.Templates, platform.Static)
+	today := time.Date(2026, 10, 21, 15, 40, 0, 0, time.UTC)
+	charged := map[string]float64{}
+	for i, v := range []float64{52, 61, 0, 48, 55, 70, 66, 59, 31, 44, 58, 63, 72, 57} {
+		charged[today.AddDate(0, 0, -(i+1)).Format("2006-01-02")] = v
+	}
+	for _, lang := range []string{i18n.LangEN, i18n.LangJA} {
+		f, _ := walletForecast(lang, charged, 482, 57, today)
+		data := pageData{Title: "Wallet", Nav: "wallet", User: &model.User{Email: "adv@test", Role: model.RoleAdvertiser},
+			Wallet: &walletPageData{Balance: "$482.00", Pending: "$57.00", Projected: "$425.00", Timezone: "Asia/Tokyo", Forecast: &f,
+				Activity:  []walletActivityRow{{Date: "2026-10-18 10:02", Kind: "topup", KindBadge: "badge-success", Memo: "bank transfer", Amount: "+$300.00"}},
+				Statement: []statementRow{{Day: "2026-10-20", CampaignID: "c-14", Campaign: "Autumn ryokan stays — Kyoto", SiteID: "travel-example-jp", Impressions: 4120, Amount: "31.45"}},
+				Months:    []monthlyRow{{Month: "2026-10", Impressions: 81220, Gross: "702.10"}},
+			}}
+		var sb strings.Builder
+		if err := getPage(lang, "advertiser/wallet.html").ExecuteTemplate(&sb, "layout", data); err != nil {
+			t.Fatalf("%s: render: %v", lang, err)
+		}
+		if dir := os.Getenv("PREVIEW_OUT"); dir != "" {
+			if err := os.WriteFile(filepath.Join(dir, "advertiser-wallet-"+lang+".html"), []byte(sb.String()), 0o644); err != nil {
+				t.Fatal(err)
+			}
+		}
+	}
+}

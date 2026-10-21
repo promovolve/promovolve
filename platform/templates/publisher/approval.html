@@ -93,7 +93,7 @@ document.body.addEventListener('htmx:beforeRequest', function(evt) {
 window.closeDetail = function() {
   document.querySelectorAll('[data-detail]').forEach(function(e){ e.classList.add('hidden'); });
   document.querySelectorAll('[data-inbox-item]').forEach(function(e){
-    e.classList.remove('bg-brand-soft','border-orange-300');
+    e.classList.remove('bg-brand-soft','border-gray-900');
     e.classList.add('bg-white','border-gray-200');
   });
   if (window.__pendingApprovalRefresh) {
@@ -108,8 +108,8 @@ window.closeDetail = function() {
 // keeps the pane open on close.
 window.openDetail = function(key, btn) {
   if (btn) { window.__lastEngagedCid = btn.getAttribute('data-cid'); }
-  document.querySelectorAll('[data-inbox-item]').forEach(function(e){ e.classList.remove('bg-brand-soft','border-orange-300'); e.classList.add('bg-white','border-gray-200'); });
-  if (btn) { btn.classList.remove('bg-white','border-gray-200'); btn.classList.add('bg-brand-soft','border-orange-300'); }
+  document.querySelectorAll('[data-inbox-item]').forEach(function(e){ e.classList.remove('bg-brand-soft','border-gray-900'); e.classList.add('bg-white','border-gray-200'); });
+  if (btn) { btn.classList.remove('bg-white','border-gray-200'); btn.classList.add('bg-brand-soft','border-gray-900'); }
   document.querySelectorAll('[data-detail]').forEach(function(e){ e.classList.add('hidden'); });
   var d = document.getElementById('detail-' + key);
   if (d) {
@@ -162,7 +162,7 @@ window.thumbHeal = function(img){
 // refetch (that's only for an explicit close while a preview is open).
 function clearDetailPane() {
   document.querySelectorAll('[data-detail]').forEach(function(e){ e.classList.add('hidden'); });
-  document.querySelectorAll('[data-inbox-item]').forEach(function(e){ e.classList.remove('bg-brand-soft','border-orange-300'); e.classList.add('bg-white','border-gray-200'); });
+  document.querySelectorAll('[data-inbox-item]').forEach(function(e){ e.classList.remove('bg-brand-soft','border-gray-900'); e.classList.add('bg-white','border-gray-200'); });
 }
 // Text filter over the one list: match the typed query against each row's
 // text (domain, campaign, max bid) + its state. Empty query shows all. Hide

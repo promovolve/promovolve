@@ -2353,6 +2353,7 @@ class EndpointRoutes(
             val fillerF = siteRef(siteId.value).ask[Boolean](SiteEntity.GetAcceptsFillerTraffic(_))
             val classesF = siteRef(siteId.value)
               .ask[SiteEntity.PageClassificationsResult](SiteEntity.GetPageClassifications(_)).map(_.byUrl)
+            val suspendedF = siteRef(siteId.value).ask[Boolean](SiteEntity.GetSuspended(_))
             (for {
               config <- configF
               vs <- verifyF
@@ -2361,6 +2362,7 @@ class EndpointRoutes(
               bw <- bidWeightF
               acceptsFiller <- fillerF
               classes <- classesF
+              suspended <- suspendedF
             } yield config.map { cfg =>
               val vStatus = if (vs.verified) "verified" else "unverified"
               buildSiteResponse(siteId.value, publisherId, cfg,
@@ -2369,6 +2371,7 @@ class EndpointRoutes(
                 minFloorCpm = Some(minFloor.toDouble.toString),
                 bidWeight = Some(bw.toString),
                 acceptsFillerTraffic = Some(acceptsFiller),
+                status = if (suspended) "suspended" else "active",
                 verificationStatus = vStatus)
             }.orElse {
               Some(Site(
@@ -2407,6 +2410,7 @@ class EndpointRoutes(
       val fillerF = siteRef(siteId).ask[Boolean](SiteEntity.GetAcceptsFillerTraffic(_))
       val classesF = siteRef(siteId)
         .ask[SiteEntity.PageClassificationsResult](SiteEntity.GetPageClassifications(_)).map(_.byUrl)
+      val suspendedF = siteRef(siteId).ask[Boolean](SiteEntity.GetSuspended(_))
       (for {
         config <- configF
         vs <- verifyF
@@ -2415,6 +2419,7 @@ class EndpointRoutes(
         bw <- bidWeightF
         acceptsFiller <- fillerF
         classes <- classesF
+        suspended <- suspendedF
       } yield config match {
         case Some(cfg) =>
           val vStatus = if (vs.verified) "verified" else "unverified"
@@ -2424,6 +2429,7 @@ class EndpointRoutes(
             minFloorCpm = Some(minFloor.toDouble.toString),
             bidWeight = Some(bw.toString),
             acceptsFillerTraffic = Some(acceptsFiller),
+            status = if (suspended) "suspended" else "active",
             verificationStatus = vStatus))
         case None =>
           Left(ErrorResponse("not_found", s"Site $siteId not found"))

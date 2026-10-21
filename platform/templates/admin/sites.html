@@ -143,12 +143,25 @@
       <tbody>
         {{range .AdminVerifiedSites}}
         <tr class="border-b last:border-0">
-          <td class="px-4 py-3 font-medium whitespace-nowrap">{{.Domain}}</td>
+          <td class="px-4 py-3 font-medium whitespace-nowrap">{{.Domain}}{{if .Suspended}} <span class="badge badge-danger ml-1">{{t "Suspended"}}</span>{{end}}</td>
           <td class="px-4 py-3 font-mono text-xs whitespace-nowrap">{{.SiteID}}</td>
           <td class="px-4 py-3 whitespace-nowrap">{{.Publisher}}{{if .Company}} <span class="text-gray-500">· {{.Company}}</span>{{end}}</td>
-          <td class="px-4 py-3 whitespace-nowrap text-gray-500">{{.ApprovedAt}}</td>
+          <td class="px-4 py-3 whitespace-nowrap text-gray-500" title="{{.ApprovedAt}}">{{slice .ApprovedAt 0 10}}</td>
           <td class="px-4 py-2 text-right whitespace-nowrap">
-            <form method="POST" action="/admin/sites/remove"
+            {{if .Suspended}}
+            <form method="POST" action="/admin/sites/unsuspend" class="inline">
+              <input type="hidden" name="siteId" value="{{.SiteID}}">
+              <input type="hidden" name="publisherId" value="{{.PublisherID}}">
+              <button type="submit" class="btn btn-success btn-sm" aria-label="{{t "Resume %s" .Domain}}">{{t "Resume"}}</button>
+            </form>
+            {{else}}
+            <form method="POST" action="/admin/sites/suspend" class="inline"
+              onsubmit="return confirm('{{t "Suspend %s? The site stops serving ads now. Its slots, floors, approvals and verification are kept, and Resume puts it back." .Domain}}')">
+              <input type="hidden" name="siteId" value="{{.SiteID}}">
+              <button type="submit" class="btn btn-secondary btn-sm" aria-label="{{t "Suspend %s" .Domain}}">{{t "Suspend"}}</button>
+            </form>
+            {{end}}
+            <form method="POST" action="/admin/sites/remove" class="inline ml-2"
               onsubmit="return confirm('{{t "Remove %s? The site is deleted from the ad server and stops serving ads now. Earnings and delivery history are kept." .Domain}}')">
               <input type="hidden" name="requestId" value="{{.ID}}">
               <button type="submit" class="btn btn-danger btn-sm" aria-label="{{t "Remove %s" .Domain}}">{{t "Remove"}}</button>

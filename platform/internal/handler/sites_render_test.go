@@ -59,6 +59,9 @@ func TestSitesAndCreativesTemplatesRender(t *testing.T) {
 			AdminVerifiedSites: []adminApprovedSiteRow{{
 				ID: "r3", Domain: "live.example.com", SiteID: "live-example-com",
 				Publisher: "pub@test", Company: "Pub Co", ApprovedAt: "2026-09-01 12:00",
+			}, {
+				ID: "r4", Domain: "paused.example.com", SiteID: "paused-example-com",
+				Publisher: "pub@test", ApprovedAt: "2026-09-02 12:00", PublisherID: "pub-1", Suspended: true,
 			}},
 			// Auto-suspended section — one pending-review row, one confirmed,
 			// to exercise both badge/button branches.

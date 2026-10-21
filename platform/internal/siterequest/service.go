@@ -287,7 +287,9 @@ func (s *Service) ListApprovedSites(ctx context.Context) (unverified, verified [
 		return nil, nil, err
 	}
 	for _, p := range approved {
-		switch s.siteStatus(ctx, p.SiteRequest) {
+		status, suspended := s.siteStatus(ctx, p.SiteRequest)
+		p.Suspended = suspended
+		switch status {
 		case "unverified":
 			unverified = append(unverified, p)
 		case "verified":
@@ -353,34 +355,37 @@ func (s *Service) RunReleaseLoop(ctx context.Context, maxAge, interval time.Dura
 }
 
 func (s *Service) siteUnverified(ctx context.Context, req model.SiteRequest) bool {
-	return s.siteStatus(ctx, req) == "unverified"
+	status, _ := s.siteStatus(ctx, req)
+	return status == "unverified"
 }
 
 // siteStatus is the core's verificationStatus for the request's site
 // ("verified" or "unverified"), or "" when the core is unreachable, the site
-// is gone, or it now holds a different domain.
-func (s *Service) siteStatus(ctx context.Context, req model.SiteRequest) string {
+// is gone, or it now holds a different domain; suspended reports the core's
+// serving freeze.
+func (s *Service) siteStatus(ctx context.Context, req model.SiteRequest) (status string, suspended bool) {
 	url := fmt.Sprintf("%s/v1/publishers/%s/sites/%s", s.coreAPIURL, req.PublisherID, req.SiteID)
 	httpReq, err := http.NewRequestWithContext(ctx, http.MethodGet, url, nil)
 	if err != nil {
-		return ""
+		return "", false
 	}
 	resp, err := coreClient.Do(httpReq)
 	if err != nil {
-		return ""
+		return "", false
 	}
 	defer resp.Body.Close()
 	var site struct {
 		Domain             string `json:"domain"`
+		Status             string `json:"status"`
 		VerificationStatus string `json:"verificationStatus"`
 	}
 	if resp.StatusCode != http.StatusOK || json.NewDecoder(resp.Body).Decode(&site) != nil {
-		return ""
+		return "", false
 	}
 	if !strings.EqualFold(site.Domain, req.Domain) {
-		return ""
+		return "", false
 	}
-	return site.VerificationStatus
+	return site.VerificationStatus, site.Status == "suspended"
 }
 
 func (s *Service) deleteSite(ctx context.Context, req model.SiteRequest) error {

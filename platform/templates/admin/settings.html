@@ -4,7 +4,7 @@
   <p class="page-sub">{{t "Platform economics for this installation."}}</p>
 
   {{if .Error}}
-  <div class="bg-red-50 border border-red-200 text-red-700 rounded-lg p-3 mt-6 text-sm">{{.Error}}</div>
+  <div class="notice notice-error p-3 mt-6 text-sm">{{.Error}}</div>
   {{end}}
 
   <div class="card mt-6">
@@ -18,7 +18,7 @@
         <input id="settings-marginpercent" type="number" name="marginPercent" min="0" max="99.99" step="0.01"
           value="{{.MarginPct}}" class="form-input w-32">
       </div>
-      <button type="submit" class="btn btn-primary">{{t "Update margin"}}</button>
+      <button type="submit" class="btn btn-secondary">{{t "Update margin"}}</button>
     </form>
   </div>
 
@@ -33,7 +33,7 @@
         <input id="settings-payoutfloor" type="number" name="payoutFloor" min="{{moneystep}}" step="{{moneystep}}"
           value="{{.PayoutFloor}}" class="form-input w-32">
       </div>
-      <button type="submit" class="btn btn-primary">{{t "Update floor"}}</button>
+      <button type="submit" class="btn btn-secondary">{{t "Update floor"}}</button>
     </form>
   </div>
 
@@ -46,7 +46,7 @@
         <input id="settings-orgmaxmembers" type="number" name="orgMaxMembers" min="1" max="100" step="1"
           value="{{.OrgMaxMembers}}" class="form-input w-32">
       </div>
-      <button type="submit" class="btn btn-primary">{{t "Update cap"}}</button>
+      <button type="submit" class="btn btn-secondary">{{t "Update cap"}}</button>
     </form>
   </div>
 
@@ -61,7 +61,7 @@
           {{range .Timezones}}{{if ne . "UTC"}}<option value="{{.}}" {{if eq . $.DefaultOrgTimezone}}selected{{end}}>{{.}}</option>{{end}}{{end}}
         </select>
       </div>
-      <button type="submit" class="btn btn-primary">{{t "Update timezone"}}</button>
+      <button type="submit" class="btn btn-secondary">{{t "Update timezone"}}</button>
     </form>
   </div>
 
@@ -82,7 +82,7 @@
           {{range .AllLanguages}}<option value="{{.Tag}}" {{if .Default}}selected{{end}}>{{.Name}}</option>{{end}}
         </select>
       </div>
-      <button type="submit" class="btn btn-primary">{{t "Update languages"}}</button>
+      <button type="submit" class="btn btn-secondary">{{t "Update languages"}}</button>
     </form>
   </div>
 
@@ -91,7 +91,7 @@
     <p class="text-sm text-gray-500 mt-1 mb-4">{{t "Categories advertisers cannot register campaigns for on this network — prohibiting a category covers everything beneath it (prohibiting Tobacco covers cigarettes, vaping, and the rest of its subtree). Enforced at campaign creation; existing campaigns are not touched. Category pickers stop offering prohibited entries."}}</p>
     <div class="flex flex-wrap items-center gap-2">
       {{range .ProhibitedAds}}
-      <span class="badge badge-danger gap-1">
+      <span class="badge badge-neutral gap-1">
         {{.Name}} <span class="font-mono text-xs opacity-60">({{.Tag}})</span>
         <form method="POST" action="/admin/settings/prohibited-ad-products/remove" class="inline">
           <input type="hidden" name="category" value="{{.Tag}}">
@@ -119,7 +119,7 @@
           placeholder="{{t "Search categories to prohibit"}}"
           autocomplete="off"
           class="w-56 px-2 py-1 border rounded-md text-xs focus:outline-none focus:ring-2 focus:ring-brand/20 focus:border-brand">
-        <button type="submit" class="btn btn-danger btn-sm">{{t "Prohibit"}}</button>
+        <button type="submit" class="btn btn-secondary btn-sm">{{t "Prohibit"}}</button>
         <div x-show="open" x-transition
           class="absolute top-full left-0 z-10 w-72 mt-1 bg-white border rounded-md shadow-lg max-h-48 overflow-y-auto">
           <template x-for="cat in results" :key="cat.id">
@@ -133,22 +133,22 @@
     </div>
   </div>
 
-  <div class="card mt-6 p-0 overflow-x-auto">
-    <h2 class="font-semibold text-lg px-6 pt-6">{{t "History"}}</h2>
-    <table class="w-full text-sm mt-3">
+  <h2 class="section-title mt-10 mb-3">{{t "History"}}</h2>
+  <div class="overflow-x-auto">
+    <table class="data-table">
       <thead>
-        <tr class="border-b text-left text-gray-500">
-          <th class="px-6 py-2 font-medium">{{t "Margin"}}</th>
-          <th class="px-6 py-2 font-medium">{{t "Effective from"}}</th>
-          <th class="px-6 py-2 font-medium">{{t "Set by"}}</th>
+        <tr>
+          <th>{{t "Margin"}}</th>
+          <th>{{t "Effective from"}}</th>
+          <th>{{t "Set by"}}</th>
         </tr>
       </thead>
       <tbody>
         {{range .MarginHistory}}
-        <tr class="border-b last:border-0">
-          <td class="px-6 py-2 font-medium">{{.Percent}}%</td>
-          <td class="px-6 py-2 text-gray-500">{{.EffectiveFrom}}</td>
-          <td class="px-6 py-2 text-gray-500">{{.By}}</td>
+        <tr>
+          <td >{{.Percent}}%</td>
+          <td class="text-gray-500">{{.EffectiveFrom}}</td>
+          <td class="text-gray-500">{{.By}}</td>
         </tr>
         {{end}}
       </tbody>

@@ -4,11 +4,11 @@
   <p class="page-sub">{{t "Every account on this platform, including past requests."}}</p>
 
   {{if .Error}}
-  <div class="bg-red-50 border border-red-200 text-red-700 rounded-lg p-3 mt-6 text-sm">{{.Error}}</div>
+  <div class="notice notice-error p-3 mt-6 text-sm">{{.Error}}</div>
   {{end}}
 
   {{if .RecoveryURL}}
-  <div class="bg-amber-50 border border-amber-200 rounded-lg p-4 mt-6 text-sm">
+  <div class="notice notice-advisory p-4 mt-6 text-sm">
     <p class="font-medium text-amber-800 mb-2">{{t "One-time recovery link for %s — copy it now, it won't be shown again. Valid 72 hours, single use." .RecoveryEmail}}</p>
     {{template "copy-field" .RecoveryURL}}
   </div>
@@ -45,7 +45,7 @@
           <div>
             <div class="text-xs uppercase tracking-wide text-gray-500">{{t "Status"}}</div>
             <div class="mt-1">
-              {{if .Suspended}}<span class="badge bg-red-100 text-red-700">{{t "Suspended"}}</span>{{else}}<span class="badge bg-green-100 text-green-700">{{t "Active"}}</span>{{end}}
+              {{if .Suspended}}<span class="badge bg-red-100 text-red-700">{{t "Suspended"}}</span>{{else}}<span class="badge bg-gray-100 text-gray-900">{{t "Active"}}</span>{{end}}
             </div>
             {{if .Suspended}}<p class="text-xs text-gray-500 mt-1 max-w-xs">{{.SuspendReason}} <span class="text-gray-500">— {{.SuspendedBy}} · {{.SuspendedAt}}</span></p>{{end}}
           </div>
@@ -113,9 +113,9 @@
     <div class="flex items-center justify-between pt-4 text-sm text-gray-500">
       <span>{{t "%d–%d of %d" .AdminOrgsNav.From .AdminOrgsNav.To .AdminOrgsNav.Total}}</span>
       <div class="flex items-center gap-3">
-        {{if .AdminOrgsNav.PrevURL}}<a href="{{.AdminOrgsNav.PrevURL}}" class="text-brand-ink hover:underline">&larr; {{t "Prev"}}</a>{{else}}<span class="text-gray-300">&larr; {{t "Prev"}}</span>{{end}}
+        {{if .AdminOrgsNav.PrevURL}}<a href="{{.AdminOrgsNav.PrevURL}}" class="text-brand-ink hover:underline">{{template "i-back"}} {{t "Prev"}}</a>{{else}}<span class="text-gray-300">{{template "i-back"}} {{t "Prev"}}</span>{{end}}
         <span>{{t "Page %d / %d" .AdminOrgsNav.Page .AdminOrgsNav.TotalPages}}</span>
-        {{if .AdminOrgsNav.NextURL}}<a href="{{.AdminOrgsNav.NextURL}}" class="text-brand-ink hover:underline">{{t "Next"}} &rarr;</a>{{else}}<span class="text-gray-300">{{t "Next"}} &rarr;</span>{{end}}
+        {{if .AdminOrgsNav.NextURL}}<a href="{{.AdminOrgsNav.NextURL}}" class="text-brand-ink hover:underline">{{t "Next"}} {{template "i-next"}}</a>{{else}}<span class="text-gray-300">{{t "Next"}} {{template "i-next"}}</span>{{end}}
       </div>
     </div>
     {{end}}
@@ -132,9 +132,9 @@
   </form>
 
   <div class="card mt-4 overflow-x-auto p-0">
-    <table class="w-full text-sm">
+    <table class="data-table">
       <thead>
-        <tr class="border-b text-left text-gray-500">
+        <tr>
           <th class="px-4 py-3 font-medium">{{t "Email"}}</th>
           <th class="px-4 py-3 font-medium">{{t "Name / company"}}</th>
           <th class="px-4 py-3 font-medium">{{t "Role"}}</th>
@@ -147,7 +147,7 @@
       </thead>
       <tbody>
         {{range .AdminUsers}}
-        <tr class="border-b last:border-0">
+        <tr>
           <td class="px-4 py-3">{{.Email}}</td>
           <td class="px-4 py-3">{{.Display}}{{if and .Company (ne .Company .Display)}} <span class="text-gray-500">({{.Company}})</span>{{end}}</td>
           <td class="px-4 py-3">

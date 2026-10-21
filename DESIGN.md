@@ -1,51 +1,77 @@
 ---
 name: Promovolve
-description: The dashboard for an open-source contextual ad network: warm paper-and-ink neutrals, one amber accent.
+description: The dashboard for an open-source contextual ad network, read like a Japanese weather forecast. White ground, ink, a blue-grey field, and colour only for intensity and alert levels.
 colors:
-  brand-amber: "#d35f00"
-  brand-amber-hover: "#c35800"
-  brand-amber-soft: "#fce4c4"
-  brand-ink: "#b05000"
-  brand-ink-night: "#ec8c45"
-  surface: "#ffffff"
-  paper: "#fcfaf7"
-  paper-shade: "#f5f3f0"
-  rule: "#eae7e4"
-  rule-strong: "#d3d0cd"
-  ink-faint: "#a8a49f"
-  ink-muted: "#6b6762"
-  ink-soft: "#5b5753"
-  ink-body: "#403c38"
-  ink-deep: "#272320"
-  ink: "#14110e"
-  ink-black: "#0c0806"
-  night-void: "#0f0d0b"
-  night-surface: "#181614"
-  night-rule: "#2d2925"
-  success: "#16a34a"
-  danger: "#dc2626"
-  warning-fill: "#fffbeb"
-  warning-ink: "#b45309"
+  ink: "#1a1a1a"
+  ink-black: "#0c0c0c"
+  ground: "#ffffff"
+  field: "#dfe7ee"
+  page-tint: "#f6f8fa"
+  fill: "#e8edf2"
+  hairline: "#d6dee5"
+  rule: "#bdc7d0"
+  mark: "#8a96a1"
+  ink-secondary: "#4a5560"
+  ink-soft: "#3a434d"
+  ink-label: "#2a3138"
+  link-blue: "#0041ff"
+  focus-blue: "#2185ff"
+  jma-0: "#f2f2ff"
+  jma-1: "#a0d2ff"
+  jma-2: "#2185ff"
+  jma-3: "#0041ff"
+  jma-4: "#fff500"
+  jma-5: "#ff9900"
+  jma-6: "#ff2800"
+  jma-7: "#b40068"
+  advisory: "#fff500"
+  warning: "#d70a00"
+  notice-error-fill: "#fff1f0"
+  notice-advisory-fill: "#fffbd1"
+  notice-advisory-edge: "#b3a600"
+  notice-ok-fill: "#e3f1e7"
+  notice-ok-edge: "#146c2e"
+  notice-info-fill: "#e6efff"
+  night-page: "#111519"
+  night-surface: "#1a1f24"
+  night-field: "#222a33"
+  night-ink: "#f2f5f8"
+  night-action: "#e8edf2"
+  night-secondary: "#a8b3bd"
+  night-link: "#a0d2ff"
 typography:
+  figure:
+    fontFamily: "'BIZ UDPGothic', 'BIZ UDPゴシック', system-ui, -apple-system, 'Hiragino Sans', 'Yu Gothic UI', sans-serif"
+    fontSize: "3rem"
+    fontWeight: 700
+    lineHeight: 1
+    letterSpacing: "-0.025em"
+    fontFeature: "'tnum'"
   headline:
-    fontFamily: "ui-sans-serif, system-ui, sans-serif, 'Apple Color Emoji', 'Segoe UI Emoji'"
-    fontSize: "1.5rem"
-    fontWeight: 600
-    lineHeight: "2rem"
+    fontFamily: "'BIZ UDPGothic', 'BIZ UDPゴシック', system-ui, -apple-system, 'Hiragino Sans', 'Yu Gothic UI', sans-serif"
+    fontSize: "1.875rem"
+    fontWeight: 700
+    lineHeight: "2.25rem"
+    letterSpacing: "-0.025em"
   title:
-    fontFamily: "ui-sans-serif, system-ui, sans-serif"
+    fontFamily: "'BIZ UDPGothic', 'BIZ UDPゴシック', system-ui, -apple-system, 'Hiragino Sans', 'Yu Gothic UI', sans-serif"
+    fontSize: "1.25rem"
+    fontWeight: 700
+    lineHeight: "1.75rem"
+  sentence:
+    fontFamily: "'BIZ UDPGothic', 'BIZ UDPゴシック', system-ui, -apple-system, 'Hiragino Sans', 'Yu Gothic UI', sans-serif"
     fontSize: "1.125rem"
-    fontWeight: 600
+    fontWeight: 400
     lineHeight: "1.75rem"
   body:
-    fontFamily: "ui-sans-serif, system-ui, sans-serif"
+    fontFamily: "'BIZ UDPGothic', 'BIZ UDPゴシック', system-ui, -apple-system, 'Hiragino Sans', 'Yu Gothic UI', sans-serif"
     fontSize: "0.875rem"
     fontWeight: 400
     lineHeight: "1.25rem"
   label:
-    fontFamily: "ui-sans-serif, system-ui, sans-serif"
+    fontFamily: "'BIZ UDPGothic', 'BIZ UDPゴシック', system-ui, -apple-system, 'Hiragino Sans', 'Yu Gothic UI', sans-serif"
     fontSize: "0.75rem"
-    fontWeight: 500
+    fontWeight: 700
     lineHeight: "1rem"
   mono:
     fontFamily: "ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, monospace"
@@ -53,9 +79,8 @@ typography:
     fontWeight: 400
     lineHeight: "1rem"
 rounded:
-  sm: "4px"
-  md: "6px"
-  lg: "8px"
+  none: "0"
+  sm: "2px"
   full: "9999px"
 spacing:
   xs: "4px"
@@ -66,211 +91,252 @@ spacing:
   2xl: "32px"
 components:
   button-primary:
-    backgroundColor: "{colors.brand-amber}"
-    textColor: "{colors.ink}"
-    rounded: "{rounded.md}"
+    backgroundColor: "{colors.ink}"
+    textColor: "{colors.ground}"
+    rounded: "{rounded.sm}"
     padding: "8px 16px"
+    height: "36px"
     typography: "{typography.body}"
-  button-primary-hover:
-    backgroundColor: "{colors.brand-amber-hover}"
-    textColor: "{colors.ink}"
   button-secondary:
-    backgroundColor: "{colors.surface}"
-    textColor: "{colors.ink-body}"
-    rounded: "{rounded.md}"
+    backgroundColor: "{colors.ground}"
+    textColor: "{colors.ink}"
+    rounded: "{rounded.sm}"
     padding: "8px 16px"
+    height: "36px"
   button-secondary-hover:
-    backgroundColor: "{colors.paper}"
-  button-danger:
-    backgroundColor: "{colors.danger}"
-    textColor: "{colors.surface}"
-    rounded: "{rounded.md}"
-    padding: "8px 16px"
+    backgroundColor: "{colors.fill}"
   button-sm:
     padding: "4px 12px"
+    height: "24px"
     typography: "{typography.label}"
-  card:
-    backgroundColor: "{colors.surface}"
-    rounded: "{rounded.lg}"
-    padding: "24px"
-  card-tight:
-    backgroundColor: "{colors.surface}"
-    rounded: "{rounded.lg}"
-    padding: "16px"
-  input:
-    backgroundColor: "{colors.surface}"
-    textColor: "{colors.ink}"
-    rounded: "{rounded.md}"
-    padding: "8px 12px"
-    typography: "{typography.body}"
-  badge-neutral:
-    backgroundColor: "{colors.paper-shade}"
-    textColor: "{colors.ink-soft}"
-    rounded: "{rounded.full}"
+  tag-plain:
+    backgroundColor: "{colors.fill}"
+    textColor: "{colors.ink-label}"
+    rounded: "{rounded.sm}"
     padding: "2px 8px"
     typography: "{typography.label}"
-  sidebar:
-    backgroundColor: "{colors.ink}"
-    textColor: "{colors.paper-shade}"
-    width: "240px"
-    padding: "16px"
-  nav-item-active:
-    backgroundColor: "{colors.ink-body}"
-    textColor: "{colors.surface}"
+  tag-advisory:
+    backgroundColor: "{colors.advisory}"
+    textColor: "{colors.ink}"
+    rounded: "{rounded.sm}"
+    padding: "2px 8px"
+    typography: "{typography.label}"
+  tag-warning:
+    backgroundColor: "{colors.warning}"
+    textColor: "{colors.ground}"
+    rounded: "{rounded.sm}"
+    padding: "2px 8px"
+    typography: "{typography.label}"
+  input:
+    backgroundColor: "{colors.ground}"
+    textColor: "{colors.ink}"
     rounded: "{rounded.sm}"
     padding: "8px 12px"
+    typography: "{typography.body}"
+  top-bar:
+    backgroundColor: "{colors.field}"
+    textColor: "{colors.ink}"
+    height: "56px"
+    padding: "0 32px"
+  nav-tab:
+    textColor: "{colors.ink-soft}"
+    padding: "0 12px"
+    typography: "{typography.body}"
+  nav-tab-current:
+    textColor: "{colors.ink}"
+  section:
+    backgroundColor: "{colors.ground}"
+    padding: "24px 0"
+  data-table-header:
+    textColor: "{colors.ink-secondary}"
+    padding: "8px 12px"
+    typography: "{typography.label}"
+  selected-row:
+    backgroundColor: "{colors.field}"
+    textColor: "{colors.ink}"
+  forecast-cell:
+    rounded: "{rounded.none}"
+    height: "14px"
 ---
 
 # Design System: Promovolve
 
 ## Overview
 
-**Creative North Star: "The Editor's Desk"**
+**Creative North Star: "The Delivery Forecast"**
 
-The dashboard is the desk beside the magazine. It is a calm, orderly workspace where advertisers set budgets, publishers approve ads and operators settle the books. The expressive work happens in the page-turning creative itself. The desk stays out of its way: warm paper surfaces, ink-coloured text, one amber accent for the action that matters, and numbers set plainly enough to audit.
+The dashboard reads like a Japanese weather forecast. Delivery and money are shown as what happened hour by hour, what is coming at this pace, and official-style advisory and warning levels. An advertiser opens Campaigns and sees today's spend as one large number, a sentence saying where the day is heading, and each campaign's day as a strip of intensity cells. A publisher sees earnings the same way. An operator sees work queues as plain ruled tables.
 
-The density suits work, not marketing. Body text is 14px, metadata is 12px, and tables and forms carry most of the content. Surfaces are flat, separated by hairline borders rather than shadows. A permanently dark sidebar frames the paper-toned work area in both themes, like the dark edge of a desk around a sheet of paper.
+The ground is white and the text is ink (`ink`). A pale blue-grey field (`field`) marks two things only: the top bar and a selected row. Sections are separated by rules, not boxes. Corners are 2px, and nothing casts a shadow unless it floats. Colour has two jobs and no others: the JMA rainfall-intensity scale for intensity data, and the yellow/red alert levels. Actions are ink. Plain states are words.
 
-Dark mode is a first-class theme, not a filter. Every neutral is a CSS variable that keeps its *contrast role* when the theme flips, so a template written for light mode reads correctly in dark without per-page edits.
+The density suits operating work. Body text is 14px, labels 12px, and figures are tabular everywhere. BIZ UDPGothic, Morisawa's Universal Design gothic, sets English and 日本語 in one face, so the two languages carry the same weight and rhythm. Dark mode is a full theme: every neutral step keeps its contrast role when the theme flips.
 
 **Key Characteristics:**
-- Warm neutrals (paper and ink), never cool blue-greys
-- One accent: amber (`brand-amber`), with dark ink on top, never white
-- Flat surfaces; shadows only on things that float (menus, popovers)
-- An always-dark sidebar that is identical in both themes
-- System fonts, so English and 日本語 both render in the reader's native face
+- White ground, ink text, a blue-grey field only for the top bar and selected rows
+- Colour only for intensity data (JMA scale) and alert levels (advisory yellow, warning red)
+- Ink action colour: filled primary, outlined secondary and destructive
+- Ruled sections and flat tables with an ink top rule, never cards or boxes
+- 2px corners everywhere; shadows only on floating layers
+- One large figure per region, followed by a sentence
+- BIZ UDPGothic for all text, tabular figures, EN/日本語 parity
 
 ## Colors
 
-A warm paper-and-ink neutral scale carries almost everything. One amber accent marks primary actions and the active state, and semantic red, green and amber appear only where something is wrong, healthy or pending.
+Ink on white with a cool blue-grey neutral scale. All hue in the system belongs to data and alerts.
 
 ### Primary
-- **Press Amber** (`brand-amber`): primary buttons, the active side-switcher pill, focus rings (at 20% alpha), and the accent bar on a selected inbox row. It is the same in both themes on purpose.
-- **Press Amber, Pressed** (`brand-amber-hover`): hover state for primary buttons.
-- **Amber Wash** (`brand-amber-soft`): selected-row and selected-option fill in light mode. In dark mode it becomes translucent amber at 22% alpha.
-- **Amber Ink** (`brand-ink`, `text-brand-ink`): amber for *text*, meaning links and inline emphasis. It is theme-aware: `brand-ink` in light mode (5.0:1 on Paper) and `brand-ink-night` in dark mode (7.2:1). The fill amber is never used as text.
+- **Ink** (`ink`): body text, headings, the filled primary button, the selected segment of a segmented control, the 2px rule over every table and figure row, the now line in a forecast strip, the current-tab underline. In dark mode the action fill becomes **Night Action** (`night-action`) with dark text, and text becomes **Night Ink** (`night-ink`).
+- **Link Blue** (`link-blue`): link text only (inline links and help prose). In dark mode it becomes **Night Link** (`night-link`). It is the same hue as JMA step 3, so links read as "the blue" rather than as a second brand colour.
+
+### Secondary
+- **Field Blue-Grey** (`field`): the top bar, the nav panel on small screens, and the selected row in an inbox or list. It is never used to box content. In dark mode it is **Night Field** (`night-field`).
+
+### Tertiary: the intensity scale and alert levels
+- **JMA intensity scale** (`jma-0` … `jma-7`): pale violet-white, sky, azure, deep blue, yellow, orange, red, magenta. This is the Japan Meteorological Agency rainfall palette. It colours intensity data only: spend or delivery per hour on Campaigns, charge per day on Wallet. Step 0 is reserved for no data; a zero cell renders in Fill (`fill`).
+- **Advisory Yellow** (`advisory`): the JMA "take note" level. Always with Ink text. Used for the advisory tag, the view-as banner, and pending-review states.
+- **Warning Red** (`warning`): the JMA warning level. Always with white text (5.4:1). Used for the warning tag and error notices.
+- **Notices** use pale fills with a full 1px edge in the level's colour: error (`notice-error-fill`, `warning` edge), advisory (`notice-advisory-fill`, `notice-advisory-edge`), ok (`notice-ok-fill`, `notice-ok-edge`), info (`notice-info-fill`, `focus-blue` edge). Dark mode uses translucent fills of the same hues with lighter edges.
 
 ### Neutral
-- **Surface** (`surface`): cards, inputs and table bodies. In dark mode it becomes **Night Surface** (`night-surface`).
-- **Paper** (`paper`): the page background behind cards. In dark mode it becomes **Night Void** (`night-void`).
-- **Paper Shade** (`paper-shade`): subtle fills, neutral badges and faint dividers.
-- **Rule** (`rule`) and **Strong Rule** (`rule-strong`): the standard card border and the input/secondary-button border. In dark mode the standard border is **Night Rule** (`night-rule`).
-- **Ink scale**, faintest to darkest: Faint (`ink-faint`) for decorative marks and disabled controls only, Muted (`ink-muted`) for secondary text, hints and placeholders (5.0:1 or better on every light surface), Soft (`ink-soft`), Body (`ink-body`) for button and label text, Deep (`ink-deep`), and **Ink** (`ink`) for headings, body text and the sidebar background.
-
-### Semantic
-- **Danger** (`danger`): destructive buttons and error text. Error callouts use a red-50 fill with a red-200 border.
-- **Success** (`success`): confirm buttons and healthy status.
-- **Warning** (`warning-fill` / `warning-ink`): pending or degraded callouts and badges.
-- Badges in every family use a pale fill with dark text in light mode, and a translucent fill (15% alpha) with light text in dark mode.
+- **Ground** (`ground`): the page and every surface. In dark mode it is **Night Surface** (`night-surface`) on **Night Page** (`night-page`).
+- **Fill** (`fill`): plain tags, zero-intensity cells, hover on secondary buttons and menu items, inline code.
+- **Hairline** (`hairline`): lines between table rows and figure rows.
+- **Rule** (`rule`): section top rules, input borders, table header underline.
+- **Mark** (`mark`): rules and icons only, never text (3:1).
+- **Ink Secondary** (`ink-secondary`): secondary text, hints, placeholders, table headers, legend text (7.4:1). In dark mode **Night Secondary** (`night-secondary`).
+- **Ink Soft** (`ink-soft`) and **Ink Label** (`ink-label`): idle nav tabs, form labels, plain-tag text.
+- **Focus Blue** (`focus-blue`): the 2px focus outline (offset 2px) and the 40% input focus ring. It is JMA step 2.
+- Text selection is Night Link on Ink.
 
 ### Named Rules
-**The Dark Ink on Amber Rule.** Text on Press Amber is always Ink (`ink`), which reaches 4.8:1. White on amber is 3.9:1 and fails AA. The dark-mode override pins primary-button text to Ink so the theme flip can't invert it.
+**The Colour Is Data Rule.** Hue appears only in intensity data (the JMA scale) and alert levels (advisory yellow, warning red). Buttons, tabs, plain statuses, headings and decoration are ink and grey. If a coloured thing is not a measurement or an alert, it is wrong.
 
-**The Contrast Role Rule.** Neutrals are referenced by their Tailwind step (`gray-50`…`gray-950`, `white`), and each step keeps its role across themes: 50 is the page background, white is a raised surface, 900 is the strongest text. Never hard-code a neutral hex in a template. Use the step, and the theme follows.
+**The Fixed Scale Rule.** Every intensity cell is placed on the same seven steps, as a ratio to an even pace: below ¼, ¼–0.6, 0.6–1.2 (around even), 1.2–2, 2–3, 3–4, 4× and above. Campaigns divide by an even spread of the daily budget (budget ÷ 24 per hour); Wallet divides by the average recent day. So every strip reads on one scale whatever its budget or currency. The thresholds live in `handler/forecast.go` `intensity()`, and the legend ticks must match them.
 
-**The One Accent Rule.** Amber is the only brand colour. Indigo and blue are not secondary primaries (the indigo second primary in older creative-editor pages is deprecated). Blue appears only inside the info badge and info callout.
+**The Contrast Role Rule.** Templates reference neutrals by step (`gray-50`…`gray-950`, `white`), never by hex. Each step keeps its role in both themes, so a light-authored template reads correctly in dark.
 
 ## Typography
 
-**Body Font:** the system UI sans (`ui-sans-serif, system-ui, sans-serif`)
-**Mono Font:** the system monospace, used for IDs, tokens, digests and code
+**Font:** BIZ UDPGothic (self-hosted woff2, Latin and Japanese subsets, `font-display: swap`), falling back to system-ui, Hiragino Sans and Yu Gothic UI.
+**Mono:** the system monospace, for IDs, tokens and code only.
 
-**Character:** no brand typeface on purpose. The OS face renders Latin and CJK together at native quality, which matters for EN and 日本語 parity, and keeps the desk quiet next to the creative.
+**Character:** a Universal Design gothic built for public signage and forms. It is plain, very legible at 12px, and sets Latin and kana with the same stroke weight, so a 日本語 screen and an English screen look like the same document. Hierarchy comes from size and bold (700). There is no second display face.
 
 ### Hierarchy
-- **Headline** (600, 24px/32px): `.page-title`, one per page.
-- **Title** (600, 18px/28px): section headings within a page.
-- **Body** (400, 14px/20px): almost everything, including tables, forms, buttons and prose.
-- **Label** (500, 12px/16px): form labels at 14px weight 500 (`.form-label`), plus badges, hints, timestamps and table metadata at 12px.
-- **Mono** (400, 12px): machine identifiers only.
-- The auth pages (login, setup, recover, request account) set the wordmark "Promovolve" at 30px weight 600, centred.
+- **Figure** (700, 48px, line-height 1, -0.025em, tabular): the one large number of a region: today's spend on Campaigns, earnings on publisher Stats. Followed on the same baseline by a sentence.
+- **Headline** (700, 30px, -0.025em): the page title, one per page, with the "as of" line under it in Ink Secondary.
+- **Title** (700, 20px): section headings. The Wallet balance headline is a 24px bold-plus-regular sentence ("Balance ¥X. After today's ¥Y is charged, about ¥Z.").
+- **Sentence** (400, 18px): the outlook sentence beside a figure.
+- **Body** (400, 14px/20px): tables, forms, buttons, notices.
+- **Label** (700, 12px): table headers, tags, figure labels (400), legend and axis text (400).
+- **Figure row value** (700, 24px, tabular): the values in a row of headline figures.
 
 ### Named Rules
-**The Two-Size Rule.** Working text is 14px or 12px. A larger size has to be a page or section heading. Don't create emphasis by size inside tables or forms; use weight 500–600 or Ink colour.
+**The Tabular Figures Rule.** Every table, money column and figure is tabular (`tabular-nums`), so columns line up digit for digit.
+
+**The One Face Rule.** All text is BIZ UDPGothic in both languages. Weight is 400 or 700; nothing in between is reliable across the subsets.
 
 ## Layout
 
-The signed-in shell is a full-height row. On the left is a fixed 240px sidebar that never shrinks and scrolls on its own. On the right is the main pane (`min-w-0`, scrolls horizontally if it must), so wide tables and long URLs scroll inside the pane instead of squeezing the nav. Signed-out pages centre one narrow card (`max-w-md`) on Paper.
+The signed-in shell is a column: a 56px top bar, then a scrolling main pane padded 16px (32px from `md`). There is no sidebar. Content columns are capped per page: `max-w-3xl` for a forecast block, `max-w-4xl` for Wallet, `max-w-5xl` for admin tables.
 
-Content columns are capped per page type: `max-w-2xl` for forms and settings, `max-w-4xl`/`max-w-5xl` for tables and reports. Rhythm is a 4px grid. Gaps of 8–12px sit inside groups, 16–24px between them, and cards pad 24px (16px when tight). Table cells pad 24px horizontally and 8px vertically.
+A page opens with the title on the left and the primary action on the right, aligned to the bottom. Under it comes the region's figure and sentence, the forecast strip with its axis and legend, then a segmented filter, then the table. Regions are separated by a 1px rule and 24px of vertical space, not by containers.
 
-Below `md` (768px) the sidebar becomes an off-canvas drawer behind a 48px always-dark top bar holding the wordmark, the role and a menu button. A closed drawer is `visibility: hidden`, so its links leave the tab order. A backdrop or Escape closes it. Main padding drops to 16px. Stat-card rows go to two columns (`grid-cols-2 sm:grid-cols-4`), and two-column forms stack to one column below `sm`. Tab strips scroll sideways rather than wrap.
+Rhythm is a 4px grid: 8–12px inside groups, 16–24px between groups, 32–40px between regions. Table cells pad 12px × 8px.
 
-The read-only admin view-as session pins an amber banner (`amber-400`, Ink text) to the top and dims every mutating control to 45% opacity, so read-only is visible before anyone tries to act.
+Below `lg` (1024px) the top-bar tabs collapse into a menu button that opens the same `<nav>` as a stacked Field panel under the bar; it is `hidden` when closed, so it leaves the tab order, and Escape closes it. The Campaigns list is one grid shared by header and rows from `xl` (1280px); below that each row stacks with the status beside the name and every other cell full width. Wide tables scroll inside an `overflow-x-auto` wrapper.
+
+The read-only view-as session pins an advisory-yellow banner above the top bar and dims every mutating control to 45% opacity.
 
 ## Elevation & Depth
 
-The system is flat. Surfaces sit on Paper with a 1px Rule border, and layering is tonal (Paper → Surface) rather than shadowed. Shadows are a sign that something floats above the page.
+Flat. Depth comes from rules and the Field tint, never from shadow. One shadow exists, and only things that float above the page use it.
 
 ### Shadow Vocabulary
-- **Float** (Tailwind `shadow-lg`): dropdown menus, typeahead lists and popovers (the date picker), always paired with a border.
-- **Lift** (Tailwind `shadow-sm`): rare small raised controls.
+- **Float** (`box-shadow: 0 8px 24px -6px rgb(16 24 32 / 0.22)`): the account menu, date pickers and typeahead lists, always with a 1px Ink border.
 
 ### Named Rules
-**The Only-Floaters-Cast-Shadows Rule.** A card at rest never gets a shadow. If something needs to stand out without floating, give it a border or a fill.
+**The Only-Floaters-Cast-Shadows Rule.** The theme maps `shadow`, `shadow-sm` and `shadow-md` to none, so a resting surface cannot get a shadow by accident. Only `shadow-lg`/`shadow-xl` resolve, and only floating layers use them.
 
 ## Shapes
 
-Gentle, consistent corners. Controls (buttons, inputs, menus) use 6px (`rounded-md`), surfaces (cards, panels, code blocks, popovers) use 8px (`rounded-lg`), badges are full pills, and sidebar nav items use 4px. Bare `rounded` is deprecated. Borders are 1px hairlines. The only thicker line is the 4px left rule on blockquotes and the 3px inset amber bar on a selected inbox row.
+Every corner is 2px: the theme maps `rounded`, `rounded-md`, `rounded-lg` and up to 2px, so legacy classes land on the system. Only status dots and the × inside a tag stay round. Forecast cells are square-cornered and sit 1px apart. Lines are 1px hairlines, with three heavier marks: the 2px ink rule over tables and figure rows, the 3px current-tab underline, and the 2px now line.
 
 ## Components
 
-Flat and restrained. Components are defined once as `@layer components` classes in `platform/tailwind.input.css` and used by name in templates.
+Defined once in `platform/tailwind.input.css` (`@layer components`) and in shared partials in `platform/templates/layout.html`.
 
 ### Buttons
-- **Shape:** 6px radius, 8px × 16px padding, 14px weight 500, with a 6px gap for an icon.
-- **Primary** (`.btn .btn-primary`): Press Amber with Ink text. It marks the one main action in a view.
-- **Secondary** (`.btn .btn-secondary`): Surface with a Strong Rule border and Body ink. Hover fills it with Paper.
-- **Success / Danger** (`.btn-success`, `.btn-danger`): solid green or red with white text, pinned white in dark mode.
-- **Compact** (`.btn-sm`): 4px × 12px padding, 12px text.
-- **Disabled:** 50% opacity with a not-allowed cursor.
+- **Shape:** 2px corners, at least 36px tall, 8px × 16px padding, 14px bold, 6px gap for an icon.
+- **Primary** (`.btn-primary`): Ink fill, white text; hover at 85%. One per view. Approving is also a primary (`.btn-success` is the same ink fill).
+- **Secondary** (`.btn-secondary`): white with a 1px Ink border and Ink text; hover fills with Fill.
+- **Destructive** (`.btn-danger`): the same ink outline as secondary. The guard is a confirm dialog naming the object and the consequence, not a red button.
+- **Compact** (`.btn-sm`): 24px tall, 4px × 12px, 12px text.
+- **Disabled:** 50% opacity, not-allowed cursor.
+- **Segmented control:** a row of buttons inside one 1px Ink border, divided by Ink hairlines; the selected one is Ink-filled with white bold text and carries `aria-pressed="true"`. Used for list filters and the advertiser/publisher side switcher.
 
-### Badges
-- **Style** (`.badge` + `-info`/`-success`/`-warning`/`-danger`/`-neutral`): a 12px weight-500 pill, padded 2px × 8px, with a pale fill and dark text, or a translucent fill and light text in dark mode.
-- **Remove × button** (`.chip-x`): inherits the badge's text colour at 70% opacity and reaches 100% on hover. It has a 24px hit area, pulled back with negative margins so the pill stays 20px tall. It always carries an `aria-label` from `Remove %s` or `Unblock %s`.
+### Tags
+- **Style** (`.badge`): 2px corners, 2px × 8px, 12px bold.
+- **Plain** (`-info`, `-success`, `-neutral`): Fill with Ink Label or Ink text. Active, paused, approved and similar states are words in a plain tag.
+- **Advisory** (`.badge-warning`): Advisory Yellow with Ink text.
+- **Warning** (`.badge-danger`): Warning Red with white text.
+- **Remove ×** (`.chip-x`): inherits the tag's text colour at 70%, 100% on hover, 24px hit area pulled back with negative margins, always with an `aria-label` ("Remove %s").
 
-### Cards / Containers
-- **Corner Style:** 8px.
-- **Background:** Surface on Paper.
-- **Shadow Strategy:** none (see Elevation & Depth).
-- **Border:** 1px Rule.
-- **Internal Padding:** 24px (`.card`), or 16px (`.card-tight`).
+### Sections and figures
+- **Section** (`.card`): a 1px Rule across the top and 24px of vertical padding (16px with `.card-tight`). No fill, no border box, no corner.
+- **Figure row** (`.figures` / `.figure`): a grid under a 2px Ink rule; each figure has a 12px Ink Secondary label and a 24px bold tabular value, with a hairline under it.
+
+### Data tables
+- **Style** (`.data-table`): full width, 14px, a 2px Ink rule on top, 12px bold Ink Secondary headers over a Rule line, hairlines between rows, no outer box. Numeric cells are right-aligned (`.num`).
+- **Selected row:** Field fill and bold text.
+- **Expandable rows:** the row's name is a `<button>` with `aria-expanded`/`aria-controls`; the detail opens in place under it.
 
 ### Inputs / Fields
-- **Style** (`.form-input`): full width, 8px × 12px padding, 1px Strong Rule border, 6px radius, Surface fill and Ink text, with Faint placeholders.
-- **Labels:** every `.form-label` points at its field with `for`/`id`. Ids inside a `{{range}}` carry the row's `.ID`. A radio group is a `<fieldset>` with a `<legend class="form-label">`, and a date picker takes `"Id"`, which its label also targets.
-- **Focus:** the border turns amber and a 2px amber ring at 20% alpha appears. The default outline is removed in favour of that ring.
-- **Label / Hint:** `.form-label` above the field, `.form-hint` 12px below it.
-- **Safety net:** any raw `<input>`, `<select>` or `<textarea>` gets themed Surface and Ink from the base layer, so it can never render white-on-dark.
+- **Style** (`.form-input`): full width, 8px × 12px, 1px Rule border, 2px corners, white fill, Ink text, Ink Secondary placeholder.
+- **Focus:** border turns Ink and a 2px Focus Blue ring at 40% appears.
+- **Label / Hint:** `.form-label` (14px bold, Ink Label) above, wired with `for`/`id`; `.form-hint` (12px Ink Secondary) below.
+- **Safety net:** raw inputs, selects and textareas take the white surface and Ink text from the base layer, so they theme correctly in dark.
+
+### Notices
+- **Style** (`.notice` + `-error`/`-advisory`/`-ok`/`-info`): 14px Ink text, 12px × 8px, a full 1px edge in the level's colour over a pale fill, 2px corners. Never a coloured side stripe.
 
 ### Navigation
-- **Sidebar:** Ink background and light text, frozen to the light scale (`.theme-light-scope`) so it looks identical in both themes. The wordmark sits at 18px weight 600 with the role ("Advertiser Dashboard") under it at 12px.
-- **Phones:** below `md` the sidebar is the drawer described in Layout.
-- **Items:** 14px text, 8px × 12px padding, 4px radius. The active item gets an `ink-body` fill with white text. Idle items hover to `ink-deep`.
-- **Side switcher:** when one org holds both accounts, a two-button segmented control shows the active side as an amber pill with Ink text.
-- **Account footer:** the email, an icon-only theme toggle (auto/light/dark), then account links, set off by a top rule.
+- **Top bar:** Field, 56px. The wordmark "Promovolve" (18px bold) and the role (12px) on the left, the role's pages as tabs, then the side switcher, the account menu (email and chevron, opening a floating menu) and, below `lg`, the menu button.
+- **Tabs** (`.nav-tab`): 14px Ink Soft; hover Ink. The current page has `aria-current="page"`, bold Ink text and a 3px Ink underline from `lg` (a white fill in the stacked panel).
 
-### Charts
-Charts call `chartTheme()` (defined in `layout.html`) when they are drawn. It returns axis ink (`ink-muted`), grid (`rule`), the surface colour (for the 2px rings on points) and a categorical palette with separate light and dark steps of the same five hues: blue, aqua, yellow, green and violet, plus amber as a sixth. Both sets were checked with the dataviz validator. Every chart with two or more series has a legend and a table, so colour is never the only way to tell series apart. Inline SVG charts use theme classes (`stroke-gray-*`, `fill-brand`) rather than fixed hex values.
+### Forecast strip (signature)
+The shared `forecast-strip` partial draws a run of cells on the JMA scale: a day's 24 hours on Campaigns, or 14 settled days, today and 14 projected days on Wallet.
+- **Delivered cells:** 14px tall, 1px gaps, filled with the cell's JMA step (Fill for zero). Each cell has a `title` with its value.
+- **Projection:** cells after now, at the current pace until the budget or balance would run out, drawn at 40% opacity with a 1px dashed Ink Secondary edge.
+- **Now line:** a 2px Ink bar that overhangs the strip by 4px top and bottom.
+- **Axis:** 12px Ink Secondary tick labels under the strip.
+- **Accessibility:** the strip is `role="img"` with the outlook sentence as its label; the sentence is also printed as text, with an Advisory or Warning tag in front when the outlook is an alert.
+
+### Forecast legend
+The shared `forecast-legend` partial explains the scale under every strip: a sentence naming the ratio ("Spend per hour, as a multiple of an even spread of the daily budget"), seven 36px swatches with each step's lower bound centred on its left edge (¼, 0.6, 1.2, 2, 3, 4×), then a dashed swatch for "at this pace" and an ink bar for "now".
 
 ### Help prose (`.prose-doc`)
-In-app help renders markdown at 14px with relaxed leading. H2s are separated by a top Rule, links are underlined `brand-ink`, inline code is set on Paper Shade, and code blocks stay a dark Ink slab in both themes.
+In-app help renders markdown at 14px with relaxed leading. H2s sit under a Fill rule, links are underlined Link Blue, inline code is on Fill, and code blocks are a dark slab in both themes.
 
 ## Do's and Don'ts
 
 ### Do:
-- **Do** use the canonical classes (`.btn-*`, `.card`, `.badge-*`, `.form-*`, `.page-title`/`.page-sub`) for new markup. Swap ad-hoc utilities for them whenever you touch a page.
-- **Do** run `scripts/build-tailwind.sh` after any template class change and commit `platform/static/tailwind.css`, or the new class ships unstyled.
-- **Do** put Ink text on amber. Pin it with a `.dark` override if the element sits on a literal colour.
-- **Do** add a `.dark` override in `tailwind.input.css` when you introduce a literal (non-grey) Tailwind colour step that isn't covered yet.
-- **Do** keep English and 日本語 strings at parity, and leave room for 日本語 line lengths in buttons and nav.
+- **Do** put intensity data on the JMA scale through `intensity()` and show the legend under it, with ticks that match the thresholds.
+- **Do** use Advisory Yellow with Ink text and Warning Red with white text for alert levels, and nothing else in those colours.
+- **Do** make the primary action Ink-filled, and guard destructive actions with an ink outline button plus a confirm dialog that names the object.
+- **Do** write plain states as words in a plain grey tag.
+- **Do** separate regions with a 1px Rule and spacing; put a 2px Ink rule over tables and figure rows.
+- **Do** lead a money region with one 48px tabular figure and a sentence that says what it means.
+- **Do** mark the current tab with `aria-current="page"`, make expandable rows real buttons with `aria-expanded`, and keep text at or above Ink Secondary (7.4:1).
+- **Do** keep every string at EN/日本語 parity and leave room for 日本語 lengths in tabs and buttons.
+- **Do** run `scripts/build-tailwind.sh` after template class changes and commit `platform/static/tailwind.css`.
 
 ### Don't:
-- **Don't** add a second accent colour. Indigo and blue as primaries are deprecated.
-- **Don't** put shadows on resting cards or panels.
-- **Don't** use `ink-faint` (`gray-400`, 2.5:1) or lighter for text that carries meaning on a light surface. The floor for secondary text is `ink-muted` (`gray-500`). The always-dark sidebar is the exception: there `gray-400` is 7.6:1.
-- **Don't** use `text-brand` for text. The fill amber is 3.9:1 on white. Use `text-brand-ink`.
-- **Don't** use 500/600 steps of amber, orange or green for status text. They are about 3.2–3.6:1. Use 700.
-- **Don't** hard-code chart colours. Take them from `chartTheme()` (see Components), which follows the theme.
-- **Don't** hard-code neutral hex values in templates. They won't follow the theme.
-- **Don't** use bare `rounded`. Use `rounded-md` for controls and `rounded-lg` for surfaces.
+- **Don't** use colour for actions, plain states, headings or decoration. No coloured buttons; no green "success", no blue "info" tags.
+- **Don't** use the JMA colours outside intensity data, or put a projection on a paused campaign.
+- **Don't** draw cards, boxed panels, KPI-card rows or a sidebar. The page is ruled, not boxed.
+- **Don't** use the Field tint except for the top bar, the nav panel and selected rows.
+- **Don't** add shadows to anything that doesn't float, or corners above 2px.
+- **Don't** use Mark (`gray-400`) or lighter for text.
+- **Don't** hard-code neutral hex values in templates; use the gray steps so dark mode follows.
+- **Don't** use coloured side stripes on notices; use the full-edge notice.

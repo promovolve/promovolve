@@ -14,37 +14,37 @@
 {{else}}
 
 {{/* Totals across the range — revenue is NET (platform fee deducted). */}}
-<div class="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-6 gap-3 mb-6">
-  <div class="card card-tight">
+<div class="figures grid-cols-2 md:grid-cols-3 lg:grid-cols-6 mb-6">
+  <div class="figure">
     <p class="text-xs text-gray-500">{{t "Revenue"}}</p>
-    <p class="text-xl font-semibold mt-1">{{money $r.Totals.SpendDisp}}</p>
+    <p class="text-2xl font-bold tabular mt-1">{{money $r.Totals.SpendDisp}}</p>
     {{if $r.FeePct}}<p class="text-xs text-gray-500">{{t "net of %s%% platform fee" $r.FeePct}}</p>{{end}}
   </div>
-  <div class="card card-tight">
+  <div class="figure">
     <p class="text-xs text-gray-500">{{t "Impressions"}}</p>
-    <p class="text-xl font-semibold mt-1">{{$r.Totals.Impressions}}</p>
+    <p class="text-2xl font-bold tabular mt-1">{{$r.Totals.Impressions}}</p>
     {{if $r.Totals.DogearedImps}}<p class="text-xs text-gray-500">{{t "+%d dog-eared" $r.Totals.DogearedImps}}</p>{{end}}
   </div>
-  <div class="card card-tight">
+  <div class="figure">
     <p class="text-xs text-gray-500">{{t "Clicks"}}</p>
-    <p class="text-xl font-semibold mt-1">{{$r.Totals.Clicks}}</p>
+    <p class="text-2xl font-bold tabular mt-1">{{$r.Totals.Clicks}}</p>
   </div>
-  <div class="card card-tight">
+  <div class="figure">
     <p class="text-xs text-gray-500">{{t "CTR"}}</p>
-    <p class="text-xl font-semibold mt-1">{{$r.Totals.CTR}}</p>
+    <p class="text-2xl font-bold tabular mt-1">{{$r.Totals.CTR}}</p>
   </div>
-  <div class="card card-tight">
+  <div class="figure">
     <p class="text-xs text-gray-500">{{t "CTA clicks"}}</p>
-    <p class="text-xl font-semibold mt-1">{{$r.Totals.CTAClicks}}</p>
+    <p class="text-2xl font-bold tabular mt-1">{{$r.Totals.CTAClicks}}</p>
   </div>
-  <div class="card card-tight">
+  <div class="figure">
     <p class="text-xs text-gray-500">{{t "eCPM"}}</p>
-    <p class="text-xl font-semibold mt-1">{{money $r.Totals.ECPM}}</p>
+    <p class="text-2xl font-bold tabular mt-1">{{money $r.Totals.ECPM}}</p>
   </div>
 </div>
 
 {{if $r.CoverageNote}}
-<div class="bg-yellow-50 border border-yellow-200 rounded-lg px-4 py-2 mb-4 text-sm text-yellow-800">
+<div class="notice notice-advisory px-4 py-2 mb-4 text-sm">
   {{t "Breakdown data is available from %s — earlier days in this range are not included." $r.CoverageNote}}
 </div>
 {{end}}
@@ -55,13 +55,13 @@
 <div class="mb-8">
   <h2 class="text-base font-semibold mb-3">{{t "All sites"}}</h2>
   <div class="card card-tight mb-4">
-    <p class="text-sm font-semibold mb-1">{{t "Daily revenue by site"}}</p>
+    <p class="text-sm font-bold mb-1">{{t "Daily revenue by site"}}</p>
     <div class="h-56"><canvas id="report-chart-sites-rev"></canvas></div>
-    <p class="text-sm font-semibold mb-1 mt-4">{{t "Daily impressions by site"}}</p>
+    <p class="text-sm font-bold mb-1 mt-4">{{t "Daily impressions by site"}}</p>
     <div class="h-56"><canvas id="report-chart-sites-imps"></canvas></div>
   </div>
-  <div class="card card-tight overflow-x-auto">
-    <table class="w-full text-sm">
+  <div class="overflow-x-auto">
+    <table class="data-table">
       <thead>
         <tr class="text-left text-xs text-gray-500 border-b">
           <th class="py-2 pr-4">{{t "Site"}}</th>
@@ -114,14 +114,14 @@
   {{if ne $s.Host $s.SiteID}}<p class="text-xs text-gray-500 mb-3">{{$s.SiteID}}</p>{{else}}<div class="mb-3"></div>{{end}}
 
   <div class="card card-tight mb-4">
-    <p class="text-sm font-semibold mb-1">{{t "Daily revenue by category"}}</p>
+    <p class="text-sm font-bold mb-1">{{t "Daily revenue by category"}}</p>
     <div class="h-56"><canvas id="report-chart-site-{{$i}}-rev"></canvas></div>
-    <p class="text-sm font-semibold mb-1 mt-4">{{t "Daily impressions by category"}}</p>
+    <p class="text-sm font-bold mb-1 mt-4">{{t "Daily impressions by category"}}</p>
     <div class="h-56"><canvas id="report-chart-site-{{$i}}-imps"></canvas></div>
   </div>
 
-  <div class="card card-tight overflow-x-auto">
-    <table class="w-full text-sm">
+  <div class="overflow-x-auto">
+    <table class="data-table">
       <thead>
         <tr class="text-left text-xs text-gray-500 border-b">
           <th class="py-2 pr-4">{{t "Category"}}</th>

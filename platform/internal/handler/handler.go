@@ -552,6 +552,8 @@ type pageData struct {
 	// local time it was drawn at.
 	AdvForecast     *forecast
 	AdvForecastAsOf string
+	AdvBalance      string // wallet balance beside today's figure; "" = unknown
+	AdvRunwayDays   int    // days the balance lasts at recent pace; -1 = no recent spend
 	AdvAvgWinRate   string // bid-weighted, e.g. "45.2%"
 	// Stats page: today's delivery per UTC hour (always 24 entries when
 	// the projection responded) + the day's impression total that gates

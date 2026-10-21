@@ -4,7 +4,7 @@
   <p class="page-sub">{{t "Review who gets access to this platform. Approval provisions the account on the ad server."}}</p>
 
   {{if .Error}}
-  <div class="bg-red-50 border border-red-200 text-red-700 rounded-lg p-3 mt-6 text-sm">{{.Error}}</div>
+  <div class="notice notice-error p-3 mt-6 text-sm">{{.Error}}</div>
   {{end}}
 
   {{if and (not .AdminRequests) (not .AdminOrgSideRequests)}}
@@ -22,7 +22,7 @@
     <div class="card">
       <div class="flex items-start justify-between gap-4">
         <div>
-          <div class="flex items-center gap-2 mb-1">
+          <div class="flex flex-wrap items-center gap-2 mb-1">
             <h2 class="font-semibold text-lg">{{if .OrgName}}{{.OrgName}}{{else}}@{{.OrgDomain}}{{end}}</h2>
             <span class="badge {{if eq .Side "publisher"}}badge-info{{else}}badge-success{{end}}">{{t "wants %s" (t (printf "%s" .Side))}}</span>
           </div>
@@ -54,7 +54,7 @@
     <div class="card">
       <div class="flex items-start justify-between gap-4">
         <div>
-          <div class="flex items-center gap-2 mb-1">
+          <div class="flex flex-wrap items-center gap-2 mb-1">
             <h2 class="font-semibold text-lg">{{.Company}}</h2>
             <span class="badge {{if eq .Role "publisher"}}badge-info{{else}}badge-success{{end}}">{{t .Role}}</span>
           </div>

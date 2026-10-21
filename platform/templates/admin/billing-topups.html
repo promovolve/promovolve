@@ -6,7 +6,7 @@
   {{template "billing-tabs" .}}
 
   {{if .Error}}
-  <div class="bg-red-50 border border-red-200 text-red-700 rounded-lg p-3 mt-6 text-sm">{{.Error}}</div>
+  <div class="notice notice-error p-3 mt-6 text-sm">{{.Error}}</div>
   {{end}}
 
   {{with .AdminTopups}}
@@ -63,25 +63,25 @@
          The balancing platform-cash leg lives on the Journal tab. No Kind
          column — on a top-up table the green +$ says it; only the rare
          refund gets a badge, right where its red amount is. */}}
-    <table class="w-full text-sm mt-3">
+    <table class="data-table">
       <thead>
-        <tr class="border-b text-left text-gray-500">
-          <th class="px-6 py-2 font-medium">{{t "When"}}</th>
-          <th class="px-6 py-2 font-medium">{{t "Advertiser"}}</th>
-          <th class="px-6 py-2 font-medium text-right">{{t "Amount"}}</th>
-          <th class="px-6 py-2 font-medium">{{t "Reference"}}</th>
+        <tr>
+          <th>{{t "When"}}</th>
+          <th>{{t "Advertiser"}}</th>
+          <th class="num">{{t "Amount"}}</th>
+          <th>{{t "Reference"}}</th>
         </tr>
       </thead>
       <tbody>
         {{range .Topups}}
-        <tr class="border-b last:border-0">
-          <td class="px-6 py-2 text-gray-500 whitespace-nowrap">{{.Created}}</td>
-          <td class="px-6 py-2">{{.Wallet}}</td>
-          <td class="px-6 py-2 text-right font-medium whitespace-nowrap {{if .Negative}}text-red-600{{else}}text-green-700{{end}}">{{if .Negative}}<span class="badge badge-danger mr-2">{{t .Kind}}</span>{{end}}{{.Amount}}</td>
-          <td class="px-6 py-2 text-gray-500">{{if .Memo}}{{.Memo}}{{else}}<span class="text-gray-300">—</span>{{end}}</td>
+        <tr>
+          <td class="text-gray-500 whitespace-nowrap">{{.Created}}</td>
+          <td>{{.Wallet}}</td>
+          <td class="text-right font-medium whitespace-nowrap {{if .Negative}}text-red-600{{else}}text-gray-900{{end}}">{{if .Negative}}<span class="badge badge-danger mr-2">{{t .Kind}}</span>{{end}}{{.Amount}}</td>
+          <td class="text-gray-500">{{if .Memo}}{{.Memo}}{{else}}<span class="text-gray-300">—</span>{{end}}</td>
         </tr>
         {{else}}
-        <tr><td class="px-6 py-4 text-gray-500" colspan="4">{{t "No top-ups yet."}}</td></tr>
+        <tr><td class="text-gray-500" colspan="4">{{t "No top-ups yet."}}</td></tr>
         {{end}}
       </tbody>
     </table>

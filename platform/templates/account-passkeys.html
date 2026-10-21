@@ -3,12 +3,12 @@
   <h1 class="page-title">{{t "Your passkeys"}}</h1>
   <p class="page-sub">{{t "Passkeys registered to %s. Add one on every device you sign in from." .User.Email}}</p>
 
-  <div id="passkey-error" class="hidden bg-red-50 border border-red-200 text-red-700 rounded-lg p-3 mt-6 text-sm"></div>
+  <div id="passkey-error" class="hidden notice notice-error p-3 mt-6 text-sm"></div>
 
   <div class="card mt-6 p-0 overflow-x-auto">
-    <table class="w-full text-sm">
+    <table class="data-table">
       <thead>
-        <tr class="border-b text-left text-gray-500">
+        <tr>
           <th class="px-4 py-3 font-medium">{{t "Name"}}</th>
           <th class="px-4 py-3 font-medium">{{t "Added"}}</th>
           <th class="px-4 py-3 font-medium">{{t "Last used"}}</th>
@@ -17,7 +17,7 @@
       </thead>
       <tbody>
         {{range .Passkeys}}
-        <tr class="border-b last:border-0">
+        <tr>
           <td class="px-4 py-3">{{.Name}}</td>
           <td class="px-4 py-3 text-gray-500">{{.Created}}</td>
           <td class="px-4 py-3 text-gray-500">{{.LastUsed}}</td>

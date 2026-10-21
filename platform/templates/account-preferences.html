@@ -4,10 +4,10 @@
   <p class="page-sub">{{t "Personal settings — they follow your login, not the organization."}}</p>
 
   {{if .Error}}
-  <div class="bg-red-50 border border-red-200 text-red-700 rounded-lg p-3 mt-6 text-sm">{{.Error}}</div>
+  <div class="notice notice-error p-3 mt-6 text-sm">{{.Error}}</div>
   {{end}}
   {{if .Saved}}
-  <div class="bg-green-50 border border-green-200 text-green-700 rounded-lg p-3 mt-6 text-sm">{{t "Preferences saved."}}</div>
+  <div class="notice notice-ok p-3 mt-6 text-sm">{{t "Preferences saved."}}</div>
   {{end}}
 
   <form method="POST" action="/account/preferences" class="card mt-6 p-6 space-y-6">

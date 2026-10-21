@@ -76,18 +76,22 @@
   .btn-sm { @apply min-h-6 px-3 py-1 text-xs; }
   .btn-primary { @apply bg-brand text-on-brand hover:bg-brand/85; }
   .btn-secondary { @apply bg-white border border-gray-900 text-gray-900 hover:bg-gray-100; }
-  .btn-success { @apply text-white hover:brightness-110; background-color: #146c2e; } /* 6.9:1 */
-  .btn-danger { @apply bg-warning text-white hover:brightness-110; }
-  .card { @apply bg-white border border-gray-200 rounded-sm p-6; }
-  .card-tight { @apply p-4; }
-  .badge { @apply inline-flex items-center px-2 py-0.5 rounded-sm text-xs font-bold; }
-  .badge-info { background-color: #e6efff; color: #0036d6; }
-  .badge-success { background-color: #e3f1e7; color: #146c2e; }
+  /* Colour belongs to data and alert levels, not to actions: approving
+     is an ink primary, a destructive action an ink outline (its confirm
+     dialog is the guard). */
+  .btn-success { @apply bg-brand text-on-brand hover:bg-brand/85; }
+  .btn-danger { @apply bg-white border border-gray-900 text-gray-900 hover:bg-gray-100; }
+  /* A card is a ruled section on the white ground, not a box. */
+  .card { @apply border-t border-gray-300 py-6; }
+  .card-tight { @apply py-4; }
+  .badge { @apply inline-flex items-center px-2 py-0.5 rounded-sm text-xs font-bold whitespace-nowrap; }
+  /* Plain states read as words; only advisory (yellow) and warning (red)
+     wear a colour. */
+  .badge-info { @apply bg-gray-100 text-gray-700; }
+  .badge-success { @apply bg-gray-100 text-gray-900; }
   .badge-warning { @apply bg-advisory text-[#1a1a1a]; }   /* JMA advisory */
   .badge-danger { @apply bg-warning text-white; }          /* JMA warning */
   .badge-neutral { @apply bg-gray-100 text-gray-700; }
-  .dark .badge-info { background-color: rgb(33 133 255 / 0.2); color: #a0d2ff; }
-  .dark .badge-success { background-color: rgb(20 108 46 / 0.35); color: #8fd6a3; }
   /* × inside a badge: inherits the badge's text colour, 24px hit area
      (WCAG 2.5.8) pulled back with negative margins so the tag doesn't grow. */
   .chip-x { @apply inline-flex items-center justify-center min-w-6 min-h-6 -my-1 -mr-1.5 ml-0.5 rounded-full font-bold opacity-70 hover:opacity-100 hover:bg-black/5 cursor-pointer; }
@@ -96,7 +100,29 @@
   .form-hint { @apply text-xs text-gray-500 mt-1; }
   .page-title { @apply text-3xl font-bold tracking-tight; }
   .page-sub { @apply text-sm text-gray-500 mt-1 max-w-3xl; }
-  .section-title { @apply text-lg font-bold; }
+  .section-title { @apply text-xl font-bold; }
+
+  /* Notices: a framed line, never a coloured side stripe. error = JMA
+     warning red, advisory = yellow, ok = green, info = intensity blue. */
+  .notice { @apply text-sm text-gray-900 px-3 py-2 border rounded-sm; }
+  .notice-error { background-color: #fff1f0; border-color: #d70a00; }
+  .notice-advisory { background-color: #fffbd1; border-color: #b3a600; }
+  .notice-ok { background-color: #e3f1e7; border-color: #146c2e; }
+  .notice-info { background-color: #e6efff; border-color: #2185ff; }
+  .dark .notice-error { background-color: rgb(215 10 0 / 0.16); border-color: #ff6a5f; }
+  .dark .notice-advisory { background-color: rgb(255 245 0 / 0.1); border-color: rgb(255 245 0 / 0.55); }
+  .dark .notice-ok { background-color: rgb(20 108 46 / 0.3); border-color: #8fd6a3; }
+  .dark .notice-info { background-color: rgb(33 133 255 / 0.18); border-color: #a0d2ff; }
+
+  /* A row of headline figures under an ink rule (stats, earnings,
+     billing totals): no boxes, the numbers carry the weight. */
+  .figures { @apply grid gap-x-6 border-t-2 border-gray-900; }
+  .figure { @apply py-3 border-b border-gray-200; }
+  .figure > dt { @apply text-xs text-gray-500; }
+  .figure > dd { @apply text-2xl font-bold tabular-nums mt-1; }
+
+  /* Forecast legend: each step's lower bound, centred on its left edge. */
+  .legend-tick { @apply absolute top-3 left-0 -translate-x-1/2 font-normal tabular-nums; }
 
   /* Flat data table: an ink rule over the header, hairlines between rows,
      no box around it. Wrap in overflow-x-auto where it can be wide. */
@@ -111,7 +137,7 @@
   .camp-row { display: grid; grid-template-columns: auto minmax(0, 1fr); gap: 0.5rem 0.75rem; align-items: center; }
   .camp-row > .span { grid-column: 1 / -1; }
   @media (min-width: 1280px) {
-    .camp-row { grid-template-columns: 5.5rem minmax(9rem, 1fr) 8.5rem 12rem 11rem 6.5rem 4.5rem max-content; }
+    .camp-row { grid-template-columns: 5.5rem minmax(9rem, 1fr) 8.5rem 12rem 11rem 6.5rem 4.5rem 8rem; }
     .camp-row > .span { grid-column: auto; }
   }
 
@@ -179,7 +205,7 @@
 
 /* Solid buttons on stable fills: text-white routes through the inverting
    vars and would flip dark in dark mode, so pin it. */
-.dark .btn-success, .dark .btn-danger, .dark .badge-danger { color: #fff; }
+.dark .badge-danger { color: #fff; }
 .dark .badge-warning { color: #1a1a1a; }
 
 /* Inbox selection: the selected row takes the field fill and bold text,

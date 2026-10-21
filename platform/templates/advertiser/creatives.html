@@ -14,7 +14,7 @@
          Campaigns page, not here). The sub line anchors the context:
          back link + which campaign these creatives belong to. */}}
     <p class="page-sub">
-      <a href="/advertiser/campaigns" class="text-brand-ink hover:underline">← {{t "Campaigns"}}</a>
+      <a href="/advertiser/campaigns" class="text-brand-ink hover:underline">{{template "i-back"}} {{t "Campaigns"}}</a>
       <span class="mx-1">·</span>
       <span class="font-medium">{{range .Campaigns}}{{if eq .ID $.CampaignID}}{{if .Name}}{{.Name}}{{else}}{{.ID}}{{end}}{{end}}{{end}}</span>
       <span class="mx-1">·</span>
@@ -271,7 +271,7 @@
           <button type="submit" class="text-xs text-red-600 hover:underline">{{t "Pause"}}</button>
           {{else}}
           <input type="hidden" name="status" value="Active">
-          <button type="submit" class="text-xs text-green-700 hover:underline">{{t "Activate"}}</button>
+          <button type="submit" class="text-xs text-gray-900 hover:underline">{{t "Activate"}}</button>
           {{end}}
         </form>
         {{end}}

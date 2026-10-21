@@ -23,6 +23,7 @@
        classes in platform/tailwind.input.css — see DESIGN.md.
        After ANY template class change run scripts/build-tailwind.sh and
        commit static/tailwind.css, or the new class silently has no styles. */}}
+  <link rel="stylesheet" href="{{asset "fonts/biz-udpgothic.css"}}">
   <link rel="stylesheet" href="{{asset "tailwind.css"}}">
   {{/* Chart colors for the current theme, read when a chart is drawn. The
        categorical steps are validated per surface (dataviz validator):
@@ -35,8 +36,9 @@
       var v = function (n) { return 'rgb(' + cs.getPropertyValue(n).trim().split(/\s+/).join(',') + ')'; };
       var dark = document.documentElement.classList.contains('dark');
       return {
-        ink: v('--c-gray-500'), grid: v('--c-gray-200'), surface: v('--c-white'), brand: '#d35f00',
-        brandTint: dark ? 'rgba(211,95,0,0.45)' : '#f2c8a6',
+        ink: v('--c-gray-500'), grid: v('--c-gray-200'), surface: v('--c-white'),
+        brand: dark ? '#a0d2ff' : '#0041ff',
+        brandTint: dark ? 'rgba(160,210,255,0.35)' : '#a0d2ff',
         pal: dark ? ['#3987e5', '#199e70', '#c98500', '#008300', '#9085e9', '#d95926']
                   : ['#2a78d6', '#1baf7a', '#eda100', '#008300', '#4a3aa7', '#d35f00']
       };
@@ -49,7 +51,7 @@
   <script defer src="{{asset "htmx.min.js"}}"></script>
   <script defer src="{{asset "htmx-sse.js"}}"></script>
 </head>
-<body class="bg-gray-50 text-gray-900 {{if .User}}h-dvh overflow-hidden flex flex-col{{else}}min-h-screen{{end}}">
+<body class="bg-gray-50 text-gray-900 font-sans {{if .User}}h-dvh overflow-hidden flex flex-col{{else}}min-h-screen{{end}}">
   {{if .User}}
   {{if .User.ViewAsBy}}
   {{/* Read-only admin view-as: unmistakable, sticky, with the one allowed
@@ -72,126 +74,100 @@
       opacity: .45;
     }
   </style>
-  <div class="shrink-0 sticky top-0 z-50 bg-amber-400 text-gray-950 text-sm px-4 py-2 flex items-center justify-between gap-4">
-    <span>👁 {{t "Viewing as"}} <strong>{{.User.Email}}</strong> — {{t "read-only admin session"}} ({{.User.ViewAsBy}})</span>
+  {{/* Advisory yellow: the JMA "take note" level, in both themes. */}}
+  <div class="shrink-0 bg-advisory text-[#1a1a1a] text-sm px-4 py-2 flex items-center justify-between gap-4">
+    <span><strong>{{t "Viewing as"}} {{.User.Email}}</strong> — {{t "read-only admin session"}} ({{.User.ViewAsBy}})</span>
     <form method="POST" action="/view-as/exit" data-viewas-allowed>
-      <button type="submit" class="font-semibold underline hover:no-underline">{{t "Exit view"}}</button>
+      <button type="submit" class="font-bold underline hover:no-underline">{{t "Exit view"}}</button>
     </form>
   </div>
   {{end}}
-  {{/* shrink-0: the sidebar is a flex sibling of <main> — wide unbreakable
-       content on the right (long URLs, tables) used to steal width from it
-       and squash the footer links. min-w-0 + overflow-x-auto on <main>
-       makes wide content scroll inside the pane instead. */}}
-  {{/* A content-sized row would stretch the sidebar when the main pane
-       wraps or grows. Keep scrolling inside each pane so account controls
-       remain reachable without scrolling through the main content. */}}
-  {{/* Below md the sidebar becomes an off-canvas drawer behind a top bar.
-       `invisible` (not just off-screen) keeps the closed drawer's links out
-       of the tab order and the accessibility tree. */}}
-  <div class="flex flex-col md:flex-row flex-1 min-h-0" x-data="{ navOpen: false }" @keydown.escape.window="navOpen = false">
-    <div class="theme-light-scope md:hidden shrink-0 h-12 px-4 flex items-center justify-between gap-3 bg-gray-900 text-gray-100">
-      <p class="min-w-0 truncate"><span class="font-semibold">Promovolve</span>
-        <span class="text-xs text-gray-400 ml-2">{{if eq .User.Role "publisher"}}{{t "Publisher Dashboard"}}{{else if eq .User.Role "advertiser"}}{{t "Advertiser Dashboard"}}{{else}}{{t "Admin Dashboard"}}{{end}}</span></p>
-      <button type="button" @click="navOpen = !navOpen" :aria-expanded="navOpen ? 'true' : 'false'" aria-expanded="false" aria-controls="app-nav"
-              aria-label="{{t "Menu"}}" class="-mr-2 p-2 rounded-md text-gray-300 hover:text-white hover:bg-gray-800">
-        <svg class="w-5 h-5" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" viewBox="0 0 24 24" aria-hidden="true"><path d="M4 7h16M4 12h16M4 17h16"/></svg>
-      </button>
-    </div>
-    <div x-show="navOpen" x-cloak x-transition.opacity @click="navOpen = false" class="md:hidden fixed inset-0 z-30 bg-black/40"></div>
-    {{/* theme-light-scope freezes the gray/white variables to their light
-         values inside the sidebar, so this always-dark chrome (dark bg, light
-         text) looks identical in both themes instead of inverting. */}}
-    <aside id="app-nav" :data-open="navOpen ? 'true' : 'false'"
-           class="theme-light-scope w-60 shrink-0 overflow-y-auto bg-gray-900 text-gray-100 p-4 flex flex-col
-                  fixed inset-y-0 left-0 z-40 invisible -translate-x-full transition-[transform,visibility] duration-200 ease-out motion-reduce:transition-none
-                  data-[open=true]:visible data-[open=true]:translate-x-0
-                  md:static md:z-auto md:visible md:translate-x-0 md:transition-none">
-      <div class="mb-8 shrink-0">
-        <p class="text-lg font-semibold">Promovolve</p>
-        <p class="text-xs text-gray-400 mt-1">
-          {{if eq .User.Role "publisher"}}{{t "Publisher Dashboard"}}{{else if eq .User.Role "advertiser"}}{{t "Advertiser Dashboard"}}{{else}}{{t "Admin Dashboard"}}{{end}}
-        </p>
+  {{/* Top bar: wordmark, the role's pages as tabs (lg+), account menu.
+       Below lg the same <nav> opens as a panel under the bar from the menu
+       button; `hidden` keeps the closed panel out of the tab order. */}}
+  <header class="shrink-0 relative z-40 bg-field text-gray-900" x-data="{ navOpen: false, acct: false }"
+          @keydown.escape.window="navOpen = false; acct = false">
+    <div class="h-14 px-4 lg:px-8 flex items-stretch gap-3 sm:gap-6">
+      <p class="self-center shrink-0 leading-tight"><span class="text-lg font-bold tracking-tight">Promovolve</span>
+        <span class="hidden sm:inline ml-2 text-xs text-gray-600">{{if eq .User.Role "publisher"}}{{t "Publisher"}}{{else if eq .User.Role "advertiser"}}{{t "Advertiser"}}{{else}}{{t "Admin"}}{{end}}</span></p>
+      <nav id="app-nav" aria-label="{{t "Main"}}" :data-open="navOpen ? 'true' : 'false'"
+           class="hidden data-[open=true]:flex flex-col absolute top-full inset-x-0 bg-field px-2 pb-3 border-b border-gray-300
+                  lg:flex lg:flex-row lg:static lg:p-0 lg:border-0 lg:min-w-0 lg:overflow-x-auto">
+        {{if eq .User.Role "publisher"}}
+        <a href="/publisher/approval" class="nav-tab" {{if eq .Nav "approval"}}aria-current="page"{{end}}>{{t "Approval Queue"}}</a>
+        <a href="/publisher/trusted" class="nav-tab" {{if eq .Nav "trusted"}}aria-current="page"{{end}}>{{t "Trusted Advertisers"}}</a>
+        <a href="/publisher/sites" class="nav-tab" {{if eq .Nav "sites"}}aria-current="page"{{end}}>{{t "Sites"}}</a>
+        <a href="/publisher/stats" class="nav-tab" {{if eq .Nav "stats"}}aria-current="page"{{end}}>{{t "Stats"}}</a>
+        {{if .User.CanBilling}}
+        <a href="/publisher/earnings" class="nav-tab" {{if eq .Nav "earnings"}}aria-current="page"{{end}}>{{t "Earnings"}}</a>
+        {{end}}
+        <a href="/publisher/report" class="nav-tab" {{if eq .Nav "report"}}aria-current="page"{{end}}>{{t "Report"}}</a>
+        <a href="/publisher/help" class="nav-tab" {{if eq .Nav "help"}}aria-current="page"{{end}}>{{t "Help"}}</a>
+        {{else if eq .User.Role "advertiser"}}
+        {{/* Creatives has no tab of its own — it is reached from each
+             campaign (a creative belongs to a campaign); the tab stays on
+             Campaigns there. */}}
+        <a href="/advertiser/campaigns" class="nav-tab" {{if or (eq .Nav "campaigns") (eq .Nav "creatives")}}aria-current="page"{{end}}>{{t "Campaigns"}}</a>
+        <a href="/advertiser/stats" class="nav-tab" {{if eq .Nav "stats"}}aria-current="page"{{end}}>{{t "Stats"}}</a>
+        <a href="/advertiser/report" class="nav-tab" {{if eq .Nav "report"}}aria-current="page"{{end}}>{{t "Report"}}</a>
+        {{if .User.CanBilling}}
+        <a href="/advertiser/wallet" class="nav-tab" {{if eq .Nav "wallet"}}aria-current="page"{{end}}>{{t "Wallet"}}</a>
+        {{end}}
+        <a href="/advertiser/account" class="nav-tab" {{if eq .Nav "account"}}aria-current="page"{{end}}>{{t "Account"}}</a>
+        <a href="/advertiser/help" class="nav-tab" {{if eq .Nav "help"}}aria-current="page"{{end}}>{{t "Help"}}</a>
+        {{else if eq .User.Role "admin"}}
+        <a href="/admin/requests" class="nav-tab" {{if eq .Nav "admin-requests"}}aria-current="page"{{end}}>{{t "Requests"}}</a>
+        <a href="/admin/sites" class="nav-tab" {{if eq .Nav "admin-sites"}}aria-current="page"{{end}}>{{t "Site Requests"}}</a>
+        <a href="/admin/fraud" class="nav-tab" {{if eq .Nav "admin-fraud"}}aria-current="page"{{end}}>{{t "Fraud Review"}}</a>
+        <a href="/admin/users" class="nav-tab" {{if eq .Nav "admin-users"}}aria-current="page"{{end}}>{{t "Users"}}</a>
+        <a href="/admin/settings" class="nav-tab" {{if eq .Nav "admin-settings"}}aria-current="page"{{end}}>{{t "Settings"}}</a>
+        <a href="/admin/billing" class="nav-tab" {{if eq .Nav "admin-billing"}}aria-current="page"{{end}}>{{t "Billing"}}</a>
+        {{end}}
+      </nav>
+      <div class="ml-auto self-center flex items-center gap-1 sm:gap-2 min-w-0">
         {{if .User.HasBothSides}}
         {{/* Side switcher: the org holds both accounts; one login, pick a hat. */}}
-        <div class="mt-3 grid grid-cols-2 gap-1 bg-gray-800 rounded-md p-1 text-xs">
+        <div class="hidden sm:flex border border-gray-900 rounded-sm text-xs" role="group" aria-label="{{t "Account side"}}">
           <form method="POST" action="/account/switch-side" data-viewas-allowed>
             <input type="hidden" name="side" value="advertiser">
-            <button type="submit" class="w-full px-2 py-1 rounded {{if eq .User.Role "advertiser"}}bg-brand text-gray-950 font-semibold{{else}}text-gray-300 hover:bg-gray-700{{end}}">{{t "Advertiser"}}</button>
+            <button type="submit" class="px-3 py-1.5 {{if eq .User.Role "advertiser"}}bg-brand text-on-brand font-bold{{else}}hover:bg-white{{end}}" {{if eq .User.Role "advertiser"}}aria-pressed="true"{{else}}aria-pressed="false"{{end}}>{{t "Advertiser"}}</button>
           </form>
           <form method="POST" action="/account/switch-side" data-viewas-allowed>
             <input type="hidden" name="side" value="publisher">
-            <button type="submit" class="w-full px-2 py-1 rounded {{if eq .User.Role "publisher"}}bg-brand text-gray-950 font-semibold{{else}}text-gray-300 hover:bg-gray-700{{end}}">{{t "Publisher"}}</button>
+            <button type="submit" class="px-3 py-1.5 {{if eq .User.Role "publisher"}}bg-brand text-on-brand font-bold{{else}}hover:bg-white{{end}}" {{if eq .User.Role "publisher"}}aria-pressed="true"{{else}}aria-pressed="false"{{end}}>{{t "Publisher"}}</button>
           </form>
         </div>
         {{end}}
-      </div>
-      <nav class="flex-1 space-y-1">
-        {{if eq .User.Role "publisher"}}
-        <a href="/publisher/approval" class="block px-3 py-2 rounded text-sm {{if eq .Nav "approval"}}bg-gray-700 text-white{{else}}text-gray-300 hover:bg-gray-800{{end}}">{{t "Approval Queue"}}</a>
-        <a href="/publisher/trusted" class="block px-3 py-2 rounded text-sm {{if eq .Nav "trusted"}}bg-gray-700 text-white{{else}}text-gray-300 hover:bg-gray-800{{end}}">{{t "Trusted Advertisers"}}</a>
-        <a href="/publisher/sites" class="block px-3 py-2 rounded text-sm {{if eq .Nav "sites"}}bg-gray-700 text-white{{else}}text-gray-300 hover:bg-gray-800{{end}}">{{t "Sites"}}</a>
-        <a href="/publisher/stats" class="block px-3 py-2 rounded text-sm {{if eq .Nav "stats"}}bg-gray-700 text-white{{else}}text-gray-300 hover:bg-gray-800{{end}}">{{t "Stats"}}</a>
-        {{if .User.CanBilling}}
-        <a href="/publisher/earnings" class="block px-3 py-2 rounded text-sm {{if eq .Nav "earnings"}}bg-gray-700 text-white{{else}}text-gray-300 hover:bg-gray-800{{end}}">{{t "Earnings"}}</a>
-        {{end}}
-        <a href="/publisher/report" class="block px-3 py-2 rounded text-sm {{if eq .Nav "report"}}bg-gray-700 text-white{{else}}text-gray-300 hover:bg-gray-800{{end}}">{{t "Report"}}</a>
-        <a href="/publisher/help" class="block px-3 py-2 rounded text-sm {{if eq .Nav "help"}}bg-gray-700 text-white{{else}}text-gray-300 hover:bg-gray-800{{end}}">{{t "Help"}}</a>
-        {{else if eq .User.Role "advertiser"}}
-        <a href="/advertiser/account" class="block px-3 py-2 rounded text-sm {{if eq .Nav "account"}}bg-gray-700 text-white{{else}}text-gray-300 hover:bg-gray-800{{end}}">{{t "Account"}}</a>
-        {{/* Creatives has no nav item of its own — it's reached from each
-             campaign's row (a creative belongs to a campaign, and the page
-             is campaign-scoped anyway). Nav stays on "campaigns" there. */}}
-        <a href="/advertiser/campaigns" class="block px-3 py-2 rounded text-sm {{if or (eq .Nav "campaigns") (eq .Nav "creatives")}}bg-gray-700 text-white{{else}}text-gray-300 hover:bg-gray-800{{end}}">{{t "Campaigns"}}</a>
-        <a href="/advertiser/stats" class="block px-3 py-2 rounded text-sm {{if eq .Nav "stats"}}bg-gray-700 text-white{{else}}text-gray-300 hover:bg-gray-800{{end}}">{{t "Stats"}}</a>
-        <a href="/advertiser/report" class="block px-3 py-2 rounded text-sm {{if eq .Nav "report"}}bg-gray-700 text-white{{else}}text-gray-300 hover:bg-gray-800{{end}}">{{t "Report"}}</a>
-        {{if .User.CanBilling}}
-        <a href="/advertiser/wallet" class="block px-3 py-2 rounded text-sm {{if eq .Nav "wallet"}}bg-gray-700 text-white{{else}}text-gray-300 hover:bg-gray-800{{end}}">{{t "Wallet"}}</a>
-        {{end}}
-        <a href="/advertiser/help" class="block px-3 py-2 rounded text-sm {{if eq .Nav "help"}}bg-gray-700 text-white{{else}}text-gray-300 hover:bg-gray-800{{end}}">{{t "Help"}}</a>
-        {{else if eq .User.Role "admin"}}
-        <a href="/admin/requests" class="block px-3 py-2 rounded text-sm {{if eq .Nav "admin-requests"}}bg-gray-700 text-white{{else}}text-gray-300 hover:bg-gray-800{{end}}">{{t "Requests"}}</a>
-        <a href="/admin/sites" class="block px-3 py-2 rounded text-sm {{if eq .Nav "admin-sites"}}bg-gray-700 text-white{{else}}text-gray-300 hover:bg-gray-800{{end}}">{{t "Site Requests"}}</a>
-        <a href="/admin/fraud" class="block px-3 py-2 rounded text-sm {{if eq .Nav "admin-fraud"}}bg-gray-700 text-white{{else}}text-gray-300 hover:bg-gray-800{{end}}">{{t "Fraud Review"}}</a>
-        <a href="/admin/users" class="block px-3 py-2 rounded text-sm {{if eq .Nav "admin-users"}}bg-gray-700 text-white{{else}}text-gray-300 hover:bg-gray-800{{end}}">{{t "Users"}}</a>
-        <a href="/admin/settings" class="block px-3 py-2 rounded text-sm {{if eq .Nav "admin-settings"}}bg-gray-700 text-white{{else}}text-gray-300 hover:bg-gray-800{{end}}">{{t "Settings"}}</a>
-        <a href="/admin/billing" class="block px-3 py-2 rounded text-sm {{if eq .Nav "admin-billing"}}bg-gray-700 text-white{{else}}text-gray-300 hover:bg-gray-800{{end}}">{{t "Billing"}}</a>
-        {{end}}
-      </nav>
-      {{/* The account footer (email, theme, Team/Preferences/Passkeys/Sign
-           out) is the viewed user's own controls — hidden in a read-only
-           view-as session, where they'd be inert or wrong (Sign out would
-           end the whole session instead of exiting view; the banner's
-           "Exit view" is the way out). */}}
-      {{if not .User.ViewAsBy}}
-      <div class="shrink-0 border-t border-gray-700 pt-4 mt-4">
-        {{/* Email + theme toggle share a row so the account links below have
-             the full width. Theme is icon-only (designer-style) to save
-             space — the tooltip carries the current mode. */}}
-        <div class="flex items-center justify-between gap-2 mb-2">
-          <p class="text-xs text-gray-400 truncate">{{.User.Email}}</p>
-          <button type="button" id="theme-cycle" title="{{t "Theme"}}" aria-label="{{t "Theme"}}"
-                  class="shrink-0 -m-1 p-1 text-base leading-none text-gray-400 hover:text-white">
-            <span data-icon aria-hidden="true">◐</span>
+        {{/* The account menu is the viewed user's own controls — hidden in a
+             read-only view-as session (Sign out would end the whole session;
+             the banner's "Exit view" is the way out). */}}
+        {{if not .User.ViewAsBy}}
+        <div class="relative" @click.outside="acct = false">
+          <button type="button" @click="acct = !acct" :aria-expanded="acct ? 'true' : 'false'" aria-expanded="false" aria-controls="acct-menu"
+                  class="flex items-center gap-1.5 px-2 py-1.5 rounded-sm text-sm hover:bg-white max-w-[9rem] sm:max-w-[14rem]">
+            <span class="truncate">{{.User.Email}}</span>
+            <svg class="w-4 h-4 shrink-0" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24" aria-hidden="true"><path d="M6 9l6 6 6-6"/></svg>
           </button>
+          <div id="acct-menu" x-show="acct" x-cloak
+               class="absolute right-0 top-full mt-1 w-56 bg-white border border-gray-900 shadow-lg py-1 text-sm">
+            {{if .User.Org}}<a href="/org/members" class="block px-4 py-2 hover:bg-gray-100" {{if eq .Nav "team"}}aria-current="page"{{end}}>{{t "Team"}}</a>{{end}}
+            <a href="/account/preferences" class="block px-4 py-2 hover:bg-gray-100" {{if eq .Nav "preferences"}}aria-current="page"{{end}}>{{t "Preferences"}}</a>
+            <a href="/account/passkeys" class="block px-4 py-2 hover:bg-gray-100" {{if eq .Nav "passkeys"}}aria-current="page"{{end}}>{{t "Passkeys"}}</a>
+            <button type="button" id="theme-cycle" class="block w-full text-left px-4 py-2 hover:bg-gray-100"><span data-label>{{t "Theme"}}</span></button>
+            <a href="/logout" class="block px-4 py-2 border-t border-gray-200 hover:bg-gray-100">{{t "Sign out"}}</a>
+          </div>
         </div>
-        {{/* whitespace-nowrap + flex-wrap: a link that doesn't fit moves to
-             the next line WHOLE, never breaking mid-phrase. */}}
-        <div class="flex flex-wrap items-center gap-x-3 gap-y-1">
-          {{if .User.Org}}
-          <a href="/org/members" class="text-sm whitespace-nowrap {{if eq .Nav "team"}}text-white{{else}}text-gray-400 hover:text-white{{end}}">{{t "Team"}}</a>
-          {{end}}
-          <a href="/account/preferences" class="text-sm whitespace-nowrap {{if eq .Nav "preferences"}}text-white{{else}}text-gray-400 hover:text-white{{end}}">{{t "Preferences"}}</a>
-          <a href="/account/passkeys" class="text-sm whitespace-nowrap {{if eq .Nav "passkeys"}}text-white{{else}}text-gray-400 hover:text-white{{end}}">{{t "Passkeys"}}</a>
-          <a href="/logout" class="text-sm whitespace-nowrap text-gray-400 hover:text-white">{{t "Sign out"}}</a>
-        </div>
+        {{end}}
+        <button type="button" @click="navOpen = !navOpen" :aria-expanded="navOpen ? 'true' : 'false'" aria-expanded="false" aria-controls="app-nav"
+                aria-label="{{t "Menu"}}" class="lg:hidden p-2 rounded-sm hover:bg-white">
+          <svg class="w-5 h-5" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" viewBox="0 0 24 24" aria-hidden="true"><path d="M4 7h16M4 12h16M4 17h16"/></svg>
+        </button>
       </div>
-      {{end}}
-    </aside>
-    <main class="flex-1 min-w-0 overflow-x-auto p-4 md:p-8">
-      {{template "content" .}}
-    </main>
-  </div>
+    </div>
+  </header>
+  <main class="flex-1 min-h-0 overflow-auto p-4 md:p-8">
+    {{template "content" .}}
+  </main>
   {{else}}
   {{template "content" .}}
   {{end}}
@@ -201,11 +177,10 @@
   <script>
     (function () {
       var KEY = 'promovolve.dashboard.theme';
-      var ICON = { auto: '◐', light: '☀', dark: '☾' };
-      var TITLE = {
-        auto: '{{t "Theme: auto (follows your OS) — click to cycle"}}',
-        light: '{{t "Theme: light — click to cycle"}}',
-        dark: '{{t "Theme: dark — click to cycle"}}'
+      var LABEL = {
+        auto: '{{t "Theme: Auto"}}',
+        light: '{{t "Theme: Light"}}',
+        dark: '{{t "Theme: Dark"}}'
       };
       var NEXT = { auto: 'light', light: 'dark', dark: 'auto' };
       var mq = matchMedia('(prefers-color-scheme: dark)');
@@ -214,11 +189,7 @@
         var dark = m === 'dark' || (m === 'auto' && mq.matches);
         document.documentElement.classList.toggle('dark', dark);
         var b = document.getElementById('theme-cycle');
-        if (b) {
-          b.querySelector('[data-icon]').textContent = ICON[m];
-          b.title = TITLE[m];
-          b.setAttribute('aria-label', TITLE[m]);
-        }
+        if (b) b.querySelector('[data-label]').textContent = LABEL[m];
       }
       var btn = document.getElementById('theme-cycle');
       if (btn) btn.addEventListener('click', function () {
@@ -309,7 +280,7 @@
           const c = 'w-8 h-8 rounded-md ';
           if (!d.iso) return c + 'invisible';
           if (d.dis) return c + 'text-gray-300 cursor-default';
-          if (d.iso === this.val) return c + 'bg-brand text-gray-950 font-semibold';
+          if (d.iso === this.val) return c + 'bg-brand text-on-brand font-bold';
           return c + 'hover:bg-gray-100';
         },
       });

@@ -238,7 +238,7 @@
   };
   new Chart(document.getElementById('report-chart-spend'), {
     ...base,
-    data: { labels, datasets: [line({{$r.ChartSpend}}, SPEND, 'rgba(211,95,0,0.10)')] },
+    data: { labels, datasets: [line({{$r.ChartSpend}}, SPEND, 'rgba(33,133,255,0.10)')] },
     options: {
       ...base.options,
       plugins: { legend: { display: false }, tooltip: { callbacks: { label: c => CUR_SYM + c.parsed.y.toFixed(CUR_DEC) } } },

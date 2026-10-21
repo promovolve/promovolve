@@ -337,6 +337,17 @@ func (s *Service) ResolveSiteFlags(ctx context.Context, siteID, by string) (int6
 	return tag.RowsAffected(), nil
 }
 
+// HasActiveSiteFlags reports whether fraud detection still holds the site
+// (an open or confirmed flag); its suspension is resolved on Fraud Review or
+// the fraud section of Site Requests, not by a plain resume.
+func (s *Service) HasActiveSiteFlags(ctx context.Context, siteID string) (bool, error) {
+	var active bool
+	err := s.pool.QueryRow(ctx, `
+		SELECT EXISTS (SELECT 1 FROM fraud_flags WHERE site_id = $1 AND status IN ('open', 'confirmed'))`,
+		siteID).Scan(&active)
+	return active, err
+}
+
 // RestoreKey is the idempotency key for restoring one clawed-back cell —
 // distinct from ClawbackKey so a restore never collides with the clawback
 // it reverses, and re-running a restore is a no-op.

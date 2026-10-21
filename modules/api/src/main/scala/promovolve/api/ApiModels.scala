@@ -333,7 +333,7 @@ object ApiModels {
       id: String,
       publisherId: String,
       domain: String,
-      status: String, // active, paused
+      status: String, // active, suspended (operator freeze: org, fraud or admin)
       crawlConfig: SiteCrawlConfig,
       slots: Vector[SiteSlotConfig],
       taxonomyIds: Vector[String],

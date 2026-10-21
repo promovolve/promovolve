@@ -1005,6 +1005,11 @@ var ja = map[string]string{
 	"Released in %d days": "あと %d 日で解除",
 	"Release %s now? The site is deleted from the ad server and the domain can be registered again.": "%s を今すぐ解除しますか?サイトは広告サーバーから削除され、ドメインは再登録できるようになります。",
 	"Release now": "今すぐ解除",
+	"Suspend %s? The site stops serving ads now. Its slots, floors, approvals and verification are kept, and Resume puts it back.": "%sを凍結しますか？広告配信がすぐに停止します。スロット、フロア価格、承認、検証は保持され、再開すると元に戻ります。",
+	"Suspend %s": "%sを凍結",
+	"Resume %s":  "%sを再開",
+	"This publisher's organization is suspended. Resume the organization on Users.":                                        "このパブリッシャーの組織は凍結中です。ユーザーページで組織を再開してください。",
+	"Fraud detection is holding this site. Resolve it on Fraud Review.":                                                    "このサイトは不正検出により保留中です。不正レビューで対応してください。",
 	"Remove %s? The site is deleted from the ad server and stops serving ads now. Earnings and delivery history are kept.": "%sを削除しますか？サイトは広告サーバーから削除され、広告配信がすぐに停止します。収益と配信履歴は残ります。",
 	"Removed by an administrator. Contact the operator before adding it again.":                                            "管理者により削除されました。再度追加する前に運営者にお問い合わせください。",
 

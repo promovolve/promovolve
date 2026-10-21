@@ -131,6 +131,7 @@ type PendingRow struct {
 	model.SiteRequest
 	RequesterEmail   string
 	RequesterCompany string
+	Suspended        bool // core serving freeze; set by ListApprovedSites only
 }
 
 func (r *Repository) ListPending(ctx context.Context) ([]PendingRow, error) {

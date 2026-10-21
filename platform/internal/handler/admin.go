@@ -579,6 +579,31 @@ func (h *Handler) ReleaseUnverifiedSite(w http.ResponseWriter, r *http.Request) 
 	http.Redirect(w, r, "/admin/sites", http.StatusSeeOther)
 }
 
+// RemoveSite deletes a verified site from the ad server on an admin's
+// decision; the publisher sees the request closed with the reason.
+func (h *Handler) RemoveSite(w http.ResponseWriter, r *http.Request) {
+	admin, _, ok := h.requireRole(w, r, model.RoleAdmin)
+	if !ok {
+		return
+	}
+	r.ParseForm()
+	requestID := r.FormValue("requestId")
+	if requestID == "" {
+		h.renderAdminSiteRequests(w, r, "missing request id")
+		return
+	}
+	req, err := h.siteReqSvc.Remove(r.Context(), requestID)
+	if err != nil {
+		slog.Error("remove site failed", "requestId", requestID, "error", err)
+		h.renderAdminSiteRequests(w, r, fmt.Sprintf("could not remove the site: %v", err))
+		return
+	}
+	if h.auditRepo != nil {
+		h.auditRepo.Log(r.Context(), admin.ID, admin.Email, "", "site_remove", req.SiteID, req.Domain)
+	}
+	http.Redirect(w, r, "/admin/sites", http.StatusSeeOther)
+}
+
 // suspendedSiteRows lists every currently-suspended site (auto-suspended
 // with an open flag, OR confirmed-fraud and still frozen), one row per
 // site, newest first. This is distinct from Fraud Review, which shows only

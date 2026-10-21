@@ -432,3 +432,29 @@
   </form>
 </div>
 {{end}}
+
+{{/* forecast-strip: a day as 24 hour cells on the JMA intensity scale
+     (handler/forecast.go). Hours after now are the "at this pace"
+     projection: faded with a dashed edge. The bar marks now. The outlook
+     sentence is the accessible text; every cell carries its value as a
+     title. Pass a forecast. */}}
+{{define "forecast-strip"}}
+<div class="relative" role="img" aria-label="{{.Outlook}}">
+  <div class="grid gap-px" style="grid-template-columns:repeat(24,minmax(0,1fr))">
+    {{range .Cells}}<span title="{{.Title}}" class="h-3.5 {{if .Level}}bg-jma-{{.Level}}{{else}}bg-gray-100{{end}}{{if .Projected}} opacity-40 outline-dashed outline-1 -outline-offset-1 outline-gray-500{{end}}"></span>{{end}}
+  </div>
+  <span class="absolute -top-1 -bottom-1 w-0.5 bg-gray-900" style="left:{{.NowPct}}%" aria-hidden="true"></span>
+</div>
+{{end}}
+
+{{/* The scale's key: what the colours mean, the dashed projection, the
+     now line. */}}
+{{define "forecast-legend"}}
+<div class="mt-2 flex flex-wrap items-center gap-x-6 gap-y-2 text-xs text-gray-500">
+  <span class="inline-flex items-center gap-2">{{t "Slower"}}
+    <span class="inline-flex" aria-hidden="true"><i class="w-4 h-2.5 bg-jma-1"></i><i class="w-4 h-2.5 bg-jma-2"></i><i class="w-4 h-2.5 bg-jma-3"></i><i class="w-4 h-2.5 bg-jma-4"></i><i class="w-4 h-2.5 bg-jma-5"></i><i class="w-4 h-2.5 bg-jma-6"></i><i class="w-4 h-2.5 bg-jma-7"></i></span>
+    {{t "faster than an even spread of the daily budget"}}</span>
+  <span class="inline-flex items-center gap-2"><i class="w-3.5 h-3.5 bg-jma-3 opacity-40 outline-dashed outline-1 -outline-offset-1 outline-gray-500" aria-hidden="true"></i>{{t "at this pace"}}</span>
+  <span class="inline-flex items-center gap-2"><i class="w-0.5 h-3.5 bg-gray-900" aria-hidden="true"></i>{{t "now"}}</span>
+</div>
+{{end}}

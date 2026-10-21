@@ -47,7 +47,7 @@ func TestCboTemplatesRender(t *testing.T) {
 
 	for _, lang := range []string{i18n.LangEN, i18n.LangJA} {
 		badge := i18n.T(lang, "Optimized")
-		badges := func(html string) int { return strings.Count(html, ">\n            "+badge+"\n          </span>") }
+		badges := func(html string) int { return strings.Count(html, ">"+badge+"</span>") }
 
 		// Optimized account: no per-campaign control, both budgets disabled, both badged.
 		html := render(lang, "advertiser/campaigns.html",

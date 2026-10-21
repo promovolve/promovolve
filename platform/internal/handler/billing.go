@@ -16,6 +16,7 @@ import (
 	"log/slog"
 	"net/http"
 	"sort"
+	"strconv"
 	"strings"
 	"time"
 
@@ -157,7 +158,11 @@ type walletPageData struct {
 	Balance, Status       string
 	Timezone              string // billing/budget day zone; "" hides the mention (UTC default)
 	Suspended, LowBalance bool
-	Activity              []walletActivityRow
+	// Today's delivery so far (charged after midnight), the balance once it
+	// is, and the outlook strip: settled days, today, the days ahead.
+	Pending, Projected string
+	Forecast           *forecast
+	Activity           []walletActivityRow
 	Statement             []statementRow
 	Months                []monthlyRow
 }
@@ -1184,12 +1189,42 @@ func (h *Handler) AdvertiserWallet(w http.ResponseWriter, r *http.Request) {
 		data.Timezone = tz
 	}
 
+	var balance float64
 	if acc, err := h.billingSvc.GetAccount(ctx, billing.OwnerAdvertiser, advertiserID); err == nil {
 		data.Balance = usdTile(acc.BalanceMicros)
 		data.Status = string(acc.Status)
 		data.Suspended = acc.Status == billing.StatusSuspended
 		data.LowBalance = acc.Status == billing.StatusLowBalance
+		balance = currency.Major(acc.BalanceMicros)
 	}
+	// Today's delivered spend (not yet settled) from the same hourly
+	// source as the campaigns page, and recent settled days.
+	var pending float64
+	hBody, _ := h.coreGet("/v1/advertisers/me/hourly-today", claims)
+	var hResp struct {
+		Hours []struct {
+			Spend string `json:"spend"`
+		} `json:"hours"`
+	}
+	if json.Unmarshal(hBody, &hResp) == nil {
+		for _, hr := range hResp.Hours {
+			v, _ := strconv.ParseFloat(hr.Spend, 64)
+			pending += v
+		}
+	}
+	charged := map[string]float64{}
+	if days, err := h.billingSvc.DailyCharged(ctx, advertiserID, walletDays+1); err == nil {
+		for d, m := range days {
+			charged[d] = currency.Major(m)
+		}
+	}
+	_, loc := h.accountTimeContext(ctx, advertiserID)
+	lang := h.lang(r, user)
+	f, _ := walletForecast(lang, charged, balance, pending, time.Now().In(loc))
+	if data.Suspended {
+		f.Alert, f.Outlook = "warning", i18n.T(lang, "Serving is paused — your wallet is out of funds.")
+	}
+	data.Forecast, data.Pending, data.Projected = &f, fmtMoney(pending), fmtMoney(balance-pending)
 	if activity, err := h.billingSvc.ListAccountActivity(ctx, billing.OwnerAdvertiser, advertiserID, 20); err == nil {
 		for _, a := range activity {
 			data.Activity = append(data.Activity, walletActivityRow{

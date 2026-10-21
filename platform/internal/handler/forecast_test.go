@@ -53,3 +53,38 @@ func TestBuildForecast(t *testing.T) {
 		t.Errorf("intensity at the even pace = %d, want 3", got)
 	}
 }
+
+func TestWalletForecast(t *testing.T) {
+	today := time.Date(2026, 10, 21, 12, 0, 0, 0, time.UTC)
+	daily := func(v float64) map[string]float64 {
+		m := map[string]float64{}
+		for i := 1; i <= walletDays; i++ {
+			m[today.AddDate(0, 0, -i).Format("2006-01-02")] = v
+		}
+		return m
+	}
+	cases := []struct {
+		name             string
+		charged          map[string]float64
+		balance, pending float64
+		runway           int
+		alert, outlook   string
+	}{
+		{"healthy", daily(10), 400, 10, 39, "", "Lasts about 39 days"},
+		{"low", daily(10), 60, 10, 5, "advisory", "Lasts about 5 days"},
+		{"tomorrow", daily(10), 15, 10, 0, "warning", "Runs out tomorrow"},
+		{"used up", daily(10), 8, 10, 0, "warning", "The balance is used up"},
+		{"no spend", daily(0), 100, 0, -1, "", "No charges in the last 14 days"},
+	}
+	for _, tc := range cases {
+		t.Run(tc.name, func(t *testing.T) {
+			f, runway := walletForecast(i18n.LangEN, tc.charged, tc.balance, tc.pending, today)
+			if runway != tc.runway || f.Alert != tc.alert || !strings.HasPrefix(f.Outlook, tc.outlook) {
+				t.Errorf("runway %d alert %q outlook %q, want %d %q %q", runway, f.Alert, f.Outlook, tc.runway, tc.alert, tc.outlook)
+			}
+			if len(f.Cells) != 2*walletDays+1 {
+				t.Errorf("%d cells, want %d", len(f.Cells), 2*walletDays+1)
+			}
+		})
+	}
+}

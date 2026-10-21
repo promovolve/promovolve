@@ -371,6 +371,31 @@ func (s *Service) MonthlySettled(ctx context.Context, ownerType OwnerType, owner
 	return out, rows.Err()
 }
 
+// DailyCharged returns an advertiser's settled gross by local day
+// (YYYY-MM-DD) over roughly the last `days` days. Days with no delivery
+// have no entry; the caller reads them as zero.
+func (s *Service) DailyCharged(ctx context.Context, advertiserID string, days int) (map[string]int64, error) {
+	rows, err := s.pool.Query(ctx, `
+		SELECT to_char(local_date, 'YYYY-MM-DD'), COALESCE(SUM(gross_micros), 0)
+		FROM advertiser_settlements
+		WHERE advertiser_id = $1 AND local_date > CURRENT_DATE - $2::int - 2
+		GROUP BY local_date`, advertiserID, days)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	out := map[string]int64{}
+	for rows.Next() {
+		var day string
+		var gross int64
+		if err := rows.Scan(&day, &gross); err != nil {
+			return nil, err
+		}
+		out[day] = gross
+	}
+	return out, rows.Err()
+}
+
 // LifetimePaid sums a publisher's paid payouts.
 func (s *Service) LifetimePaid(ctx context.Context, publisherID string) (int64, error) {
 	var sum int64

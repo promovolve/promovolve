@@ -134,24 +134,33 @@ type PendingRow struct {
 }
 
 func (r *Repository) ListPending(ctx context.Context) ([]PendingRow, error) {
-	return r.listWithRequester(ctx, "pending")
+	return r.listWithRequester(ctx, `sr.status = 'pending'`)
 }
 
-// ListApproved returns every approved request with its requester, verified
-// or not; the caller asks the core which are still unverified.
+// latestApproval keeps only the newest approved request per site. Deleting a
+// live site leaves its approved row as history, so a site deleted and
+// re-added has several; the older ones describe a site that no longer exists.
+const latestApproval = `sr.status = 'approved' AND NOT EXISTS (
+		SELECT 1 FROM site_requests newer
+		WHERE newer.site_id = sr.site_id AND newer.status = 'approved'
+		  AND newer.reviewed_at > sr.reviewed_at)`
+
+// ListApproved returns the latest approved request per site with its
+// requester, verified or not; the caller asks the core which are still
+// unverified.
 func (r *Repository) ListApproved(ctx context.Context) ([]PendingRow, error) {
-	return r.listWithRequester(ctx, "approved")
+	return r.listWithRequester(ctx, latestApproval)
 }
 
-func (r *Repository) listWithRequester(ctx context.Context, status string) ([]PendingRow, error) {
+func (r *Repository) listWithRequester(ctx context.Context, where string) ([]PendingRow, error) {
 	rows, err := r.pool.Query(ctx, `
 		SELECT sr.id, sr.publisher_id, sr.requested_by, sr.site_id, sr.domain, sr.page_url,
 		       sr.status, sr.reject_reason, sr.reviewed_by, sr.reviewed_at, sr.created_at, sr.updated_at,
 		       COALESCE(u.email, ''), COALESCE(u.company_name, '')
 		FROM site_requests sr
 		LEFT JOIN platform_users u ON u.id = sr.requested_by
-		WHERE sr.status = $1
-		ORDER BY sr.created_at`, status)
+		WHERE `+where+`
+		ORDER BY sr.created_at`)
 	if err != nil {
 		return nil, err
 	}
@@ -206,14 +215,16 @@ func (r *Repository) Delete(ctx context.Context, id, publisherID string) error {
 	return nil
 }
 
-// ListApprovedBefore returns approved requests reviewed before cutoff — the
-// candidates for releasing a site that never verified (#285). Approved rows
+// ListApprovedBefore returns the latest approved request per site when it was
+// reviewed before cutoff — the candidates for releasing a site that never
+// verified (#285). The age counts from the latest approval, so a re-added
+// site gets its full window. Approved rows
 // for sites that did verify, or were deleted since, come back too; the
 // caller asks the core which they are.
 func (r *Repository) ListApprovedBefore(ctx context.Context, cutoff time.Time) ([]model.SiteRequest, error) {
 	rows, err := r.pool.Query(ctx, `
-		SELECT `+requestColumns+` FROM site_requests
-		WHERE status = 'approved' AND reviewed_at < $1`, cutoff)
+		SELECT `+requestColumns+` FROM site_requests sr
+		WHERE `+latestApproval+` AND sr.reviewed_at < $1`, cutoff)
 	if err != nil {
 		return nil, err
 	}

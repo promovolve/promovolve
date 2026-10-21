@@ -1005,6 +1005,8 @@ var ja = map[string]string{
 	"Released in %d days": "あと %d 日で解除",
 	"Release %s now? The site is deleted from the ad server and the domain can be registered again.": "%s を今すぐ解除しますか?サイトは広告サーバーから削除され、ドメインは再登録できるようになります。",
 	"Release now": "今すぐ解除",
+	"Remove %s? The site is deleted from the ad server and stops serving ads now. Earnings and delivery history are kept.": "%sを削除しますか？サイトは広告サーバーから削除され、広告配信がすぐに停止します。収益と配信履歴は残ります。",
+	"Removed by an administrator. Contact the operator before adding it again.":                                            "管理者により削除されました。再度追加する前に運営者にお問い合わせください。",
 
 	// ══ batch 4: admin billing ══
 	"Advertiser wallets, publisher payouts, and the platform ledger. All money movement is recorded here; bank transfers happen outside and are recorded manually.": "広告主ウォレット、パブリッシャーへの支払い、プラットフォームの台帳です。すべてのお金の動きがここに記録されます。銀行振込は外部で行われ、手動で記録します。",

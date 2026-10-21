@@ -137,6 +137,7 @@
           <th class="px-4 py-3 font-medium">{{t "Site ID"}}</th>
           <th class="px-4 py-3 font-medium">{{t "Publisher"}}</th>
           <th class="px-4 py-3 font-medium">{{t "Approved"}}</th>
+          <th class="px-4 py-3"><span class="sr-only">{{t "Actions"}}</span></th>
         </tr>
       </thead>
       <tbody>
@@ -144,8 +145,15 @@
         <tr class="border-b last:border-0">
           <td class="px-4 py-3 font-medium whitespace-nowrap">{{.Domain}}</td>
           <td class="px-4 py-3 font-mono text-xs whitespace-nowrap">{{.SiteID}}</td>
-          <td class="px-4 py-3">{{.Publisher}}{{if .Company}} <span class="text-gray-500">· {{.Company}}</span>{{end}}</td>
+          <td class="px-4 py-3 whitespace-nowrap">{{.Publisher}}{{if .Company}} <span class="text-gray-500">· {{.Company}}</span>{{end}}</td>
           <td class="px-4 py-3 whitespace-nowrap text-gray-500">{{.ApprovedAt}}</td>
+          <td class="px-4 py-2 text-right whitespace-nowrap">
+            <form method="POST" action="/admin/sites/remove"
+              onsubmit="return confirm('{{t "Remove %s? The site is deleted from the ad server and stops serving ads now. Earnings and delivery history are kept." .Domain}}')">
+              <input type="hidden" name="requestId" value="{{.ID}}">
+              <button type="submit" class="btn btn-danger btn-sm" aria-label="{{t "Remove %s" .Domain}}">{{t "Remove"}}</button>
+            </form>
+          </td>
         </tr>
         {{end}}
       </tbody>

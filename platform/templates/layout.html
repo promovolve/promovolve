@@ -51,7 +51,7 @@
   <script defer src="{{asset "htmx.min.js"}}"></script>
   <script defer src="{{asset "htmx-sse.js"}}"></script>
 </head>
-<body class="bg-gray-50 text-gray-900 font-sans {{if .User}}h-dvh overflow-hidden flex flex-col{{else}}min-h-screen{{end}}">
+<body class="bg-white text-gray-900 font-sans {{if .User}}h-dvh overflow-hidden flex flex-col{{else}}min-h-screen{{end}}">
   {{if .User}}
   {{if .User.ViewAsBy}}
   {{/* Read-only admin view-as: unmistakable, sticky, with the one allowed
@@ -391,9 +391,9 @@
 <div class="flex items-center justify-between mt-4 text-sm text-gray-500">
   <span>{{t "%d–%d of %d" .ListNav.From .ListNav.To .ListNav.Total}}</span>
   <div class="flex items-center gap-3">
-    {{if .ListNav.PrevURL}}<a href="{{.ListNav.PrevURL}}" class="text-brand-ink hover:underline">&larr; {{t "Prev"}}</a>{{else}}<span class="text-gray-300">&larr; {{t "Prev"}}</span>{{end}}
+    {{if .ListNav.PrevURL}}<a href="{{.ListNav.PrevURL}}" class="text-brand-ink hover:underline">{{template "i-back"}} {{t "Prev"}}</a>{{else}}<span class="text-gray-300">{{template "i-back"}} {{t "Prev"}}</span>{{end}}
     <span>{{t "Page %d / %d" .ListNav.Page .ListNav.TotalPages}}</span>
-    {{if .ListNav.NextURL}}<a href="{{.ListNav.NextURL}}" class="text-brand-ink hover:underline">{{t "Next"}} &rarr;</a>{{else}}<span class="text-gray-300">{{t "Next"}} &rarr;</span>{{end}}
+    {{if .ListNav.NextURL}}<a href="{{.ListNav.NextURL}}" class="text-brand-ink hover:underline">{{t "Next"}} {{template "i-next"}}</a>{{else}}<span class="text-gray-300">{{t "Next"}} {{template "i-next"}}</span>{{end}}
   </div>
 </div>
 {{end}}
@@ -450,11 +450,20 @@
 {{/* The scale's key: what the colours mean (pass the sentence for the
      faster end), the dashed projection, the now line. */}}
 {{define "forecast-legend"}}
-<div class="mt-2 flex flex-wrap items-center gap-x-6 gap-y-2 text-xs text-gray-500">
-  <span class="inline-flex items-center gap-2">{{t "Slower"}}
-    <span class="inline-flex" aria-hidden="true"><i class="w-4 h-2.5 bg-jma-1"></i><i class="w-4 h-2.5 bg-jma-2"></i><i class="w-4 h-2.5 bg-jma-3"></i><i class="w-4 h-2.5 bg-jma-4"></i><i class="w-4 h-2.5 bg-jma-5"></i><i class="w-4 h-2.5 bg-jma-6"></i><i class="w-4 h-2.5 bg-jma-7"></i></span>
-    {{.}}</span>
-  <span class="inline-flex items-center gap-2"><i class="w-3.5 h-3.5 bg-jma-3 opacity-40 outline-dashed outline-1 -outline-offset-1 outline-gray-500" aria-hidden="true"></i>{{t "at this pace"}}</span>
-  <span class="inline-flex items-center gap-2"><i class="w-0.5 h-3.5 bg-gray-900" aria-hidden="true"></i>{{t "now"}}</span>
+<div class="mt-3 flex flex-wrap items-end gap-x-8 gap-y-2 text-xs text-gray-500">
+  <div>
+    <p>{{.}}</p>
+    <div class="mt-1 inline-flex" aria-hidden="true">
+      {{/* Step boundaries from handler/forecast.go intensity(). */}}
+      <span class="relative w-9 h-2.5 bg-jma-1"></span><span class="relative w-9 h-2.5 bg-jma-2"><b class="legend-tick">¼</b></span><span class="relative w-9 h-2.5 bg-jma-3"><b class="legend-tick">0.6</b></span><span class="relative w-9 h-2.5 bg-jma-4"><b class="legend-tick">1.2</b></span><span class="relative w-9 h-2.5 bg-jma-5"><b class="legend-tick">2</b></span><span class="relative w-9 h-2.5 bg-jma-6"><b class="legend-tick">3</b></span><span class="relative w-9 h-2.5 bg-jma-7"><b class="legend-tick">4×</b></span>
+    </div>
+    <div class="h-4"></div>
+  </div>
+  <span class="inline-flex items-center gap-2 pb-4"><i class="w-3.5 h-3.5 bg-jma-3 opacity-40 outline-dashed outline-1 -outline-offset-1 outline-gray-500" aria-hidden="true"></i>{{t "at this pace"}}</span>
+  <span class="inline-flex items-center gap-2 pb-4"><i class="w-0.5 h-3.5 bg-gray-900" aria-hidden="true"></i>{{t "now"}}</span>
 </div>
 {{end}}
+
+{{/* Drawn chevrons for back/next links (no Unicode arrows as icons). */}}
+{{define "i-back"}}<svg class="inline-block w-3.5 h-3.5 -mt-0.5" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round" viewBox="0 0 24 24" aria-hidden="true"><path d="M15 18l-6-6 6-6"/></svg>{{end}}
+{{define "i-next"}}<svg class="inline-block w-3.5 h-3.5 -mt-0.5" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round" viewBox="0 0 24 24" aria-hidden="true"><path d="M9 18l6-6-6-6"/></svg>{{end}}

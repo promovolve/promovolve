@@ -46,7 +46,7 @@ func TestBillingTemplatesRender(t *testing.T) {
 			Title: "Billing", Nav: "admin-billing", Tab: "topups", User: admin, ListNav: nav,
 			AdminTopups: &adminTopupsData{
 				Nonce:  "n",
-				Topups: []topupRow{{Created: "2026-07-05", Kind: "topup", KindBadge: "badge-success", Memo: "wire", Wallet: "Acme (@acme.com)", Amount: "+$5.00"}},
+				Topups: []topupRow{{Created: "2026-07-05", Kind: "topup", Memo: "wire", Wallet: "Acme (@acme.com)", Amount: "+$5.00"}},
 			},
 		}},
 		{"admin/billing-payouts.html", pageData{
@@ -65,7 +65,7 @@ func TestBillingTemplatesRender(t *testing.T) {
 			AdminJournal: &adminJournalData{
 				Nonce: "n",
 				Journal: []journalRow{{
-					Created: "2026-07-05", Kind: "topup", KindBadge: "badge-success", Memo: "m",
+					Created: "2026-07-05", Kind: "topup", Memo: "m",
 					Summary: "Credited $1.00 to Acme (@acme.com)'s wallet",
 					Legs: []journalLeg{
 						{Label: "Acme (@acme.com)'s advertiser wallet", Amount: "+$1.00"},
@@ -89,7 +89,7 @@ func TestBillingTemplatesRender(t *testing.T) {
 			AdminAccount: &adminAccountDetailData{
 				Type: "publisher", ID: "PUB1", Label: "pub@x.co", Balance: "$1.00",
 				Status: "active", StatusBadge: "badge-success", IsPublisher: true, LifetimePaid: "2.00",
-				Activity:  []walletActivityRow{{Date: "d", Kind: "payout", KindBadge: "badge-info", Memo: "m", Amount: "−$1.00"}},
+				Activity:  []walletActivityRow{{Date: "d", Kind: "payout", Memo: "m", Amount: "−$1.00"}},
 				Statement: []statementRow{{Day: "d", CampaignID: "cid", Campaign: "Camp", SiteID: "s", Impressions: 1, Amount: "0.01"}},
 				Months:    []monthlyRow{{Month: "2026-07", Impressions: 1, Gross: "0.01", Fee: "0.00", Net: "0.01"}},
 				Payouts: []payoutRow{{
@@ -102,7 +102,7 @@ func TestBillingTemplatesRender(t *testing.T) {
 			Title: "Wallet", Nav: "wallet", User: adv,
 			Wallet: &walletPageData{
 				Balance: "4.77", Status: "low_balance", LowBalance: true, Timezone: "Asia/Tokyo",
-				Activity:  []walletActivityRow{{Date: "d", Kind: "topup", KindBadge: "badge-success", Memo: "m", Amount: "+$5.00"}},
+				Activity:  []walletActivityRow{{Date: "d", Kind: "topup", Memo: "m", Amount: "+$5.00"}},
 				Statement: []statementRow{{Day: "d", CampaignID: "c", SiteID: "s", Impressions: 1, Amount: "0.01"}},
 				Months:    []monthlyRow{{Month: "2026-07", Impressions: 1, Gross: "0.01", Fee: "0.00", Net: "0.01"}},
 			},

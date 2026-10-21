@@ -371,8 +371,7 @@ document.body.addEventListener('inboxActed', function(){
         {{$anchorCount := len $group.TrustedCampaigns | add (len $group.TrustedDomains)}}
         {{if or $group.TrustedCampaigns $group.TrustedDomains}}
         <a href="/publisher/trusted" class="mt-1.5 inline-block text-xs text-brand-ink hover:underline">
-          {{t "%d trusted" $anchorCount}}{{if not $group.AutoApprove}} <span class="text-gray-500">{{t "(paused)"}}</span>{{end}} &rarr;
-        </a>
+          {{t "%d trusted" $anchorCount}}{{if not $group.AutoApprove}} <span class="text-gray-500">{{t "(paused)"}}</span>{{end}} {{template "i-next"}}</a>
         {{end}}
       </div>
       {{range $i, $c := $group.Pending}}
@@ -506,7 +505,7 @@ document.body.addEventListener('inboxActed', function(){
     {{range $i, $c := $group.Serving}}
     <div id="detail-serving-{{$group.Site.ID}}-{{$i}}" data-detail class="hidden">
       <div class="bg-white rounded-lg border p-6">
-        {{$badge := "Serving"}}{{$badgeClass := "bg-green-100 text-green-700"}}
+        {{$badge := "Serving"}}{{$badgeClass := "bg-gray-100 text-gray-900"}}
         {{if $c.BelowFloor}}{{$badge = "Pin-only (below floor)"}}{{$badgeClass = "bg-amber-100 text-amber-700"}}{{end}}
         {{/* Benched (budget/suspension) outranks the other states: the
              creative is approved and in the pool but cannot deliver
@@ -645,9 +644,9 @@ document.getElementById('previewDialog').addEventListener('close', () => {
       <p class="text-sm font-medium truncate">{{.Label}}</p>
       <p class="text-xs text-gray-500 mt-0.5 truncate">{{.Sub}}</p>
     </div>
-    {{if eq .State "pending"}}<span class="shrink-0 w-2 h-2 rounded-full bg-yellow-400" title="{{t "Pending"}}"></span>
-    {{else if eq .State "serving"}}<span class="shrink-0 w-2 h-2 rounded-full bg-green-500" title="{{t "Serving"}}"></span>
-    {{else}}<span class="shrink-0 w-2 h-2 rounded-full bg-red-500" title="{{t "Flagged"}}"></span>{{end}}
+    {{if eq .State "pending"}}<span class="shrink-0 text-xs text-gray-500">{{t "Pending"}}</span>
+    {{else if eq .State "serving"}}<span class="shrink-0 text-xs font-bold">{{t "Serving"}}</span>
+    {{else}}<span class="shrink-0 badge badge-danger">{{t "Flagged"}}</span>{{end}}
   </div>
 </button>
 {{end}}

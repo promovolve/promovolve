@@ -87,9 +87,9 @@
         <p class="font-medium">
           {{.Domain}}
           {{if eq .Status "rejected"}}
-          <span class="badge badge-danger ml-2">{{t "Denied"}}</span>
+          <span class="badge badge-neutral ml-2">{{t "Denied"}}</span>
           {{else}}
-          <span class="badge badge-warning ml-2">{{t "Awaiting approval"}}</span>
+          <span class="badge badge-neutral ml-2">{{t "Awaiting approval"}}</span>
           {{end}}
         </p>
         {{if eq .Status "rejected"}}
@@ -139,7 +139,7 @@
           {{if eq .VerificationStatus "verified"}}
           <span class="badge badge-success ml-2">{{t "Verified"}}</span>
           {{else}}
-          <span class="badge badge-warning ml-2">{{t "Unverified"}}</span>
+          <span class="badge badge-neutral ml-2">{{t "Unverified"}}</span>
           {{end}}
         </p>
       </div>
@@ -327,7 +327,7 @@
       <!-- Site ID + floor decisions -->
       <div class="mt-4 pt-3 border-t flex items-center justify-between gap-2 flex-wrap">
         <p class="text-xs text-gray-500">{{t "Site ID:"}} <span class="font-mono">{{.ID}}</span></p>
-        <a href="/publisher/sites/{{.ID}}/observations" class="text-xs text-brand-ink hover:underline" onclick="event.stopPropagation();">{{t "Floor decisions"}} →</a>
+        <a href="/publisher/sites/{{.ID}}/observations" class="text-xs text-brand-ink hover:underline" onclick="event.stopPropagation();">{{t "Floor decisions"}} {{template "i-next"}}</a>
       </div>
 
       <!-- Read-only metrics -->
@@ -341,10 +341,10 @@
           <p class="text-xs text-gray-500 mb-1">{{t "Fallback floor:"}}</p>
           <div class="flex items-baseline gap-2">
             {{if .OptimizedFloor}}
-              <span class="text-lg font-semibold text-green-700">{{.OptimizedFloor}}</span>
+              <span class="text-lg font-semibold text-gray-900">{{.OptimizedFloor}}</span>
               {{if .OptimizedFloorDelta}}
                 <span class="text-xs
-                  {{if eq .OptimizedFloorTrend "▲"}}text-green-700{{end}}
+                  {{if eq .OptimizedFloorTrend "▲"}}text-gray-900{{end}}
                   {{if eq .OptimizedFloorTrend "▼"}}text-red-600{{end}}
                   {{if eq .OptimizedFloorTrend "="}}text-gray-500{{end}}">
                   {{.OptimizedFloorTrend}} {{.OptimizedFloorDelta}}
@@ -367,7 +367,7 @@
              title="{{t "The ad tag reports its own lifecycle on every pageview. Healthy means an ad rendered or the auction genuinely had no ad to show; failures mean the integration is broken on some pageviews — the reasons say where it stopped."}}">
           <p class="text-xs text-gray-500 mb-1">{{t "Integration health (7d):"}}</p>
           <div class="flex items-baseline gap-2">
-            <span class="text-lg font-semibold {{if eq .HealthFailures 0}}text-green-700{{else}}text-amber-700{{end}}">{{.HealthOkPct}}%</span>
+            <span class="text-lg font-semibold {{if eq .HealthFailures 0}}text-gray-900{{else}}text-amber-700{{end}}">{{.HealthOkPct}}%</span>
             <span class="text-xs text-gray-500">{{t "healthy"}}</span>
           </div>
           <p class="text-xs text-gray-500 mt-1 whitespace-nowrap overflow-x-auto">
@@ -540,7 +540,7 @@
           </table>
           <div class="mt-2 flex items-center gap-2">
             <button type="submit" class="btn btn-primary btn-sm">{{t "Save all overrides"}}</button>
-            <span class="save-status text-green-700 text-xs"></span>
+            <span class="save-status text-gray-900 text-xs"></span>
           </div>
           </form>
         </details>

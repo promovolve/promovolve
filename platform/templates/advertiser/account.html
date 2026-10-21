@@ -28,7 +28,7 @@
       <p class="text-xs text-gray-500 uppercase tracking-wide">{{t "Wallet balance"}}</p>
       <p class="text-2xl font-semibold mt-1 {{if .WalletUnfunded}}text-amber-700{{end}}">{{.WalletBalance}}</p>
     </div>
-    <a href="/advertiser/wallet" class="text-brand-ink hover:underline text-sm">{{t "Wallet & statement"}} &rarr;</a>
+    <a href="/advertiser/wallet" class="text-brand-ink hover:underline text-sm">{{t "Wallet & statement"}} {{template "i-next"}}</a>
   </div>
   {{if .WalletUnfunded}}
   <p class="text-sm text-amber-700 mt-2">

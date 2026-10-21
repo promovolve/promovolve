@@ -1,6 +1,6 @@
 {{define "content"}}
 <div class="max-w-4xl">
-  <a href="/publisher/approval" class="inline-flex items-center gap-1 text-sm text-brand-ink hover:underline mb-3">&larr; {{t "Approval Queue"}}</a>
+  <a href="/publisher/approval" class="inline-flex items-center gap-1 text-sm text-brand-ink hover:underline mb-3">{{template "i-back"}} {{t "Approval Queue"}}</a>
   <h1 class="page-title">{{t "Trusted Advertisers"}}</h1>
   <p class="page-sub">
     {{t "Approving a creative manually records trust for its campaign and landing domain. With auto-approve on, new creatives matching a trusted entry skip the approval queue. Rejecting, flagging, or revoking a creative withdraws that trust."}}
@@ -19,7 +19,7 @@
           <input type="checkbox" name="enabled" {{if .Enabled}}checked{{end}}
                  onchange="this.form.submit()" class="rounded border-gray-300">
           <span class="text-sm font-medium">{{.Domain}}</span>
-          {{if .Enabled}}<span class="badge bg-green-100 text-green-700">{{t "on"}}</span>
+          {{if .Enabled}}<span class="badge bg-gray-100 text-gray-900">{{t "on"}}</span>
           {{else}}<span class="badge bg-gray-200 text-gray-600" title="{{t "Trust below is kept but not acting — enable to resume auto-approval"}}">{{t "paused"}}</span>{{end}}
         </label>
       </form>

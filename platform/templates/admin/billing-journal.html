@@ -107,7 +107,7 @@
       <tbody x-data="{ open: false }" class="border-b last:border-0">
         <tr class="cursor-pointer hover:bg-gray-50" @click="open = !open">
           <td class="text-gray-500 whitespace-nowrap align-top">{{.Created}}</td>
-          <td class="align-top"><span class="badge {{.KindBadge}}">{{t .Kind}}</span></td>
+          <td class="align-top"><span class="badge badge-neutral">{{t .Kind}}</span></td>
           <td>
             {{.Summary}}
             {{if .Memo}}<span class="block text-xs text-gray-500 mt-0.5">{{.Memo}}</span>{{end}}
@@ -122,7 +122,7 @@
               {{range .Legs}}
               <div class="flex items-center justify-between gap-6 py-0.5 font-mono text-xs">
                 <span class="text-gray-600">{{.Label}}</span>
-                <span class="{{if .Negative}}text-red-600{{else}}text-green-700{{end}}">{{.Amount}}</span>
+                <span class="{{if .Negative}}text-red-600{{else}}text-gray-900{{end}}">{{.Amount}}</span>
               </div>
               {{end}}
             </div>

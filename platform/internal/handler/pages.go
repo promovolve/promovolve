@@ -25,6 +25,8 @@ import (
 	"sync"
 	"time"
 
+	"github.com/hanishi/promovolve/platform/internal/billing"
+	"github.com/hanishi/promovolve/platform/internal/currency"
 	"github.com/hanishi/promovolve/platform/internal/i18n"
 	"github.com/hanishi/promovolve/platform/internal/model"
 	"github.com/hanishi/promovolve/platform/internal/settings"
@@ -1510,8 +1512,31 @@ func (h *Handler) AdvertiserCampaigns(w http.ResponseWriter, r *http.Request) {
 	acctBudget, _ := strconv.ParseFloat(advResp.Budget.DailyBudget, 64)
 	acctForecast := buildForecast(lang, acctHours, acctBudget, nowLocal, true)
 
+	// Balance and runway beside today's figure: the wallet's own outlook,
+	// with today's delivery so far as the pending charge.
+	var balanceDisp string
+	runway := -1
+	if h.billingSvc != nil {
+		if acc, err := h.billingSvc.GetAccount(r.Context(), billing.OwnerAdvertiser, claims.AdvertiserID); err == nil {
+			balanceDisp = usdTile(acc.BalanceMicros)
+			var pending float64
+			for _, v := range acctHours {
+				pending += v
+			}
+			charged := map[string]float64{}
+			if days, err := h.billingSvc.DailyCharged(r.Context(), claims.AdvertiserID, walletDays+1); err == nil {
+				for d, m := range days {
+					charged[d] = currency.Major(m)
+				}
+			}
+			_, runway = walletForecast(lang, charged, currency.Major(acc.BalanceMicros), pending, nowLocal)
+		}
+	}
+
 	h.render(w, r, "advertiser/campaigns.html", pageData{
 		AdvForecast:     &acctForecast,
+		AdvBalance:      balanceDisp,
+		AdvRunwayDays:   runway,
 		AdvForecastAsOf: nowLocal.Format("15:04 MST"),
 		Title:           "Campaigns",
 		Nav:             "campaigns",

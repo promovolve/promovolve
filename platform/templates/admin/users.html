@@ -45,7 +45,7 @@
           <div>
             <div class="text-xs uppercase tracking-wide text-gray-500">{{t "Status"}}</div>
             <div class="mt-1">
-              {{if .Suspended}}<span class="badge bg-red-100 text-red-700">{{t "Suspended"}}</span>{{else}}<span class="badge bg-green-100 text-green-700">{{t "Active"}}</span>{{end}}
+              {{if .Suspended}}<span class="badge bg-red-100 text-red-700">{{t "Suspended"}}</span>{{else}}<span class="badge bg-gray-100 text-gray-900">{{t "Active"}}</span>{{end}}
             </div>
             {{if .Suspended}}<p class="text-xs text-gray-500 mt-1 max-w-xs">{{.SuspendReason}} <span class="text-gray-500">— {{.SuspendedBy}} · {{.SuspendedAt}}</span></p>{{end}}
           </div>
@@ -113,9 +113,9 @@
     <div class="flex items-center justify-between pt-4 text-sm text-gray-500">
       <span>{{t "%d–%d of %d" .AdminOrgsNav.From .AdminOrgsNav.To .AdminOrgsNav.Total}}</span>
       <div class="flex items-center gap-3">
-        {{if .AdminOrgsNav.PrevURL}}<a href="{{.AdminOrgsNav.PrevURL}}" class="text-brand-ink hover:underline">&larr; {{t "Prev"}}</a>{{else}}<span class="text-gray-300">&larr; {{t "Prev"}}</span>{{end}}
+        {{if .AdminOrgsNav.PrevURL}}<a href="{{.AdminOrgsNav.PrevURL}}" class="text-brand-ink hover:underline">{{template "i-back"}} {{t "Prev"}}</a>{{else}}<span class="text-gray-300">{{template "i-back"}} {{t "Prev"}}</span>{{end}}
         <span>{{t "Page %d / %d" .AdminOrgsNav.Page .AdminOrgsNav.TotalPages}}</span>
-        {{if .AdminOrgsNav.NextURL}}<a href="{{.AdminOrgsNav.NextURL}}" class="text-brand-ink hover:underline">{{t "Next"}} &rarr;</a>{{else}}<span class="text-gray-300">{{t "Next"}} &rarr;</span>{{end}}
+        {{if .AdminOrgsNav.NextURL}}<a href="{{.AdminOrgsNav.NextURL}}" class="text-brand-ink hover:underline">{{t "Next"}} {{template "i-next"}}</a>{{else}}<span class="text-gray-300">{{t "Next"}} {{template "i-next"}}</span>{{end}}
       </div>
     </div>
     {{end}}

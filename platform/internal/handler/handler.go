@@ -547,8 +547,12 @@ type pageData struct {
 	AdvBudget *advertiserBudget
 	// Aggregates for the campaigns-page summary tiles. Empty string =
 	// no data yet (tile renders an em-dash).
-	AdvAvgCTR     string // impression-weighted, e.g. "1.2%"
-	AdvAvgWinRate string // bid-weighted, e.g. "45.2%"
+	AdvAvgCTR string // impression-weighted, e.g. "1.2%"
+	// Account-wide today as a forecast strip (campaigns page), and the
+	// local time it was drawn at.
+	AdvForecast     *forecast
+	AdvForecastAsOf string
+	AdvAvgWinRate   string // bid-weighted, e.g. "45.2%"
 	// Stats page: today's delivery per UTC hour (always 24 entries when
 	// the projection responded) + the day's impression total that gates
 	// rendering the chart.

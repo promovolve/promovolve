@@ -1001,6 +1001,8 @@ type campaignData struct {
 	EndAtLocal     string
 	EndAtDisplay   string
 	EndAtPassed    bool
+	// Today hour by hour on the intensity scale, with the outlook.
+	Forecast forecast
 }
 
 // budgetMoved renders a campaign's day-start wall and its move since, for
@@ -1239,6 +1241,39 @@ func (h *Handler) AdvertiserCampaigns(w http.ResponseWriter, r *http.Request) {
 		}
 	}
 
+	// Today's spend per local hour, account-wide and per campaign — the
+	// forecast strips. Missing or failed → empty strips, not an error.
+	var acctHours [24]float64
+	campHours := make(map[string]*[24]float64)
+	hBody, _ := h.coreGet("/v1/advertisers/me/hourly-today", claims)
+	var hResp struct {
+		Hours []struct {
+			Hour  int    `json:"hour"`
+			Spend string `json:"spend"`
+		} `json:"hours"`
+		ByCampaign []struct {
+			CampaignID string `json:"campaignId"`
+			Hour       int    `json:"hour"`
+			Spend      string `json:"spend"`
+		} `json:"byCampaign"`
+	}
+	if json.Unmarshal(hBody, &hResp) == nil {
+		for _, hr := range hResp.Hours {
+			if hr.Hour >= 0 && hr.Hour < 24 {
+				acctHours[hr.Hour], _ = strconv.ParseFloat(hr.Spend, 64)
+			}
+		}
+		for _, hr := range hResp.ByCampaign {
+			if hr.Hour < 0 || hr.Hour >= 24 {
+				continue
+			}
+			if campHours[hr.CampaignID] == nil {
+				campHours[hr.CampaignID] = new([24]float64)
+			}
+			campHours[hr.CampaignID][hr.Hour], _ = strconv.ParseFloat(hr.Spend, 64)
+		}
+	}
+
 	// Aggregates for the summary tiles. CTR is impression-weighted
 	// (total clicks / total impressions), win rate is bid-weighted —
 	// a flat average of per-campaign ratios would let a 3-impression
@@ -1250,6 +1285,7 @@ func (h *Handler) AdvertiserCampaigns(w http.ResponseWriter, r *http.Request) {
 	// same boundary the budget day rolls on. Stored instants are
 	// unchanged; only their interpretation and display shift.
 	schedTz, schedLoc := h.accountTimeContext(r.Context(), claims.AdvertiserID)
+	nowLocal := time.Now().In(schedLoc)
 	movedTotal := 0.0
 	for _, c := range campResp.Data {
 		var startLocal, startDisplay string
@@ -1320,6 +1356,16 @@ func (h *Handler) AdvertiserCampaigns(w http.ResponseWriter, r *http.Request) {
 			if budget, err := strconv.ParseFloat(cd.DailyBudget, 64); err == nil && budget > 0 {
 				cd.BudgetPct = math.Round(math.Min(100, spend/budget*100)*10) / 10
 			}
+		}
+		var hours [24]float64
+		if hp := campHours[c.ID]; hp != nil {
+			hours = *hp
+		}
+		dailyBudget, _ := strconv.ParseFloat(c.Budget.Daily, 64)
+		cd.Forecast = buildForecast(lang, hours, dailyBudget, nowLocal, c.Status == "active")
+		if c.Untargeted && c.Status == "active" {
+			cd.Forecast.Alert = "advisory"
+			cd.Forecast.Outlook = i18n.T(lang, "Not bidding: no target categories")
 		}
 		// Pair each target-category id with its resolved name (index-aligned;
 		// fall back to the id) for the edit form's pre-filled chips.
@@ -1461,21 +1507,26 @@ func (h *Handler) AdvertiserCampaigns(w http.ResponseWriter, r *http.Request) {
 		formError = i18n.T(lang, "Changes not saved — the update was rejected. Try again.")
 	}
 
+	acctBudget, _ := strconv.ParseFloat(advResp.Budget.DailyBudget, 64)
+	acctForecast := buildForecast(lang, acctHours, acctBudget, nowLocal, true)
+
 	h.render(w, r, "advertiser/campaigns.html", pageData{
-		Title:          "Campaigns",
-		Nav:            "campaigns",
-		User:           user,
-		Error:          formError,
-		Campaigns:      campaigns,
-		AdvBudget:      advBudget,
-		AdvAvgCTR:      avgCTR,
-		AdvAvgWinRate:  avgWinRate,
-		BlockedDomains: blockedDomains,
-		ServedSites:    servedSites,
-		NoCampaigns:    totalCampaigns == 0,
-		ListNav:        nav,
-		MarketRates:    marketRates,
-		ScheduleTz:     schedTz,
+		AdvForecast:     &acctForecast,
+		AdvForecastAsOf: nowLocal.Format("15:04 MST"),
+		Title:           "Campaigns",
+		Nav:             "campaigns",
+		User:            user,
+		Error:           formError,
+		Campaigns:       campaigns,
+		AdvBudget:       advBudget,
+		AdvAvgCTR:       avgCTR,
+		AdvAvgWinRate:   avgWinRate,
+		BlockedDomains:  blockedDomains,
+		ServedSites:     servedSites,
+		NoCampaigns:     totalCampaigns == 0,
+		ListNav:         nav,
+		MarketRates:     marketRates,
+		ScheduleTz:      schedTz,
 	})
 }
 

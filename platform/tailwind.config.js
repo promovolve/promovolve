@@ -15,6 +15,8 @@ module.exports = {
     './templates/**/*.html', // includes classes built in the templates' inline JS
     './static/passkey.js',
   ],
+  // Intensity cells pick their step at render time (bg-jma-{{.Level}}).
+  safelist: [{ pattern: /^bg-jma-[0-7]$/ }],
   theme: {
     /* Forecast world (DESIGN.md): every corner is 2px; only dots and the
        chip × stay round. */

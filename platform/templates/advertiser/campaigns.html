@@ -3,11 +3,11 @@
 <div class="bg-red-50 border border-red-200 text-red-700 rounded-lg p-3 mb-6 text-sm">{{.Error}}</div>
 {{end}}
 <!-- Header -->
-<div class="flex items-center justify-between mb-6">
+<div class="flex flex-wrap items-end justify-between gap-4 mb-6">
   <div>
     <h1 class="page-title">{{t "Campaigns"}}</h1>
     <p class="page-sub">
-      {{if .ListNav}}{{t "%d campaigns" .ListNav.Total}}{{else}}{{t "%d campaigns" (len .Campaigns)}}{{end}}
+      {{if .ListNav}}{{t "%d campaigns" .ListNav.Total}}{{else}}{{t "%d campaigns" (len .Campaigns)}}{{end}}{{if .AdvForecastAsOf}} · {{t "today as of %s" .AdvForecastAsOf}}{{end}}
     </p>
   </div>
   <button onclick="document.getElementById('new-campaign-form').classList.toggle('hidden')"
@@ -16,59 +16,54 @@
   </button>
 </div>
 
-<!-- Budget info line -->
-{{if .AdvBudget}}
-<div class="flex items-center justify-between mb-6 text-sm text-gray-500">
-  <span>{{t "Account budget: %s/day (%s remaining, %s spent today)" (money .AdvBudget.DailyBudget) (money .AdvBudget.Remaining) (money .AdvBudget.SpendToday)}}{{if eq .AdvBudget.BudgetMode "optimized"}} &middot; <span class="badge badge-info" title="{{t "The account budget is re-split across all live campaigns."}}">{{t "Optimized budget mode"}}</span>{{if .AdvBudget.MovedToday}} &middot; {{t "moved %s between campaigns today" .AdvBudget.MovedToday}}{{end}}{{end}}</span>
-  <a href="/advertiser/account" class="text-brand-ink hover:underline">{{t "Edit"}}</a>
-</div>
+{{/* Today, read as a forecast: what was spent hour by hour, the rest of
+     the day at this pace, and the outlook in words. */}}
+{{if or .AdvForecast .AdvBudget}}
+<section aria-labelledby="today-h" class="mb-8">
+  <h2 id="today-h" class="text-2xl font-bold tracking-tight">
+    {{if .AdvBudget}}{{t "%s spent today." .AdvBudget.SpendToday}}{{end}}{{if .AdvForecast}} <span class="font-normal">{{.AdvForecast.Outlook}}.</span>{{end}}
+  </h2>
+  {{if .AdvBudget}}
+  <p class="mt-1 text-sm text-gray-500">
+    {{t "Account budget: %s/day (%s remaining, %s spent today)" (money .AdvBudget.DailyBudget) (money .AdvBudget.Remaining) (money .AdvBudget.SpendToday)}}{{if eq .AdvBudget.BudgetMode "optimized"}} &middot; <span class="badge badge-info" title="{{t "The account budget is re-split across all live campaigns."}}">{{t "Optimized budget mode"}}</span>{{if .AdvBudget.MovedToday}} &middot; {{t "moved %s between campaigns today" .AdvBudget.MovedToday}}{{end}}{{end}}{{if .AdvAvgCTR}} &middot; {{t "Avg CTR"}} {{.AdvAvgCTR}}{{end}}
+    &middot; <a href="/advertiser/account" class="text-brand-ink hover:underline">{{t "Edit"}}</a>
+  </p>
+  {{end}}
+  {{if .AdvForecast}}
+  <div class="mt-4 max-w-3xl">
+    {{template "forecast-strip" .AdvForecast}}
+    <div class="relative h-4 mt-1 text-xs text-gray-500 tabular" aria-hidden="true">
+      <span class="absolute left-0">0</span><span class="absolute left-1/4 -translate-x-1/2">6</span><span class="absolute left-1/2 -translate-x-1/2">12</span><span class="absolute left-3/4 -translate-x-1/2">18</span><span class="absolute right-0">24</span>
+    </div>
+    {{template "forecast-legend"}}
+  </div>
+  {{end}}
+</section>
 {{end}}
 
-<!-- Summary cards -->
-<div class="grid grid-cols-2 sm:grid-cols-4 gap-4 mb-6">
-  <div class="bg-white p-4 rounded-lg border">
-    <p class="text-xs text-gray-500 uppercase tracking-wide">{{t "Today's Spend"}}</p>
-    <p class="text-2xl font-semibold mt-1">{{if .AdvBudget}}{{money .AdvBudget.SpendToday}}{{else}}{{money 0.0}}{{end}}</p>
-  </div>
-  <div class="bg-white p-4 rounded-lg border">
-    <p class="text-xs text-gray-500 uppercase tracking-wide">{{t "Campaigns"}}</p>
-    <p class="text-2xl font-semibold mt-1">{{len .Campaigns}}</p>
-  </div>
-  <div class="bg-white p-4 rounded-lg border">
-    <p class="text-xs text-gray-500 uppercase tracking-wide">{{t "Avg CTR"}}</p>
-    <p class="text-2xl font-semibold mt-1">{{if .AdvAvgCTR}}{{.AdvAvgCTR}}{{else}}&mdash;{{end}}</p>
-  </div>
-  <div class="bg-white p-4 rounded-lg border">
-    <p class="text-xs text-gray-500 uppercase tracking-wide">{{t "Avg Win Rate"}}</p>
-    <p class="text-2xl font-semibold mt-1">{{if .AdvAvgWinRate}}{{.AdvAvgWinRate}}{{else}}&mdash;{{end}}</p>
-  </div>
-</div>
-
 <!-- Blocked Domains -->
-<div class="bg-white p-4 rounded-lg border mb-6">
-  <div class="flex items-center gap-2 flex-wrap">
-    <span class="text-sm font-medium text-gray-700">{{t "Blocked Domains:"}}</span>
-    {{range .BlockedDomains}}
-    <span class="badge badge-danger gap-1">
-      {{.}}
-      <form method="POST" action="/advertiser/unblock-site" class="inline">
-        <input type="hidden" name="domain" value="{{.}}">
-        <button type="submit" aria-label="{{t "Unblock %s" .}}" class="chip-x">×</button>
-      </form>
-    </span>
-    {{end}}
-    {{if not .BlockedDomains}}<span class="text-sm text-gray-500">{{t "None"}}</span>{{end}}
-    <form method="POST" action="/advertiser/block-site" class="inline-flex items-center gap-1 ml-2">
-      <input type="text" name="domain" placeholder="example.com" list="served-sites-domains"
-             class="form-input w-56">
-      <datalist id="served-sites-domains">
-        {{range .ServedSites}}
-        <option value="{{.Domain}}">{{.Domain}} &mdash; {{t "%d impressions" .Impressions}}</option>
-        {{end}}
-      </datalist>
-      <button type="submit" class="btn btn-danger btn-sm">{{t "Block"}}</button>
+<div class="flex items-center gap-2 flex-wrap mb-8 text-sm">
+  <span class="font-bold">{{t "Blocked Domains:"}}</span>
+  {{range .BlockedDomains}}
+  <span class="badge badge-neutral gap-1">
+    {{.}}
+    <form method="POST" action="/advertiser/unblock-site" class="inline">
+      <input type="hidden" name="domain" value="{{.}}">
+      <button type="submit" aria-label="{{t "Unblock %s" .}}" class="chip-x">×</button>
     </form>
-  </div>
+  </span>
+  {{end}}
+  {{if not .BlockedDomains}}<span class="text-gray-500">{{t "None"}}</span>{{end}}
+  <form method="POST" action="/advertiser/block-site" class="inline-flex items-center gap-1 ml-2">
+    <input type="text" name="domain" placeholder="example.com" list="served-sites-domains" aria-label="{{t "Domain to block"}}"
+           class="form-input w-56">
+    <datalist id="served-sites-domains">
+      {{range .ServedSites}}
+      <option value="{{.Domain}}">{{.Domain}} &mdash; {{t "%d impressions" .Impressions}}</option>
+      {{end}}
+    </datalist>
+    <button type="submit" class="btn btn-secondary btn-sm">{{t "Block"}}</button>
+  </form>
 </div>
 
 <!-- New Campaign form -->
@@ -328,134 +323,71 @@
 
 <!-- Campaign list -->
 {{if not .Campaigns}}
-<div class="flex flex-col items-center justify-center py-32 text-gray-500">
-  <p class="text-lg font-medium">{{t "No campaigns yet"}}</p>
-  <p class="text-sm mt-2">{{t "Create your first campaign to start advertising"}}</p>
+<div class="py-24 text-center">
+  <p class="text-lg font-bold">{{t "No campaigns yet"}}</p>
+  <p class="text-sm text-gray-500 mt-2">{{t "Create your first campaign to start advertising"}}</p>
+  <button onclick="document.getElementById('new-campaign-form').classList.remove('hidden')" class="btn btn-primary mt-6" data-viewas-block>{{t "New Campaign"}}</button>
 </div>
 {{else}}
 {{template "list-sort" .}}
-<div class="space-y-3">
+<div class="border-t-2 border-gray-900">
+  <div class="camp-row hidden xl:grid px-4 py-2 text-xs font-bold text-gray-500 border-b border-gray-300" aria-hidden="true">
+    <span>{{t "Status"}}</span><span>{{t "Campaign"}}</span><span class="text-right">{{t "Today / budget"}}</span>
+    <span>{{t "Today, hour by hour"}}</span><span>{{t "Outlook"}}</span><span class="text-right">{{t "Clicks · CTR"}}</span>
+    <span class="text-right">{{t "max CPM"}}</span><span></span>
+  </div>
   {{range .Campaigns}}
-  <div class="bg-white rounded-lg border overflow-hidden" x-data="{ editOpen: false }">
-    <!-- Campaign row -->
-    <div class="p-4 flex items-center gap-4 cursor-pointer hover:bg-gray-50"
-         onclick="var detail=this.nextElementSibling;detail.classList.toggle('hidden');var chevron=this.querySelector('[data-chevron]');chevron.classList.toggle('rotate-180');">
-      <!-- Status indicator -->
-      <div class="w-2 h-2 rounded-full shrink-0 {{if eq .Status "active"}}bg-green-500{{else}}bg-gray-300{{end}}"></div>
+  <div class="bg-white border-b border-gray-200" x-data="{ open: false, editOpen: false }">
+    <div class="camp-row px-4 py-3">
+      <span>{{if eq .Status "active"}}<span class="badge badge-success">{{t "Active"}}</span>{{else if eq .Status "paused"}}<span class="badge badge-neutral">{{t "Paused"}}</span>{{else}}<span class="badge badge-neutral">{{.Status}}</span>{{end}}</span>
 
-      <!-- Name & category -->
-      <div class="min-w-0 flex-1">
-        <div class="flex items-center gap-2">
-          <p class="font-medium truncate">{{if .Name}}{{.Name}}{{else}}{{.ID}}{{end}}</p>
-          {{if .Untargeted}}
-          <span class="badge badge-warning gap-1"
-                title="{{t "This campaign has no target categories. The auto-categorisation from the landing page returned nothing usable, so this campaign won't bid in any auction. Open the campaign and either set Target Categories manually or enable 'Bid on unmatched context'."}}">
-            {{t "⚠ Untargeted"}}
-          </span>
-          {{end}}
-          {{if and $.AdvBudget (eq $.AdvBudget.BudgetMode "optimized")}}
-          <span class="badge badge-info"
-                title="{{t "Daily budget is set by the account allocator (Campaign Budget Optimization)."}}">
-            {{t "Optimized"}}
-          </span>
-          {{end}}
-        </div>
-        <p class="text-xs text-gray-500">{{if .AdProductCategoryName}}{{.AdProductCategoryName}}{{else if .AdProductCategory}}{{.AdProductCategory}}{{else}}{{t "No category"}}{{end}}</p>
-      </div>
-
-      <!-- Budget bar -->
-      <div class="w-32">
-        <div class="flex justify-between text-xs text-gray-500 mb-1">
-          <span>{{money .SpendToday}}</span>
-          <span>{{money .DailyBudget}}</span>
-        </div>
-        {{if .DayStartBudget}}
-        <p class="text-xs text-gray-500 mb-1 text-right" data-budget-moved>{{t "started today at %s" .DayStartBudget}}{{if .BudgetMoved}} &middot; <span class="{{if .BudgetMovedUp}}text-green-700{{else}}text-red-600{{end}}">{{.BudgetMoved}}</span>{{end}}</p>
-        {{end}}
-        <div class="h-1.5 bg-gray-200 rounded-full">
-          <div class="h-full rounded-full {{if gt .BudgetPct 90.0}}bg-red-500{{else if gt .BudgetPct 70.0}}bg-amber-500{{else}}bg-green-500{{end}}"
-               style="width:{{if .BudgetPct}}{{.BudgetPct}}{{else}}0{{end}}%;"></div>
-        </div>
-      </div>
-
-      <!-- Key metrics -->
-      <div class="text-right text-sm w-20">
-        <p class="font-medium">{{.Impressions}}</p>
-        <p class="text-xs text-gray-500">{{t "imps"}}</p>
-      </div>
-      <div class="text-right text-sm w-16">
-        <p class="font-medium">{{.Clicks}}</p>
-        <p class="text-xs text-gray-500">{{t "clicks"}}</p>
-      </div>
-      <div class="text-right text-sm w-16">
-        <p class="font-medium">{{if .CTR}}{{.CTR}}{{else}}&mdash;{{end}}</p>
-        <p class="text-xs text-gray-500">{{t "CTR"}}</p>
-      </div>
-      <div class="text-right text-sm w-20" title="{{t "This campaign's share of every impression served across the whole network today. The day follows your account timezone — the same boundary your daily budget resets at — so it returns to 0% at your midnight."}}">
-        <p class="font-medium {{if .WinRateClass}}{{.WinRateClass}}{{end}}">{{if .WinRate}}{{.WinRate}}{{else}}&mdash;{{end}}</p>
-        <p class="text-xs text-gray-500">{{t "imp share"}}</p>
-      </div>
-
-      <!-- CPM -->
-      <div class="text-right text-sm w-20">
-        <p class="font-medium">{{if .MaxCPM}}{{money .MaxCPM}}{{else}}&mdash;{{end}}</p>
-        <p class="text-xs text-gray-500">{{t "max CPM"}}</p>
-      </div>
-      <div class="text-right text-sm w-20">
-        <p class="font-medium">{{if .ECPM}}{{money .ECPM}}{{else}}&mdash;{{end}}</p>
-        <p class="text-xs text-gray-500">{{t "eCPM"}}</p>
-      </div>
-
-      <!-- Creatives live under their campaign — this is THE way in since
-           the top-level nav item was dropped. @click.stop so it doesn't
-           toggle the row. -->
-      <a href="/advertiser/creatives?campaignId={{.ID}}&amp;auto=1" @click.stop
-         class="px-2.5 py-1 text-xs border rounded-md hover:bg-gray-100 text-gray-600 shrink-0">
-        {{t "Creatives"}}
-      </a>
-
-      <!-- Edit settings (stop propagation so it doesn't toggle the row).
-           After the inline panel opens, scroll it into view so the Edit
-           Campaign form isn't left below the fold. $nextTick alone is NOT
-           enough in Safari: WebKit hasn't laid the just-unhidden panel out
-           yet and scrollIntoView on it silently no-ops (panel opens below
-           the fold → "the button did nothing"). One rAF after nextTick
-           guarantees a layout pass first — verified in both engines. -->
-      <button type="button" @click.stop="editOpen = true; window.__scopeHintIn && __scopeHintIn($refs.editPanel); $nextTick(() => requestAnimationFrame(() => $refs.editPanel.scrollIntoView({ behavior: 'smooth', block: 'start' })))"
-              class="px-2.5 py-1 text-xs border rounded-md hover:bg-gray-100 text-gray-600 shrink-0">
-        {{t "Edit"}}
-      </button>
-
-      <!-- Delete: enabled only for inactive campaigns (pause an active one
-           first); shown disabled otherwise so it stays discoverable.
-           @click.stop so it doesn't toggle the row. -->
-      {{if ne .Status "active"}}
-      <form method="POST" action="/advertiser/campaigns/delete" class="shrink-0" @click.stop
-            onsubmit="return confirm('{{t "Delete this campaign? It is removed from your list. Reports are kept."}}')">
-        <input type="hidden" name="campaignId" value="{{.ID}}">
-        <button type="submit"
-                class="px-2.5 py-1 text-xs border border-red-300 rounded-md text-red-600 hover:bg-red-50 shrink-0">
-          {{t "Delete"}}
+      <div class="min-w-0">
+        <button type="button" @click="open = !open" :aria-expanded="open ? 'true' : 'false'" aria-expanded="false" aria-controls="camp-detail-{{.ID}}"
+                class="group flex items-center gap-1.5 max-w-full text-left font-bold hover:underline">
+          <span class="truncate" title="{{if .Name}}{{.Name}}{{else}}{{.ID}}{{end}}">{{if .Name}}{{.Name}}{{else}}{{.ID}}{{end}}</span>
+          <svg class="w-4 h-4 shrink-0 text-gray-500 transition-transform motion-reduce:transition-none" :class="open && 'rotate-180'" fill="none" viewBox="0 0 24 24" stroke="currentColor" aria-hidden="true"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 9l-7 7-7-7" /></svg>
         </button>
-      </form>
-      {{else}}
-      <button type="button" disabled @click.stop
-              title="{{t "Pause this campaign before deleting it"}}"
-              class="px-2.5 py-1 text-xs border border-gray-200 rounded-md text-gray-300 cursor-not-allowed shrink-0">
-        {{t "Delete"}}
-      </button>
-      {{end}}
+        <p class="text-xs text-gray-500 truncate">{{if .AdProductCategoryName}}{{.AdProductCategoryName}}{{else if .AdProductCategory}}{{.AdProductCategory}}{{else}}{{t "No category"}}{{end}}{{if and $.AdvBudget (eq $.AdvBudget.BudgetMode "optimized")}} · <span title="{{t "Daily budget is set by the account allocator (Campaign Budget Optimization)."}}">{{t "Optimized"}}</span>{{end}}</p>
+      </div>
 
-      <!-- Expand chevron -->
-      <svg data-chevron class="w-4 h-4 text-gray-500 transition-transform" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 9l-7 7-7-7" />
-      </svg>
+      <div class="span xl:text-right tabular whitespace-nowrap">
+        <span class="xl:hidden text-xs text-gray-500">{{t "Today / budget"}} </span><span class="font-bold">{{money .SpendToday}}</span> <span class="text-xs text-gray-500">/ {{money .DailyBudget}}</span>
+        <div class="h-[3px] bg-gray-200 mt-1 max-w-[8.5rem] xl:ml-auto"><div class="h-full bg-gray-900" style="width:{{if .BudgetPct}}{{.BudgetPct}}{{else}}0{{end}}%;"></div></div>
+        {{if .DayStartBudget}}
+        <p class="text-xs text-gray-500 mt-1" data-budget-moved>{{t "started today at %s" .DayStartBudget}}{{if .BudgetMoved}} &middot; <span class="{{if .BudgetMovedUp}}text-green-700{{else}}text-red-700{{end}}">{{.BudgetMoved}}</span>{{end}}</p>
+        {{end}}
+      </div>
+
+      <div class="span">{{template "forecast-strip" .Forecast}}</div>
+
+      <p class="span text-sm"{{if .Untargeted}} title="{{t "This campaign has no target categories. The auto-categorisation from the landing page returned nothing usable, so this campaign won't bid in any auction. Open the campaign and either set Target Categories manually or enable 'Bid on unmatched context'."}}"{{end}}>
+        {{if eq .Forecast.Alert "warning"}}<span class="badge badge-danger mr-1">{{t "Warning"}}</span>{{else if eq .Forecast.Alert "advisory"}}<span class="badge badge-warning mr-1">{{t "Advisory"}}</span>{{end}}{{.Forecast.Outlook}}
+      </p>
+
+      <p class="span xl:text-right text-sm tabular whitespace-nowrap"><span class="xl:hidden text-xs text-gray-500">{{t "Clicks · CTR"}} </span>{{.Clicks}} · {{if .CTR}}{{.CTR}}{{else}}&mdash;{{end}}</p>
+
+      <p class="span xl:text-right text-sm tabular"><span class="xl:hidden text-xs text-gray-500">{{t "max CPM"}} </span>{{if .MaxCPM}}{{money .MaxCPM}}{{else}}&mdash;{{end}}</p>
+
+      <div class="span flex items-center gap-2 whitespace-nowrap xl:justify-end">
+        <a href="/advertiser/creatives?campaignId={{.ID}}&amp;auto=1" class="btn btn-secondary btn-sm">{{t "Creatives"}}</a>
+        {{/* After the inline panel opens, scroll it into view. $nextTick
+             alone is NOT enough in Safari (WebKit hasn't laid the panel out
+             yet and scrollIntoView no-ops); one rAF after nextTick
+             guarantees a layout pass first. */}}
+        <button type="button" @click="editOpen = true; window.__scopeHintIn && __scopeHintIn($refs.editPanel); $nextTick(() => requestAnimationFrame(() => $refs.editPanel.scrollIntoView({ behavior: 'smooth', block: 'start' })))"
+                class="btn btn-secondary btn-sm">{{t "Edit"}}</button>
+      </div>
     </div>
 
     <!-- Expanded details -->
-    <div class="hidden border-t px-4 py-4 bg-gray-50">
+    <div id="camp-detail-{{.ID}}" x-show="open" x-cloak class="border-t px-4 py-4 bg-gray-50">
       <div class="grid grid-cols-1 sm:grid-cols-3 gap-6 text-sm">
         <div>
+          <dl class="grid grid-cols-3 gap-3 mb-4 tabular">
+            <div><dt class="text-xs text-gray-500">{{t "imps"}}</dt><dd class="font-bold">{{.Impressions}}</dd></div>
+            <div title="{{t "This campaign's share of every impression served across the whole network today. The day follows your account timezone — the same boundary your daily budget resets at — so it returns to 0% at your midnight."}}"><dt class="text-xs text-gray-500">{{t "imp share"}}</dt><dd class="font-bold">{{if .WinRate}}{{.WinRate}}{{else}}&mdash;{{end}}</dd></div>
+            <div><dt class="text-xs text-gray-500">{{t "eCPM"}}</dt><dd class="font-bold">{{if .ECPM}}{{money .ECPM}}{{else}}&mdash;{{end}}</dd></div>
+          </dl>
           <p class="text-gray-500 text-xs uppercase mb-2">{{t "Campaign"}}</p>
           {{/* UTM-laden landing URLs are too long to print whole: show the
                trimmed URL, but keep the FULL url one interaction away — the
@@ -559,6 +491,17 @@
             </button>
             {{end}}
           </form>
+          {{/* Delete: only for inactive campaigns (pause first); shown
+               disabled otherwise, with the reason as visible text. */}}
+          {{if ne .Status "active"}}
+          <form method="POST" action="/advertiser/campaigns/delete" class="mt-3"
+                onsubmit="return confirm('{{t "Delete this campaign? It is removed from your list. Reports are kept."}}')">
+            <input type="hidden" name="campaignId" value="{{.ID}}">
+            <button type="submit" class="btn btn-danger btn-sm">{{t "Delete"}}</button>
+          </form>
+          {{else}}
+          <p class="mt-3 text-xs text-gray-500">{{t "Pause this campaign before deleting it"}}</p>
+          {{end}}
           <form method="POST" action="/advertiser/campaigns/filler" class="mt-3"
                 title="{{t "Bid on pages with no contextual match. Creatives still go through publisher approval before serving."}}">
             <input type="hidden" name="campaignId" value="{{.ID}}">

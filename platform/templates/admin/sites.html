@@ -144,7 +144,7 @@
         <tr class="border-b last:border-0">
           <td class="px-4 py-3 font-medium whitespace-nowrap">{{.Domain}}</td>
           <td class="px-4 py-3 font-mono text-xs whitespace-nowrap">{{.SiteID}}</td>
-          <td class="px-4 py-3">{{.Publisher}}{{if .Company}} <span class="text-gray-500">· {{.Company}}</span>{{end}}</td>
+          <td class="px-4 py-3 whitespace-nowrap">{{.Publisher}}{{if .Company}} <span class="text-gray-500">· {{.Company}}</span>{{end}}</td>
           <td class="px-4 py-3 whitespace-nowrap text-gray-500">{{.ApprovedAt}}</td>
         </tr>
         {{end}}

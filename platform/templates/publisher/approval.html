@@ -439,13 +439,13 @@ document.body.addEventListener('inboxActed', function(){
              the answer is "no contextual match — advertiser opted in
              to unmatched traffic", not a topic classification. -->
         {{if $c.SafetyAdvisories}}
-        <div class="bg-amber-50 rounded-lg p-3 mb-6 text-sm ring-1 ring-inset ring-amber-200">
+        <div class="notice notice-advisory p-3 mb-6 text-sm">
           <p class="font-medium text-amber-900 mb-1">{{t "Content flagged"}}: {{range $i, $a := $c.SafetyAdvisories}}{{if $i}}, {{end}}{{t $a}}{{end}}</p>
           <p class="text-amber-800">{{t "Flagged by automated review — usually the subject being advertised, not the ad itself. Your call: approve it if it suits your audience, or reject it."}}</p>
         </div>
         {{end}}
         {{if $c.Filler}}
-        <div class="bg-amber-50 rounded-lg p-3 mb-6 text-sm ring-1 ring-inset ring-amber-200">
+        <div class="notice notice-advisory p-3 mb-6 text-sm">
           <p class="font-medium text-amber-900 mb-1">{{t "Why this ad was matched"}}</p>
           <p class="text-amber-800">
             {{- $cats := $c.DistinctCategoryNames -}}
@@ -464,7 +464,7 @@ document.body.addEventListener('inboxActed', function(){
           </p>
         </div>
         {{else}}
-        <div class="bg-blue-50 rounded-lg p-3 mb-6 text-sm">
+        <div class="notice notice-info p-3 mb-6 text-sm">
           <p class="font-medium text-blue-800 mb-1">{{t "Why this ad was matched"}}</p>
           <p class="text-blue-700">
             {{- $cats := $c.DistinctCategoryNames -}}
@@ -560,7 +560,7 @@ document.body.addEventListener('inboxActed', function(){
           <div><p class="text-gray-500">{{t "Landing Domain"}}</p><p class="font-medium">{{if $c.LandingDomain}}{{$c.LandingDomain}}{{else}}&mdash;{{end}}</p></div>
         </div>
         {{if $c.Reason}}
-        <div class="bg-amber-50 rounded-lg p-3 mb-6 text-sm ring-1 ring-inset ring-amber-200">
+        <div class="notice notice-advisory p-3 mb-6 text-sm">
           <p class="font-medium text-amber-900 mb-1">{{t "Flag reason"}}</p>
           <p class="text-amber-800">{{t $c.Reason}}</p>
         </div>

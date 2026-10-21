@@ -7,7 +7,7 @@
   </div>
   {{if .Sites}}
   <form method="GET" action="/publisher/stats">
-    <select name="siteId" onchange="this.form.submit()" class="px-3 py-2 border rounded-md text-sm">
+    <select name="siteId" onchange="this.form.submit()" class="form-input" aria-label="{{t "Site"}}">
       {{range .Sites}}
       <option value="{{.ID}}" {{if eq .ID $.SiteID}}selected{{end}}>{{if .Domain}}{{.Domain}}{{else}}{{.ID}}{{end}}</option>
       {{end}}
@@ -18,29 +18,30 @@
 
 {{if not .Stats}}
 <div class="text-center py-20 text-gray-500">
-  <p class="text-lg">{{t "No stats available"}}</p>
+  <p class="text-lg font-bold text-gray-900">{{t "No stats available"}}</p>
   <p class="text-sm mt-2">{{t "Stats will appear once ads start serving on your site"}}</p>
 </div>
 {{else}}
 <!-- Headline metrics — all three share the same persistent local-midnight
      window (tracking_events), so they always reconcile with each other. -->
-<div class="grid grid-cols-1 sm:grid-cols-3 gap-6 mb-4">
-  <div class="bg-white p-6 rounded-lg border" title="{{t "Impressions served on this site since midnight of your organization's timezone. Sourced from tracking_events."}}">
-    <p class="text-sm text-gray-500">{{t "Impressions Today"}}</p>
-    <p class="text-3xl font-semibold mt-2">{{.Stats.Impressions}}</p>
+<dl class="figures grid-cols-2 lg:grid-cols-5 mb-4">
+  <div class="figure" title="{{t "Your net earnings today after the platform fee. Sourced from tracking_events. Resets at midnight of your organization's timezone. Advertiser-side Today's Spend shows the gross amount."}}">
+    <dt>{{t "Revenue Today"}}</dt>
+    <dd>{{money .Stats.Revenue}}</dd>
+    {{if .Stats.FeePct}}<p class="text-xs text-gray-500 mt-1">{{t "%s gross − %s platform fee (%s%%)" (money .Stats.GrossRevenue) (money .Stats.Fee) .Stats.FeePct}}</p>{{end}}
   </div>
-  <div class="bg-white p-6 rounded-lg border" title="{{t "Net earnings per 1000 impressions today (Revenue Today ÷ Impressions Today × 1000)."}}">
-    <p class="text-sm text-gray-500">{{t "eCPM"}}</p>
-    <p class="text-3xl font-semibold mt-2">{{if .Stats.ECPM}}{{money .Stats.ECPM}}{{else}}&mdash;{{end}}</p>
+  <div class="figure" title="{{t "Impressions served on this site since midnight of your organization's timezone. Sourced from tracking_events."}}">
+    <dt>{{t "Impressions Today"}}</dt><dd>{{.Stats.Impressions}}</dd>
   </div>
-  <div class="bg-white p-6 rounded-lg border" title="{{t "Your net earnings today after the platform fee. Sourced from tracking_events. Resets at midnight of your organization's timezone. Advertiser-side Today's Spend shows the gross amount."}}">
-    <p class="text-sm text-gray-500">{{t "Revenue Today"}}</p>
-    <p class="text-3xl font-semibold mt-2">{{money .Stats.Revenue}}</p>
-    {{if .Stats.FeePct}}
-    <p class="text-xs text-gray-500 mt-1">{{t "%s gross − %s platform fee (%s%%)" (money .Stats.GrossRevenue) (money .Stats.Fee) .Stats.FeePct}}</p>
-    {{end}}
+  <div class="figure" title="{{t "Net earnings per 1000 impressions today (Revenue Today ÷ Impressions Today × 1000)."}}">
+    <dt>{{t "eCPM"}}</dt><dd>{{if .Stats.ECPM}}{{money .Stats.ECPM}}{{else}}&mdash;{{end}}</dd>
   </div>
-</div>
+  <div class="figure"><dt>{{t "Creatives Served"}}</dt><dd>{{.Stats.CreativesServed}}</dd></div>
+  <div class="figure">
+    <dt>{{t "Pending Creatives"}}</dt><dd>{{.Stats.PendingCreatives}}</dd>
+    {{if .Stats.PendingCreatives}}<p class="text-xs mt-1"><a href="/publisher/approval{{if .SiteID}}?siteId={{.SiteID}}{{end}}" class="text-brand-ink hover:underline">{{t "Review now"}} &rarr;</a></p>{{end}}
+  </div>
+</dl>
 
 <!-- Session diagnostics: in-memory serveStats, scoped to the current cluster
      session (resets on every restart/deploy), so they are shown as a muted
@@ -50,21 +51,5 @@
   {{if eq .Stats.Requests 1}}{{t "Since last restart: 1 serve request · %s fill rate" .Stats.FillRate}}{{else}}{{t "Since last restart: %d serve requests · %s fill rate" .Stats.Requests .Stats.FillRate}}{{end}}
 </p>
 
-<!-- Activity cards -->
-<div class="grid grid-cols-1 md:grid-cols-2 gap-6">
-  <div class="bg-white p-6 rounded-lg border">
-    <p class="text-sm text-gray-500">{{t "Creatives Served"}}</p>
-    <p class="text-2xl font-semibold mt-2">{{.Stats.CreativesServed}}</p>
-  </div>
-  <div class="bg-white p-6 rounded-lg border">
-    <p class="text-sm text-gray-500">{{t "Pending Creatives"}}</p>
-    <p class="text-2xl font-semibold mt-2">{{.Stats.PendingCreatives}}</p>
-    {{if .Stats.PendingCreatives}}
-    <p class="text-xs text-brand-ink mt-2">
-      <a href="/publisher/approval{{if .SiteID}}?siteId={{.SiteID}}{{end}}" class="hover:underline">{{t "Review now"}} &rarr;</a>
-    </p>
-    {{end}}
-  </div>
-</div>
 {{end}}
 {{end}}

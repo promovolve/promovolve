@@ -6,18 +6,12 @@
 </div>
 
 {{if eq .WalletNotice "suspended"}}
-<div class="bg-red-50 border border-red-200 rounded-lg p-4 mb-6 max-w-2xl">
-  <p class="font-medium text-red-800">{{t "Serving is paused — your wallet is out of funds."}}</p>
-  <p class="text-sm text-red-600 mt-1">{{t "See"}} <a href="/advertiser/wallet" class="text-brand-ink hover:underline">{{t "Wallet"}}</a> {{t "for details, and contact the platform operator to top up."}}</p>
-</div>
+<p class="mb-6 text-sm"><span class="badge badge-danger mr-1">{{t "Warning"}}</span><strong>{{t "Serving is paused — your wallet is out of funds."}}</strong> {{t "See"}} <a href="/advertiser/wallet" class="text-brand-ink hover:underline">{{t "Wallet"}}</a> {{t "for details, and contact the platform operator to top up."}}</p>
 {{else if eq .WalletNotice "low"}}
-<div class="bg-amber-50 border border-amber-200 rounded-lg p-4 mb-6 max-w-2xl">
-  <p class="font-medium text-amber-800">{{t "Your wallet balance is running low."}}</p>
-  <p class="text-sm text-amber-700 mt-1">{{t "Serving pauses when it reaches zero — see"}} <a href="/advertiser/wallet" class="text-brand-ink hover:underline">{{t "Wallet"}}</a>.</p>
-</div>
+<p class="mb-6 text-sm"><span class="badge badge-warning mr-1">{{t "Advisory"}}</span><strong>{{t "Your wallet balance is running low."}}</strong> {{t "Serving pauses when it reaches zero — see"}} <a href="/advertiser/wallet" class="text-brand-ink hover:underline">{{t "Wallet"}}</a>.</p>
 {{end}}
 {{if and .AdvBudget .AdvBudget.IsZero}}
-<div class="bg-amber-50 border border-amber-200 rounded-lg p-4 mb-6 max-w-2xl">
+<div class="notice notice-advisory p-4 mb-6 max-w-2xl">
   <p class="font-medium text-amber-800">{{t "Set your daily budget to start advertising"}}</p>
   <p class="text-sm text-amber-700 mt-1">{{t "Your campaigns won't run until a daily budget is set."}}</p>
 </div>

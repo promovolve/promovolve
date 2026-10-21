@@ -80,7 +80,7 @@
   .btn-danger { @apply bg-warning text-white hover:brightness-110; }
   .card { @apply bg-white border border-gray-200 rounded-sm p-6; }
   .card-tight { @apply p-4; }
-  .badge { @apply inline-flex items-center px-2 py-0.5 rounded-sm text-xs font-bold; }
+  .badge { @apply inline-flex items-center px-2 py-0.5 rounded-sm text-xs font-bold whitespace-nowrap; }
   .badge-info { background-color: #e6efff; color: #0036d6; }
   .badge-success { background-color: #e3f1e7; color: #146c2e; }
   .badge-warning { @apply bg-advisory text-[#1a1a1a]; }   /* JMA advisory */
@@ -96,7 +96,26 @@
   .form-hint { @apply text-xs text-gray-500 mt-1; }
   .page-title { @apply text-3xl font-bold tracking-tight; }
   .page-sub { @apply text-sm text-gray-500 mt-1 max-w-3xl; }
-  .section-title { @apply text-lg font-bold; }
+  .section-title { @apply text-xl font-bold; }
+
+  /* Notices: a framed line, never a coloured side stripe. error = JMA
+     warning red, advisory = yellow, ok = green, info = intensity blue. */
+  .notice { @apply text-sm text-gray-900 px-3 py-2 border rounded-sm; }
+  .notice-error { background-color: #fff1f0; border-color: #d70a00; }
+  .notice-advisory { background-color: #fffbd1; border-color: #b3a600; }
+  .notice-ok { background-color: #e3f1e7; border-color: #146c2e; }
+  .notice-info { background-color: #e6efff; border-color: #2185ff; }
+  .dark .notice-error { background-color: rgb(215 10 0 / 0.16); border-color: #ff6a5f; }
+  .dark .notice-advisory { background-color: rgb(255 245 0 / 0.1); border-color: rgb(255 245 0 / 0.55); }
+  .dark .notice-ok { background-color: rgb(20 108 46 / 0.3); border-color: #8fd6a3; }
+  .dark .notice-info { background-color: rgb(33 133 255 / 0.18); border-color: #a0d2ff; }
+
+  /* A row of headline figures under an ink rule (stats, earnings,
+     billing totals): no boxes, the numbers carry the weight. */
+  .figures { @apply grid gap-x-6 border-t-2 border-gray-900; }
+  .figure { @apply py-3 border-b border-gray-200; }
+  .figure > dt { @apply text-xs text-gray-500; }
+  .figure > dd { @apply text-2xl font-bold tabular-nums mt-1; }
 
   /* Flat data table: an ink rule over the header, hairlines between rows,
      no box around it. Wrap in overflow-x-auto where it can be wide. */

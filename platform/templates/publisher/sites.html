@@ -14,7 +14,7 @@
 </div>
 
 {{if .Error}}
-<div class="bg-red-50 border border-red-200 text-red-700 rounded-lg p-3 mb-6 text-sm">{{.Error}}</div>
+<div class="notice notice-error p-3 mb-6 text-sm">{{.Error}}</div>
 {{end}}
 
 <!-- Blocked advertiser domains (publisher-wide) -->
@@ -23,7 +23,7 @@
   <p class="text-xs text-gray-500 mb-3">{{t "Ads whose landing page is one of these domains won't serve on any of your sites."}}</p>
   <div class="flex flex-wrap gap-2 mb-3">
     {{range .BlockedAdvertiserDomains}}
-    <form method="POST" action="/publisher/unblock-advertiser-domain" class="badge badge-danger gap-1">
+    <form method="POST" action="/publisher/unblock-advertiser-domain" class="badge badge-neutral gap-1">
       <input type="hidden" name="domain" value="{{.}}">
       <span>{{.}}</span>
       <button type="submit" aria-label="{{t "Unblock %s" .}}" class="chip-x">×</button>
@@ -32,7 +32,7 @@
     {{if not .BlockedAdvertiserDomains}}<span class="text-sm text-gray-500">{{t "None blocked"}}</span>{{end}}
   </div>
   <form method="POST" action="/publisher/block-advertiser-domain"
-        class="relative inline-flex items-center gap-1"
+        class="relative flex flex-wrap items-center gap-1"
         x-data="{ query: '', results: [], open: false }"
         onclick="event.stopPropagation();">
     <input type="text" name="domain" x-model="query"
@@ -45,7 +45,7 @@
       placeholder="{{t "Search advertiser domains to block"}}"
       autocomplete="off"
       class="w-72 px-2 py-1 border rounded-md text-sm focus:outline-none focus:ring-2 focus:ring-brand/20 focus:border-brand">
-    <button type="submit" class="btn btn-danger btn-sm">{{t "Block"}}</button>
+    <button type="submit" class="btn btn-secondary btn-sm">{{t "Block"}}</button>
     <div x-show="open" x-transition
       class="absolute top-full left-0 z-10 w-72 mt-1 bg-white border rounded-md shadow-lg max-h-48 overflow-y-auto">
       <template x-for="d in results" :key="d">
@@ -82,9 +82,8 @@
 <div class="space-y-3 mb-3">
   {{range .SiteRequests}}
   <div class="bg-white rounded-lg border overflow-hidden">
-    <div class="p-4 flex items-center gap-4">
-      <div class="w-2 h-2 rounded-full shrink-0 {{if eq .Status "rejected"}}bg-red-500{{else}}bg-yellow-400{{end}}"></div>
-      <div class="flex-1 min-w-0">
+    <div class="p-4 flex flex-wrap items-center gap-x-4 gap-y-2">
+      <div class="flex-1 min-w-[12rem]">
         <p class="font-medium">
           {{.Domain}}
           {{if eq .Status "rejected"}}
@@ -128,13 +127,12 @@
   {{range .SitesData}}
   <div class="bg-white rounded-lg border overflow-hidden">
     <!-- Collapsed row -->
-    <div class="p-4 flex items-center gap-4 cursor-pointer hover:bg-gray-50"
+    <div class="p-4 flex flex-wrap items-center gap-x-4 gap-y-2 cursor-pointer hover:bg-gray-50"
          {{/* Opening the details is what triggers the ownership re-check
               below. Dispatched from here rather than x-init on the panel:
               the panel exists in the DOM for every site from first paint, so
               x-init would probe every publisher's server on page load. */}}
          onclick="var detail=this.nextElementSibling;detail.classList.toggle('hidden');var chevron=this.querySelector('[data-chevron]');chevron.classList.toggle('rotate-180');if(!detail.classList.contains('hidden')){detail.dispatchEvent(new CustomEvent('pv-opened'));}">
-      <div class="w-2 h-2 rounded-full shrink-0 {{if eq .VerificationStatus "verified"}}bg-green-500{{else}}bg-yellow-400{{end}}"></div>
       <div class="flex-1 min-w-0">
         <p class="font-medium">
           {{.Domain}}
@@ -555,7 +553,7 @@
                before ranging or the unblock form breaks the whole render. */}}
           {{$blockSiteID := .ID}}
           {{range .BlockedCategories}}
-          <span class="badge badge-danger gap-1">
+          <span class="badge badge-neutral gap-1">
             {{.}}
             <form method="POST" action="/publisher/sites/unblock-ad-product" class="inline">
               <input type="hidden" name="siteId" value="{{$blockSiteID}}">
@@ -565,7 +563,7 @@
           </span>
           {{end}}
           <form method="POST" action="/publisher/sites/block-ad-product"
-                class="relative inline-flex items-center gap-1"
+                class="relative flex flex-wrap items-center gap-1"
                 x-data="{ query: '', results: [], selectedId: '', open: false,
                   search() {
                     if (this.query.length > 0) {
@@ -586,7 +584,7 @@
               placeholder="{{t "Search categories to block"}}"
               autocomplete="off"
               class="w-48 px-2 py-0.5 border rounded-md text-xs focus:outline-none focus:ring-2 focus:ring-brand/20 focus:border-brand">
-            <button type="submit" class="btn btn-danger btn-sm">{{t "Block"}}</button>
+            <button type="submit" class="btn btn-secondary btn-sm">{{t "Block"}}</button>
             <div x-show="open" x-transition
               class="absolute top-full left-0 z-10 w-64 mt-1 bg-white border rounded-md shadow-lg max-h-48 overflow-y-auto">
               <template x-for="cat in results" :key="cat.id">

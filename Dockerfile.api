@@ -36,7 +36,7 @@ RUN sbt "api/stage"
 FROM eclipse-temurin:25-jre-jammy AS jre
 
 # ---- runtime stage: Playwright (Chromium + system libs) + JRE 25 ----
-FROM mcr.microsoft.com/playwright/java:v1.63.0-jammy
+FROM mcr.microsoft.com/playwright/java:v1.64.0-jammy
 
 # ffmpeg: CreativeProcessor normalizes video backgrounds at publish
 # (strip audio / clip / downscale / poster frame — VideoTranscoder.scala).

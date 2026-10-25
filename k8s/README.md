@@ -69,8 +69,8 @@ nodes when possible but co-locate on a single node without changes (see
   the first one.
 - **Playwright** runs *inside* the API JVM. The image is built on
   `mcr.microsoft.com/playwright/java:v1.63.0-jammy` (browser build matched to
-  the pinned `playwright` dep) and `CHROMIUM_NO_SANDBOX=true` lets Chromium
-  start as root in the container.
+  the pinned `playwright` dep). The API runs as UID 1000 with Chromium
+  sandboxing enabled. Deploy includes the [runtime isolation migration](../docker/README.md).
 
 ## Prerequisites
 
@@ -224,12 +224,13 @@ tracked file.
 # The --load-restrictor flag is needed because the DB init ConfigMap is
 # single-sourced from ../docker/init-db.sql (outside the kustomize root),
 # which kustomize blocks by default. This keeps one copy of init-db.sql.
+kubectl kustomize --load-restrictor LoadRestrictionsNone k8s/runtime-security | kubectl apply -f -
+kubectl -n promovolve rollout status daemonset/chromium-seccomp --timeout=180s
 kubectl kustomize --load-restrictor LoadRestrictionsNone k8s/ | kubectl apply -f -
 kubectl -n promovolve get pods -w
 ```
 
-Prefer a one-word command? Run `alias pvk='kubectl kustomize --load-restrictor LoadRestrictionsNone k8s/'`
-then `pvk | kubectl apply -f -`.
+`k8s/up.sh` performs the same profile installation and workload deployment in order.
 
 First boot: the DB initializes (runs `init-db.sql`), then the API replays
 persistence/DData — the API `startupProbe` allows up to ~5 min.

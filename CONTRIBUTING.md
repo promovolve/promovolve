@@ -55,8 +55,7 @@ Development Compose ports default to `127.0.0.1`. For access from other machines
 set `DEV_BIND_ADDRESS` to a host IP or `0.0.0.0`, restrict network access, and
 replace the example credentials.
 
-The root `Dockerfile` runs the development Creative Assessment UI; production uses
-`Dockerfile.api` and `platform/Dockerfile`.
+Production images use `Dockerfile.api` and `platform/Dockerfile`.
 
 ## Building & testing
 

@@ -15,10 +15,7 @@ spec:
       nodeSelector:
         kubernetes.io/os: linux
       tolerations:
-        - key: kubernetes.io/arch
-          operator: Equal
-          value: arm64
-          effect: NoSchedule
+        - operator: Exists
       containers:
         - name: install
           # This root process writes a kubelet hostPath, so never trust a mutable tag.

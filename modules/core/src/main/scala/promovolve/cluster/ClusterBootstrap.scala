@@ -113,13 +113,7 @@ object ClusterBootstrap {
       // Gemini rate limiter singleton (only if Gemini is configured)
       val geminiRateLimiter = initGeminiRateLimiter(system)
 
-      // Browser session pool (node-local, NOT a cluster singleton —
-      // browsers are local processes). Used for designer/LP work
-      // (HttpBootstrap → LPWorker). Pages are classified on-demand from real
-      // traffic, so there is no content crawler / crawl-host registration.
-      val browserPool = promovolve.browser.BrowserSessionPool.init(system)
-
-      Refs(campaignDirectory, categoryRegistry, serveIndex, affinityRegistry, geminiRateLimiter, browserPool)
+      Refs(campaignDirectory, categoryRegistry, serveIndex, affinityRegistry, geminiRateLimiter)
     }
 
     case class Refs(
@@ -127,8 +121,7 @@ object ClusterBootstrap {
         categoryRegistry: ActorRef[CategoryRegistry.Command],
         serveIndex: ActorRef[ServeIndexDData.Cmd],
         affinityRegistry: ActorRef[AffinityRegistryDData.Cmd],
-        geminiRateLimiter: Option[ActorRef[GeminiRateLimiter.Command]],
-        browserPool: ActorRef[promovolve.browser.BrowserSessionPool.Command]
+        geminiRateLimiter: Option[ActorRef[GeminiRateLimiter.Command]]
     )
   }
 
@@ -178,11 +171,7 @@ object ClusterBootstrap {
       // Gemini rate limiter proxy (routes to singleton node)
       val geminiRateLimiter = initGeminiRateLimiter(system)
 
-      // Browser session pool (node-local). Used for designer/LP work. On a
-      // crawler-role node, this is the pool the LPWorker drives directly.
-      val browserPool = promovolve.browser.BrowserSessionPool.init(system)
-
-      Refs(campaignDirectory, categoryRegistry, serveIndex, affinityRegistry, geminiRateLimiter, browserPool)
+      Refs(campaignDirectory, categoryRegistry, serveIndex, affinityRegistry, geminiRateLimiter)
     }
 
     case class Refs(
@@ -190,8 +179,7 @@ object ClusterBootstrap {
         categoryRegistry: ActorRef[CategoryRegistry.Command],
         serveIndex: ActorRef[ServeIndexDData.Cmd],
         affinityRegistry: ActorRef[AffinityRegistryDData.Cmd],
-        geminiRateLimiter: Option[ActorRef[GeminiRateLimiter.Command]],
-        browserPool: ActorRef[promovolve.browser.BrowserSessionPool.Command]
+        geminiRateLimiter: Option[ActorRef[GeminiRateLimiter.Command]]
     )
   }
 
@@ -280,16 +268,16 @@ object ClusterBootstrap {
         repos: Repositories.Refs
     )(using ExecutionContext): Unit = {
       // Extract refs from either Singletons.Refs or SingletonProxies.Refs
-      val (campaignDirectory, categoryRegistry, serveIndex, affinityRegistry, geminiRateLimiter, browserPool) =
+      val (campaignDirectory, categoryRegistry, serveIndex, affinityRegistry, geminiRateLimiter) =
         singletons match {
           case s: Singletons.Refs => (s.campaignDirectory, s.categoryRegistry, s.serveIndex, s.affinityRegistry,
-              s.geminiRateLimiter, s.browserPool)
+              s.geminiRateLimiter)
           case p: SingletonProxies.Refs => (p.campaignDirectory, p.categoryRegistry, p.serveIndex, p.affinityRegistry,
-              p.geminiRateLimiter, p.browserPool)
+              p.geminiRateLimiter)
         }
 
       initWithRefs(system, sharding, topics, campaignDirectory, categoryRegistry, serveIndex, affinityRegistry, repos,
-        geminiRateLimiter, browserPool)
+        geminiRateLimiter)
     }
 
     /** Initialize with explicit refs (used by unified Main). */
@@ -302,8 +290,7 @@ object ClusterBootstrap {
         serveIndex: ActorRef[ServeIndexDData.Cmd],
         affinityRegistry: ActorRef[AffinityRegistryDData.Cmd],
         repos: Repositories.Refs,
-        geminiRateLimiter: Option[ActorRef[GeminiRateLimiter.Command]] = None,
-        browserPool: ActorRef[promovolve.browser.BrowserSessionPool.Command]
+        geminiRateLimiter: Option[ActorRef[GeminiRateLimiter.Command]] = None
     )(using ec: ExecutionContext): Unit = {
       system.log.info("Initializing cluster-sharded entities...")
 

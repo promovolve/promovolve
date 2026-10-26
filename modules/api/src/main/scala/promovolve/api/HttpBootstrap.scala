@@ -336,7 +336,9 @@ object HttpBootstrap {
       } else None
 
       // LP Analyzer (Playwright-based section extraction + banner screenshots)
-      val lpAnalyzer = try {
+      val browserWorkersEnabled = appConfig.getBoolean("browser.lp-workers.enabled")
+      val lpAnalyzer = if (browserWorkersEnabled) None
+      else try {
         val analyzer = new promovolve.browser.LPAnalyzer(bannerScriptUrl, browserPool)
         system.log.info("LPAnalyzer enabled (Playwright via BrowserSessionPool), banner-script-url={}", bannerScriptUrl)
         Some(analyzer)
@@ -360,7 +362,8 @@ object HttpBootstrap {
           creativeRepo, imageAssetRepo, imageStorage, cdnBase,
           lpAnalyzer, categoryVerificationClient, sharding,
           fontProvisioner,
-          budgetEventTopic = Some(budgetEventTopic)
+          budgetEventTopic = Some(budgetEventTopic),
+          bannerRenderer = if (browserWorkersEnabled) Some(BannerRenderer.remote(sharding, imageStorage)) else None
         )
         Some(system.systemActorOf(
           org.apache.pekko.actor.typed.scaladsl.Behaviors.supervise(behavior)
@@ -405,9 +408,9 @@ object HttpBootstrap {
       }
 
       val lpWorkerEnabled =
-        appConfig.hasPath("crawler.lp-workers.enabled") && appConfig.getBoolean("crawler.lp-workers.enabled")
+        browserWorkersEnabled
       val lpWorkerNumWorkers =
-        if (appConfig.hasPath("crawler.lp-workers.num-workers")) appConfig.getInt("crawler.lp-workers.num-workers")
+        if (appConfig.hasPath("browser.lp-workers.num-workers")) appConfig.getInt("browser.lp-workers.num-workers")
         else 4
       if (lpWorkerEnabled)
         system.log.info("LP analysis dispatch: crawler-tier LPWorker (num-workers={})", lpWorkerNumWorkers)

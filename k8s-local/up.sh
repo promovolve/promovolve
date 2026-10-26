@@ -114,17 +114,23 @@ echo "==> ensuring namespace '$NS'"
 kubectl --context "$EXPECTED_CTX" create namespace "$NS" --dry-run=client -o yaml \
   | kubectl --context "$EXPECTED_CTX" apply -f - >/dev/null
 echo "==> applying k8s-local overlay"
+kubectl kustomize --load-restrictor LoadRestrictionsNone "$LDIR/../k8s/runtime-security" \
+  | kubectl --context "$EXPECTED_CTX" apply -f -
+kc rollout status daemonset/chromium-seccomp --timeout=180s
 # --load-restrictor: db-initdb is single-sourced from ../docker/init-db.sql,
 # outside the kustomize root (same as k8s/up.sh).
 kubectl kustomize --load-restrictor LoadRestrictionsNone "$LDIR" \
   | kubectl --context "$EXPECTED_CTX" apply -f -
+profile_sha=$(shasum -a 256 "$LDIR/../docker/chromium-seccomp.json" | awk '{print $1}')
+kc patch deployment promovolve-browser --type=merge -p \
+  "{\"spec\":{\"template\":{\"metadata\":{\"annotations\":{\"promovolve.dev/seccomp-sha256\":\"$profile_sha\"}}}}}" >/dev/null
 
 # --- 4. restart to pick up rebuilt same-tag images -------------------------
 # IfNotPresent + an unchanged :local tag means kubelet won't restart pods on its
 # own when the image CONTENT changed. After a rebuild, force it.
 if [ "$DO_BUILD" -eq 1 ]; then
   echo "==> rolling workloads onto the rebuilt images"
-  kc rollout restart statefulset/promovolve-api deployment/promovolve-platform >/dev/null || true
+  kc rollout restart statefulset/promovolve-api deployment/promovolve-browser deployment/promovolve-platform >/dev/null
 fi
 
 if [ "$DO_WAIT" -ne 1 ]; then
@@ -136,6 +142,7 @@ fi
 echo "==> waiting for rollout (cold start ~5-8 min: DB init -> Pekko cluster form)"
 kc rollout status statefulset/promovolve-db      --timeout=240s
 kc rollout status statefulset/promovolve-api     --timeout=480s
+kc rollout status deployment/promovolve-browser --timeout=480s
 kc rollout status deployment/promovolve-platform --timeout=180s
 
 echo "==> verifying (Docker Desktop maps LoadBalancers to localhost)"

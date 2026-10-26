@@ -4,22 +4,23 @@ Deploys the full stack into a local Kubernetes cluster — Docker Desktop's
 built-in Kubernetes or a standalone kind cluster (`k8s/kind-cluster.yaml`).
 This directory is the **kustomize base**; the public GKE deployment lives in
 `k8s-gke/` as an overlay over it (see its README). The app tier runs **2
-all-roles api pods with soft (preferred) anti-affinity** — they spread across
+serving api pods with soft (preferred) anti-affinity** — they spread across
 nodes when possible but co-locate on a single node without changes (see
 [Single-node fallback](#single-node-fallback)).
 
 | Component        | Kind         | Why                                                        |
 |------------------|--------------|------------------------------------------------------------|
 | `promovolve-db`  | StatefulSet  | TimescaleDB (hypertables + retention/compression) on a PVC |
-| `promovolve-api` | StatefulSet  | `promovolve.api.Main` — Pekko cluster; every pod carries ALL roles (singleton+entity+api+crawler) + LMDB DData on a PVC. All Playwright work (designer/LP creative generation) runs in-process. |
+| `promovolve-api` | StatefulSet  | `promovolve.api.Main` — Pekko cluster; singleton+entity+api roles with LMDB DData on a PVC; Chromium work is remote. |
+| `promovolve-browser` | Deployment | Sandboxed LP analysis and banner rendering; no DData PVC or DB credentials. |
 | `promovolve-platform` | Deployment | Go dashboard / BFF (stateless)                          |
 
 ## Topology decisions (change here if your needs differ)
 
 - **App tier = 2 all-roles pods (`api-statefulset.yaml: replicas: 2`) — the
   CONSOLIDATED topology (2026-07-02).** Every pod carries ALL roles
-  (`singleton`+`entity`+`api`+`crawler` — see `application-app.conf`). The
-  dedicated crawler tier was **deleted** and the dedicated singleton tier
+  (`singleton`+`entity`+`api` — see `application-app.conf`). A separate
+  browser Deployment handles Chromium. The dedicated singleton tier
   (`singleton-statefulset.yaml`) is **parked at `replicas: 0`**; the comments
   in those files document the rationale and the real-infra restore path.
   The pods form ONE cluster via **Pekko Management + Cluster Bootstrap** over
@@ -58,19 +59,18 @@ nodes when possible but co-locate on a single node without changes (see
   the entity role, but it protects the restore path where a non-entity pod
   joins the cluster (the coordinator drifting onto one wedges shard
   allocation — observed with the old dedicated crawler tier).
-- **Crawler is a ROLE, not a tier.** The dedicated crawler Deployment was
-  deleted in the 2026-07-02 consolidation. Every api pod now carries the
-  `crawler` role, which pins the LP-worker/Playwright pool used for creative
-  generation. The role is load-bearing: if no cluster member carries it,
-  landing-page creative generation breaks silently.
+- **Browser is a dedicated role and tier.** LP analysis and banner screenshots
+  run on `promovolve-browser`, not serving pods. Follow the
+  [staged rollout and rollback](browser-runtime.md) for existing clusters.
 - **TimescaleDB, not vanilla Postgres.** `docker/init-db.sql` calls
   `create_hypertable` / `add_retention_policy` / `add_compression_policy`,
   which only exist with the `timescaledb` extension. Plain Postgres aborts at
   the first one.
-- **Playwright** runs *inside* the API JVM. The image is built on
+- **Playwright** runs on the browser Deployment (same API image, `browser`
+  role only). The image is built on
   `mcr.microsoft.com/playwright/java:v1.63.0-jammy` (browser build matched to
-  the pinned `playwright` dep). The API runs as UID 1000 with Chromium
-  sandboxing enabled. Deploy includes the [runtime isolation migration](../docker/README.md).
+  the pinned `playwright` dep) with Chromium sandboxing and the Localhost
+  seccomp profile; see [browser-runtime.md](browser-runtime.md).
 
 ## Prerequisites
 
@@ -79,10 +79,10 @@ nodes when possible but co-locate on a single node without changes (see
 - `kubectl` pointing at that cluster's context (e.g. `kubectl config use-context
   kind-promovolve` for standalone kind, or `docker-desktop` for Docker Desktop).
 - A **Docker Hub account** (images are pushed there — see below).
-- Enough RAM for the pod limits: 2×api at 2560Mi + db 2Gi + platform 256Mi
-  ≈ **7.5 GiB** of limits. Give the Docker Desktop / kind VM headroom
-  (~8+ GiB) or pods get OOM-killed, which mid-bootstrap stalls cluster
-  formation (a new cluster needs both api pods as contact points).
+- Enough RAM for the pod limits: 2×api at 2048Mi + browser 2Gi + db 2Gi +
+  platform 256Mi ≈ **8.3 GiB** of limits. Give the Docker Desktop / kind VM
+  headroom (~9+ GiB) or pods get OOM-killed, which mid-bootstrap stalls
+  cluster formation (a new cluster needs both api pods as contact points).
 
 ### Multi-node cluster
 
@@ -220,17 +220,25 @@ tracked file.
 
 ## 3. Deploy
 
+The browser Deployment needs the node-local Chromium seccomp profile before
+it can start. Prefer `k8s/up.sh` (or `k8s-local/up.sh` / `k8s-gke/setup.sh`),
+which install and wait for the profile. For a manual apply:
+
 ```sh
+# runtime-security targets namespace promovolve but does not create it.
+kubectl create namespace promovolve --dry-run=client -o yaml | kubectl apply -f -
+# Install the Localhost seccomp profile before any workload that references it.
+kubectl kustomize --load-restrictor LoadRestrictionsNone k8s/runtime-security | kubectl apply -f -
+kubectl -n promovolve rollout status daemonset/chromium-seccomp --timeout=180s
 # The --load-restrictor flag is needed because the DB init ConfigMap is
 # single-sourced from ../docker/init-db.sql (outside the kustomize root),
 # which kustomize blocks by default. This keeps one copy of init-db.sql.
-kubectl kustomize --load-restrictor LoadRestrictionsNone k8s/runtime-security | kubectl apply -f -
-kubectl -n promovolve rollout status daemonset/chromium-seccomp --timeout=180s
 kubectl kustomize --load-restrictor LoadRestrictionsNone k8s/ | kubectl apply -f -
 kubectl -n promovolve get pods -w
 ```
 
-`k8s/up.sh` performs the same profile installation and workload deployment in order.
+Existing clusters that already run the API: follow the
+[staged browser rollout](browser-runtime.md) instead of a blind full-stack apply.
 
 First boot: the DB initializes (runs `init-db.sql`), then the API replays
 persistence/DData — the API `startupProbe` allows up to ~5 min.

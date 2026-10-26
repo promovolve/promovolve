@@ -115,6 +115,9 @@ kc rollout status daemonset/chromium-seccomp --timeout=180s
 
 echo "==> applying manifests (kustomize)"
 kubectl kustomize --load-restrictor LoadRestrictionsNone "$KDIR" | kubectl apply -f -
+profile_sha=$(shasum -a 256 "$KDIR/../docker/chromium-seccomp.json" | awk '{print $1}')
+kc patch deployment promovolve-browser --type merge -p \
+  "{\"spec\":{\"template\":{\"metadata\":{\"annotations\":{\"promovolve.dev/seccomp-sha256\":\"$profile_sha\"}}}}}" >/dev/null
 
 if [ "$DO_WAIT" -ne 1 ]; then
   echo "==> --no-wait: manifests applied. Watch with: kubectl -n $NS get pods -w"
@@ -129,6 +132,7 @@ fi
 echo "==> waiting for rollout (cold start ~7-8 min: image pulls -> DB init -> cluster form)"
 kc rollout status statefulset/promovolve-db       --timeout=240s
 kc rollout status statefulset/promovolve-api      --timeout=420s
+kc rollout status deployment/promovolve-browser   --timeout=420s
 kc rollout status deployment/promovolve-platform  --timeout=180s
 
 # --- verify -----------------------------------------------------------------

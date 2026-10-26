@@ -303,6 +303,38 @@ class PlacesSpec extends AnyWordSpec with Matchers with OptionValues {
       Places.resolveNamed(Some("Kanazawa"), Some("Ishikawa"), Some("  ")) shouldBe None
     }
 
+    // ISO lists Macau, Hong Kong and Taiwan both as countries and as
+    // Chinese subdivisions. Cities and advertisers' targets hang off the
+    // country, so a model that files them under China must still land
+    // there (GH #274).
+    "place Macau, Hong Kong and Taiwan as their own countries when filed under China" in {
+      val Macau = "GN1821274"
+      Places.resolveNamed(Some("Macau"), None, Some("China")).value shouldBe Places.ResolvedPlace(Macau, Nil)
+      Places.resolveNamed(None, Some("Macau"), Some("China")).value.code shouldBe "MO"
+      Places.resolveNamed(None, Some("Macao SAR"), Some("China")).value.code shouldBe "MO"
+      Places.resolveNamed(Some("Hong Kong"), None, Some("China")).value.code shouldBe "GN1819729"
+      Places.resolveNamed(Some("Taipei"), Some("Taiwan"), Some("China")).value.code shouldBe "GN1668341"
+    }
+
+    "read Macau, the everyday spelling, as the country Macao" in {
+      Places.resolveNamed(None, None, Some("Macau")).value.code shouldBe "MO"
+      Places.resolveNamed(Some("Macau"), None, Some("Macau")).value.code shouldBe "GN1821274"
+    }
+
+    // Before: the region resolved to US-PR, which no city hangs off, and
+    // the city fell back to the only San Juan inside the US — in Texas.
+    "place a US territory as its own country" in {
+      Places.resolveNamed(Some("San Juan"), Some("Puerto Rico"), Some("United States")).value.code shouldBe
+      "GN4568127"
+    }
+
+    // The list is explicit because matching codes is not the same place:
+    // US-IN is Indiana, IN is India.
+    "never turn a region into a country that merely shares its code" in {
+      Places.resolveNamed(None, Some("Indiana"), Some("United States")).value.code shouldBe "US-IN"
+      Places.resolveNamed(Some("Jordan"), None, Some("United States")).value.code should not be "JO"
+    }
+
     "treat blank parts as absent" in {
       Places.resolveNamed(Some(""), Some("   "), Some("Japan")).value shouldBe
       Places.ResolvedPlace("JP", Nil)

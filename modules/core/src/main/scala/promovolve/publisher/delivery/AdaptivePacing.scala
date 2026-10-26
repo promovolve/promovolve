@@ -219,7 +219,7 @@ object AdaptivePacing {
  * @param kp Proportional gain - immediate response to error (default 0.5)
  * @param ki Integral gain - accumulated error correction (default 0.3)
  * @param feedforwardWindow Fraction of bucket for proactive feedforward adjustment (default 0.0)
- * @see [[AdaptivePacing.OverpaceGainMultiplier]] for asymmetric gain configuration
+ * @see [[AdaptivePacing.BaseOverpaceGainMultiplier]] for asymmetric gain configuration
  */
 class RateAwarePacing(
     avgCpmEstimate: Double = 5.00,

@@ -4,6 +4,7 @@ import (
 	"context"
 	"errors"
 	"strings"
+	"time"
 
 	"github.com/jackc/pgx/v5"
 	"github.com/jackc/pgx/v5/pgxpool"
@@ -21,6 +22,8 @@ var ErrNotFound = errors.New("site request not found")
 var ErrDuplicatePending = errors.New("a request for this site is already awaiting approval")
 var ErrSiteAlreadyOwned = errors.New("the requesting publisher already owns this site")
 var ErrSiteTaken = errors.New("this site is already registered to another publisher")
+var ErrReservedHost = errors.New("this host belongs to the Promovolve deployment itself")
+var ErrNotUnverified = errors.New("the site is verified, already released, or the ad server could not be reached")
 
 type Repository struct {
 	pool *pgxpool.Pool
@@ -128,16 +131,36 @@ type PendingRow struct {
 	model.SiteRequest
 	RequesterEmail   string
 	RequesterCompany string
+	Suspended        bool // core serving freeze; set by ListApprovedSites only
 }
 
 func (r *Repository) ListPending(ctx context.Context) ([]PendingRow, error) {
+	return r.listWithRequester(ctx, `sr.status = 'pending'`)
+}
+
+// latestApproval keeps only the newest approved request per site. Deleting a
+// live site leaves its approved row as history, so a site deleted and
+// re-added has several; the older ones describe a site that no longer exists.
+const latestApproval = `sr.status = 'approved' AND NOT EXISTS (
+		SELECT 1 FROM site_requests newer
+		WHERE newer.site_id = sr.site_id AND newer.status = 'approved'
+		  AND newer.reviewed_at > sr.reviewed_at)`
+
+// ListApproved returns the latest approved request per site with its
+// requester, verified or not; the caller asks the core which are still
+// unverified.
+func (r *Repository) ListApproved(ctx context.Context) ([]PendingRow, error) {
+	return r.listWithRequester(ctx, latestApproval)
+}
+
+func (r *Repository) listWithRequester(ctx context.Context, where string) ([]PendingRow, error) {
 	rows, err := r.pool.Query(ctx, `
 		SELECT sr.id, sr.publisher_id, sr.requested_by, sr.site_id, sr.domain, sr.page_url,
 		       sr.status, sr.reject_reason, sr.reviewed_by, sr.reviewed_at, sr.created_at, sr.updated_at,
 		       COALESCE(u.email, ''), COALESCE(u.company_name, '')
 		FROM site_requests sr
 		LEFT JOIN platform_users u ON u.id = sr.requested_by
-		WHERE sr.status = 'pending'
+		WHERE `+where+`
 		ORDER BY sr.created_at`)
 	if err != nil {
 		return nil, err
@@ -191,4 +214,38 @@ func (r *Repository) Delete(ctx context.Context, id, publisherID string) error {
 		return ErrNotFound
 	}
 	return nil
+}
+
+// ListApprovedBefore returns the latest approved request per site when it was
+// reviewed before cutoff — the candidates for releasing a site that never
+// verified (#285). The age counts from the latest approval, so a re-added
+// site gets its full window. Approved rows
+// for sites that did verify, or were deleted since, come back too; the
+// caller asks the core which they are.
+func (r *Repository) ListApprovedBefore(ctx context.Context, cutoff time.Time) ([]model.SiteRequest, error) {
+	rows, err := r.pool.Query(ctx, `
+		SELECT `+requestColumns+` FROM site_requests sr
+		WHERE `+latestApproval+` AND sr.reviewed_at < $1`, cutoff)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	var out []model.SiteRequest
+	for rows.Next() {
+		req, err := scanRequest(rows)
+		if err != nil {
+			return nil, err
+		}
+		out = append(out, *req)
+	}
+	return out, rows.Err()
+}
+
+// MarkReleased turns an approved request whose site was released back into a
+// rejected card, so the publisher sees why the site is gone.
+func (r *Repository) MarkReleased(ctx context.Context, id, reason string) error {
+	_, err := r.pool.Exec(ctx, `
+		UPDATE site_requests SET status = 'rejected', reject_reason = $2, updated_at = NOW()
+		WHERE id = $1 AND status = 'approved'`, id, reason)
+	return err
 }

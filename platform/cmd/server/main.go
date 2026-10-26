@@ -106,6 +106,7 @@ func main() {
 	// Newly approved sites open at the floors the operator set at install,
 	// which billing owns (they are money, in the deployment's base currency).
 	siteReqSvc := siterequest.NewService(siteReqRepo, cfg.CoreAPIURL, billingSvc)
+	siteReqSvc.ReservedHosts = cfg.ReservedHosts()
 	coreInternal := billing.NewHTTPCoreClient(cfg.CoreAPIURL, cfg.InternalAPIKey)
 	settler := billing.NewSettler(
 		billingSvc, pool,
@@ -124,6 +125,9 @@ func main() {
 	settleCtx, stopSettler := context.WithCancel(context.Background())
 	defer stopSettler()
 	go settler.Run(settleCtx)
+	// An approved site that never verifies is released after 14 days, so it
+	// stops holding the domain against its real owner (#285).
+	go siteReqSvc.RunReleaseLoop(settleCtx, siterequest.UnverifiedMaxAge, time.Hour)
 
 	// The deployment's currency is a setup-time constant. Read it once, before
 	// anything renders. An unreadable or unsupported stored code is fatal:
@@ -276,6 +280,10 @@ func main() {
 	mux.HandleFunc("GET /admin/sites", adm(h.AdminSiteRequests))
 	mux.HandleFunc("POST /admin/sites/approve", adm(h.SiteRequestDecision("approve")))
 	mux.HandleFunc("POST /admin/sites/reject", adm(h.SiteRequestDecision("reject")))
+	mux.HandleFunc("POST /admin/sites/release", adm(h.ReleaseUnverifiedSite))
+	mux.HandleFunc("POST /admin/sites/remove", adm(h.RemoveSite))
+	mux.HandleFunc("POST /admin/sites/suspend", adm(h.SuspendSite))
+	mux.HandleFunc("POST /admin/sites/unsuspend", adm(h.ResumeSite))
 	mux.HandleFunc("POST /admin/sites/resume", adm(h.ResumeSuspendedSite))
 	mux.HandleFunc("POST /admin/sites/restore", adm(h.RestoreSuspendedSiteEarnings))
 	mux.HandleFunc("GET /admin/fraud", adm(h.AdminFraudFlags))

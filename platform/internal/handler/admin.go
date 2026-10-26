@@ -17,6 +17,7 @@ import (
 	"github.com/hanishi/promovolve/platform/internal/billing"
 	"github.com/hanishi/promovolve/platform/internal/i18n"
 	"github.com/hanishi/promovolve/platform/internal/model"
+	"github.com/hanishi/promovolve/platform/internal/siterequest"
 )
 
 // adminRequestRow is one pending account request on /admin/requests.
@@ -152,6 +153,21 @@ type adminSiteRequestRow struct {
 	Publisher   string // requester email; falls back to the publisher entity id
 	Company     string
 	RequestedAt string
+}
+
+// adminApprovedSiteRow is an approved site on /admin/sites: either still
+// unverified (until the sweep or an admin releases it; DaysLeft set) or
+// verified and live.
+type adminApprovedSiteRow struct {
+	ID          string
+	Domain      string
+	SiteID      string
+	Publisher   string
+	Company     string
+	ApprovedAt  string
+	DaysLeft    int
+	PublisherID string
+	Suspended   bool
 }
 
 // adminFraudFlagRow is one open fraud flag on /admin/fraud
@@ -478,14 +494,182 @@ func (h *Handler) renderAdminSiteRequests(w http.ResponseWriter, r *http.Request
 			RequestedAt: p.CreatedAt.In(user.Location()).Format("2006-01-02 15:04"),
 		})
 	}
+	unverified, verified := h.approvedSiteRows(r.Context(), user)
 	h.render(w, r, "admin/sites.html", pageData{
-		Title:               "Site Requests",
-		Nav:                 "admin-sites",
-		User:                user,
-		Error:               errMsg,
-		AdminSiteRequests:   rows,
-		AdminSuspendedSites: h.suspendedSiteRows(r.Context(), user),
+		Title:                "Site Requests",
+		Nav:                  "admin-sites",
+		User:                 user,
+		Error:                errMsg,
+		AdminSiteRequests:    rows,
+		AdminUnverifiedSites: unverified,
+		AdminVerifiedSites:   verified,
+		AdminSuspendedSites:  h.suspendedSiteRows(r.Context(), user),
 	})
+}
+
+// approvedSiteRows lists approved sites in two groups: still unverified,
+// with the days left before the sweep releases them, and verified (live).
+// Best-effort like suspendedSiteRows: on error it logs and returns nil.
+func (h *Handler) approvedSiteRows(ctx context.Context, user *model.User) (unverified, verified []adminApprovedSiteRow) {
+	u, v, err := h.siteReqSvc.ListApprovedSites(ctx)
+	if err != nil {
+		slog.Error("list approved sites failed", "error", err)
+		return nil, nil
+	}
+	return approvedRows(u, user, true), approvedRows(v, user, false)
+}
+
+func approvedRows(sites []siterequest.PendingRow, user *model.User, unverified bool) []adminApprovedSiteRow {
+	rows := make([]adminApprovedSiteRow, 0, len(sites))
+	for _, p := range sites {
+		publisher := p.RequesterEmail
+		if publisher == "" {
+			publisher = p.PublisherID
+		}
+		approved := p.CreatedAt
+		if p.ReviewedAt != nil {
+			approved = *p.ReviewedAt
+		}
+		row := adminApprovedSiteRow{
+			PublisherID: p.PublisherID,
+			Suspended:   p.Suspended,
+			ID:          p.ID,
+			Domain:      p.Domain,
+			SiteID:      p.SiteID,
+			Publisher:   publisher,
+			Company:     p.RequesterCompany,
+			ApprovedAt:  approved.In(user.Location()).Format("2006-01-02 15:04"),
+		}
+		if unverified {
+			row.DaysLeft = daysLeft(approved.Add(siterequest.UnverifiedMaxAge), time.Now())
+		}
+		rows = append(rows, row)
+	}
+	return rows
+}
+
+// daysLeft rounds up the whole days from now until release, floored at 0
+// (the sweep runs hourly, so 0 means within the hour).
+func daysLeft(release, now time.Time) int {
+	d := release.Sub(now)
+	if d <= 0 {
+		return 0
+	}
+	return int((d + 24*time.Hour - 1) / (24 * time.Hour))
+}
+
+// ReleaseUnverifiedSite releases one approved-but-unverified site before the
+// sweep would, freeing its domain for another account.
+func (h *Handler) ReleaseUnverifiedSite(w http.ResponseWriter, r *http.Request) {
+	admin, _, ok := h.requireRole(w, r, model.RoleAdmin)
+	if !ok {
+		return
+	}
+	r.ParseForm()
+	requestID := r.FormValue("requestId")
+	if requestID == "" {
+		h.renderAdminSiteRequests(w, r, "missing request id")
+		return
+	}
+	req, err := h.siteReqSvc.ReleaseNow(r.Context(), requestID)
+	if err != nil {
+		slog.Error("release unverified site failed", "requestId", requestID, "error", err)
+		h.renderAdminSiteRequests(w, r, fmt.Sprintf("could not release the site: %v", err))
+		return
+	}
+	if h.auditRepo != nil {
+		h.auditRepo.Log(r.Context(), admin.ID, admin.Email, "", "site_release_unverified", req.SiteID, req.Domain)
+	}
+	http.Redirect(w, r, "/admin/sites", http.StatusSeeOther)
+}
+
+// RemoveSite deletes a verified site from the ad server on an admin's
+// decision; the publisher sees the request closed with the reason.
+func (h *Handler) RemoveSite(w http.ResponseWriter, r *http.Request) {
+	admin, _, ok := h.requireRole(w, r, model.RoleAdmin)
+	if !ok {
+		return
+	}
+	r.ParseForm()
+	requestID := r.FormValue("requestId")
+	if requestID == "" {
+		h.renderAdminSiteRequests(w, r, "missing request id")
+		return
+	}
+	req, err := h.siteReqSvc.Remove(r.Context(), requestID)
+	if err != nil {
+		slog.Error("remove site failed", "requestId", requestID, "error", err)
+		h.renderAdminSiteRequests(w, r, fmt.Sprintf("could not remove the site: %v", err))
+		return
+	}
+	if h.auditRepo != nil {
+		h.auditRepo.Log(r.Context(), admin.ID, admin.Email, "", "site_remove", req.SiteID, req.Domain)
+	}
+	http.Redirect(w, r, "/admin/sites", http.StatusSeeOther)
+}
+
+// SuspendSite freezes serving on a verified site on an admin's decision.
+// Reversible: slots, floors, approvals and verification are kept, and
+// ResumeSite lifts it.
+func (h *Handler) SuspendSite(w http.ResponseWriter, r *http.Request) {
+	admin, _, ok := h.requireRole(w, r, model.RoleAdmin)
+	if !ok {
+		return
+	}
+	r.ParseForm()
+	siteID := r.FormValue("siteId")
+	if siteID == "" {
+		h.renderAdminSiteRequests(w, r, "missing site id")
+		return
+	}
+	if err := h.orgCore.SuspendSite(r.Context(), siteID); err != nil {
+		slog.Error("suspend site failed", "siteId", siteID, "error", err)
+		h.renderAdminSiteRequests(w, r, fmt.Sprintf("could not suspend %s: %v", siteID, err))
+		return
+	}
+	if h.auditRepo != nil {
+		h.auditRepo.Log(r.Context(), admin.ID, admin.Email, "", "site_suspend", siteID, "")
+	}
+	http.Redirect(w, r, "/admin/sites", http.StatusSeeOther)
+}
+
+// ResumeSite lifts an admin suspension. The core keeps one freeze flag per
+// site, shared with org suspension and fraud detection, so a site that is
+// frozen for either of those is refused here and resumed where it was
+// frozen instead.
+func (h *Handler) ResumeSite(w http.ResponseWriter, r *http.Request) {
+	admin, _, ok := h.requireRole(w, r, model.RoleAdmin)
+	if !ok {
+		return
+	}
+	r.ParseForm()
+	siteID, publisherID := r.FormValue("siteId"), r.FormValue("publisherId")
+	if siteID == "" {
+		h.renderAdminSiteRequests(w, r, "missing site id")
+		return
+	}
+	lang := h.lang(r, admin)
+	if h.orgRepo != nil && publisherID != "" {
+		if suspended, err := h.orgRepo.IsEntitySuspended(r.Context(), publisherID); err != nil || suspended {
+			h.renderAdminSiteRequests(w, r, i18n.T(lang, "This publisher's organization is suspended. Resume the organization on Users."))
+			return
+		}
+	}
+	if h.billingSvc != nil {
+		if held, err := h.billingSvc.HasActiveSiteFlags(r.Context(), siteID); err != nil || held {
+			h.renderAdminSiteRequests(w, r, i18n.T(lang, "Fraud detection is holding this site. Resolve it on Fraud Review."))
+			return
+		}
+	}
+	if err := h.orgCore.ResumeSite(r.Context(), siteID); err != nil {
+		slog.Error("resume site failed", "siteId", siteID, "error", err)
+		h.renderAdminSiteRequests(w, r, fmt.Sprintf("could not resume %s: %v", siteID, err))
+		return
+	}
+	if h.auditRepo != nil {
+		h.auditRepo.Log(r.Context(), admin.ID, admin.Email, "", "site_resume", siteID, "")
+	}
+	http.Redirect(w, r, "/admin/sites", http.StatusSeeOther)
 }
 
 // suspendedSiteRows lists every currently-suspended site (auto-suspended

@@ -1,0 +1,517 @@
+{
+  "schemaVersion": 2,
+  "generatedAt": "2026-10-20T09:37:52.366114+00:00",
+  "title": "Design System: Promovolve",
+  "extensions": {
+    "colorMeta": {
+      "brand-amber": {
+        "role": "primary",
+        "displayName": "Press Amber",
+        "tonalRamp": [
+          "#3d1b00",
+          "#5e2a00",
+          "#843b00",
+          "#ab4d00",
+          "#d35f00",
+          "#e9883f",
+          "#f4b77e",
+          "#fce4c4"
+        ]
+      },
+      "brand-amber-hover": {
+        "role": "primary",
+        "displayName": "Press Amber, Pressed",
+        "tonalRamp": [
+          "#3d1b00",
+          "#5e2a00",
+          "#843b00",
+          "#ab4d00",
+          "#d35f00",
+          "#e9883f",
+          "#f4b77e",
+          "#fce4c4"
+        ]
+      },
+      "brand-amber-soft": {
+        "role": "primary",
+        "displayName": "Amber Wash",
+        "tonalRamp": [
+          "#3d1b00",
+          "#5e2a00",
+          "#843b00",
+          "#ab4d00",
+          "#d35f00",
+          "#e9883f",
+          "#f4b77e",
+          "#fce4c4"
+        ]
+      },
+      "surface": {
+        "role": "neutral",
+        "displayName": "Surface",
+        "tonalRamp": [
+          "#14110e",
+          "#272320",
+          "#403c38",
+          "#5b5753",
+          "#7d7a75",
+          "#a8a49f",
+          "#d3d0cd",
+          "#eae7e4"
+        ]
+      },
+      "paper": {
+        "role": "neutral",
+        "displayName": "Paper",
+        "tonalRamp": [
+          "#14110e",
+          "#272320",
+          "#403c38",
+          "#5b5753",
+          "#7d7a75",
+          "#a8a49f",
+          "#d3d0cd",
+          "#eae7e4"
+        ]
+      },
+      "paper-shade": {
+        "role": "neutral",
+        "displayName": "Paper Shade",
+        "tonalRamp": [
+          "#14110e",
+          "#272320",
+          "#403c38",
+          "#5b5753",
+          "#7d7a75",
+          "#a8a49f",
+          "#d3d0cd",
+          "#eae7e4"
+        ]
+      },
+      "rule": {
+        "role": "neutral",
+        "displayName": "Rule",
+        "tonalRamp": [
+          "#14110e",
+          "#272320",
+          "#403c38",
+          "#5b5753",
+          "#7d7a75",
+          "#a8a49f",
+          "#d3d0cd",
+          "#eae7e4"
+        ]
+      },
+      "rule-strong": {
+        "role": "neutral",
+        "displayName": "Strong Rule",
+        "tonalRamp": [
+          "#14110e",
+          "#272320",
+          "#403c38",
+          "#5b5753",
+          "#7d7a75",
+          "#a8a49f",
+          "#d3d0cd",
+          "#eae7e4"
+        ]
+      },
+      "ink-faint": {
+        "role": "neutral",
+        "displayName": "Ink, Faint",
+        "tonalRamp": [
+          "#14110e",
+          "#272320",
+          "#403c38",
+          "#5b5753",
+          "#7d7a75",
+          "#a8a49f",
+          "#d3d0cd",
+          "#eae7e4"
+        ]
+      },
+      "ink-muted": {
+        "role": "neutral",
+        "displayName": "Ink, Muted",
+        "tonalRamp": [
+          "#14110e",
+          "#272320",
+          "#403c38",
+          "#5b5753",
+          "#7d7a75",
+          "#a8a49f",
+          "#d3d0cd",
+          "#eae7e4"
+        ]
+      },
+      "ink-soft": {
+        "role": "neutral",
+        "displayName": "Ink, Soft",
+        "tonalRamp": [
+          "#14110e",
+          "#272320",
+          "#403c38",
+          "#5b5753",
+          "#7d7a75",
+          "#a8a49f",
+          "#d3d0cd",
+          "#eae7e4"
+        ]
+      },
+      "ink-body": {
+        "role": "neutral",
+        "displayName": "Ink, Body",
+        "tonalRamp": [
+          "#14110e",
+          "#272320",
+          "#403c38",
+          "#5b5753",
+          "#7d7a75",
+          "#a8a49f",
+          "#d3d0cd",
+          "#eae7e4"
+        ]
+      },
+      "ink-deep": {
+        "role": "neutral",
+        "displayName": "Ink, Deep",
+        "tonalRamp": [
+          "#14110e",
+          "#272320",
+          "#403c38",
+          "#5b5753",
+          "#7d7a75",
+          "#a8a49f",
+          "#d3d0cd",
+          "#eae7e4"
+        ]
+      },
+      "ink": {
+        "role": "neutral",
+        "displayName": "Ink",
+        "tonalRamp": [
+          "#14110e",
+          "#272320",
+          "#403c38",
+          "#5b5753",
+          "#7d7a75",
+          "#a8a49f",
+          "#d3d0cd",
+          "#eae7e4"
+        ]
+      },
+      "ink-black": {
+        "role": "neutral",
+        "displayName": "Ink, Black",
+        "tonalRamp": [
+          "#14110e",
+          "#272320",
+          "#403c38",
+          "#5b5753",
+          "#7d7a75",
+          "#a8a49f",
+          "#d3d0cd",
+          "#eae7e4"
+        ]
+      },
+      "night-void": {
+        "role": "neutral",
+        "displayName": "Night Void",
+        "tonalRamp": [
+          "#14110e",
+          "#272320",
+          "#403c38",
+          "#5b5753",
+          "#7d7a75",
+          "#a8a49f",
+          "#d3d0cd",
+          "#eae7e4"
+        ]
+      },
+      "night-surface": {
+        "role": "neutral",
+        "displayName": "Night Surface",
+        "tonalRamp": [
+          "#14110e",
+          "#272320",
+          "#403c38",
+          "#5b5753",
+          "#7d7a75",
+          "#a8a49f",
+          "#d3d0cd",
+          "#eae7e4"
+        ]
+      },
+      "night-rule": {
+        "role": "neutral",
+        "displayName": "Night Rule",
+        "tonalRamp": [
+          "#14110e",
+          "#272320",
+          "#403c38",
+          "#5b5753",
+          "#7d7a75",
+          "#a8a49f",
+          "#d3d0cd",
+          "#eae7e4"
+        ]
+      },
+      "success": {
+        "role": "semantic",
+        "displayName": "Success",
+        "tonalRamp": [
+          "#052e16",
+          "#14532d",
+          "#166534",
+          "#15803d",
+          "#16a34a",
+          "#4ade80",
+          "#bbf7d0",
+          "#f0fdf4"
+        ]
+      },
+      "danger": {
+        "role": "semantic",
+        "displayName": "Danger",
+        "tonalRamp": [
+          "#450a0a",
+          "#7f1d1d",
+          "#991b1b",
+          "#b91c1c",
+          "#dc2626",
+          "#f87171",
+          "#fecaca",
+          "#fef2f2"
+        ]
+      },
+      "warning-fill": {
+        "role": "semantic",
+        "displayName": "Warning Fill",
+        "tonalRamp": [
+          "#451a03",
+          "#78350f",
+          "#92400e",
+          "#b45309",
+          "#d97706",
+          "#fbbf24",
+          "#fde68a",
+          "#fffbeb"
+        ]
+      },
+      "warning-ink": {
+        "role": "semantic",
+        "displayName": "Warning Ink",
+        "tonalRamp": [
+          "#451a03",
+          "#78350f",
+          "#92400e",
+          "#b45309",
+          "#d97706",
+          "#fbbf24",
+          "#fde68a",
+          "#fffbeb"
+        ]
+      },
+      "brand-ink": {
+        "role": "primary",
+        "displayName": "Amber Ink",
+        "tonalRamp": [
+          "#3d1b00",
+          "#5e2a00",
+          "#843b00",
+          "#ab4d00",
+          "#d35f00",
+          "#e9883f",
+          "#f4b77e",
+          "#fce4c4"
+        ]
+      },
+      "brand-ink-night": {
+        "role": "primary",
+        "displayName": "Amber Ink, Night",
+        "tonalRamp": [
+          "#3d1b00",
+          "#5e2a00",
+          "#843b00",
+          "#ab4d00",
+          "#d35f00",
+          "#e9883f",
+          "#f4b77e",
+          "#fce4c4"
+        ]
+      }
+    },
+    "typographyMeta": {
+      "headline": {
+        "displayName": "Headline",
+        "purpose": ".page-title, one per page."
+      },
+      "title": {
+        "displayName": "Title",
+        "purpose": "Section headings."
+      },
+      "body": {
+        "displayName": "Body",
+        "purpose": "Tables, forms, buttons, prose."
+      },
+      "label": {
+        "displayName": "Label",
+        "purpose": "Badges, hints, timestamps, metadata."
+      },
+      "mono": {
+        "displayName": "Mono",
+        "purpose": "IDs, tokens, digests, code."
+      }
+    },
+    "shadows": [
+      {
+        "name": "float",
+        "value": "0 10px 15px -3px rgb(0 0 0 / .1), 0 4px 6px -4px rgb(0 0 0 / .1)",
+        "purpose": "Dropdowns, typeaheads, popovers; always with a border."
+      },
+      {
+        "name": "lift",
+        "value": "0 1px 2px 0 rgb(0 0 0 / .05)",
+        "purpose": "Rare small raised controls."
+      }
+    ],
+    "motion": [
+      {
+        "name": "color-transition",
+        "value": "color, background-color, border-color 150ms cubic-bezier(0.4, 0, 0.2, 1)",
+        "purpose": "Button and nav hover (Tailwind transition-colors)."
+      }
+    ],
+    "breakpoints": [
+      {
+        "name": "sm",
+        "value": "640px"
+      },
+      {
+        "name": "md",
+        "value": "768px"
+      },
+      {
+        "name": "lg",
+        "value": "1024px"
+      },
+      {
+        "name": "xl",
+        "value": "1280px"
+      }
+    ]
+  },
+  "components": [
+    {
+      "name": "Primary Button",
+      "kind": "button",
+      "refersTo": "button-primary",
+      "description": "The one main action in a view; dark ink on amber.",
+      "html": "<button class=\"ds-btn-primary\">Create campaign</button>",
+      "css": ".ds-btn-primary{display:inline-flex;align-items:center;gap:6px;padding:8px 16px;font:500 14px/20px ui-sans-serif, system-ui, sans-serif;background:#d35f00;color:#14110e;border:0;border-radius:6px;cursor:pointer;transition:background-color .15s} .ds-btn-primary:hover{background:#c35800} .ds-btn-primary:focus-visible{outline:2px solid #d35f00;outline-offset:2px} .ds-btn-primary:disabled{opacity:.5;cursor:not-allowed}"
+    },
+    {
+      "name": "Secondary Button",
+      "kind": "button",
+      "refersTo": "button-secondary",
+      "description": "Every other action; surface with strong-rule border.",
+      "html": "<button class=\"ds-btn-secondary\">Cancel</button>",
+      "css": ".ds-btn-secondary{display:inline-flex;align-items:center;gap:6px;padding:8px 16px;font:500 14px/20px ui-sans-serif, system-ui, sans-serif;background:#fff;color:#403c38;border:1px solid #d3d0cd;border-radius:6px;cursor:pointer;transition:background-color .15s} .ds-btn-secondary:hover{background:#fcfaf7} .ds-btn-secondary:focus-visible{outline:2px solid #d35f00;outline-offset:2px}"
+    },
+    {
+      "name": "Danger Button",
+      "kind": "button",
+      "refersTo": "button-danger",
+      "description": "Destructive actions; white on red in both themes.",
+      "html": "<button class=\"ds-btn-danger\">Delete site</button>",
+      "css": ".ds-btn-danger{display:inline-flex;align-items:center;padding:8px 16px;font:500 14px/20px ui-sans-serif, system-ui, sans-serif;background:#dc2626;color:#fff;border:0;border-radius:6px;cursor:pointer;transition:background-color .15s} .ds-btn-danger:hover{background:#b91c1c} .ds-btn-danger:focus-visible{outline:2px solid #dc2626;outline-offset:2px}"
+    },
+    {
+      "name": "Text Input",
+      "kind": "input",
+      "refersTo": "input",
+      "description": "Labeled field with amber focus ring.",
+      "html": "<label class=\"ds-label\">Daily budget<input class=\"ds-input\" placeholder=\"¥5,000\"></label><p class=\"ds-hint\">Spent evenly across the local day.</p>",
+      "css": ".ds-label{display:block;font:500 14px/20px ui-sans-serif, system-ui, sans-serif;color:#403c38} .ds-input{display:block;width:100%;margin-top:4px;padding:8px 12px;font:400 14px/20px ui-sans-serif, system-ui, sans-serif;background:#fff;color:#14110e;border:1px solid #d3d0cd;border-radius:6px;box-sizing:border-box} .ds-input::placeholder{color:#6b6762} .ds-input:focus{outline:none;border-color:#d35f00;box-shadow:0 0 0 2px rgba(211,95,0,.2)} .ds-hint{margin:4px 0 0;font:400 12px/16px ui-sans-serif, system-ui, sans-serif;color:#5b5753}"
+    },
+    {
+      "name": "Card",
+      "kind": "card",
+      "refersTo": "card",
+      "description": "Flat surface on paper; hairline border, no shadow.",
+      "html": "<div class=\"ds-card\"><h2 class=\"ds-card-title\">Wallet</h2><p class=\"ds-card-body\">¥48,200 available</p></div>",
+      "css": ".ds-card{background:#fff;border:1px solid #eae7e4;border-radius:8px;padding:24px} .ds-card-title{margin:0 0 4px;font:600 18px/28px ui-sans-serif, system-ui, sans-serif;color:#14110e} .ds-card-body{margin:0;font:400 14px/20px ui-sans-serif, system-ui, sans-serif;color:#403c38}"
+    },
+    {
+      "name": "Badges",
+      "kind": "chip",
+      "refersTo": "badge-neutral",
+      "description": "Status pills: pale fill, dark text; × removes with a 24px hit area.",
+      "html": "<span class=\"ds-badge ds-badge-success\">Serving</span> <span class=\"ds-badge ds-badge-info\">Travel<button class=\"ds-chip-x\" aria-label=\"Remove Travel\">×</button></span> <span class=\"ds-badge ds-badge-warning\">Pending</span> <span class=\"ds-badge ds-badge-danger\">spam.example<button class=\"ds-chip-x\" aria-label=\"Unblock spam.example\">×</button></span> <span class=\"ds-badge ds-badge-neutral\">Paused</span>",
+      "css": ".ds-badge{display:inline-flex;align-items:center;padding:2px 8px;border-radius:9999px;font:500 12px/16px ui-sans-serif, system-ui, sans-serif} .ds-badge-success{background:#dcfce7;color:#15803d} .ds-badge-warning{background:#fef9c3;color:#854d0e} .ds-badge-danger{background:#fee2e2;color:#b91c1c} .ds-badge-neutral{background:#f5f3f0;color:#5b5753} .ds-badge-info{background:#dbeafe;color:#1e40af} .ds-chip-x{display:inline-flex;align-items:center;justify-content:center;min-width:24px;min-height:24px;margin:-4px -6px -4px 2px;border:0;background:none;color:inherit;font:700 12px/1 inherit;border-radius:9999px;opacity:.7;cursor:pointer} .ds-chip-x:hover{opacity:1;background:rgba(0,0,0,.05)} .ds-chip-x:focus-visible{opacity:1;outline:2px solid #d35f00;outline-offset:1px}"
+    },
+    {
+      "name": "Sidebar Navigation",
+      "kind": "nav",
+      "refersTo": "sidebar",
+      "description": "Always-dark sidebar, identical in both themes.",
+      "html": "<nav class=\"ds-nav\"><div class=\"ds-nav-brand\">Promovolve<small>Advertiser Dashboard</small></div><a class=\"ds-nav-item\" href=\"#\">Account</a><a class=\"ds-nav-item ds-active\" href=\"#\" aria-current=\"page\">Campaigns</a><a class=\"ds-nav-item\" href=\"#\">Stats</a><a class=\"ds-nav-item\" href=\"#\">Wallet</a></nav>",
+      "css": ".ds-nav{width:240px;padding:16px;background:#14110e;color:#f5f3f0;font-family:ui-sans-serif, system-ui, sans-serif} .ds-nav-brand{font:600 18px/28px ui-sans-serif, system-ui, sans-serif;margin-bottom:32px} .ds-nav-brand small{display:block;font:400 12px/16px ui-sans-serif, system-ui, sans-serif;color:#a8a49f;margin-top:4px} .ds-nav-item{display:block;padding:8px 12px;border-radius:4px;font:400 14px/20px ui-sans-serif, system-ui, sans-serif;color:#d3d0cd;text-decoration:none} .ds-nav-item:hover{background:#272320} .ds-nav-item.ds-active{background:#403c38;color:#fff} .ds-nav-item:focus-visible{outline:2px solid #d35f00;outline-offset:-2px}"
+    }
+  ],
+  "narrative": {
+    "northStar": "The Editor's Desk",
+    "overview": "The dashboard is the desk beside the magazine. It is a calm, orderly workspace where advertisers set budgets, publishers approve ads and operators settle the books. The expressive work happens in the page-turning creative itself. The desk stays out of its way: warm paper surfaces, ink-coloured text, one amber accent for the action that matters, and numbers set plainly enough to audit.\n\nThe density suits work, not marketing. Body text is 14px, metadata is 12px, and tables and forms carry most of the content. Surfaces are flat, separated by hairline borders rather than shadows. A permanently dark sidebar frames the paper-toned work area in both themes, like the dark edge of a desk around a sheet of paper.\n\nDark mode is a first-class theme, not a filter. Every neutral is a CSS variable that keeps its *contrast role* when the theme flips, so a template written for light mode reads correctly in dark without per-page edits.",
+    "keyCharacteristics": [
+      "Warm neutrals (paper and ink), never cool blue-greys",
+      "One accent: amber (`brand-amber`), with dark ink on top, never white",
+      "Flat surfaces; shadows only on things that float (menus, popovers)",
+      "An always-dark sidebar that is identical in both themes",
+      "System fonts, so English and 日本語 both render in the reader's native face"
+    ],
+    "rules": [
+      {
+        "name": "The Dark Ink on Amber Rule",
+        "body": "Text on Press Amber is always Ink (`ink`), which reaches 4.8:1. White on amber is 3.9:1 and fails AA. The dark-mode override pins primary-button text to Ink so the theme flip can't invert it.",
+        "section": "colors"
+      },
+      {
+        "name": "The Contrast Role Rule",
+        "body": "Neutrals are referenced by their Tailwind step (`gray-50`…`gray-950`, `white`), and each step keeps its role across themes: 50 is the page background, white is a raised surface, 900 is the strongest text. Never hard-code a neutral hex in a template. Use the step, and the theme follows.",
+        "section": "colors"
+      },
+      {
+        "name": "The One Accent Rule",
+        "body": "Amber is the only brand colour. Indigo and blue are not secondary primaries (the indigo second primary in older creative-editor pages is deprecated). Blue appears only inside the info badge and info callout.",
+        "section": "colors"
+      },
+      {
+        "name": "The Two-Size Rule",
+        "body": "Working text is 14px or 12px. A larger size has to be a page or section heading. Don't create emphasis by size inside tables or forms; use weight 500–600 or Ink colour.",
+        "section": "typography"
+      },
+      {
+        "name": "The Only-Floaters-Cast-Shadows Rule",
+        "body": "A card at rest never gets a shadow. If something needs to stand out without floating, give it a border or a fill.",
+        "section": "elevation"
+      }
+    ],
+    "dos": [
+      "**Do** use the canonical classes (`.btn-*`, `.card`, `.badge-*`, `.form-*`, `.page-title`/`.page-sub`) for new markup. Swap ad-hoc utilities for them whenever you touch a page.",
+      "**Do** run `scripts/build-tailwind.sh` after any template class change and commit `platform/static/tailwind.css`, or the new class ships unstyled.",
+      "**Do** put Ink text on amber. Pin it with a `.dark` override if the element sits on a literal colour.",
+      "**Do** add a `.dark` override in `tailwind.input.css` when you introduce a literal (non-grey) Tailwind colour step that isn't covered yet.",
+      "**Do** keep English and 日本語 strings at parity, and leave room for 日本語 line lengths in buttons and nav."
+    ],
+    "donts": [
+      "**Don't** add a second accent colour. Indigo and blue as primaries are deprecated.",
+      "**Don't** put shadows on resting cards or panels.",
+      "**Don't** use `ink-faint` (`gray-400`, 2.5:1) or lighter for text that carries meaning on a light surface. The floor for secondary text is `ink-muted` (`gray-500`). The always-dark sidebar is the exception: there `gray-400` is 7.6:1.",
+      "**Don't** use `text-brand` for text. The fill amber is 3.9:1 on white. Use `text-brand-ink`.",
+      "**Don't** use 500/600 steps of amber, orange or green for status text. They are about 3.2–3.6:1. Use 700.",
+      "**Don't** hard-code chart colours. Take them from `chartTheme()` (see Components), which follows the theme.",
+      "**Don't** hard-code neutral hex values in templates. They won't follow the theme.",
+      "**Don't** use bare `rounded`. Use `rounded-md` for controls and `rounded-lg` for surfaces."
+    ]
+  }
+}

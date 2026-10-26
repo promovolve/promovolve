@@ -28,7 +28,7 @@
           </div>
           <p class="text-sm text-gray-500">@{{.OrgDomain}} · {{if .RequesterEmail}}{{t "requested by %s" .RequesterEmail}}{{else}}{{t "requested by %s" (t "(removed member)")}}{{end}}</p>
         </div>
-        <span class="text-xs text-gray-400 whitespace-nowrap">{{.CreatedAt.Format "2006-01-02 15:04"}}</span>
+        <span class="text-xs text-gray-500 whitespace-nowrap">{{.CreatedAt.Format "2006-01-02 15:04"}}</span>
       </div>
       {{if .Message}}
       <p class="mt-3 text-sm text-gray-600 bg-gray-50 border rounded-md p-3">{{.Message}}</p>
@@ -59,15 +59,15 @@
             <span class="badge {{if eq .Role "publisher"}}badge-info{{else}}badge-success{{end}}">{{t .Role}}</span>
           </div>
           <p class="text-sm text-gray-500">
-            <a href="{{.Website}}" target="_blank" rel="noopener noreferrer" class="text-brand hover:underline">{{.Website}}</a>
+            <a href="{{.Website}}" target="_blank" rel="noopener noreferrer" class="text-brand-ink hover:underline">{{.Website}}</a>
           </p>
         </div>
-        <span class="text-xs text-gray-400 whitespace-nowrap">{{.RequestedAt}}</span>
+        <span class="text-xs text-gray-500 whitespace-nowrap">{{.RequestedAt}}</span>
       </div>
 
       <dl class="grid grid-cols-2 gap-x-6 gap-y-2 mt-4 text-sm">
-        <div><dt class="text-gray-400">{{t "Contact"}}</dt><dd>{{.Contact}}</dd></div>
-        <div><dt class="text-gray-400">{{t "Email"}}</dt><dd>{{.Email}}</dd></div>
+        <div><dt class="text-gray-500">{{t "Contact"}}</dt><dd>{{.Contact}}</dd></div>
+        <div><dt class="text-gray-500">{{t "Email"}}</dt><dd>{{.Email}}</dd></div>
       </dl>
 
       {{if .Message}}

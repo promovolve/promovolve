@@ -22,7 +22,7 @@
   <div class="card card-tight">
     <p class="text-xs text-gray-500">{{t "Impressions"}}</p>
     <p class="text-xl font-semibold mt-1">{{$r.Totals.Impressions}}</p>
-    {{if $r.Totals.DogearedImps}}<p class="text-xs text-gray-400">{{t "+%d dog-eared" $r.Totals.DogearedImps}}</p>{{end}}
+    {{if $r.Totals.DogearedImps}}<p class="text-xs text-gray-500">{{t "+%d dog-eared" $r.Totals.DogearedImps}}</p>{{end}}
   </div>
   <div class="card card-tight">
     <p class="text-xs text-gray-500">{{t "Clicks"}}</p>
@@ -71,30 +71,30 @@
       <input type="hidden" name="from" value="{{$r.From}}">
       <input type="hidden" name="to" value="{{$r.To}}">
       <div>
-        <label class="form-label">{{t "Campaign"}}</label>
-        <select name="campaignId" class="form-input" required>
+        <label for="report-campaignid" class="form-label">{{t "Campaign"}}</label>
+        <select id="report-campaignid" name="campaignId" class="form-input" required>
           {{range $r.Campaigns}}<option value="{{.Key}}">{{.Label}}</option>{{end}}
         </select>
       </div>
       <div>
-        <label class="form-label">{{t "Date"}}</label>
-        {{template "date-picker" dict "Name" "date" "Value" $r.To "Max" $r.Today}}
+        <label id="report-date-label" for="report-date" class="form-label">{{t "Date"}}</label>
+        {{template "date-picker" dict "Id" "report-date" "Name" "date" "Value" $r.To "Max" $r.Today}}
       </div>
       <div>
-        <label class="form-label">{{t "Conversions"}}</label>
-        <input type="number" name="conversions" min="0" step="1" class="form-input w-28" required>
+        <label for="report-conversions" class="form-label">{{t "Conversions"}}</label>
+        <input id="report-conversions" type="number" name="conversions" min="0" step="1" class="form-input w-28" required>
       </div>
       <div>
-        <label class="form-label">{{t "Value"}} ({{sym}}, {{t "optional"}})</label>
-        <input type="number" name="value" min="0" step="{{moneystep}}" class="form-input w-32" placeholder="{{t "for ROAS"}}">
+        <label for="report-value" class="form-label">{{t "Value"}} ({{sym}}, {{t "optional"}})</label>
+        <input id="report-value" type="number" name="value" min="0" step="{{moneystep}}" class="form-input w-32" placeholder="{{t "for ROAS"}}">
       </div>
       <div class="grow">
-        <label class="form-label">{{t "Note (optional)"}}</label>
-        <input type="text" name="note" class="form-input" placeholder="{{t "e.g. Shopify orders, 7-day last-click"}}">
+        <label for="report-note" class="form-label">{{t "Note (optional)"}}</label>
+        <input id="report-note" type="text" name="note" class="form-input" placeholder="{{t "e.g. Shopify orders, 7-day last-click"}}">
       </div>
       <button type="submit" class="btn btn-primary">{{t "Save"}}</button>
     </form>
-    <p class="text-xs text-gray-400 mt-2">{{t "You report your own aggregate conversions; Promovolve never tracks users across sites, so CPA/ROAS are campaign-level by design. Re-reporting a campaign+day overwrites the previous number."}}</p>
+    <p class="text-xs text-gray-500 mt-2">{{t "You report your own aggregate conversions; Promovolve never tracks users across sites, so CPA/ROAS are campaign-level by design. Re-reporting a campaign+day overwrites the previous number."}}</p>
   </div>
 </div>
 
@@ -109,26 +109,26 @@
       <p class="text-xs text-gray-500">{{t "Dog-ears (reader bookmarks)"}}</p>
       <p class="text-xl font-semibold mt-1">{{$r.Totals.Folds}}
         {{if $r.Totals.FoldRate}}<span class="text-sm font-normal text-gray-500">· {{t "%s of impressions" $r.Totals.FoldRate}}</span>{{end}}
-        {{if $r.Totals.Unfolds}}<span class="text-sm font-normal text-gray-400">({{t "%d removed" $r.Totals.Unfolds}})</span>{{end}}
+        {{if $r.Totals.Unfolds}}<span class="text-sm font-normal text-gray-500">({{t "%d removed" $r.Totals.Unfolds}})</span>{{end}}
       </p>
     </div>
     <div>
       <p class="text-xs text-gray-500">{{t "Free re-exposure earned"}}</p>
-      <p class="text-sm mt-1">{{t "%d views · %d clicks · %d CTA clicks" $r.Totals.DogearedImps $r.Totals.DogearedClicks $r.Totals.DogearedCTAClicks}} <span class="text-gray-400">{{t "— %s, not in the totals above" (money 0.0)}}</span></p>
+      <p class="text-sm mt-1">{{t "%d views · %d clicks · %d CTA clicks" $r.Totals.DogearedImps $r.Totals.DogearedClicks $r.Totals.DogearedCTAClicks}} <span class="text-gray-500">{{t "— %s, not in the totals above" (money 0.0)}}</span></p>
     </div>
   </div>
 </div>
 {{end}}
 
 <div x-data="{tab: 'daily'}">
-  <div class="flex items-center gap-1 border-b mb-4">
-    <button @click="tab='daily'" :class="tab==='daily' ? 'border-brand text-gray-900' : 'border-transparent text-gray-500 hover:text-gray-700'" class="px-4 py-2 text-sm font-medium border-b-2 -mb-px">{{t "Daily"}}</button>
-    <button @click="tab='campaign'" :class="tab==='campaign' ? 'border-brand text-gray-900' : 'border-transparent text-gray-500 hover:text-gray-700'" class="px-4 py-2 text-sm font-medium border-b-2 -mb-px">{{t "By Campaign"}}</button>
-    <button @click="tab='site'" :class="tab==='site' ? 'border-brand text-gray-900' : 'border-transparent text-gray-500 hover:text-gray-700'" class="px-4 py-2 text-sm font-medium border-b-2 -mb-px">{{t "By Site"}}</button>
-    <button @click="tab='category'" :class="tab==='category' ? 'border-brand text-gray-900' : 'border-transparent text-gray-500 hover:text-gray-700'" class="px-4 py-2 text-sm font-medium border-b-2 -mb-px">{{t "By Category"}}</button>
-    <button @click="tab='publisher'" :class="tab==='publisher' ? 'border-brand text-gray-900' : 'border-transparent text-gray-500 hover:text-gray-700'" class="px-4 py-2 text-sm font-medium border-b-2 -mb-px">{{t "By Publisher"}}</button>
-    <button @click="tab='reach'" :class="tab==='reach' ? 'border-brand text-gray-900' : 'border-transparent text-gray-500 hover:text-gray-700'" class="px-4 py-2 text-sm font-medium border-b-2 -mb-px">{{t "Reach"}}</button>
-    <a :href="'/advertiser/report?{{$r.RangeQS}}&format=csv' + (tab==='daily' ? '' : '&dim='+tab)" class="btn btn-sm btn-secondary ml-auto mb-1">{{t "Download CSV"}}</a>
+  <div class="flex items-center gap-1 mb-4 overflow-x-auto shadow-[inset_0_-1px_0_rgb(var(--c-gray-200))]">
+    <button @click="tab='daily'" :class="tab==='daily' ? 'border-brand text-gray-900' : 'border-transparent text-gray-500 hover:text-gray-700'" class="shrink-0 whitespace-nowrap px-4 py-2 text-sm font-medium border-b-2">{{t "Daily"}}</button>
+    <button @click="tab='campaign'" :class="tab==='campaign' ? 'border-brand text-gray-900' : 'border-transparent text-gray-500 hover:text-gray-700'" class="shrink-0 whitespace-nowrap px-4 py-2 text-sm font-medium border-b-2">{{t "By Campaign"}}</button>
+    <button @click="tab='site'" :class="tab==='site' ? 'border-brand text-gray-900' : 'border-transparent text-gray-500 hover:text-gray-700'" class="shrink-0 whitespace-nowrap px-4 py-2 text-sm font-medium border-b-2">{{t "By Site"}}</button>
+    <button @click="tab='category'" :class="tab==='category' ? 'border-brand text-gray-900' : 'border-transparent text-gray-500 hover:text-gray-700'" class="shrink-0 whitespace-nowrap px-4 py-2 text-sm font-medium border-b-2">{{t "By Category"}}</button>
+    <button @click="tab='publisher'" :class="tab==='publisher' ? 'border-brand text-gray-900' : 'border-transparent text-gray-500 hover:text-gray-700'" class="shrink-0 whitespace-nowrap px-4 py-2 text-sm font-medium border-b-2">{{t "By Publisher"}}</button>
+    <button @click="tab='reach'" :class="tab==='reach' ? 'border-brand text-gray-900' : 'border-transparent text-gray-500 hover:text-gray-700'" class="shrink-0 whitespace-nowrap px-4 py-2 text-sm font-medium border-b-2">{{t "Reach"}}</button>
+    <a :href="'/advertiser/report?{{$r.RangeQS}}&format=csv' + (tab==='daily' ? '' : '&dim='+tab)" class="btn btn-sm btn-secondary ml-auto mb-1 shrink-0 whitespace-nowrap">{{t "Download CSV"}}</a>
   </div>
 
   {{if $r.CoverageNote}}
@@ -169,7 +169,7 @@
             {{if eq $i 0}}{{$g.Day}}{{if $g.IsToday}} <span class="badge badge-neutral">{{t "partial"}}</span>{{end}}{{end}}
           </td>
           <td class="py-2 pr-4">{{$row.CampaignName}}</td>
-          <td class="py-2 pr-4 text-right">{{$row.Impressions}}{{if $row.DogearedImps}} <span class="text-xs text-gray-400">{{t "(+%d dog-eared)" $row.DogearedImps}}</span>{{end}}</td>
+          <td class="py-2 pr-4 text-right">{{$row.Impressions}}{{if $row.DogearedImps}} <span class="text-xs text-gray-500">{{t "(+%d dog-eared)" $row.DogearedImps}}</span>{{end}}</td>
           <td class="py-2 pr-4 text-right">{{$row.Clicks}}</td>
           <td class="py-2 pr-4 text-right">{{$row.CTR}}</td>
           <td class="py-2 pr-4 text-right">{{$row.CTAClicks}}</td>
@@ -209,7 +209,8 @@
       const CUR_DEC = {{decimals}};
 
 (() => {
-  const INK = '#7d7a75', GRID = '#eae7e4', SPEND = '#d35f00', IMPS = '#7d7a75';
+  const T = chartTheme();
+  const INK = T.ink, GRID = T.grid, SPEND = T.brand, IMPS = T.ink;
 
   // Daily tab: line per calendar day (zero-delivery days are real zero
   // points, so the line never implies delivery that didn't happen).
@@ -221,7 +222,7 @@
     borderJoinStyle: 'round', borderCapStyle: 'round',
     backgroundColor: wash, fill: true,
     pointRadius: labels.length > 31 ? 0 : 4, pointHoverRadius: 5,
-    pointBackgroundColor: color, pointBorderColor: '#ffffff', pointBorderWidth: 2
+    pointBackgroundColor: color, pointBorderColor: T.surface, pointBorderWidth: 2
   });
   const base = {
     type: 'line',
@@ -254,7 +255,7 @@
   // CVD-validated; identity also carried by the legend and the table
   // below. Canvases sit in x-cloak'd tabs; Chart.js's ResizeObserver
   // draws them when the tab first shows.
-  const PAL = ['#2a78d6', '#1baf7a', '#eda100', '#008300', '#4a3aa7'], OTHER = '#7d7a75';
+  const PAL = T.pal.slice(0, 5), OTHER = T.ink;
   const mline = (id, labels, series, key, money) => {
     const el = document.getElementById(id);
     if (!el || !labels || !series) return;
@@ -268,7 +269,7 @@
           borderColor: color, backgroundColor: color,
           borderWidth: 2, borderJoinStyle: 'round', borderCapStyle: 'round',
           pointRadius: pr, pointHoverRadius: 5,
-          pointBackgroundColor: color, pointBorderColor: '#ffffff', pointBorderWidth: 2,
+          pointBackgroundColor: color, pointBorderColor: T.surface, pointBorderWidth: 2,
           fill: false
         };
       }) },
@@ -310,7 +311,7 @@
     reachChart = new Chart(el, {
       data: { labels: d.labels, datasets: [
         { type: 'bar', label: {{t "New"}}, data: d.new, backgroundColor: SPEND, stack: 'reach', order: 2 },
-        { type: 'bar', label: {{t "Returning"}}, data: d.returning, backgroundColor: '#f2c8a6', stack: 'reach', order: 2 },
+        { type: 'bar', label: {{t "Returning"}}, data: d.returning, backgroundColor: T.brandTint, stack: 'reach', order: 2 },
         { type: 'line', label: {{t "Cumulative reach"}}, data: d.cumulative, borderColor: IMPS, borderWidth: 2, pointRadius: 0, yAxisID: 'cum', order: 1 }
       ] },
       options: {
@@ -368,7 +369,7 @@
       <tr class="border-b border-gray-100">
         <td class="py-2 pr-4">{{if eq $i 0}}{{$g.Label}}{{end}}</td>
         <td class="py-2 pr-4">{{$row.Label}}</td>
-        <td class="py-2 pr-4 text-right">{{$row.Impressions}}{{if $row.DogearedImps}} <span class="text-xs text-gray-400">{{t "(+%d dog-eared)" $row.DogearedImps}}</span>{{end}}</td>
+        <td class="py-2 pr-4 text-right">{{$row.Impressions}}{{if $row.DogearedImps}} <span class="text-xs text-gray-500">{{t "(+%d dog-eared)" $row.DogearedImps}}</span>{{end}}</td>
         <td class="py-2 pr-4 text-right">{{$row.Clicks}}</td>
         <td class="py-2 pr-4 text-right">{{$row.CTR}}</td>
         <td class="py-2 pr-4 text-right">{{$row.CTAClicks}}</td>
@@ -403,7 +404,7 @@
     </tbody>
   </table>
   {{end}}
-  <p class="text-xs text-gray-400 mt-2 px-1">{{t "CPA is campaign-level — per-site attribution would need the cross-site tracking Promovolve doesn't do."}}</p>
+  <p class="text-xs text-gray-500 mt-2 px-1">{{t "CPA is campaign-level — per-site attribution would need the cross-site tracking Promovolve doesn't do."}}</p>
 </div>
 </div>
 {{end}}
@@ -447,7 +448,7 @@
       {{range .Rows}}
       <tr class="border-b border-gray-100">
         <td class="py-2 pr-4">{{.Label}}</td>
-        <td class="py-2 pr-4 text-right">{{.Impressions}}{{if .DogearedImps}} <span class="text-xs text-gray-400">{{t "(+%d dog-eared)" .DogearedImps}}</span>{{end}}</td>
+        <td class="py-2 pr-4 text-right">{{.Impressions}}{{if .DogearedImps}} <span class="text-xs text-gray-500">{{t "(+%d dog-eared)" .DogearedImps}}</span>{{end}}</td>
         <td class="py-2 pr-4 text-right">{{.Clicks}}</td>
         <td class="py-2 pr-4 text-right">{{.CTR}}</td>
         <td class="py-2 pr-4 text-right">{{.CTAClicks}}</td>
@@ -473,7 +474,7 @@
     </tbody>
   </table>
   {{end}}
-  {{if not .ShowConv}}<p class="text-xs text-gray-400 mt-2 px-1">{{t "CPA is campaign-level — per-site attribution would need the cross-site tracking Promovolve doesn't do."}}</p>{{end}}
+  {{if not .ShowConv}}<p class="text-xs text-gray-500 mt-2 px-1">{{t "CPA is campaign-level — per-site attribution would need the cross-site tracking Promovolve doesn't do."}}</p>{{end}}
 </div>
 </div>
 {{end}}
@@ -520,8 +521,8 @@
         <tr class="border-b border-gray-100 font-medium">
           <td class="py-2 pr-4">{{.Name}}</td>
           <td class="py-2 pr-4 text-right">{{.Impressions}}</td>
-          <td class="py-2 pr-4 text-right">{{if .UpTo}}<span class="text-xs text-gray-400">{{t "up to"}}</span> {{end}}{{.Reach}}</td>
-          <td class="py-2 pr-4 text-right">{{if .UpTo}}<span class="text-xs text-gray-400">{{t "up to"}}</span> {{end}}{{.NewReach}}</td>
+          <td class="py-2 pr-4 text-right">{{if .UpTo}}<span class="text-xs text-gray-500">{{t "up to"}}</span> {{end}}{{.Reach}}</td>
+          <td class="py-2 pr-4 text-right">{{if .UpTo}}<span class="text-xs text-gray-500">{{t "up to"}}</span> {{end}}{{.NewReach}}</td>
           <td class="py-2 pr-4 text-right">{{.NewShare}}</td>
           <td class="py-2 pr-4 text-right">{{.Frequency}}</td>
           <td class="py-2 pr-4 text-right">{{.ReReach}}</td>
@@ -544,7 +545,7 @@
         {{end}}
       </tbody>
     </table>
-    <p class="text-xs text-gray-400 mt-2 px-1">{{t "Counted in browsers on each site, without tracking. One person on two devices or two sites counts twice, so totals across sites are upper bounds."}}</p>
+    <p class="text-xs text-gray-500 mt-2 px-1">{{t "Counted in browsers on each site, without tracking. One person on two devices or two sites counts twice, so totals across sites are upper bounds."}}</p>
   </div>
   {{end}}
 </div>

@@ -6,7 +6,9 @@ import (
 	"encoding/json"
 	"fmt"
 	"io"
+	"log/slog"
 	"net/http"
+	"strings"
 	"time"
 
 	"github.com/hanishi/promovolve/platform/internal/model"
@@ -24,6 +26,11 @@ type Service struct {
 	// install: a floor is the one setting with no sensible cross-currency
 	// default, since $0.50 reads as a reserve and ¥0.50 as none at all.
 	floors FloorDefaults
+	// ReservedHosts are the deployment's own public hosts (dashboard, ad
+	// server, CDN). A site request for one of them, or a subdomain of one,
+	// is refused before it reaches the admin queue. Sibling hosts stay
+	// open: the operator may run real publisher sites next to them.
+	ReservedHosts []string
 }
 
 // FloorDefaults reads the operator's configured floors. Satisfied by
@@ -67,6 +74,9 @@ func floorStrings(ctx context.Context, f FloorDefaults) (start, min string) {
 // this flow. A projection hit is therefore confirmed against the core API
 // before it blocks the request.
 func (s *Service) Request(ctx context.Context, publisherID, requestedBy, siteID, domain, pageURL string) error {
+	if reservedHost(domain, s.ReservedHosts) {
+		return ErrReservedHost
+	}
 	if owner, found, err := s.repo.LiveSiteOwner(ctx, siteID, domain); err != nil {
 		return err
 	} else if found && s.siteLive(ctx, owner, siteID) {
@@ -215,6 +225,183 @@ func (s *Service) provisionSite(req *model.SiteRequest) error {
 	}
 	if resp.StatusCode >= 300 {
 		return fmt.Errorf("core API returned %d", resp.StatusCode)
+	}
+	return nil
+}
+
+// reservedHost reports whether domain is one of hosts or a subdomain of one.
+func reservedHost(domain string, hosts []string) bool {
+	d := strings.TrimSuffix(strings.ToLower(domain), ".")
+	for _, h := range hosts {
+		if d == h || strings.HasSuffix(d, "."+h) {
+			return true
+		}
+	}
+	return false
+}
+
+// UnverifiedMaxAge is how long an approved site may stay unverified before
+// the sweep releases it.
+const UnverifiedMaxAge = 14 * 24 * time.Hour
+
+// UnverifiedReleaseReason and ManualReleaseReason are the card text a
+// publisher sees after release, by the sweep or by an admin. Fixed sentences
+// so the Sites page can translate them.
+const (
+	UnverifiedReleaseReason = "Released: the site was not verified within 14 days of approval. Add it again to retry."
+	ManualReleaseReason     = "Released by an administrator: the site was not verified. Add it again to retry."
+	AdminRemovedReason      = "Removed by an administrator. Contact the operator before adding it again."
+)
+
+// ReleaseUnverified deletes every site approved more than maxAge ago that
+// still has not verified, so an abandoned registration stops holding the
+// domain against its real owner (#285). The core decides: a site is
+// released only when it answers with this request's domain and
+// "unverified". A failed lookup, a deleted site or a verified one is left
+// alone; the next sweep looks again.
+func (s *Service) ReleaseUnverified(ctx context.Context, maxAge time.Duration) {
+	reqs, err := s.repo.ListApprovedBefore(ctx, time.Now().Add(-maxAge))
+	if err != nil {
+		slog.Error("unverified-site sweep: list failed", "error", err)
+		return
+	}
+	for _, req := range reqs {
+		if !s.siteUnverified(ctx, req) {
+			continue
+		}
+		if err := s.release(ctx, req, UnverifiedReleaseReason); err != nil {
+			slog.Error("unverified-site sweep: release failed", "siteId", req.SiteID, "error", err)
+		}
+	}
+}
+
+// ListApprovedSites splits the approved requests by what the core reports
+// now: still unverified (what the sweep will release) or verified (live). A
+// site the core no longer has, or no longer has under this domain, is in
+// neither list.
+// ponytail: one core GET per approved site per page load; batch it in the
+// core if the approved list grows into the hundreds.
+func (s *Service) ListApprovedSites(ctx context.Context) (unverified, verified []PendingRow, err error) {
+	approved, err := s.repo.ListApproved(ctx)
+	if err != nil {
+		return nil, nil, err
+	}
+	for _, p := range approved {
+		status, suspended := s.siteStatus(ctx, p.SiteRequest)
+		p.Suspended = suspended
+		switch status {
+		case "unverified":
+			unverified = append(unverified, p)
+		case "verified":
+			verified = append(verified, p)
+		}
+	}
+	return unverified, verified, nil
+}
+
+// ReleaseNow is the admin's early release of one unverified site. It
+// applies the same core check as the sweep, so a site that verified since
+// the page loaded is kept.
+func (s *Service) ReleaseNow(ctx context.Context, requestID string) (*model.SiteRequest, error) {
+	req, err := s.repo.GetByID(ctx, requestID)
+	if err != nil {
+		return nil, err
+	}
+	if req.Status != StatusApproved || !s.siteUnverified(ctx, *req) {
+		return nil, ErrNotUnverified
+	}
+	return req, s.release(ctx, *req, ManualReleaseReason)
+}
+
+// Remove is the admin's removal of a live (approved) site: the core deletes
+// it, so serving stops now, and the request closes with a reason the
+// publisher sees. Earnings and delivery history are keyed by site_id
+// elsewhere and stay.
+func (s *Service) Remove(ctx context.Context, requestID string) (*model.SiteRequest, error) {
+	req, err := s.repo.GetByID(ctx, requestID)
+	if err != nil {
+		return nil, err
+	}
+	if req.Status != StatusApproved {
+		return nil, ErrNotFound
+	}
+	return req, s.release(ctx, *req, AdminRemovedReason)
+}
+
+func (s *Service) release(ctx context.Context, req model.SiteRequest, reason string) error {
+	if err := s.deleteSite(ctx, req); err != nil {
+		return err
+	}
+	if err := s.repo.MarkReleased(ctx, req.ID, reason); err != nil {
+		return fmt.Errorf("mark released: %w", err)
+	}
+	slog.Warn("released unverified site", "siteId", req.SiteID, "domain", req.Domain,
+		"publisherId", req.PublisherID, "approvedAt", req.ReviewedAt, "reason", reason)
+	return nil
+}
+
+// RunReleaseLoop sweeps once at start, then every interval until ctx ends.
+func (s *Service) RunReleaseLoop(ctx context.Context, maxAge, interval time.Duration) {
+	t := time.NewTicker(interval)
+	defer t.Stop()
+	for {
+		s.ReleaseUnverified(ctx, maxAge)
+		select {
+		case <-ctx.Done():
+			return
+		case <-t.C:
+		}
+	}
+}
+
+func (s *Service) siteUnverified(ctx context.Context, req model.SiteRequest) bool {
+	status, _ := s.siteStatus(ctx, req)
+	return status == "unverified"
+}
+
+// siteStatus is the core's verificationStatus for the request's site
+// ("verified" or "unverified"), or "" when the core is unreachable, the site
+// is gone, or it now holds a different domain; suspended reports the core's
+// serving freeze.
+func (s *Service) siteStatus(ctx context.Context, req model.SiteRequest) (status string, suspended bool) {
+	url := fmt.Sprintf("%s/v1/publishers/%s/sites/%s", s.coreAPIURL, req.PublisherID, req.SiteID)
+	httpReq, err := http.NewRequestWithContext(ctx, http.MethodGet, url, nil)
+	if err != nil {
+		return "", false
+	}
+	resp, err := coreClient.Do(httpReq)
+	if err != nil {
+		return "", false
+	}
+	defer resp.Body.Close()
+	var site struct {
+		Domain             string `json:"domain"`
+		Status             string `json:"status"`
+		VerificationStatus string `json:"verificationStatus"`
+	}
+	if resp.StatusCode != http.StatusOK || json.NewDecoder(resp.Body).Decode(&site) != nil {
+		return "", false
+	}
+	if !strings.EqualFold(site.Domain, req.Domain) {
+		return "", false
+	}
+	return site.VerificationStatus, site.Status == "suspended"
+}
+
+func (s *Service) deleteSite(ctx context.Context, req model.SiteRequest) error {
+	url := fmt.Sprintf("%s/v1/publishers/%s/sites/%s", s.coreAPIURL, req.PublisherID, req.SiteID)
+	httpReq, err := http.NewRequestWithContext(ctx, http.MethodDelete, url, nil)
+	if err != nil {
+		return err
+	}
+	resp, err := coreClient.Do(httpReq)
+	if err != nil {
+		return err
+	}
+	defer resp.Body.Close()
+	if resp.StatusCode != http.StatusNoContent {
+		body, _ := io.ReadAll(resp.Body)
+		return fmt.Errorf("core delete: %d %s", resp.StatusCode, body)
 	}
 	return nil
 }

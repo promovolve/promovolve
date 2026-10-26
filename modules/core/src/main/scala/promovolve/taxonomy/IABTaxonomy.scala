@@ -162,7 +162,7 @@ class IABTaxonomy(
               logger.info(
                 s"${provider.name} classified $url: ${valid.map(s => s"${s.id}(${s.confidence})").mkString(", ")}" +
                 (if (places.isEmpty) "" else s" places=${places.mkString(",")}"))
-              Right(Analysis(valid, places))
+              Right(Analysis(IABTaxonomy.withTravelLocations(valid, places), places))
             } else {
               Left((response.status.intValue, responseBody, retryAfter))
             }
@@ -696,6 +696,36 @@ object IABTaxonomy extends DefaultJsonProtocol {
    * about anywhere.
    */
   final case class Analysis(categories: List[Selection], places: List[String])
+
+  // IAB 3.0 Travel Locations node per GeoNames continent.
+  private val TravelLocationByContinent = Map(
+    "AF" -> "656", "AS" -> "657", "OC" -> "658", "EU" -> "659",
+    "NA" -> "660", "AN" -> "661", "SA" -> "662")
+  private val TravelLocations = "655"
+
+  /**
+   * A trip page's Travel Locations node ("Asia Travel", "Europe Travel")
+   * comes from the places it resolved to, not from the model. Measured
+   * (#275): flash-lite files Japan under Europe and Korea under North
+   * America, and asking it to pick a continent made that worse — the same
+   * lesson as places, where it names and the table supplies the code.
+   *
+   * Only for a page the model already called a trip — plain Travel, a
+   * Travel Location or a Travel Type. Travel Accessories or Advice about
+   * Japan is not a trip to Asia. The model's own Travel Locations picks
+   * are replaced when a place tells us better, kept when none does.
+   */
+  private[taxonomy] def withTravelLocations(categories: List[Selection], places: List[String]): List[Selection] = {
+    def isLocation(id: String) = TieredCategory.getAncestors(id).exists(_.id == TravelLocations)
+    val trip = categories.filter(s =>
+      s.id == "653" || isLocation(s.id) || TieredCategory.getAncestors(s.id).exists(_.id == "664"))
+    val derived = places.flatMap(Places.continentOf).flatMap(TravelLocationByContinent.get).distinct
+    if (trip.isEmpty || derived.isEmpty) categories
+    else {
+      val confidence = trip.map(_.confidence).max
+      categories.filterNot(s => isLocation(s.id)) ++ derived.map(Selection(_, confidence))
+    }
+  }
 
   /**
    * One place as the model NAMED it — never as a code.

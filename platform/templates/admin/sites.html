@@ -17,22 +17,22 @@
   <div class="space-y-4 mt-6">
     {{range .AdminSiteRequests}}
     <div class="card">
-      <div class="flex items-start justify-between gap-4">
+      <div class="flex flex-wrap items-start justify-between gap-x-4 gap-y-1">
         <div>
           <div class="flex items-center gap-2 mb-1">
             <h2 class="font-semibold text-lg">{{.Domain}}</h2>
             <span class="badge badge-info">{{t "site"}}</span>
           </div>
           <p class="text-sm text-gray-500">
-            <a href="{{.PageURL}}" target="_blank" rel="noopener noreferrer" class="text-brand hover:underline">{{.PageURL}}</a>
+            <a href="{{.PageURL}}" target="_blank" rel="noopener noreferrer" class="text-brand-ink hover:underline">{{.PageURL}}</a>
           </p>
         </div>
-        <span class="text-xs text-gray-400 whitespace-nowrap">{{.RequestedAt}}</span>
+        <span class="text-xs text-gray-500 whitespace-nowrap">{{.RequestedAt}}</span>
       </div>
 
       <dl class="grid grid-cols-2 gap-x-6 gap-y-2 mt-4 text-sm">
-        <div><dt class="text-gray-400">{{t "Site ID"}}</dt><dd class="font-mono text-xs">{{.SiteID}}</dd></div>
-        <div><dt class="text-gray-400">{{t "Publisher"}}</dt><dd>{{.Publisher}}{{if .Company}} · {{.Company}}{{end}}</dd></div>
+        <div><dt class="text-gray-500">{{t "Site ID"}}</dt><dd class="font-mono text-xs">{{.SiteID}}</dd></div>
+        <div><dt class="text-gray-500">{{t "Publisher"}}</dt><dd>{{.Publisher}}{{if .Company}} · {{.Company}}{{end}}</dd></div>
       </dl>
 
       <div class="flex flex-wrap items-end gap-3 mt-4">
@@ -41,17 +41,49 @@
           <input type="hidden" name="requestId" value="{{.ID}}">
           <button type="submit" class="btn btn-success">{{t "Approve"}}</button>
         </form>
-        <form method="POST" action="/admin/sites/reject" class="flex items-end gap-2"
+        <form method="POST" action="/admin/sites/reject" class="flex flex-wrap items-end gap-2"
           onsubmit="return confirm('{{t "Deny %s? The publisher will only be able to delete the request." .Domain}}')">
           <input type="hidden" name="requestId" value="{{.ID}}">
           <button type="submit" class="btn btn-danger">{{t "Deny"}}</button>
           <input type="text" name="reason" placeholder="{{t "Reason (optional, shown to the publisher)"}}"
-            class="border rounded-md px-3 py-2 text-sm w-72">
+            aria-label="{{t "Reason (optional, shown to the publisher)"}}"
+            class="border rounded-md px-3 py-2 text-sm w-full sm:w-72">
         </form>
       </div>
     </div>
     {{end}}
   </div>
+
+  {{if .AdminUnverifiedSites}}
+  <h2 class="page-title mt-10">{{t "Approved, not verified"}}</h2>
+  <p class="page-sub">{{t "These sites were approved but the publisher has not verified the domain. Each holds its domain until it is verified or released; it is released automatically 14 days after approval."}}</p>
+
+  <div class="space-y-4 mt-6">
+    {{range .AdminUnverifiedSites}}
+    <div class="card border-l-4 border-amber-400">
+      <div class="flex flex-wrap items-start justify-between gap-x-4 gap-y-1">
+        <div class="flex items-center gap-2">
+          <h2 class="font-semibold text-lg">{{.Domain}}</h2>
+          <span class="badge badge-warning">{{t "Unverified"}}</span>
+        </div>
+        <span class="text-xs text-gray-500 whitespace-nowrap">{{t "Released in %d days" .DaysLeft}}</span>
+      </div>
+
+      <dl class="grid grid-cols-2 gap-x-6 gap-y-2 mt-4 text-sm">
+        <div><dt class="text-gray-500">{{t "Site ID"}}</dt><dd class="font-mono text-xs">{{.SiteID}}</dd></div>
+        <div><dt class="text-gray-500">{{t "Publisher"}}</dt><dd>{{.Publisher}}{{if .Company}} · {{.Company}}{{end}}</dd></div>
+        <div><dt class="text-gray-500">{{t "Approved"}}</dt><dd>{{.ApprovedAt}}</dd></div>
+      </dl>
+
+      <form method="POST" action="/admin/sites/release" class="mt-4"
+        onsubmit="return confirm('{{t "Release %s now? The site is deleted from the ad server and the domain can be registered again." .Domain}}')">
+        <input type="hidden" name="requestId" value="{{.ID}}">
+        <button type="submit" class="btn btn-danger">{{t "Release now"}}</button>
+      </form>
+    </div>
+    {{end}}
+  </div>
+  {{end}}
 
   {{if .AdminSuspendedSites}}
   <h2 class="page-title mt-10">{{t "Suspended by fraud detection"}}</h2>
@@ -60,7 +92,7 @@
   <div class="space-y-4 mt-6">
     {{range .AdminSuspendedSites}}
     <div class="card border-l-4 {{if .Confirmed}}border-red-600{{else}}border-amber-400{{end}}">
-      <div class="flex items-start justify-between gap-4">
+      <div class="flex flex-wrap items-start justify-between gap-x-4 gap-y-1">
         <div>
           <div class="flex items-center gap-2 mb-1">
             <h2 class="font-semibold text-lg font-mono">{{.SiteID}}</h2>
@@ -69,7 +101,7 @@
           </div>
           <p class="text-sm text-gray-600">{{.Evidence}}</p>
         </div>
-        <span class="text-xs text-gray-400 whitespace-nowrap">{{.FlaggedAt}}</span>
+        <span class="text-xs text-gray-500 whitespace-nowrap">{{.FlaggedAt}}</span>
       </div>
 
       <div class="flex flex-wrap items-end gap-3 mt-4">
@@ -92,6 +124,56 @@
     </div>
     {{end}}
   </div>
+  {{end}}
+
+  <h2 class="page-title mt-10">{{t "Verified sites"}}</h2>
+  <p class="page-sub">{{t "Approved sites whose publisher has verified the domain. These are the sites that can serve ads."}}</p>
+  {{if .AdminVerifiedSites}}
+  <div class="card mt-6 overflow-x-auto p-0">
+    <table class="w-full text-sm">
+      <thead>
+        <tr class="border-b text-left text-gray-500">
+          <th class="px-4 py-3 font-medium">{{t "Domain"}}</th>
+          <th class="px-4 py-3 font-medium">{{t "Site ID"}}</th>
+          <th class="px-4 py-3 font-medium">{{t "Publisher"}}</th>
+          <th class="px-4 py-3 font-medium">{{t "Approved"}}</th>
+          <th class="px-4 py-3"><span class="sr-only">{{t "Actions"}}</span></th>
+        </tr>
+      </thead>
+      <tbody>
+        {{range .AdminVerifiedSites}}
+        <tr class="border-b last:border-0">
+          <td class="px-4 py-3 font-medium whitespace-nowrap">{{.Domain}}{{if .Suspended}} <span class="badge badge-danger ml-1">{{t "Suspended"}}</span>{{end}}</td>
+          <td class="px-4 py-3 font-mono text-xs whitespace-nowrap">{{.SiteID}}</td>
+          <td class="px-4 py-3 whitespace-nowrap">{{.Publisher}}{{if .Company}} <span class="text-gray-500">· {{.Company}}</span>{{end}}</td>
+          <td class="px-4 py-3 whitespace-nowrap text-gray-500" title="{{.ApprovedAt}}">{{slice .ApprovedAt 0 10}}</td>
+          <td class="px-4 py-2 text-right whitespace-nowrap">
+            {{if .Suspended}}
+            <form method="POST" action="/admin/sites/unsuspend" class="inline">
+              <input type="hidden" name="siteId" value="{{.SiteID}}">
+              <input type="hidden" name="publisherId" value="{{.PublisherID}}">
+              <button type="submit" class="btn btn-success btn-sm" aria-label="{{t "Resume %s" .Domain}}">{{t "Resume"}}</button>
+            </form>
+            {{else}}
+            <form method="POST" action="/admin/sites/suspend" class="inline"
+              onsubmit="return confirm('{{t "Suspend %s? The site stops serving ads now. Its slots, floors, approvals and verification are kept, and Resume puts it back." .Domain}}')">
+              <input type="hidden" name="siteId" value="{{.SiteID}}">
+              <button type="submit" class="btn btn-secondary btn-sm" aria-label="{{t "Suspend %s" .Domain}}">{{t "Suspend"}}</button>
+            </form>
+            {{end}}
+            <form method="POST" action="/admin/sites/remove" class="inline ml-2"
+              onsubmit="return confirm('{{t "Remove %s? The site is deleted from the ad server and stops serving ads now. Earnings and delivery history are kept." .Domain}}')">
+              <input type="hidden" name="requestId" value="{{.ID}}">
+              <button type="submit" class="btn btn-danger btn-sm" aria-label="{{t "Remove %s" .Domain}}">{{t "Remove"}}</button>
+            </form>
+          </td>
+        </tr>
+        {{end}}
+      </tbody>
+    </table>
+  </div>
+  {{else}}
+  <p class="card mt-6 text-sm text-gray-500">{{t "No verified sites yet."}}</p>
   {{end}}
 </div>
 {{end}}

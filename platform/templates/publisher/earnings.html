@@ -5,11 +5,11 @@
 
   {{with .Earnings}}
 
-  <div class="grid grid-cols-3 gap-6 mt-6">
+  <div class="grid grid-cols-1 sm:grid-cols-3 gap-6 mt-6">
     <div class="bg-white p-6 rounded-lg border" title="{{t "Settled net earnings not yet paid out"}}">
       <p class="text-sm text-gray-500">{{t "Balance owed"}}</p>
       <p class="text-3xl font-semibold mt-2">{{money .Accrued}}</p>
-      <p class="text-xs text-gray-400 mt-1">{{t "settled through yesterday, after platform fee"}}</p>
+      <p class="text-xs text-gray-500 mt-1">{{t "settled through yesterday, after platform fee"}}</p>
     </div>
     <div class="bg-white p-6 rounded-lg border">
       <p class="text-sm text-gray-500">{{t "Lifetime paid"}}</p>
@@ -22,7 +22,7 @@
     <h2 class="font-semibold text-lg px-6 pt-6">{{t "Payouts"}}</h2>
     <table class="w-full text-sm mt-3">
       <thead>
-        <tr class="border-b text-left text-gray-400">
+        <tr class="border-b text-left text-gray-500">
           <th class="px-6 py-2 font-medium">{{t "Created"}}</th>
           <th class="px-6 py-2 font-medium">{{t "Period"}}</th>
           <th class="px-6 py-2 font-medium">{{t "Status"}}</th>
@@ -40,7 +40,7 @@
           <td class="px-6 py-2 text-right font-medium">{{money .Amount}}</td>
         </tr>
         {{else}}
-        <tr><td class="px-6 py-4 text-gray-400" colspan="5">{{t "No payouts yet — they appear once your settled balance passes your minimum payout."}}</td></tr>
+        <tr><td class="px-6 py-4 text-gray-500" colspan="5">{{t "No payouts yet — they appear once your settled balance passes your minimum payout."}}</td></tr>
         {{end}}
       </tbody>
     </table>
@@ -51,7 +51,7 @@
     <h2 class="font-semibold text-lg px-6 pt-6">{{t "Monthly earnings"}}</h2>
     <table class="w-full text-sm mt-3">
       <thead>
-        <tr class="border-b text-left text-gray-400">
+        <tr class="border-b text-left text-gray-500">
           <th class="px-6 py-2 font-medium">{{t "Month"}}</th>
           <th class="px-6 py-2 font-medium">{{t "Impressions"}}</th>
           <th class="px-6 py-2 font-medium text-right">{{t "Gross"}}</th>
@@ -69,7 +69,7 @@
           <td class="px-6 py-2 text-right font-medium">{{money .Net}}</td>
         </tr>
         {{else}}
-        <tr><td class="px-6 py-4 text-gray-400" colspan="5">{{t "Nothing settled yet."}}</td></tr>
+        <tr><td class="px-6 py-4 text-gray-500" colspan="5">{{t "Nothing settled yet."}}</td></tr>
         {{end}}
       </tbody>
     </table>
@@ -82,18 +82,18 @@
     <form method="POST" action="/publisher/payout-method" class="mt-4 space-y-4 max-w-xl">
       <div class="flex gap-3">
         <div>
-          <label class="form-label">{{t "Method"}}</label>
-          <input name="method" class="form-input w-48" value="{{.Method}}" placeholder="{{t "bank transfer"}}">
+          <label for="earnings-method" class="form-label">{{t "Method"}}</label>
+          <input id="earnings-method" name="method" class="form-input w-48" value="{{.Method}}" placeholder="{{t "bank transfer"}}">
         </div>
         <div>
-          <label class="form-label">{{t "Minimum payout"}} ({{sym}})</label>
-          <input name="minPayout" class="form-input w-36" value="{{.MinPayout}}">
+          <label for="earnings-minpayout" class="form-label">{{t "Minimum payout"}} ({{sym}})</label>
+          <input id="earnings-minpayout" name="minPayout" class="form-input w-36" value="{{.MinPayout}}">
           <p class="form-hint">{{t "payouts are offered once your balance passes this — platform minimum %s" (money .PayoutFloor)}}</p>
         </div>
       </div>
       <div>
-        <label class="form-label">{{t "Details"}}</label>
-        <textarea name="details" class="form-input" rows="3" placeholder="{{t "account holder, IBAN/account number, bank name…"}}">{{.MethodDetails}}</textarea>
+        <label for="earnings-details" class="form-label">{{t "Details"}}</label>
+        <textarea id="earnings-details" name="details" class="form-input" rows="3" placeholder="{{t "account holder, IBAN/account number, bank name…"}}">{{.MethodDetails}}</textarea>
       </div>
       <button type="submit" class="btn btn-primary">{{t "Save payout method"}}</button>
     </form>

@@ -47,6 +47,9 @@ category/onsen/    cats=[] missing                          places=[Toyooka(GN18
 ```
 
 `hit` — an accepted answer (or something more specific) is present.
+A category that is a *sibling* of an accepted one (Europe Travel beside the
+expected Asia Travel) makes the cell `WRONG` even when the accepted one is
+there too; unrelated extras are not judged.
 `broad` — the model stopped at a parent of what we wanted (Travel for a Spas
 page): serves broader campaigns, loses the specific ones. `missing` — nothing
 came back where something should have. `WRONG` / `INVENTED` — answered

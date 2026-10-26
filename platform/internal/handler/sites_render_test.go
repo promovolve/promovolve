@@ -7,7 +7,8 @@ package handler
 import (
 	"github.com/hanishi/promovolve/platform/internal/i18n"
 	"html/template"
-	"io"
+	"os"
+	"path/filepath"
 	"strings"
 	"testing"
 
@@ -50,6 +51,17 @@ func TestSitesAndCreativesTemplatesRender(t *testing.T) {
 				ID: "r1", Domain: "pending.example.com", SiteID: "pending-example-com",
 				PageURL: "https://pending.example.com/x", Publisher: "pub@test", Company: "Pub Co",
 				RequestedAt: "2026-07-07 10:00",
+			}},
+			AdminUnverifiedSites: []adminApprovedSiteRow{{
+				ID: "r2", Domain: "waiting.example.com", SiteID: "waiting-example-com",
+				Publisher: "pub@test", ApprovedAt: "2026-10-10 09:00", DaysLeft: 4,
+			}},
+			AdminVerifiedSites: []adminApprovedSiteRow{{
+				ID: "r3", Domain: "live.example.com", SiteID: "live-example-com",
+				Publisher: "pub@test", Company: "Pub Co", ApprovedAt: "2026-09-01 12:00",
+			}, {
+				ID: "r4", Domain: "paused.example.com", SiteID: "paused-example-com",
+				Publisher: "pub@test", ApprovedAt: "2026-09-02 12:00", PublisherID: "pub-1", Suspended: true,
 			}},
 			// Auto-suspended section — one pending-review row, one confirmed,
 			// to exercise both badge/button branches.
@@ -126,8 +138,16 @@ func TestSitesAndCreativesTemplatesRender(t *testing.T) {
 
 	for _, c := range cases {
 		for _, tlang := range []string{i18n.LangEN, i18n.LangJA} {
-			if err := getPage(tlang, c.name).ExecuteTemplate(io.Discard, "layout", c.data); err != nil {
+			var sb strings.Builder
+			if err := getPage(tlang, c.name).ExecuteTemplate(&sb, "layout", c.data); err != nil {
 				t.Errorf("%s failed to render: %v", c.name, err)
+			}
+			// With PREVIEW_OUT set, dump the render for a local screenshot pass.
+			if dir := os.Getenv("PREVIEW_OUT"); dir != "" {
+				p := filepath.Join(dir, strings.ReplaceAll(strings.TrimSuffix(c.name, ".html"), "/", "-")+"-"+tlang+".html")
+				if err := os.WriteFile(p, []byte(sb.String()), 0o644); err != nil {
+					t.Fatalf("write %s: %v", p, err)
+				}
 			}
 		}
 	}

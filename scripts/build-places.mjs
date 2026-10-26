@@ -185,10 +185,14 @@ for (const [gnKey, name] of gnAdmin1Name) {
 // alternate names (which the per-country dumps carry alongside the
 // cities') can be attributed to the ISO code.
 const countryGeoId = new Map(); // geonameid -> "JP"
+// GeoNames continent code (AS, EU, ...) per country: what the classifier
+// derives a Travel Locations category from, instead of asking the model.
+const countryContinent = new Map(); // "JP" -> "AS"
 for (const line of lines("countryInfo.txt")) {
   if (!line.trim() || line.startsWith("#")) continue;
   const c = line.split("\t");
   if (c[0] && c[16] && validCountries.has(c[0])) countryGeoId.set(c[16], c[0]);
+  if (c[0] && c[8] && validCountries.has(c[0])) countryContinent.set(c[0], c[8]);
 }
 const admin1GeoId = new Map(); // geonameid -> "JP-28"
 for (const line of lines("admin1CodesASCII.txt")) {
@@ -225,7 +229,8 @@ for (const line of lines("cities5000.txt")) {
 cities.sort(byCode);
 const linkedCities = cities.filter((r) => r[3]).length;
 
-write("countries.tsv", "code\tname_en", countries.map((r) => r.join("\t")));
+write("countries.tsv", "code\tname_en\tcontinent",
+  countries.map((r) => [...r, countryContinent.get(r[0]) || ""].join("\t")));
 write("subdivisions.tsv", "code\tcountry\tname_en", subdivisions.map((r) => r.join("\t")));
 write("cities.tsv", "code\tname_en\tcountry\tadmin1\tpopulation",
   cities.map((r) => r.join("\t")));

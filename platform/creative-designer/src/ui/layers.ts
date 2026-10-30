@@ -9,7 +9,7 @@
 // out the rows and wires click selection.
 //
 // Each row shows:
-//   - A 12px type icon (text / image / rect / circle) — focus-blue when
+//   - A 12px type icon (text / image / rect / circle) — ink (focus) when
 //     selected, ink300 otherwise.
 //   - The item's name, ellipsised. Derived from content (text item
 //     uses its first line, image uses filename from src, rect/circle

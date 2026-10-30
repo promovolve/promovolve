@@ -245,7 +245,7 @@ export function mountBannerConfigPanel(
       const weight = state.bannerConfig.paperWeight ?? "medium";
       if (weightSelect.value !== weight) weightSelect.value = weight;
       // Tempo indicator: slider + number always show the EFFECTIVE
-      // multiplier; the ×-suffix goes focus-blue when overriding the stock.
+      // multiplier; the ×-suffix goes ink (focus) when overriding the stock.
       const overridden = state.bannerConfig.tempo !== undefined;
       const effTempo = overridden ? state.bannerConfig.tempo! : presetTempo();
       const slider = String(effTempo);

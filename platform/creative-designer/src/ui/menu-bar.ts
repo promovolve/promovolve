@@ -1,4 +1,4 @@
-// Top bar — the whole banner. Field blue-grey like the dashboard's top
+// Top bar — the whole banner. Field grey like the dashboard's top
 // bar, so moving between the two reads as one product.
 //
 // Left: breadcrumb back to the dashboard — "Campaigns" (a link to the

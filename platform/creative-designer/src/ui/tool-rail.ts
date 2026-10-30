@@ -168,7 +168,7 @@ function toolBtn(iconSvg: string, label: string, shortcut: string, onClick: () =
     `color: ${tokens.ink100}`,
     "border: none",
     `border-radius: ${tokens.r4}px`,
-    // Active tool: a 3px Focus Blue bar on the left edge.
+    // Active tool: a 3px ink (focus) bar on the left edge.
     opts.active ? `box-shadow: inset 3px 0 0 ${tokens.focus}` : "box-shadow: none",
     "cursor: pointer",
     "font: inherit",

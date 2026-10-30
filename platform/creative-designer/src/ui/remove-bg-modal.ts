@@ -564,7 +564,7 @@ function secondaryBtn(label: string, onClick: () => void): HTMLButtonElement {
     "transition: background .12s, color .12s",
   ].join(";");
   // Hover styling skips a button flagged active (the brush tool toggles
-  // paint themselves focus-blue via data-active).
+  // paint themselves ink (focus) via data-active).
   b.addEventListener("mouseenter", () => {
     if (b.dataset.active === "1") return;
     b.style.background = tokens.ink700; b.style.color = tokens.ink100;

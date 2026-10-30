@@ -216,10 +216,10 @@ function boot(ctx: DesignerContext): void {
       "transform: translateX(-50%)",
       "z-index: 10000",
       "max-width: 560px",
-      "background: #7f1d1d",
-      "color: #fecaca",
-      "border: 1px solid #b91c1c",
-      "border-radius: 8px",
+      `background: ${tokens.ink900}`,
+      `color: ${tokens.ink100}`,
+      `border: 1px solid ${tokens.err}`,
+      "border-radius: 2px",
       "padding: 10px 36px 10px 14px",
       "font-size: 13px",
       "line-height: 1.45",
@@ -228,7 +228,7 @@ function boot(ctx: DesignerContext): void {
     toast.textContent = ctx.errorMsg;
     const x = document.createElement("button");
     x.textContent = "×";
-    x.style.cssText = "position:absolute;top:6px;right:8px;background:none;border:none;color:#fecaca;font-size:16px;cursor:pointer;";
+    x.style.cssText = `position:absolute;top:6px;right:8px;background:none;border:none;color:${tokens.ink300};font-size:16px;cursor:pointer;`;
     x.addEventListener("click", () => toast.remove());
     toast.appendChild(x);
     document.body.appendChild(toast);
@@ -274,6 +274,9 @@ function boot(ctx: DesignerContext): void {
   const UI_SCALE = "1.2";
   for (const h of [shell.menuBarHost, shell.matrixHost, shell.canvasHeaderHost, shell.canvasFootHost, shell.sidebarHost]) {
     h.style.setProperty("zoom", UI_SCALE);
+    // Figures line up in every readout (sizes, coordinates, zoom). Chrome
+    // hosts only: the canvas renders the advertiser's own type.
+    h.style.setProperty("font-variant-numeric", "tabular-nums");
   }
 
   const menuBar = mountMenuBar(shell.menuBarHost, store, ctx);

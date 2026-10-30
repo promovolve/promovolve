@@ -25,7 +25,7 @@ export function mountKitColorChips(parent: HTMLElement, { campaignId, onPick }: 
     if (kit.colors.length === 0) return;
     const label = document.createElement("span");
     label.textContent = "kit";
-    label.style.cssText = `font-size:9px;color:${tokens.ink400};letter-spacing:1px;text-transform:uppercase;margin-right:2px;`;
+    label.style.cssText = `font-size:9px;color:${tokens.ink300};letter-spacing:1px;text-transform:uppercase;margin-right:2px;`;
     wrap.appendChild(label);
     for (const c of kit.colors) {
       const chip = document.createElement("button");
@@ -34,7 +34,7 @@ export function mountKitColorChips(parent: HTMLElement, { campaignId, onPick }: 
       chip.style.cssText = [
         "width: 16px",
         "height: 16px",
-        "border-radius: 3px",
+        "border-radius: 2px",
         `border: 1px solid ${tokens.ink500}`,
         `background: ${c.value}`,
         "cursor: pointer",

@@ -37,7 +37,7 @@ export function mountDraftButton(container: HTMLElement, store: Store, ctx: Desi
     "background: transparent",
     `color: ${tokens.ink200}`,
     `border: 1px solid ${tokens.ink500}`,
-    "border-radius: 4px",
+    "border-radius: 2px",
     "cursor: pointer",
     "font: inherit",
     "font-size: 11px",
@@ -76,10 +76,10 @@ export function mountPublishButton(container: HTMLElement, store: Store, ctx: De
     "width: 30px",
     "height: 28px",
     "padding: 0",
-    `background: ${tokens.focus}`,
-    "color: white",
-    `border: 1px solid ${tokens.focus}`,
-    "border-radius: 4px",
+    `background: ${tokens.ink100}`,
+    `color: ${tokens.ink900}`,
+    `border: 1px solid ${tokens.ink100}`,
+    "border-radius: 2px",
     "cursor: pointer",
     "font: inherit",
     "font-weight: 500",
@@ -141,11 +141,11 @@ function showEmptyBlock(anchor: HTMLElement, empties: EmptySize[]): void {
     "min-width: 220px",
     "max-width: 320px",
     "padding: 12px 14px",
-    `background: ${tokens.ink800 ?? "#1c1c22"}`,
-    `border: 1px solid ${tokens.focus}`,
-    "border-radius: 6px",
+    `background: ${tokens.ink900}`,
+    `border: 1px solid ${tokens.err}`,
+    "border-radius: 2px",
     "box-shadow: 0 8px 24px rgba(0,0,0,0.4)",
-    `color: ${tokens.ink100 ?? "#f0f0f2"}`,
+    `color: ${tokens.ink100}`,
     "font: inherit",
     "font-size: 12px",
     "line-height: 1.45",
@@ -153,7 +153,7 @@ function showEmptyBlock(anchor: HTMLElement, empties: EmptySize[]): void {
 
   const title = document.createElement("div");
   title.textContent = "Can’t publish — fill these sizes first";
-  title.style.cssText = `font-weight:600;margin-bottom:6px;color:${tokens.focus};`;
+  title.style.cssText = `font-weight:600;margin-bottom:6px;color:${tokens.err};`;
   pop.appendChild(title);
 
   const list = document.createElement("ul");
@@ -163,13 +163,13 @@ function showEmptyBlock(anchor: HTMLElement, empties: EmptySize[]): void {
   const shown = empties.slice(0, 6);
   for (const e of shown) {
     const li = document.createElement("li");
-    li.style.cssText = "padding:1px 0;color:" + (tokens.ink200 ?? "#c8c8cf") + ";";
+    li.style.cssText = "padding:1px 0;color:" + tokens.ink200 + ";";
     li.textContent = multiPage ? `${e.label} · page ${e.page}` : e.label;
     list.appendChild(li);
   }
   if (empties.length > shown.length) {
     const more = document.createElement("li");
-    more.style.cssText = `padding:3px 0 0;color:${tokens.ink400 ?? "#85858f"};`;
+    more.style.cssText = `padding:3px 0 0;color:${tokens.ink300};`;
     more.textContent = `+${empties.length - shown.length} more`;
     list.appendChild(more);
   }

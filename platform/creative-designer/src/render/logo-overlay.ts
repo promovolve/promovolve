@@ -9,6 +9,7 @@ import { clientToPct, type Rect } from "../coords";
 import { isMultiPage } from "../modes";
 import type { Store } from "../store";
 import type { DesignerState } from "../types";
+import { tokens } from "../ui/tokens";
 
 export interface LogoOverlayHandle {
   update(state: DesignerState): void;
@@ -21,7 +22,7 @@ export function mountLogoOverlay(canvasWrap: HTMLElement, store: Store): LogoOve
   box.style.cssText = [
     "position: absolute",
     "box-sizing: border-box",
-    "border: 1px dashed rgba(99,102,241,0.9)",
+    "border: 1px dashed rgba(33,133,255,0.9)",
     "cursor: move",
     "display: none",
     "z-index: 60",
@@ -36,7 +37,7 @@ export function mountLogoOverlay(canvasWrap: HTMLElement, store: Store): LogoOve
     "bottom: -5px",
     "width: 11px",
     "height: 11px",
-    "background: #6366f1",
+    `background: ${tokens.focus}`,
     "border: 1px solid #fff",
     "border-radius: 2px",
     "cursor: nwse-resize",

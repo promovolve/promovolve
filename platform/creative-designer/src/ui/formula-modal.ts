@@ -28,7 +28,7 @@ export function openFormulaModal(store: Store, edit?: { idx: number; item: Image
   card.style.cssText = [
     "width: min(560px, calc(100vw - 32px))", "display: flex", "flex-direction: column", "gap: 12px",
     "padding: 16px", `background: ${tokens.ink800}`, `border: 1px solid ${tokens.ink500}`,
-    "border-radius: 6px", `color: ${tokens.ink100}`, "font-size: 12px",
+    "border-radius: 2px", `color: ${tokens.ink100}`, "font-size: 12px",
   ].join(";");
 
   const title = document.createElement("div");
@@ -44,7 +44,7 @@ export function openFormulaModal(store: Store, edit?: { idx: number; item: Image
     "width: 100%", "box-sizing: border-box", "resize: vertical", "padding: 8px",
     "font-family: ui-monospace, Menlo, monospace", "font-size: 13px",
     `background: ${tokens.ink900}`, `color: ${tokens.ink100}`,
-    `border: 1px solid ${tokens.ink500}`, "border-radius: 4px",
+    `border: 1px solid ${tokens.ink500}`, "border-radius: 2px",
   ].join(";");
 
   // Preview sits on the page's own background so the ink color reads as
@@ -57,7 +57,7 @@ export function openFormulaModal(store: Store, edit?: { idx: number; item: Image
   preview.style.cssText = [
     "min-height: 96px", "display: flex", "align-items: center", "justify-content: center",
     "padding: 12px", "overflow: auto", `background: ${page?.bg ?? tokens.ink900}`,
-    `border: 1px solid ${tokens.ink500}`, "border-radius: 4px",
+    `border: 1px solid ${tokens.ink500}`, "border-radius: 2px",
   ].join(";");
 
   const previewImg = document.createElement("img");
@@ -205,9 +205,9 @@ function button(label: string, primary: boolean, onClick: () => void): HTMLButto
   b.type = "button";
   b.textContent = label;
   b.style.cssText = [
-    "padding: 5px 12px", "border-radius: 4px", "font: inherit", "font-size: 12px", "cursor: pointer",
+    "padding: 5px 12px", "border-radius: 2px", "font: inherit", "font-size: 12px", "cursor: pointer",
     primary
-      ? `background: ${tokens.focus}; color: oklch(0.12 0.04 55); border: none; font-weight: 600`
+      ? `background: ${tokens.ink100}; color: ${tokens.ink900}; border: none; font-weight: 600`
       : `background: transparent; color: ${tokens.ink200}; border: 1px solid ${tokens.ink500}`,
   ].join(";");
   b.addEventListener("click", onClick);

@@ -48,7 +48,7 @@ export function mountPreviewButton(
     "background: transparent",
     `color: ${tokens.ink200}`,
     `border: 1px solid ${tokens.ink500}`,
-    "border-radius: 4px",
+    "border-radius: 2px",
     "cursor: pointer",
     "font: inherit",
     "font-size: 12px",

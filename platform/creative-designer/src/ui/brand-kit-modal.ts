@@ -45,7 +45,7 @@ export function openBrandKitModal(campaignId: string): void {
   modal.style.cssText = [
     `background: ${tokens.ink800}`,
     `border: 1px solid ${tokens.ink500}`,
-    "border-radius: 8px",
+    "border-radius: 2px",
     "width: 480px",
     "max-height: 78vh",
     "padding: 16px 18px 18px",
@@ -83,7 +83,7 @@ export function openBrandKitModal(campaignId: string): void {
       const img = document.createElement("img");
       img.src = working.logoUrl;
       img.alt = "Brand logo";
-      img.style.cssText = `max-width:140px;max-height:64px;object-fit:contain;background:${tokens.ink900};border:1px solid ${tokens.ink500};border-radius:4px;padding:6px;display:block;margin-bottom:6px;`;
+      img.style.cssText = `max-width:140px;max-height:64px;object-fit:contain;background:${tokens.ink900};border:1px solid ${tokens.ink500};border-radius:2px;padding:6px;display:block;margin-bottom:6px;`;
       logoSection.appendChild(img);
       const rowEl = document.createElement("div");
       rowEl.style.cssText = "display:flex;gap:8px;";
@@ -137,7 +137,7 @@ export function openBrandKitModal(campaignId: string): void {
   const save = document.createElement("button");
   save.textContent = "Save kit";
   save.type = "button";
-  save.style.cssText = `background:${tokens.focus};color:${tokens.ink900};border:none;border-radius:4px;padding:6px 14px;font:inherit;font-weight:600;cursor:pointer;`;
+  save.style.cssText = `background:${tokens.ink100};color:${tokens.ink900};border:none;border-radius:2px;padding:6px 14px;font:inherit;font-weight:600;cursor:pointer;`;
   save.addEventListener("click", () => {
     saveBrandKit(working, campaignId);
     notifyBrandKitChanged(working);
@@ -156,7 +156,7 @@ export function openBrandKitModal(campaignId: string): void {
 function sectionLabel(text: string): HTMLElement {
   const l = document.createElement("div");
   l.textContent = text;
-  l.style.cssText = `text-transform:uppercase;font-size:10px;letter-spacing:1.5px;color:${tokens.ink400};margin-bottom:6px;`;
+  l.style.cssText = `text-transform:uppercase;font-size:10px;letter-spacing:1.5px;color:${tokens.ink300};margin-bottom:6px;`;
   return l;
 }
 
@@ -168,14 +168,14 @@ function buildColorRow(kit: BrandKit, idx: number, rerender: () => void): HTMLEl
   const colorInput = document.createElement("input");
   colorInput.type = "color";
   colorInput.value = normalizeHex(c.value);
-  colorInput.style.cssText = `width:36px;height:28px;border:1px solid ${tokens.ink500};background:${tokens.ink900};border-radius:4px;cursor:pointer;`;
+  colorInput.style.cssText = `width:36px;height:28px;border:1px solid ${tokens.ink500};background:${tokens.ink900};border-radius:2px;cursor:pointer;`;
   colorInput.addEventListener("input", () => { kit.colors[idx]!.value = colorInput.value; });
 
   const nameInput = document.createElement("input");
   nameInput.type = "text";
   nameInput.value = c.name;
   nameInput.placeholder = "Color name";
-  nameInput.style.cssText = `flex:1;background:${tokens.ink900};color:${tokens.ink100};border:1px solid ${tokens.ink500};border-radius:4px;padding:4px 6px;font:inherit;`;
+  nameInput.style.cssText = `flex:1;background:${tokens.ink900};color:${tokens.ink100};border:1px solid ${tokens.ink500};border-radius:2px;padding:4px 6px;font:inherit;`;
   nameInput.addEventListener("input", () => { kit.colors[idx]!.name = nameInput.value; });
 
   const remove = removeButton(() => { kit.colors.splice(idx, 1); rerender(); });
@@ -190,7 +190,7 @@ function buildFontRow(kit: BrandKit, idx: number, rerender: () => void): HTMLEle
   input.type = "text";
   input.value = kit.fonts[idx]!;
   input.placeholder = "font-family";
-  input.style.cssText = `flex:1;background:${tokens.ink900};color:${tokens.ink100};border:1px solid ${tokens.ink500};border-radius:4px;padding:4px 6px;font:${kit.fonts[idx]}, inherit;`;
+  input.style.cssText = `flex:1;background:${tokens.ink900};color:${tokens.ink100};border:1px solid ${tokens.ink500};border-radius:2px;padding:4px 6px;font:${kit.fonts[idx]}, inherit;`;
   input.addEventListener("input", () => {
     kit.fonts[idx] = input.value;
     input.style.fontFamily = input.value;
@@ -205,7 +205,7 @@ function removeButton(onClick: () => void): HTMLButtonElement {
   b.type = "button";
   b.textContent = "×";
   b.title = "Remove";
-  b.style.cssText = `background:transparent;color:${tokens.ink300};border:1px solid ${tokens.ink500};border-radius:4px;width:26px;height:26px;cursor:pointer;font-size:14px;line-height:1;`;
+  b.style.cssText = `background:transparent;color:${tokens.ink300};border:1px solid ${tokens.ink500};border-radius:2px;width:26px;height:26px;cursor:pointer;font-size:14px;line-height:1;`;
   b.addEventListener("click", onClick);
   return b;
 }
@@ -214,7 +214,7 @@ function ghostButton(text: string, onClick: () => void): HTMLButtonElement {
   const b = document.createElement("button");
   b.type = "button";
   b.textContent = text;
-  b.style.cssText = `background:transparent;color:${tokens.ink300};border:1px dashed ${tokens.ink500};border-radius:4px;padding:5px 10px;font:inherit;font-size:11px;cursor:pointer;margin-top:6px;`;
+  b.style.cssText = `background:transparent;color:${tokens.ink300};border:1px dashed ${tokens.ink500};border-radius:2px;padding:5px 10px;font:inherit;font-size:11px;cursor:pointer;margin-top:6px;`;
   b.addEventListener("click", onClick);
   return b;
 }

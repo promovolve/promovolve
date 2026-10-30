@@ -81,7 +81,7 @@ export function openRemoveBgModal(store: Store, idx: number, item: ImageItem): v
     "max-width: calc(100vw - 160px)",
     "max-height: calc(100vh - 200px)",
     "overflow: hidden",
-    "border-radius: 6px",
+    "border-radius: 2px",
     `border: 1px solid ${tokens.ink500}`,
     "background-color: #808080",
     "background-image: linear-gradient(45deg,#666 25%,transparent 25%),linear-gradient(-45deg,#666 25%,transparent 25%),linear-gradient(45deg,transparent 75%,#666 75%),linear-gradient(-45deg,transparent 75%,#666 75%)",
@@ -134,7 +134,7 @@ export function openRemoveBgModal(store: Store, idx: number, item: ImageItem): v
     `height:${LOUPE_PX}px`,
     "pointer-events:none",
     "display:none",
-    "border-radius:6px",
+    "border-radius:2px",
     `border:1px solid ${tokens.ink300}`,
     "box-shadow:0 4px 18px rgba(0,0,0,0.6)",
     "background-color:#808080",
@@ -214,9 +214,9 @@ export function openRemoveBgModal(store: Store, idx: number, item: ImageItem): v
   const setTool = (t: HintValue | null): void => {
     tool = t;
     const on = (b: HTMLButtonElement, active: boolean): void => {
-      b.style.background = active ? tokens.focus : "transparent";
-      b.style.color = active ? "oklch(0.12 0.04 55)" : tokens.ink200;
-      b.style.borderColor = active ? tokens.focus : tokens.ink500;
+      b.style.background = active ? tokens.ink100 : "transparent";
+      b.style.color = active ? tokens.ink900 : tokens.ink200;
+      b.style.borderColor = active ? tokens.ink100 : tokens.ink500;
       b.dataset.active = active ? "1" : "";
     };
     on(restoreBtn, t === HINT_KEEP);
@@ -535,10 +535,10 @@ function primaryBtn(label: string, onClick: () => void): HTMLButtonElement {
   b.textContent = label;
   b.style.cssText = [
     "padding: 6px 14px",
-    `background: ${tokens.focus}`,
-    "color: oklch(0.12 0.04 55)",
+    `background: ${tokens.ink100}`,
+    `color: ${tokens.ink900}`,
     "border: none",
-    "border-radius: 4px",
+    "border-radius: 2px",
     "font: inherit",
     "font-size: 12px",
     "font-weight: 600",
@@ -557,7 +557,7 @@ function secondaryBtn(label: string, onClick: () => void): HTMLButtonElement {
     "background: transparent",
     `color: ${tokens.ink200}`,
     `border: 1px solid ${tokens.ink500}`,
-    "border-radius: 4px",
+    "border-radius: 2px",
     "font: inherit",
     "font-size: 12px",
     "cursor: pointer",

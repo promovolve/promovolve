@@ -17,7 +17,7 @@ import { tokens } from "../ui/tokens";
 const STROKE = tokens.focus;
 // Marquee fill: accent at low opacity. Kept as rgba until we decide
 // whether to expose alpha-overlay tokens.
-const FILL = "rgba(245,158,11,0.12)";
+const FILL = "rgba(33,133,255,0.12)";
 
 interface MarqueeParams {
   e: PointerEvent;

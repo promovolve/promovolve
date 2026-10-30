@@ -27,7 +27,7 @@ export function mountImageDrop(target: HTMLElement, store: Store): void {
     "justify-content: center",
     "pointer-events: none",
     `border: 2px dashed ${tokens.focus}`,
-    "border-radius: 6px",
+    "border-radius: 2px",
     "background: rgba(0,0,0,0.35)",
     `color: ${tokens.ink100}`,
     `font-family: ${tokens.sans}`,
@@ -103,7 +103,7 @@ function openChooser(file: File, x: number, y: number, store: Store): void {
     "width: 240px",
     `background: ${tokens.ink800}`,
     `border: 1px solid ${tokens.ink500}`,
-    "border-radius: 8px",
+    "border-radius: 2px",
     "box-shadow: 0 8px 28px rgba(0,0,0,0.5)",
     "padding: 12px",
     `font-family: ${tokens.sans}`,
@@ -122,7 +122,7 @@ function openChooser(file: File, x: number, y: number, store: Store): void {
     "width: 100%",
     "height: 120px",
     "object-fit: contain",
-    "border-radius: 4px",
+    "border-radius: 2px",
     "display: block",
     "margin-bottom: 10px",
     "background-color: #808080",
@@ -138,7 +138,7 @@ function openChooser(file: File, x: number, y: number, store: Store): void {
   card.appendChild(label);
 
   const status = document.createElement("div");
-  status.style.cssText = `font-size:11px;color:${tokens.ink400};min-height:14px;margin-top:8px;`;
+  status.style.cssText = `font-size:11px;color:${tokens.ink300};min-height:14px;margin-top:8px;`;
 
   const cleanup = (): void => {
     URL.revokeObjectURL(objectUrl);
@@ -204,7 +204,7 @@ function chooserButton(text: string, onClick: () => void): HTMLButtonElement {
     `background: ${tokens.ink700}`,
     `color: ${tokens.ink100}`,
     `border: 1px solid ${tokens.ink500}`,
-    "border-radius: 4px",
+    "border-radius: 2px",
     "cursor: pointer",
     "font: inherit",
     "font-size: 12px",

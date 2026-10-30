@@ -68,16 +68,16 @@ export function mountCanvasFoot(host: HTMLElement, store: Store): CanvasFootHand
     "background: transparent",
     `color: ${tokens.ink400}`,
     `border: 1px solid ${tokens.ink500}`,
-    "border-radius: 4px",
+    "border-radius: 2px",
     "cursor: pointer",
     "font-size: 11px",
     "padding: 0",
     "transition: color .12s, background .12s, border-color .12s",
   ].join(";");
   const applyRulerBtnState = (on: boolean): void => {
-    rulersBtn.style.color = on ? tokens.focus : tokens.ink400;
-    rulersBtn.style.borderColor = on ? tokens.focusMuted : tokens.ink500;
-    rulersBtn.style.background = on ? tokens.focusBg : "transparent";
+    rulersBtn.style.color = on ? tokens.ink100 : tokens.ink400;
+    rulersBtn.style.borderColor = on ? tokens.ink100 : tokens.ink500;
+    rulersBtn.style.background = on ? tokens.ink700 : "transparent";
   };
   applyRulerBtnState(rulersEnabled());
   rulersBtn.addEventListener("click", () => setRulersEnabled(!rulersEnabled()));
@@ -90,7 +90,7 @@ export function mountCanvasFoot(host: HTMLElement, store: Store): CanvasFootHand
   zoomInput.max = "3";
   zoomInput.step = "0.05";
   zoomInput.title = "Canvas zoom";
-  zoomInput.style.cssText = `width: 110px; accent-color: ${tokens.focus}; cursor: pointer;`;
+  zoomInput.style.cssText = `width: 110px; accent-color: ${tokens.ink100}; cursor: pointer;`;
   zoomInput.addEventListener("input", () => {
     const z = Number(zoomInput.value);
     if (Number.isFinite(z) && z !== store.state.zoom) store.replace(setZoom(store.state, z));
@@ -125,6 +125,7 @@ export function mountCanvasFoot(host: HTMLElement, store: Store): CanvasFootHand
       weight.setValue(
         `Weight ${metrics.weightKb} KB / ${WEIGHT_MAX} KB`,
         thresholdColor(metrics.weightThreshold),
+        metrics.weightThreshold === "warn",
       );
 
       // Video is billed separately by most ad servers — show its size
@@ -146,14 +147,16 @@ export function mountCanvasFoot(host: HTMLElement, store: Store): CanvasFootHand
   };
 }
 
-function metric(): { el: HTMLElement; setValue: (text: string, color: string) => void } {
+function metric(): { el: HTMLElement; setValue: (text: string, color: string, advisory?: boolean) => void } {
   const el = document.createElement("span");
   el.style.cssText = "white-space: nowrap; overflow: hidden; text-overflow: ellipsis;";
   return {
     el,
-    setValue(text, color) {
+    setValue(text, color, advisory = false) {
       el.textContent = text;
       el.style.color = color;
+      el.style.borderLeft = advisory ? `3px solid ${tokens.warn}` : "";
+      el.style.paddingLeft = advisory ? "4px" : "";
     },
   };
 }
@@ -165,9 +168,11 @@ function separator(): HTMLElement {
   return el;
 }
 
+// Advisory Yellow is unreadable as text, so "warn" is ink text with a
+// yellow marker (see metric()); ok / err are legible as text.
 function thresholdColor(t: "ok" | "warn" | "err"): string {
   if (t === "ok")   return tokens.ok;
-  if (t === "warn") return tokens.warn;
+  if (t === "warn") return tokens.ink100;
   return tokens.err;
 }
 

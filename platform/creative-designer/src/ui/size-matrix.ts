@@ -73,7 +73,7 @@ export function mountSizeMatrix(host: HTMLElement, store: Store): SizeMatrixHand
     `font-family: ${tokens.sans}`,
     "font-size: 10px",
     "letter-spacing: 1.6px",
-    `color: ${tokens.ink400}`,
+    `color: ${tokens.ink300}`,
     "text-transform: uppercase",
     "margin-bottom: 8px",
   ].join(";");
@@ -187,7 +187,7 @@ export function mountSizeMatrix(host: HTMLElement, store: Store): SizeMatrixHand
       `background: ${tokens.ink800}`,
       `color: ${tokens.ink300}`,
       `border: 1px solid ${tokens.ink500}`,
-      "border-radius: 4px",
+      "border-radius: 2px",
       "font: inherit",
       "font-size: 14px",
       "cursor: pointer",
@@ -296,7 +296,7 @@ export function mountSizeMatrix(host: HTMLElement, store: Store): SizeMatrixHand
       "padding: 6px 8px",
       `width: ${CHIP_W}px`,
       `height: ${CHIP_H}px`,
-      "border-radius: 5px",
+      "border-radius: 2px",
       "background: transparent",
       "border: 1px solid transparent",
       `color: ${tokens.ink200}`,
@@ -368,7 +368,9 @@ export function mountSizeMatrix(host: HTMLElement, store: Store): SizeMatrixHand
     missing.style.cssText = [
       `font-family: ${tokens.sans}`,
       "font-size: 9px",
-      `color: ${tokens.warn}`,
+      `color: ${tokens.ink100}`,
+      `background: ${tokens.warn}`,
+      "padding: 0 3px",
       "line-height: 1",
       "display: none",
     ].join(";");
@@ -382,8 +384,9 @@ export function mountSizeMatrix(host: HTMLElement, store: Store): SizeMatrixHand
       setActive(active) {
         btn.dataset.active = active ? "1" : "0";
         btn.setAttribute("aria-current", active ? "true" : "false");
-        btn.style.background = active ? tokens.focusBg : "transparent";
-        btn.style.borderColor = active ? tokens.focusMuted : "transparent";
+        btn.style.background = "transparent";
+        btn.style.borderColor = "transparent";
+        btn.style.borderBottom = `2px solid ${active ? tokens.ink100 : "transparent"}`;
         btn.style.color = active ? tokens.ink100 : tokens.ink200;
       },
       setStatus(status) {
@@ -440,7 +443,7 @@ function legendItem(dotColor: string, label: string): { el: HTMLElement; setCoun
   ].join(";");
   const text = document.createElement("span");
   const count = document.createElement("span");
-  count.style.cssText = `color: ${tokens.ink400};`;
+  count.style.cssText = `color: ${tokens.ink300};`;
   text.textContent = label;
   el.append(dot, text, count);
   return {

@@ -36,7 +36,7 @@ function makeBtn(label: string, title: string, onClick: () => void): HTMLButtonE
     "background: transparent",
     `color: ${tokens.ink300}`,
     "border: 1px solid transparent",
-    "border-radius: 4px",
+    "border-radius: 2px",
     "font: inherit",
     "font-size: 14px",
     "cursor: pointer",

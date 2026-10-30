@@ -375,7 +375,7 @@ function build(panel: HTMLElement, idx: number, item: LayoutItem, store: Store):
     const formulaBtn = document.createElement("button");
     formulaBtn.type = "button";
     formulaBtn.textContent = "Edit formula…";
-    formulaBtn.style.cssText = `background:${tokens.ink700};color:${tokens.ink100};border:1px solid ${tokens.ink500};border-radius:4px;padding:4px 8px;font:inherit;font-size:11px;cursor:pointer;align-self:flex-start;`;
+    formulaBtn.style.cssText = `background:${tokens.ink700};color:${tokens.ink100};border:1px solid ${tokens.ink500};border-radius:2px;padding:4px 8px;font:inherit;font-size:11px;cursor:pointer;align-self:flex-start;`;
     // Read the LIVE item: after an Update the panel isn't rebuilt (same
     // key), so the build-time `item` would reopen the previous formula.
     formulaBtn.addEventListener("click", () => {
@@ -397,7 +397,7 @@ function build(panel: HTMLElement, idx: number, item: LayoutItem, store: Store):
       const replaceBtn = document.createElement("button");
       replaceBtn.type = "button";
       replaceBtn.textContent = "Replace image…";
-      replaceBtn.style.cssText = `background:${tokens.ink700};color:${tokens.ink100};border:1px solid ${tokens.ink500};border-radius:4px;padding:4px 8px;font:inherit;font-size:11px;cursor:pointer;align-self:flex-start;`;
+      replaceBtn.style.cssText = `background:${tokens.ink700};color:${tokens.ink100};border:1px solid ${tokens.ink500};border-radius:2px;padding:4px 8px;font:inherit;font-size:11px;cursor:pointer;align-self:flex-start;`;
       replaceBtn.addEventListener("click", () => openAssetModal(store));
       // Into the accordion BODY (not the section), so it collapses with
       // the "Image" section instead of dangling below the header.
@@ -413,7 +413,7 @@ function build(panel: HTMLElement, idx: number, item: LayoutItem, store: Store):
       rmBgBtn.type = "button";
       rmBgBtn.textContent = "Remove background…";
       rmBgBtn.title = "Cut the subject out of its background (runs in your browser; the result is saved as a new asset)";
-      rmBgBtn.style.cssText = `background:${tokens.ink700};color:${tokens.ink100};border:1px solid ${tokens.ink500};border-radius:4px;padding:4px 8px;font:inherit;font-size:11px;cursor:pointer;align-self:flex-start;`;
+      rmBgBtn.style.cssText = `background:${tokens.ink700};color:${tokens.ink100};border:1px solid ${tokens.ink500};border-radius:2px;padding:4px 8px;font:inherit;font-size:11px;cursor:pointer;align-self:flex-start;`;
       rmBgBtn.addEventListener("click", () => openRemoveBgModal(store, idx, item));
       appendToGroup(content, rmBgBtn);
     }
@@ -614,7 +614,7 @@ function cropRow(parent: HTMLElement, idx: number, item: ImageItem, store: Store
   label.textContent = "crop";
 
   const status = document.createElement("span");
-  status.style.cssText = `flex:1;font-family:${tokens.sans};font-size:10px;color:${tokens.ink400};`;
+  status.style.cssText = `flex:1;font-family:${tokens.sans};font-size:10px;color:${tokens.ink300};`;
   const c = item.crop;
   status.textContent = c
     ? `${c.w.toFixed(0)}×${c.h.toFixed(0)}% @ ${c.x.toFixed(0)},${c.y.toFixed(0)}`
@@ -628,7 +628,7 @@ function cropRow(parent: HTMLElement, idx: number, item: ImageItem, store: Store
     "background: transparent",
     `color: ${tokens.ink200}`,
     `border: 1px solid ${tokens.ink500}`,
-    "border-radius: 3px",
+    "border-radius: 2px",
     "font: inherit",
     "font-size: 10px",
     "cursor: pointer",
@@ -647,7 +647,7 @@ function cropRow(parent: HTMLElement, idx: number, item: ImageItem, store: Store
       "height: 18px",
       "padding: 0",
       "background: transparent",
-      `color: ${tokens.ink400}`,
+      `color: ${tokens.ink300}`,
       "border: none",
       "cursor: pointer",
       "font-size: 14px",
@@ -757,7 +757,7 @@ function rowStacked(parent: HTMLElement, label: string, input: HTMLElement): voi
   appendToGroup(parent, wrap);
 }
 
-const INPUT_STYLE = `background:${tokens.ink900};color:${tokens.ink100};border:1px solid ${tokens.ink500};border-radius:4px;padding:4px 6px;font:inherit;`;
+const INPUT_STYLE = `background:${tokens.ink900};color:${tokens.ink100};border:1px solid ${tokens.ink500};border-radius:2px;padding:4px 6px;font:inherit;`;
 
 function numberField(
   parent: HTMLElement, label: string, value: number,
@@ -796,7 +796,7 @@ function numberField(
 // pre-shrink value.
 function fitNote(parent: HTMLElement, idx: number): (item: LayoutItem) => void {
   const note = document.createElement("div");
-  note.style.cssText = `color:${tokens.focus};font-size:11px;margin:-2px 0 6px 88px;display:none;`;
+  note.style.cssText = `color:${tokens.ink300};font-size:11px;margin:-2px 0 6px 88px;display:none;`;
   appendToGroup(parent, note);
   let pending = false;
   return (item) => {
@@ -907,8 +907,11 @@ function contrastWarningRow(parent: HTMLElement, store: Store): (item: LayoutIte
     "align-items: center",
     "gap: 6px",
     "margin: 2px 0 8px",
-    "padding-left: 88px", // matches the `flex: 0 0 80px` label gutter in `row()`
-    `color: ${tokens.focus}`,
+    // 81 + 3px Advisory marker + 4 = the 88px label gutter in `row()`.
+    "margin-left: 81px",
+    `border-left: 3px solid ${tokens.warn}`,
+    "padding-left: 4px",
+    `color: ${tokens.ink100}`,
     "font-size: 10.5px",
     "letter-spacing: 0.3px",
     "min-height: 14px",
@@ -1073,6 +1076,6 @@ function contentHint(parent: HTMLElement, value: string): void {
   const hint = document.createElement("div");
   hint.textContent = value || "(empty)";
   hint.title = "Edit content in the Expanded view";
-  hint.style.cssText = `color:${tokens.ink300};font-size:11px;background:${tokens.ink900};border:1px dashed ${tokens.ink500};border-radius:4px;padding:4px 6px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;`;
+  hint.style.cssText = `color:${tokens.ink300};font-size:11px;background:${tokens.ink900};border:1px dashed ${tokens.ink500};border-radius:2px;padding:4px 6px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;`;
   parent.appendChild(hint);
 }

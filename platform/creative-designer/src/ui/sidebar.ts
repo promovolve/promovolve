@@ -140,7 +140,7 @@ export function mountSidebar(host: HTMLElement): SidebarHandle {
     if (withCount) {
       const count = document.createElement("span");
       count.className = "cd-group-count";
-      count.style.cssText = `color:${tokens.ink400};font-size:10px;font-family:${tokens.sans};letter-spacing:0;`;
+      count.style.cssText = `color:${tokens.ink300};font-size:10px;font-family:${tokens.sans};letter-spacing:0;`;
       right.appendChild(count);
     }
     const caret = document.createElement("span");
@@ -228,7 +228,7 @@ export function mountSidebar(host: HTMLElement): SidebarHandle {
       btn.setAttribute("aria-selected", active ? "true" : "false");
       btn.style.color = active ? tokens.ink100 : tokens.ink300;
       btn.style.fontWeight = active ? "600" : "400";
-      btn.style.borderBottomColor = active ? tokens.focus : "transparent";
+      btn.style.borderBottomColor = active ? tokens.ink100 : "transparent";
     }
     // Toggle the whole collapsible group (not its body) so each
     // section's open/closed accordion state survives a tab switch.

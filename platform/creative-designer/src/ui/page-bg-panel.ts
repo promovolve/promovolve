@@ -133,7 +133,7 @@ function mountColorRow(store: Store): ColorRowHandle {
     `background:${tokens.ink900}`,
     `color:${tokens.ink100}`,
     `border:1px solid ${tokens.ink700}`,
-    "border-radius:3px",
+    "border-radius:2px",
     "padding:4px 6px",
     `font-family:${tokens.sans}`,
     "font-size:11px",
@@ -188,7 +188,7 @@ function mountColorRow(store: Store): ColorRowHandle {
     "background:transparent",
     `color:${tokens.ink300}`,
     `border:1px solid ${tokens.ink700}`,
-    "border-radius:3px",
+    "border-radius:2px",
     "padding:4px 8px",
     "font-size:11px",
     "cursor:pointer",
@@ -304,7 +304,7 @@ function mountColorRow(store: Store): ColorRowHandle {
 
 function renderEmpty(body: HTMLElement, store: Store): void {
   const hint = document.createElement("p");
-  hint.style.cssText = `color:${tokens.ink400};font-size:11px;margin:0 0 10px;line-height:1.5;`;
+  hint.style.cssText = `color:${tokens.ink300};font-size:11px;margin:0 0 10px;line-height:1.5;`;
   hint.textContent = "Full-bleed video plays behind every size. MP4 or WebM.";
   body.appendChild(hint);
 
@@ -333,7 +333,7 @@ function renderWithVideo(body: HTMLElement, videoBg: VideoBg, store: Store): voi
     "object-fit: cover",
     `background: ${tokens.ink900}`,
     `border: 1px solid ${tokens.ink500}`,
-    "border-radius: 4px",
+    "border-radius: 2px",
     "margin-bottom: 10px",
     "display: block",
   ].join(";");
@@ -457,7 +457,7 @@ function renderWithVideo(body: HTMLElement, videoBg: VideoBg, store: Store): voi
 
   // The cap, said out loud — the clamp enforces it, this explains it.
   const trimHint = document.createElement("p");
-  trimHint.style.cssText = `color:${tokens.ink400};font-size:10px;margin:4px 0 0;line-height:1.4;`;
+  trimHint.style.cssText = `color:${tokens.ink300};font-size:10px;margin:4px 0 0;line-height:1.4;`;
   trimHint.textContent = `Max ${MAX_LOOP_SEC}s from In — the published loop plays exactly this span.`;
   body.appendChild(trimHint);
 
@@ -472,7 +472,7 @@ function renderWithVideo(body: HTMLElement, videoBg: VideoBg, store: Store): voi
     "background: transparent",
     `color: ${tokens.err}`,
     `border: 1px solid ${tokens.err}`,
-    "border-radius: 4px",
+    "border-radius: 2px",
     "cursor: pointer",
     "font: inherit",
     "font-size: 11px",
@@ -522,7 +522,7 @@ function renderEmptyTexture(body: HTMLElement, store: Store): void {
   // which is also where landing-page images imported during compose
   // live, and the library modal has its own upload.
   const hint = document.createElement("p");
-  hint.style.cssText = `color:${tokens.ink400};font-size:11px;margin:0 0 10px;line-height:1.5;`;
+  hint.style.cssText = `color:${tokens.ink300};font-size:11px;margin:0 0 10px;line-height:1.5;`;
   hint.innerHTML = "Full-bleed image behind every size — tiled pattern or single cover image.<br><br>"
     + `<span style="color:${tokens.ink300}">Drag an image onto the canvas and choose <b>Background texture</b>, or:</span>`;
   body.appendChild(hint);
@@ -543,7 +543,7 @@ function textureLibraryButton(store: Store, label: string): HTMLButtonElement {
     `background: ${tokens.ink700}`,
     `color: ${tokens.ink100}`,
     `border: 1px solid ${tokens.ink500}`,
-    "border-radius: 4px",
+    "border-radius: 2px",
     "cursor: pointer",
     "font: inherit",
     "font-size: 11px",
@@ -579,7 +579,7 @@ function renderWithTexture(body: HTMLElement, textureBg: TextureBg, store: Store
   body.appendChild(texturePreview(textureBg, store));
   if (mode === "cover") {
     const tip = document.createElement("p");
-    tip.style.cssText = `color:${tokens.ink400};font-size:10px;margin:-4px 0 10px;`;
+    tip.style.cssText = `color:${tokens.ink300};font-size:10px;margin:-4px 0 10px;`;
     tip.textContent = "Drag on the preview to set the focal point.";
     body.appendChild(tip);
     // A cover focal point only pans on the axis the crop OVERFLOWS, and PC
@@ -658,7 +658,7 @@ function renderWithTexture(body: HTMLElement, textureBg: TextureBg, store: Store
     "background: transparent",
     `color: ${tokens.err}`,
     `border: 1px solid ${tokens.err}`,
-    "border-radius: 4px",
+    "border-radius: 2px",
     "cursor: pointer",
     "font: inherit",
     "font-size: 11px",
@@ -702,7 +702,7 @@ function texturePreview(textureBg: TextureBg, store: Store): HTMLElement {
     "width: 100%",
     "height: 96px",
     `border: 1px solid ${tokens.ink500}`,
-    "border-radius: 4px",
+    "border-radius: 2px",
     "margin-bottom: 10px",
     "overflow: hidden",
   ];
@@ -804,7 +804,7 @@ function scaleInput(value: number | undefined, onChange: (v: number | undefined)
     `background: ${tokens.ink900}`,
     `color: ${tokens.ink100}`,
     `border: 1px solid ${tokens.ink500}`,
-    "border-radius: 4px",
+    "border-radius: 2px",
     "padding: 4px 6px",
     "font: inherit",
     "font-size: 11px",
@@ -828,7 +828,7 @@ function select(options: string[], selected: string, onChange: (v: string) => vo
     `background: ${tokens.ink900}`,
     `color: ${tokens.ink100}`,
     `border: 1px solid ${tokens.ink500}`,
-    "border-radius: 4px",
+    "border-radius: 2px",
     "padding: 4px 6px",
     "font: inherit",
     "font-size: 11px",
@@ -870,7 +870,7 @@ function uploadButton(store: Store, label: string): HTMLElement {
     `background: ${tokens.ink700}`,
     `color: ${tokens.ink100}`,
     `border: 1px solid ${tokens.ink500}`,
-    "border-radius: 4px",
+    "border-radius: 2px",
     "cursor: pointer",
     "font: inherit",
     "font-size: 11px",
@@ -922,7 +922,7 @@ function uploadButton(store: Store, label: string): HTMLElement {
   });
 
   const errLine = document.createElement("p");
-  errLine.style.cssText = `color:#e0685f;font-size:10px;margin:6px 0 0;line-height:1.4;display:none;`;
+  errLine.style.cssText = `color:${tokens.err};font-size:10px;margin:6px 0 0;line-height:1.4;display:none;`;
 
   btn.addEventListener("click", () => {
     errLine.style.display = "none";
@@ -964,7 +964,7 @@ function segmented(options: string[], selected: string, onChange: (v: string) =>
   wrap.style.cssText = [
     "display:flex",
     `border: 1px solid ${tokens.ink500}`,
-    "border-radius: 4px",
+    "border-radius: 2px",
     "overflow: hidden",
     "flex: 1",
   ].join(";");
@@ -998,7 +998,7 @@ function opacitySlider(value: number, onChange: (v: number, commit: boolean) => 
   input.max = "100";
   input.step = "1";
   input.value = String(Math.round(value * 100));
-  input.style.cssText = `flex:1;accent-color:${tokens.focus};cursor:pointer;`;
+  input.style.cssText = `flex:1;accent-color:${tokens.ink100};cursor:pointer;`;
   const readout = document.createElement("span");
   readout.className = "cd-readout";
   readout.style.cssText = `flex:0 0 36px;text-align:right;color:${tokens.ink300};font-family:${tokens.sans};font-size:11px;`;
@@ -1030,7 +1030,7 @@ function trimInput(placeholder: string, value: number | undefined, onChange: (v:
     `background: ${tokens.ink900}`,
     `color: ${tokens.ink100}`,
     `border: 1px solid ${tokens.ink500}`,
-    "border-radius: 4px",
+    "border-radius: 2px",
     "padding: 4px 6px",
     "font: inherit",
     "font-size: 11px",

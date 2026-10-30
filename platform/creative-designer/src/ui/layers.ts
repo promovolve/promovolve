@@ -46,7 +46,7 @@ export function mountLayers(host: HTMLElement, store: Store): LayersHandle {
   empty.style.cssText = [
     "padding: 16px 12px",
     "text-align: center",
-    `color: ${tokens.ink400}`,
+    `color: ${tokens.ink300}`,
     "font-size: 11px",
     "display: none",
   ].join(";");
@@ -121,7 +121,7 @@ function buildVideoBgRow(store: Store): { el: HTMLElement; update: (state: Desig
     "text-overflow: ellipsis",
     "white-space: nowrap",
     "font-size: 11px",
-    `color: ${tokens.ink400}`,
+    `color: ${tokens.ink300}`,
     "font-style: italic",
   ].join(";");
   el.appendChild(name);
@@ -199,7 +199,7 @@ function renderRow(item: LayoutItem, idx: number, state: DesignerState, store: S
     "align-items: center",
     "gap: 8px",
     "padding: 5px 8px",
-    "border-radius: 4px",
+    "border-radius: 2px",
     "cursor: pointer",
     "border: 1px solid transparent",
     `background: ${selected ? tokens.focusBg : "transparent"}`,

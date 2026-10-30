@@ -60,7 +60,7 @@ export function openCropModal(store: Store, idx: number, item: ImageItem): void 
     "overflow: hidden",
     `background: ${tokens.ink900}`,
     `border: 1px solid ${tokens.ink500}`,
-    "border-radius: 6px",
+    "border-radius: 2px",
   ].join(";");
 
   const img = document.createElement("img");
@@ -416,10 +416,10 @@ function primaryBtn(label: string, onClick: () => void): HTMLButtonElement {
   b.textContent = label;
   b.style.cssText = [
     "padding: 6px 14px",
-    `background: ${tokens.focus}`,
-    "color: oklch(0.12 0.04 55)",
+    `background: ${tokens.ink100}`,
+    `color: ${tokens.ink900}`,
     "border: none",
-    "border-radius: 4px",
+    "border-radius: 2px",
     "font: inherit",
     "font-size: 12px",
     "font-weight: 600",
@@ -438,7 +438,7 @@ function secondaryBtn(label: string, onClick: () => void): HTMLButtonElement {
     "background: transparent",
     `color: ${tokens.ink200}`,
     `border: 1px solid ${tokens.ink500}`,
-    "border-radius: 4px",
+    "border-radius: 2px",
     "font: inherit",
     "font-size: 12px",
     "cursor: pointer",

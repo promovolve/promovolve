@@ -99,3 +99,12 @@ export function itemName(item: LayoutItem): string {
   if (item.type === "circle") return "Circle";
   return "Item";
 }
+
+/** Everything the selection bar draws: its actions, its label and the
+ *  current text alignment. Equal keys mean the bar needn't rebuild, so
+ *  dragging an item doesn't rebuild and re-measure it on every move. */
+export function selectionBarKey(state: DesignerState): string {
+  const [item] = selectedItems(state);
+  const align = item?.type === "text" ? (item.textAlign ?? "left") : "";
+  return JSON.stringify([selectionActions(state), scopeLabel(state), align]);
+}

@@ -1,6 +1,6 @@
 import { describe, expect, it } from "vitest";
-import { addItem, groupSelection, initialState, setSelection } from "../src/state";
-import { panelScope, scopeLabel, selectionActions } from "../src/selection-model";
+import { addItem, groupSelection, initialState, setSelection, updateItem } from "../src/state";
+import { panelScope, scopeLabel, selectionActions, selectionBarKey } from "../src/selection-model";
 import type { DesignerState, ImageItem, LayoutItem, RectItem, TextItem } from "../src/types";
 
 const text: TextItem = { type: "text", text: "Autumn in Kyoto", left: 0, top: 0 };
@@ -99,5 +99,20 @@ describe("panelScope and scopeLabel", () => {
 
   it("counts several selected items", () => {
     expect(scopeLabel(setSelection(withItems(image, text), [0, 1]))).toBe("2 items");
+  });
+});
+
+describe("selectionBarKey", () => {
+  it("does not change while the selected item moves", () => {
+    const s = setSelection(withItems(text), [0]);
+    const moved = updateItem(s, 0, (it) => ({ ...it, left: 40, top: 30 }));
+    expect(selectionBarKey(moved)).toBe(selectionBarKey(s));
+  });
+
+  it("changes with the selection, the label and the alignment", () => {
+    const s = setSelection(withItems(text, image), [0]);
+    expect(selectionBarKey(setSelection(s, [1]))).not.toBe(selectionBarKey(s));
+    expect(selectionBarKey(updateItem(s, 0, (it) => ({ ...it, text: "Spring" })))).not.toBe(selectionBarKey(s));
+    expect(selectionBarKey(updateItem(s, 0, (it) => ({ ...it, textAlign: "right" })))).not.toBe(selectionBarKey(s));
   });
 });

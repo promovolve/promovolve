@@ -13,7 +13,7 @@
 
 import { packTextItemHeight } from "../render/canvas";
 import { bringForward, bringToFront, groupSelection, sendBackward, sendToBack, updateItem } from "../state";
-import { selectedItems, selectionActions, scopeLabel, type SelectionAction } from "../selection-model";
+import { selectedItems, selectionActions, selectionBarKey, scopeLabel, type SelectionAction } from "../selection-model";
 import type { Store } from "../store";
 import type { DesignerState, ImageItem } from "../types";
 import { openAssetModal } from "./asset-modal";
@@ -179,6 +179,7 @@ export function mountSelectionBar(host: HTMLElement, store: Store): { update(sta
 
   let shown: { action: SelectionAction; el: HTMLButtonElement }[] = [];
   let divider: HTMLElement | null = null;
+  let lastKey = "";
 
   // Move actions into More, in OVERFLOW_ORDER, until the bar fits.
   const fit = (): void => {
@@ -223,6 +224,9 @@ export function mountSelectionBar(host: HTMLElement, store: Store): { update(sta
 
   return {
     update(state) {
+      const key = selectionBarKey(state);
+      if (key === lastKey) return;
+      lastKey = key;
       closeMenu();
       bar.replaceChildren();
       shown = [];

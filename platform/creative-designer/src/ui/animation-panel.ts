@@ -395,7 +395,7 @@ function dangerButton(label: string, onClick: () => void): HTMLButtonElement {
   ].join(";");
   b.addEventListener("mouseenter", () => {
     b.style.background = tokens.err;
-    b.style.color = tokens.ink100;
+    b.style.color = tokens.ink900;
   });
   b.addEventListener("mouseleave", () => {
     b.style.background = "transparent";

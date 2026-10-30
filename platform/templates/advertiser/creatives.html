@@ -220,7 +220,7 @@
       {{end}}
       {{if .DogearedImpressions}}
       <div class="flex items-center gap-3 mt-1 text-xs text-gray-700" title="{{t "Re-encounters via honored pin (bookmark fulfillment — not billed)"}}">
-        <span>📌 {{t "%d pin re-views" .DogearedImpressions}}</span>
+        <span>{{t "%d pin re-views" .DogearedImpressions}}</span>
         {{if .DogearedClicks}}<span>{{t "%d clicks" .DogearedClicks}}</span>{{end}}
         {{if .DogearedCTAClicks}}<span>{{t "%d CTA" .DogearedCTAClicks}}</span>{{end}}
         {{if .PinCTR}}<span title="{{t "Re-engagement click-through rate"}}">{{t "%s pin CTR" .PinCTR}}</span>{{end}}
@@ -271,7 +271,7 @@
           <button type="submit" class="text-xs text-gray-900 underline hover:no-underline">{{t "Pause"}}</button>
           {{else}}
           <input type="hidden" name="status" value="Active">
-          <button type="submit" class="text-xs text-gray-900 hover:underline">{{t "Activate"}}</button>
+          <button type="submit" class="text-xs text-gray-900 underline hover:no-underline">{{t "Activate"}}</button>
           {{end}}
         </form>
         {{end}}

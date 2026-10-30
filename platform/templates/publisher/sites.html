@@ -107,7 +107,7 @@
       {{else}}
       <form method="POST" action="/publisher/sites/requests/{{.ID}}/delete"
             onsubmit="return confirm('{{t "Cancel the request for %s?" .Domain}}')">
-        <button type="submit" class="text-sm text-gray-500 hover:underline">{{t "Cancel"}}</button>
+        <button type="submit" class="text-sm text-gray-500 underline hover:no-underline">{{t "Cancel"}}</button>
       </form>
       {{end}}
     </div>

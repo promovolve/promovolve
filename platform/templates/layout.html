@@ -40,7 +40,7 @@
         ink: v('--c-gray-500'), grid: v('--c-gray-200'), surface: v('--c-white'),
         brand: v('--c-gray-900'), brandTint: v('--c-gray-300'),
         wash: v('--c-gray-900').replace('rgb(', 'rgba(').replace(')', ',0.08)'),
-        pal: [v('--c-gray-900'), v('--c-jma-5'), v('--c-jma-4'), v('--c-jma-3'), v('--c-jma-2'), v('--c-jma-1')]
+        pal: [v('--c-gray-900'), v('--c-jma-5'), v('--c-jma-4'), v('--c-jma-3'), v('--c-jma-2')]
       };
     };
   </script>
@@ -74,8 +74,8 @@
       opacity: .45;
     }
   </style>
-  {{/* Advisory yellow: the JMA "take note" level, in both themes. */}}
-  <div class="shrink-0 bg-advisory text-[#1a1a1a] text-sm px-4 py-2 flex items-center justify-between gap-4">
+  {{/* Advisory (注意報): ink on the mid-grey advisory fill, in both themes. */}}
+  <div class="shrink-0 bg-advisory text-gray-900 text-sm px-4 py-2 flex items-center justify-between gap-4">
     <span><strong>{{t "Viewing as"}} {{.User.Email}}</strong> — {{t "read-only admin session"}} ({{.User.ViewAsBy}})</span>
     <form method="POST" action="/view-as/exit" data-viewas-allowed>
       <button type="submit" class="font-bold underline hover:no-underline">{{t "Exit view"}}</button>

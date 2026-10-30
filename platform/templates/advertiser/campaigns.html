@@ -165,7 +165,7 @@
         </div>
       </div>
       <p class="text-xs text-gray-500 mt-1">{{t "Leave empty to auto-derive from your creative's landing-page content. Set explicitly when you want the campaign to bid only on specific topics, or as a fallback when LLM verification can't suggest a topic confidently."}}</p>
-      <p class="text-xs text-gray-500 mt-1">{{t "Dots show real inventory: green = publishers are serving ads on this topic now, amber = publishers declare matching content but nothing has traded yet, gray = no publisher inventory matches yet."}}</p>
+      <p class="text-xs text-gray-500 mt-1">{{t "Dots show real inventory: filled = publishers are serving ads on this topic now, ring = publishers declare matching content but nothing has traded yet, grey = no publisher inventory matches yet."}}</p>
     </div>
     <div class="mb-4" x-data="{
         query: '',
@@ -537,7 +537,7 @@
           <!-- data-chips = explicit (advertiser-set) topics; data-suggested =
                the Gemini-derived set auto-detected from the landing page. The
                suggested topics are the floor effectiveCategories always falls
-               back to, so the UI shows them LOCKED (✨ 🔒, no ×): auto-derived,
+               back to, so the UI shows them LOCKED (the word "auto", no ×): auto-derived,
                always targeted, non-removable. The advertiser can ADD more
                topics on top (blue, removable). ids() always submits
                locked ∪ added, so the explicit set always contains the
@@ -574,10 +574,9 @@
               <template x-for="c in locked" :key="c.id">
                 <span class="badge badge-neutral"
                       title="{{t "Auto-derived from your landing page — always targeted"}}">
-                  <span class="mr-1">✨</span>
                   {{template "inv-dot" "c"}}
                   <span x-text="c.name"></span>
-                  <span class="ml-1.5 text-gray-500" title="{{t "Always targeted (auto-derived)"}}">🔒</span>
+                  <span class="ml-1.5 text-gray-500" title="{{t "Always targeted (auto-derived)"}}">{{t "auto"}}</span>
                 </span>
               </template>
               <!-- Advertiser-added: removable -->
@@ -609,9 +608,9 @@
               </div>
             </div>
             <p class="text-xs text-gray-500 mt-1">
-              <span x-show="locked.length > 0">✨ {{t "Topics auto-derived from your landing page are always targeted and can't be removed. Add more above to broaden targeting."}}</span>
+              <span x-show="locked.length > 0">{{t "Topics auto-derived from your landing page are always targeted and can't be removed. Add more above to broaden targeting."}}</span>
               <span x-show="locked.length === 0">{{t "Add the content topics this campaign should target. Leave empty to auto-derive from your landing page."}}</span>
-              <span class="block">{{t "Dots show real inventory: green = publishers are serving ads on this topic now, amber = publishers declare matching content but nothing has traded yet, gray = no publisher inventory matches yet."}}</span>
+              <span class="block">{{t "Dots show real inventory: filled = publishers are serving ads on this topic now, ring = publishers declare matching content but nothing has traded yet, grey = no publisher inventory matches yet."}}</span>
             </p>
           </div>
 
@@ -980,11 +979,11 @@
 
 
 {{/* inv-dot: the inventory-availability marker on a topic chip or picker
-     row. Dot color = honest availability (green live / amber declared /
-     gray none); absent inv = unknown and renders nothing — an unmarked
+     row. Dot shape = honest availability (filled ink live / ink ring
+     declared / grey none); absent inv = unknown and renders nothing — an unmarked
      chip is honest, a wrong "none" is not. The argument is the NAME of
      the Alpine loop variable holding the chip object. */}}
-{{define "inv-dot"}}<span x-show="{{.}}.inv" class="inline-block w-1.5 h-1.5 rounded-full mr-1 shrink-0" :class="{{.}}.inv === 'live' ? 'bg-jma-3' : ({{.}}.inv === 'declared' ? 'bg-jma-1' : 'bg-gray-300')" :title="{{.}}.inv === 'live' ? '{{t "Live inventory — publishers are serving ads on this topic now"}}' : ({{.}}.inv === 'declared' ? '{{t "Publishers declare matching content — nothing has traded yet"}}' : '{{t "No publisher inventory matches this topic yet"}}')"></span>{{end}}
+{{define "inv-dot"}}<span x-show="{{.}}.inv" class="inline-block w-1.5 h-1.5 rounded-full mr-1 shrink-0" :class="{{.}}.inv === 'live' ? 'bg-gray-900' : ({{.}}.inv === 'declared' ? 'border border-gray-900' : 'bg-gray-300')" :title="{{.}}.inv === 'live' ? '{{t "Live inventory — publishers are serving ads on this topic now"}}' : ({{.}}.inv === 'declared' ? '{{t "Publishers declare matching content — nothing has traded yet"}}' : '{{t "No publisher inventory matches this topic yet"}}')"></span>{{end}}
 
 {{define "market-rates-hint"}}
 {{if .}}

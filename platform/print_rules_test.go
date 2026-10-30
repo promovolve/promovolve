@@ -19,10 +19,17 @@ import (
 
 var (
 	hueUtility = regexp.MustCompile(`\b(text|bg|border|ring|outline|fill|stroke|from|to|accent|divide|placeholder)-(red|orange|amber|yellow|lime|green|emerald|teal|cyan|sky|blue|indigo|violet|purple|fuchsia|pink|rose)-\d{2,3}\b`)
-	glyph      = regexp.MustCompile(`[✓✔✗✕]`)
+	// Check marks stand in for words; emoji render in colour whatever the
+	// text colour is. Monochrome symbols (★ ☆ · →) take the ink and pass.
+	glyph      = regexp.MustCompile(`[✓✔✗✕✨⏸]|[\x{1F300}-\x{1FAFF}]`)
 	upperClass = regexp.MustCompile(`class="[^"]*\buppercase\b`)
 	hexColour  = regexp.MustCompile(`#([0-9a-fA-F]{6})\b`)
 	rgbColour  = regexp.MustCompile(`rgba?\(\s*(\d+)\s*,\s*(\d+)\s*,\s*(\d+)`)
+	// A fixed colour in a utility doesn't follow the theme: grey #1a1a1a
+	// text on a token background goes unreadable in dark.
+	fixedColour = regexp.MustCompile(`\b(text|bg|border|ring|outline|fill|stroke)-\[(#|rgb)`)
+	// Copy that names a colour the page no longer has.
+	colourWord = regexp.MustCompile(`\{\{t "[^"]*\b(green|amber|yellow|red|blue|orange|purple|pink)\b`)
 )
 
 func TestTemplatesArePrintedPage(t *testing.T) {
@@ -66,6 +73,8 @@ func TestTemplatesArePrintedPage(t *testing.T) {
 	t.Run("hue-utilities", func(t *testing.T) { scan(t, withGo, first(hueUtility)) })
 	t.Run("glyphs", func(t *testing.T) { scan(t, withGo, first(glyph)) })
 	t.Run("uppercase", func(t *testing.T) { scan(t, templates, first(upperClass)) })
+	t.Run("fixed-colour-utilities", func(t *testing.T) { scan(t, templates, first(fixedColour)) })
+	t.Run("colour-words", func(t *testing.T) { scan(t, templates, first(colourWord)) })
 	t.Run("hex", func(t *testing.T) {
 		scan(t, templates, func(line string) string {
 			for _, m := range hexColour.FindAllStringSubmatch(line, -1) {

@@ -11,8 +11,9 @@ const circle = { type: "circle", left: 0, top: 0, radius: 5 } as LayoutItem;
 
 const ARRANGE = ["bringToFront", "bringForward", "sendBackward", "sendToBack"];
 
+// "mobile" (Expanded 9:16) is the multi-page expanded view — where THE image is set.
 function withItems(...items: LayoutItem[]): DesignerState {
-  let s = initialState([{ layout: [], banners: {} }]);
+  let s = initialState([{ layout: [], banners: {} }], "mobile");
   for (const it of items) s = addItem(s, it);
   return setSelection(s, []);
 }
@@ -27,6 +28,23 @@ describe("selectionActions", () => {
     expect(selectionActions(s)).toEqual(["replace", "crop", "removeBackground", ...ARRANGE, "delete"]);
   });
 
+  it("offers replace only in the expanded view", () => {
+    let s = initialState([{ layout: [], banners: {} }], "300x250");
+    s = addItem(s, image);
+    expect(selectionActions(s)).toEqual(["crop", "removeBackground", ...ARRANGE, "delete"]);
+  });
+
+  it("offers remove background in a size only for an image with its own src", () => {
+    let s = initialState([{ layout: [], banners: {} }], "300x250");
+    s = addItem(s, { ...image, src: "" });
+    expect(selectionActions(s)).toEqual(["crop", ...ARRANGE, "delete"]);
+  });
+
+  it("offers no crop for an image in fit mode", () => {
+    const s = setSelection(withItems({ ...image, fillMode: "fit" }), [0]);
+    expect(selectionActions(s)).toEqual(["replace", "removeBackground", ...ARRANGE, "delete"]);
+  });
+
   it("offers edit formula for one formula", () => {
     const s = setSelection(withItems(formula), [0]);
     expect(selectionActions(s)).toEqual(["editFormula", ...ARRANGE, "delete"]);
@@ -34,7 +52,7 @@ describe("selectionActions", () => {
 
   it("offers alignment for one text item", () => {
     const s = setSelection(withItems(text), [0]);
-    expect(selectionActions(s)).toEqual(["alignLeft", "alignCenter", "alignRight", ...ARRANGE, "delete"]);
+    expect(selectionActions(s)).toEqual(["alignLeft", "alignCenter", "alignRight", "fitToText", ...ARRANGE, "delete"]);
   });
 
   it("offers only arrange and delete for a scrim or a circle", () => {

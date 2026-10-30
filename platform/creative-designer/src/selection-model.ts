@@ -4,6 +4,7 @@
 // selection bar, the sidebar and the Layers panel all read from here.
 
 import { isFormula } from "./formula";
+import { isMultiPage } from "./modes";
 import { currentLayout } from "./state";
 import type { DesignerState, LayoutItem } from "./types";
 
@@ -15,6 +16,7 @@ export type SelectionAction =
   | "alignLeft"
   | "alignCenter"
   | "alignRight"
+  | "fitToText"
   | "bringToFront"
   | "bringForward"
   | "sendBackward"
@@ -41,11 +43,23 @@ export function selectionActions(state: DesignerState): SelectionAction[] {
   }
   const item = items[0]!;
   const own: SelectionAction[] =
-    item.type === "text" ? ["alignLeft", "alignCenter", "alignRight"]
+    item.type === "text" ? ["alignLeft", "alignCenter", "alignRight", "fitToText"]
     : isFormula(item) ? ["editFormula"]
-    : item.type === "image" ? ["replace", "crop", "removeBackground"]
+    : item.type === "image" ? imageActions(state, item)
     : [];
   return [...own, ...ARRANGE, "delete"];
+}
+
+// Same rules as the Properties panel had: THE image is set from the
+// expanded view (sizes only place and crop it), crop applies only in
+// Fill mode, and a baked local image (own src) can be cut out anywhere.
+function imageActions(state: DesignerState, item: Extract<LayoutItem, { type: "image" }>): SelectionAction[] {
+  const expanded = isMultiPage(state.mode);
+  const out: SelectionAction[] = [];
+  if (expanded) out.push("replace");
+  if (item.fillMode !== "fit") out.push("crop");
+  if (expanded || item.src) out.push("removeBackground");
+  return out;
 }
 
 export function panelScope(state: DesignerState): "banner" | "item" {

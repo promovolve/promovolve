@@ -64,25 +64,25 @@ export function mountPublishButton(container: HTMLElement, store: Store, ctx: De
 
   const publishBtn = document.createElement("button");
   publishBtn.type = "button";
-  // Icon-only (paper plane = ship it); stays focus-blue so the primary
-  // action keeps its visual weight without the text.
-  publishBtn.innerHTML = `<svg viewBox="0 0 16 16" width="15" height="15" fill="none" stroke="currentColor" stroke-width="1.3" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M14.5 1.5 1.5 7l4.6 1.9L8 13.5l2.2-3.7 4.3-8.3z"/><path d="M14.5 1.5 6.1 8.9"/></svg>`;
+  // The one ink-filled primary action in the top bar.
+  publishBtn.innerHTML = `<svg viewBox="0 0 16 16" width="15" height="15" fill="none" stroke="currentColor" stroke-width="1.3" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M14.5 1.5 1.5 7l4.6 1.9L8 13.5l2.2-3.7 4.3-8.3z"/><path d="M14.5 1.5 6.1 8.9"/></svg><span>Publish</span>`;
   publishBtn.title = "Publish — finalize the creative and make it eligible for delivery.";
   publishBtn.setAttribute("aria-label", "Publish");
   publishBtn.style.cssText = [
     "display: inline-flex",
     "align-items: center",
     "justify-content: center",
-    "width: 30px",
-    "height: 28px",
-    "padding: 0",
+    "gap: 5px",
+    "height: 26px",
+    "padding: 0 10px",
     `background: ${tokens.ink100}`,
     `color: ${tokens.ink900}`,
     `border: 1px solid ${tokens.ink100}`,
     "border-radius: 2px",
     "cursor: pointer",
     "font: inherit",
-    "font-weight: 500",
+    "font-size: 11px",
+    "font-weight: 700",
   ].join(";");
   // Targeting is classified server-side by Gemini over the full IAB
   // taxonomy at publish; the campaign list shows an accurate "Untargeted"

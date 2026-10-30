@@ -917,6 +917,9 @@ function contrastWarningRow(parent: HTMLElement, store: Store): (item: LayoutIte
     "min-height: 14px",
   ].join(";");
   wrap.textContent = "";
+  // Hidden until the first check finds low contrast — the Advisory
+  // marker would otherwise show as an empty yellow stub.
+  wrap.style.display = "none";
   appendToGroup(parent, wrap);
 
   return (item: LayoutItem) => {
@@ -927,7 +930,7 @@ function contrastWarningRow(parent: HTMLElement, store: Store): (item: LayoutIte
     const page = currentPage(store.state);
     const ratio = contrastRatio(item.color, page?.bg);
     if (ratio < WCAG_AA_NORMAL) {
-      wrap.style.display = "";
+      wrap.style.display = "flex";
       wrap.textContent = `⚠ Low contrast (${ratio.toFixed(1)}:1) — readers may not see this text`;
     } else {
       wrap.style.display = "none";

@@ -1,29 +1,24 @@
-// Slim top bar — identity on the left, action buttons on the right.
-// After PRs 4+5 the bar is 38px tall and carries only identity
-// information + global actions. The pager moved to canvas-header;
-// zoom + rulers moved to canvas-foot; the menu bar is no longer the
-// catch-all it used to be.
+// Top bar — the whole banner. Field blue-grey like the dashboard's top
+// bar, so moving between the two reads as one product.
 //
-// Identity cluster, left to right:
-//   - Logo badge:  20×20 accent gradient square, "pv" in mono.
-//   - Campaign name (optional, only when ctx.campaignName is set).
-//   - Chevron separator.
-//   - Creative name.
-//   - DRAFT pill (only when !ctx.creativeId — i.e. the creative has
-//     never been published, so it doesn't have a stable id yet).
+// Left: breadcrumb back to the dashboard — "Campaigns" (a link to the
+// campaigns page) / campaign name (when ctx.campaignName is set) /
+// creative name — and a plain Draft tag while the creative has never
+// been published (!ctx.creativeId). Names truncate; the full text is in
+// the title.
 //
-// Actions cluster, right-aligned:
-//   - Preview (GhostBtn). (Undo/redo moved to the canvas-header tool
-//     cluster; a "Regenerate all" button was once listed here but
-//     never shipped — per-size Regenerate in canvas-header covers it.)
-//   - Save Draft (GhostBtn) + Publish (PrimaryBtn). Existing
-//     mountSaveButton returns both — relies on its internal styling
-//     which was updated in PR 1 to use tokens.
+// Right, in order: Undo / Redo, Regenerate this size, Preview, Save
+// draft, Publish (the one ink-filled primary), Theme. Save draft sits
+// apart from Publish, with Preview between them, so a mis-tap can't
+// publish.
 
+import { regenerateCurrentMode } from "../auto-layout";
+import { isMultiPage } from "../modes";
 import type { Store } from "../store";
 import type { DesignerContext, DesignerState } from "../types";
+import { mountHistoryButtons } from "./history-buttons";
 import { mountPreviewButton } from "./preview-button";
-import { mountPublishButton } from "./save";
+import { mountDraftButton, mountPublishButton } from "./save";
 import { tokens, cycleMode, getMode, type ThemeMode } from "./tokens";
 
 export interface MenuBarHandle {
@@ -43,118 +38,157 @@ export function mountMenuBar(
     "display: flex",
     "align-items: center",
     "gap: 10px",
-    `background: ${tokens.ink800}`,
+    `background: ${tokens.field}`,
     `border-bottom: 1px solid ${tokens.ink500}`,
     "flex: 0 0 auto",
+    "min-width: 0",
   ].join(";");
 
-  bar.appendChild(logoBadge());
-
-  // Campaign name (optional)
-  if (ctx.campaignName) {
-    const campaign = document.createElement("span");
-    campaign.textContent = ctx.campaignName;
-    campaign.style.cssText = [
-      `color: ${tokens.ink300}`,
-      "font-size: 11px",
-      "white-space: nowrap",
-      "max-width: 160px",
-      "overflow: hidden",
-      "text-overflow: ellipsis",
-    ].join(";");
-    const chevron = document.createElement("span");
-    chevron.textContent = "\u203a"; // ›
-    chevron.style.cssText = `color: ${tokens.ink400}; font-size: 10px;`;
-    bar.append(campaign, chevron);
-  }
-
-  const creative = document.createElement("span");
-  creative.textContent = ctx.creativeName;
-  creative.style.cssText = [
-    `color: ${tokens.ink100}`,
-    "font-size: 12px",
-    "font-weight: 500",
+  // Breadcrumb. min-width:0 + flex:1 lets the names shrink first, so
+  // the actions on the right never get pushed off the bar.
+  const crumb = document.createElement("nav");
+  crumb.setAttribute("aria-label", "Breadcrumb");
+  crumb.style.cssText = [
+    "display: flex",
+    "align-items: center",
+    "gap: 6px",
+    "flex: 1",
+    "min-width: 0",
     "white-space: nowrap",
-    "overflow: hidden",
-    "text-overflow: ellipsis",
-    "max-width: 240px",
+    "font-size: 12px",
+    `color: ${tokens.ink300}`,
   ].join(";");
-  bar.appendChild(creative);
-
-  // Draft pill — shows when the creative hasn't been published yet.
-  // Published creatives arrive with ctx.creativeId populated.
+  const campaigns = document.createElement("a");
+  campaigns.href = "/advertiser/campaigns";
+  campaigns.textContent = "Campaigns";
+  campaigns.style.cssText = `color: ${tokens.ink300}; text-decoration: none; flex: 0 0 auto;`;
+  crumb.appendChild(campaigns);
+  if (ctx.campaignName) crumb.append(slash(), crumbName(ctx.campaignName, tokens.ink300, "0 1 auto"));
+  const creative = crumbName(ctx.creativeName, tokens.ink100, "0 1 auto");
+  creative.dataset.cdCrumbCreative = "";
+  creative.style.fontWeight = "700";
+  crumb.append(slash(), creative);
   if (!ctx.creativeId) {
-    const pill = document.createElement("span");
-    pill.textContent = "DRAFT";
-    pill.setAttribute("role", "status");
-    pill.style.cssText = [
-      "display: inline-block",
-      "padding: 1px 5px",
-      `border: 1px solid ${tokens.ink500}`,
+    const tag = document.createElement("span");
+    tag.textContent = "Draft";
+    tag.setAttribute("role", "status");
+    tag.style.cssText = [
+      "flex: 0 0 auto",
+      "padding: 1px 6px",
+      `background: ${tokens.ink700}`,
       "border-radius: 2px",
-      `font-family: ${tokens.sans}`,
-      "font-size: 10px",
+      "font-size: 11px",
       `color: ${tokens.ink300}`,
-      "letter-spacing: 0.5px",
     ].join(";");
-    bar.appendChild(pill);
+    crumb.appendChild(tag);
   }
+  bar.appendChild(crumb);
 
-  // Flex spacer
-  const spacer = document.createElement("div");
-  spacer.style.flex = "1";
-  bar.appendChild(spacer);
-
-  // Actions cluster
   const actions = document.createElement("div");
-  actions.style.cssText = "display: flex; align-items: center; gap: 6px;";
+  actions.style.cssText = "display: flex; align-items: center; gap: 6px; flex: 0 0 auto;";
   bar.appendChild(actions);
 
-  // (Undo/redo moved to the canvas-header tool cluster — editing
-  // actions belong next to the tools, not the lifecycle buttons.)
-  actions.appendChild(themeToggle());
+  mountHistoryButtons(actions, store);
+  actions.appendChild(divider());
+
+  // Regenerate is an EXPANDED-mode action (the two-step Gemini copy
+  // rewrite + layout). For IAB banner sizes it only ever re-applied the
+  // deterministic preset — a reset in regenerate's clothing that wiped
+  // any author layout in the bucket — so it's disabled on sized tabs
+  // (user decision 2026-08-18).
+  const regenBtn = textBtn("Regenerate this size", () => {
+    void regenerateCurrentMode(store).catch((e) => console.error("[menu-bar] regenerate failed", e));
+  });
+  actions.append(regenBtn, divider());
+
   mountPreviewButton(actions, store);
-  // Publish only — Save Draft moved to the canvas header next to the
-  // editing tools, so a mis-tap near Publish can't silently publish.
+  mountDraftButton(actions, store, ctx);
   mountPublishButton(actions, store, ctx);
+  actions.appendChild(themeToggle());
 
   container.appendChild(bar);
 
   return {
-    update(_state: DesignerState) {
-      // History buttons subscribe to the store directly. Other
-      // buttons are static — nothing to update here.
+    update(state: DesignerState) {
+      const modeName = state.mode.label.replace(/\s*\(.*\)$/, "");
+      const regenEnabled = isMultiPage(state.mode);
+      regenBtn.disabled = !regenEnabled;
+      regenBtn.style.opacity = regenEnabled ? "1" : "0.35";
+      regenBtn.style.cursor = regenEnabled ? "pointer" : "default";
+      regenBtn.title = regenEnabled
+        ? `Regenerate ${modeName}`
+        : "Regenerate works on the expanded pages — banner sizes follow them automatically";
     },
   };
 }
 
-// Theme cycle: Auto (follows OS) → Light → Dark → Auto. Shows the current
-// mode's icon; cycling flips the data-cd-theme attribute, re-resolving
-// every --cd-* variable instantly (no re-mount).
-const MODE_ICON: Record<ThemeMode, string> = { auto: "◐", light: "☀", dark: "☾" };
+function crumbName(text: string, color: string, flex: string): HTMLElement {
+  const el = document.createElement("span");
+  el.textContent = text;
+  el.title = text;
+  el.style.cssText = `color: ${color}; flex: ${flex}; min-width: 0; overflow: hidden; text-overflow: ellipsis;`;
+  return el;
+}
+
+function slash(): HTMLElement {
+  const el = document.createElement("span");
+  el.textContent = "/";
+  el.setAttribute("aria-hidden", "true");
+  el.style.cssText = `color: ${tokens.ink400}; flex: 0 0 auto;`;
+  return el;
+}
+
+function divider(): HTMLElement {
+  const el = document.createElement("div");
+  el.style.cssText = `width: 1px; height: 20px; background: ${tokens.ink400}; margin: 0 2px;`;
+  return el;
+}
+
+function textBtn(label: string, onClick: () => void): HTMLButtonElement {
+  const b = document.createElement("button");
+  b.type = "button";
+  b.textContent = label;
+  b.style.cssText = [
+    "padding: 4px 9px",
+    `background: ${tokens.ink900}`,
+    `color: ${tokens.ink100}`,
+    `border: 1px solid ${tokens.ink100}`,
+    "border-radius: 2px",
+    "cursor: pointer",
+    "font: inherit",
+    "font-size: 11px",
+    "white-space: nowrap",
+  ].join(";");
+  b.addEventListener("mouseenter", () => { if (!b.disabled) b.style.background = tokens.ink700; });
+  b.addEventListener("mouseleave", () => { b.style.background = tokens.ink900; });
+  b.addEventListener("click", onClick);
+  return b;
+}
+
+// Theme cycle: Auto (follows OS) → Light → Dark → Auto, shared with the
+// dashboard. Labelled like the dashboard's account-menu item; cycling
+// flips the data-cd-theme attribute, re-resolving every --cd-* variable
+// instantly (no re-mount).
+const MODE_LABEL: Record<ThemeMode, string> = { auto: "Theme: Auto", light: "Theme: Light", dark: "Theme: Dark" };
 function themeToggle(): HTMLElement {
   const btn = document.createElement("button");
   btn.type = "button";
-  btn.setAttribute("aria-label", "Cycle theme: auto, light, dark");
   btn.style.cssText = [
     "flex: 0 0 auto",
-    "width: 26px",
-    "height: 26px",
-    "display: flex",
-    "align-items: center",
-    "justify-content: center",
+    "padding: 4px 6px",
+    "border: 1px solid transparent",
     "border-radius: 2px",
-    `border: 1px solid ${tokens.ink500}`,
     "background: transparent",
     `color: ${tokens.ink300}`,
     "cursor: pointer",
-    "font-size: 14px",
-    "line-height: 1",
+    "font: inherit",
+    "font-size: 11px",
+    "white-space: nowrap",
   ].join(";");
   const render = (): void => {
     const m = getMode();
-    btn.textContent = MODE_ICON[m];
-    btn.title = `Theme: ${m}${m === "auto" ? " (follows your OS)" : ""} — click to cycle`;
+    btn.textContent = MODE_LABEL[m];
+    btn.title = m === "auto" ? "Follows your system setting — click to change" : "Click to change";
   };
   render();
   btn.addEventListener("click", () => {
@@ -162,30 +196,4 @@ function themeToggle(): HTMLElement {
     render();
   });
   return btn;
-}
-
-// Logo badge — small gradient square with "pv" in mono. Matches the
-// direction-B prototype visual; gradient colours come from the focus
-// ramp on the light side and a redder hue at the dark end for a
-// two-tone warm-neutral signature.
-function logoBadge(): HTMLElement {
-  const el = document.createElement("div");
-  el.textContent = "pv";
-  el.setAttribute("aria-label", "Promovolve");
-  el.style.cssText = [
-    "flex: 0 0 auto",
-    "width: 20px",
-    "height: 20px",
-    "border-radius: 2px",
-    `background: linear-gradient(135deg, ${tokens.focus}, oklch(0.58 0.15 35))`,
-    "color: oklch(0.12 0.04 55)",
-    `font-family: ${tokens.sans}`,
-    "font-size: 9px",
-    "font-weight: 700",
-    "display: flex",
-    "align-items: center",
-    "justify-content: center",
-    "letter-spacing: -0.5px",
-  ].join(";");
-  return el;
 }

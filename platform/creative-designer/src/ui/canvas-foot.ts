@@ -7,7 +7,9 @@
 //          from the menu bar because they're canvas-view concerns
 //          rather than identity chrome.
 
-import { setZoom } from "../state";
+import { currentPage, setZoom, switchPage } from "../state";
+import { isMultiPage } from "../modes";
+import { fanoutStatus, type FanoutStatus } from "../state/fanout";
 import type { Store } from "../store";
 import type { DesignerState } from "../types";
 import { onRulersToggle, rulersEnabled, setRulersEnabled } from "../render/rulers";
@@ -35,7 +37,31 @@ export function mountCanvasFoot(host: HTMLElement, store: Store): CanvasFootHand
     "flex: 0 0 auto",
   ].join(";");
 
-  // Left: spec metrics
+  // Left: the page pager (multi-page modes only — IAB sizes are a single
+  // frame), then which size is on the canvas and its fanout status.
+  const pager = document.createElement("div");
+  pager.style.cssText = "display:flex;align-items:center;gap:4px;flex:0 0 auto;";
+  const prev = pagerBtn("‹", "Previous page");
+  const pageLabel = document.createElement("span");
+  pageLabel.style.cssText = `color:${tokens.ink200};min-width:52px;text-align:center;`;
+  const next = pagerBtn("›", "Next page");
+  prev.addEventListener("click", () => {
+    if (store.state.pageIdx > 0) store.replace(switchPage(store.state, store.state.pageIdx - 1));
+  });
+  next.addEventListener("click", () => {
+    if (store.state.pageIdx < store.state.pages.length - 1) {
+      store.replace(switchPage(store.state, store.state.pageIdx + 1));
+    }
+  });
+  pager.append(prev, pageLabel, next);
+  bar.appendChild(pager);
+
+  const sizeLine = document.createElement("span");
+  sizeLine.dataset.cdSizeLine = "";
+  sizeLine.style.cssText = `color:${tokens.ink200};white-space:nowrap;flex:0 0 auto;`;
+  bar.append(sizeLine, separator());
+
+  // Then: spec metrics
   const metrics = document.createElement("div");
   metrics.style.cssText = "display:flex;align-items:center;gap:10px;min-width:0;flex:1;overflow:hidden;";
 
@@ -120,6 +146,15 @@ export function mountCanvasFoot(host: HTMLElement, store: Store): CanvasFootHand
 
   return {
     update(state) {
+      const total = state.pages.length;
+      pager.style.display = isMultiPage(state.mode) ? "flex" : "none";
+      pageLabel.textContent = total > 0 ? `Page ${state.pageIdx + 1} / ${total}` : "—";
+      setEnabled(prev, state.pageIdx > 0);
+      setEnabled(next, state.pageIdx < total - 1);
+      const page = currentPage(state);
+      const status = page ? STATUS_WORD[fanoutStatus(page, state.mode)] : "";
+      sizeLine.textContent = [`${state.mode.w}×${state.mode.h}`, state.mode.label, status].filter(Boolean).join(" · ");
+
       const metrics = specMetrics(state);
 
       weight.setValue(
@@ -159,6 +194,42 @@ function metric(): { el: HTMLElement; setValue: (text: string, color: string, ad
       el.style.paddingLeft = advisory ? "4px" : "";
     },
   };
+}
+
+const STATUS_WORD: Record<FanoutStatus, string> = {
+  authored: "Authored",
+  generated: "Generated",
+  empty: "Empty",
+};
+
+function pagerBtn(label: string, title: string): HTMLButtonElement {
+  const b = document.createElement("button");
+  b.type = "button";
+  b.textContent = label;
+  b.title = title;
+  b.setAttribute("aria-label", title);
+  b.style.cssText = [
+    "width: 20px",
+    "height: 20px",
+    "display: flex",
+    "align-items: center",
+    "justify-content: center",
+    "background: transparent",
+    `color: ${tokens.ink200}`,
+    `border: 1px solid ${tokens.ink500}`,
+    "border-radius: 2px",
+    "font: inherit",
+    "font-size: 13px",
+    "cursor: pointer",
+    "padding: 0",
+  ].join(";");
+  return b;
+}
+
+function setEnabled(btn: HTMLButtonElement, enabled: boolean): void {
+  btn.disabled = !enabled;
+  btn.style.opacity = enabled ? "1" : "0.35";
+  btn.style.cursor = enabled ? "pointer" : "default";
 }
 
 function separator(): HTMLElement {

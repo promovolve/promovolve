@@ -6,8 +6,8 @@ import type { Store } from "../store";
 import { tokens } from "./tokens";
 
 export function mountHistoryButtons(container: HTMLElement, store: Store): void {
-  const undo = makeBtn("↶", "Undo (⌘Z)", () => store.undo());
-  const redo = makeBtn("↷", "Redo (⌘⇧Z)", () => store.redo());
+  const undo = makeBtn("↶ Undo", "Undo (⌘Z)", () => store.undo());
+  const redo = makeBtn("↷ Redo", "Redo (⌘⇧Z)", () => store.redo());
 
   const sync = (): void => {
     setEnabled(undo, store.canUndo());
@@ -28,8 +28,8 @@ function makeBtn(label: string, title: string, onClick: () => void): HTMLButtonE
   // Ghost/Icon style: 28×28, transparent until hover. Matches the
   // direction-B prototype's IconBtn primitive.
   b.style.cssText = [
-    "width: 28px",
-    "height: 28px",
+    "height: 26px",
+    "padding: 0 6px",
     "display: flex",
     "align-items: center",
     "justify-content: center",
@@ -38,7 +38,8 @@ function makeBtn(label: string, title: string, onClick: () => void): HTMLButtonE
     "border: 1px solid transparent",
     "border-radius: 2px",
     "font: inherit",
-    "font-size: 14px",
+    "font-size: 11px",
+    "white-space: nowrap",
     "cursor: pointer",
     "transition: background .12s, color .12s, border-color .12s",
   ].join(";");

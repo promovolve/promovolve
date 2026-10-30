@@ -35,23 +35,23 @@ export function mountPreviewButton(
   const btn = document.createElement("button");
   // Icon-only (eye); the action name lives on the tooltip, matching
   // the icon language of the rest of the chrome.
-  btn.innerHTML = `<svg viewBox="0 0 16 16" width="15" height="15" fill="none" stroke="currentColor" stroke-width="1.3" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M1.5 8s2.4-4.2 6.5-4.2S14.5 8 14.5 8s-2.4 4.2-6.5 4.2S1.5 8 1.5 8z"/><circle cx="8" cy="8" r="2"/></svg>`;
+  btn.innerHTML = `<svg viewBox="0 0 16 16" width="15" height="15" fill="none" stroke="currentColor" stroke-width="1.3" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M1.5 8s2.4-4.2 6.5-4.2S14.5 8 14.5 8s-2.4 4.2-6.5 4.2S1.5 8 1.5 8z"/><circle cx="8" cy="8" r="2"/></svg><span>Preview</span>`;
   btn.title = "Preview";
   btn.setAttribute("aria-label", "Preview");
   btn.style.cssText = [
     "display: inline-flex",
     "align-items: center",
     "justify-content: center",
-    "width: 30px",
-    "height: 28px",
-    "padding: 0",
+    "gap: 5px",
+    "height: 26px",
+    "padding: 0 9px",
     "background: transparent",
     `color: ${tokens.ink200}`,
     `border: 1px solid ${tokens.ink500}`,
     "border-radius: 2px",
     "cursor: pointer",
     "font: inherit",
-    "font-size: 12px",
+    "font-size: 11px",
     "transition: background .12s, color .12s, border-color .12s",
   ].join(";");
   btn.addEventListener("mouseenter", () => {

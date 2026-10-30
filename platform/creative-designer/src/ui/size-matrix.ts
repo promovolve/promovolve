@@ -71,10 +71,8 @@ export function mountSizeMatrix(host: HTMLElement, store: Store): SizeMatrixHand
   const headerLabel = document.createElement("div");
   headerLabel.style.cssText = [
     `font-family: ${tokens.sans}`,
-    "font-size: 10px",
-    "letter-spacing: 1.6px",
+    "font-size: 11px",
     `color: ${tokens.ink300}`,
-    "text-transform: uppercase",
     "margin-bottom: 8px",
   ].join(";");
   summary.appendChild(headerLabel);
@@ -108,9 +106,9 @@ export function mountSizeMatrix(host: HTMLElement, store: Store): SizeMatrixHand
     `color: ${tokens.ink300}`,
     `font-family: ${tokens.sans}`,
   ].join(";");
-  const legAuth  = legendItem(tokens.ok,    "AUTH");
-  const legGen   = legendItem(tokens.warn,  "AUTO");
-  const legEmpty = legendItem("",           "EMPTY");
+  const legAuth  = legendItem(tokens.ok,    "Authored");
+  const legGen   = legendItem(tokens.warn,  "Generated");
+  const legEmpty = legendItem("",           "Empty");
   legend.append(legAuth.el, legGen.el, legEmpty.el);
   summary.appendChild(legend);
 
@@ -158,7 +156,7 @@ export function mountSizeMatrix(host: HTMLElement, store: Store): SizeMatrixHand
   // Chevron overflow affordance: ‹ › float over the row's edges, each
   // visible ONLY while there is content to scroll toward on its side —
   // both hidden when everything fits. Same 24px ghost-button language
-  // as the canvas-header pager arrows. A click glides most of a
+  // as the footer pager arrows. A click glides most of a
   // viewport; wheel/trackpad/drag scrolling still works underneath.
   const scrollWrap = document.createElement("div");
   scrollWrap.style.cssText = [

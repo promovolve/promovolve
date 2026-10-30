@@ -138,8 +138,9 @@ function buildPersistentPreview(store: Store): void {
   const header = document.createElement("div");
   header.style.cssText = "display:flex;align-items:center;gap:8px;";
   const title = document.createElement("div");
+  title.className = "cd-title";
   title.textContent = "Preview";
-  title.style.cssText = "flex:1;font-weight:600;font-size:13px;";
+  title.style.cssText = "flex:1;font-weight:700;font-size:13px;";
   const closeBtn = document.createElement("button");
   closeBtn.type = "button";
   closeBtn.textContent = "Close";

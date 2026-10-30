@@ -1,12 +1,12 @@
 {{define "content"}}
-<div class="max-w-5xl">
+<div>
   <h1 class="page-title">{{t "Billing"}}</h1>
   <p class="page-sub">{{t "The append-only ledger: every money movement, and the manual adjustment door."}}</p>
 
   {{template "billing-tabs" .}}
 
   {{if .Error}}
-  <div class="notice notice-error p-3 mt-6 text-sm">{{.Error}}</div>
+  <div class="notice notice-error p-3 mt-6 text-sm" data-lead="{{t "Error:"}}">{{.Error}}</div>
   {{end}}
 
   {{with .AdminJournal}}
@@ -122,7 +122,7 @@
               {{range .Legs}}
               <div class="flex items-center justify-between gap-6 py-0.5 font-mono text-xs">
                 <span class="text-gray-600">{{.Label}}</span>
-                <span class="{{if .Negative}}text-red-600{{else}}text-gray-900{{end}}">{{.Amount}}</span>
+                <span class="text-gray-900{{if .Negative}} font-bold{{end}}">{{.Amount}}</span>
               </div>
               {{end}}
             </div>

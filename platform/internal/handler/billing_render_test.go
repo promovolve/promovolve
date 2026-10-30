@@ -6,7 +6,9 @@ package handler
 
 import (
 	"github.com/hanishi/promovolve/platform/internal/i18n"
-	"io"
+	"os"
+	"path/filepath"
+	"strings"
 	"testing"
 
 	platform "github.com/hanishi/promovolve/platform"
@@ -125,8 +127,18 @@ func TestBillingTemplatesRender(t *testing.T) {
 
 	for _, c := range cases {
 		for _, tlang := range []string{i18n.LangEN, i18n.LangJA} {
-			if err := getPage(tlang, c.name).ExecuteTemplate(io.Discard, "layout", c.data); err != nil {
+			var sb strings.Builder
+			if err := getPage(tlang, c.name).ExecuteTemplate(&sb, "layout", c.data); err != nil {
 				t.Errorf("%s failed to render: %v", c.name, err)
+			}
+			// With PREVIEW_OUT set, dump the admin renders for a local
+			// screenshot pass (the wallet's preview comes from
+			// forecast_preview_test, which carries a strip).
+			if dir := os.Getenv("PREVIEW_OUT"); dir != "" && strings.HasPrefix(c.name, "admin/") {
+				p := filepath.Join(dir, strings.ReplaceAll(strings.TrimSuffix(c.name, ".html"), "/", "-")+"-"+tlang+".html")
+				if err := os.WriteFile(p, []byte(sb.String()), 0o644); err != nil {
+					t.Fatalf("write %s: %v", p, err)
+				}
 			}
 		}
 	}

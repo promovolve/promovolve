@@ -58,8 +58,9 @@ export function openBrandKitModal(campaignId: string): void {
   const header = document.createElement("div");
   header.style.cssText = "display:flex;align-items:center;justify-content:space-between;";
   const title = document.createElement("h3");
+  title.className = "cd-title";
   title.textContent = "Brand kit";
-  title.style.cssText = "margin:0;font-size:14px;font-weight:600;";
+  title.style.cssText = "margin:0;font-size:14px;font-weight:700;";
   const close = document.createElement("button");
   close.textContent = "×";
   close.style.cssText = `background:none;border:none;color:${tokens.ink300};font-size:22px;line-height:1;cursor:pointer;padding:0 4px;`;
@@ -137,7 +138,7 @@ export function openBrandKitModal(campaignId: string): void {
   const save = document.createElement("button");
   save.textContent = "Save kit";
   save.type = "button";
-  save.style.cssText = `background:${tokens.ink100};color:${tokens.ink900};border:none;border-radius:2px;padding:6px 14px;font:inherit;font-weight:600;cursor:pointer;`;
+  save.style.cssText = `background:${tokens.ink100};color:${tokens.ink900};border:none;border-radius:2px;padding:6px 14px;font:inherit;font-weight:700;cursor:pointer;`;
   save.addEventListener("click", () => {
     saveBrandKit(working, campaignId);
     notifyBrandKitChanged(working);

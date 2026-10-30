@@ -12,8 +12,8 @@
 {{end}}
 {{if and .AdvBudget .AdvBudget.IsZero}}
 <div class="notice notice-advisory p-4 mb-6 max-w-2xl">
-  <p class="font-medium text-amber-800">{{t "Set your daily budget to start advertising"}}</p>
-  <p class="text-sm text-amber-700 mt-1">{{t "Your campaigns won't run until a daily budget is set."}}</p>
+  <p class="font-bold text-gray-900">{{t "Set your daily budget to start advertising"}}</p>
+  <p class="text-sm text-gray-900 mt-1">{{t "Your campaigns won't run until a daily budget is set."}}</p>
 </div>
 {{end}}
 
@@ -25,13 +25,13 @@
 <div class="bg-white border rounded-lg p-6 max-w-2xl mb-6">
   <div class="flex items-center justify-between">
     <div>
-      <p class="text-xs text-gray-500 uppercase tracking-wide">{{t "Wallet balance"}}</p>
-      <p class="text-2xl font-semibold mt-1 {{if .WalletUnfunded}}text-amber-700{{end}}">{{.WalletBalance}}</p>
+      <p class="text-xs text-gray-500">{{t "Wallet balance"}}</p>
+      <p class="text-2xl font-semibold mt-1">{{.WalletBalance}}</p>
     </div>
     <a href="/advertiser/wallet" class="text-brand-ink hover:underline text-sm">{{t "Wallet & statement"}} {{template "i-next"}}</a>
   </div>
   {{if .WalletUnfunded}}
-  <p class="text-sm text-amber-700 mt-2">
+  <p class="text-sm text-gray-900 mt-2">
     {{t "Your wallet is unfunded. The daily budget only paces delivery — impressions are paid from the wallet, and serving pauses while it's at zero. Contact the platform operator to top up."}}
   </p>
   {{else}}
@@ -52,15 +52,15 @@
   {{if .AdvBudget}}
   <div class="grid grid-cols-1 sm:grid-cols-3 gap-4 mb-6">
     <div class="bg-gray-50 p-4 rounded">
-      <p class="text-xs text-gray-500 uppercase tracking-wide">{{t "Current Daily Budget"}}</p>
+      <p class="text-xs text-gray-500">{{t "Current Daily Budget"}}</p>
       <p class="text-2xl font-semibold mt-1">{{money .AdvBudget.DailyBudget}}</p>
     </div>
     <div class="bg-gray-50 p-4 rounded">
-      <p class="text-xs text-gray-500 uppercase tracking-wide">{{t "Spent Today"}}</p>
+      <p class="text-xs text-gray-500">{{t "Spent Today"}}</p>
       <p class="text-2xl font-semibold mt-1">{{money .AdvBudget.SpendToday}}</p>
     </div>
     <div class="bg-gray-50 p-4 rounded">
-      <p class="text-xs text-gray-500 uppercase tracking-wide">{{t "Remaining Today"}}</p>
+      <p class="text-xs text-gray-500">{{t "Remaining Today"}}</p>
       <p class="text-2xl font-semibold mt-1">{{money .AdvBudget.Remaining}}</p>
     </div>
   </div>

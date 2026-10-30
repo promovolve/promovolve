@@ -24,12 +24,13 @@
        After ANY template class change run scripts/build-tailwind.sh and
        commit static/tailwind.css, or the new class silently has no styles. */}}
   <link rel="stylesheet" href="{{asset "fonts/biz-udpgothic.css"}}">
+  <link rel="stylesheet" href="{{asset "fonts/biz-udpmincho.css"}}">
   <link rel="stylesheet" href="{{asset "tailwind.css"}}">
-  {{/* Chart colors for the current theme, read when a chart is drawn. The
-       categorical steps are validated per surface (dataviz validator):
-       light vs white, dark vs the dark surface. Identity is also carried by
-       the legend and the table under each chart (dark green/amber sit in the
-       CVD 6-8 band). A theme toggle mid-page applies on the next load. */}}
+  {{/* Chart colors for the current theme, read when a chart is drawn:
+       ink and greys only, like a printed page. Categorical series step from
+       ink down the grey intensity scale; identity is also carried by the
+       legend and the table under each chart. A theme toggle mid-page
+       applies on the next load. */}}
   <script>
     window.chartTheme = function () {
       var cs = getComputedStyle(document.documentElement);
@@ -37,10 +38,9 @@
       var dark = document.documentElement.classList.contains('dark');
       return {
         ink: v('--c-gray-500'), grid: v('--c-gray-200'), surface: v('--c-white'),
-        brand: dark ? '#a0d2ff' : '#0041ff',
-        brandTint: dark ? 'rgba(160,210,255,0.35)' : '#a0d2ff',
-        pal: dark ? ['#3987e5', '#199e70', '#c98500', '#008300', '#9085e9', '#d95926']
-                  : ['#2a78d6', '#1baf7a', '#eda100', '#008300', '#4a3aa7', '#d35f00']
+        brand: v('--c-gray-900'), brandTint: v('--c-gray-300'),
+        wash: v('--c-gray-900').replace('rgb(', 'rgba(').replace(')', ',0.08)'),
+        pal: [v('--c-gray-900'), v('--c-jma-5'), v('--c-jma-4'), v('--c-jma-3'), v('--c-jma-2')]
       };
     };
   </script>
@@ -74,8 +74,8 @@
       opacity: .45;
     }
   </style>
-  {{/* Advisory yellow: the JMA "take note" level, in both themes. */}}
-  <div class="shrink-0 bg-advisory text-[#1a1a1a] text-sm px-4 py-2 flex items-center justify-between gap-4">
+  {{/* Advisory (注意報): ink on the mid-grey advisory fill, in both themes. */}}
+  <div class="shrink-0 bg-advisory text-gray-900 text-sm px-4 py-2 flex items-center justify-between gap-4">
     <span><strong>{{t "Viewing as"}} {{.User.Email}}</strong> — {{t "read-only admin session"}} ({{.User.ViewAsBy}})</span>
     <form method="POST" action="/view-as/exit" data-viewas-allowed>
       <button type="submit" class="font-bold underline hover:no-underline">{{t "Exit view"}}</button>
@@ -352,7 +352,7 @@
   <code x-ref="val" class="flex-1 min-w-0 bg-white border border-gray-200 rounded-md px-3 py-2 font-mono text-xs break-all">{{.}}</code>
   <button type="button" class="btn btn-secondary btn-sm shrink-0"
     @click.stop="navigator.clipboard.writeText($refs.val.textContent.trim()).then(() => { copied = true; setTimeout(() => copied = false, 1500) })"
-    x-text="copied ? '{{t "Copied ✓"}}' : '{{t "Copy"}}'">{{t "Copy"}}</button>
+    x-text="copied ? '{{t "Copied"}}' : '{{t "Copy"}}'">{{t "Copy"}}</button>
 </div>
 {{end}}
 
@@ -433,9 +433,9 @@
 </div>
 {{end}}
 
-{{/* forecast-strip: a run of cells on the JMA intensity scale
+{{/* forecast-strip: a run of cells on the grey intensity scale
      (handler/forecast.go) — a day's 24 hours, or the wallet's days. Cells
-     after now are the "at this pace" projection: faded with a dashed edge. The bar marks now. The outlook
+     after now are the "at this pace" projection: faded with a dashed edge. The bar marks now, with a ground-colour halo so it shows on the darkest cells. The outlook
      sentence is the accessible text; every cell carries its value as a
      title. Pass a forecast. */}}
 {{define "forecast-strip"}}
@@ -443,7 +443,7 @@
   <div class="grid gap-px" style="grid-template-columns:repeat({{len .Cells}},minmax(0,1fr))">
     {{range .Cells}}<span title="{{.Title}}" class="h-3.5 {{if .Level}}bg-jma-{{.Level}}{{else}}bg-gray-100{{end}}{{if .Projected}} opacity-40 outline-dashed outline-1 -outline-offset-1 outline-gray-500{{end}}"></span>{{end}}
   </div>
-  <span class="absolute -top-1 -bottom-1 w-0.5 bg-gray-900" style="left:{{.NowPct}}%" aria-hidden="true"></span>
+  <span class="absolute -top-1 -bottom-1 w-0.5 bg-gray-900 outline outline-1 outline-white" style="left:{{.NowPct}}%" aria-hidden="true"></span>
 </div>
 {{end}}
 

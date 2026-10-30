@@ -14,7 +14,7 @@
 </div>
 
 {{if .Error}}
-<div class="notice notice-error p-3 mb-6 text-sm">{{.Error}}</div>
+<div class="notice notice-error p-3 mb-6 text-sm" data-lead="{{t "Error:"}}">{{.Error}}</div>
 {{end}}
 
 <!-- Blocked advertiser domains (publisher-wide) -->
@@ -102,12 +102,12 @@
       {{if eq .Status "rejected"}}
       <form method="POST" action="/publisher/sites/requests/{{.ID}}/delete"
             onsubmit="return confirm('{{t "Delete the denied request for %s?" .Domain}}')">
-        <button type="submit" class="text-sm text-red-600 hover:underline">{{t "Delete"}}</button>
+        <button type="submit" class="text-sm text-gray-900 underline hover:no-underline">{{t "Delete"}}</button>
       </form>
       {{else}}
       <form method="POST" action="/publisher/sites/requests/{{.ID}}/delete"
             onsubmit="return confirm('{{t "Cancel the request for %s?" .Domain}}')">
-        <button type="submit" class="text-sm text-gray-500 hover:underline">{{t "Cancel"}}</button>
+        <button type="submit" class="text-sm text-gray-500 underline hover:no-underline">{{t "Cancel"}}</button>
       </form>
       {{end}}
     </div>
@@ -149,7 +149,7 @@
       <div onclick="event.stopPropagation();">
         {{if ne .VerificationStatus "verified"}}
         <form method="POST" action="/publisher/sites/{{.ID}}/verify" onclick="event.stopPropagation();">
-          <button type="submit" class="text-sm text-amber-700 hover:underline">{{t "Verify"}}</button>
+          <button type="submit" class="text-sm text-gray-900 underline hover:no-underline">{{t "Verify"}}</button>
         </form>
         {{end}}
       </div>
@@ -182,7 +182,7 @@
            their earnings must not be made to think delivery is at risk. */}}
       <template x-if="probe">
         <p class="text-xs mb-3"
-           :class="probe.state === 'missing' ? 'text-amber-700' : 'text-gray-500'">
+           :class="probe.state === 'missing' ? 'text-gray-900 font-bold' : 'text-gray-500'">
           <template x-if="probe.state === 'present' && probe.method === 'file'">
             <span>{{t "Ownership re-checked: verification file in place."}}</span>
           </template>
@@ -202,11 +202,11 @@
       </template>
       <div class="grid grid-cols-1 sm:grid-cols-2 gap-6 text-sm">
         <div>
-          <p class="text-gray-500 text-xs uppercase mb-2">{{t "Classification"}}</p>
+          <p class="text-gray-500 text-xs mb-2">{{t "Classification"}}</p>
           <p class="text-gray-500">{{t "Pages classified on-demand from live traffic"}}</p>
         </div>
         <div>
-          <p class="text-gray-500 text-xs uppercase mb-2">{{t "Categories"}}</p>
+          <p class="text-gray-500 text-xs mb-2">{{t "Categories"}}</p>
           {{if .Categories}}
           <div class="flex flex-wrap gap-1">
             {{range .Categories}}
@@ -220,7 +220,7 @@
       </div>
       {{if ne .VerificationStatus "verified"}}
       <div class="mt-4 pt-3 border-t">
-        <p class="text-sm font-medium text-amber-700 mb-2">{{t "Domain Verification Required"}}</p>
+        <p class="text-sm font-bold text-gray-900 mb-2">{{t "Domain Verification Required"}}</p>
         <p class="text-xs text-gray-600 mb-3">
           {{t "To prove you own %s, use either method below, then click Verify." .Domain}}
           {{t "Ad serving is blocked until verification succeeds."}}
@@ -247,7 +247,7 @@
                   <code x-ref="val" class="flex-1 min-w-0 bg-gray-100 px-3 py-2 rounded text-xs font-mono break-all" x-text="token.fileUrl"></code>
                   <button type="button" class="btn btn-secondary btn-sm shrink-0"
                     @click.stop="navigator.clipboard.writeText($refs.val.textContent.trim()).then(() => { copied = true; setTimeout(() => copied = false, 1500) })"
-                    x-text="copied ? '{{t "Copied ✓"}}' : '{{t "Copy"}}'">{{t "Copy"}}</button>
+                    x-text="copied ? '{{t "Copied"}}' : '{{t "Copy"}}'">{{t "Copy"}}</button>
                 </div>
               </div>
               <div>
@@ -256,7 +256,7 @@
                   <code x-ref="val" class="flex-1 min-w-0 bg-gray-100 px-3 py-2 rounded text-xs font-mono break-all" x-text="token.fileContent"></code>
                   <button type="button" class="btn btn-secondary btn-sm shrink-0"
                     @click.stop="navigator.clipboard.writeText($refs.val.textContent.trim()).then(() => { copied = true; setTimeout(() => copied = false, 1500) })"
-                    x-text="copied ? '{{t "Copied ✓"}}' : '{{t "Copy"}}'">{{t "Copy"}}</button>
+                    x-text="copied ? '{{t "Copied"}}' : '{{t "Copy"}}'">{{t "Copy"}}</button>
                 </div>
               </div>
               <p class="text-xs font-semibold text-gray-600 pt-1">{{t "Option B — add a DNS TXT record"}}</p>
@@ -267,7 +267,7 @@
                   <code x-ref="val" class="flex-1 min-w-0 bg-gray-100 px-3 py-2 rounded text-xs font-mono break-all" x-text="token.dnsRecordName"></code>
                   <button type="button" class="btn btn-secondary btn-sm shrink-0"
                     @click.stop="navigator.clipboard.writeText($refs.val.textContent.trim()).then(() => { copied = true; setTimeout(() => copied = false, 1500) })"
-                    x-text="copied ? '{{t "Copied ✓"}}' : '{{t "Copy"}}'">{{t "Copy"}}</button>
+                    x-text="copied ? '{{t "Copied"}}' : '{{t "Copy"}}'">{{t "Copy"}}</button>
                 </div>
               </div>
               <div>
@@ -276,7 +276,7 @@
                   <code x-ref="val" class="flex-1 min-w-0 bg-gray-100 px-3 py-2 rounded text-xs font-mono break-all" x-text="token.dnsRecordValue"></code>
                   <button type="button" class="btn btn-secondary btn-sm shrink-0"
                     @click.stop="navigator.clipboard.writeText($refs.val.textContent.trim()).then(() => { copied = true; setTimeout(() => copied = false, 1500) })"
-                    x-text="copied ? '{{t "Copied ✓"}}' : '{{t "Copy"}}'">{{t "Copy"}}</button>
+                    x-text="copied ? '{{t "Copied"}}' : '{{t "Copy"}}'">{{t "Copy"}}</button>
                 </div>
               </div>
               <form method="POST" action="/publisher/sites/{{.ID}}/verify" class="pt-2">
@@ -318,7 +318,7 @@
               <code x-ref="val" class="flex-1 min-w-0 bg-gray-100 px-3 py-2 rounded text-xs font-mono break-all" x-text="token.fileContent"></code>
               <button type="button" class="btn btn-secondary btn-sm shrink-0"
                 @click.stop="navigator.clipboard.writeText($refs.val.textContent.trim()).then(() => { copied = true; setTimeout(() => copied = false, 1500) })"
-                x-text="copied ? '{{t "Copied ✓"}}' : '{{t "Copy"}}'">{{t "Copy"}}</button>
+                x-text="copied ? '{{t "Copied"}}' : '{{t "Copy"}}'">{{t "Copy"}}</button>
             </div>
           </template>
         </div>
@@ -345,7 +345,7 @@
               {{if .OptimizedFloorDelta}}
                 <span class="text-xs
                   {{if eq .OptimizedFloorTrend "▲"}}text-gray-900{{end}}
-                  {{if eq .OptimizedFloorTrend "▼"}}text-red-600{{end}}
+                  {{if eq .OptimizedFloorTrend "▼"}}font-bold{{end}}
                   {{if eq .OptimizedFloorTrend "="}}text-gray-500{{end}}">
                   {{.OptimizedFloorTrend}} {{.OptimizedFloorDelta}}
                 </span>
@@ -367,12 +367,12 @@
              title="{{t "The ad tag reports its own lifecycle on every pageview. Healthy means an ad rendered or the auction genuinely had no ad to show; failures mean the integration is broken on some pageviews — the reasons say where it stopped."}}">
           <p class="text-xs text-gray-500 mb-1">{{t "Integration health (7d):"}}</p>
           <div class="flex items-baseline gap-2">
-            <span class="text-lg font-semibold {{if eq .HealthFailures 0}}text-gray-900{{else}}text-amber-700{{end}}">{{.HealthOkPct}}%</span>
+            <span class="text-lg font-semibold text-gray-900">{{.HealthOkPct}}%</span>
             <span class="text-xs text-gray-500">{{t "healthy"}}</span>
           </div>
           <p class="text-xs text-gray-500 mt-1 whitespace-nowrap overflow-x-auto">
             {{.HealthPageviews}} {{t "pageviews"}} · {{.HealthRendered}} {{t "rendered"}} · {{.HealthNoFill}} {{t "no fill"}}{{if gt .HealthFailures 0}} ·
-            <span class="text-amber-700">{{.HealthFailures}} {{t "failed"}}</span>
+            <span class="text-gray-900 font-bold">{{.HealthFailures}} {{t "failed"}}</span>
             <span class="font-mono">({{range $i, $fr := .HealthTopReasons}}{{if $i}}, {{end}}{{$fr.Reason}} ×{{$fr.Count}}{{end}})</span>
             {{end}}
           </p>
@@ -482,7 +482,7 @@
           </p>
           <form method="POST" action="/publisher/sites/slot-floor"
                 hx-post="/publisher/sites/slot-floor" hx-swap="none"
-                hx-on::after-request="if(event.detail.successful){const s=this.querySelector('.save-status');s.textContent='{{t "Saved ✓"}}';setTimeout(()=>{s.textContent=''},2000)}">
+                hx-on::after-request="if(event.detail.successful){const s=this.querySelector('.save-status');s.textContent='{{t "Saved"}}';setTimeout(()=>{s.textContent=''},2000)}">
           <input type="hidden" name="siteId" value="{{$siteID}}">
           <table class="w-full text-xs">
             <thead class="text-gray-500">
@@ -601,7 +601,7 @@
         <p class="text-xs text-gray-500">{{t "Removing the site stops ad serving immediately. Earnings and delivery history are kept."}}</p>
         <form method="POST" action="/publisher/sites/{{.ID}}/delete"
               onsubmit="return confirm('{{t "Remove %s? Ad serving stops immediately and the site disappears from this list. Earnings and delivery history are kept. Re-adding it later goes through admin approval and domain verification again." .Domain}}')">
-          <button type="submit" class="text-sm text-red-600 hover:underline">{{t "Remove site"}}</button>
+          <button type="submit" class="text-sm text-gray-900 underline hover:no-underline">{{t "Remove site"}}</button>
         </form>
       </div>
     </div>

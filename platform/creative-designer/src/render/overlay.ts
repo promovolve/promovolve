@@ -52,6 +52,10 @@ import { tokens } from "../ui/tokens";
 import { packSizedFieldBoxes, packTextItemHeight } from "./canvas";
 
 const SELECTION_COLOR = tokens.focus;
+// The selection's outer line: the theme's paper (white in light, near-black
+// in dark), always the opposite of the ink focus line, so selection and
+// handles show on any image.
+const HALO = tokens.ink900;
 
 // Click-to-fit: clicking a text box resizes the BOX to hug its text ("fit
 // box to text"). The editor canvas doesn't auto-pack, so selecting the box
@@ -326,6 +330,7 @@ function renderOverlay(root: HTMLElement, state: DesignerState): void {
     if (isSelected(state, idx)) {
       hit.style.outline = `1.5px solid ${SELECTION_COLOR}`;
       hit.style.outlineOffset = "-1px";
+      hit.style.boxShadow = `0 0 0 1px ${HALO}`;
       // Solo selection: handles on the item itself. Multi-selection:
       // handles live on a separate group-bbox overlay rendered after
       // the item loop. Locked items never get handles.
@@ -391,7 +396,7 @@ function renderMotionGhost(
     `height: ${scaledHeight}%`,
     `outline: 1.5px dashed ${SELECTION_COLOR}`,
     "outline-offset: -1px",
-    `background: rgba(33,133,255,${0.08 * endOpacity})`,
+    `background: rgba(128,128,128,${0.08 * endOpacity})`,
     "pointer-events: auto",
     "cursor: move",
     endRotation ? `transform: rotate(${endRotation}deg)` : "",
@@ -466,7 +471,7 @@ function renderMotionGhost(
   ghost.append(tether, rot, scaleHandle);
   root.appendChild(ghost);
 
-  // Motion path: thin blue line from start center to end center.
+  // Motion path: thin ink line from start center to end center.
   const x1 = startBounds.left + startBounds.width / 2;
   const y1 = startBounds.top + startBounds.height / 2;
   const x2 = endBounds.left + endBounds.width / 2;
@@ -558,7 +563,7 @@ function startInlineTextEdit(
   el.contentEditable = "true";
   el.style.userSelect = "text";
   el.style.cursor = "text";
-  el.style.outline = "1px dashed rgba(33,133,255,0.7)";
+  el.style.outline = `1px dashed ${tokens.focusMuted}`;
   el.style.outlineOffset = "2px";
   // Never clip while editing. A stamped/auto-measured height carries
   // overflow:hidden (render-collapsed/layout-item), so in a box that's
@@ -812,6 +817,7 @@ function renderGroupOverlay(root: HTMLElement, items: LayoutItem[], idxs: number
     `height: ${bounds.height}%`,
     `outline: 1.5px dashed ${SELECTION_COLOR}`,
     "outline-offset: -1px",
+    `box-shadow: 0 0 0 1px ${HALO}`,
     "pointer-events: none", // handles opt back in below
   ].join(";");
 
@@ -824,7 +830,7 @@ function renderGroupOverlay(root: HTMLElement, items: LayoutItem[], idxs: number
       "position: absolute",
       "width: 10px",
       "height: 10px",
-      "background: #fff",
+      `background: ${HALO}`,
       `border: 1.5px solid ${SELECTION_COLOR}`,
       "border-radius: 2px",
       "box-sizing: border-box",
@@ -854,7 +860,7 @@ function renderGroupOverlay(root: HTMLElement, items: LayoutItem[], idxs: number
     "width: 14px",
     "height: 14px",
     "margin-left: -7px",
-    "background: #fff",
+    `background: ${HALO}`,
     `border: 1.5px solid ${SELECTION_COLOR}`,
     "border-radius: 50%",
     "box-sizing: border-box",
@@ -874,7 +880,7 @@ function renderHandles(hit: HTMLElement): void {
       "position: absolute",
       "width: 10px",
       "height: 10px",
-      "background: #fff",
+      `background: ${HALO}`,
       `border: 1.5px solid ${SELECTION_COLOR}`,
       "border-radius: 2px",
       "box-sizing: border-box",
@@ -904,7 +910,7 @@ function renderHandles(hit: HTMLElement): void {
     "width: 14px",
     "height: 14px",
     "margin-left: -7px",
-    "background: #fff",
+    `background: ${HALO}`,
     `border: 1.5px solid ${SELECTION_COLOR}`,
     "border-radius: 50%",
     "box-sizing: border-box",

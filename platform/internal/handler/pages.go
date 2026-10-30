@@ -948,7 +948,6 @@ type campaignData struct {
 	LifetimeSpend  string // projection totalSpend, base-currency formatted
 	BidsToday      int
 	WinRate        string // e.g. "45.2%"
-	WinRateClass   string // CSS class: text-red-600, text-amber-600, text-green-600
 	// Opted in to bid on pages with no contextual match (filler
 	// auction). Drives the checkbox on campaigns.html.
 	BidOnUnmatchedContext bool
@@ -1416,13 +1415,6 @@ func (h *Handler) AdvertiserCampaigns(w http.ResponseWriter, r *http.Request) {
 			cd.WinRate = fmt.Sprintf("%.1f%%", wr.WinRate*100)
 			sumBids += wr.BidsToday
 			sumWins += wr.WinRate * float64(wr.BidsToday)
-			if wr.WinRate < 0.1 {
-				cd.WinRateClass = "text-red-600"
-			} else if wr.WinRate < 0.3 {
-				cd.WinRateClass = "text-yellow-600"
-			} else {
-				cd.WinRateClass = "text-green-600"
-			}
 		}
 		campaigns = append(campaigns, cd)
 	}
@@ -2314,7 +2306,7 @@ type argmaxHistoryPoint struct {
 // have to read the shape themselves.
 type argmaxStability struct {
 	Status      string // "Stable" / "Mildly variable" / "Highly variable" / "Insufficient data"
-	StatusColor string // tailwind color class for the badge
+	StatusColor string // badge class: badge-warning when highly variable, else badge-neutral
 	Summary     string // e.g. "Last 5 cycles agreed on $4.50" or "Last 5 picks ranged $1.20 - $5.60"
 	StdDev      string // base-currency formatted
 	Recent      string // e.g. "$4.50, $4.50, $3.40" — comma-separated recent picks
@@ -5239,7 +5231,7 @@ func computeArgmaxStability(lang string, history []argmaxHistoryPoint) *argmaxSt
 	if n == 1 {
 		return &argmaxStability{
 			Status:      "Insufficient data",
-			StatusColor: "bg-gray-100 text-gray-600",
+			StatusColor: "badge-neutral",
 			Summary:     i18n.T(lang, "Only one completed cycle so far (picked %s)", history[0].Label),
 			Recent:      history[0].Label,
 			N:           1,
@@ -5313,15 +5305,15 @@ func computeArgmaxStability(lang string, history []argmaxHistoryPoint) *argmaxSt
 	switch {
 	case spread < stableCV && n >= 3:
 		status = "Stable optimum"
-		color = "bg-green-100 text-green-800"
+		color = "badge-neutral"
 		summary = i18n.T(lang, "Last %d cycles all within %s of %s", agreed, fmtMoney(band), fmtMoney(latest))
 	case spread < mildCV:
 		status = "Mildly variable"
-		color = "bg-yellow-100 text-yellow-800"
+		color = "badge-neutral"
 		summary = i18n.T(lang, "Recent picks: %s (σ=%s)", recent, fmtMoney(stddev))
 	default:
 		status = "Highly variable"
-		color = "bg-red-100 text-red-700"
+		color = "badge-warning"
 		summary = i18n.T(lang, "Recent picks: %s (σ=%s over %d cycles)", recent, fmtMoney(stddev), n)
 	}
 
@@ -5329,7 +5321,7 @@ func computeArgmaxStability(lang string, history []argmaxHistoryPoint) *argmaxSt
 	// std-dev gates above require n≥3. Override label here.
 	if n == 2 && spread < stableCV {
 		status = "Converging"
-		color = "bg-blue-100 text-blue-800"
+		color = "badge-neutral"
 		summary = i18n.T(lang, "2 consecutive cycles agree on %s (collect more cycles to confirm stability)", history[n-1].Label)
 	}
 

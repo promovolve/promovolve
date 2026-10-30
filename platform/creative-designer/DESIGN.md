@@ -411,13 +411,19 @@ el.style.cssText = [
 ].join(";");
 ```
 
-**Tokens** are organised in four layers: a 9-stop warm-neutral `ink`
-scale (`ink900` app-void → `ink100` headings), an amber accent triad
-(`amber` / `amberMuted` / `amberBg` for selection + primary
-emphasis), functional colours (`ok` / `warn` / `err` — reserved for
-status, never decoration), and typography (`sans`, `mono`) + radii
-(`r4`, `r6`, `r8`). All colours are `oklch(...)` for perceptually
-uniform dark-mode grading.
+**Tokens** follow the dashboard's printed page (repo `DESIGN.md`, The
+Ink Only Rule): no hue in the chrome, only the creative on the canvas
+has colour. A 9-stop neutral `ink` scale (`ink900` paper → `ink100`
+ink, the dashboard's greys, every step r = g = b); `field` for the top
+bar and selected rows; `focus` / `focusMuted` / `focusBg` for selection
+and the active tool, which are ink too; `ok` / `warn` / `err`, where ok
+and err are ink and the words carry the meaning, and warn is the
+mid-grey advisory marker; typography (`sans`, `serif`, `mono`) and radii
+(`r4`, `r6`, `r8`). Each colour is a dark/light pair in `COLORS`,
+exposed as `--cd-*` variables; `tests/tokens.test.ts` fails on any
+non-neutral value. Canvas selection, handles and snap guides draw an
+ink line over a 1px `ink900` halo (the theme's paper) so they show on
+any image.
 
 **Why:** one mental model per UI file — grep for an element and see
 its styles inline, no cross-file cascade. Types flow through
@@ -439,14 +445,18 @@ runtime overhead.
    Two examples: `src/index.ts:150` (canvas-host scrollbar hiding),
    `src/ui/size-matrix.ts:164` (scrollbar thumb styling).
 
-**Fonts** (Inter + JetBrains Mono) are loaded by the Go shell
-template via `<link rel="stylesheet">` to Google Fonts, **not** by
-the bundle. Adjusting font families means editing the template
-alongside `tokens.ts`. System fallbacks cover offline / CDN-blocked
-scenarios.
+**Fonts** are BIZ UDPGothic and BIZ UDPMincho, self-hosted in
+`platform/static/fonts/` and linked by the Go shell template
+(`templates/advertiser/creative-design.html`) and by the Vite harness
+(`index.html`), **not** by the bundle. The Two Face Rule: Mincho for
+the creative's name in the top bar, the panel section headings and
+modal titles (`.cd-title`); Gothic for everything you operate. Both
+rules live in `themeCss()`, which also sets Gothic on `<body>` because
+modals, menus and toasts mount there, outside the designer root. Weight
+is 400 or 700; the faces have nothing in between.
 
 **How to apply:**
-- New colour? Add to `tokens.ts`. Never inline `oklch(...)` or
+- New colour? Add a neutral pair to `tokens.ts`. Never inline
   `#RRGGBB` in a UI module.
 - New hover / focus behaviour? `mouseenter` + `mouseleave`, gate on
   `disabled` / active state.

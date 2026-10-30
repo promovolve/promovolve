@@ -422,7 +422,7 @@ function primaryBtn(label: string, onClick: () => void): HTMLButtonElement {
     "border-radius: 2px",
     "font: inherit",
     "font-size: 12px",
-    "font-weight: 600",
+    "font-weight: 700",
     "cursor: pointer",
   ].join(";");
   b.addEventListener("click", onClick);

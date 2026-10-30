@@ -1,10 +1,10 @@
 {{define "content"}}
-<div class="max-w-5xl">
+<div>
   <h1 class="page-title">{{t "Site Requests"}}</h1>
   <p class="page-sub">{{t "Review publisher sites before they go live. Approval creates the site on the ad server; the publisher can then verify domain ownership."}}</p>
 
   {{if .Error}}
-  <div class="notice notice-error p-3 mt-6 text-sm">{{.Error}}</div>
+  <div class="notice notice-error p-3 mt-6 text-sm" data-lead="{{t "Error:"}}">{{.Error}}</div>
   {{end}}
 
   {{if not .AdminSiteRequests}}

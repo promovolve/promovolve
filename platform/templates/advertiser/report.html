@@ -238,7 +238,7 @@
   };
   new Chart(document.getElementById('report-chart-spend'), {
     ...base,
-    data: { labels, datasets: [line({{$r.ChartSpend}}, SPEND, 'rgba(33,133,255,0.10)')] },
+    data: { labels, datasets: [line({{$r.ChartSpend}}, SPEND, T.wash)] },
     options: {
       ...base.options,
       plugins: { legend: { display: false }, tooltip: { callbacks: { label: c => CUR_SYM + c.parsed.y.toFixed(CUR_DEC) } } },
@@ -247,7 +247,7 @@
   });
   new Chart(document.getElementById('report-chart-imps'), {
     ...base,
-    data: { labels, datasets: [line({{$r.ChartImps}}, IMPS, 'rgba(125,122,117,0.10)')] }
+    data: { labels, datasets: [line({{$r.ChartImps}}, IMPS, T.wash)] }
   });
 
   // Breakdown tabs: daily time series, one line per dimension value
@@ -380,7 +380,7 @@
           {{if and (eq $i 0) $g.BlockDomain}}
           <form method="post" action="/advertiser/block-site" onsubmit="return confirm('{{t "Block %s? Your ads stop serving on this domain." $g.BlockDomain}}')">
             <input type="hidden" name="domain" value="{{$g.BlockDomain}}">
-            <button type="submit" class="text-xs text-red-600 hover:text-red-700">{{t "Block"}}</button>
+            <button type="submit" class="text-xs text-gray-900 underline hover:no-underline">{{t "Block"}}</button>
           </form>
           {{end}}
         </td>
@@ -464,7 +464,7 @@
           {{if .BlockDomain}}
           <form method="post" action="/advertiser/block-site" onsubmit="return confirm('{{t "Block %s? Your ads stop serving on this domain." .BlockDomain}}')">
             <input type="hidden" name="domain" value="{{.BlockDomain}}">
-            <button type="submit" class="text-xs text-red-600 hover:text-red-700">{{t "Block"}}</button>
+            <button type="submit" class="text-xs text-gray-900 underline hover:no-underline">{{t "Block"}}</button>
           </form>
           {{end}}
         </td>
@@ -484,7 +484,7 @@
      x-effect="if (tab==='reach' && camp) $nextTick(() => window.promovolveReach && window.promovolveReach(camp))">
   <p class="text-sm text-gray-500 mb-3">{{t "Unique browsers that saw the ad, counted without tracking."}}</p>
   {{if .ReachFrom}}
-  <div class="notice notice-advisory px-4 py-2 mb-4 text-sm">
+  <div class="notice notice-advisory px-4 py-2 mb-4 text-sm" data-lead="{{t "Note:"}}">
     {{if .ReachSinceLaunch}}{{t "Reach data starts on %s, when counting began. Impressions and spend on this tab are counted from that day too, so the figures match. That first day is partial, so its frequency reads high." .ReachFrom}}{{else}}{{t "Reach covers %s onward: it is exact for ranges up to 91 days." .ReachFrom}}{{end}}
   </div>
   {{end}}

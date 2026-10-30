@@ -4,6 +4,7 @@
 <meta charset="utf-8">
 <title>{{t "Design — %s" .CreativeName}}</title>
 <link rel="stylesheet" href="{{asset "fonts/biz-udpgothic.css"}}">
+<link rel="stylesheet" href="{{asset "fonts/biz-udpmincho.css"}}">
 <script>
   // Theme before first paint, from the setting shared with the dashboard
   // (the designer's old key is the fallback until tokens.ts migrates it),
@@ -13,7 +14,7 @@
     try { m = localStorage.getItem('promovolve.dashboard.theme') || localStorage.getItem('promovolve.designer.theme') || 'auto'; } catch (e) {}
     var dark = m === 'dark' || (m !== 'light' && matchMedia('(prefers-color-scheme: dark)').matches);
     document.documentElement.dataset.cdTheme = dark ? 'dark' : 'light';
-    document.documentElement.style.background = dark ? '#111519' : '#ffffff';
+    document.documentElement.style.background = dark ? '#151515' : '#ffffff';
   })();
 </script>
 <script src="{{.BannerScriptURL}}"></script>

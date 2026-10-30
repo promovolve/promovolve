@@ -12,37 +12,39 @@
 
 type ThemePair = { dark: string; light: string };
 
-const COLORS = {
+export const COLORS = {
   // Surfaces — stepped from app background (900) to high-contrast ink
-  // (100). Values are the dashboard's Forecast neutrals
-  // (platform/tailwind.input.css) so the two read as one product.
-  ink900: { dark: "#111519", light: "#ffffff" }, // background, panel surface
-  ink800: { dark: "#1a1f24", light: "#f6f8fa" }, // raised / recessed surface
-  ink700: { dark: "#242a30", light: "#e8edf2" }, // Fill: hover, plain tags
-  ink600: { dark: "#323a42", light: "#d6dee5" }, // Hairline: row lines
-  ink500: { dark: "#424c56", light: "#bdc7d0" }, // Rule: borders, input edges
-  ink400: { dark: "#828e99", light: "#8a96a1" }, // Mark: icons and rules only, never text
-  ink300: { dark: "#a8b3bd", light: "#4a5560" }, // secondary text
-  ink200: { dark: "#d8dfe5", light: "#2a3138" }, // body text
-  ink100: { dark: "#f2f5f8", light: "#1a1a1a" }, // Ink: headings, primary fill
+  // (100). Values are the dashboard's neutral greys
+  // (platform/tailwind.input.css) so the two read as one printed page.
+  ink900: { dark: "#151515", light: "#ffffff" }, // background, panel surface
+  ink800: { dark: "#1e1e1e", light: "#f8f8f8" }, // raised / recessed surface
+  ink700: { dark: "#292929", light: "#ececec" }, // Fill: hover, plain tags
+  ink600: { dark: "#393939", light: "#dddddd" }, // Hairline: row lines
+  ink500: { dark: "#4b4b4b", light: "#c6c6c6" }, // Rule: borders, input edges
+  ink400: { dark: "#8c8c8c", light: "#949494" }, // Mark: icons and rules only, never text
+  ink300: { dark: "#b1b1b1", light: "#545454" }, // secondary text
+  ink200: { dark: "#dedede", light: "#303030" }, // body text
+  ink100: { dark: "#f5f5f5", light: "#1a1a1a" }, // Ink: headings, primary fill
 
-  // Field blue-grey — the top bar and selected rows.
-  field: { dark: "#222a33", light: "#dfe7ee" },
+  // Field grey — the top bar and selected rows.
+  field: { dark: "#292929", light: "#e6e6e6" },
 
-  // The only accent: Focus Blue (JMA step 2) — selection, handles, the
-  // active tool. Every other hue in the chrome is data or an alert.
-  focus:      { dark: "#2185ff", light: "#2185ff" },
-  focusMuted: { dark: "rgb(33 133 255 / 0.55)", light: "rgb(33 133 255 / 0.45)" },
-  focusBg:    { dark: "#222a33", light: "#dfe7ee" },
+  // Selection, handles and the active tool: ink, like everything else on a
+  // printed page. Canvas selection draws a white halo under it so it shows
+  // on any image (render/overlay.ts).
+  focus:      { dark: "#f5f5f5", light: "#1a1a1a" },
+  focusMuted: { dark: "rgb(245 245 245 / 0.5)", light: "rgb(26 26 26 / 0.5)" },
+  focusBg:    { dark: "#292929", light: "#e6e6e6" },
 
   // Thumbnail "ad surface" — the recessed inner canvas of a size-matrix
   // dimension preview, darker than the chip surround in both themes.
-  canvas: { dark: "#0c0f12", light: "#e8edf2" },
+  canvas: { dark: "#0e0e0e", light: "#ececec" },
 
-  // Alerts. warn is Advisory Yellow: a FILL with ink text, never text.
-  ok:   { dark: "#8fd6a3", light: "#146c2e" },
-  warn: { dark: "#fff500", light: "#fff500" },
-  err:  { dark: "#ff6a5f", light: "#d70a00" },
+  // Alerts are typographic: ok and err are ink (the words carry the
+  // meaning); warn is the advisory FILL, mid grey with ink text.
+  ok:   { dark: "#f5f5f5", light: "#1a1a1a" },
+  warn: { dark: "#4b4b4b", light: "#c6c6c6" },
+  err:  { dark: "#f5f5f5", light: "#1a1a1a" },
 } satisfies Record<string, ThemePair>;
 
 type ColorKey = keyof typeof COLORS;
@@ -59,6 +61,9 @@ export const tokens = {
   // Typography. BIZ UDPGothic is self-hosted and linked by the Go shell
   // template (fonts/biz-udpgothic.css), the same face as the dashboard.
   sans: '"BIZ UDPGothic", system-ui, sans-serif',
+  // Headings only (The Two Face Rule): self-hosted like the Gothic
+  // (fonts/biz-udpmincho.css).
+  serif: '"BIZ UDPMincho", "Hiragino Mincho ProN", "Yu Mincho", serif',
   mono: "ui-monospace, SFMono-Regular, Menlo, Consolas, monospace",
 
   // Radii (plain numbers — used in `${tokens.r4}px` arithmetic). Forecast
@@ -95,13 +100,24 @@ export function migrateThemeKey(storage: ThemeStorage): void {
 
 // Inject the :root variable block once. Base = dark; the light override
 // raises specificity via the data-attribute so switching is one attr flip.
-export function injectThemeStyles(): void {
-  if (typeof document === "undefined" || document.getElementById("cd-theme-vars")) return;
+// Native range/checkbox/progress controls take the ink accent, never the
+// browser's blue. Headings (the creative's name, panel section headings,
+// modal titles) take Mincho; everything operated stays Gothic, including
+// the modals, menus and toasts mounted on <body> outside the root.
+export function themeCss(): string {
   const block = (t: "dark" | "light"): string =>
     COLOR_KEYS.map((k) => `${varName(k)}:${COLORS[k][t]}`).join(";");
+  return `:root{${block("dark")}}:root[data-cd-theme="light"]{${block("light")}}` +
+    `input,progress{accent-color:var(--cd-ink100)}` +
+    `body{font-family:${tokens.sans}}` +
+    `[data-cd-crumb-creative],.cd-group-header>span:first-child,.cd-title{font-family:${tokens.serif}}`;
+}
+
+export function injectThemeStyles(): void {
+  if (typeof document === "undefined" || document.getElementById("cd-theme-vars")) return;
   const style = document.createElement("style");
   style.id = "cd-theme-vars";
-  style.textContent = `:root{${block("dark")}}:root[data-cd-theme="light"]{${block("light")}}`;
+  style.textContent = themeCss();
   document.head.appendChild(style);
 }
 

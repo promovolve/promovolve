@@ -4,7 +4,7 @@
   <p class="page-sub">{{t "Personal settings — they follow your login, not the organization."}}</p>
 
   {{if .Error}}
-  <div class="notice notice-error p-3 mt-6 text-sm">{{.Error}}</div>
+  <div class="notice notice-error p-3 mt-6 text-sm" data-lead="{{t "Error:"}}">{{.Error}}</div>
   {{end}}
   {{if .Saved}}
   <div class="notice notice-ok p-3 mt-6 text-sm">{{t "Preferences saved."}}</div>

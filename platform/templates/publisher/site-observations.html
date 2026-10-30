@@ -17,7 +17,7 @@
 <div class="bg-white border rounded-lg mb-6 px-5 py-4">
   <div class="flex items-baseline justify-between">
     <h2 class="text-sm font-semibold">{{t "Traffic shape (learned)"}}</h2>
-    <p class="text-xs text-gray-500">{{t "relative request volume per hour (%s) · amber = current hour" $fo.TrafficShape.TzLabel}}</p>
+    <p class="text-xs text-gray-500">{{t "relative request volume per hour (%s) · ink = current hour" $fo.TrafficShape.TzLabel}}</p>
   </div>
   {{if $fo.TrafficShape.Learning}}
   <p class="text-xs text-gray-500 mt-1">{{t "Still learning — the shape is uniform, so budget pacing behaves linearly. It converges over ~5 days of traffic."}}</p>
@@ -27,7 +27,7 @@
       <p class="text-xs text-gray-500 mb-1">{{t "Weekdays"}}</p>
       <div class="flex items-end gap-px h-16">
         {{range $fo.TrafficShape.Weekday}}
-        <div class="flex-1 rounded-t {{if .IsNow}}bg-jma-3{{else}}bg-gray-300{{end}}" style="height: {{.HeightPct}}%" title="{{.Title}}"></div>
+        <div class="flex-1 rounded-t {{if .IsNow}}bg-gray-900{{else}}bg-gray-300{{end}}" style="height: {{.HeightPct}}%" title="{{.Title}}"></div>
         {{end}}
       </div>
     </div>
@@ -35,7 +35,7 @@
       <p class="text-xs text-gray-500 mb-1">{{t "Weekends"}}</p>
       <div class="flex items-end gap-px h-16">
         {{range $fo.TrafficShape.Weekend}}
-        <div class="flex-1 rounded-t {{if .IsNow}}bg-jma-3{{else}}bg-gray-300{{end}}" style="height: {{.HeightPct}}%" title="{{.Title}}"></div>
+        <div class="flex-1 rounded-t {{if .IsNow}}bg-gray-900{{else}}bg-gray-300{{end}}" style="height: {{.HeightPct}}%" title="{{.Title}}"></div>
         {{end}}
       </div>
     </div>
@@ -56,7 +56,7 @@
 {{/* ----- Headline: the range of per-category floors ----- */}}
 <div class="bg-white border rounded-lg overflow-hidden mb-6">
   <div class="px-5 py-4 border-b bg-gray-50">
-    <p class="text-xs text-gray-500 uppercase tracking-wider">{{t "Per-category floors (live demand)"}}</p>
+    <p class="text-xs text-gray-500">{{t "Per-category floors (live demand)"}}</p>
     <p class="text-3xl font-semibold text-gray-900 mt-1">{{$fo.FloorRange}}</p>
     <p class="text-sm text-gray-500 mt-1">
       {{if $fo.ActiveCategories}}
@@ -167,13 +167,13 @@
   <div class="px-5 py-4 border-b bg-gray-50">
     <div class="flex items-baseline justify-between">
       <div>
-        <p class="text-xs text-gray-500 uppercase tracking-wider">{{t "Site-wide sweep floor"}}</p>
+        <p class="text-xs text-gray-500">{{t "Site-wide sweep floor"}}</p>
         <p class="text-3xl font-semibold text-gray-900 mt-1">
           {{$sw.BestFloor}}
           {{if ne $sw.BestFloorDelta "—"}}
             <span class="ml-3 text-base font-normal
               {{if eq $sw.BestFloorTrendArrow "▲"}}text-gray-900{{end}}
-              {{if eq $sw.BestFloorTrendArrow "▼"}}text-red-600{{end}}
+              {{if eq $sw.BestFloorTrendArrow "▼"}}font-bold{{end}}
               {{if eq $sw.BestFloorTrendArrow "="}}text-gray-500{{end}}">
               {{$sw.BestFloorTrendArrow}} {{$sw.BestFloorDelta}}
               <span class="text-xs text-gray-500">{{t "vs last cycle (%s)" $sw.PreviousBestFloor}}</span>
@@ -205,7 +205,7 @@
 
   {{/* ----- Evidence table ----- */}}
   <table class="data-table">
-    <thead class="bg-gray-50 text-xs text-gray-600 uppercase">
+    <thead class="bg-gray-50 text-xs text-gray-600">
       <tr>
         <th class="text-left px-4 py-2 font-medium">{{t "Floor"}}</th>
         <th class="text-right px-4 py-2 font-medium" title="{{t "Net revenue (after platform fee) measured at this floor during this cycle"}}">{{t "This cycle (net)"}}</th>
@@ -228,7 +228,7 @@
         <td class="px-4 py-2 text-right font-mono text-gray-500">{{.PreviousRevenue}}</td>
         <td class="px-4 py-2 text-right font-mono text-xs
             {{if eq .DeltaSign 1}}text-gray-900{{end}}
-            {{if eq .DeltaSign -1}}text-red-600{{end}}">
+            {{if eq .DeltaSign -1}}font-bold{{end}}">
           {{.RevenueDelta}}
         </td>
         <td class="px-4 py-2">

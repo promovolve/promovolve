@@ -27,7 +27,7 @@
 <section aria-labelledby="today-h" class="mb-4">
   <h2 id="today-h" class="sr-only">{{t "Today"}}</h2>
   <div class="flex flex-wrap items-baseline gap-x-4 gap-y-1" title="{{t "Your net earnings today after the platform fee. Sourced from tracking_events. Resets at midnight of your organization's timezone. Advertiser-side Today's Spend shows the gross amount."}}">
-    <p class="text-5xl font-bold tracking-tight tabular leading-none">{{money .Stats.Revenue}}</p>
+    <p class="figure-lead text-5xl font-bold tracking-tight tabular leading-none">{{money .Stats.Revenue}}</p>
     <p class="text-lg">{{t "earned today."}}</p>
   </div>
   {{if .Stats.FeePct}}<p class="mt-2 text-sm text-gray-500">{{t "%s gross − %s platform fee (%s%%)" (money .Stats.GrossRevenue) (money .Stats.Fee) .Stats.FeePct}}</p>{{end}}

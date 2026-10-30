@@ -5,7 +5,7 @@
     <p class="text-gray-500 text-center mb-10">{{t "Content-based ad serving platform"}}</p>
 
     {{if .Error}}
-    <div class="notice notice-error p-3 mb-6 text-sm">{{.Error}}</div>
+    <div class="notice notice-error p-3 mb-6 text-sm" data-lead="{{t "Error:"}}">{{.Error}}</div>
     {{end}}
 
     {{if eq .Mode "choose"}}
@@ -13,7 +13,7 @@
       <h2 class="text-2xl font-semibold mb-1">{{t "Sign in"}}</h2>
       <p class="text-sm text-gray-500 mb-6">{{t "Use the passkey you registered for this dashboard."}}</p>
 
-      <div id="passkey-error" class="hidden notice notice-error p-3 mb-4 text-sm"></div>
+      <div id="passkey-error" class="hidden notice notice-error p-3 mb-4 text-sm" data-lead="{{t "Error:"}}"></div>
 
       <div id="pending-panel" class="hidden notice notice-advisory p-4 mb-4 text-sm">
         <p class="font-medium mb-1">{{t "Your account request is pending review."}}</p>
@@ -38,7 +38,7 @@
     <div class="w-full max-w-md mx-auto mt-8">
       <div class="flex items-center gap-3 mb-4">
         <div class="h-px bg-gray-200 flex-1"></div>
-        <span class="text-xs uppercase tracking-wide text-gray-500">{{t "Development only"}}</span>
+        <span class="text-xs text-gray-500">{{t "Development only"}}</span>
         <div class="h-px bg-gray-200 flex-1"></div>
       </div>
       <div class="grid grid-cols-2 gap-4">

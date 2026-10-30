@@ -5,7 +5,7 @@
     <p class="text-gray-500 text-center mb-10">{{t "Platform installation"}}</p>
 
     {{if .Error}}
-    <div class="notice notice-error p-3 mb-6 text-sm">{{.Error}}</div>
+    <div class="notice notice-error p-3 mb-6 text-sm" data-lead="{{t "Error:"}}">{{.Error}}</div>
     {{end}}
 
     <div class="bg-white rounded-lg shadow-sm border p-8">
@@ -14,7 +14,7 @@
         {{t "This one-time step creates the administrator account that owns this installation and sets the platform economics. The admin reviews account requests and manages platform settings."}}
       </p>
 
-      <div id="setup-error" class="hidden notice notice-error p-3 mb-4 text-sm"></div>
+      <div id="setup-error" class="hidden notice notice-error p-3 mb-4 text-sm" data-lead="{{t "Error:"}}"></div>
 
       <form id="setup-form" class="space-y-4" onsubmit="return false">
         <div>
@@ -61,7 +61,7 @@
         <p class="form-hint">
           {{t "What a newly registered site's price floor starts at, and the level the optimizer may never probe below. These are the one setting with no sensible cross-currency default — a floor that reads right in dollars is 157x too low in yen — so enter what a thousand impressions is actually worth in your market."}}
         </p>
-        <p id="setup-currency-changed" class="form-hint text-amber-700 hidden">
+        <p id="setup-currency-changed" class="form-hint text-gray-900 font-bold hidden">
           {{t "Currency changed — the amounts above were cleared. Enter them in the currency you just chose."}}
         </p>
         <div>
@@ -85,7 +85,7 @@
     <div class="mt-8">
       <div class="flex items-center gap-3 mb-4">
         <div class="h-px bg-gray-200 flex-1"></div>
-        <span class="text-xs uppercase tracking-wide text-gray-500">Development only</span>
+        <span class="text-xs text-gray-500">Development only</span>
         <div class="h-px bg-gray-200 flex-1"></div>
       </div>
       <div class="bg-white rounded-lg border p-6">

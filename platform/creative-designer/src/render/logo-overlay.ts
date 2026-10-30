@@ -22,7 +22,7 @@ export function mountLogoOverlay(canvasWrap: HTMLElement, store: Store): LogoOve
   box.style.cssText = [
     "position: absolute",
     "box-sizing: border-box",
-    "border: 1px dashed rgba(33,133,255,0.9)",
+    `border: 1px dashed ${tokens.focus}`,
     "cursor: move",
     "display: none",
     "z-index: 60",

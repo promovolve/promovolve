@@ -158,7 +158,7 @@ export function mountCanvasFoot(host: HTMLElement, store: Store): CanvasFootHand
       const metrics = specMetrics(state);
 
       weight.setValue(
-        `Weight ${metrics.weightKb} KB / ${WEIGHT_MAX} KB`,
+        weightText(metrics.weightKb, metrics.weightThreshold),
         thresholdColor(metrics.weightThreshold),
         metrics.weightThreshold === "warn",
       );
@@ -239,8 +239,12 @@ function separator(): HTMLElement {
   return el;
 }
 
-// Advisory Yellow is unreadable as text, so "warn" is ink text with a
-// yellow marker (see metric()); ok / err are legible as text.
+// ok, warn and err are all ink text: warn carries the grey advisory
+// marker (see metric()) and err says "over budget" (weightText).
+export function weightText(kb: number, t: "ok" | "warn" | "err"): string {
+  return `Weight ${kb} KB / ${WEIGHT_MAX} KB${t === "err" ? " · over budget" : ""}`;
+}
+
 function thresholdColor(t: "ok" | "warn" | "err"): string {
   if (t === "ok")   return tokens.ok;
   if (t === "warn") return tokens.ink100;

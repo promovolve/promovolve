@@ -7,7 +7,8 @@
     "node": "24"
   },
   "scripts": {
-    "test": "node datepicker.run.mjs"
+    "test": "node datepicker.run.mjs",
+    "test:print": "node printed-page.run.mjs"
   },
   "devDependencies": {
     "playwright": "^1.61.1"

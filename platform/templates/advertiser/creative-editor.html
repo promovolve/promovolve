@@ -25,7 +25,7 @@
        class="fixed inset-0 z-50 bg-white/70 backdrop-blur-sm flex items-center justify-center"
        @click.stop @keydown.stop>
     <div class="flex flex-col items-center gap-3 rounded-lg bg-white shadow-lg border px-6 py-5">
-      <svg class="animate-spin h-8 w-8 text-orange-700" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24">
+      <svg class="animate-spin h-8 w-8 text-gray-900" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24">
         <circle class="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" stroke-width="4"></circle>
         <path class="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8v4a4 4 0 00-4 4H4z"></path>
       </svg>
@@ -55,7 +55,7 @@
       <div class="flex gap-3">
         <input type="text" x-model="extractUrl" placeholder="{{t "Enter landing page URL"}}"
                {{if .LandingURL}}readonly{{end}}
-               class="flex-1 px-3 py-2 border rounded-md text-sm focus:outline-none focus:ring-2 focus:ring-orange-500 bg-gray-50{{if .LandingURL}} text-gray-500 cursor-not-allowed{{end}}"
+               class="flex-1 px-3 py-2 border rounded-md text-sm focus:outline-none focus:ring-2 focus:ring-gray-900 bg-gray-50{{if .LandingURL}} text-gray-500 cursor-not-allowed{{end}}"
                @keydown.enter.prevent="(!$event.isComposing && !analyzing && extractUrl) && analyzeLP()">
         <button @click="analyzeLP()" :disabled="analyzing || !extractUrl"
                 class="btn btn-primary whitespace-nowrap">
@@ -64,7 +64,7 @@
         </button>
       </div>
       {{if .LandingURL}}<p class="mt-2 text-xs text-gray-500">{{t "The landing page is set by the campaign and can't be changed here."}}</p>{{end}}
-      <p x-show="analyzeError" x-text="analyzeError" class="mt-2 text-sm text-red-600"></p>
+      <p x-show="analyzeError" x-text="analyzeError" class="mt-2 text-sm text-gray-900 font-bold"></p>
     </div>
   </div>
 
@@ -89,7 +89,7 @@
     <div x-show="!lpScreenshotUrl" class="absolute inset-0 animate-pulse bg-gradient-to-br from-gray-100 to-gray-200"></div>
     <!-- Foreground: spinner + caption -->
     <div class="relative flex flex-col items-center justify-center gap-3 py-24 text-center">
-      <svg class="animate-spin h-8 w-8" :class="lpScreenshotUrl ? 'text-white/90' : 'text-orange-700'" viewBox="0 0 24 24" fill="none">
+      <svg class="animate-spin h-8 w-8" :class="lpScreenshotUrl ? 'text-white/90' : 'text-gray-900'" viewBox="0 0 24 24" fill="none">
         <circle class="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" stroke-width="4"></circle>
         <path class="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4z"></path>
       </svg>
@@ -123,12 +123,12 @@
                 class="text-xs text-gray-500 hover:text-gray-600"
                 x-text="showAllArcs ? '{{t "show recommended only"}}' : '{{t "show all arcs"}}'"></button>
       </div>
-      <p x-show="arcReason" x-cloak class="text-xs text-orange-700 mb-2">{{t "✓ Recommended:"}} <span x-text="arcReason"></span></p>
+      <p x-show="arcReason" x-cloak class="text-xs text-gray-900 mb-2">{{t "Recommended:"}} <span x-text="arcReason"></span></p>
       <div class="grid grid-cols-2 sm:grid-cols-4 gap-2">
         <template x-for="a in arcs.filter(a => showAllArcs || fitArcIds.length === 0 || fitArcIds.includes(a.id))" :key="a.id">
           <button type="button" @click="selectedArcId = a.id" :disabled="generating"
-                  class="border rounded-lg p-2 text-left transition hover:border-orange-400 disabled:opacity-50 disabled:cursor-not-allowed"
-                  :class="selectedArcId === a.id ? 'border-orange-500 ring-2 ring-orange-200 bg-orange-50' : 'border-gray-200'">
+                  class="border rounded-lg p-2 text-left transition hover:border-gray-900 disabled:opacity-50 disabled:cursor-not-allowed"
+                  :class="selectedArcId === a.id ? 'border-gray-900 ring-2 ring-gray-300 bg-gray-100' : 'border-gray-200'">
             <div class="text-xs font-medium text-gray-800" x-text="a.label"></div>
             <div class="text-xs text-gray-500 mt-0.5 leading-tight" x-text="a.desc"></div>
           </button>
@@ -144,7 +144,7 @@
       <input id="creative-editor-brief" type="text" x-model="brief" maxlength="300"
              @keydown.enter.prevent
              placeholder="{{t "e.g. push the limited edition; warm, playful tone; mention free shipping"}}"
-             class="w-full px-3 py-2 border rounded-md text-sm focus:outline-none focus:ring-2 focus:ring-orange-500">
+             class="w-full px-3 py-2 border rounded-md text-sm focus:outline-none focus:ring-2 focus:ring-gray-900">
       <p class="text-xs text-gray-500 mt-1">{{t "Steers the copy. Facts you add are trusted; the AI still won’t invent beyond your landing page + this note."}}</p>
     </div>
 
@@ -169,7 +169,7 @@
     <div x-show="originalFonts.length > 0" x-cloak
          class="mb-5 p-3 rounded-md border border-gray-200 bg-gray-50">
       <label class="flex items-start gap-2 cursor-pointer">
-        <input type="checkbox" x-model="useOriginalFonts" class="mt-0.5 accent-orange-600">
+        <input type="checkbox" x-model="useOriginalFonts" class="mt-0.5 accent-gray-900">
         <span class="text-sm text-gray-700">
           {{t "Use my site’s own fonts"}}
           (<span class="font-medium" x-text="[...new Set(originalFonts.map(f => f.family))].join(', ')"></span>)
@@ -184,10 +184,10 @@
     <!-- Fallback notice: scrape returned nothing. Tell the user they
          can still proceed by uploading images and typing text. -->
     <div x-show="manualMode" x-cloak
-         class="mb-4 p-3 rounded-md border border-amber-300 bg-amber-50 text-sm text-amber-800">
+         class="mb-4 notice notice-advisory p-3" data-lead="{{t "Note:"}}">
       <p class="mb-2">{{t "We couldn't read this landing page automatically (likely a bot block). Paste your landing-page copy (or a product description) below and we'll write the booklet from it; upload images on the right."}}</p>
       <textarea x-model="manualText" rows="4" placeholder="{{t "Paste your landing-page copy or product description…"}}"
-                class="w-full px-2 py-1.5 border rounded text-sm text-gray-800 focus:outline-none focus:ring-1 focus:ring-orange-500 resize-y"></textarea>
+                class="w-full px-2 py-1.5 border rounded text-sm text-gray-800 focus:outline-none focus:ring-1 focus:ring-gray-900 resize-y"></textarea>
       <button type="button" @click="allTexts = manualText.trim() ? [{ heading: '', text: manualText.trim() }] : []; synthesize()"
               :disabled="generating || manualText.trim().length < 30"
               class="btn btn-primary btn-sm mt-2">
@@ -201,7 +201,7 @@
       <div class="w-3/5 space-y-4">
         <template x-for="(page, idx) in pageSlots" :key="idx">
           <div class="rounded-lg border p-4 cursor-pointer transition-all"
-               :class="activePageIdx === idx ? 'bg-orange-50 border-orange-400 ring-2 ring-orange-200' : 'bg-white hover:border-gray-300'"
+               :class="activePageIdx === idx ? 'bg-gray-100 border-gray-900 ring-2 ring-gray-300' : 'bg-white hover:border-gray-300'"
                @click="activePageIdx = idx">
             <!-- The per-page CTA checkbox is gone: delivery navigates on a
                  tap anywhere on the sheet, so "which page is the CTA" is no
@@ -211,13 +211,13 @@
                  for Gemini's copy prompt.
                  (Remove-page button likewise retired — pages locked at 3.) -->
             <div class="flex items-center justify-between mb-3">
-              <h3 class="text-sm font-semibold" :class="activePageIdx === idx ? 'text-orange-700' : 'text-gray-700'"
+              <h3 class="text-sm font-semibold" :class="activePageIdx === idx ? 'text-gray-900' : 'text-gray-700'"
                   x-text="'{{t "Page %d"}}'.replace('%d', idx + 1)"></h3>
             </div>
 
             <div class="flex gap-4">
               <!-- Selected image -->
-              <div class="w-32 h-24 bg-gray-50 border-2 border-dashed rounded flex items-center justify-center cursor-pointer hover:border-orange-400 shrink-0"
+              <div class="w-32 h-24 bg-gray-50 border-2 border-dashed rounded flex items-center justify-center cursor-pointer hover:border-gray-900 shrink-0"
                    :class="page.imageIdx !== null ? 'border-solid border-gray-200' : ''"
                    @click="openImagePicker(idx)">
                 <template x-if="page.imageIdx !== null && allImages[page.imageIdx]">
@@ -233,7 +233,7 @@
                 <template x-if="synthesizedPages[idx]">
                   <div>
                     <span x-show="synthesizedPages[idx].tag"
-                          class="inline-block text-xs font-semibold uppercase tracking-wider text-orange-700 mb-0.5"
+                          class="inline-block text-xs font-semibold text-gray-900 mb-0.5"
                           x-text="synthesizedPages[idx].tag"></span>
                     <p class="text-sm font-semibold text-gray-800" x-text="synthesizedPages[idx].headline || '—'"></p>
                     <p class="text-xs text-gray-600 mt-0.5" x-text="synthesizedPages[idx].sub || ''"></p>
@@ -261,7 +261,7 @@
       <div class="w-2/5">
         <!-- Image pool -->
         <div class="relative rounded transition-colors"
-             :class="imageDragActive ? 'ring-2 ring-orange-400 bg-orange-50/40' : ''"
+             :class="imageDragActive ? 'ring-2 ring-gray-900 bg-gray-100/40' : ''"
              @dragenter.prevent="imageDragDepth++"
              @dragover.prevent
              @dragleave.prevent="imageDragDepth = Math.max(0, imageDragDepth - 1)"
@@ -270,7 +270,7 @@
             <h3 class="text-sm font-semibold text-gray-700">
               {{t "Images"}} <span class="font-normal text-gray-500" x-text="'(' + allImages.length + ')'"></span>
             </h3>
-            <label class="text-xs text-orange-700 hover:text-orange-800 cursor-pointer"
+            <label class="text-xs text-gray-900 hover:text-gray-900 cursor-pointer"
                    :class="uploadingImage ? 'opacity-50 pointer-events-none' : ''">
               <span x-show="!uploadingImage">{{t "+ Upload"}}</span>
               <span x-show="uploadingImage">{{t "Uploading…"}}</span>
@@ -279,8 +279,8 @@
           </div>
           <div class="grid grid-cols-3 gap-2 max-h-[34rem] overflow-y-auto">
             <template x-for="(img, imgIdx) in allImages" :key="imgIdx">
-              <div class="relative cursor-pointer rounded border overflow-hidden hover:ring-2 hover:ring-orange-400"
-                   :class="isImageUsed(imgIdx) ? 'opacity-40 ring-1 ring-green-400' : ''"
+              <div class="relative cursor-pointer rounded border overflow-hidden hover:ring-2 hover:ring-gray-900"
+                   :class="isImageUsed(imgIdx) ? 'opacity-40 ring-1 ring-gray-900' : ''"
                    @click="assignImageToActive(imgIdx)"
                    @mouseenter="magIdx = imgIdx; magNat = ''; magMove($event)"
                    @mousemove="magMove($event)"
@@ -297,16 +297,16 @@
                         @click.stop="toggleLibrarySave(img)"
                         :title="libSaved[img.src] && libSaved[img.src] !== 'saving' ? '{{t "In your image library — click to remove"}}' : '{{t "Save to your image library for reuse in other creatives"}}'"
                         class="absolute top-1 right-1 w-6 h-6 rounded-full flex items-center justify-center text-sm leading-none shadow"
-                        :class="libSaved[img.src] === 'saving' ? 'bg-white/80 text-gray-300' : (libSaved[img.src] ? 'bg-amber-400 text-white' : 'bg-white/80 text-gray-500 hover:text-amber-700')"
+                        :class="libSaved[img.src] === 'saving' ? 'bg-white/80 text-gray-300' : (libSaved[img.src] ? 'bg-gray-900 text-white' : 'bg-white/80 text-gray-500 hover:text-gray-900')"
                         x-text="libSaved[img.src] && libSaved[img.src] !== 'saving' ? '★' : '☆'"></button>
               </div>
             </template>
           </div>
           <p x-show="allImages.length === 0" class="text-xs text-gray-500 py-4 text-center">
             <span x-show="!imageDragActive">{{t "No images yet — drag & drop or use Upload."}}</span>
-            <span x-show="imageDragActive" class="text-orange-700 font-medium">{{t "Drop to upload"}}</span>
+            <span x-show="imageDragActive" class="text-gray-900 font-medium">{{t "Drop to upload"}}</span>
           </p>
-          <p x-show="uploadError" x-cloak x-text="'{{t "Upload error:"}} ' + uploadError" class="mt-2 text-xs text-red-600"></p>
+          <p x-show="uploadError" x-cloak x-text="'{{t "Upload error:"}} ' + uploadError" class="mt-2 text-xs text-gray-900 font-bold"></p>
 
           {{/* Hover magnifier: a fixed floating enlargement of the hovered
                thumbnail. pointer-events-none so it can never steal the
@@ -342,8 +342,8 @@
       <div class="grid grid-cols-2 sm:grid-cols-4 gap-3">
         <template x-for="t in templates" :key="t.id">
           <button type="button" @click="selectedTemplateId = t.id"
-                  class="border rounded-lg p-2 text-left transition hover:border-orange-400"
-                  :class="selectedTemplateId === t.id ? 'border-orange-500 ring-2 ring-orange-200' : 'border-gray-200'">
+                  class="border rounded-lg p-2 text-left transition hover:border-gray-900"
+                  :class="selectedTemplateId === t.id ? 'border-gray-900 ring-2 ring-gray-300' : 'border-gray-200'">
             <div class="relative w-full h-20 rounded bg-stone-100 border border-gray-200 mb-2 overflow-hidden">
               <template x-for="(r, ri) in _templateRects(t)" :key="ri">
                 <div class="absolute" :style="`left:${r.x}%;top:${r.y}%;width:${r.w}%;height:${r.h}%;background:${r.fill};border-radius:${r.rx}px`"></div>
@@ -362,7 +362,7 @@
       <input id="creative-editor-creativename" type="text" x-model="creativeName" required maxlength="120"
              @keydown.enter.prevent
              placeholder="{{t "e.g. Summer sale — hero v1"}}"
-             class="w-full px-3 py-2 border rounded-md text-sm focus:outline-none focus:ring-2 focus:ring-orange-500">
+             class="w-full px-3 py-2 border rounded-md text-sm focus:outline-none focus:ring-2 focus:ring-gray-900">
       <p class="text-xs text-gray-500 mt-1">{{t "Shown on your creatives list and in reports."}}</p>
     </div>
     <button @click="generateCopy()" :disabled="generating || !canGenerate()"
@@ -373,7 +373,7 @@
     <p x-show="!canGenerate() && !generating"
        class="mt-2 text-sm text-gray-500"
        x-text="synthesizedPages.length < 3 ? '{{t "Waiting for the copy to finish generating."}}' : (creativeName.trim() === '' ? '{{t "Name the creative to continue."}}' : '{{t "Pick a layout template to continue."}}')"></p>
-    <p x-show="generateError" x-text="generateError" class="mt-2 text-sm text-red-600"></p>
+    <p x-show="generateError" x-text="generateError" class="mt-2 text-sm text-gray-900 font-bold"></p>
   </div>
 
   <!-- (Layout-template modal removed — the picker is now an inline grid
@@ -610,18 +610,18 @@ function creativeEditor() {
         const cx = 8 + col * 31;   // cell origin in the 100×100 box
         const cy = 8 + row * 31;
         if (role === 'hero') {
-          out.push({ x: cx, y: cy, w: 26, h: 26, rx: 1.5, fill: '#d6dee5' });
+          out.push({ x: cx, y: cy, w: 26, h: 26, rx: 1.5, fill: '#dddddd' });
         } else if (role === 'cta') {
           out.push({ x: cx, y: cy + 8, w: 17, h: 8, rx: 2.5, fill: '#1a1a1a' });
         } else if (role === 'accent' || role === 'badge') {
-          out.push({ x: cx, y: cy, w: 9, h: 9, rx: 1.5, fill: '#2185ff' });
+          out.push({ x: cx, y: cy, w: 9, h: 9, rx: 1.5, fill: '#1a1a1a' });
         } else if (role === 'divider') {
-          out.push({ x: cx, y: cy + 12, w: 26, h: 1.5, rx: 0.75, fill: '#8a96a1' });
+          out.push({ x: cx, y: cy + 12, w: 26, h: 1.5, rx: 0.75, fill: '#949494' });
         } else if (role === 'headline') {
           out.push({ x: cx, y: cy + 4, w: 26, h: prime ? 6 : 4, rx: 1, fill: '#1a1a1a' });
         } else { // subheadline / body / default text → a couple of thin lines
-          out.push({ x: cx, y: cy + 6,  w: 24, h: 3, rx: 1, fill: '#4a5560' });
-          out.push({ x: cx, y: cy + 11, w: 18, h: 3, rx: 1, fill: '#8a96a1' });
+          out.push({ x: cx, y: cy + 6,  w: 24, h: 3, rx: 1, fill: '#545454' });
+          out.push({ x: cx, y: cy + 11, w: 18, h: 3, rx: 1, fill: '#949494' });
         }
       }
       return out;

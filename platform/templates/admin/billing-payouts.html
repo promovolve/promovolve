@@ -1,12 +1,12 @@
 {{define "content"}}
-<div class="max-w-5xl">
+<div>
   <h1 class="page-title">{{t "Billing"}}</h1>
   <p class="page-sub">{{t "Publisher payouts: who is owed money, and the history of what was paid."}}</p>
 
   {{template "billing-tabs" .}}
 
   {{if .Error}}
-  <div class="notice notice-error p-3 mt-6 text-sm">{{.Error}}</div>
+  <div class="notice notice-error p-3 mt-6 text-sm" data-lead="{{t "Error:"}}">{{.Error}}</div>
   {{end}}
 
   {{with .AdminPayouts}}

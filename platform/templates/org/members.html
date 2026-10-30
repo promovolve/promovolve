@@ -1,10 +1,10 @@
 {{define "content"}}
-<div class="max-w-4xl">
+<div>
   <h1 class="page-title">{{t "Team"}}</h1>
   <p class="page-sub">{{if .OrgPage.Name}}{{.OrgPage.Name}} · {{end}}{{t "@%s — up to %d members share this organization's accounts." .OrgPage.Domain .OrgPage.MaxMembers}}</p>
 
   {{if .Error}}
-  <div class="notice notice-error p-3 mt-6 text-sm">{{.Error}}</div>
+  <div class="notice notice-error p-3 mt-6 text-sm" data-lead="{{t "Error:"}}">{{.Error}}</div>
   {{end}}
   {{if .OrgPage.Notice}}
   <div class="notice notice-ok p-3 mt-6 text-sm">{{.OrgPage.Notice}}</div>
@@ -12,7 +12,7 @@
 
   {{if .OrgPage.InviteURL}}
   <div class="notice notice-advisory p-4 mt-6 text-sm">
-    <p class="font-medium text-amber-800 mb-2">{{t "One-time invite link for %s — copy it now, it won't be shown again. Valid 72 hours, single use. They'll register their own passkey with it." .OrgPage.InviteEmail}}</p>
+    <p class="font-bold text-gray-900 mb-2">{{t "One-time invite link for %s — copy it now, it won't be shown again. Valid 72 hours, single use. They'll register their own passkey with it." .OrgPage.InviteEmail}}</p>
     {{template "copy-field" .OrgPage.InviteURL}}
   </div>
   {{end}}
@@ -39,7 +39,7 @@
           <td class="px-4 py-3">
             <span class="badge {{if eq .OrgRole "admin"}}badge-info{{else}}badge-neutral{{end}}">{{t (printf "%s" .OrgRole)}}</span>
           </td>
-          <td class="px-4 py-3">{{.Passkeys}}{{if eq .Passkeys 0}} <span class="text-xs text-amber-700">{{t "(hasn't joined yet)"}}</span>{{end}}</td>
+          <td class="px-4 py-3">{{.Passkeys}}{{if eq .Passkeys 0}} <span class="text-xs text-gray-500">{{t "(hasn't joined yet)"}}</span>{{end}}</td>
           <td class="px-4 py-3 text-gray-500">{{.JoinedAt}}</td>
           <td class="px-4 py-3 text-right whitespace-nowrap">
             {{if $page.IsAdmin}}

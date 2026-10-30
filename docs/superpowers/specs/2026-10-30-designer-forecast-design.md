@@ -14,8 +14,8 @@ Today it has its own visual system: warm greys, an amber accent, 4–8px corners
 | Replace image, Crop, Remove background, Edit formula | Properties panel | Only once the item is selected, partway down a long panel |
 | Bring to front / forward / backward / to back, Group | Right-click menu | No button anywhere |
 | Text align | Canvas header | Faded unless exactly one text item is selected |
-| Regenerate this size | Canvas header | Split from Regenerate all |
-| Regenerate all, Preview, Theme | Menu bar | |
+| Regenerate this size, Save draft | Canvas header | Split from the other banner-wide actions |
+| Preview, Publish, Theme | Menu bar | |
 | Rulers, Zoom | Footer | |
 
 Success means: an author can find every tool without hovering or right-clicking, and the designer reads as the same product as the dashboard in both light and dark.
@@ -34,8 +34,8 @@ These were settled with the user on 2026-10-30.
 ```
 ┌──────────────────────────────────────────────────────────────────────────┐
 │ Top bar (Field)  Campaigns / <campaign> / <creative> [Draft]             │
-│                  Undo Redo | Regenerate this size  Regenerate all |      │
-│                  Preview  Save  Theme                                    │
+│                  Undo Redo | Regenerate this size |                      │
+│                  Preview  Save draft  Publish  Theme                     │
 ├──────┬───────────────────────────────────────────────┬───────────────────┤
 │ Rail │ Size strip: chips with thumbnails, fanout     │ Properties │ Anim │
 │ Add  ├───────────────────────────────────────────────┤ Showing: <scope>  │
@@ -55,15 +55,17 @@ These were settled with the user on 2026-10-30.
 
 - Field background, 40px, like the dashboard top bar.
 - Left: breadcrumb `Campaigns / <campaign name> / <creative name>`. "Campaigns" links to the campaigns page. The Draft badge becomes a plain Forecast tag (Fill background, label-grey text). The amber-to-red "pv" gradient badge is removed.
-- Right: Undo, Redo, then Regenerate this size and Regenerate all, then Preview, Save (the one ink-filled primary button) and the theme button.
-- Regenerate this size keeps its current enable/disable logic and tooltip. It moves from `canvas-header.ts`.
+- Right: Undo, Redo, then Regenerate this size, then Preview, Save draft, Publish (the one ink-filled primary button) and the theme button.
+- Regenerate this size and Save draft keep their current behaviour and tooltips. They move from `canvas-header.ts`. (There is no "Regenerate all" in the code; the comment that mentions one is stale.)
+
+All pixel sizes in this spec are pre-zoom CSS values. The designer scales its chrome with `zoom: 1.2` (`UI_SCALE` in `src/index.ts`), which stays.
 
 ### Left rail: what can I add?
 
-- 92px wide, always visible, the same in every state.
+- 90px wide (108px on screen), always visible, the same in every state.
 - Group "Add": Select (V), Text (T), Image (I), Formula, Scrim. Each is an icon with a text label underneath, and the shortcut shown when one exists.
 - Divider, then group "Start from": Layout templates, Brand kit.
-- The active tool has a Fill background, a 3px Focus Blue bar on its left edge, and a Focus Blue icon.
+- The other tools are one-shot actions, not modes, so Select is the only tool with an active state. It shows it permanently: a Fill background, a 3px Focus Blue bar on its left edge, and a Focus Blue icon.
 - Delete moves to the selection bar.
 
 ### Selection bar: what can I do to this?
@@ -101,7 +103,7 @@ These were settled with the user on 2026-10-30.
 
 ### Minimum window size
 
-The rail adds 92px and the panel loses 20px. To keep today's minimum canvas width of about 440px, `MIN_W` in `ui/size-gate.ts` goes from 760 to 840. `MIN_H` stays 480.
+At today's minimum of 760px the canvas is about 376px wide (760 − 320 × 1.2). The rail and the narrower panel take (90 + 300) × 1.2 = 468px. To keep the canvas about as wide, `MIN_W` in `ui/size-gate.ts` goes from 760 to 850. `MIN_H` stays 480.
 
 ## Visual system
 
@@ -177,7 +179,7 @@ The page background in `templates/advertiser/creative-design.html` (`#0a0a0b`) b
 | `src/ui/sidebar.ts` | Scope line; shows banner and page sections or item values depending on selection |
 | `src/ui/props-panel.ts` | Replace image, Crop, Remove background and Edit formula buttons removed (they live in the selection bar) |
 | `src/ui/size-matrix.ts` | Restyled chips, ink underline on the active size |
-| `src/ui/size-gate.ts` | `MIN_W` 760 → 840 |
+| `src/ui/size-gate.ts` | `MIN_W` 760 → 850 |
 | The 18 files with hard-coded colours | Chrome colours moved onto tokens |
 | `platform/templates/advertiser/creative-design.html` | Font link, themed background |
 | `platform/creative-designer/index.html` | Font link for the Vite harness |
@@ -195,7 +197,7 @@ The canvas renderer, the selection overlay's behaviour, rulers, guides, pan and 
   - selecting an image, a text item, a formula and two items shows the right actions, and each action does what the old control did
   - the right panel switches between banner/page settings and item values on selection
   - the theme follows `promovolve.dashboard.theme`, and an existing `promovolve.designer.theme` value is carried over once
-  - the size gate appears below 840px wide
+  - the size gate appears below 850px wide
   - screenshots in light and dark for review
 - The user then reviews the look on the Vite harness in light and dark. Nothing is committed until they approve it.
 

@@ -1,5 +1,5 @@
 {{define "content"}}
-<div class="max-w-4xl">
+<div>
   <h1 class="page-title">{{t "Wallet"}}</h1>
   {{$tz := ""}}{{with .Wallet}}{{$tz = .Timezone}}{{end}}
   <p class="page-sub">{{if $tz}}{{t "Your prepaid balance. Campaigns spend from it as impressions are settled at the end of each day in your account's timezone (%s) — the same day your budgets roll on." $tz}}{{else}}{{t "Your prepaid balance. Campaigns spend from it as impressions are settled at the end of each day in your account's timezone — the same day your budgets roll on."}}{{end}}</p>

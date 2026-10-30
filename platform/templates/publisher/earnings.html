@@ -1,5 +1,5 @@
 {{define "content"}}
-<div class="max-w-4xl">
+<div>
   <h1 class="page-title">{{t "Earnings"}}</h1>
   <p class="page-sub">{{if and .Earnings .Earnings.Timezone}}{{t "Settled earnings and payouts — days and payout periods follow your organization's timezone (%s). The Stats page shows today's live revenue; the balance here is what has been settled and is owed to you." .Earnings.Timezone}}{{else}}{{t "Settled earnings and payouts — days and payout periods follow your organization's timezone. The Stats page shows today's live revenue; the balance here is what has been settled and is owed to you."}}{{end}}</p>
 

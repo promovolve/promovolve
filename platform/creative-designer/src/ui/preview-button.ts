@@ -33,25 +33,24 @@ export function mountPreviewButton(
 ): HTMLElement {
   storeRef = store;
   const btn = document.createElement("button");
-  // Icon-only (eye); the action name lives on the tooltip, matching
-  // the icon language of the rest of the chrome.
-  btn.innerHTML = `<svg viewBox="0 0 16 16" width="15" height="15" fill="none" stroke="currentColor" stroke-width="1.3" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M1.5 8s2.4-4.2 6.5-4.2S14.5 8 14.5 8s-2.4 4.2-6.5 4.2S1.5 8 1.5 8z"/><circle cx="8" cy="8" r="2"/></svg>`;
+  // Eye plus "Preview"; the word drops when the top bar runs short.
+  btn.innerHTML = `<svg viewBox="0 0 16 16" width="15" height="15" fill="none" stroke="currentColor" stroke-width="1.3" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M1.5 8s2.4-4.2 6.5-4.2S14.5 8 14.5 8s-2.4 4.2-6.5 4.2S1.5 8 1.5 8z"/><circle cx="8" cy="8" r="2"/></svg><span data-cd-compact="4">Preview</span>`;
   btn.title = "Preview";
   btn.setAttribute("aria-label", "Preview");
   btn.style.cssText = [
     "display: inline-flex",
     "align-items: center",
     "justify-content: center",
-    "width: 30px",
-    "height: 28px",
-    "padding: 0",
+    "gap: 5px",
+    "height: 26px",
+    "padding: 0 9px",
     "background: transparent",
     `color: ${tokens.ink200}`,
     `border: 1px solid ${tokens.ink500}`,
-    "border-radius: 4px",
+    "border-radius: 2px",
     "cursor: pointer",
     "font: inherit",
-    "font-size: 12px",
+    "font-size: 11px",
     "transition: background .12s, color .12s, border-color .12s",
   ].join(";");
   btn.addEventListener("mouseenter", () => {
@@ -94,7 +93,7 @@ function buildPersistentPreview(store: Store): void {
     "position: fixed",
     "inset: 0",
     "z-index: 500",
-    "background: rgba(0,0,0,0.78)",
+    "background: rgba(0,0,0,0.88)",
     "display: flex",
     "align-items: center",
     "justify-content: center",
@@ -114,35 +113,53 @@ function buildPersistentPreview(store: Store): void {
     if (e.target === overlay) hidePreview();
   });
 
-  // Dedicated × to dismiss the whole modal. The magazine's own CLOSE now
-  // collapses the creative to the 300x250 ad (keep-frame) and keeps the
-  // preview open, so it can no longer double as the modal dismiss — this
-  // button (plus scrim click / Esc) is how you leave the preview.
+  // The preview sits in a card like the designer's other modals, with
+  // a labelled Close: the magazine's own CLOSE collapses the creative to
+  // the in-page ad (keep-frame) and keeps the preview open, so it can't
+  // double as the modal dismiss. Scrim click and Esc also close it.
+  const card = document.createElement("div");
+  card.style.cssText = [
+    "display: flex",
+    "flex-direction: column",
+    "gap: 12px",
+    "width: min(932px, 94vw)",
+    "max-height: calc(100vh - 32px)",
+    "overflow: auto",
+    "box-sizing: border-box",
+    "padding: 16px",
+    `background: ${tokens.ink800}`,
+    `border: 1px solid ${tokens.ink500}`,
+    "border-radius: 2px",
+    `color: ${tokens.ink100}`,
+    `font-family: ${tokens.sans}`,
+    "font-size: 12px",
+  ].join(";");
+
+  const header = document.createElement("div");
+  header.style.cssText = "display:flex;align-items:center;gap:8px;";
+  const title = document.createElement("div");
+  title.textContent = "Preview";
+  title.style.cssText = "flex:1;font-weight:600;font-size:13px;";
   const closeBtn = document.createElement("button");
   closeBtn.type = "button";
+  closeBtn.textContent = "Close";
   closeBtn.setAttribute("aria-label", "Close preview");
-  closeBtn.textContent = "×";
   closeBtn.style.cssText = [
-    "position: fixed",
-    "top: 16px",
-    "right: 20px",
-    "z-index: 510",
-    "width: 40px",
-    "height: 40px",
-    "border: none",
-    "border-radius: 50%",
-    "background: rgba(0,0,0,0.55)",
-    "color: #fff",
-    "font: 28px/1 system-ui, sans-serif",
+    "padding: 5px 12px",
+    "border-radius: 2px",
+    "font: inherit",
+    "font-size: 12px",
     "cursor: pointer",
-    "display: flex",
-    "align-items: center",
-    "justify-content: center",
+    "background: transparent",
+    `color: ${tokens.ink200}`,
+    `border: 1px solid ${tokens.ink500}`,
   ].join(";");
   closeBtn.addEventListener("click", hidePreview);
+  header.append(title, closeBtn);
 
   previewEl = buildPreviewEl(store);
-  overlay.append(closeBtn, previewEl);
+  card.append(header, previewEl);
+  overlay.appendChild(card);
   document.body.appendChild(overlay);
 }
 
@@ -156,9 +173,17 @@ function buildPreviewEl(store: Store): HTMLElement {
   if (landingUrl) preview.setAttribute("landing-url", landingUrl);
   // Default to the device the author is currently editing.
   preview.setAttribute("default-mode", mode.key === "mobile" ? "mobile" : "pc");
-  // Cap the floating preview's size on large screens / give it breathing
-  // room on the dim backdrop without changing the component's framing.
-  preview.style.cssText = "max-width: min(900px, 92vw); width: 100%;";
+  preview.style.cssText = [
+    "width: 100%",
+    // The shared element's PC / Mobile toggle, in the designer's ink:
+    // the selected device is an ink-filled segment.
+    "--mp-toggle-radius: 2px",
+    `--mp-toggle-border: ${tokens.ink500}`,
+    `--mp-toggle-fg: ${tokens.ink200}`,
+    `--mp-toggle-active-border: ${tokens.ink100}`,
+    `--mp-toggle-active-bg: ${tokens.ink100}`,
+    `--mp-toggle-active-fg: ${tokens.ink900}`,
+  ].join(";");
   // start-collapsed: open showing the creative EMBEDDED in the faux
   // newspaper page (a real in-page ad placement) rather than auto-expanding
   // — the preview simulates production delivery. Click the ad to expand the
@@ -179,8 +204,7 @@ function buildPreviewEl(store: Store): HTMLElement {
 function refreshPreview(): void {
   if (!overlay || isOpen) return;
   const fresh = buildPreviewEl(storeRef!);
-  if (previewEl) overlay.replaceChild(fresh, previewEl);
-  else overlay.appendChild(fresh);
+  previewEl?.replaceWith(fresh);
   previewEl = fresh;
 }
 

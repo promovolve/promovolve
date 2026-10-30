@@ -1,15 +1,14 @@
-// Horizontal tool group sitting at the left of the canvas header.
-// Icon-only buttons with keyboard-shortcut tooltips for authoring
-// new items and removing the current selection. Mounted by
-// canvas-header.ts as the leftmost cluster in the per-banner menu
-// bar — no longer a standalone rail.
+// Left tool rail — "what can I add?". Always visible and the same in
+// every state: each tool is an icon above a text label, with its
+// keyboard shortcut. Two groups: Add (Select, Text, Image, Formula,
+// Scrim) and Start from (Layout templates, Brand kit). Delete lives in
+// the selection bar, with everything else that acts on a selection.
 //
-// Icons are inline SVGs in currentColor so hover/active states flow
-// through font-color. The vertical divider before Delete separates
-// the pointer + create cluster from the destructive action.
+// The tools other than Select are one-shot actions, not modes, so
+// Select is the only one with an active state and shows it
+// permanently. Icons are inline SVGs in currentColor.
 
 import { addItem, addLocalImage, currentItem, currentLayout, currentPage, selectItem } from "../state";
-import { commitDeleteSelection } from "./confirm-delete";
 import { openFormulaModal } from "./formula-modal";
 import type { Store } from "../store";
 import type { DesignerState, LayoutItem, RectItem, TextItem } from "../types";
@@ -22,15 +21,21 @@ import { openBrandKitModal } from "./brand-kit-modal";
 import { openTemplateModal } from "./template-modal";
 import { tokens } from "./tokens";
 
-export function mountToolbar(host: HTMLElement, store: Store): void {
+export function mountToolRail(host: HTMLElement, store: Store): void {
   const bar = document.createElement("div");
-  bar.className = "cd-tool-group";
+  bar.className = "cd-tool-rail";
+  bar.setAttribute("aria-label", "Tools");
   bar.style.cssText = [
-    "flex: 0 0 auto",
+    "width: 90px",
+    "height: 100%",
+    "box-sizing: border-box",
+    "padding: 8px 6px",
     "display: flex",
-    "flex-direction: row",
-    "align-items: center",
+    "flex-direction: column",
     "gap: 2px",
+    "overflow-y: auto",
+    `background: ${tokens.ink900}`,
+    `border-right: 1px solid ${tokens.ink600}`,
   ].join(";");
 
   // Track the most recently single-selected text item's fontSize so
@@ -60,17 +65,16 @@ export function mountToolbar(host: HTMLElement, store: Store): void {
   };
 
   bar.append(
-    iconBtn(ICON_SELECT, "Select · V",  () => store.commit(selectItem(store.state, null))),
-    iconBtn(ICON_TEXT,   "Text · T",    addText),
-    iconBtn(ICON_IMAGE,  "Image · I",   () => openAssetModal(store, (asset) => store.commit(addLocalImage(store.state, asset.cdnUrl, asset.width && asset.height ? { w: asset.width, h: asset.height } : undefined)))),
-    iconBtn(ICON_FORMULA, "Formula (LaTeX)", () => openFormulaModal(store)),
-    iconBtn(ICON_SCRIM,  "Scrim",       () => store.commit(addItem(store.state, defaultScrim()))),
-    iconBtn(ICON_TEMPLATE, "Layout templates", () => openTemplateModal(store)),
-    iconBtn(ICON_BRAND, "Brand kit", () => openBrandKitModal(window.__DESIGNER__?.campaignId ?? "")),
+    groupHeading("Add"),
+    toolBtn(ICON_SELECT, "Select", "V", () => store.commit(selectItem(store.state, null)), { active: true }),
+    toolBtn(ICON_TEXT, "Text", "T", addText),
+    toolBtn(ICON_IMAGE, "Image", "I", () => openAssetModal(store, (asset) => store.commit(addLocalImage(store.state, asset.cdnUrl, asset.width && asset.height ? { w: asset.width, h: asset.height } : undefined)))),
+    toolBtn(ICON_FORMULA, "Formula", "", () => openFormulaModal(store)),
+    toolBtn(ICON_SCRIM, "Scrim", "", () => store.commit(addItem(store.state, defaultScrim()))),
     divider(),
-    iconBtn(ICON_TRASH,  "Delete · ⌫",  () => {
-      commitDeleteSelection(store);
-    }, { danger: true }),
+    groupHeading("Start from"),
+    toolBtn(ICON_TEMPLATE, "Layout templates", "", () => openTemplateModal(store)),
+    toolBtn(ICON_BRAND, "Brand kit", "", () => openBrandKitModal(window.__DESIGNER__?.campaignId ?? "")),
   );
 
   host.appendChild(bar);
@@ -138,72 +142,72 @@ export function inferWritingModeFromLayout(state: DesignerState): "vertical-rl" 
   return anchor?.writingMode === "vertical-rl" ? "vertical-rl" : undefined;
 }
 
-interface IconBtnOpts {
-  danger?: boolean;
+interface ToolBtnOpts {
+  active?: boolean;
 }
 
-function iconBtn(iconSvg: string, title: string, onClick: () => void, opts: IconBtnOpts = {}): HTMLButtonElement {
+// Icon above its label, shortcut underneath in mono. The label is the
+// accessible name; the shortcut rides in the title.
+function toolBtn(iconSvg: string, label: string, shortcut: string, onClick: () => void, opts: ToolBtnOpts = {}): HTMLButtonElement {
   const b = document.createElement("button");
   b.type = "button";
-  b.title = title;
-  // aria-label is the part before the bullet — "Text · T" → "Text"
-  b.setAttribute("aria-label", title.split("·")[0]!.trim());
-  b.innerHTML = iconSvg;
-  const idleColor = opts.danger ? tokens.err : tokens.ink300;
-  const hoverColor = opts.danger ? tokens.err : tokens.ink100;
-  const hoverBg = opts.danger ? "transparent" : tokens.ink700;
+  b.setAttribute("aria-label", label);
+  b.title = shortcut ? `${label} (${shortcut})` : label;
+  if (opts.active) b.setAttribute("aria-pressed", "true");
+  b.innerHTML = `<span data-icon>${iconSvg}</span><span>${label}</span>` +
+    (shortcut ? `<kbd style="font: 10px ${tokens.mono}; color: ${tokens.ink300};">${shortcut}</kbd>` : "");
+  const idleBg = opts.active ? tokens.ink700 : "transparent";
   b.style.cssText = [
-    "width: 30px",
-    "height: 30px",
+    "position: relative",
     "display: flex",
+    "flex-direction: column",
     "align-items: center",
-    "justify-content: center",
-    "background: transparent",
-    `color: ${idleColor}`,
-    "border: 1px solid transparent",
-    `border-radius: ${tokens.r6}px`,
+    "gap: 2px",
+    "padding: 6px 2px",
+    `background: ${idleBg}`,
+    `color: ${tokens.ink100}`,
+    "border: none",
+    `border-radius: ${tokens.r4}px`,
+    // Active tool: a 3px Focus Blue bar on the left edge.
+    opts.active ? `box-shadow: inset 3px 0 0 ${tokens.focus}` : "box-shadow: none",
     "cursor: pointer",
-    "padding: 0",
-    "transition: background .12s, color .12s, border-color .12s",
+    "font: inherit",
+    "font-size: 11px",
+    "line-height: 1.25",
+    "text-align: center",
   ].join(";");
-  b.addEventListener("mouseenter", () => {
-    b.style.color = hoverColor;
-    b.style.background = hoverBg;
-    if (opts.danger) b.style.borderColor = tokens.err;
-  });
-  b.addEventListener("mouseleave", () => {
-    b.style.color = idleColor;
-    b.style.background = "transparent";
-    b.style.borderColor = "transparent";
-  });
+  const icon = b.querySelector<HTMLElement>("[data-icon]")!;
+  icon.style.cssText = `display:flex;color:${opts.active ? tokens.focus : tokens.ink100};`;
+  b.addEventListener("mouseenter", () => { b.style.background = tokens.ink700; });
+  b.addEventListener("mouseleave", () => { b.style.background = idleBg; });
   b.addEventListener("click", onClick);
   return b;
 }
 
+function groupHeading(text: string): HTMLElement {
+  const el = document.createElement("div");
+  el.textContent = text;
+  el.style.cssText = `font-size: 10px; color: ${tokens.ink300}; padding: 4px 4px 2px;`;
+  return el;
+}
+
 function divider(): HTMLElement {
   const el = document.createElement("div");
-  el.style.cssText = [
-    "width: 1px",
-    "height: 22px",
-    `background: ${tokens.ink500}`,
-    "margin: 0 4px",
-    "align-self: center",
-  ].join(";");
+  el.style.cssText = `height: 1px; background: ${tokens.ink600}; margin: 6px 4px;`;
   return el;
 }
 
 // ─── Icon SVGs (14×14, stroke currentColor) ───────────────────────
 
-const ICON_SELECT = `<svg viewBox="0 0 14 14" width="14" height="14" fill="none" stroke="currentColor" stroke-width="1.4" stroke-linejoin="round" stroke-linecap="round"><path d="M3 2.5l7 4.2-3 .9-1 3z"/></svg>`;
-const ICON_TEXT = `<svg viewBox="0 0 14 14" width="14" height="14" fill="none" stroke="currentColor" stroke-width="1.4" stroke-linecap="round"><path d="M3 3h8"/><path d="M7 3v8"/></svg>`;
-const ICON_IMAGE = `<svg viewBox="0 0 14 14" width="14" height="14" fill="none" stroke="currentColor" stroke-width="1.4"><rect x="2" y="3" width="10" height="8" rx="1"/><circle cx="5" cy="6" r="1"/><path d="M2.5 10l3-3 2.5 2.5L10 8l2 2"/></svg>`;
-const ICON_TEMPLATE = `<svg viewBox="0 0 14 14" width="14" height="14" fill="none" stroke="currentColor" stroke-width="1.4" stroke-linejoin="round"><rect x="2" y="2" width="10" height="10" rx="1"/><path d="M2 5 L12 5"/><path d="M5 5 L5 12"/></svg>`;
-const ICON_BRAND = `<svg viewBox="0 0 14 14" width="14" height="14" fill="none" stroke="currentColor" stroke-width="1.4" stroke-linejoin="round"><circle cx="4" cy="5" r="2.2"/><circle cx="9" cy="4" r="1.6"/><circle cx="10" cy="9" r="2.2"/><circle cx="4.5" cy="10" r="1.6"/></svg>`;
+const ICON_SELECT = `<svg viewBox="0 0 14 14" width="18" height="18" fill="none" stroke="currentColor" stroke-width="1.4" stroke-linejoin="round" stroke-linecap="round"><path d="M3 2.5l7 4.2-3 .9-1 3z"/></svg>`;
+const ICON_TEXT = `<svg viewBox="0 0 14 14" width="18" height="18" fill="none" stroke="currentColor" stroke-width="1.4" stroke-linecap="round"><path d="M3 3h8"/><path d="M7 3v8"/></svg>`;
+const ICON_IMAGE = `<svg viewBox="0 0 14 14" width="18" height="18" fill="none" stroke="currentColor" stroke-width="1.4"><rect x="2" y="3" width="10" height="8" rx="1"/><circle cx="5" cy="6" r="1"/><path d="M2.5 10l3-3 2.5 2.5L10 8l2 2"/></svg>`;
+const ICON_TEMPLATE = `<svg viewBox="0 0 14 14" width="18" height="18" fill="none" stroke="currentColor" stroke-width="1.4" stroke-linejoin="round"><rect x="2" y="2" width="10" height="10" rx="1"/><path d="M2 5 L12 5"/><path d="M5 5 L5 12"/></svg>`;
+const ICON_BRAND = `<svg viewBox="0 0 14 14" width="18" height="18" fill="none" stroke="currentColor" stroke-width="1.4" stroke-linejoin="round"><circle cx="4" cy="5" r="2.2"/><circle cx="9" cy="4" r="1.6"/><circle cx="10" cy="9" r="2.2"/><circle cx="4.5" cy="10" r="1.6"/></svg>`;
 // Scrim: a rect half-filled with a fade — a box whose lower band is solid
 // and grades up to nothing.
-const ICON_FORMULA = `<svg viewBox="0 0 14 14" width="14" height="14" fill="none" stroke="currentColor" stroke-width="1.4" stroke-linejoin="round" stroke-linecap="round"><path d="M11 3H3.5l4 4-4 4H11"/></svg>`;
-const ICON_SCRIM = `<svg viewBox="0 0 14 14" width="14" height="14" fill="none" stroke="currentColor" stroke-width="1.4" stroke-linejoin="round"><rect x="2" y="2" width="10" height="10" rx="1"/><path d="M2 8h10" opacity="0.5"/><path d="M2 10.5h10"/></svg>`;
-const ICON_TRASH = `<svg viewBox="0 0 14 14" width="14" height="14" fill="none" stroke="currentColor" stroke-width="1.4" stroke-linecap="round"><path d="M3 4h8"/><path d="M4 4l.5 7a1 1 0 0 0 1 1h3a1 1 0 0 0 1-1l.5-7"/><path d="M5.5 4V3a1 1 0 0 1 1-1h1a1 1 0 0 1 1 1v1"/></svg>`;
+const ICON_FORMULA = `<svg viewBox="0 0 14 14" width="18" height="18" fill="none" stroke="currentColor" stroke-width="1.4" stroke-linejoin="round" stroke-linecap="round"><path d="M11 3H3.5l4 4-4 4H11"/></svg>`;
+const ICON_SCRIM = `<svg viewBox="0 0 14 14" width="18" height="18" fill="none" stroke="currentColor" stroke-width="1.4" stroke-linejoin="round"><rect x="2" y="2" width="10" height="10" rx="1"/><path d="M2 8h10" opacity="0.5"/><path d="M2 10.5h10"/></svg>`;
 
 // Defaults for new items — recognisable initial colors so authors
 // immediately see the shape they just added and can pick their own
@@ -219,7 +223,7 @@ function defaultText(): TextItem {
     // between the preset headline (10) and the legibility warning
     // floor (3 via LEGIBILITY_MIN_FONT). The usual path — inherit
     // from the last-selected text, or from an auto-layout text item
-    // — overrides this in mountToolbar's addText.
+    // — overrides this in mountToolRail's addText.
     fontSize: 8,
     color: "#ffffff",
     // Last-resort face for the same reason as fontSize above — the

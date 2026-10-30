@@ -84,7 +84,7 @@ function buildModal(): Modal {
     "max-height: 100%",
     `background: ${tokens.ink800}`,
     `border: 1px solid ${tokens.ink500}`,
-    "border-radius: 8px",
+    "border-radius: 2px",
     "display: flex",
     "flex-direction: column",
     "overflow: hidden",
@@ -97,13 +97,13 @@ function buildModal(): Modal {
   title.textContent = "Images";
   title.style.cssText = `margin:0;font-size:15px;color:${tokens.ink100};font-weight:500;`;
   const count = document.createElement("span");
-  count.style.cssText = `color:${tokens.ink400};font-size:12px;`;
+  count.style.cssText = `color:${tokens.ink300};font-size:12px;`;
   const spacer = document.createElement("div");
   spacer.style.flex = "1";
   const uploadLabel = document.createElement("label");
   uploadLabel.htmlFor = "cd-asset-upload";
   uploadLabel.textContent = "⬆ Upload";
-  uploadLabel.style.cssText = `padding:4px 10px;background:${tokens.ink700};color:${tokens.ink100};border:1px solid ${tokens.ink500};border-radius:4px;cursor:pointer;font-size:12px;`;
+  uploadLabel.style.cssText = `padding:4px 10px;background:${tokens.ink700};color:${tokens.ink100};border:1px solid ${tokens.ink500};border-radius:2px;cursor:pointer;font-size:12px;`;
   const fileInput = document.createElement("input");
   fileInput.id = "cd-asset-upload";
   fileInput.type = "file";
@@ -113,14 +113,14 @@ function buildModal(): Modal {
   const closeBtn = document.createElement("button");
   closeBtn.type = "button";
   closeBtn.textContent = "Close";
-  closeBtn.style.cssText = `padding:4px 10px;background:${tokens.ink700};color:${tokens.ink100};border:1px solid ${tokens.ink500};border-radius:4px;cursor:pointer;font-size:12px;`;
+  closeBtn.style.cssText = `padding:4px 10px;background:${tokens.ink700};color:${tokens.ink100};border:1px solid ${tokens.ink500};border-radius:2px;cursor:pointer;font-size:12px;`;
   header.append(title, count, spacer, uploadLabel, fileInput, closeBtn);
 
   // Body
   const body = document.createElement("div");
   body.style.cssText = "padding:16px;overflow:auto;";
   const zone = document.createElement("div");
-  zone.style.cssText = `border:2px dashed ${tokens.ink500};border-radius:6px;padding:18px;text-align:center;color:${tokens.ink400};font-size:13px;cursor:pointer;margin-bottom:16px;`;
+  zone.style.cssText = `border:2px dashed ${tokens.ink500};border-radius:2px;padding:18px;text-align:center;color:${tokens.ink300};font-size:13px;cursor:pointer;margin-bottom:16px;`;
   zone.textContent = "Drop images here, or click Upload above";
   const grid = document.createElement("div");
   // Responsive grid: thumbnails keep their natural aspect ratio (no square
@@ -157,7 +157,7 @@ function buildModal(): Modal {
     grid.innerHTML = "";
     const empty = document.createElement("div");
     empty.textContent = "No images yet — drop or upload some above.";
-    empty.style.cssText = `grid-column:1/-1; text-align:center; color:${tokens.ink400}; padding:32px;`;
+    empty.style.cssText = `grid-column:1/-1; text-align:center; color:${tokens.ink300}; padding:32px;`;
     grid.appendChild(empty);
   };
 
@@ -182,7 +182,7 @@ function buildModal(): Modal {
     const ratio = asset.width && asset.height ? `${asset.width} / ${asset.height}` : "3 / 2";
     const c = document.createElement("div");
     c.dataset.assetId = asset.id;
-    c.style.cssText = `position:relative;background:${tokens.ink900};border:1px solid ${tokens.ink500};border-radius:4px;overflow:hidden;cursor:pointer;content-visibility:auto;contain-intrinsic-size:auto 150px;`;
+    c.style.cssText = `position:relative;background:${tokens.ink900};border:1px solid ${tokens.ink500};border-radius:2px;overflow:hidden;cursor:pointer;content-visibility:auto;contain-intrinsic-size:auto 150px;`;
     const img = document.createElement("img");
     // lazy + async so only images scrolled into view fetch/decode; the
     // reserved aspect-ratio box keeps offscreen cards genuinely offscreen.
@@ -377,7 +377,7 @@ function buildModal(): Modal {
     if (fileInput.files) void uploadFiles(fileInput.files);
   });
   zone.addEventListener("click", () => fileInput.click());
-  zone.addEventListener("dragover", (e) => { e.preventDefault(); zone.style.borderColor = tokens.amber; });
+  zone.addEventListener("dragover", (e) => { e.preventDefault(); zone.style.borderColor = tokens.focus; });
   zone.addEventListener("dragleave", () => { zone.style.borderColor = tokens.ink500; });
   zone.addEventListener("drop", (e) => {
     e.preventDefault();

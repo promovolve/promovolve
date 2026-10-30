@@ -21,8 +21,9 @@ import { mountAnimationPanel } from "./ui/animation-panel";
 import { mountSizeMatrix } from "./ui/size-matrix";
 import { mountMenuBar } from "./ui/menu-bar";
 import { mountSidebar } from "./ui/sidebar";
+import { mountToolRail } from "./ui/tool-rail";
+import { mountSelectionBar } from "./ui/selection-bar";
 import { mountLayers } from "./ui/layers";
-import { mountCanvasHeader } from "./ui/canvas-header";
 import { mountCanvasFoot } from "./ui/canvas-foot";
 import { installAutoLayoutGenerator, initialLayoutForPage } from "./auto-layout";
 import { autoCropOnBoot } from "./auto-crop";
@@ -55,34 +56,37 @@ function mountRoot(): HTMLElement {
 }
 
 interface Shell {
-  menuBarHost: HTMLElement;
+  topBarHost: HTMLElement;
+  railHost: HTMLElement;
   matrixHost: HTMLElement;
-  canvasHeaderHost: HTMLElement;
+  selectionBarHost: HTMLElement;
   canvasHost: HTMLElement;
   canvasFootHost: HTMLElement;
   sidebarHost: HTMLElement;
 }
 
 /**
- * Create the shell layout. Returns six hosts that callers mount
- * content into:
+ * Create the shell layout. Returns the hosts that callers mount
+ * content into (pre-zoom px; chrome hosts render at UI_SCALE):
  *
  *   ┌──────────────────────────────────────────────────────────┐
- *   │  menuBarHost                         (38px)              │
- *   ├──────────────────────────────────────────────────┬───────┤
- *   │  matrixHost                 (88px)                │       │
- *   ├──────────────────────────────────────────────────┤       │
- *   │  canvasHeaderHost  (tools + banner actions)      │ side- │
- *   ├──────────────────────────────────────────────────┤ bar   │
- *   │  canvasHost              (scrollable)            │ Host  │
- *   ├──────────────────────────────────────────────────┤ 320px │
- *   │  canvasFootHost                                  │       │
- *   └──────────────────────────────────────────────────┴───────┘
+ *   │  topBarHost — the whole banner                   (40px)  │
+ *   ├──────┬───────────────────────────────────────┬───────────┤
+ *   │ rail │  matrixHost — sizes                    │ sidebar   │
+ *   │ Host ├───────────────────────────────────────┤ Host      │
+ *   │ 90px │  selectionBarHost — this item (40px+)  │ 300px     │
+ *   │      ├───────────────────────────────────────┤ values    │
+ *   │ what │  canvasHost              (pan/zoom)   │ only      │
+ *   │ can I├───────────────────────────────────────┤           │
+ *   │ add? │  canvasFootHost — page, size, metrics │           │
+ *   └──────┴───────────────────────────────────────┴───────────┘
  */
 function renderShell(root: HTMLElement): Shell {
-  const menuBarHost = div(root, { flex: "0 0 auto" });
+  const topBarHost = div(root, { flex: "0 0 auto" });
 
   const body = div(root, { display: "flex", flexDirection: "row", flex: "1", minWidth: "0", minHeight: "0" });
+
+  const railHost = div(body, { flex: "0 0 auto", width: "90px", minHeight: "0", display: "flex" });
 
   const centre = div(body, {
     display: "flex",
@@ -92,21 +96,18 @@ function renderShell(root: HTMLElement): Shell {
     minHeight: "0",
   });
 
-  // Horizontal size-matrix strip — INSIDE the centre column (not full
-  // width) so the right sidebar runs flush up to the menu bar instead
-  // of starting below the strip. The chip row scrolls horizontally,
-  // so the narrower span costs nothing.
+  // The size strip scrolls horizontally, so the centre column's span
+  // costs nothing; the rail and sidebar run flush up to the top bar.
   const matrixHost = div(centre, { flex: "0 0 auto", minWidth: "0", display: "flex" });
 
-  const canvasHeaderHost = div(centre, { flex: "0 0 auto" });
+  const selectionBarHost = div(centre, { flex: "0 0 auto" });
 
   const canvasHost = document.createElement("div");
   canvasHost.id = "canvas-host";
-  // The canvas region is a scrollable container with a faint dotted
-  // grid backdrop so the drawable area reads as "work surface" vs
-  // the surrounding chrome. It gets `minHeight: 0` so it can shrink
-  // inside the flex column (important when the header/foot + chrome
-  // already account for most of the vertical space).
+  // The canvas region: the page colour with hairline dots, so the
+  // drawable area reads as "work surface" against the chrome.
+  // minHeight 0 lets it shrink inside the flex column — and yield to
+  // the selection bar when that wraps to a second row.
   canvasHost.style.cssText = [
     "flex: 1",
     // overflow:hidden — pan is a CSS-transform translate on the
@@ -116,7 +117,7 @@ function renderShell(root: HTMLElement): Shell {
     // canvas snapping back after release.
     "overflow: hidden",
     "min-height: 0",
-    `background: radial-gradient(circle at 1px 1px, ${tokens.ink700} 1px, transparent 0) ${tokens.ink900}`,
+    `background: radial-gradient(circle at 1px 1px, ${tokens.ink600} 1px, transparent 0) ${tokens.ink800}`,
     "background-size: 24px 24px",
     "display: flex",
     "align-items: safe center",
@@ -128,9 +129,9 @@ function renderShell(root: HTMLElement): Shell {
 
   const canvasFootHost = div(centre, { flex: "0 0 auto" });
 
-  const sidebarHost = div(body, { flex: "0 0 auto", width: "320px", minHeight: "0", display: "flex" });
+  const sidebarHost = div(body, { flex: "0 0 auto", width: "300px", minHeight: "0", display: "flex" });
 
-  return { menuBarHost, matrixHost, canvasHeaderHost, canvasHost, canvasFootHost, sidebarHost };
+  return { topBarHost, railHost, matrixHost, selectionBarHost, canvasHost, canvasFootHost, sidebarHost };
 }
 
 function div(parent: HTMLElement, style: Partial<CSSStyleDeclaration>): HTMLDivElement {
@@ -216,10 +217,10 @@ function boot(ctx: DesignerContext): void {
       "transform: translateX(-50%)",
       "z-index: 10000",
       "max-width: 560px",
-      "background: #7f1d1d",
-      "color: #fecaca",
-      "border: 1px solid #b91c1c",
-      "border-radius: 8px",
+      `background: ${tokens.ink900}`,
+      `color: ${tokens.ink100}`,
+      `border: 1px solid ${tokens.err}`,
+      "border-radius: 2px",
       "padding: 10px 36px 10px 14px",
       "font-size: 13px",
       "line-height: 1.45",
@@ -228,7 +229,7 @@ function boot(ctx: DesignerContext): void {
     toast.textContent = ctx.errorMsg;
     const x = document.createElement("button");
     x.textContent = "×";
-    x.style.cssText = "position:absolute;top:6px;right:8px;background:none;border:none;color:#fecaca;font-size:16px;cursor:pointer;";
+    x.style.cssText = `position:absolute;top:6px;right:8px;background:none;border:none;color:${tokens.ink300};font-size:16px;cursor:pointer;`;
     x.addEventListener("click", () => toast.remove());
     toast.appendChild(x);
     document.body.appendChild(toast);
@@ -266,19 +267,23 @@ function boot(ctx: DesignerContext): void {
   // text AND spacing grow together. Applied to every chrome host EXCEPT
   // the canvas, which keeps its own scale (the user zooms it separately).
   // 1.2, not 1.15: chrome heights sit on a multiple-of-5 pre-zoom grid
-  // (menu 40, strip 90, canvas-header 50, tab-bar 35, collapsed rows 35)
+  // (top bar 40, strip 90, selection bar 40, tab-bar 35, collapsed rows 35)
   // so every zoomed position lands on an exact integer CSS pixel — at
   // 1.15 nothing is integral, each zoom-root rounded independently, and
   // structural lines that must MEET across the canvas/sidebar divider
   // missed by a pixel (2026-08-18).
   const UI_SCALE = "1.2";
-  for (const h of [shell.menuBarHost, shell.matrixHost, shell.canvasHeaderHost, shell.canvasFootHost, shell.sidebarHost]) {
+  for (const h of [shell.topBarHost, shell.railHost, shell.matrixHost, shell.selectionBarHost, shell.canvasFootHost, shell.sidebarHost]) {
     h.style.setProperty("zoom", UI_SCALE);
+    // Figures line up in every readout (sizes, coordinates, zoom). Chrome
+    // hosts only: the canvas renders the advertiser's own type.
+    h.style.setProperty("font-variant-numeric", "tabular-nums");
   }
 
-  const menuBar = mountMenuBar(shell.menuBarHost, store, ctx);
+  const menuBar = mountMenuBar(shell.topBarHost, store, ctx);
+  mountToolRail(shell.railHost, store);
   const matrix = mountSizeMatrix(shell.matrixHost, store);
-  const canvasHdr = mountCanvasHeader(shell.canvasHeaderHost, store, ctx);
+  const selectionBar = mountSelectionBar(shell.selectionBarHost, store);
   const canvas = mountCanvas(shell.canvasHost, store.state, store);
   const overlay = mountOverlay(canvas.root, store);
   const logoOverlay = mountLogoOverlay(canvas.root, store);
@@ -382,23 +387,26 @@ function boot(ctx: DesignerContext): void {
   store.subscribe((state) => {
     menuBar.update(state);
     matrix.update(state);
-    canvasHdr.update(state);
+    selectionBar.update(state);
     canvas.update(state);
     overlay.update(state);
     logoOverlay.update(state);
     canvasFt.update(state);
     bannerConfig.update(state);
     pageBg.update(state);
+    sidebar.update(state);
     props.update(state);
     animation.update(state);
     layers.update(state);
     updateRulers(state.mode);
   });
+  menuBar.update(store.state);
   matrix.update(store.state);
-  canvasHdr.update(store.state);
+  selectionBar.update(store.state);
   canvasFt.update(store.state);
   bannerConfig.update(store.state);
   pageBg.update(store.state);
+  sidebar.update(store.state);
   props.update(store.state);
   animation.update(store.state);
   layers.update(store.state);

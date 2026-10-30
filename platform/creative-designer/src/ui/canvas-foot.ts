@@ -7,7 +7,9 @@
 //          from the menu bar because they're canvas-view concerns
 //          rather than identity chrome.
 
-import { setZoom } from "../state";
+import { currentPage, setZoom, switchPage } from "../state";
+import { isMultiPage } from "../modes";
+import { fanoutStatus, type FanoutStatus } from "../state/fanout";
 import type { Store } from "../store";
 import type { DesignerState } from "../types";
 import { onRulersToggle, rulersEnabled, setRulersEnabled } from "../render/rulers";
@@ -35,7 +37,31 @@ export function mountCanvasFoot(host: HTMLElement, store: Store): CanvasFootHand
     "flex: 0 0 auto",
   ].join(";");
 
-  // Left: spec metrics
+  // Left: the page pager (multi-page modes only — IAB sizes are a single
+  // frame), then which size is on the canvas and its fanout status.
+  const pager = document.createElement("div");
+  pager.style.cssText = "display:flex;align-items:center;gap:4px;flex:0 0 auto;";
+  const prev = pagerBtn("‹", "Previous page");
+  const pageLabel = document.createElement("span");
+  pageLabel.style.cssText = `color:${tokens.ink200};min-width:52px;text-align:center;`;
+  const next = pagerBtn("›", "Next page");
+  prev.addEventListener("click", () => {
+    if (store.state.pageIdx > 0) store.replace(switchPage(store.state, store.state.pageIdx - 1));
+  });
+  next.addEventListener("click", () => {
+    if (store.state.pageIdx < store.state.pages.length - 1) {
+      store.replace(switchPage(store.state, store.state.pageIdx + 1));
+    }
+  });
+  pager.append(prev, pageLabel, next);
+  bar.appendChild(pager);
+
+  const sizeLine = document.createElement("span");
+  sizeLine.dataset.cdSizeLine = "";
+  sizeLine.style.cssText = `color:${tokens.ink200};white-space:nowrap;flex:0 0 auto;`;
+  bar.append(sizeLine, separator());
+
+  // Then: spec metrics
   const metrics = document.createElement("div");
   metrics.style.cssText = "display:flex;align-items:center;gap:10px;min-width:0;flex:1;overflow:hidden;";
 
@@ -68,16 +94,16 @@ export function mountCanvasFoot(host: HTMLElement, store: Store): CanvasFootHand
     "background: transparent",
     `color: ${tokens.ink400}`,
     `border: 1px solid ${tokens.ink500}`,
-    "border-radius: 4px",
+    "border-radius: 2px",
     "cursor: pointer",
     "font-size: 11px",
     "padding: 0",
     "transition: color .12s, background .12s, border-color .12s",
   ].join(";");
   const applyRulerBtnState = (on: boolean): void => {
-    rulersBtn.style.color = on ? tokens.amber : tokens.ink400;
-    rulersBtn.style.borderColor = on ? tokens.amberMuted : tokens.ink500;
-    rulersBtn.style.background = on ? tokens.amberBg : "transparent";
+    rulersBtn.style.color = on ? tokens.ink100 : tokens.ink400;
+    rulersBtn.style.borderColor = on ? tokens.ink100 : tokens.ink500;
+    rulersBtn.style.background = on ? tokens.ink700 : "transparent";
   };
   applyRulerBtnState(rulersEnabled());
   rulersBtn.addEventListener("click", () => setRulersEnabled(!rulersEnabled()));
@@ -90,7 +116,7 @@ export function mountCanvasFoot(host: HTMLElement, store: Store): CanvasFootHand
   zoomInput.max = "3";
   zoomInput.step = "0.05";
   zoomInput.title = "Canvas zoom";
-  zoomInput.style.cssText = `width: 110px; accent-color: ${tokens.amber}; cursor: pointer;`;
+  zoomInput.style.cssText = `width: 110px; accent-color: ${tokens.ink100}; cursor: pointer;`;
   zoomInput.addEventListener("input", () => {
     const z = Number(zoomInput.value);
     if (Number.isFinite(z) && z !== store.state.zoom) store.replace(setZoom(store.state, z));
@@ -120,11 +146,21 @@ export function mountCanvasFoot(host: HTMLElement, store: Store): CanvasFootHand
 
   return {
     update(state) {
+      const total = state.pages.length;
+      pager.style.display = isMultiPage(state.mode) ? "flex" : "none";
+      pageLabel.textContent = total > 0 ? `Page ${state.pageIdx + 1} / ${total}` : "—";
+      setEnabled(prev, state.pageIdx > 0);
+      setEnabled(next, state.pageIdx < total - 1);
+      const page = currentPage(state);
+      const status = page ? STATUS_WORD[fanoutStatus(page, state.mode)] : "";
+      sizeLine.textContent = [`${state.mode.w}×${state.mode.h}`, state.mode.label, status].filter(Boolean).join(" · ");
+
       const metrics = specMetrics(state);
 
       weight.setValue(
         `Weight ${metrics.weightKb} KB / ${WEIGHT_MAX} KB`,
         thresholdColor(metrics.weightThreshold),
+        metrics.weightThreshold === "warn",
       );
 
       // Video is billed separately by most ad servers — show its size
@@ -146,16 +182,54 @@ export function mountCanvasFoot(host: HTMLElement, store: Store): CanvasFootHand
   };
 }
 
-function metric(): { el: HTMLElement; setValue: (text: string, color: string) => void } {
+function metric(): { el: HTMLElement; setValue: (text: string, color: string, advisory?: boolean) => void } {
   const el = document.createElement("span");
   el.style.cssText = "white-space: nowrap; overflow: hidden; text-overflow: ellipsis;";
   return {
     el,
-    setValue(text, color) {
+    setValue(text, color, advisory = false) {
       el.textContent = text;
       el.style.color = color;
+      el.style.borderLeft = advisory ? `3px solid ${tokens.warn}` : "";
+      el.style.paddingLeft = advisory ? "4px" : "";
     },
   };
+}
+
+const STATUS_WORD: Record<FanoutStatus, string> = {
+  authored: "Authored",
+  generated: "Generated",
+  empty: "Empty",
+};
+
+function pagerBtn(label: string, title: string): HTMLButtonElement {
+  const b = document.createElement("button");
+  b.type = "button";
+  b.textContent = label;
+  b.title = title;
+  b.setAttribute("aria-label", title);
+  b.style.cssText = [
+    "width: 20px",
+    "height: 20px",
+    "display: flex",
+    "align-items: center",
+    "justify-content: center",
+    "background: transparent",
+    `color: ${tokens.ink200}`,
+    `border: 1px solid ${tokens.ink500}`,
+    "border-radius: 2px",
+    "font: inherit",
+    "font-size: 13px",
+    "cursor: pointer",
+    "padding: 0",
+  ].join(";");
+  return b;
+}
+
+function setEnabled(btn: HTMLButtonElement, enabled: boolean): void {
+  btn.disabled = !enabled;
+  btn.style.opacity = enabled ? "1" : "0.35";
+  btn.style.cursor = enabled ? "pointer" : "default";
 }
 
 function separator(): HTMLElement {
@@ -165,9 +239,11 @@ function separator(): HTMLElement {
   return el;
 }
 
+// Advisory Yellow is unreadable as text, so "warn" is ink text with a
+// yellow marker (see metric()); ok / err are legible as text.
 function thresholdColor(t: "ok" | "warn" | "err"): string {
   if (t === "ok")   return tokens.ok;
-  if (t === "warn") return tokens.warn;
+  if (t === "warn") return tokens.ink100;
   return tokens.err;
 }
 

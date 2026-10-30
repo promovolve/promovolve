@@ -71,10 +71,8 @@ export function mountSizeMatrix(host: HTMLElement, store: Store): SizeMatrixHand
   const headerLabel = document.createElement("div");
   headerLabel.style.cssText = [
     `font-family: ${tokens.sans}`,
-    "font-size: 10px",
-    "letter-spacing: 1.6px",
-    `color: ${tokens.ink400}`,
-    "text-transform: uppercase",
+    "font-size: 11px",
+    `color: ${tokens.ink300}`,
     "margin-bottom: 8px",
   ].join(";");
   summary.appendChild(headerLabel);
@@ -91,7 +89,7 @@ export function mountSizeMatrix(host: HTMLElement, store: Store): SizeMatrixHand
   progAuth.style.background = tokens.ok;
   progAuth.style.transition = "flex-basis .15s";
   const progGen = document.createElement("div");
-  progGen.style.background = tokens.warn;
+  progGen.style.background = tokens.ink400;
   progGen.style.transition = "flex-basis .15s";
   const progEmpty = document.createElement("div");
   progEmpty.style.background = "transparent";
@@ -108,9 +106,9 @@ export function mountSizeMatrix(host: HTMLElement, store: Store): SizeMatrixHand
     `color: ${tokens.ink300}`,
     `font-family: ${tokens.sans}`,
   ].join(";");
-  const legAuth  = legendItem(tokens.ok,    "AUTH");
-  const legGen   = legendItem(tokens.warn,  "AUTO");
-  const legEmpty = legendItem("",           "EMPTY");
+  const legAuth  = legendItem(tokens.ok,    "Authored");
+  const legGen   = legendItem(tokens.ink400, "Generated");
+  const legEmpty = legendItem("",           "Empty");
   legend.append(legAuth.el, legGen.el, legEmpty.el);
   summary.appendChild(legend);
 
@@ -158,7 +156,7 @@ export function mountSizeMatrix(host: HTMLElement, store: Store): SizeMatrixHand
   // Chevron overflow affordance: ‹ › float over the row's edges, each
   // visible ONLY while there is content to scroll toward on its side —
   // both hidden when everything fits. Same 24px ghost-button language
-  // as the canvas-header pager arrows. A click glides most of a
+  // as the footer pager arrows. A click glides most of a
   // viewport; wheel/trackpad/drag scrolling still works underneath.
   const scrollWrap = document.createElement("div");
   scrollWrap.style.cssText = [
@@ -187,7 +185,7 @@ export function mountSizeMatrix(host: HTMLElement, store: Store): SizeMatrixHand
       `background: ${tokens.ink800}`,
       `color: ${tokens.ink300}`,
       `border: 1px solid ${tokens.ink500}`,
-      "border-radius: 4px",
+      "border-radius: 2px",
       "font: inherit",
       "font-size: 14px",
       "cursor: pointer",
@@ -296,7 +294,7 @@ export function mountSizeMatrix(host: HTMLElement, store: Store): SizeMatrixHand
       "padding: 6px 8px",
       `width: ${CHIP_W}px`,
       `height: ${CHIP_H}px`,
-      "border-radius: 5px",
+      "border-radius: 2px",
       "background: transparent",
       "border: 1px solid transparent",
       `color: ${tokens.ink200}`,
@@ -368,7 +366,9 @@ export function mountSizeMatrix(host: HTMLElement, store: Store): SizeMatrixHand
     missing.style.cssText = [
       `font-family: ${tokens.sans}`,
       "font-size: 9px",
-      `color: ${tokens.warn}`,
+      `color: ${tokens.ink100}`,
+      `background: ${tokens.warn}`,
+      "padding: 0 3px",
       "line-height: 1",
       "display: none",
     ].join(";");
@@ -382,8 +382,9 @@ export function mountSizeMatrix(host: HTMLElement, store: Store): SizeMatrixHand
       setActive(active) {
         btn.dataset.active = active ? "1" : "0";
         btn.setAttribute("aria-current", active ? "true" : "false");
-        btn.style.background = active ? tokens.amberBg : "transparent";
-        btn.style.borderColor = active ? tokens.amberMuted : "transparent";
+        btn.style.background = "transparent";
+        btn.style.borderColor = "transparent";
+        btn.style.borderBottom = `2px solid ${active ? tokens.ink100 : "transparent"}`;
         btn.style.color = active ? tokens.ink100 : tokens.ink200;
       },
       setStatus(status) {
@@ -391,7 +392,7 @@ export function mountSizeMatrix(host: HTMLElement, store: Store): SizeMatrixHand
           dot.style.background = tokens.ok;
           dot.style.boxShadow = "none";
         } else if (status === "generated") {
-          dot.style.background = tokens.warn;
+          dot.style.background = tokens.ink400;
           dot.style.boxShadow = "none";
         } else {
           dot.style.background = "transparent";
@@ -440,7 +441,7 @@ function legendItem(dotColor: string, label: string): { el: HTMLElement; setCoun
   ].join(";");
   const text = document.createElement("span");
   const count = document.createElement("span");
-  count.style.cssText = `color: ${tokens.ink400};`;
+  count.style.cssText = `color: ${tokens.ink300};`;
   text.textContent = label;
   el.append(dot, text, count);
   return {

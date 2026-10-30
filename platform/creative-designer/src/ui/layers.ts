@@ -9,7 +9,7 @@
 // out the rows and wires click selection.
 //
 // Each row shows:
-//   - A 12px type icon (text / image / rect / circle) — amber when
+//   - A 12px type icon (text / image / rect / circle) — focus-blue when
 //     selected, ink300 otherwise.
 //   - The item's name, ellipsised. Derived from content (text item
 //     uses its first line, image uses filename from src, rect/circle
@@ -22,6 +22,7 @@ import { currentLayout, currentPage, isSelected, reorderItem, selectItem, setVid
 import type { Store } from "../store";
 import type { DesignerState, LayoutItem } from "../types";
 import { tokens } from "./tokens";
+import { itemName } from "../selection-model";
 import { visualRect } from "./visual-rect";
 
 export interface LayersHandle {
@@ -46,7 +47,7 @@ export function mountLayers(host: HTMLElement, store: Store): LayersHandle {
   empty.style.cssText = [
     "padding: 16px 12px",
     "text-align: center",
-    `color: ${tokens.ink400}`,
+    `color: ${tokens.ink300}`,
     "font-size: 11px",
     "display: none",
   ].join(";");
@@ -121,7 +122,7 @@ function buildVideoBgRow(store: Store): { el: HTMLElement; update: (state: Desig
     "text-overflow: ellipsis",
     "white-space: nowrap",
     "font-size: 11px",
-    `color: ${tokens.ink400}`,
+    `color: ${tokens.ink300}`,
     "font-style: italic",
   ].join(";");
   el.appendChild(name);
@@ -199,12 +200,12 @@ function renderRow(item: LayoutItem, idx: number, state: DesignerState, store: S
     "align-items: center",
     "gap: 8px",
     "padding: 5px 8px",
-    "border-radius: 4px",
+    "border-radius: 2px",
     "cursor: pointer",
     "border: 1px solid transparent",
-    `background: ${selected ? tokens.amberBg : "transparent"}`,
+    `background: ${selected ? tokens.focusBg : "transparent"}`,
     `color: ${selected ? tokens.ink100 : tokens.ink200}`,
-    `border-color: ${selected ? tokens.amberMuted : "transparent"}`,
+    `border-color: ${selected ? tokens.focusMuted : "transparent"}`,
     "transition: background .12s, color .12s, border-color .12s",
     "user-select: none",
   ].join(";");
@@ -230,7 +231,7 @@ function renderRow(item: LayoutItem, idx: number, state: DesignerState, store: S
     "display: flex",
     "align-items: center",
     "justify-content: center",
-    `color: ${selected ? tokens.amber : tokens.ink300}`,
+    `color: ${selected ? tokens.focus : tokens.ink300}`,
   ].join(";");
   iconBox.innerHTML = typeIcon(item.type);
   row.appendChild(iconBox);
@@ -372,8 +373,8 @@ function computeDropTarget(from: number, hoverIdx: number, topHalf: boolean): nu
 
 function setIndicator(row: HTMLElement, topHalf: boolean): void {
   row.style.boxShadow = topHalf
-    ? `inset 0 2px 0 0 ${tokens.amber}`
-    : `inset 0 -2px 0 0 ${tokens.amber}`;
+    ? `inset 0 2px 0 0 ${tokens.focus}`
+    : `inset 0 -2px 0 0 ${tokens.focus}`;
 }
 
 function clearIndicator(row: HTMLElement | null): void {
@@ -415,25 +416,6 @@ function iconBtn(
     btn.style.color = active ? tokens.ink200 : tokens.ink500;
   });
   return btn;
-}
-
-function itemName(item: LayoutItem): string {
-  if (item.type === "text") {
-    const t = (item.text ?? item.field ?? "").trim();
-    if (!t) return "Text";
-    const first = t.split(/\r?\n/, 1)[0]!;
-    return first.length > 40 ? first.slice(0, 40) + "…" : first;
-  }
-  if (item.type === "image") {
-    if (item.latex) return item.latex.length > 40 ? item.latex.slice(0, 40) + "…" : item.latex;
-    const src = (item.src ?? item.field ?? "").trim();
-    if (!src) return "Image";
-    const parts = src.split("/");
-    return parts[parts.length - 1] || "Image";
-  }
-  if (item.type === "rect") return "Scrim";
-  if (item.type === "circle") return "Circle";
-  return "Item";
 }
 
 function typeIcon(type: string): string {

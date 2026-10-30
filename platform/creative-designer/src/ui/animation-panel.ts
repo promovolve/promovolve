@@ -206,7 +206,7 @@ function build(panel: HTMLElement, idx: number, item: LayoutItem, store: Store, 
     const legacy = document.createElement("div");
     legacy.style.cssText = `margin-top:14px;padding-top:12px;border-top:1px solid ${tokens.ink500};`;
     const note = document.createElement("div");
-    note.style.cssText = `color:${tokens.ink400};font-size:11px;line-height:1.4;margin-bottom:8px;`;
+    note.style.cssText = `color:${tokens.ink300};font-size:11px;line-height:1.4;margin-bottom:8px;`;
     note.textContent = "This item has an end-pose tween (a legacy feature): after entering, it moves to a fixed position. ▶ Replay previews it.";
     legacy.appendChild(note);
     legacy.appendChild(dangerButton("Remove end-pose tween", () => {
@@ -227,7 +227,7 @@ function buildMulti(panel: HTMLElement, state: DesignerState, store: Store): Ren
   header(panel, `Entrance — ${idxs.length} items`);
 
   const hint = document.createElement("div");
-  hint.style.cssText = `color:${tokens.ink400};font-size:11px;margin-bottom:10px;line-height:1.4;`;
+  hint.style.cssText = `color:${tokens.ink300};font-size:11px;margin-bottom:10px;line-height:1.4;`;
   hint.textContent = "Apply one entrance across the selection; each item starts a step later, in selection order.";
   panel.appendChild(hint);
 
@@ -279,7 +279,7 @@ function replayButton(): HTMLButtonElement {
     `background: ${tokens.ink900}`,
     `color: ${tokens.ink100}`,
     `border: 1px solid ${tokens.ink500}`,
-    "border-radius: 4px",
+    "border-radius: 2px",
     "font: inherit",
     "font-size: 11px",
     "cursor: pointer",
@@ -298,11 +298,11 @@ function commit(store: Store, idx: number, fn: (it: LayoutItem) => LayoutItem): 
   store.commit(updateItem(store.state, idx, fn));
 }
 
-const INPUT_STYLE = `background:${tokens.ink900};color:${tokens.ink100};border:1px solid ${tokens.ink500};border-radius:4px;padding:4px 6px;font:inherit;`;
+const INPUT_STYLE = `background:${tokens.ink900};color:${tokens.ink100};border:1px solid ${tokens.ink500};border-radius:2px;padding:4px 6px;font:inherit;`;
 
 function header(parent: HTMLElement, text: string): void {
   const h = document.createElement("div");
-  h.style.cssText = `font-size:11px;letter-spacing:2px;color:${tokens.ink300};margin-bottom:12px;text-transform:uppercase;`;
+  h.style.cssText = `font-weight:700;font-size:11px;color:${tokens.ink100};margin-bottom:12px;`;
   h.textContent = text;
   parent.appendChild(h);
 }
@@ -365,10 +365,10 @@ function primaryButton(label: string, onClick: () => void): HTMLButtonElement {
   b.textContent = label;
   b.style.cssText = [
     "padding: 6px 12px",
-    `background: ${tokens.amber}`,
-    "color: oklch(0.12 0.04 55)",
+    `background: ${tokens.ink100}`,
+    `color: ${tokens.ink900}`,
     "border: none",
-    "border-radius: 4px",
+    "border-radius: 2px",
     "font: inherit",
     "font-size: 12px",
     "font-weight: 500",
@@ -387,7 +387,7 @@ function dangerButton(label: string, onClick: () => void): HTMLButtonElement {
     "background: transparent",
     `color: ${tokens.err}`,
     `border: 1px solid ${tokens.err}`,
-    "border-radius: 4px",
+    "border-radius: 2px",
     "font: inherit",
     "font-size: 11px",
     "cursor: pointer",

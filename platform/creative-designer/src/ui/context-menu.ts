@@ -32,7 +32,7 @@ export function openContextMenu(x: number, y: number, items: MenuEntry[]): void 
     "padding: 4px",
     `background: ${tokens.ink700}`,
     `border: 1px solid ${tokens.ink500}`,
-    "border-radius: 6px",
+    "border-radius: 2px",
     "box-shadow: 0 10px 30px rgba(0,0,0,0.5)",
     `color: ${tokens.ink100}`,
     "font-size: 12px",
@@ -80,7 +80,7 @@ function renderItem(item: MenuItem): HTMLElement {
     "align-items: center",
     "gap: 12px",
     "padding: 6px 10px",
-    "border-radius: 4px",
+    "border-radius: 2px",
     `cursor: ${item.disabled ? "default" : "pointer"}`,
     `color: ${item.disabled ? tokens.ink400 : tokens.ink100}`,
   ].join(";");
@@ -91,7 +91,7 @@ function renderItem(item: MenuItem): HTMLElement {
   if (item.shortcut) {
     const hint = document.createElement("span");
     hint.textContent = item.shortcut;
-    hint.style.cssText = `color:${tokens.ink400};font-size:11px;`;
+    hint.style.cssText = `color:${tokens.ink300};font-size:11px;`;
     row.appendChild(hint);
   }
   if (!item.disabled) {

@@ -37,7 +37,7 @@ export function mountDraftButton(container: HTMLElement, store: Store, ctx: Desi
     "background: transparent",
     `color: ${tokens.ink200}`,
     `border: 1px solid ${tokens.ink500}`,
-    "border-radius: 4px",
+    "border-radius: 2px",
     "cursor: pointer",
     "font: inherit",
     "font-size: 11px",
@@ -64,25 +64,25 @@ export function mountPublishButton(container: HTMLElement, store: Store, ctx: De
 
   const publishBtn = document.createElement("button");
   publishBtn.type = "button";
-  // Icon-only (paper plane = ship it); stays amber so the primary
-  // action keeps its visual weight without the text.
-  publishBtn.innerHTML = `<svg viewBox="0 0 16 16" width="15" height="15" fill="none" stroke="currentColor" stroke-width="1.3" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M14.5 1.5 1.5 7l4.6 1.9L8 13.5l2.2-3.7 4.3-8.3z"/><path d="M14.5 1.5 6.1 8.9"/></svg>`;
+  // The one ink-filled primary action in the top bar.
+  publishBtn.innerHTML = `<svg viewBox="0 0 16 16" width="15" height="15" fill="none" stroke="currentColor" stroke-width="1.3" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M14.5 1.5 1.5 7l4.6 1.9L8 13.5l2.2-3.7 4.3-8.3z"/><path d="M14.5 1.5 6.1 8.9"/></svg><span>Publish</span>`;
   publishBtn.title = "Publish — finalize the creative and make it eligible for delivery.";
   publishBtn.setAttribute("aria-label", "Publish");
   publishBtn.style.cssText = [
     "display: inline-flex",
     "align-items: center",
     "justify-content: center",
-    "width: 30px",
-    "height: 28px",
-    "padding: 0",
-    `background: ${tokens.amber}`,
-    "color: white",
-    `border: 1px solid ${tokens.amber}`,
-    "border-radius: 4px",
+    "gap: 5px",
+    "height: 26px",
+    "padding: 0 10px",
+    `background: ${tokens.ink100}`,
+    `color: ${tokens.ink900}`,
+    `border: 1px solid ${tokens.ink100}`,
+    "border-radius: 2px",
     "cursor: pointer",
     "font: inherit",
-    "font-weight: 500",
+    "font-size: 11px",
+    "font-weight: 700",
   ].join(";");
   // Targeting is classified server-side by Gemini over the full IAB
   // taxonomy at publish; the campaign list shows an accurate "Untargeted"
@@ -141,11 +141,11 @@ function showEmptyBlock(anchor: HTMLElement, empties: EmptySize[]): void {
     "min-width: 220px",
     "max-width: 320px",
     "padding: 12px 14px",
-    `background: ${tokens.ink800 ?? "#1c1c22"}`,
-    `border: 1px solid ${tokens.amber}`,
-    "border-radius: 6px",
+    `background: ${tokens.ink900}`,
+    `border: 1px solid ${tokens.err}`,
+    "border-radius: 2px",
     "box-shadow: 0 8px 24px rgba(0,0,0,0.4)",
-    `color: ${tokens.ink100 ?? "#f0f0f2"}`,
+    `color: ${tokens.ink100}`,
     "font: inherit",
     "font-size: 12px",
     "line-height: 1.45",
@@ -153,7 +153,7 @@ function showEmptyBlock(anchor: HTMLElement, empties: EmptySize[]): void {
 
   const title = document.createElement("div");
   title.textContent = "Can’t publish — fill these sizes first";
-  title.style.cssText = `font-weight:600;margin-bottom:6px;color:${tokens.amber};`;
+  title.style.cssText = `font-weight:600;margin-bottom:6px;color:${tokens.err};`;
   pop.appendChild(title);
 
   const list = document.createElement("ul");
@@ -163,13 +163,13 @@ function showEmptyBlock(anchor: HTMLElement, empties: EmptySize[]): void {
   const shown = empties.slice(0, 6);
   for (const e of shown) {
     const li = document.createElement("li");
-    li.style.cssText = "padding:1px 0;color:" + (tokens.ink200 ?? "#c8c8cf") + ";";
+    li.style.cssText = "padding:1px 0;color:" + tokens.ink200 + ";";
     li.textContent = multiPage ? `${e.label} · page ${e.page}` : e.label;
     list.appendChild(li);
   }
   if (empties.length > shown.length) {
     const more = document.createElement("li");
-    more.style.cssText = `padding:3px 0 0;color:${tokens.ink400 ?? "#85858f"};`;
+    more.style.cssText = `padding:3px 0 0;color:${tokens.ink300};`;
     more.textContent = `+${empties.length - shown.length} more`;
     list.appendChild(more);
   }

@@ -1,7 +1,9 @@
 // Minimum-viewport gate. The shell reflows well below its design
-// size — the toolbar wraps, the size-matrix strip scrolls, the
-// sidebar scrolls — and stays usable down to roughly 760×480
-// (verified in the vite harness). Below that the size-matrix chips
+// size — the selection bar wraps, the size-matrix strip scrolls, the
+// sidebar scrolls — and stays usable down to roughly 850×480. 850, not
+// the old 760: the canvas was ~376px wide at 760 (760 − 320 × 1.2), and
+// the tool rail plus the narrower sidebar take (90 + 300) × 1.2 = 468px,
+// so 850 keeps the work surface about as wide as before. Below that the size-matrix chips
 // clip and the work surface crushes into unusability, so rather than
 // ship a broken-looking tool, cover it with an explanatory overlay
 // while the window is too small. The designer stays mounted
@@ -10,7 +12,7 @@
 
 import { tokens } from "./tokens";
 
-export const MIN_W = 760;
+export const MIN_W = 850;
 export const MIN_H = 480;
 
 export function mountSizeGate(): void {
@@ -35,7 +37,7 @@ export function mountSizeGate(): void {
   title.textContent = "This window is too small for the designer";
   title.style.cssText = "font-size: 16px; font-weight: 600; margin: 0 0 8px;";
   const detail = document.createElement("p");
-  detail.style.cssText = `font-size: 12px; color: ${tokens.ink400}; margin: 0;`;
+  detail.style.cssText = `font-size: 12px; color: ${tokens.ink300}; margin: 0;`;
   inner.append(title, detail);
   gate.appendChild(inner);
   document.body.appendChild(gate);

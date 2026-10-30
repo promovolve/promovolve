@@ -52,7 +52,7 @@ export function mountBannerConfigPanel(
     `background: ${tokens.ink900}`,
     `color: ${tokens.ink100}`,
     `border: 1px solid ${tokens.ink500}`,
-    "border-radius: 4px",
+    "border-radius: 2px",
     "padding: 4px 6px",
     "font: inherit",
     "font-size: 11px",
@@ -98,7 +98,7 @@ export function mountBannerConfigPanel(
     `background: ${tokens.ink900}`,
     `color: ${tokens.ink100}`,
     `border: 1px solid ${tokens.ink500}`,
-    "border-radius: 4px",
+    "border-radius: 2px",
     "padding: 4px 6px",
     "font: inherit",
     "font-size: 11px",
@@ -132,7 +132,7 @@ export function mountBannerConfigPanel(
     `background: ${tokens.ink900}`,
     `color: ${tokens.ink100}`,
     `border: 1px solid ${tokens.ink500}`,
-    "border-radius: 4px",
+    "border-radius: 2px",
     "padding: 4px 6px",
     "font: inherit",
     "font-size: 11px",
@@ -188,7 +188,7 @@ export function mountBannerConfigPanel(
   tempoReset.type = "button";
   tempoReset.textContent = "Auto";
   tempoReset.title = "Follow the paper stock's own tempo";
-  tempoReset.style.cssText = `flex:0 0 auto;font-size:11px;color:${tokens.ink300};background:${tokens.ink900};border:1px solid ${tokens.ink500};border-radius:4px;padding:4px 6px;cursor:pointer;`;
+  tempoReset.style.cssText = `flex:0 0 auto;font-size:11px;color:${tokens.ink300};background:${tokens.ink900};border:1px solid ${tokens.ink500};border-radius:2px;padding:4px 6px;cursor:pointer;`;
   tempoRow.appendChild(tempoReset);
   const presetTempo = (): number =>
     PAPER_FEEL[store.state.bannerConfig.paperWeight ?? "medium"].tempo;
@@ -217,7 +217,7 @@ export function mountBannerConfigPanel(
   const backColor = document.createElement("input");
   backColor.type = "color";
   backColor.title = "Back of the peeled page";
-  backColor.style.cssText = `flex:1 1 auto;min-width:0;height:26px;padding:0;background:${tokens.ink900};border:1px solid ${tokens.ink500};border-radius:4px;cursor:pointer;`;
+  backColor.style.cssText = `flex:1 1 auto;min-width:0;height:26px;padding:0;background:${tokens.ink900};border:1px solid ${tokens.ink500};border-radius:2px;cursor:pointer;`;
   backColor.addEventListener("input", () => {
     const current = store.state.bannerConfig;
     store.commit({ ...store.state, bannerConfig: { ...current, paperBackColor: backColor.value } });
@@ -227,7 +227,7 @@ export function mountBannerConfigPanel(
   backReset.type = "button";
   backReset.textContent = "Reset";
   backReset.title = "Back to the default warm paper stock";
-  backReset.style.cssText = `flex:0 0 auto;font-size:11px;color:${tokens.ink300};background:${tokens.ink900};border:1px solid ${tokens.ink500};border-radius:4px;padding:4px 6px;cursor:pointer;`;
+  backReset.style.cssText = `flex:0 0 auto;font-size:11px;color:${tokens.ink300};background:${tokens.ink900};border:1px solid ${tokens.ink500};border-radius:2px;padding:4px 6px;cursor:pointer;`;
   backReset.addEventListener("click", () => {
     const current = store.state.bannerConfig;
     if (current.paperBackColor === undefined) return;
@@ -245,13 +245,13 @@ export function mountBannerConfigPanel(
       const weight = state.bannerConfig.paperWeight ?? "medium";
       if (weightSelect.value !== weight) weightSelect.value = weight;
       // Tempo indicator: slider + number always show the EFFECTIVE
-      // multiplier; the ×-suffix goes amber when overriding the stock.
+      // multiplier; the ×-suffix goes focus-blue when overriding the stock.
       const overridden = state.bannerConfig.tempo !== undefined;
       const effTempo = overridden ? state.bannerConfig.tempo! : presetTempo();
       const slider = String(effTempo);
       if (tempoSlider.value !== slider) tempoSlider.value = slider;
       tempoOut.textContent = `${effTempo.toFixed(2)}×`;
-      tempoOut.style.color = overridden ? tokens.amber : tokens.ink300;
+      tempoOut.style.color = overridden ? tokens.ink100 : tokens.ink300;
       tempoReset.style.opacity = overridden ? "1" : "0.5";
       // Unset back colour → show the default warm tone in the picker (it
       // can't represent "unset", so the swatch mirrors the effective look).

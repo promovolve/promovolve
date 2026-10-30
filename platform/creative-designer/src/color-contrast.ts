@@ -5,7 +5,7 @@
 //   - presets.ts (auto-layout) and toolbar.ts (new-text default) use
 //     pickContrast() to choose readable headline/sub/body colors at
 //     creation time, based on the page's bg luminance.
-//   - props-panel.ts uses contrastRatio() to render a "low contrast"
+//   - props-panel.ts uses lowContrastRatio() to render a "low contrast"
 //     warning next to the color picker when the user has wandered into
 //     a hard-to-read combination.
 //
@@ -57,6 +57,15 @@ export function contrastRatio(a: string | undefined | null, b: string | undefine
 
 /** WCAG AA contrast threshold for normal-size text. */
 export const WCAG_AA_NORMAL: number = 4.5;
+
+/** The ratio when text is below AA against its background, else null.
+  * Unlike contrastRatio's 1, a colour that can't be read (gradient,
+  * named colour, unset) is null too: unknown is not low contrast. */
+export function lowContrastRatio(text: string | undefined | null, bg: string | undefined | null): number | null {
+  if (parseHexRelativeLuminance(text) === null || parseHexRelativeLuminance(bg) === null) return null;
+  const ratio = contrastRatio(text, bg);
+  return ratio < WCAG_AA_NORMAL ? ratio : null;
+}
 
 /** Resolve the colours an auto-generated layout should use, preferring the
   * LP's brand-kit colours so the creative matches the landing page (the way

@@ -13,33 +13,36 @@
 type ThemePair = { dark: string; light: string };
 
 const COLORS = {
-  // Surfaces — stepped from app void (900) to high-contrast (100).
-  ink900: { dark: "oklch(0.14 0.008 60)", light: "oklch(0.985 0.004 75)" },
-  ink800: { dark: "oklch(0.18 0.008 60)", light: "oklch(0.965 0.004 75)" },
-  ink700: { dark: "oklch(0.22 0.008 60)", light: "oklch(0.930 0.005 75)" },
-  ink600: { dark: "oklch(0.28 0.008 60)", light: "oklch(0.860 0.006 75)" },
-  ink500: { dark: "oklch(0.34 0.008 60)", light: "oklch(0.800 0.006 75)" },
-  ink400: { dark: "oklch(0.45 0.008 60)", light: "oklch(0.580 0.008 75)" },
-  ink300: { dark: "oklch(0.60 0.006 60)", light: "oklch(0.460 0.008 75)" },
-  ink200: { dark: "oklch(0.78 0.004 60)", light: "oklch(0.320 0.008 75)" },
-  ink100: { dark: "oklch(0.92 0.003 60)", light: "oklch(0.200 0.010 75)" },
+  // Surfaces — stepped from app background (900) to high-contrast ink
+  // (100). Values are the dashboard's Forecast neutrals
+  // (platform/tailwind.input.css) so the two read as one product.
+  ink900: { dark: "#111519", light: "#ffffff" }, // background, panel surface
+  ink800: { dark: "#1a1f24", light: "#f6f8fa" }, // raised / recessed surface
+  ink700: { dark: "#242a30", light: "#e8edf2" }, // Fill: hover, plain tags
+  ink600: { dark: "#323a42", light: "#d6dee5" }, // Hairline: row lines
+  ink500: { dark: "#424c56", light: "#bdc7d0" }, // Rule: borders, input edges
+  ink400: { dark: "#828e99", light: "#8a96a1" }, // Mark: icons and rules only, never text
+  ink300: { dark: "#a8b3bd", light: "#4a5560" }, // secondary text
+  ink200: { dark: "#d8dfe5", light: "#2a3138" }, // body text
+  ink100: { dark: "#f2f5f8", light: "#1a1a1a" }, // Ink: headings, primary fill
 
-  // Accent — amber. Slightly darker/denser in light mode for contrast on a
-  // pale background.
-  amber:      { dark: "oklch(0.74 0.17 55)", light: "oklch(0.62 0.17 50)" },
-  amberMuted: { dark: "oklch(0.52 0.10 55)", light: "oklch(0.68 0.12 55)" },
-  amberBg:    { dark: "oklch(0.30 0.07 55)", light: "oklch(0.93 0.05 75)" },
+  // Field blue-grey — the top bar and selected rows.
+  field: { dark: "#222a33", light: "#dfe7ee" },
+
+  // The only accent: Focus Blue (JMA step 2) — selection, handles, the
+  // active tool. Every other hue in the chrome is data or an alert.
+  focus:      { dark: "#2185ff", light: "#2185ff" },
+  focusMuted: { dark: "rgb(33 133 255 / 0.55)", light: "rgb(33 133 255 / 0.45)" },
+  focusBg:    { dark: "#222a33", light: "#dfe7ee" },
 
   // Thumbnail "ad surface" — the recessed inner canvas of a size-matrix
-  // dimension preview. Near-black in dark mode (so it reads as the void the
-  // ad floats on); a soft recessed gray in light mode (darker than the chip
-  // surround, ink800, so the relationship stays "inner is recessed").
-  canvas: { dark: "oklch(0.10 0.005 60)", light: "oklch(0.925 0.005 75)" },
+  // dimension preview, darker than the chip surround in both themes.
+  canvas: { dark: "#0c0f12", light: "#e8edf2" },
 
-  // Functional — darker in light mode so status text stays legible on pale.
-  ok:   { dark: "oklch(0.72 0.14 150)", light: "oklch(0.55 0.13 150)" },
-  warn: { dark: "oklch(0.78 0.15 85)",  light: "oklch(0.62 0.14 80)" },
-  err:  { dark: "oklch(0.66 0.18 25)",  light: "oklch(0.56 0.19 25)" },
+  // Alerts. warn is Advisory Yellow: a FILL with ink text, never text.
+  ok:   { dark: "#8fd6a3", light: "#146c2e" },
+  warn: { dark: "#fff500", light: "#fff500" },
+  err:  { dark: "#ff6a5f", light: "#d70a00" },
 } satisfies Record<string, ThemePair>;
 
 type ColorKey = keyof typeof COLORS;
@@ -53,20 +56,42 @@ const colorTokens = Object.fromEntries(
 export const tokens = {
   ...colorTokens,
 
-  // Typography. Inter + JetBrains Mono are loaded by the Go shell template.
-  sans: '"Inter", -apple-system, BlinkMacSystemFont, "Segoe UI", system-ui, sans-serif',
-  mono: '"JetBrains Mono", ui-monospace, SFMono-Regular, Menlo, Consolas, monospace',
+  // Typography. BIZ UDPGothic is self-hosted and linked by the Go shell
+  // template (fonts/biz-udpgothic.css), the same face as the dashboard.
+  sans: '"BIZ UDPGothic", system-ui, sans-serif',
+  mono: "ui-monospace, SFMono-Regular, Menlo, Consolas, monospace",
 
-  // Radii (plain numbers — used in `${tokens.r4}px` arithmetic).
-  r4: 4,
-  r6: 6,
-  r8: 8,
+  // Radii (plain numbers — used in `${tokens.r4}px` arithmetic). Forecast
+  // corners are square-ish: all three are 2.
+  r4: 2,
+  r6: 2,
+  r8: 2,
 };
 
 // ─── Theme plumbing ─────────────────────────────────────────────────
 
 export type Theme = "dark" | "light";
-const THEME_KEY = "promovolve.designer.theme";
+// Shared with the dashboard (templates/layout.html), so one choice themes
+// both. The designer's old key is read once by migrateThemeKey.
+export const THEME_KEY = "promovolve.dashboard.theme";
+export const LEGACY_THEME_KEY = "promovolve.designer.theme";
+
+export type ThemeStorage = Pick<Storage, "getItem" | "setItem" | "removeItem">;
+
+const isMode = (v: string | null): v is ThemeMode => v === "auto" || v === "light" || v === "dark";
+
+// Carry an existing designer-only choice over to the shared key (unless
+// the dashboard already has one), then drop the old key for good.
+export function migrateThemeKey(storage: ThemeStorage): void {
+  try {
+    const legacy = storage.getItem(LEGACY_THEME_KEY);
+    if (legacy === null) return;
+    if (isMode(legacy) && storage.getItem(THEME_KEY) === null) storage.setItem(THEME_KEY, legacy);
+    storage.removeItem(LEGACY_THEME_KEY);
+  } catch {
+    /* storage blocked — nothing to carry over */
+  }
+}
 
 // Inject the :root variable block once. Base = dark; the light override
 // raises specificity via the data-attribute so switching is one attr flip.
@@ -95,7 +120,7 @@ function systemTheme(): Theme {
 export function getMode(): ThemeMode {
   try {
     const v = localStorage.getItem(THEME_KEY);
-    return v === "light" || v === "dark" || v === "auto" ? v : "auto";
+    return isMode(v) ? v : "auto";
   } catch {
     return "auto";
   }
@@ -122,6 +147,11 @@ export function applyMode(mode: ThemeMode): void {
 // Inject vars, apply the stored mode (default auto → OS), and keep
 // following the OS live while the mode is "auto".
 export function initTheme(): void {
+  try {
+    migrateThemeKey(localStorage);
+  } catch {
+    /* no localStorage at all */
+  }
   injectThemeStyles();
   setThemeAttr(resolve(getMode()));
   try {

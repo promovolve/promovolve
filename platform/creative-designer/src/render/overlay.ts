@@ -51,7 +51,7 @@ import { openContextMenu, type MenuEntry } from "../ui/context-menu";
 import { tokens } from "../ui/tokens";
 import { packSizedFieldBoxes, packTextItemHeight } from "./canvas";
 
-const SELECTION_COLOR = tokens.amber;
+const SELECTION_COLOR = tokens.focus;
 
 // Click-to-fit: clicking a text box resizes the BOX to hug its text ("fit
 // box to text"). The editor canvas doesn't auto-pack, so selecting the box
@@ -391,7 +391,7 @@ function renderMotionGhost(
     `height: ${scaledHeight}%`,
     `outline: 1.5px dashed ${SELECTION_COLOR}`,
     "outline-offset: -1px",
-    `background: rgba(59,130,246,${0.08 * endOpacity})`,
+    `background: rgba(33,133,255,${0.08 * endOpacity})`,
     "pointer-events: auto",
     "cursor: move",
     endRotation ? `transform: rotate(${endRotation}deg)` : "",
@@ -481,7 +481,7 @@ function renderMotionGhost(
   line.setAttribute("x2", String(x2));
   line.setAttribute("y2", String(y2));
   // Set via CSS (not the presentation attribute) so the themeable
-  // var(--cd-amber) in SELECTION_COLOR resolves — var() is inert in
+  // var(--cd-focus) in SELECTION_COLOR resolves — var() is inert in
   // SVG presentation attributes.
   line.style.stroke = SELECTION_COLOR;
   line.setAttribute("stroke-width", "0.2");
@@ -507,7 +507,7 @@ function renderBadge(n: number, selected: boolean): HTMLElement {
     `background: ${selected ? SELECTION_COLOR : tokens.ink800}`,
     `color: ${tokens.ink100}`,
     `border: 1px solid ${selected ? SELECTION_COLOR : tokens.ink500}`,
-    "border-radius: 10px",
+    "border-radius: 2px",
     "font-size: 10px",
     "font-weight: 500",
     "line-height: 1",
@@ -558,7 +558,7 @@ function startInlineTextEdit(
   el.contentEditable = "true";
   el.style.userSelect = "text";
   el.style.cursor = "text";
-  el.style.outline = "1px dashed rgba(59,130,246,0.7)";
+  el.style.outline = "1px dashed rgba(33,133,255,0.7)";
   el.style.outlineOffset = "2px";
   // Never clip while editing. A stamped/auto-measured height carries
   // overflow:hidden (render-collapsed/layout-item), so in a box that's

@@ -14,31 +14,31 @@
 {{else}}
 
 {{/* Totals across the range */}}
-<div class="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-6 gap-3 mb-6">
-  <div class="card card-tight">
+<div class="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-6 gap-x-6 mb-6 border-t-2 border-gray-900">
+  <div class="py-3 border-b border-gray-200">
     <p class="text-xs text-gray-500">{{t "Spend"}}</p>
-    <p class="text-xl font-semibold mt-1">{{money $r.Totals.SpendDisp}}</p>
+    <p class="text-2xl font-bold tabular mt-1">{{money $r.Totals.SpendDisp}}</p>
   </div>
-  <div class="card card-tight">
+  <div class="py-3 border-b border-gray-200">
     <p class="text-xs text-gray-500">{{t "Impressions"}}</p>
-    <p class="text-xl font-semibold mt-1">{{$r.Totals.Impressions}}</p>
+    <p class="text-2xl font-bold tabular mt-1">{{$r.Totals.Impressions}}</p>
     {{if $r.Totals.DogearedImps}}<p class="text-xs text-gray-500">{{t "+%d dog-eared" $r.Totals.DogearedImps}}</p>{{end}}
   </div>
-  <div class="card card-tight">
+  <div class="py-3 border-b border-gray-200">
     <p class="text-xs text-gray-500">{{t "Clicks"}}</p>
-    <p class="text-xl font-semibold mt-1">{{$r.Totals.Clicks}}</p>
+    <p class="text-2xl font-bold tabular mt-1">{{$r.Totals.Clicks}}</p>
   </div>
-  <div class="card card-tight">
+  <div class="py-3 border-b border-gray-200">
     <p class="text-xs text-gray-500">{{t "CTR"}}</p>
-    <p class="text-xl font-semibold mt-1">{{$r.Totals.CTR}}</p>
+    <p class="text-2xl font-bold tabular mt-1">{{$r.Totals.CTR}}</p>
   </div>
-  <div class="card card-tight">
+  <div class="py-3 border-b border-gray-200">
     <p class="text-xs text-gray-500">{{t "CTA clicks"}}</p>
-    <p class="text-xl font-semibold mt-1">{{$r.Totals.CTAClicks}}</p>
+    <p class="text-2xl font-bold tabular mt-1">{{$r.Totals.CTAClicks}}</p>
   </div>
-  <div class="card card-tight">
+  <div class="py-3 border-b border-gray-200">
     <p class="text-xs text-gray-500">{{t "eCPM"}}</p>
-    <p class="text-xl font-semibold mt-1">{{money $r.Totals.ECPM}}</p>
+    <p class="text-2xl font-bold tabular mt-1">{{money $r.Totals.ECPM}}</p>
   </div>
 </div>
 
@@ -49,17 +49,17 @@
 <div x-data="{convOpen: false}" class="mb-6">
   <div class="flex flex-wrap items-center gap-3">
     {{if $r.Totals.Conversions}}
-    <div class="card card-tight">
+    <div class="py-1 pr-6">
       <p class="text-xs text-gray-500">{{t "Conversions"}}</p>
-      <p class="text-xl font-semibold mt-1">{{$r.Totals.Conversions}}</p>
+      <p class="text-2xl font-bold tabular mt-1">{{$r.Totals.Conversions}}</p>
     </div>
-    <div class="card card-tight">
+    <div class="py-1 pr-6">
       <p class="text-xs text-gray-500">{{t "CPA"}}</p>
-      <p class="text-xl font-semibold mt-1">{{$r.Totals.CPA}}</p>
+      <p class="text-2xl font-bold tabular mt-1">{{$r.Totals.CPA}}</p>
     </div>
-    <div class="card card-tight">
+    <div class="py-1 pr-6">
       <p class="text-xs text-gray-500">{{t "ROAS"}}</p>
-      <p class="text-xl font-semibold mt-1">{{$r.Totals.ROAS}}</p>
+      <p class="text-2xl font-bold tabular mt-1">{{$r.Totals.ROAS}}</p>
     </div>
     {{else}}
     <p class="text-sm text-gray-500">{{t "No conversions reported for this range — add them to see CPA/ROAS."}}</p>
@@ -103,11 +103,11 @@
      (impressions/clicks/CTAs below) cost $0 and are excluded from the
      primary metrics above. Only shown once any fold exists. */}}
 {{if $r.Totals.Folds}}
-<div class="card card-tight mb-6">
+<div class="mb-8 py-3 border-y border-gray-200">
   <div class="flex flex-wrap items-baseline gap-x-8 gap-y-2">
     <div>
       <p class="text-xs text-gray-500">{{t "Dog-ears (reader bookmarks)"}}</p>
-      <p class="text-xl font-semibold mt-1">{{$r.Totals.Folds}}
+      <p class="text-2xl font-bold tabular mt-1">{{$r.Totals.Folds}}
         {{if $r.Totals.FoldRate}}<span class="text-sm font-normal text-gray-500">· {{t "%s of impressions" $r.Totals.FoldRate}}</span>{{end}}
         {{if $r.Totals.Unfolds}}<span class="text-sm font-normal text-gray-500">({{t "%d removed" $r.Totals.Unfolds}})</span>{{end}}
       </p>
@@ -132,23 +132,23 @@
   </div>
 
   {{if $r.CoverageNote}}
-  <div x-show="tab!=='daily'" class="bg-yellow-50 border border-yellow-200 rounded-lg px-4 py-2 mb-4 text-sm text-yellow-800">
-    {{t "Breakdown data is available from %s — earlier days in this range appear only in the Daily tab." $r.CoverageNote}}
+  <div x-show="tab!=='daily'" class="mb-4 text-sm">
+    <span class="badge badge-warning mr-1">{{t "Advisory"}}</span>{{t "Breakdown data is available from %s — earlier days in this range appear only in the Daily tab." $r.CoverageNote}}
   </div>
   {{end}}
 
   {{/* Two stacked single-measure charts sharing the x-axis (spend and
        impressions have different units — never a dual-axis chart). */}}
-  <div x-show="tab==='daily'" class="card card-tight mb-6">
-    <p class="text-sm font-semibold mb-1">{{t "Daily spend"}}</p>
+  <div x-show="tab==='daily'" class="mb-6">
+    <p class="text-sm font-bold mb-1">{{t "Daily spend"}}</p>
     <div class="h-36"><canvas id="report-chart-spend"></canvas></div>
-    <p class="text-sm font-semibold mb-1 mt-4">{{t "Daily impressions"}}</p>
+    <p class="text-sm font-bold mb-1 mt-4">{{t "Daily impressions"}}</p>
     <div class="h-36"><canvas id="report-chart-imps"></canvas></div>
   </div>
 
   {{/* Daily: day x campaign, newest first, subtotal when >1 campaign */}}
-  <div x-show="tab==='daily'" class="card card-tight overflow-x-auto">
-    <table class="w-full text-sm">
+  <div x-show="tab==='daily'" class="overflow-x-auto">
+    <table class="data-table">
       <thead>
         <tr class="text-left text-xs text-gray-500 border-b">
           <th class="py-2 pr-4">{{t "Day"}}</th>
@@ -338,18 +338,18 @@
 {{define "report-breakdown-grouped"}}
 <div x-show="tab==='{{.Tab}}'" x-cloak>
 {{if .Groups}}
-<div class="card card-tight mb-6">
-  <p class="text-sm font-semibold mb-1">{{t "Daily spend by %s" .Noun}}</p>
+<div class="mb-6">
+  <p class="text-sm font-bold mb-1">{{t "Daily spend by %s" .Noun}}</p>
   <div class="h-56"><canvas id="report-chart-{{.Tab}}-spend"></canvas></div>
-  <p class="text-sm font-semibold mb-1 mt-4">{{t "Daily impressions by %s" .Noun}}</p>
+  <p class="text-sm font-bold mb-1 mt-4">{{t "Daily impressions by %s" .Noun}}</p>
   <div class="h-56"><canvas id="report-chart-{{.Tab}}-imps"></canvas></div>
 </div>
 {{end}}
-<div class="card card-tight overflow-x-auto">
+<div class="overflow-x-auto">
   {{if not .Groups}}
   <p class="text-sm text-gray-500 text-center py-6">{{t "No breakdown data in this range."}}</p>
   {{else}}
-  <table class="w-full text-sm">
+  <table class="data-table">
     <thead>
       <tr class="text-left text-xs text-gray-500 border-b">
         <th class="py-2 pr-4">{{.Head}}</th>
@@ -415,18 +415,18 @@
 {{define "report-breakdown"}}
 <div x-show="tab==='{{.Tab}}'" x-cloak>
 {{if .Rows}}
-<div class="card card-tight mb-6">
-  <p class="text-sm font-semibold mb-1">Daily spend by {{.Noun}}</p>
+<div class="mb-6">
+  <p class="text-sm font-bold mb-1">Daily spend by {{.Noun}}</p>
   <div class="h-56"><canvas id="report-chart-{{.Tab}}-spend"></canvas></div>
-  <p class="text-sm font-semibold mb-1 mt-4">Daily impressions by {{.Noun}}</p>
+  <p class="text-sm font-bold mb-1 mt-4">Daily impressions by {{.Noun}}</p>
   <div class="h-56"><canvas id="report-chart-{{.Tab}}-imps"></canvas></div>
 </div>
 {{end}}
-<div class="card card-tight overflow-x-auto">
+<div class="overflow-x-auto">
   {{if not .Rows}}
   <p class="text-sm text-gray-500 text-center py-6">{{t "No breakdown data in this range."}}</p>
   {{else}}
-  <table class="w-full text-sm">
+  <table class="data-table">
     <thead>
       <tr class="text-left text-xs text-gray-500 border-b">
         <th class="py-2 pr-4">{{.Head}}</th>
@@ -491,7 +491,7 @@
   {{if not .Reach}}
   <div class="card card-tight"><p class="text-sm text-gray-500 text-center py-6">{{t "No reach data in this range."}}</p></div>
   {{else}}
-  <div class="card card-tight mb-6">
+  <div class="mb-6">
     <div class="flex items-center gap-2 mb-2">
       <label class="text-sm font-semibold" for="reach-campaign">{{t "Campaign"}}</label>
       <select id="reach-campaign" x-model="camp" class="text-sm border rounded px-2 py-1">
@@ -501,8 +501,8 @@
     <div class="h-56"><canvas id="report-chart-reach"></canvas></div>
     {{range .Reach}}{{if .Explain}}<p x-show="camp==='{{.Key}}'" class="text-sm text-gray-700 mt-3">{{.Explain}}</p>{{end}}{{end}}
   </div>
-  <div class="card card-tight overflow-x-auto">
-    <table class="w-full text-sm">
+  <div class="overflow-x-auto">
+    <table class="data-table">
       <thead>
         <tr class="text-left text-xs text-gray-500 border-b">
           <th class="py-2 pr-4">{{t "Campaign"}}</th>

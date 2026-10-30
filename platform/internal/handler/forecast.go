@@ -113,3 +113,64 @@ func buildForecast(lang string, hours [24]float64, budget float64, now time.Time
 	}
 	return f
 }
+
+// walletDays is how many settled days the wallet strip shows behind today,
+// and how many it projects ahead.
+const walletDays = 14
+
+// walletForecast reads the balance like a forecast: the last walletDays
+// settled days, today (delivered, not yet charged), then the days ahead at
+// the recent average until the balance runs out. Each day's colour is its
+// charge against that average. charged maps YYYY-MM-DD to the settled
+// amount; today is in the account's zone. Returns the strip and the
+// projected days of runway (-1 when there is no recent spend).
+// ponytail: average of the last walletDays calendar days; a campaign that
+// started yesterday reads as slow spend until the window fills.
+func walletForecast(lang string, charged map[string]float64, balance, pending float64, today time.Time) (forecast, int) {
+	var sum float64
+	f := forecast{}
+	for i := walletDays; i >= 1; i-- {
+		sum += charged[today.AddDate(0, 0, -i).Format("2006-01-02")]
+	}
+	avg := sum / walletDays
+	for i := walletDays; i >= 1; i-- {
+		d := today.AddDate(0, 0, -i)
+		v := charged[d.Format("2006-01-02")]
+		f.Cells = append(f.Cells, forecastCell{Level: intensity(v, avg),
+			Title: i18n.T(lang, "%s — %s charged", d.Format("01-02"), fmtMoney(v))})
+	}
+	f.Cells = append(f.Cells, forecastCell{Level: intensity(pending, avg),
+		Title: i18n.T(lang, "Today — %s so far, charged after midnight", fmtMoney(pending))})
+	f.NowPct = (float64(walletDays) + today.Sub(time.Date(today.Year(), today.Month(), today.Day(), 0, 0, 0, 0, today.Location())).Hours()/24) / float64(2*walletDays+1) * 100
+
+	left := balance - pending
+	runway := -1
+	if avg > 0 {
+		runway = int(math.Max(left, 0) / avg)
+	}
+	for i := 1; i <= walletDays; i++ {
+		c := forecastCell{Title: today.AddDate(0, 0, i).Format("01-02")}
+		if runway >= i {
+			c.Level, c.Projected = intensity(avg, avg), true
+			c.Title = i18n.T(lang, "%s — about %s at this pace", c.Title, fmtMoney(avg))
+		}
+		f.Cells = append(f.Cells, c)
+	}
+
+	switch {
+	case left <= 0:
+		f.Alert = "warning"
+		f.Outlook = i18n.T(lang, "The balance is used up once today is charged")
+	case runway < 0:
+		f.Outlook = i18n.T(lang, "No charges in the last %d days", walletDays)
+	case runway < 1:
+		f.Alert = "warning"
+		f.Outlook = i18n.T(lang, "Runs out tomorrow at this pace")
+	default:
+		if runway <= 7 {
+			f.Alert = "advisory"
+		}
+		f.Outlook = i18n.T(lang, "Lasts about %d days at this pace, until around %s", runway, today.AddDate(0, 0, runway).Format("01-02"))
+	}
+	return f, runway
+}

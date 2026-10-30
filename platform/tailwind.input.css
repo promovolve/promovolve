@@ -98,6 +98,13 @@
   .page-sub { @apply text-sm text-gray-500 mt-1 max-w-3xl; }
   .section-title { @apply text-lg font-bold; }
 
+  /* Flat data table: an ink rule over the header, hairlines between rows,
+     no box around it. Wrap in overflow-x-auto where it can be wide. */
+  .data-table { @apply w-full text-sm border-t-2 border-gray-900; }
+  .data-table th { @apply px-3 py-2 text-left text-xs font-bold text-gray-500 border-b border-gray-300 whitespace-nowrap; }
+  .data-table td { @apply px-3 py-2 border-b border-gray-200; }
+  .data-table .num { @apply text-right whitespace-nowrap; }
+
   /* Campaigns list (advertiser/campaigns.html): one grid for the header
      and every row, so columns line up like a table from xl up; below that
      a row stacks, status beside the name and each cell full width. */

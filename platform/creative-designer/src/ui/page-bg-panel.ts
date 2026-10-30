@@ -976,7 +976,7 @@ function segmented(options: string[], selected: string, onChange: (v: string) =>
     btn.style.cssText = [
       "flex: 1",
       "padding: 4px 6px",
-      `background: ${isSel ? tokens.amberBg : "transparent"}`,
+      `background: ${isSel ? tokens.focusBg : "transparent"}`,
       `color: ${isSel ? tokens.ink100 : tokens.ink300}`,
       "border: none",
       "font: inherit",
@@ -998,7 +998,7 @@ function opacitySlider(value: number, onChange: (v: number, commit: boolean) => 
   input.max = "100";
   input.step = "1";
   input.value = String(Math.round(value * 100));
-  input.style.cssText = `flex:1;accent-color:${tokens.amber};cursor:pointer;`;
+  input.style.cssText = `flex:1;accent-color:${tokens.focus};cursor:pointer;`;
   const readout = document.createElement("span");
   readout.className = "cd-readout";
   readout.style.cssText = `flex:0 0 36px;text-align:right;color:${tokens.ink300};font-family:${tokens.sans};font-size:11px;`;

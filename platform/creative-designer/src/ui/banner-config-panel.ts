@@ -245,13 +245,13 @@ export function mountBannerConfigPanel(
       const weight = state.bannerConfig.paperWeight ?? "medium";
       if (weightSelect.value !== weight) weightSelect.value = weight;
       // Tempo indicator: slider + number always show the EFFECTIVE
-      // multiplier; the ×-suffix goes amber when overriding the stock.
+      // multiplier; the ×-suffix goes focus-blue when overriding the stock.
       const overridden = state.bannerConfig.tempo !== undefined;
       const effTempo = overridden ? state.bannerConfig.tempo! : presetTempo();
       const slider = String(effTempo);
       if (tempoSlider.value !== slider) tempoSlider.value = slider;
       tempoOut.textContent = `${effTempo.toFixed(2)}×`;
-      tempoOut.style.color = overridden ? tokens.amber : tokens.ink300;
+      tempoOut.style.color = overridden ? tokens.focus : tokens.ink300;
       tempoReset.style.opacity = overridden ? "1" : "0.5";
       // Unset back colour → show the default warm tone in the picker (it
       // can't represent "unset", so the swatch mirrors the effective look).

@@ -14,8 +14,8 @@ import type { Store } from "../store";
 import type { LayoutItem } from "../types";
 import { tokens } from "../ui/tokens";
 
-const STROKE = tokens.amber;
-// Marquee fill: amber at low opacity. Kept as rgba until we decide
+const STROKE = tokens.focus;
+// Marquee fill: accent at low opacity. Kept as rgba until we decide
 // whether to expose alpha-overlay tokens.
 const FILL = "rgba(245,158,11,0.12)";
 

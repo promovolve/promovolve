@@ -51,7 +51,7 @@ import { openContextMenu, type MenuEntry } from "../ui/context-menu";
 import { tokens } from "../ui/tokens";
 import { packSizedFieldBoxes, packTextItemHeight } from "./canvas";
 
-const SELECTION_COLOR = tokens.amber;
+const SELECTION_COLOR = tokens.focus;
 
 // Click-to-fit: clicking a text box resizes the BOX to hug its text ("fit
 // box to text"). The editor canvas doesn't auto-pack, so selecting the box
@@ -481,7 +481,7 @@ function renderMotionGhost(
   line.setAttribute("x2", String(x2));
   line.setAttribute("y2", String(y2));
   // Set via CSS (not the presentation attribute) so the themeable
-  // var(--cd-amber) in SELECTION_COLOR resolves — var() is inert in
+  // var(--cd-focus) in SELECTION_COLOR resolves — var() is inert in
   // SVG presentation attributes.
   line.style.stroke = SELECTION_COLOR;
   line.setAttribute("stroke-width", "0.2");

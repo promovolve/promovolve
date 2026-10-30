@@ -64,7 +64,7 @@ export function mountPublishButton(container: HTMLElement, store: Store, ctx: De
 
   const publishBtn = document.createElement("button");
   publishBtn.type = "button";
-  // Icon-only (paper plane = ship it); stays amber so the primary
+  // Icon-only (paper plane = ship it); stays focus-blue so the primary
   // action keeps its visual weight without the text.
   publishBtn.innerHTML = `<svg viewBox="0 0 16 16" width="15" height="15" fill="none" stroke="currentColor" stroke-width="1.3" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M14.5 1.5 1.5 7l4.6 1.9L8 13.5l2.2-3.7 4.3-8.3z"/><path d="M14.5 1.5 6.1 8.9"/></svg>`;
   publishBtn.title = "Publish — finalize the creative and make it eligible for delivery.";
@@ -76,9 +76,9 @@ export function mountPublishButton(container: HTMLElement, store: Store, ctx: De
     "width: 30px",
     "height: 28px",
     "padding: 0",
-    `background: ${tokens.amber}`,
+    `background: ${tokens.focus}`,
     "color: white",
-    `border: 1px solid ${tokens.amber}`,
+    `border: 1px solid ${tokens.focus}`,
     "border-radius: 4px",
     "cursor: pointer",
     "font: inherit",
@@ -142,7 +142,7 @@ function showEmptyBlock(anchor: HTMLElement, empties: EmptySize[]): void {
     "max-width: 320px",
     "padding: 12px 14px",
     `background: ${tokens.ink800 ?? "#1c1c22"}`,
-    `border: 1px solid ${tokens.amber}`,
+    `border: 1px solid ${tokens.focus}`,
     "border-radius: 6px",
     "box-shadow: 0 8px 24px rgba(0,0,0,0.4)",
     `color: ${tokens.ink100 ?? "#f0f0f2"}`,
@@ -153,7 +153,7 @@ function showEmptyBlock(anchor: HTMLElement, empties: EmptySize[]): void {
 
   const title = document.createElement("div");
   title.textContent = "Can’t publish — fill these sizes first";
-  title.style.cssText = `font-weight:600;margin-bottom:6px;color:${tokens.amber};`;
+  title.style.cssText = `font-weight:600;margin-bottom:6px;color:${tokens.focus};`;
   pop.appendChild(title);
 
   const list = document.createElement("ul");

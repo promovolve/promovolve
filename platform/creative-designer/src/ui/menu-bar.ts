@@ -5,7 +5,7 @@
 // catch-all it used to be.
 //
 // Identity cluster, left to right:
-//   - Logo badge:  20×20 amber→red gradient square, "pv" in mono.
+//   - Logo badge:  20×20 accent gradient square, "pv" in mono.
 //   - Campaign name (optional, only when ctx.campaignName is set).
 //   - Chevron separator.
 //   - Creative name.
@@ -165,7 +165,7 @@ function themeToggle(): HTMLElement {
 }
 
 // Logo badge — small gradient square with "pv" in mono. Matches the
-// direction-B prototype visual; gradient colours come from the amber
+// direction-B prototype visual; gradient colours come from the focus
 // ramp on the light side and a redder hue at the dark end for a
 // two-tone warm-neutral signature.
 function logoBadge(): HTMLElement {
@@ -177,7 +177,7 @@ function logoBadge(): HTMLElement {
     "width: 20px",
     "height: 20px",
     "border-radius: 4px",
-    `background: linear-gradient(135deg, ${tokens.amber}, oklch(0.58 0.15 35))`,
+    `background: linear-gradient(135deg, ${tokens.focus}, oklch(0.58 0.15 35))`,
     "color: oklch(0.12 0.04 55)",
     `font-family: ${tokens.sans}`,
     "font-size: 9px",

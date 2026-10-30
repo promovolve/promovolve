@@ -26,7 +26,7 @@ export function mountImageDrop(target: HTMLElement, store: Store): void {
     "align-items: center",
     "justify-content: center",
     "pointer-events: none",
-    `border: 2px dashed ${tokens.amber}`,
+    `border: 2px dashed ${tokens.focus}`,
     "border-radius: 6px",
     "background: rgba(0,0,0,0.35)",
     `color: ${tokens.ink100}`,
@@ -210,7 +210,7 @@ function chooserButton(text: string, onClick: () => void): HTMLButtonElement {
     "font-size: 12px",
     "text-align: left",
   ].join(";");
-  btn.addEventListener("mouseenter", () => { btn.style.borderColor = tokens.amber; });
+  btn.addEventListener("mouseenter", () => { btn.style.borderColor = tokens.focus; });
   btn.addEventListener("mouseleave", () => { btn.style.borderColor = tokens.ink500; });
   btn.addEventListener("click", onClick);
   return btn;

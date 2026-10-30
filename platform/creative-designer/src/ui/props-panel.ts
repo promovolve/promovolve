@@ -796,7 +796,7 @@ function numberField(
 // pre-shrink value.
 function fitNote(parent: HTMLElement, idx: number): (item: LayoutItem) => void {
   const note = document.createElement("div");
-  note.style.cssText = `color:${tokens.amber};font-size:11px;margin:-2px 0 6px 88px;display:none;`;
+  note.style.cssText = `color:${tokens.focus};font-size:11px;margin:-2px 0 6px 88px;display:none;`;
   appendToGroup(parent, note);
   let pending = false;
   return (item) => {
@@ -908,7 +908,7 @@ function contrastWarningRow(parent: HTMLElement, store: Store): (item: LayoutIte
     "gap: 6px",
     "margin: 2px 0 8px",
     "padding-left: 88px", // matches the `flex: 0 0 80px` label gutter in `row()`
-    `color: ${tokens.amber}`,
+    `color: ${tokens.focus}`,
     "font-size: 10.5px",
     "letter-spacing: 0.3px",
     "min-height: 14px",

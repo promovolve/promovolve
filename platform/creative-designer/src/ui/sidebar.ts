@@ -228,7 +228,7 @@ export function mountSidebar(host: HTMLElement): SidebarHandle {
       btn.setAttribute("aria-selected", active ? "true" : "false");
       btn.style.color = active ? tokens.ink100 : tokens.ink300;
       btn.style.fontWeight = active ? "600" : "400";
-      btn.style.borderBottomColor = active ? tokens.amber : "transparent";
+      btn.style.borderBottomColor = active ? tokens.focus : "transparent";
     }
     // Toggle the whole collapsible group (not its body) so each
     // section's open/closed accordion state survives a tab switch.

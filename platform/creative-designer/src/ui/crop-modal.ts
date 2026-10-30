@@ -112,7 +112,7 @@ export function openCropModal(store: Store, idx: number, item: ImageItem): void 
   const cropBox = document.createElement("div");
   cropBox.style.cssText = [
     "position: absolute",
-    `border: 1px solid ${tokens.amber}`,
+    `border: 1px solid ${tokens.focus}`,
     "box-shadow: 0 0 0 1px rgba(0,0,0,0.5) inset",
     "cursor: move",
   ].join(";");
@@ -129,7 +129,7 @@ export function openCropModal(store: Store, idx: number, item: ImageItem): void 
       "position: absolute",
       "width: 10px",
       "height: 10px",
-      `background: ${tokens.amber}`,
+      `background: ${tokens.focus}`,
       `border: 1px solid ${tokens.ink900}`,
       `cursor: ${cursorFor(k)}`,
     ].join(";");
@@ -416,7 +416,7 @@ function primaryBtn(label: string, onClick: () => void): HTMLButtonElement {
   b.textContent = label;
   b.style.cssText = [
     "padding: 6px 14px",
-    `background: ${tokens.amber}`,
+    `background: ${tokens.focus}`,
     "color: oklch(0.12 0.04 55)",
     "border: none",
     "border-radius: 4px",

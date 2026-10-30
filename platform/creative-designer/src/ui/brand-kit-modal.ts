@@ -137,7 +137,7 @@ export function openBrandKitModal(campaignId: string): void {
   const save = document.createElement("button");
   save.textContent = "Save kit";
   save.type = "button";
-  save.style.cssText = `background:${tokens.amber};color:${tokens.ink900};border:none;border-radius:4px;padding:6px 14px;font:inherit;font-weight:600;cursor:pointer;`;
+  save.style.cssText = `background:${tokens.focus};color:${tokens.ink900};border:none;border-radius:4px;padding:6px 14px;font:inherit;font-weight:600;cursor:pointer;`;
   save.addEventListener("click", () => {
     saveBrandKit(working, campaignId);
     notifyBrandKitChanged(working);

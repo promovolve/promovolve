@@ -9,7 +9,7 @@
 // out the rows and wires click selection.
 //
 // Each row shows:
-//   - A 12px type icon (text / image / rect / circle) — amber when
+//   - A 12px type icon (text / image / rect / circle) — focus-blue when
 //     selected, ink300 otherwise.
 //   - The item's name, ellipsised. Derived from content (text item
 //     uses its first line, image uses filename from src, rect/circle
@@ -202,9 +202,9 @@ function renderRow(item: LayoutItem, idx: number, state: DesignerState, store: S
     "border-radius: 4px",
     "cursor: pointer",
     "border: 1px solid transparent",
-    `background: ${selected ? tokens.amberBg : "transparent"}`,
+    `background: ${selected ? tokens.focusBg : "transparent"}`,
     `color: ${selected ? tokens.ink100 : tokens.ink200}`,
-    `border-color: ${selected ? tokens.amberMuted : "transparent"}`,
+    `border-color: ${selected ? tokens.focusMuted : "transparent"}`,
     "transition: background .12s, color .12s, border-color .12s",
     "user-select: none",
   ].join(";");
@@ -230,7 +230,7 @@ function renderRow(item: LayoutItem, idx: number, state: DesignerState, store: S
     "display: flex",
     "align-items: center",
     "justify-content: center",
-    `color: ${selected ? tokens.amber : tokens.ink300}`,
+    `color: ${selected ? tokens.focus : tokens.ink300}`,
   ].join(";");
   iconBox.innerHTML = typeIcon(item.type);
   row.appendChild(iconBox);
@@ -372,8 +372,8 @@ function computeDropTarget(from: number, hoverIdx: number, topHalf: boolean): nu
 
 function setIndicator(row: HTMLElement, topHalf: boolean): void {
   row.style.boxShadow = topHalf
-    ? `inset 0 2px 0 0 ${tokens.amber}`
-    : `inset 0 -2px 0 0 ${tokens.amber}`;
+    ? `inset 0 2px 0 0 ${tokens.focus}`
+    : `inset 0 -2px 0 0 ${tokens.focus}`;
 }
 
 function clearIndicator(row: HTMLElement | null): void {

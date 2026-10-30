@@ -214,9 +214,9 @@ export function openRemoveBgModal(store: Store, idx: number, item: ImageItem): v
   const setTool = (t: HintValue | null): void => {
     tool = t;
     const on = (b: HTMLButtonElement, active: boolean): void => {
-      b.style.background = active ? tokens.amber : "transparent";
+      b.style.background = active ? tokens.focus : "transparent";
       b.style.color = active ? "oklch(0.12 0.04 55)" : tokens.ink200;
-      b.style.borderColor = active ? tokens.amber : tokens.ink500;
+      b.style.borderColor = active ? tokens.focus : tokens.ink500;
       b.dataset.active = active ? "1" : "";
     };
     on(restoreBtn, t === HINT_KEEP);
@@ -535,7 +535,7 @@ function primaryBtn(label: string, onClick: () => void): HTMLButtonElement {
   b.textContent = label;
   b.style.cssText = [
     "padding: 6px 14px",
-    `background: ${tokens.amber}`,
+    `background: ${tokens.focus}`,
     "color: oklch(0.12 0.04 55)",
     "border: none",
     "border-radius: 4px",
@@ -564,7 +564,7 @@ function secondaryBtn(label: string, onClick: () => void): HTMLButtonElement {
     "transition: background .12s, color .12s",
   ].join(";");
   // Hover styling skips a button flagged active (the brush tool toggles
-  // paint themselves amber via data-active).
+  // paint themselves focus-blue via data-active).
   b.addEventListener("mouseenter", () => {
     if (b.dataset.active === "1") return;
     b.style.background = tokens.ink700; b.style.color = tokens.ink100;

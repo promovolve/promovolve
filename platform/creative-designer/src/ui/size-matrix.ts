@@ -382,8 +382,8 @@ export function mountSizeMatrix(host: HTMLElement, store: Store): SizeMatrixHand
       setActive(active) {
         btn.dataset.active = active ? "1" : "0";
         btn.setAttribute("aria-current", active ? "true" : "false");
-        btn.style.background = active ? tokens.amberBg : "transparent";
-        btn.style.borderColor = active ? tokens.amberMuted : "transparent";
+        btn.style.background = active ? tokens.focusBg : "transparent";
+        btn.style.borderColor = active ? tokens.focusMuted : "transparent";
         btn.style.color = active ? tokens.ink100 : tokens.ink200;
       },
       setStatus(status) {

@@ -107,7 +107,7 @@ function buildTemplateCard(
   ].join(";");
   card.addEventListener("mouseenter", () => {
     card.style.background = tokens.ink600;
-    card.style.borderColor = tokens.amber;
+    card.style.borderColor = tokens.focus;
   });
   card.addEventListener("mouseleave", () => {
     card.style.background = tokens.ink700;

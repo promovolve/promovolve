@@ -365,7 +365,7 @@ function primaryButton(label: string, onClick: () => void): HTMLButtonElement {
   b.textContent = label;
   b.style.cssText = [
     "padding: 6px 12px",
-    `background: ${tokens.amber}`,
+    `background: ${tokens.focus}`,
     "color: oklch(0.12 0.04 55)",
     "border: none",
     "border-radius: 4px",

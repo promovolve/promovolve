@@ -207,7 +207,7 @@ function button(label: string, primary: boolean, onClick: () => void): HTMLButto
   b.style.cssText = [
     "padding: 5px 12px", "border-radius: 4px", "font: inherit", "font-size: 12px", "cursor: pointer",
     primary
-      ? `background: ${tokens.amber}; color: oklch(0.12 0.04 55); border: none; font-weight: 600`
+      ? `background: ${tokens.focus}; color: oklch(0.12 0.04 55); border: none; font-weight: 600`
       : `background: transparent; color: ${tokens.ink200}; border: 1px solid ${tokens.ink500}`,
   ].join(";");
   b.addEventListener("click", onClick);

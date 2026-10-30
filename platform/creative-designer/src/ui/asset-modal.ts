@@ -377,7 +377,7 @@ function buildModal(): Modal {
     if (fileInput.files) void uploadFiles(fileInput.files);
   });
   zone.addEventListener("click", () => fileInput.click());
-  zone.addEventListener("dragover", (e) => { e.preventDefault(); zone.style.borderColor = tokens.amber; });
+  zone.addEventListener("dragover", (e) => { e.preventDefault(); zone.style.borderColor = tokens.focus; });
   zone.addEventListener("dragleave", () => { zone.style.borderColor = tokens.ink500; });
   zone.addEventListener("drop", (e) => {
     e.preventDefault();

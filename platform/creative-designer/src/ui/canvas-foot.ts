@@ -75,9 +75,9 @@ export function mountCanvasFoot(host: HTMLElement, store: Store): CanvasFootHand
     "transition: color .12s, background .12s, border-color .12s",
   ].join(";");
   const applyRulerBtnState = (on: boolean): void => {
-    rulersBtn.style.color = on ? tokens.amber : tokens.ink400;
-    rulersBtn.style.borderColor = on ? tokens.amberMuted : tokens.ink500;
-    rulersBtn.style.background = on ? tokens.amberBg : "transparent";
+    rulersBtn.style.color = on ? tokens.focus : tokens.ink400;
+    rulersBtn.style.borderColor = on ? tokens.focusMuted : tokens.ink500;
+    rulersBtn.style.background = on ? tokens.focusBg : "transparent";
   };
   applyRulerBtnState(rulersEnabled());
   rulersBtn.addEventListener("click", () => setRulersEnabled(!rulersEnabled()));
@@ -90,7 +90,7 @@ export function mountCanvasFoot(host: HTMLElement, store: Store): CanvasFootHand
   zoomInput.max = "3";
   zoomInput.step = "0.05";
   zoomInput.title = "Canvas zoom";
-  zoomInput.style.cssText = `width: 110px; accent-color: ${tokens.amber}; cursor: pointer;`;
+  zoomInput.style.cssText = `width: 110px; accent-color: ${tokens.focus}; cursor: pointer;`;
   zoomInput.addEventListener("input", () => {
     const z = Number(zoomInput.value);
     if (Number.isFinite(z) && z !== store.state.zoom) store.replace(setZoom(store.state, z));

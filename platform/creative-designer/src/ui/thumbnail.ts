@@ -36,7 +36,7 @@ export function renderThumbnail(
     `height: ${height}px`,
     "flex: 0 0 auto",
     `background: ${tokens.ink800}`,
-    `border: 1px solid ${opts.active ? tokens.amberMuted : tokens.ink500}`,
+    `border: 1px solid ${opts.active ? tokens.focusMuted : tokens.ink500}`,
     "border-radius: 4px",
     "overflow: hidden",
     "display: flex",

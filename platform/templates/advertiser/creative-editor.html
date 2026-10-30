@@ -84,7 +84,7 @@
          :style="`background-image:url('${lpScreenshotUrl}'); background-size:cover; background-position:top center; filter: blur(2px) brightness(0.55);`"></div>
     <!-- Gradient so the foreground text always reads over the capture -->
     <div x-show="lpScreenshotUrl" class="absolute inset-0"
-         style="background: linear-gradient(to bottom, rgba(17,24,39,0.30), rgba(17,24,39,0.60));"></div>
+         style="background: linear-gradient(to bottom, rgba(26,26,26,0.30), rgba(26,26,26,0.60));"></div>
     <!-- Placeholder pulse before the capture arrives -->
     <div x-show="!lpScreenshotUrl" class="absolute inset-0 animate-pulse bg-gradient-to-br from-gray-100 to-gray-200"></div>
     <!-- Foreground: spinner + caption -->
@@ -610,18 +610,18 @@ function creativeEditor() {
         const cx = 8 + col * 31;   // cell origin in the 100×100 box
         const cy = 8 + row * 31;
         if (role === 'hero') {
-          out.push({ x: cx, y: cy, w: 26, h: 26, rx: 1.5, fill: '#d1d5db' });
+          out.push({ x: cx, y: cy, w: 26, h: 26, rx: 1.5, fill: '#d6dee5' });
         } else if (role === 'cta') {
-          out.push({ x: cx, y: cy + 8, w: 17, h: 8, rx: 2.5, fill: '#4f46e5' });
+          out.push({ x: cx, y: cy + 8, w: 17, h: 8, rx: 2.5, fill: '#1a1a1a' });
         } else if (role === 'accent' || role === 'badge') {
-          out.push({ x: cx, y: cy, w: 9, h: 9, rx: 1.5, fill: '#f59e0b' });
+          out.push({ x: cx, y: cy, w: 9, h: 9, rx: 1.5, fill: '#2185ff' });
         } else if (role === 'divider') {
-          out.push({ x: cx, y: cy + 12, w: 26, h: 1.5, rx: 0.75, fill: '#9ca3af' });
+          out.push({ x: cx, y: cy + 12, w: 26, h: 1.5, rx: 0.75, fill: '#8a96a1' });
         } else if (role === 'headline') {
-          out.push({ x: cx, y: cy + 4, w: 26, h: prime ? 6 : 4, rx: 1, fill: '#374151' });
+          out.push({ x: cx, y: cy + 4, w: 26, h: prime ? 6 : 4, rx: 1, fill: '#1a1a1a' });
         } else { // subheadline / body / default text → a couple of thin lines
-          out.push({ x: cx, y: cy + 6,  w: 24, h: 3, rx: 1, fill: '#6b7280' });
-          out.push({ x: cx, y: cy + 11, w: 18, h: 3, rx: 1, fill: '#9ca3af' });
+          out.push({ x: cx, y: cy + 6,  w: 24, h: 3, rx: 1, fill: '#4a5560' });
+          out.push({ x: cx, y: cy + 11, w: 18, h: 3, rx: 1, fill: '#8a96a1' });
         }
       }
       return out;

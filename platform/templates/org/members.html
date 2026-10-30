@@ -4,23 +4,23 @@
   <p class="page-sub">{{if .OrgPage.Name}}{{.OrgPage.Name}} · {{end}}{{t "@%s — up to %d members share this organization's accounts." .OrgPage.Domain .OrgPage.MaxMembers}}</p>
 
   {{if .Error}}
-  <div class="bg-red-50 border border-red-200 text-red-700 rounded-lg p-3 mt-6 text-sm">{{.Error}}</div>
+  <div class="notice notice-error p-3 mt-6 text-sm">{{.Error}}</div>
   {{end}}
   {{if .OrgPage.Notice}}
-  <div class="bg-green-50 border border-green-200 text-green-700 rounded-lg p-3 mt-6 text-sm">{{.OrgPage.Notice}}</div>
+  <div class="notice notice-ok p-3 mt-6 text-sm">{{.OrgPage.Notice}}</div>
   {{end}}
 
   {{if .OrgPage.InviteURL}}
-  <div class="bg-amber-50 border border-amber-200 rounded-lg p-4 mt-6 text-sm">
+  <div class="notice notice-advisory p-4 mt-6 text-sm">
     <p class="font-medium text-amber-800 mb-2">{{t "One-time invite link for %s — copy it now, it won't be shown again. Valid 72 hours, single use. They'll register their own passkey with it." .OrgPage.InviteEmail}}</p>
     {{template "copy-field" .OrgPage.InviteURL}}
   </div>
   {{end}}
 
   <div class="card mt-6 overflow-x-auto p-0">
-    <table class="w-full text-sm">
+    <table class="data-table">
       <thead>
-        <tr class="border-b text-left text-gray-500">
+        <tr>
           <th class="px-4 py-3 font-medium">{{t "Member"}}</th>
           <th class="px-4 py-3 font-medium">{{t "Role"}}</th>
           <th class="px-4 py-3 font-medium">{{t "Passkeys"}}</th>
@@ -31,7 +31,7 @@
       <tbody>
         {{$page := .OrgPage}}
         {{range .OrgPage.Members}}
-        <tr class="border-b last:border-0">
+        <tr>
           <td class="px-4 py-3">
             {{.Email}}{{if eq .UserID $page.SelfID}} <span class="text-gray-500">{{t "(you)"}}</span>{{end}}
             {{if .DisplayName}}<span class="block text-xs text-gray-500">{{.DisplayName}}</span>{{end}}

@@ -5,7 +5,7 @@
     <p class="text-gray-500 text-center mb-10">{{t "Platform installation"}}</p>
 
     {{if .Error}}
-    <div class="bg-red-50 border border-red-200 text-red-700 rounded-lg p-3 mb-6 text-sm">{{.Error}}</div>
+    <div class="notice notice-error p-3 mb-6 text-sm">{{.Error}}</div>
     {{end}}
 
     <div class="bg-white rounded-lg shadow-sm border p-8">
@@ -14,7 +14,7 @@
         {{t "This one-time step creates the administrator account that owns this installation and sets the platform economics. The admin reviews account requests and manages platform settings."}}
       </p>
 
-      <div id="setup-error" class="hidden bg-red-50 border border-red-200 text-red-700 rounded-lg p-3 mb-4 text-sm"></div>
+      <div id="setup-error" class="hidden notice notice-error p-3 mb-4 text-sm"></div>
 
       <form id="setup-form" class="space-y-4" onsubmit="return false">
         <div>

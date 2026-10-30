@@ -8,7 +8,7 @@
     </p>
   </div>
   <div class="flex items-center gap-3">
-    <a href="/publisher/sites" class="text-sm text-brand-ink hover:underline">← {{t "Back to sites"}}</a>
+    <a href="/publisher/sites" class="text-sm text-brand-ink hover:underline">{{template "i-back"}} {{t "Back to sites"}}</a>
   </div>
 </div>
 
@@ -27,7 +27,7 @@
       <p class="text-xs text-gray-500 mb-1">{{t "Weekdays"}}</p>
       <div class="flex items-end gap-px h-16">
         {{range $fo.TrafficShape.Weekday}}
-        <div class="flex-1 rounded-t {{if .IsNow}}bg-amber-400{{else}}bg-gray-300{{end}}" style="height: {{.HeightPct}}%" title="{{.Title}}"></div>
+        <div class="flex-1 rounded-t {{if .IsNow}}bg-jma-3{{else}}bg-gray-300{{end}}" style="height: {{.HeightPct}}%" title="{{.Title}}"></div>
         {{end}}
       </div>
     </div>
@@ -35,7 +35,7 @@
       <p class="text-xs text-gray-500 mb-1">{{t "Weekends"}}</p>
       <div class="flex items-end gap-px h-16">
         {{range $fo.TrafficShape.Weekend}}
-        <div class="flex-1 rounded-t {{if .IsNow}}bg-amber-400{{else}}bg-gray-300{{end}}" style="height: {{.HeightPct}}%" title="{{.Title}}"></div>
+        <div class="flex-1 rounded-t {{if .IsNow}}bg-jma-3{{else}}bg-gray-300{{end}}" style="height: {{.HeightPct}}%" title="{{.Title}}"></div>
         {{end}}
       </div>
     </div>
@@ -96,7 +96,7 @@
   <div class="px-5 py-3 border-b bg-gray-50">
     <h2 class="text-sm font-semibold">{{t "Floor by category"}}</h2>
   </div>
-  <table class="w-full text-sm">
+  <table class="data-table">
     <thead>
       <tr class="text-left text-xs text-gray-500 border-b">
         <th class="px-5 py-2 font-medium">{{t "Category"}}</th>
@@ -172,7 +172,7 @@
           {{$sw.BestFloor}}
           {{if ne $sw.BestFloorDelta "—"}}
             <span class="ml-3 text-base font-normal
-              {{if eq $sw.BestFloorTrendArrow "▲"}}text-green-700{{end}}
+              {{if eq $sw.BestFloorTrendArrow "▲"}}text-gray-900{{end}}
               {{if eq $sw.BestFloorTrendArrow "▼"}}text-red-600{{end}}
               {{if eq $sw.BestFloorTrendArrow "="}}text-gray-500{{end}}">
               {{$sw.BestFloorTrendArrow}} {{$sw.BestFloorDelta}}
@@ -204,7 +204,7 @@
   </div>
 
   {{/* ----- Evidence table ----- */}}
-  <table class="w-full text-sm">
+  <table class="data-table">
     <thead class="bg-gray-50 text-xs text-gray-600 uppercase">
       <tr>
         <th class="text-left px-4 py-2 font-medium">{{t "Floor"}}</th>
@@ -217,23 +217,23 @@
     </thead>
     <tbody>
       {{range $sw.Rows}}
-      <tr class="border-t border-gray-100 {{if .IsBest}}bg-green-50{{else if .IsCurrent}}bg-brand-soft{{end}}">
+      <tr class="border-t border-gray-100 {{if .IsBest}}bg-brand-soft font-bold{{else if .IsCurrent}}bg-gray-50{{end}}">
         <td class="px-4 py-2 font-mono whitespace-nowrap">
           {{.Floor}}
-          {{if .IsBest}}<span class="ml-1 text-green-700 text-xs">★</span>{{end}}
+          {{if .IsBest}}<span class="ml-1 text-gray-900 text-xs">★</span>{{end}}
           {{if .WasBest}}<span class="ml-1 text-gray-500 text-xs" title="{{t "was the argmax last cycle"}}">★</span>{{end}}
         </td>
         <td class="px-4 py-2 text-right font-mono">{{.Revenue}}</td>
         <td class="px-4 py-2 text-right text-gray-500">{{.Impressions}}</td>
         <td class="px-4 py-2 text-right font-mono text-gray-500">{{.PreviousRevenue}}</td>
         <td class="px-4 py-2 text-right font-mono text-xs
-            {{if eq .DeltaSign 1}}text-green-700{{end}}
+            {{if eq .DeltaSign 1}}text-gray-900{{end}}
             {{if eq .DeltaSign -1}}text-red-600{{end}}">
           {{.RevenueDelta}}
         </td>
         <td class="px-4 py-2">
           <div class="h-3 bg-gray-100 rounded-sm overflow-hidden" style="width: 100%;">
-            <div class="h-3 {{if .IsBest}}bg-green-500{{else if .IsCurrent}}bg-orange-400{{else}}bg-gray-400{{end}}"
+            <div class="h-3 {{if .IsBest}}bg-gray-900{{else if .IsCurrent}}bg-jma-2{{else}}bg-gray-300{{end}}"
                  style="width: {{.BarWidth}}%;"></div>
           </div>
         </td>
@@ -247,7 +247,7 @@
   </table>
 
   <div class="px-5 py-2 bg-gray-50 border-t text-xs text-gray-500">
-    <span class="text-green-700">★</span> {{t "= argmax this cycle"}} ·
+    <span class="text-gray-900">★</span> {{t "= argmax this cycle"}} ·
     <span class="text-gray-500">★</span> {{t "= was argmax last cycle"}} ·
     {{t "Δ shows revenue change vs last cycle's measurement of that same floor"}}
   </div>
@@ -307,24 +307,24 @@
     <div class="flex items-center justify-between text-xs text-gray-500 mt-3 px-2 gap-2 flex-wrap">
       {{if $fo.ArgmaxNav}}
         {{$nav := $fo.ArgmaxNav}}
-        <a href="?date={{$nav.PrevDate}}" class="text-brand-ink hover:underline whitespace-nowrap">← {{$nav.PrevDate}}</a>
+        <a href="?date={{$nav.PrevDate}}" class="text-brand-ink hover:underline whitespace-nowrap">{{template "i-back"}} {{$nav.PrevDate}}</a>
         <form method="GET" class="flex items-center gap-2">
           <label id="obs-date-label" for="obs-date" class="text-xs text-gray-500">{{t "Date:"}}</label>
           {{template "date-picker" dict "Id" "obs-date" "Name" "date" "Value" (or $nav.SelectedDate $nav.Today) "Max" $nav.Today "Submit" "1" "Sm" "1"}}
           {{if $nav.SelectedDate}}
-            <a href="?" class="text-brand-ink hover:underline">{{t "recent"}} →</a>
+            <a href="?" class="text-brand-ink hover:underline">{{t "recent"}} {{template "i-next"}}</a>
           {{end}}
           <span class="text-gray-500"><strong class="text-gray-700">{{len $fo.ArgmaxHistory}}</strong> {{t "cycle(s)"}}{{if not $showLabels}} · {{t "hover dots for values"}}{{end}}</span>
         </form>
         {{if $nav.NextDate}}
-          <a href="?date={{$nav.NextDate}}" class="text-brand-ink hover:underline whitespace-nowrap">{{$nav.NextDate}} →</a>
+          <a href="?date={{$nav.NextDate}}" class="text-brand-ink hover:underline whitespace-nowrap">{{$nav.NextDate}} {{template "i-next"}}</a>
         {{else}}
           <span class="text-gray-500 whitespace-nowrap">{{t "at today"}}</span>
         {{end}}
       {{else}}
-        <span>← {{t "older cycles"}}</span>
+        <span>{{template "i-back"}} {{t "older cycles"}}</span>
         <span><strong class="text-gray-600">{{len $fo.ArgmaxHistory}}</strong> {{t "cycle(s)"}}</span>
-        <span>{{t "newer cycles"}} →</span>
+        <span>{{t "newer cycles"}} {{template "i-next"}}</span>
       {{end}}
     </div>
   </div>

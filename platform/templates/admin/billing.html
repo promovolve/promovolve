@@ -6,37 +6,37 @@
   {{template "billing-tabs" .}}
 
   {{if .Error}}
-  <div class="bg-red-50 border border-red-200 text-red-700 rounded-lg p-3 mt-6 text-sm">{{.Error}}</div>
+  <div class="notice notice-error p-3 mt-6 text-sm">{{.Error}}</div>
   {{end}}
 
   {{with .AdminBilling}}
 
   <!-- Overview -->
-  <div class="grid {{if .Held}}grid-cols-3 lg:grid-cols-6{{else}}grid-cols-5{{end}} gap-6 mt-6">
-    <div class="bg-white p-6 rounded-lg border" title="{{t "External money received minus money sent (top-ups − payouts − refunds)"}}">
+  <div class="figures grid-cols-2 sm:grid-cols-3 {{if .Held}}lg:grid-cols-6{{else}}lg:grid-cols-5{{end}} mt-6">
+    <div class="figure" title="{{t "External money received minus money sent (top-ups − payouts − refunds)"}}">
       <p class="text-sm text-gray-500">{{t "Cash position"}}</p>
-      <p class="text-3xl font-semibold mt-2">{{.Cash}}</p>
+      <p class="text-2xl font-bold tabular mt-1">{{.Cash}}</p>
     </div>
-    <div class="bg-white p-6 rounded-lg border" title="{{t "Unspent advertiser funds you are holding"}}">
+    <div class="figure" title="{{t "Unspent advertiser funds you are holding"}}">
       <p class="text-sm text-gray-500">{{t "Advertiser wallets"}}</p>
-      <p class="text-3xl font-semibold mt-2">{{.Wallets}}</p>
+      <p class="text-2xl font-bold tabular mt-1">{{.Wallets}}</p>
     </div>
-    <div class="bg-white p-6 rounded-lg border" title="{{t "Earned, not-yet-paid publisher revenue"}}">
+    <div class="figure" title="{{t "Earned, not-yet-paid publisher revenue"}}">
       <p class="text-sm text-gray-500">{{t "Publisher payables"}}</p>
-      <p class="text-3xl font-semibold mt-2">{{.Payables}}</p>
+      <p class="text-2xl font-bold tabular mt-1">{{.Payables}}</p>
     </div>
-    <div class="bg-white p-6 rounded-lg border" title="{{t "Margin captured at settlement — the platform's earnings"}}">
+    <div class="figure" title="{{t "Margin captured at settlement — the platform's earnings"}}">
       <p class="text-sm text-gray-500">{{t "Margin captured"}}</p>
-      <p class="text-3xl font-semibold mt-2">{{.Revenue}}</p>
+      <p class="text-2xl font-bold tabular mt-1">{{.Revenue}}</p>
     </div>
-    <div class="bg-white p-6 rounded-lg border" title="{{t "Settlement gross charged to advertisers but not yet credited to publishers — the two local billing days close at different times, so this is normally NON-zero and can be negative as the zones settle in turn. It nets to zero over any range both sides have closed; the thing to watch is a persistent, growing imbalance (not a bounded one), which means traffic from a site with no publisher mapping."}}">
+    <div class="figure" title="{{t "Settlement gross charged to advertisers but not yet credited to publishers — the two local billing days close at different times, so this is normally NON-zero and can be negative as the zones settle in turn. It nets to zero over any range both sides have closed; the thing to watch is a persistent, growing imbalance (not a bounded one), which means traffic from a site with no publisher mapping."}}">
       <p class="text-sm text-gray-500">{{t "In transit"}}</p>
-      <p class="text-3xl font-semibold mt-2">{{.Clearing}}</p>
+      <p class="text-2xl font-bold tabular mt-1">{{.Clearing}}</p>
     </div>
     {{if .Held}}
-    <div class="bg-white p-6 rounded-lg border border-amber-300" title="{{t "Publisher earnings on fraud-flagged sites, held in clearing instead of paid out. An operator releases them (false positive → pay the publisher) or confirms fraud (claws them back to the advertiser) from the Fraud Review queue. Part of In-transit, shown here so held money is never mistaken for benign settlement float."}}">
+    <div class="figure" title="{{t "Publisher earnings on fraud-flagged sites, held in clearing instead of paid out. An operator releases them (false positive → pay the publisher) or confirms fraud (claws them back to the advertiser) from the Fraud Review queue. Part of In-transit, shown here so held money is never mistaken for benign settlement float."}}">
       <p class="text-sm text-amber-700">{{t "Held (fraud review)"}}</p>
-      <p class="text-3xl font-semibold mt-2 text-amber-700">{{.Held}}</p>
+      <p class="text-2xl font-bold tabular mt-1 text-amber-700">{{.Held}}</p>
     </div>
     {{end}}
   </div>
@@ -63,25 +63,25 @@
       {{end}}
     </div>
     <p class="px-6 mt-1 text-sm text-gray-500">{{t "Every advertiser and publisher settles on its own local days. \"Settled through\" is how far each entity's books are booked."}}</p>
-    <table class="w-full text-sm mt-3">
+    <table class="data-table">
       <thead>
-        <tr class="border-b text-left text-gray-500">
-          <th class="px-6 py-2 font-medium">{{t "Entity"}}</th>
-          <th class="px-6 py-2 font-medium">{{t "Side"}}</th>
-          <th class="px-6 py-2 font-medium">{{t "Billing timezone"}}</th>
-          <th class="px-6 py-2 font-medium">{{t "Settled through"}}</th>
+        <tr>
+          <th>{{t "Entity"}}</th>
+          <th>{{t "Side"}}</th>
+          <th>{{t "Billing timezone"}}</th>
+          <th>{{t "Settled through"}}</th>
         </tr>
       </thead>
       <tbody>
         {{range .Cursors}}
         <tr class="border-b last:border-0 {{if .Behind}}bg-amber-50{{end}}">
-          <td class="px-6 py-2 font-medium">{{.Label}}</td>
-          <td class="px-6 py-2 text-gray-500">{{t .Owner}}</td>
-          <td class="px-6 py-2 text-gray-500">{{.Timezone}}</td>
-          <td class="px-6 py-2 {{if .Behind}}text-amber-700 font-medium{{else}}text-gray-500{{end}}">{{.SettledUntil}}{{if .Behind}} — {{t "behind"}}{{end}}</td>
+          <td >{{.Label}}</td>
+          <td class="text-gray-500">{{t .Owner}}</td>
+          <td class="text-gray-500">{{.Timezone}}</td>
+          <td class="{{if .Behind}}text-amber-700 font-medium{{else}}text-gray-500{{end}}">{{.SettledUntil}}{{if .Behind}} — {{t "behind"}}{{end}}</td>
         </tr>
         {{else}}
-        <tr><td class="px-6 py-4 text-gray-500" colspan="4">{{t "The settlement job has not seen billable traffic yet."}}</td></tr>
+        <tr><td class="text-gray-500" colspan="4">{{t "The settlement job has not seen billable traffic yet."}}</td></tr>
         {{end}}
       </tbody>
     </table>
@@ -93,29 +93,29 @@
     <div class="px-6 pt-6">
       <h2 class="font-semibold text-lg">{{t "Recent settled windows"}}</h2>
     </div>
-    <table class="w-full text-sm mt-3">
+    <table class="data-table">
       <thead>
-        <tr class="border-b text-left text-gray-500">
-          <th class="px-6 py-2 font-medium">{{t "Entity"}}</th>
-          <th class="px-6 py-2 font-medium">{{t "Local day"}}</th>
-          <th class="px-6 py-2 font-medium" title="{{t "The exact instant range booked (UTC), for auditing"}}">{{t "Window (UTC)"}}</th>
-          <th class="px-6 py-2 font-medium" title="{{t "One line item = one campaign + site combination billed in this window"}}">{{t "Line items"}}</th>
-          <th class="px-6 py-2 font-medium">{{t "Skipped (no publisher)"}}</th>
-          <th class="px-6 py-2 font-medium">{{t "Gross"}}</th>
+        <tr>
+          <th>{{t "Entity"}}</th>
+          <th>{{t "Local day"}}</th>
+          <th  title="{{t "The exact instant range booked (UTC), for auditing"}}">{{t "Window (UTC)"}}</th>
+          <th  title="{{t "One line item = one campaign + site combination billed in this window"}}">{{t "Line items"}}</th>
+          <th>{{t "Skipped (no publisher)"}}</th>
+          <th>{{t "Gross"}}</th>
         </tr>
       </thead>
       <tbody>
         {{range .Windows}}
-        <tr class="border-b last:border-0">
-          <td class="px-6 py-2 font-medium">{{.Label}} <span class="text-gray-500">({{t .Owner}})</span></td>
-          <td class="px-6 py-2 text-gray-500">{{.LocalDay}}</td>
-          <td class="px-6 py-2 text-gray-500 whitespace-nowrap">{{.Window}}</td>
-          <td class="px-6 py-2 text-gray-500">{{.Rows}}</td>
-          <td class="px-6 py-2 {{if .Skipped}}text-red-600 font-medium{{else}}text-gray-500{{end}}">{{.Skipped}}</td>
-          <td class="px-6 py-2 text-gray-500">{{money .Gross}}</td>
+        <tr>
+          <td >{{.Label}} <span class="text-gray-500">({{t .Owner}})</span></td>
+          <td class="text-gray-500">{{.LocalDay}}</td>
+          <td class="text-gray-500 whitespace-nowrap">{{.Window}}</td>
+          <td class="text-gray-500">{{.Rows}}</td>
+          <td class="{{if .Skipped}}text-red-600 font-medium{{else}}text-gray-500{{end}}">{{.Skipped}}</td>
+          <td class="text-gray-500">{{money .Gross}}</td>
         </tr>
         {{else}}
-        <tr><td class="px-6 py-4 text-gray-500" colspan="6">{{t "The settlement job has not completed a window yet."}}</td></tr>
+        <tr><td class="text-gray-500" colspan="6">{{t "The settlement job has not completed a window yet."}}</td></tr>
         {{end}}
       </tbody>
     </table>

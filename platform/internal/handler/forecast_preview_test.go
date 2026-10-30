@@ -1,8 +1,10 @@
 package handler
 
 import (
+	"math"
 	"os"
 	"path/filepath"
+	"strconv"
 	"strings"
 	"testing"
 	"time"
@@ -27,13 +29,21 @@ func TestCampaignsForecastRenders(t *testing.T) {
 		return
 	}
 	for _, lang := range []string{i18n.LangEN, i18n.LangJA} {
+		pct := func(spend, budget string) float64 {
+			sv, _ := strconv.ParseFloat(spend, 64)
+			bv, _ := strconv.ParseFloat(budget, 64)
+			if bv <= 0 {
+				return 0
+			}
+			return math.Min(100, sv/bv*100)
+		}
 		row := func(id, name, status, spend, budget string, hours [24]float64, b float64, untargeted bool) campaignData {
 			f := buildForecast(lang, hours, b, now, status == "active")
 			if untargeted {
 				f.Alert, f.Outlook = "advisory", i18n.T(lang, "Not bidding: no target categories")
 			}
 			return campaignData{ID: id, Name: name, Status: status, SpendToday: spend, DailyBudget: budget,
-				MaxCPM: "4.20", Clicks: 386, CTR: "0.94%", Untargeted: untargeted, Forecast: f}
+				MaxCPM: "4.20", Clicks: 386, CTR: "0.94%", Untargeted: untargeted, Forecast: f, BudgetPct: pct(spend, budget)}
 		}
 		var acct [24]float64
 		for i, v := range shape(1.1, 16) {
@@ -44,7 +54,7 @@ func TestCampaignsForecastRenders(t *testing.T) {
 			Title: "Campaigns", Nav: "campaigns",
 			User:      &model.User{Email: "adv@test", Role: model.RoleAdvertiser},
 			AdvBudget: &advertiserBudget{DailyBudget: "400.00", Remaining: "343.00", SpendToday: "$57.00", BudgetMode: "manual"},
-			AdvAvgCTR: "0.85%", AdvForecast: &acctF, AdvForecastAsOf: "15:40 JST",
+			AdvAvgCTR: "0.85%", AdvForecast: &acctF, AdvForecastAsOf: "15:40 JST", AdvBalance: "$482.00", AdvRunwayDays: 8,
 			ListNav: &listNav{Page: 1, TotalPages: 1, Total: 5, From: 1, To: 5},
 			Campaigns: []campaignData{
 				row("c-14", "Autumn ryokan stays — Kyoto", "active", "8.20", "15.00", shape(.55, 16), 15, false),
@@ -83,7 +93,7 @@ func TestWalletForecastRenders(t *testing.T) {
 		f, _ := walletForecast(lang, charged, 482, 57, today)
 		data := pageData{Title: "Wallet", Nav: "wallet", User: &model.User{Email: "adv@test", Role: model.RoleAdvertiser},
 			Wallet: &walletPageData{Balance: "$482.00", Pending: "$57.00", Projected: "$425.00", Timezone: "Asia/Tokyo", Forecast: &f,
-				Activity:  []walletActivityRow{{Date: "2026-10-18 10:02", Kind: "topup", KindBadge: "badge-success", Memo: "bank transfer", Amount: "+$300.00"}},
+				Activity:  []walletActivityRow{{Date: "2026-10-18 10:02", Kind: "Top-up", Memo: "bank transfer", Amount: "+$300.00"}},
 				Statement: []statementRow{{Day: "2026-10-20", CampaignID: "c-14", Campaign: "Autumn ryokan stays — Kyoto", SiteID: "travel-example-jp", Impressions: 4120, Amount: "31.45"}},
 				Months:    []monthlyRow{{Month: "2026-10", Impressions: 81220, Gross: "702.10"}},
 			}}

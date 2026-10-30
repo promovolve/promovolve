@@ -21,7 +21,7 @@
       <div class="relative h-4 mt-1 text-xs text-gray-500" aria-hidden="true">
         <span class="absolute left-0">{{t "14 days ago"}}</span><span class="absolute left-1/2 -translate-x-1/2">{{t "today"}}</span><span class="absolute right-0">{{t "in 14 days"}}</span>
       </div>
-      {{template "forecast-legend" (t "more than your average day")}}
+      {{template "forecast-legend" (t "Charge per day, as a multiple of your average day")}}
     </div>
     {{end}}
     {{if .Suspended}}
@@ -37,14 +37,14 @@
   <p class="text-sm text-gray-500 mt-1 mb-3">{{if .Timezone}}{{t "One line per campaign per site per day in your account's timezone (%s), settled shortly after your local midnight." .Timezone}}{{else}}{{t "One line per campaign per site per day, settled shortly after your local midnight."}}{{end}}</p>
   <div class="overflow-x-auto">
     <table class="data-table">
-      <thead><tr><th>{{t "Day"}}</th><th>{{t "Campaign"}}</th><th>{{t "Site"}}</th><th class="num">{{t "Impressions"}}</th><th class="num">{{t "Charged"}}</th></tr></thead>
+      <thead><tr><th>{{t "Day"}}</th><th>{{t "Campaign"}}</th><th class="hidden sm:table-cell">{{t "Site"}}</th><th class="num hidden sm:table-cell">{{t "Impressions"}}</th><th class="num">{{t "Charged"}}</th></tr></thead>
       <tbody>
         {{range .Statement}}
         <tr>
           <td class="whitespace-nowrap"><a href="/advertiser/report?from={{.Day}}&amp;to={{.Day}}" class="text-brand-ink hover:underline">{{.Day}}</a></td>
-          <td class="font-bold" title="{{.CampaignID}}">{{.Campaign}}</td>
-          <td class="text-gray-500">{{.SiteID}}</td>
-          <td class="num text-gray-500">{{.Impressions}}</td>
+          <td title="{{.CampaignID}}"><span class="font-bold">{{.Campaign}}</span><span class="sm:hidden block text-xs text-gray-500">{{.SiteID}} · {{.Impressions}}</span></td>
+          <td class="hidden sm:table-cell text-gray-500">{{.SiteID}}</td>
+          <td class="num hidden sm:table-cell text-gray-500">{{.Impressions}}</td>
           <td class="num">{{money .Amount}}</td>
         </tr>
         {{else}}
@@ -58,13 +58,13 @@
   <h2 class="section-title mt-10 mb-3">{{t "Top-ups & adjustments"}}</h2>
   <div class="overflow-x-auto">
     <table class="data-table">
-      <thead><tr><th>{{t "When"}}</th><th>{{t "Type"}}</th><th>{{t "Reference"}}</th><th class="num">{{t "Amount"}}</th></tr></thead>
+      <thead><tr><th>{{t "When"}}</th><th>{{t "Type"}}</th><th class="hidden sm:table-cell">{{t "Reference"}}</th><th class="num">{{t "Amount"}}</th></tr></thead>
       <tbody>
         {{range .Activity}}
         <tr>
-          <td class="text-gray-500 whitespace-nowrap">{{.Date}}</td>
-          <td><span class="badge {{.KindBadge}}">{{t .Kind}}</span></td>
-          <td class="text-gray-500">{{.Memo}}</td>
+          <td class="text-gray-500 sm:whitespace-nowrap">{{.Date}}</td>
+          <td><span class="badge badge-neutral">{{t .Kind}}</span>{{if .Memo}}<span class="sm:hidden block text-xs text-gray-500 mt-1">{{.Memo}}</span>{{end}}</td>
+          <td class="hidden sm:table-cell text-gray-500">{{.Memo}}</td>
           <td class="num font-bold">{{.Amount}}</td>
         </tr>
         {{else}}

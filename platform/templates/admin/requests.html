@@ -4,7 +4,7 @@
   <p class="page-sub">{{t "Review who gets access to this platform. Approval provisions the account on the ad server."}}</p>
 
   {{if .Error}}
-  <div class="notice notice-error p-3 mt-6 text-sm">{{.Error}}</div>
+  <div class="notice notice-error p-3 mt-6 text-sm" data-lead="{{t "Error:"}}">{{.Error}}</div>
   {{end}}
 
   {{if and (not .AdminRequests) (not .AdminOrgSideRequests)}}

@@ -26,11 +26,11 @@
   <link rel="stylesheet" href="{{asset "fonts/biz-udpgothic.css"}}">
   <link rel="stylesheet" href="{{asset "fonts/biz-udpmincho.css"}}">
   <link rel="stylesheet" href="{{asset "tailwind.css"}}">
-  {{/* Chart colors for the current theme, read when a chart is drawn. The
-       categorical steps are validated per surface (dataviz validator):
-       light vs white, dark vs the dark surface. Identity is also carried by
-       the legend and the table under each chart (dark green/amber sit in the
-       CVD 6-8 band). A theme toggle mid-page applies on the next load. */}}
+  {{/* Chart colors for the current theme, read when a chart is drawn:
+       ink and greys only, like a printed page. Categorical series step from
+       ink down the grey intensity scale; identity is also carried by the
+       legend and the table under each chart. A theme toggle mid-page
+       applies on the next load. */}}
   <script>
     window.chartTheme = function () {
       var cs = getComputedStyle(document.documentElement);
@@ -38,10 +38,9 @@
       var dark = document.documentElement.classList.contains('dark');
       return {
         ink: v('--c-gray-500'), grid: v('--c-gray-200'), surface: v('--c-white'),
-        brand: dark ? '#a0d2ff' : '#0041ff',
-        brandTint: dark ? 'rgba(160,210,255,0.35)' : '#a0d2ff',
-        pal: dark ? ['#3987e5', '#199e70', '#c98500', '#008300', '#9085e9', '#d95926']
-                  : ['#2a78d6', '#1baf7a', '#eda100', '#008300', '#4a3aa7', '#d35f00']
+        brand: v('--c-gray-900'), brandTint: v('--c-gray-300'),
+        wash: v('--c-gray-900').replace('rgb(', 'rgba(').replace(')', ',0.08)'),
+        pal: [v('--c-gray-900'), v('--c-jma-5'), v('--c-jma-4'), v('--c-jma-3'), v('--c-jma-2'), v('--c-jma-1')]
       };
     };
   </script>
@@ -353,7 +352,7 @@
   <code x-ref="val" class="flex-1 min-w-0 bg-white border border-gray-200 rounded-md px-3 py-2 font-mono text-xs break-all">{{.}}</code>
   <button type="button" class="btn btn-secondary btn-sm shrink-0"
     @click.stop="navigator.clipboard.writeText($refs.val.textContent.trim()).then(() => { copied = true; setTimeout(() => copied = false, 1500) })"
-    x-text="copied ? '{{t "Copied ✓"}}' : '{{t "Copy"}}'">{{t "Copy"}}</button>
+    x-text="copied ? '{{t "Copied"}}' : '{{t "Copy"}}'">{{t "Copy"}}</button>
 </div>
 {{end}}
 

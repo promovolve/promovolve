@@ -6,7 +6,7 @@
   {{template "billing-tabs" .}}
 
   {{if .Error}}
-  <div class="notice notice-error p-3 mt-6 text-sm">{{.Error}}</div>
+  <div class="notice notice-error p-3 mt-6 text-sm" data-lead="{{t "Error:"}}">{{.Error}}</div>
   {{end}}
 
   {{with .AdminPayouts}}

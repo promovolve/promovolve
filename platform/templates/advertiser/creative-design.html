@@ -13,7 +13,7 @@
     try { m = localStorage.getItem('promovolve.dashboard.theme') || localStorage.getItem('promovolve.designer.theme') || 'auto'; } catch (e) {}
     var dark = m === 'dark' || (m !== 'light' && matchMedia('(prefers-color-scheme: dark)').matches);
     document.documentElement.dataset.cdTheme = dark ? 'dark' : 'light';
-    document.documentElement.style.background = dark ? '#111519' : '#ffffff';
+    document.documentElement.style.background = dark ? '#151515' : '#ffffff';
   })();
 </script>
 <script src="{{.BannerScriptURL}}"></script>

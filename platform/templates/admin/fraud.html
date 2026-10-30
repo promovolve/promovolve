@@ -4,7 +4,7 @@
   <p class="page-sub">{{t "Sites the economics detector flagged for review. Release a false positive (it tunes the thresholds); confirm real fraud to stop serving on that one site. Nothing here is charged or paid until you act."}}</p>
 
   {{if .Error}}
-  <div class="notice notice-error p-3 mt-6 text-sm">{{.Error}}</div>
+  <div class="notice notice-error p-3 mt-6 text-sm" data-lead="{{t "Error:"}}">{{.Error}}</div>
   {{end}}
 
   {{if not .AdminFraudFlags}}

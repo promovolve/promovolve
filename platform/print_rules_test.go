@@ -3,9 +3,10 @@ package platform
 // The printed-page guard (DESIGN.md, The Ink Only Rule): the dashboard is
 // black and white, like a newspaper. Ad creatives are the only colour on
 // the page, and they never come from these sources. This scans what a
-// class grep can see — templates (including Alpine :class strings) and
-// the Go code that hands classes to templates; the browser check in
-// dashboard-tests/printed-page.run.mjs reads what actually renders.
+// class grep can see — templates (including Alpine :class strings), the
+// stylesheet source and the Go code that hands classes to templates; the
+// browser check in dashboard-tests/printed-page.run.mjs reads what
+// actually renders.
 
 import (
 	"os"
@@ -42,7 +43,11 @@ func TestTemplatesArePrintedPage(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	withGo := append(templates, src{"internal/handler/pages.go", string(pages)})
+	css, err := os.ReadFile("tailwind.input.css")
+	if err != nil {
+		t.Fatal(err)
+	}
+	withGo := append(templates, src{"internal/handler/pages.go", string(pages)}, src{"tailwind.input.css", string(css)})
 
 	// scan reports every line of files where match returns non-empty.
 	scan := func(t *testing.T, files []src, match func(line string) string) {
@@ -81,10 +86,6 @@ func TestTemplatesArePrintedPage(t *testing.T) {
 		})
 	})
 	t.Run("no-grayscale-filter", func(t *testing.T) {
-		css, err := os.ReadFile("tailwind.input.css")
-		if err != nil {
-			t.Fatal(err)
-		}
 		if strings.Contains(string(css), "grayscale(") {
 			t.Error("tailwind.input.css: greyscale comes from the tokens, never from filter: grayscale (it would grey the ad creatives too)")
 		}

@@ -44,7 +44,7 @@
 </div>
 
 {{if $r.CoverageNote}}
-<div class="notice notice-advisory px-4 py-2 mb-4 text-sm">
+<div class="notice notice-advisory px-4 py-2 mb-4 text-sm" data-lead="{{t "Note:"}}">
   {{t "Breakdown data is available from %s — earlier days in this range are not included." $r.CoverageNote}}
 </div>
 {{end}}

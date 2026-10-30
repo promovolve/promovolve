@@ -6,7 +6,7 @@
   {{template "billing-tabs" .}}
 
   {{if .Error}}
-  <div class="notice notice-error p-3 mt-6 text-sm">{{.Error}}</div>
+  <div class="notice notice-error p-3 mt-6 text-sm" data-lead="{{t "Error:"}}">{{.Error}}</div>
   {{end}}
 
   {{with .AdminBilling}}
@@ -35,8 +35,8 @@
     </div>
     {{if .Held}}
     <div class="figure" title="{{t "Publisher earnings on fraud-flagged sites, held in clearing instead of paid out. An operator releases them (false positive → pay the publisher) or confirms fraud (claws them back to the advertiser) from the Fraud Review queue. Part of In-transit, shown here so held money is never mistaken for benign settlement float."}}">
-      <p class="text-sm text-amber-700">{{t "Held (fraud review)"}}</p>
-      <p class="text-2xl font-bold tabular mt-1 text-amber-700">{{.Held}}</p>
+      <p class="text-sm text-gray-500">{{t "Held (fraud review)"}}</p>
+      <p class="text-2xl font-bold tabular mt-1">{{.Held}}</p>
     </div>
     {{end}}
   </div>
@@ -46,7 +46,7 @@
     <span class="text-gray-500 ml-2">{{t "cash = wallets + payables + margin + in-transit, and every ledger entry reconciles"}}</span>
     {{else}}
     <span class="badge badge-danger">{{t "reconciliation FAILED"}}</span>
-    <span class="text-red-600 ml-2">{{t "%d account(s) drifted from their ledger entries — investigate before recording money" .DriftCount}}</span>
+    <span class="font-bold text-gray-900 ml-2">{{t "%d account(s) drifted from their ledger entries — investigate before recording money" .DriftCount}}</span>
     {{end}}
   </p>
 
@@ -74,11 +74,11 @@
       </thead>
       <tbody>
         {{range .Cursors}}
-        <tr class="border-b last:border-0 {{if .Behind}}bg-amber-50{{end}}">
+        <tr class="border-b last:border-0 {{if .Behind}}bg-gray-100{{end}}">
           <td >{{.Label}}</td>
           <td class="text-gray-500">{{t .Owner}}</td>
           <td class="text-gray-500">{{.Timezone}}</td>
-          <td class="{{if .Behind}}text-amber-700 font-medium{{else}}text-gray-500{{end}}">{{.SettledUntil}}{{if .Behind}} — {{t "behind"}}{{end}}</td>
+          <td class="{{if .Behind}}text-gray-900 font-bold{{else}}text-gray-500{{end}}">{{.SettledUntil}}{{if .Behind}} — {{t "behind"}}{{end}}</td>
         </tr>
         {{else}}
         <tr><td class="text-gray-500" colspan="4">{{t "The settlement job has not seen billable traffic yet."}}</td></tr>
@@ -111,7 +111,7 @@
           <td class="text-gray-500">{{.LocalDay}}</td>
           <td class="text-gray-500 whitespace-nowrap">{{.Window}}</td>
           <td class="text-gray-500">{{.Rows}}</td>
-          <td class="{{if .Skipped}}text-red-600 font-medium{{else}}text-gray-500{{end}}">{{.Skipped}}</td>
+          <td class="{{if .Skipped}}text-gray-900 font-bold{{else}}text-gray-500{{end}}">{{.Skipped}}</td>
           <td class="text-gray-500">{{money .Gross}}</td>
         </tr>
         {{else}}

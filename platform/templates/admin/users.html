@@ -4,12 +4,12 @@
   <p class="page-sub">{{t "Every account on this platform, including past requests."}}</p>
 
   {{if .Error}}
-  <div class="notice notice-error p-3 mt-6 text-sm">{{.Error}}</div>
+  <div class="notice notice-error p-3 mt-6 text-sm" data-lead="{{t "Error:"}}">{{.Error}}</div>
   {{end}}
 
   {{if .RecoveryURL}}
   <div class="notice notice-advisory p-4 mt-6 text-sm">
-    <p class="font-medium text-amber-800 mb-2">{{t "One-time recovery link for %s — copy it now, it won't be shown again. Valid 72 hours, single use." .RecoveryEmail}}</p>
+    <p class="font-bold text-gray-900 mb-2">{{t "One-time recovery link for %s — copy it now, it won't be shown again. Valid 72 hours, single use." .RecoveryEmail}}</p>
     {{template "copy-field" .RecoveryURL}}
   </div>
   {{end}}
@@ -31,21 +31,21 @@
         <!-- Identity columns -->
         <div class="grid grid-cols-[minmax(9rem,1fr)_auto_auto] gap-x-8 gap-y-1 items-start">
           <div>
-            <div class="text-xs uppercase tracking-wide text-gray-500">{{t "Organization"}}</div>
+            <div class="text-xs text-gray-500">{{t "Organization"}}</div>
             <div class="font-medium">{{if .Name}}{{.Name}}{{else}}{{.Domain}}{{end}}</div>
             <div class="text-xs text-gray-500">@{{.Domain}}</div>
           </div>
           <div>
-            <div class="text-xs uppercase tracking-wide text-gray-500">{{t "Sides"}}</div>
+            <div class="text-xs text-gray-500">{{t "Sides"}}</div>
             <div class="flex gap-1 mt-1">
-              {{if .HasAdvertiser}}<span class="badge bg-blue-100 text-blue-700">{{t "advertiser"}}</span>{{end}}
-              {{if .HasPublisher}}<span class="badge bg-purple-100 text-purple-700">{{t "publisher"}}</span>{{end}}
+              {{if .HasAdvertiser}}<span class="badge badge-neutral">{{t "advertiser"}}</span>{{end}}
+              {{if .HasPublisher}}<span class="badge badge-neutral">{{t "publisher"}}</span>{{end}}
             </div>
           </div>
           <div>
-            <div class="text-xs uppercase tracking-wide text-gray-500">{{t "Status"}}</div>
+            <div class="text-xs text-gray-500">{{t "Status"}}</div>
             <div class="mt-1">
-              {{if .Suspended}}<span class="badge bg-red-100 text-red-700">{{t "Suspended"}}</span>{{else}}<span class="badge bg-gray-100 text-gray-900">{{t "Active"}}</span>{{end}}
+              {{if .Suspended}}<span class="badge badge-danger">{{t "Suspended"}}</span>{{else}}<span class="badge bg-gray-100 text-gray-900">{{t "Active"}}</span>{{end}}
             </div>
             {{if .Suspended}}<p class="text-xs text-gray-500 mt-1 max-w-xs">{{.SuspendReason}} <span class="text-gray-500">— {{.SuspendedBy}} · {{.SuspendedAt}}</span></p>{{end}}
           </div>
@@ -55,7 +55,7 @@
         <div class="mt-3 pt-3 border-t">
           <form method="POST" action="/admin/orgs/timezone" class="flex items-center gap-2 flex-wrap"
                 onsubmit="return confirm('{{t "Change the timezone for %s? Budget, billing and earnings days roll at the new zone midnight from now on; the change day is one shortened or extended window, booked once." .Domain}}')">
-            <span class="text-xs uppercase tracking-wide text-gray-500 shrink-0">{{t "Timezone"}}</span>
+            <span class="text-xs text-gray-500 shrink-0">{{t "Timezone"}}</span>
             <input type="hidden" name="orgId" value="{{.ID}}">
             {{$tz := .Timezone}}
             <select name="timezone" class="form-input text-sm w-72">
@@ -68,7 +68,7 @@
 
         <!-- Oversight: observe (view as) and control access (suspend) -->
         <div class="mt-3 border rounded-lg p-3">
-          <div class="text-xs uppercase tracking-wide text-gray-500 mb-2">{{t "Oversight"}}</div>
+          <div class="text-xs text-gray-500 mb-2">{{t "Oversight"}}</div>
           <!-- Observe -->
           <div class="flex items-center gap-3 flex-wrap">
             {{if .ViewAsUserID}}

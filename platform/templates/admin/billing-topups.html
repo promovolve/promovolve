@@ -6,7 +6,7 @@
   {{template "billing-tabs" .}}
 
   {{if .Error}}
-  <div class="notice notice-error p-3 mt-6 text-sm">{{.Error}}</div>
+  <div class="notice notice-error p-3 mt-6 text-sm" data-lead="{{t "Error:"}}">{{.Error}}</div>
   {{end}}
 
   {{with .AdminTopups}}
@@ -77,7 +77,7 @@
         <tr>
           <td class="text-gray-500 whitespace-nowrap">{{.Created}}</td>
           <td>{{.Wallet}}</td>
-          <td class="text-right font-medium whitespace-nowrap {{if .Negative}}text-red-600{{else}}text-gray-900{{end}}">{{if .Negative}}<span class="badge badge-danger mr-2">{{t .Kind}}</span>{{end}}{{.Amount}}</td>
+          <td class="text-right font-medium whitespace-nowrap text-gray-900{{if .Negative}} font-bold{{end}}">{{if .Negative}}<span class="badge badge-danger mr-2">{{t .Kind}}</span>{{end}}{{.Amount}}</td>
           <td class="text-gray-500">{{if .Memo}}{{.Memo}}{{else}}<span class="text-gray-300">—</span>{{end}}</td>
         </tr>
         {{else}}

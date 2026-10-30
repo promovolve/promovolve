@@ -4917,12 +4917,14 @@ class EndpointRoutes(
           case Some(db) =>
             import slick.jdbc.PostgresProfile.api.*
             import slick.jdbc.GetResult
-            given GetResult[(Int, Long, Double)] =
-              GetResult(using r => (r.nextInt(), r.nextLong(), r.nextDouble()))
+            given GetResult[(String, Int, Long, Double)] =
+              GetResult(using r => (r.nextString(), r.nextInt(), r.nextLong(), r.nextDouble()))
             val dayStartStr = dayStart.toString
-            // Hour buckets in the advertiser's zone, matching the budget day
+            // Hour buckets in the advertiser's zone, matching the budget day,
+            // per campaign; the account hours are their sum.
             val q = sql"""
-              SELECT EXTRACT(HOUR FROM event_time AT TIME ZONE $pgZone)::int,
+              SELECT COALESCE(campaign_id, ''),
+                     EXTRACT(HOUR FROM event_time AT TIME ZONE $pgZone)::int,
                      COUNT(*)::bigint,
                      COALESCE(SUM(cpm) / 1000.0, 0.0)::double precision
               FROM tracking_events
@@ -4930,16 +4932,21 @@ class EndpointRoutes(
                 AND event_type = 'impression'
                 AND suspect_reason IS NULL
                 AND event_time >= $dayStartStr::timestamptz
-              GROUP BY 1
-              ORDER BY 1
-            """.as[(Int, Long, Double)]
+              GROUP BY 1, 2
+              ORDER BY 2
+            """.as[(String, Int, Long, Double)]
             db.run(q).map { rows =>
+              val hours = rows.groupBy(_._2).toVector.sortBy(_._1).map { case (h, rs) =>
+                HourlyDeliveryRow(h, rs.map(_._3).sum, f"${rs.map(_._4).sum}%.4f")
+              }
               Right(AdvertiserHourlyTodayResponse(
                 advertiserId = advertiserId,
                 sinceUtc = sinceLabel,
-                hours = rows.toVector.map { case (h, imps, spend) =>
-                  HourlyDeliveryRow(h, imps, f"$spend%.4f")
-                }
+                hours = hours,
+                byCampaign = Some(rows.toVector.collect {
+                  case (c, h, imps, spend) if c.nonEmpty =>
+                    CampaignHourlyRow(c, h, imps, f"$spend%.4f")
+                })
               ))
             }.recover { case ex =>
               Left(ErrorResponse("hourly_today_failed", ex.getMessage))

@@ -1290,10 +1290,19 @@ object ApiModels {
       impressions: Long,
       spend: String // dollars, %.4f
   )
+  case class CampaignHourlyRow(
+      campaignId: String,
+      hour: Int, // 0-23, advertiser's zone
+      impressions: Long,
+      spend: String // dollars, %.4f
+  )
   case class AdvertiserHourlyTodayResponse(
       advertiserId: String,
       sinceUtc: String,
-      hours: Vector[HourlyDeliveryRow]
+      hours: Vector[HourlyDeliveryRow],
+      // The same hours split by campaign (the campaigns page's forecast
+      // strips). Option so older readers of this payload are unaffected.
+      byCampaign: Option[Vector[CampaignHourlyRow]] = None
   )
 
   /**

@@ -81,6 +81,33 @@ try {
   check((await what()) === "2 items", "shift-click selects 2 items");
   check(await hasAction("Group"), "two items offer Group");
 
+  // Narrow window: the selection bar stays one line and the actions
+  // that don't fit move into More.
+  await page.setViewportSize({ width: 900, height: 900 });
+  await selectFirst("Text ·");
+  const selH = await page.evaluate(() => document.querySelector(".cd-selection-bar").getBoundingClientRect().height);
+  check(Math.abs(selH - 48) < 1, `selection bar stays one line at 900px (got ${selH})`);
+  check(await hasAction("Delete"), "Delete stays visible at 900px");
+  await page.locator(".cd-selection-bar button", { hasText: "More" }).click();
+  check(await page.getByRole("menuitem", { name: "Send to back" }).isVisible(), "More lists Send to back");
+  await page.keyboard.press("Escape");
+
+  // Narrow window: the breadcrumb never runs under the top bar's
+  // buttons, and some of the creative name still shows.
+  for (const w of [1000, 900]) {
+    await page.setViewportSize({ width: w, height: 900 });
+    await page.waitForTimeout(100);
+    const top = await page.evaluate(() => {
+      const crumb = document.querySelector(".cd-menu-bar nav").getBoundingClientRect();
+      const actions = document.querySelector(".cd-menu-bar nav").nextElementSibling.getBoundingClientRect();
+      const name = document.querySelector("[data-cd-crumb-creative]").getBoundingClientRect();
+      return { gap: actions.left - crumb.right, name: name.width };
+    });
+    check(top.gap >= 0, `breadcrumb clear of the buttons at ${w}px (gap ${top.gap})`);
+    check(top.name >= 48, `creative name still shows at ${w}px (${top.name}px)`);
+  }
+  await page.setViewportSize({ width: 1440, height: 900 });
+
   // Long name: one line, same height, no horizontal scroll.
   await page.evaluate(() => {
     document.querySelector("[data-cd-crumb-creative]").textContent = "Autumn in Kyoto ".repeat(13).slice(0, 200);

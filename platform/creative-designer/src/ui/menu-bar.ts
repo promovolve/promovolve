@@ -11,6 +11,12 @@
 // draft, Publish (the one ink-filled primary), Theme. Save draft sits
 // apart from Publish, with Preview between them, so a mis-tap can't
 // publish.
+//
+// When the window narrows, the buttons give up words before the
+// breadcrumb disappears: each [data-cd-compact="N"] span hides in step
+// order (Theme: prefix, Undo/Redo words, " this size", Preview word)
+// until the breadcrumb has room again. Save draft and Publish keep
+// their words.
 
 import { regenerateCurrentMode } from "../auto-layout";
 import { isMultiPage } from "../modes";
@@ -55,6 +61,7 @@ export function mountMenuBar(
     "flex: 1",
     "min-width: 0",
     "white-space: nowrap",
+    "overflow: hidden",
     "font-size: 12px",
     `color: ${tokens.ink300}`,
   ].join(";");
@@ -96,9 +103,10 @@ export function mountMenuBar(
   // deterministic preset — a reset in regenerate's clothing that wiped
   // any author layout in the bucket — so it's disabled on sized tabs
   // (user decision 2026-08-18).
-  const regenBtn = textBtn("Regenerate this size", () => {
+  const regenBtn = textBtn("Regenerate", () => {
     void regenerateCurrentMode(store).catch((e) => console.error("[menu-bar] regenerate failed", e));
   });
+  regenBtn.append(compactSpan(" this size", 3));
   actions.append(regenBtn, divider());
 
   mountPreviewButton(actions, store);
@@ -107,6 +115,23 @@ export function mountMenuBar(
   actions.appendChild(themeToggle());
 
   container.appendChild(bar);
+
+  // Hide compact steps until the breadcrumb gets its room: its natural
+  // width, capped so a very long name truncates instead of stripping
+  // every button.
+  const fit = (): void => {
+    const steps = [...actions.querySelectorAll<HTMLElement>("[data-cd-compact]")];
+    for (const el of steps) el.style.display = "";
+    const kids = [...crumb.children] as HTMLElement[];
+    const natural = kids.reduce((sum, k) => sum + k.scrollWidth, 0) + 6 * (kids.length - 1);
+    const need = Math.min(natural, 220);
+    for (let step = 1; step <= 4 && crumb.clientWidth < need; step++) {
+      for (const el of steps) if (el.dataset.cdCompact === String(step)) el.style.display = "none";
+    }
+  };
+  const ro = new ResizeObserver(fit);
+  ro.observe(bar);
+  ro.observe(actions);
 
   return {
     update(state: DesignerState) {
@@ -127,6 +152,14 @@ function crumbName(text: string, color: string, flex: string): HTMLElement {
   el.textContent = text;
   el.title = text;
   el.style.cssText = `color: ${color}; flex: ${flex}; min-width: 0; overflow: hidden; text-overflow: ellipsis;`;
+  return el;
+}
+
+function compactSpan(text: string, step: number): HTMLElement {
+  const el = document.createElement("span");
+  el.textContent = text;
+  el.dataset.cdCompact = String(step);
+  el.style.whiteSpace = "pre";
   return el;
 }
 
@@ -169,7 +202,7 @@ function textBtn(label: string, onClick: () => void): HTMLButtonElement {
 // dashboard. Labelled like the dashboard's account-menu item; cycling
 // flips the data-cd-theme attribute, re-resolving every --cd-* variable
 // instantly (no re-mount).
-const MODE_LABEL: Record<ThemeMode, string> = { auto: "Theme: Auto", light: "Theme: Light", dark: "Theme: Dark" };
+const MODE_LABEL: Record<ThemeMode, string> = { auto: "Auto", light: "Light", dark: "Dark" };
 function themeToggle(): HTMLElement {
   const btn = document.createElement("button");
   btn.type = "button";
@@ -187,7 +220,8 @@ function themeToggle(): HTMLElement {
   ].join(";");
   const render = (): void => {
     const m = getMode();
-    btn.textContent = MODE_LABEL[m];
+    btn.replaceChildren(compactSpan("Theme: ", 1), MODE_LABEL[m]);
+    btn.setAttribute("aria-label", `Theme: ${MODE_LABEL[m]}`);
     btn.title = m === "auto" ? "Follows your system setting — click to change" : "Click to change";
   };
   render();

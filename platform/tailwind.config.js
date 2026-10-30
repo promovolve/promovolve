@@ -27,7 +27,7 @@ module.exports = {
        shadow, so they read as above the page. */
     boxShadow: {
       none: 'none', sm: 'none', DEFAULT: 'none', md: 'none',
-      lg: '0 8px 24px -6px rgb(16 24 32 / 0.22)', xl: '0 8px 24px -6px rgb(16 24 32 / 0.22)',
+      lg: '0 8px 24px -6px rgb(20 20 20 / 0.22)', xl: '0 8px 24px -6px rgb(20 20 20 / 0.22)',
     },
     extend: {
       fontFamily: {

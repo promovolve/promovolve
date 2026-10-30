@@ -1,6 +1,6 @@
 {
   "schemaVersion": 2,
-  "generatedAt": "2026-10-21T14:41:47.063712+00:00",
+  "generatedAt": "2026-10-30T15:56:32.868170+00:00",
   "title": "Design System: Promovolve",
   "extensions": {
     "colorMeta": {
@@ -10,12 +10,12 @@
         "tonalRamp": [
           "#0c0c0c",
           "#1a1a1a",
-          "#2a3138",
-          "#4a5560",
-          "#8a96a1",
-          "#bdc7d0",
-          "#e8edf2",
-          "#f6f8fa"
+          "#303030",
+          "#545454",
+          "#949494",
+          "#c6c6c6",
+          "#ececec",
+          "#f8f8f8"
         ]
       },
       "ink-black": {
@@ -24,12 +24,12 @@
         "tonalRamp": [
           "#0c0c0c",
           "#1a1a1a",
-          "#2a3138",
-          "#4a5560",
-          "#8a96a1",
-          "#bdc7d0",
-          "#e8edf2",
-          "#f6f8fa"
+          "#303030",
+          "#545454",
+          "#949494",
+          "#c6c6c6",
+          "#ececec",
+          "#f8f8f8"
         ]
       },
       "ground": {
@@ -38,26 +38,26 @@
         "tonalRamp": [
           "#0c0c0c",
           "#1a1a1a",
-          "#2a3138",
-          "#4a5560",
-          "#8a96a1",
-          "#bdc7d0",
-          "#e8edf2",
-          "#f6f8fa"
+          "#303030",
+          "#545454",
+          "#949494",
+          "#c6c6c6",
+          "#ececec",
+          "#f8f8f8"
         ]
       },
       "field": {
         "role": "secondary",
-        "displayName": "Field Blue-Grey",
+        "displayName": "Field Grey",
         "tonalRamp": [
-          "#1a2129",
-          "#222a33",
-          "#3d4b59",
-          "#5e7080",
-          "#8c9cab",
-          "#bccad6",
-          "#dfe7ee",
-          "#f1f5f8"
+          "#0c0c0c",
+          "#1a1a1a",
+          "#303030",
+          "#545454",
+          "#949494",
+          "#c6c6c6",
+          "#ececec",
+          "#f8f8f8"
         ]
       },
       "page-tint": {
@@ -66,12 +66,12 @@
         "tonalRamp": [
           "#0c0c0c",
           "#1a1a1a",
-          "#2a3138",
-          "#4a5560",
-          "#8a96a1",
-          "#bdc7d0",
-          "#e8edf2",
-          "#f6f8fa"
+          "#303030",
+          "#545454",
+          "#949494",
+          "#c6c6c6",
+          "#ececec",
+          "#f8f8f8"
         ]
       },
       "fill": {
@@ -80,12 +80,12 @@
         "tonalRamp": [
           "#0c0c0c",
           "#1a1a1a",
-          "#2a3138",
-          "#4a5560",
-          "#8a96a1",
-          "#bdc7d0",
-          "#e8edf2",
-          "#f6f8fa"
+          "#303030",
+          "#545454",
+          "#949494",
+          "#c6c6c6",
+          "#ececec",
+          "#f8f8f8"
         ]
       },
       "hairline": {
@@ -94,12 +94,12 @@
         "tonalRamp": [
           "#0c0c0c",
           "#1a1a1a",
-          "#2a3138",
-          "#4a5560",
-          "#8a96a1",
-          "#bdc7d0",
-          "#e8edf2",
-          "#f6f8fa"
+          "#303030",
+          "#545454",
+          "#949494",
+          "#c6c6c6",
+          "#ececec",
+          "#f8f8f8"
         ]
       },
       "rule": {
@@ -108,12 +108,12 @@
         "tonalRamp": [
           "#0c0c0c",
           "#1a1a1a",
-          "#2a3138",
-          "#4a5560",
-          "#8a96a1",
-          "#bdc7d0",
-          "#e8edf2",
-          "#f6f8fa"
+          "#303030",
+          "#545454",
+          "#949494",
+          "#c6c6c6",
+          "#ececec",
+          "#f8f8f8"
         ]
       },
       "mark": {
@@ -122,12 +122,12 @@
         "tonalRamp": [
           "#0c0c0c",
           "#1a1a1a",
-          "#2a3138",
-          "#4a5560",
-          "#8a96a1",
-          "#bdc7d0",
-          "#e8edf2",
-          "#f6f8fa"
+          "#303030",
+          "#545454",
+          "#949494",
+          "#c6c6c6",
+          "#ececec",
+          "#f8f8f8"
         ]
       },
       "ink-secondary": {
@@ -136,12 +136,12 @@
         "tonalRamp": [
           "#0c0c0c",
           "#1a1a1a",
-          "#2a3138",
-          "#4a5560",
-          "#8a96a1",
-          "#bdc7d0",
-          "#e8edf2",
-          "#f6f8fa"
+          "#303030",
+          "#545454",
+          "#949494",
+          "#c6c6c6",
+          "#ececec",
+          "#f8f8f8"
         ]
       },
       "ink-soft": {
@@ -150,12 +150,12 @@
         "tonalRamp": [
           "#0c0c0c",
           "#1a1a1a",
-          "#2a3138",
-          "#4a5560",
-          "#8a96a1",
-          "#bdc7d0",
-          "#e8edf2",
-          "#f6f8fa"
+          "#303030",
+          "#545454",
+          "#949494",
+          "#c6c6c6",
+          "#ececec",
+          "#f8f8f8"
         ]
       },
       "ink-label": {
@@ -164,152 +164,194 @@
         "tonalRamp": [
           "#0c0c0c",
           "#1a1a1a",
-          "#2a3138",
-          "#4a5560",
-          "#8a96a1",
-          "#bdc7d0",
-          "#e8edf2",
-          "#f6f8fa"
+          "#303030",
+          "#545454",
+          "#949494",
+          "#c6c6c6",
+          "#ececec",
+          "#f8f8f8"
         ]
       },
-      "link-blue": {
-        "role": "primary",
-        "displayName": "Link Blue",
+      "jma-1": {
+        "role": "tertiary",
+        "displayName": "Intensity 1 (below ¼)",
         "tonalRamp": [
-          "#001a66",
-          "#002a99",
-          "#0041ff",
-          "#2185ff",
-          "#5aa2ff",
-          "#a0d2ff",
-          "#cfe6ff",
-          "#e6efff"
+          "#0c0c0c",
+          "#1a1a1a",
+          "#303030",
+          "#545454",
+          "#949494",
+          "#c6c6c6",
+          "#ececec",
+          "#f8f8f8"
         ]
       },
-      "focus-blue": {
-        "role": "neutral",
-        "displayName": "Focus Blue",
+      "jma-2": {
+        "role": "tertiary",
+        "displayName": "Intensity 2 (¼–0.6)",
         "tonalRamp": [
-          "#001a66",
-          "#002a99",
-          "#0041ff",
-          "#2185ff",
-          "#5aa2ff",
-          "#a0d2ff",
-          "#cfe6ff",
-          "#e6efff"
+          "#0c0c0c",
+          "#1a1a1a",
+          "#303030",
+          "#545454",
+          "#949494",
+          "#c6c6c6",
+          "#ececec",
+          "#f8f8f8"
+        ]
+      },
+      "jma-3": {
+        "role": "tertiary",
+        "displayName": "Intensity 3 (around even)",
+        "tonalRamp": [
+          "#0c0c0c",
+          "#1a1a1a",
+          "#303030",
+          "#545454",
+          "#949494",
+          "#c6c6c6",
+          "#ececec",
+          "#f8f8f8"
+        ]
+      },
+      "jma-4": {
+        "role": "tertiary",
+        "displayName": "Intensity 4 (1.2–2×)",
+        "tonalRamp": [
+          "#0c0c0c",
+          "#1a1a1a",
+          "#303030",
+          "#545454",
+          "#949494",
+          "#c6c6c6",
+          "#ececec",
+          "#f8f8f8"
+        ]
+      },
+      "jma-5": {
+        "role": "tertiary",
+        "displayName": "Intensity 5 (2–3×)",
+        "tonalRamp": [
+          "#0c0c0c",
+          "#1a1a1a",
+          "#303030",
+          "#545454",
+          "#949494",
+          "#c6c6c6",
+          "#ececec",
+          "#f8f8f8"
+        ]
+      },
+      "jma-6": {
+        "role": "tertiary",
+        "displayName": "Intensity 6 (3–4×)",
+        "tonalRamp": [
+          "#0c0c0c",
+          "#1a1a1a",
+          "#303030",
+          "#545454",
+          "#949494",
+          "#c6c6c6",
+          "#ececec",
+          "#f8f8f8"
+        ]
+      },
+      "jma-7": {
+        "role": "tertiary",
+        "displayName": "Intensity 7 (4× and above)",
+        "tonalRamp": [
+          "#0c0c0c",
+          "#1a1a1a",
+          "#303030",
+          "#545454",
+          "#949494",
+          "#c6c6c6",
+          "#ececec",
+          "#f8f8f8"
         ]
       },
       "advisory": {
         "role": "tertiary",
-        "displayName": "Advisory Yellow",
+        "displayName": "Advisory (注意報)",
         "tonalRamp": [
-          "#4d4900",
-          "#807a00",
-          "#b3a600",
-          "#e6dc00",
-          "#fff500",
-          "#fff866",
-          "#fffbd1",
-          "#fffde8"
+          "#0c0c0c",
+          "#1a1a1a",
+          "#303030",
+          "#545454",
+          "#949494",
+          "#c6c6c6",
+          "#ececec",
+          "#f8f8f8"
         ]
       },
       "warning": {
         "role": "tertiary",
-        "displayName": "Warning Red",
+        "displayName": "Warning (警報)",
         "tonalRamp": [
-          "#3d0300",
-          "#6b0500",
-          "#a00800",
-          "#d70a00",
-          "#ff3d33",
-          "#ff6a5f",
-          "#ffb3ad",
-          "#fff1f0"
-        ]
-      },
-      "notice-error-fill": {
-        "role": "tertiary",
-        "displayName": "Error Notice Fill",
-        "tonalRamp": [
-          "#3d0300",
-          "#6b0500",
-          "#a00800",
-          "#d70a00",
-          "#ff3d33",
-          "#ff6a5f",
-          "#ffb3ad",
-          "#fff1f0"
+          "#0c0c0c",
+          "#1a1a1a",
+          "#303030",
+          "#545454",
+          "#949494",
+          "#c6c6c6",
+          "#ececec",
+          "#f8f8f8"
         ]
       },
       "notice-advisory-fill": {
         "role": "tertiary",
         "displayName": "Advisory Notice Fill",
         "tonalRamp": [
-          "#4d4900",
-          "#807a00",
-          "#b3a600",
-          "#e6dc00",
-          "#fff500",
-          "#fff866",
-          "#fffbd1",
-          "#fffde8"
+          "#0c0c0c",
+          "#1a1a1a",
+          "#303030",
+          "#545454",
+          "#949494",
+          "#c6c6c6",
+          "#ececec",
+          "#f8f8f8"
         ]
       },
       "notice-advisory-edge": {
         "role": "tertiary",
         "displayName": "Advisory Notice Edge",
         "tonalRamp": [
-          "#4d4900",
-          "#807a00",
-          "#b3a600",
-          "#e6dc00",
-          "#fff500",
-          "#fff866",
-          "#fffbd1",
-          "#fffde8"
+          "#0c0c0c",
+          "#1a1a1a",
+          "#303030",
+          "#545454",
+          "#949494",
+          "#c6c6c6",
+          "#ececec",
+          "#f8f8f8"
         ]
       },
       "notice-ok-fill": {
         "role": "tertiary",
         "displayName": "OK Notice Fill",
         "tonalRamp": [
-          "#06220e",
-          "#0d4a20",
-          "#146c2e",
-          "#1f8f3f",
-          "#4cb36a",
-          "#8fd6a3",
-          "#c3ebcd",
-          "#e3f1e7"
+          "#0c0c0c",
+          "#1a1a1a",
+          "#303030",
+          "#545454",
+          "#949494",
+          "#c6c6c6",
+          "#ececec",
+          "#f8f8f8"
         ]
       },
       "notice-ok-edge": {
         "role": "tertiary",
         "displayName": "OK Notice Edge",
         "tonalRamp": [
-          "#06220e",
-          "#0d4a20",
-          "#146c2e",
-          "#1f8f3f",
-          "#4cb36a",
-          "#8fd6a3",
-          "#c3ebcd",
-          "#e3f1e7"
-        ]
-      },
-      "notice-info-fill": {
-        "role": "tertiary",
-        "displayName": "Info Notice Fill",
-        "tonalRamp": [
-          "#001a66",
-          "#002a99",
-          "#0041ff",
-          "#2185ff",
-          "#5aa2ff",
-          "#a0d2ff",
-          "#cfe6ff",
-          "#e6efff"
+          "#0c0c0c",
+          "#1a1a1a",
+          "#303030",
+          "#545454",
+          "#949494",
+          "#c6c6c6",
+          "#ececec",
+          "#f8f8f8"
         ]
       },
       "night-page": {
@@ -318,12 +360,12 @@
         "tonalRamp": [
           "#0c0c0c",
           "#1a1a1a",
-          "#2a3138",
-          "#4a5560",
-          "#8a96a1",
-          "#bdc7d0",
-          "#e8edf2",
-          "#f6f8fa"
+          "#303030",
+          "#545454",
+          "#949494",
+          "#c6c6c6",
+          "#ececec",
+          "#f8f8f8"
         ]
       },
       "night-surface": {
@@ -332,26 +374,26 @@
         "tonalRamp": [
           "#0c0c0c",
           "#1a1a1a",
-          "#2a3138",
-          "#4a5560",
-          "#8a96a1",
-          "#bdc7d0",
-          "#e8edf2",
-          "#f6f8fa"
+          "#303030",
+          "#545454",
+          "#949494",
+          "#c6c6c6",
+          "#ececec",
+          "#f8f8f8"
         ]
       },
       "night-field": {
         "role": "secondary",
         "displayName": "Night Field",
         "tonalRamp": [
-          "#1a2129",
-          "#222a33",
-          "#3d4b59",
-          "#5e7080",
-          "#8c9cab",
-          "#bccad6",
-          "#dfe7ee",
-          "#f1f5f8"
+          "#0c0c0c",
+          "#1a1a1a",
+          "#303030",
+          "#545454",
+          "#949494",
+          "#c6c6c6",
+          "#ececec",
+          "#f8f8f8"
         ]
       },
       "night-ink": {
@@ -360,12 +402,12 @@
         "tonalRamp": [
           "#0c0c0c",
           "#1a1a1a",
-          "#2a3138",
-          "#4a5560",
-          "#8a96a1",
-          "#bdc7d0",
-          "#e8edf2",
-          "#f6f8fa"
+          "#303030",
+          "#545454",
+          "#949494",
+          "#c6c6c6",
+          "#ececec",
+          "#f8f8f8"
         ]
       },
       "night-action": {
@@ -374,12 +416,12 @@
         "tonalRamp": [
           "#0c0c0c",
           "#1a1a1a",
-          "#2a3138",
-          "#4a5560",
-          "#8a96a1",
-          "#bdc7d0",
-          "#e8edf2",
-          "#f6f8fa"
+          "#303030",
+          "#545454",
+          "#949494",
+          "#c6c6c6",
+          "#ececec",
+          "#f8f8f8"
         ]
       },
       "night-secondary": {
@@ -388,153 +430,125 @@
         "tonalRamp": [
           "#0c0c0c",
           "#1a1a1a",
-          "#2a3138",
-          "#4a5560",
-          "#8a96a1",
-          "#bdc7d0",
-          "#e8edf2",
-          "#f6f8fa"
+          "#303030",
+          "#545454",
+          "#949494",
+          "#c6c6c6",
+          "#ececec",
+          "#f8f8f8"
         ]
       },
-      "night-link": {
-        "role": "primary",
-        "displayName": "Night Link",
-        "tonalRamp": [
-          "#001a66",
-          "#002a99",
-          "#0041ff",
-          "#2185ff",
-          "#5aa2ff",
-          "#a0d2ff",
-          "#cfe6ff",
-          "#e6efff"
-        ]
-      },
-      "jma-0": {
+      "night-jma-1": {
         "role": "tertiary",
-        "displayName": "Intensity 0 (no data)",
+        "displayName": "Night Intensity 1 (below ¼)",
         "tonalRamp": [
-          "#f2f2ff",
-          "#a0d2ff",
-          "#2185ff",
-          "#0041ff",
-          "#fff500",
-          "#ff9900",
-          "#ff2800",
-          "#b40068"
+          "#0c0c0c",
+          "#1a1a1a",
+          "#303030",
+          "#545454",
+          "#949494",
+          "#c6c6c6",
+          "#ececec",
+          "#f8f8f8"
         ]
       },
-      "jma-1": {
+      "night-jma-2": {
         "role": "tertiary",
-        "displayName": "Intensity 1 (below ¼)",
+        "displayName": "Night Intensity 2 (¼–0.6)",
         "tonalRamp": [
-          "#f2f2ff",
-          "#a0d2ff",
-          "#2185ff",
-          "#0041ff",
-          "#fff500",
-          "#ff9900",
-          "#ff2800",
-          "#b40068"
+          "#0c0c0c",
+          "#1a1a1a",
+          "#303030",
+          "#545454",
+          "#949494",
+          "#c6c6c6",
+          "#ececec",
+          "#f8f8f8"
         ]
       },
-      "jma-2": {
+      "night-jma-3": {
         "role": "tertiary",
-        "displayName": "Intensity 2 (¼–0.6)",
+        "displayName": "Night Intensity 3 (around even)",
         "tonalRamp": [
-          "#f2f2ff",
-          "#a0d2ff",
-          "#2185ff",
-          "#0041ff",
-          "#fff500",
-          "#ff9900",
-          "#ff2800",
-          "#b40068"
+          "#0c0c0c",
+          "#1a1a1a",
+          "#303030",
+          "#545454",
+          "#949494",
+          "#c6c6c6",
+          "#ececec",
+          "#f8f8f8"
         ]
       },
-      "jma-3": {
+      "night-jma-4": {
         "role": "tertiary",
-        "displayName": "Intensity 3 (around even)",
+        "displayName": "Night Intensity 4 (1.2–2×)",
         "tonalRamp": [
-          "#f2f2ff",
-          "#a0d2ff",
-          "#2185ff",
-          "#0041ff",
-          "#fff500",
-          "#ff9900",
-          "#ff2800",
-          "#b40068"
+          "#0c0c0c",
+          "#1a1a1a",
+          "#303030",
+          "#545454",
+          "#949494",
+          "#c6c6c6",
+          "#ececec",
+          "#f8f8f8"
         ]
       },
-      "jma-4": {
+      "night-jma-5": {
         "role": "tertiary",
-        "displayName": "Intensity 4 (1.2–2×)",
+        "displayName": "Night Intensity 5 (2–3×)",
         "tonalRamp": [
-          "#f2f2ff",
-          "#a0d2ff",
-          "#2185ff",
-          "#0041ff",
-          "#fff500",
-          "#ff9900",
-          "#ff2800",
-          "#b40068"
+          "#0c0c0c",
+          "#1a1a1a",
+          "#303030",
+          "#545454",
+          "#949494",
+          "#c6c6c6",
+          "#ececec",
+          "#f8f8f8"
         ]
       },
-      "jma-5": {
+      "night-jma-6": {
         "role": "tertiary",
-        "displayName": "Intensity 5 (2–3×)",
+        "displayName": "Night Intensity 6 (3–4×)",
         "tonalRamp": [
-          "#f2f2ff",
-          "#a0d2ff",
-          "#2185ff",
-          "#0041ff",
-          "#fff500",
-          "#ff9900",
-          "#ff2800",
-          "#b40068"
+          "#0c0c0c",
+          "#1a1a1a",
+          "#303030",
+          "#545454",
+          "#949494",
+          "#c6c6c6",
+          "#ececec",
+          "#f8f8f8"
         ]
       },
-      "jma-6": {
+      "night-jma-7": {
         "role": "tertiary",
-        "displayName": "Intensity 6 (3–4×)",
+        "displayName": "Night Intensity 7 (4× and above)",
         "tonalRamp": [
-          "#f2f2ff",
-          "#a0d2ff",
-          "#2185ff",
-          "#0041ff",
-          "#fff500",
-          "#ff9900",
-          "#ff2800",
-          "#b40068"
-        ]
-      },
-      "jma-7": {
-        "role": "tertiary",
-        "displayName": "Intensity 7 (4× and above)",
-        "tonalRamp": [
-          "#f2f2ff",
-          "#a0d2ff",
-          "#2185ff",
-          "#0041ff",
-          "#fff500",
-          "#ff9900",
-          "#ff2800",
-          "#b40068"
+          "#0c0c0c",
+          "#1a1a1a",
+          "#303030",
+          "#545454",
+          "#949494",
+          "#c6c6c6",
+          "#ececec",
+          "#f8f8f8"
         ]
       }
     },
     "typographyMeta": {
       "figure": {
         "displayName": "Figure",
-        "purpose": "The one large number of a region (today's spend, earnings), followed by a sentence."
+        "purpose": "The one large number of a region (today's spend, earnings), followed by a sentence. Set in Mincho."
       },
       "headline": {
         "displayName": "Page Title",
-        "purpose": "One per page, with the as-of line under it."
+        "purpose": "One per page, with the as-of line under it. Set in Mincho."
       },
       "title": {
         "displayName": "Section Title",
-        "purpose": "Section headings."
+        "purpose": "Section headings. Set in Mincho."
       },
       "sentence": {
         "displayName": "Outlook Sentence",
@@ -556,7 +570,7 @@
     "shadows": [
       {
         "name": "float",
-        "value": "0 8px 24px -6px rgb(16 24 32 / 0.22)",
+        "value": "0 8px 24px -6px rgb(20 20 20 / 0.22)",
         "purpose": "Account menu, date pickers, typeahead lists only; always with a 1px ink border."
       }
     ],
@@ -600,7 +614,7 @@
       "refersTo": "button-primary",
       "description": "Ink-filled main action, one per view; approving uses it too.",
       "html": "<button class=\"ds-btn ds-btn-primary\">New Campaign</button>",
-      "css": ".ds-btn{display:inline-flex;align-items:center;justify-content:center;gap:6px;min-height:36px;padding:8px 16px;font:700 14px/20px 'BIZ UDPGothic', 'BIZ UDPゴシック', system-ui, -apple-system, 'Hiragino Sans', 'Yu Gothic UI', sans-serif;border-radius:2px;cursor:pointer;transition:background-color .15s} .ds-btn-primary{background:#1a1a1a;color:#fff;border:0} .ds-btn-primary:hover{background:rgb(26 26 26/.85)} .ds-btn:focus-visible{outline:2px solid #2185ff;outline-offset:2px}"
+      "css": ".ds-btn{display:inline-flex;align-items:center;justify-content:center;gap:6px;min-height:36px;padding:8px 16px;font:700 14px/20px 'BIZ UDPGothic', 'BIZ UDPゴシック', system-ui, -apple-system, 'Hiragino Sans', 'Yu Gothic UI', sans-serif;border-radius:2px;cursor:pointer;transition:background-color .15s} .ds-btn-primary{background:#1a1a1a;color:#fff;border:0} .ds-btn-primary:hover{background:rgb(26 26 26/.85)} .ds-btn:focus-visible{outline:2px solid #1a1a1a;outline-offset:2px}"
     },
     {
       "name": "Secondary / Destructive Button",
@@ -608,7 +622,7 @@
       "refersTo": "button-secondary",
       "description": "Ink outline. Destructive actions use the same look; a confirm dialog is the guard.",
       "html": "<button class=\"ds-btn2\">Pause</button> <button class=\"ds-btn2\">Remove</button>",
-      "css": ".ds-btn2{display:inline-flex;align-items:center;min-height:36px;padding:8px 16px;font:700 14px/20px 'BIZ UDPGothic', 'BIZ UDPゴシック', system-ui, -apple-system, 'Hiragino Sans', 'Yu Gothic UI', sans-serif;border-radius:2px;background:#fff;color:#1a1a1a;border:1px solid #1a1a1a;cursor:pointer;transition:background-color .15s} .ds-btn2:hover{background:#e8edf2} .ds-btn2:focus-visible{outline:2px solid #2185ff;outline-offset:2px}"
+      "css": ".ds-btn2{display:inline-flex;align-items:center;min-height:36px;padding:8px 16px;font:700 14px/20px 'BIZ UDPGothic', 'BIZ UDPゴシック', system-ui, -apple-system, 'Hiragino Sans', 'Yu Gothic UI', sans-serif;border-radius:2px;background:#fff;color:#1a1a1a;border:1px solid #1a1a1a;cursor:pointer;transition:background-color .15s} .ds-btn2:hover{background:#ececec} .ds-btn2:focus-visible{outline:2px solid #1a1a1a;outline-offset:2px}"
     },
     {
       "name": "Segmented Filter",
@@ -616,23 +630,23 @@
       "refersTo": "button-primary",
       "description": "Buttons in one ink border; the selected one is ink-filled with aria-pressed.",
       "html": "<div class=\"ds-seg\" role=\"group\" aria-label=\"Show\"><button aria-pressed=\"true\">All 12</button><button aria-pressed=\"false\">Active 9</button><button aria-pressed=\"false\">Paused 3</button><button aria-pressed=\"false\">Alerts 1</button></div>",
-      "css": ".ds-seg{display:inline-flex;border:1px solid #1a1a1a;border-radius:2px;font:400 14px/20px 'BIZ UDPGothic', 'BIZ UDPゴシック', system-ui, -apple-system, 'Hiragino Sans', 'Yu Gothic UI', sans-serif;font-variant-numeric:tabular-nums} .ds-seg button{padding:6px 12px;background:#fff;color:#1a1a1a;border:0;cursor:pointer;font:inherit} .ds-seg button+button{border-left:1px solid #1a1a1a} .ds-seg button[aria-pressed=true]{background:#1a1a1a;color:#fff;font-weight:700} .ds-seg button:focus-visible{outline:2px solid #2185ff;outline-offset:2px}"
+      "css": ".ds-seg{display:inline-flex;border:1px solid #1a1a1a;border-radius:2px;font:400 14px/20px 'BIZ UDPGothic', 'BIZ UDPゴシック', system-ui, -apple-system, 'Hiragino Sans', 'Yu Gothic UI', sans-serif;font-variant-numeric:tabular-nums} .ds-seg button{padding:6px 12px;background:#fff;color:#1a1a1a;border:0;cursor:pointer;font:inherit} .ds-seg button+button{border-left:1px solid #1a1a1a} .ds-seg button[aria-pressed=true]{background:#1a1a1a;color:#fff;font-weight:700} .ds-seg button:focus-visible{outline:2px solid #1a1a1a;outline-offset:2px}"
     },
     {
       "name": "Tags",
       "kind": "chip",
       "refersTo": "tag-plain",
-      "description": "Plain states as words in grey; only advisory (yellow, ink text) and warning (red, white text) wear colour.",
+      "description": "Plain states as words in grey; the two alert levels are typographic: advisory (注意報) ink on mid grey, warning (警報) white reversed out of ink.",
       "html": "<span class=\"ds-tag\">Active</span> <span class=\"ds-tag ds-tag-adv\">Advisory</span> <span class=\"ds-tag ds-tag-warn\">Warning</span>",
-      "css": ".ds-tag{display:inline-flex;align-items:center;padding:2px 8px;border-radius:2px;font:700 12px/16px 'BIZ UDPGothic', 'BIZ UDPゴシック', system-ui, -apple-system, 'Hiragino Sans', 'Yu Gothic UI', sans-serif;white-space:nowrap;background:#e8edf2;color:#2a3138} .ds-tag-adv{background:#fff500;color:#1a1a1a} .ds-tag-warn{background:#d70a00;color:#fff}"
+      "css": ".ds-tag{display:inline-flex;align-items:center;padding:2px 8px;border-radius:2px;font:700 12px/16px 'BIZ UDPGothic', 'BIZ UDPゴシック', system-ui, -apple-system, 'Hiragino Sans', 'Yu Gothic UI', sans-serif;white-space:nowrap;background:#ececec;color:#303030} .ds-tag-adv{background:#c6c6c6;color:#1a1a1a} .ds-tag-warn{background:#1a1a1a;color:#fff}"
     },
     {
       "name": "Text Input",
       "kind": "input",
       "refersTo": "input",
-      "description": "Rule border, 2px corners; focus turns the border ink with a blue ring.",
+      "description": "Rule border, 2px corners; focus turns the border ink with an ink ring at 40%.",
       "html": "<label class=\"ds-label\" for=\"ds-b\">Daily budget</label><input id=\"ds-b\" class=\"ds-input\" placeholder=\"5000\"><p class=\"ds-hint\">In your account currency.</p>",
-      "css": ".ds-label{display:block;font:700 14px/20px 'BIZ UDPGothic', 'BIZ UDPゴシック', system-ui, -apple-system, 'Hiragino Sans', 'Yu Gothic UI', sans-serif;color:#2a3138;margin-bottom:4px} .ds-input{width:100%;padding:8px 12px;border:1px solid #bdc7d0;border-radius:2px;background:#fff;color:#1a1a1a;font:400 14px/20px 'BIZ UDPGothic', 'BIZ UDPゴシック', system-ui, -apple-system, 'Hiragino Sans', 'Yu Gothic UI', sans-serif} .ds-input::placeholder{color:#4a5560} .ds-input:focus{outline:none;border-color:#1a1a1a;box-shadow:0 0 0 2px rgb(33 133 255/.4)} .ds-hint{font:400 12px/16px 'BIZ UDPGothic', 'BIZ UDPゴシック', system-ui, -apple-system, 'Hiragino Sans', 'Yu Gothic UI', sans-serif;color:#4a5560;margin-top:4px}"
+      "css": ".ds-label{display:block;font:700 14px/20px 'BIZ UDPGothic', 'BIZ UDPゴシック', system-ui, -apple-system, 'Hiragino Sans', 'Yu Gothic UI', sans-serif;color:#303030;margin-bottom:4px} .ds-input{width:100%;padding:8px 12px;border:1px solid #c6c6c6;border-radius:2px;background:#fff;color:#1a1a1a;font:400 14px/20px 'BIZ UDPGothic', 'BIZ UDPゴシック', system-ui, -apple-system, 'Hiragino Sans', 'Yu Gothic UI', sans-serif} .ds-input::placeholder{color:#545454} .ds-input:focus{outline:none;border-color:#1a1a1a;box-shadow:0 0 0 2px rgb(26 26 26/.4)} .ds-hint{font:400 12px/16px 'BIZ UDPGothic', 'BIZ UDPゴシック', system-ui, -apple-system, 'Hiragino Sans', 'Yu Gothic UI', sans-serif;color:#545454;margin-top:4px}"
     },
     {
       "name": "Top Bar",
@@ -640,7 +654,7 @@
       "refersTo": "top-bar",
       "description": "Field-tinted bar: wordmark, role, tabs with a 3px ink underline on the current page.",
       "html": "<header class=\"ds-bar\"><p class=\"ds-mark\">Promovolve <span>Advertiser</span></p><nav class=\"ds-tabs\" aria-label=\"Main\"><a href=\"#\" aria-current=\"page\">Campaigns</a><a href=\"#\">Stats</a><a href=\"#\">Report</a><a href=\"#\">Wallet</a><a href=\"#\">Account</a></nav></header>",
-      "css": ".ds-bar{display:flex;align-items:stretch;gap:24px;height:56px;padding:0 32px;background:#dfe7ee;color:#1a1a1a;font-family:'BIZ UDPGothic', 'BIZ UDPゴシック', system-ui, -apple-system, 'Hiragino Sans', 'Yu Gothic UI', sans-serif} .ds-mark{align-self:center;margin:0;font-size:18px;font-weight:700;letter-spacing:-.025em} .ds-mark span{margin-left:8px;font-size:12px;font-weight:400;color:#3a434d;letter-spacing:0} .ds-tabs{display:flex} .ds-tabs a{display:flex;align-items:center;padding:0 12px;font-size:14px;color:#3a434d;text-decoration:none;border-bottom:3px solid transparent} .ds-tabs a:hover{color:#1a1a1a} .ds-tabs a[aria-current=page]{color:#1a1a1a;font-weight:700;border-bottom-color:#1a1a1a} .ds-tabs a:focus-visible{outline:2px solid #2185ff;outline-offset:2px}"
+      "css": ".ds-bar{display:flex;align-items:stretch;gap:24px;height:56px;padding:0 32px;background:#e6e6e6;color:#1a1a1a;font-family:'BIZ UDPGothic', 'BIZ UDPゴシック', system-ui, -apple-system, 'Hiragino Sans', 'Yu Gothic UI', sans-serif} .ds-mark{align-self:center;margin:0;font-size:18px;font-weight:700;letter-spacing:-.025em} .ds-mark span{margin-left:8px;font-size:12px;font-weight:400;color:#424242;letter-spacing:0} .ds-tabs{display:flex} .ds-tabs a{display:flex;align-items:center;padding:0 12px;font-size:14px;color:#424242;text-decoration:none;border-bottom:3px solid transparent} .ds-tabs a:hover{color:#1a1a1a} .ds-tabs a[aria-current=page]{color:#1a1a1a;font-weight:700;border-bottom-color:#1a1a1a} .ds-tabs a:focus-visible{outline:2px solid #1a1a1a;outline-offset:2px}"
     },
     {
       "name": "Figure and Sentence",
@@ -648,15 +662,15 @@
       "refersTo": "section",
       "description": "One large tabular figure per region, then the sentence that says what it means.",
       "html": "<section class=\"ds-region\"><div class=\"ds-fig\"><p class=\"ds-big\">¥18,420</p><p class=\"ds-sent\">spent today. Spends its full budget around 21:40.</p></div><p class=\"ds-sub\">Balance ¥412,000 · about 22 days</p></section>",
-      "css": ".ds-region{border-top:1px solid #bdc7d0;padding:24px 0;font-family:'BIZ UDPGothic', 'BIZ UDPゴシック', system-ui, -apple-system, 'Hiragino Sans', 'Yu Gothic UI', sans-serif;color:#1a1a1a} .ds-fig{display:flex;flex-wrap:wrap;align-items:baseline;gap:4px 16px} .ds-big{margin:0;font-size:48px;font-weight:700;line-height:1;letter-spacing:-.025em;font-variant-numeric:tabular-nums} .ds-sent{margin:0;font-size:18px;line-height:28px} .ds-sub{margin:8px 0 0;font-size:14px;color:#4a5560}"
+      "css": ".ds-region{border-top:1px solid #c6c6c6;padding:24px 0;font-family:'BIZ UDPGothic', 'BIZ UDPゴシック', system-ui, -apple-system, 'Hiragino Sans', 'Yu Gothic UI', sans-serif;color:#1a1a1a} .ds-fig{display:flex;flex-wrap:wrap;align-items:baseline;gap:4px 16px} .ds-big{margin:0;font-family:'BIZ UDPMincho', 'BIZ UDP明朝', 'Hiragino Mincho ProN', 'Yu Mincho', serif;font-size:48px;font-weight:700;line-height:1;letter-spacing:-.025em;font-variant-numeric:tabular-nums} .ds-sent{margin:0;font-size:18px;line-height:28px} .ds-sub{margin:8px 0 0;font-size:14px;color:#545454}"
     },
     {
       "name": "Forecast Strip and Legend",
       "kind": "custom",
       "refersTo": "forecast-cell",
-      "description": "A day's hours on the JMA scale: delivered cells, faded dashed projection after the now line, legend with the ratio ticks.",
+      "description": "A day's hours on the grey intensity scale: delivered cells, faded dashed projection after the now line (haloed in white), legend with the ratio ticks.",
       "html": "<div class=\"ds-strip\" role=\"img\" aria-label=\"Spends its full budget around 21:40\"><div class=\"ds-cells\"><span class=\"j0\"></span><span class=\"j0\"></span><span class=\"j1\"></span><span class=\"j2\"></span><span class=\"j3\"></span><span class=\"j3\"></span><span class=\"j4\"></span><span class=\"j5\"></span><span class=\"j3\"></span><span class=\"j2\"></span><span class=\"j3\"></span><span class=\"j4\"></span><span class=\"j4 p\"></span><span class=\"j4 p\"></span><span class=\"j4 p\"></span><span class=\"j4 p\"></span><span class=\"j4 p\"></span><span class=\"j4 p\"></span><span class=\"j4 p\"></span><span class=\"j4 p\"></span><span class=\"j4 p\"></span><span class=\"j0\"></span><span class=\"j0\"></span><span class=\"j0\"></span></div><span class=\"ds-now\" style=\"left:50%\"></span></div><div class=\"ds-legend\"><span class=\"j1\"></span><span class=\"j2\"><b>¼</b></span><span class=\"j3\"><b>0.6</b></span><span class=\"j4\"><b>1.2</b></span><span class=\"j5\"><b>2</b></span><span class=\"j6\"><b>3</b></span><span class=\"j7\"><b>4×</b></span></div>",
-      "css": ".ds-strip{position:relative;max-width:480px} .ds-cells{display:grid;grid-template-columns:repeat(24,minmax(0,1fr));gap:1px} .ds-cells span{height:14px} .j0{background:#e8edf2} .j1{background:#a0d2ff} .j2{background:#2185ff} .j3{background:#0041ff} .j4{background:#fff500} .j5{background:#ff9900} .j6{background:#ff2800} .j7{background:#b40068} .ds-cells .p{opacity:.4;outline:1px dashed #4a5560;outline-offset:-1px} .ds-now{position:absolute;top:-4px;bottom:-4px;width:2px;background:#1a1a1a} .ds-legend{display:inline-flex;margin-top:12px;padding-bottom:16px;font:400 12px/16px 'BIZ UDPGothic', 'BIZ UDPゴシック', system-ui, -apple-system, 'Hiragino Sans', 'Yu Gothic UI', sans-serif;color:#4a5560;font-variant-numeric:tabular-nums} .ds-legend span{position:relative;width:36px;height:10px} .ds-legend b{position:absolute;top:12px;left:0;transform:translateX(-50%);font-weight:400}"
+      "css": ".ds-strip{position:relative;max-width:480px} .ds-cells{display:grid;grid-template-columns:repeat(24,minmax(0,1fr));gap:1px} .ds-cells span{height:14px} .j0{background:#ececec} .j1{background:#cccccc} .j2{background:#ababab} .j3{background:#8b8b8b} .j4{background:#6d6d6d} .j5{background:#505050} .j6{background:#353535} .j7{background:#1b1b1b} .ds-cells .p{opacity:.4;outline:1px dashed #545454;outline-offset:-1px} .ds-now{position:absolute;top:-4px;bottom:-4px;width:2px;background:#1a1a1a;outline:1px solid #fff} .ds-legend{display:inline-flex;margin-top:12px;padding-bottom:16px;font:400 12px/16px 'BIZ UDPGothic', 'BIZ UDPゴシック', system-ui, -apple-system, 'Hiragino Sans', 'Yu Gothic UI', sans-serif;color:#545454;font-variant-numeric:tabular-nums} .ds-legend span{position:relative;width:36px;height:10px} .ds-legend b{position:absolute;top:12px;left:0;transform:translateX(-50%);font-weight:400}"
     },
     {
       "name": "Data Table",
@@ -664,33 +678,33 @@
       "refersTo": "data-table-header",
       "description": "Flat table under a 2px ink rule, hairlines between rows, right-aligned tabular numbers.",
       "html": "<table class=\"ds-table\"><thead><tr><th>Day</th><th>Campaign</th><th class=\"n\">Impressions</th><th class=\"n\">Charged</th></tr></thead><tbody><tr><td>10-20</td><td>Autumn sale</td><td class=\"n\">41,203</td><td class=\"n\">¥12,880</td></tr><tr class=\"sel\"><td>10-19</td><td>Autumn sale</td><td class=\"n\">38,911</td><td class=\"n\">¥11,940</td></tr></tbody></table>",
-      "css": ".ds-table{width:100%;border-collapse:collapse;border-top:2px solid #1a1a1a;font:400 14px/20px 'BIZ UDPGothic', 'BIZ UDPゴシック', system-ui, -apple-system, 'Hiragino Sans', 'Yu Gothic UI', sans-serif;color:#1a1a1a;font-variant-numeric:tabular-nums} .ds-table th{padding:8px 12px;text-align:left;font-size:12px;font-weight:700;color:#4a5560;border-bottom:1px solid #bdc7d0;white-space:nowrap} .ds-table td{padding:8px 12px;border-bottom:1px solid #d6dee5} .ds-table .n{text-align:right} .ds-table tr.sel td{background:#dfe7ee;font-weight:700}"
+      "css": ".ds-table{width:100%;border-collapse:collapse;border-top:2px solid #1a1a1a;font:400 14px/20px 'BIZ UDPGothic', 'BIZ UDPゴシック', system-ui, -apple-system, 'Hiragino Sans', 'Yu Gothic UI', sans-serif;color:#1a1a1a;font-variant-numeric:tabular-nums} .ds-table th{padding:8px 12px;text-align:left;font-size:12px;font-weight:700;color:#545454;border-bottom:1px solid #c6c6c6;white-space:nowrap} .ds-table td{padding:8px 12px;border-bottom:1px solid #dddddd} .ds-table .n{text-align:right} .ds-table tr.sel td{background:#e6e6e6;font-weight:700}"
     },
     {
       "name": "Notice",
       "kind": "card",
       "refersTo": "section",
-      "description": "A framed line with a full edge in the level's colour; never a side stripe.",
-      "html": "<p class=\"ds-notice ds-n-adv\">Balance runs out in about 3 days at this pace.</p><p class=\"ds-notice ds-n-err\">The top-up could not be recorded.</p>",
-      "css": ".ds-notice{margin:0 0 8px;padding:8px 12px;border:1px solid;border-radius:2px;font:400 14px/20px 'BIZ UDPGothic', 'BIZ UDPゴシック', system-ui, -apple-system, 'Hiragino Sans', 'Yu Gothic UI', sans-serif;color:#1a1a1a} .ds-n-adv{background:#fffbd1;border-color:#b3a600} .ds-n-err{background:#fff1f0;border-color:#d70a00}"
+      "description": "A framed line over a neutral fill, told apart by edge weight and its lead word (Error: / Note:); never a side stripe.",
+      "html": "<p class=\"ds-notice ds-n-adv\" data-lead=\"Note:\">Balance runs out in about 3 days at this pace.</p><p class=\"ds-notice ds-n-err\" data-lead=\"Error:\">The top-up could not be recorded.</p>",
+      "css": ".ds-notice{margin:0 0 8px;padding:8px 12px;border:1px solid;border-radius:2px;font:400 14px/20px 'BIZ UDPGothic', 'BIZ UDPゴシック', system-ui, -apple-system, 'Hiragino Sans', 'Yu Gothic UI', sans-serif;color:#1a1a1a} .ds-n-adv{background:#ececec;border-color:#949494} .ds-n-err{background:#fff;border:2px solid #1a1a1a} .ds-notice[data-lead]::before{content:attr(data-lead) \" \";font-weight:700}"
     }
   ],
   "narrative": {
     "northStar": "The Delivery Forecast",
-    "overview": "The dashboard reads like a Japanese weather forecast. Delivery and money are shown as what happened hour by hour, what is coming at this pace, and official-style advisory and warning levels. An advertiser opens Campaigns and sees today's spend as one large number, a sentence saying where the day is heading, and each campaign's day as a strip of intensity cells. A publisher sees earnings the same way. An operator sees work queues as plain ruled tables.\n\nThe ground is white and the text is ink (`ink`). A pale blue-grey field (`field`) marks two things only: the top bar and a selected row. Sections are separated by rules, not boxes. Corners are 2px, and nothing casts a shadow unless it floats. Colour has two jobs and no others: the JMA rainfall-intensity scale for intensity data, and the yellow/red alert levels. Actions are ink. Plain states are words.\n\nThe density suits operating work. Body text is 14px, labels 12px, and figures are tabular everywhere. BIZ UDPGothic, Morisawa's Universal Design gothic, sets English and 日本語 in one face, so the two languages carry the same weight and rhythm. Dark mode is a full theme: every neutral step keeps its contrast role when the theme flips.",
+    "overview": "**Creative North Star: \"The Delivery Forecast\"**\n\nThe dashboard reads like a Japanese weather forecast. Delivery and money are shown as what happened hour by hour, what is coming at this pace, and official-style advisory and warning levels. An advertiser opens Campaigns and sees today's spend as one large number, a sentence saying where the day is heading, and each campaign's day as a strip of intensity cells. A publisher sees earnings the same way. An operator sees work queues as plain ruled tables.\n\nIt is a printed page: black and white, like a newspaper's weather page. The ground is white and the text is ink (`ink`). A pale grey field (`field`) marks two things only: the top bar and a selected row. Sections are separated by rules, not boxes. Corners are 2px, and nothing casts a shadow unless it floats. There is no hue anywhere in the dashboard: intensity is a grey scale, light to near-black, and the two alert levels are typographic, ink on mid grey and white reversed out of ink. Actions are ink, links are ink with an underline, and plain states are words. The ad creatives (banners, magazine previews, uploaded images) are the only colour on the page, like the photographs in a newspaper.\n\nThe density suits operating work. Body text is 14px, labels 12px, and figures are tabular everywhere. Headings and the big figure are set in BIZ UDPMincho, everything read or operated in BIZ UDPGothic: Morisawa's Universal Design pair, which sets English and 日本語 alike, so the two languages carry the same weight and rhythm. Dark mode is a full theme: every neutral step keeps its contrast role when the theme flips.",
     "keyCharacteristics": [
-      "White ground, ink text, a blue-grey field only for the top bar and selected rows",
-      "Colour only for intensity data (JMA scale) and alert levels (advisory yellow, warning red)",
+      "Black and white: white ground, ink text, a grey field only for the top bar and selected rows",
+      "No hue: intensity is a seven-step grey scale, alerts are typographic, links are underlined; ad creatives are the only colour",
       "Ink action colour: filled primary, outlined secondary and destructive",
       "Ruled sections and flat tables with an ink top rule, never cards or boxes",
       "2px corners everywhere; shadows only on floating layers",
       "One large figure per region, followed by a sentence",
-      "BIZ UDPGothic for all text, tabular figures, EN/日本語 parity"
+      "Mincho headings and big figure, Gothic for everything else, tabular figures, EN/日本語 parity"
     ],
     "rules": [
       {
-        "name": "The Colour Is Data Rule",
-        "body": "Hue appears only in intensity data (the JMA scale) and alert levels (advisory yellow, warning red). Buttons, tabs, plain statuses, headings and decoration are ink and grey. If a coloured thing is not a measurement or an alert, it is wrong.",
+        "name": "The Ink Only Rule",
+        "body": "No hue in the dashboard; ad creatives are the only colour on the page. Intensity is grey, alerts are typographic, links are underlined. Greyscale comes from the tokens, never from `filter: grayscale` (it would grey the creatives too). `platform/print_rules_test.go` and `dashboard-tests/printed-page.run.mjs` enforce it.",
         "section": "colors"
       },
       {
@@ -709,8 +723,8 @@
         "section": "typography"
       },
       {
-        "name": "The One Face Rule",
-        "body": "All text is BIZ UDPGothic in both languages. Weight is 400 or 700; nothing in between is reliable across the subsets.",
+        "name": "The Two Face Rule",
+        "body": "Mincho (BIZ UDPMincho 700) for page titles, section headings and the big figure; Gothic (BIZ UDPGothic) for everything you read or operate. Weight is 400 or 700; nothing in between is reliable across the subsets.",
         "section": "typography"
       },
       {
@@ -720,8 +734,8 @@
       }
     ],
     "dos": [
-      "**Do** put intensity data on the JMA scale through `intensity()` and show the legend under it, with ticks that match the thresholds.",
-      "**Do** use Advisory Yellow with Ink text and Warning Red with white text for alert levels, and nothing else in those colours.",
+      "**Do** put intensity data on the grey scale through `intensity()` and show the legend under it, with ticks that match the thresholds.",
+      "**Do** mark alert levels typographically: Advisory is Ink on mid grey, Warning is white reversed out of Ink, and a notice opens with its lead word.",
       "**Do** make the primary action Ink-filled, and guard destructive actions with an ink outline button plus a confirm dialog that names the object.",
       "**Do** write plain states as words in a plain grey tag.",
       "**Do** separate regions with a 1px Rule and spacing; put a 2px Ink rule over tables and figure rows.",
@@ -731,14 +745,17 @@
       "**Do** run `scripts/build-tailwind.sh` after template class changes and commit `platform/static/tailwind.css`."
     ],
     "donts": [
-      "**Don't** use colour for actions, plain states, headings or decoration. No coloured buttons; no green \"success\", no blue \"info\" tags.",
-      "**Don't** use the JMA colours outside intensity data, or put a projection on a paused campaign.",
+      "**Don't** use hue anywhere in the dashboard: no colour utilities (`text-red-*`, `bg-amber-*`, …), no coloured hex in templates, no ✓/✗ glyphs standing in for words. Use the tokens.",
+      "**Don't** use `filter: grayscale` to get greys; it would grey the ad creatives too.",
+      "**Don't** use the intensity greys outside intensity data, or put a projection on a paused campaign.",
       "**Don't** draw cards, boxed panels, KPI-card rows or a sidebar. The page is ruled, not boxed.",
       "**Don't** use the Field tint except for the top bar, the nav panel and selected rows.",
       "**Don't** add shadows to anything that doesn't float, or corners above 2px.",
       "**Don't** use Mark (`gray-400`) or lighter for text.",
       "**Don't** hard-code neutral hex values in templates; use the gray steps so dark mode follows.",
-      "**Don't** use coloured side stripes on notices; use the full-edge notice."
+      "**Don't** use side stripes on notices; use the full-edge notice.",
+      "**Don't** set text in uppercase; neither language reads it as a heading.",
+      "**Don't** cap a page's width; only forms, prose, notices and auth pages are narrow."
     ]
   }
 }

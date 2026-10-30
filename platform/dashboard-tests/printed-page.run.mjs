@@ -205,6 +205,15 @@ for (const theme of ["light", "dark"]) {
       }
     }
   }
+  // Phone width, for the review screenshots only (reflow is out of scope).
+  if (shots) {
+    await page.setViewportSize({ width: 390, height: 844 });
+    for (const lang of ["en", "ja"]) {
+      await page.goto(`http://127.0.0.1:${PORT}/preview/advertiser-forecast-${lang}.html`, { waitUntil: "load" });
+      await page.evaluate(() => document.fonts.ready);
+      await page.screenshot({ path: `${shots}/advertiser-forecast-${lang}-${theme}-390.png`, fullPage: true });
+    }
+  }
   await ctx.close();
 }
 await browser.close();

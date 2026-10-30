@@ -99,7 +99,9 @@ for (const theme of ["light", "dark"]) {
 
       // mincho-headings: titles, section heads and the big figure.
       const type = await page.evaluate(() => {
-        const els = [...document.querySelectorAll(".page-title, .section-title, .text-5xl")];
+        const els = [...document.querySelectorAll(".page-title, .section-title, .text-5xl, h1, h2")]
+          // IDs keep the mono face (DESIGN.md: mono for IDs, tokens, code).
+          .filter((e) => e.offsetParent !== null && !e.classList.contains("sr-only") && !e.classList.contains("font-mono"));
         const off = els.filter((e) => !/^"?BIZ UDPMincho/.test(getComputedStyle(e).fontFamily))
           .map((e) => `${e.tagName.toLowerCase()} "${e.textContent.trim().slice(0, 20)}"`);
         // fonts.check() is true when NO face matches, so look for a loaded one.

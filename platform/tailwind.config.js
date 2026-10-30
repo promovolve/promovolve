@@ -34,6 +34,9 @@ module.exports = {
         /* Morisawa's Universal Design gothic, self-hosted (static/fonts),
            for Latin and Japanese alike. */
         sans: ['"BIZ UDPGothic"', '"BIZ UDPゴシック"', 'system-ui', '-apple-system', '"Hiragino Sans"', '"Yu Gothic UI"', 'sans-serif'],
+        /* Its Mincho companion, for headings and the big figure only
+           (DESIGN.md, The Two Face Rule). */
+        serif: ['"BIZ UDPMincho"', '"BIZ UDP明朝"', '"Hiragino Mincho ProN"', '"Yu Mincho"', 'serif'],
       },
       colors: {
         /* brand = the ink action colour: ink-filled primary buttons and

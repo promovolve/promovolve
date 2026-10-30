@@ -22,7 +22,7 @@
 <section aria-labelledby="today-h" class="mb-8">
   <h2 id="today-h" class="sr-only">{{t "Today"}}</h2>
   <div class="flex flex-wrap items-baseline gap-x-4 gap-y-1">
-    {{if .AdvBudget}}<p class="text-5xl font-bold tracking-tight tabular leading-none">{{.AdvBudget.SpendToday}}</p>{{end}}
+    {{if .AdvBudget}}<p class="figure-lead text-5xl font-bold tracking-tight tabular leading-none">{{.AdvBudget.SpendToday}}</p>{{end}}
     <p class="text-lg">{{t "spent today."}}{{if .AdvForecast}} {{.AdvForecast.Outlook}}{{end}}</p>
   </div>
   <p class="mt-2 text-sm text-gray-500">

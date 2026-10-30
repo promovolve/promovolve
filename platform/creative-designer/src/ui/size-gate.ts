@@ -34,8 +34,9 @@ export function mountSizeGate(): void {
 
   const inner = document.createElement("div");
   const title = document.createElement("p");
+  title.className = "cd-title";
   title.textContent = "This window is too small for the designer";
-  title.style.cssText = "font-size: 16px; font-weight: 600; margin: 0 0 8px;";
+  title.style.cssText = "font-size: 16px; font-weight: 700; margin: 0 0 8px;";
   const detail = document.createElement("p");
   detail.style.cssText = `font-size: 12px; color: ${tokens.ink300}; margin: 0;`;
   inner.append(title, detail);

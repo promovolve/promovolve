@@ -94,8 +94,9 @@ function buildModal(): Modal {
   const header = document.createElement("div");
   header.style.cssText = `display:flex;align-items:center;gap:8px;padding:12px 16px;border-bottom:1px solid ${tokens.ink500};`;
   const title = document.createElement("h2");
+  title.className = "cd-title";
   title.textContent = "Images";
-  title.style.cssText = `margin:0;font-size:15px;color:${tokens.ink100};font-weight:500;`;
+  title.style.cssText = `margin:0;font-size:15px;color:${tokens.ink100};font-weight:700;`;
   const count = document.createElement("span");
   count.style.cssText = `color:${tokens.ink300};font-size:12px;`;
   const spacer = document.createElement("div");

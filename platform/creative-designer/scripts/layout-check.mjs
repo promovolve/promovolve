@@ -37,6 +37,23 @@ try {
 
   check((await barText()).includes("Nothing selected. Click an item on the banner, or add one from the left."), "empty selection bar text");
   check((await showing()) === "Banner and page 1", "panel shows Banner and page 1");
+
+  // Two Face Rule: headings in Mincho (and the face really loaded).
+  await page.evaluate(() => document.fonts.ready);
+  const faces = await page.evaluate(() => {
+    const ff = (sel) => { const el = document.querySelector(sel); return el ? getComputedStyle(el).fontFamily : ""; };
+    return {
+      crumb: ff("[data-cd-crumb-creative]"),
+      group: ff(".cd-group-header > span:first-child"),
+      tab: ff(".cd-tool-rail"),
+      loaded: [...document.fonts].some((f) => f.family.replace(/"/g, "") === "BIZ UDPMincho" && f.status === "loaded"),
+    };
+  });
+  check(/^"?BIZ UDPMincho/.test(faces.crumb), `creative name in Mincho (${faces.crumb})`);
+  check(/^"?BIZ UDPMincho/.test(faces.group), `section headings in Mincho (${faces.group})`);
+  check(/^"?BIZ UDPGothic/.test(faces.tab), `tools stay Gothic (${faces.tab})`);
+  check(faces.loaded, "Mincho face loaded");
+  check(/^"?BIZ UDPGothic/.test(await page.evaluate(() => getComputedStyle(document.body).fontFamily)), "body-level layers (modals, menus) in Gothic");
   await page.screenshot({ path: `${out}/layout-light.png` });
 
   // The harness fixture has no image item, so add one through the

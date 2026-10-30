@@ -152,8 +152,9 @@ function showEmptyBlock(anchor: HTMLElement, empties: EmptySize[]): void {
   ].join(";");
 
   const title = document.createElement("div");
+  title.className = "cd-title";
   title.textContent = "Can’t publish — fill these sizes first";
-  title.style.cssText = `font-weight:600;margin-bottom:6px;color:${tokens.err};`;
+  title.style.cssText = `font-weight:700;margin-bottom:6px;color:${tokens.err};`;
   pop.appendChild(title);
 
   const list = document.createElement("ul");

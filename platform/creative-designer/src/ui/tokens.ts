@@ -61,6 +61,9 @@ export const tokens = {
   // Typography. BIZ UDPGothic is self-hosted and linked by the Go shell
   // template (fonts/biz-udpgothic.css), the same face as the dashboard.
   sans: '"BIZ UDPGothic", system-ui, sans-serif',
+  // Headings only (The Two Face Rule): self-hosted like the Gothic
+  // (fonts/biz-udpmincho.css).
+  serif: '"BIZ UDPMincho", "Hiragino Mincho ProN", "Yu Mincho", serif',
   mono: "ui-monospace, SFMono-Regular, Menlo, Consolas, monospace",
 
   // Radii (plain numbers — used in `${tokens.r4}px` arithmetic). Forecast
@@ -98,12 +101,16 @@ export function migrateThemeKey(storage: ThemeStorage): void {
 // Inject the :root variable block once. Base = dark; the light override
 // raises specificity via the data-attribute so switching is one attr flip.
 // Native range/checkbox/progress controls take the ink accent, never the
-// browser's blue.
+// browser's blue. Headings (the creative's name, panel section headings,
+// modal titles) take Mincho; everything operated stays Gothic, including
+// the modals, menus and toasts mounted on <body> outside the root.
 export function themeCss(): string {
   const block = (t: "dark" | "light"): string =>
     COLOR_KEYS.map((k) => `${varName(k)}:${COLORS[k][t]}`).join(";");
   return `:root{${block("dark")}}:root[data-cd-theme="light"]{${block("light")}}` +
-    `input,progress{accent-color:var(--cd-ink100)}`;
+    `input,progress{accent-color:var(--cd-ink100)}` +
+    `body{font-family:${tokens.sans}}` +
+    `[data-cd-crumb-creative],.cd-group-header>span:first-child,.cd-title{font-family:${tokens.serif}}`;
 }
 
 export function injectThemeStyles(): void {

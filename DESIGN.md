@@ -237,7 +237,7 @@ Ink on white with a neutral grey scale (every step r = g = b). There is no hue i
 ### Named Rules
 **The Tabular Figures Rule.** Every table, money column and figure is tabular (`tabular-nums`), so columns line up digit for digit.
 
-**The Two Face Rule.** Mincho (BIZ UDPMincho 700) for page titles, section headings and the big figure; Gothic (BIZ UDPGothic) for everything you read or operate. Weight is 400 or 700; nothing in between is reliable across the subsets.
+**The Two Face Rule.** Mincho (BIZ UDPMincho 700) for page titles, section headings and the big figure; Gothic (BIZ UDPGothic) for everything you read or operate. The creative designer follows it too: Mincho for the creative's name, panel section headings and modal titles (`platform/creative-designer/DESIGN.md`). Weight is 400 or 700; nothing in between is reliable across the subsets.
 
 ## Layout
 

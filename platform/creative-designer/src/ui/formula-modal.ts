@@ -32,8 +32,10 @@ export function openFormulaModal(store: Store, edit?: { idx: number; item: Image
   ].join(";");
 
   const title = document.createElement("div");
+
+  title.className = "cd-title";
   title.textContent = edit ? "Edit formula" : "Insert formula";
-  title.style.cssText = "font-weight: 600; font-size: 13px;";
+  title.style.cssText = "font-weight: 700; font-size: 13px;";
 
   const input = document.createElement("textarea");
   input.value = edit?.item.latex ?? "E = mc^2";
@@ -207,7 +209,7 @@ function button(label: string, primary: boolean, onClick: () => void): HTMLButto
   b.style.cssText = [
     "padding: 5px 12px", "border-radius: 2px", "font: inherit", "font-size: 12px", "cursor: pointer",
     primary
-      ? `background: ${tokens.ink100}; color: ${tokens.ink900}; border: none; font-weight: 600`
+      ? `background: ${tokens.ink100}; color: ${tokens.ink900}; border: none; font-weight: 700`
       : `background: transparent; color: ${tokens.ink200}; border: 1px solid ${tokens.ink500}`,
   ].join(";");
   b.addEventListener("click", onClick);

@@ -2,7 +2,7 @@
 
 > **For agentic workers:** REQUIRED SUB-SKILL: Use superpowers:subagent-driven-development (recommended) or superpowers:executing-plans to implement this plan task-by-task. Steps use checkbox (`- [ ]`) syntax for tracking.
 
-**Goal:** Make the dashboard read as a black-and-white printed page. That means four things: neutral greyscale everywhere except ad creatives, Mincho headings, no leftover hue, glyphs or uppercase, and one page width.
+**Goal:** Make the dashboard read as a black-and-white printed page. That means four things: neutral greyscale everywhere except ad creatives, Mincho headings, no leftover hue, glyphs or uppercase, and no width caps that push tables into a horizontal scrollbar.
 
 **Architecture:** Most of the change is at the token level, in `tailwind.input.css` and `tailwind.config.js`, so templates that use tokens follow without edits. Two guards come first and stay. A Go test scans template and Go sources for hue, glyphs and uppercase. A browser check renders the real pages through the Go preview tests and reads computed styles: colour, font, width, link underline and focus. The template sweep then makes both guards pass.
 
@@ -18,7 +18,7 @@
 - Every new or changed UI string needs an EN key plus a 日本語 entry in `platform/internal/i18n/ja.go`, and `go test ./...` in `platform` must stay green. That includes `i18n_drift_test.go`.
 - Colour values come from the spec tables only. Neutral steps are r=g=b.
 - Ad creatives stay in full colour: `<magazine-preview>`, banner previews, `<img>`, `<video>`, `<canvas>` of creatives, and the designer canvas content. No `filter: grayscale` anywhere.
-- Layout stays as it is, apart from the single `max-w-7xl` page width.
+- Layout stays as it is, apart from removing the page-level width caps. Nothing scrolls sideways at 1280px or 1440px.
 - The user reviews screenshots before the final commit of visual work (Task 7).
 
 ## Review Focus
@@ -59,7 +59,7 @@
   For each page and theme it calls `check(name, ok, detail)`:
   - **`no-hue`:** for every element outside `img, video, canvas, iframe, magazine-preview, [data-creative]`, every computed `color`, `background-color`, `border-{top,right,bottom,left}-color`, `outline-color`, `fill` and `stroke` with alpha > 0 has `max(r,g,b) − min(r,g,b) ≤ 2`. On failure, list the first 5 as `tag.class: prop rgb(...)`.
   - **`mincho-headings`:** every `.page-title` and `.section-title`, plus the `text-5xl` figure, has a computed `font-family` that starts with `"BIZ UDPMincho"`, and `document.fonts.check('700 30px "BIZ UDPMincho"')` is true after `document.fonts.ready`.
-  - **`page-width`:** the first child of `<main>` is ≤ 1280px wide (+1px tolerance).
+  - **`no-hscroll`:** at 1440×900 and again at 1280×900, `document.documentElement.scrollWidth ≤ innerWidth`. No element inside `<main>` with computed `overflow-x` of `auto` or `scroll` has `scrollWidth > clientWidth + 1`. No page-level wrapper (the first child of `<main>`) is narrower than `<main>`'s content box minus 1px.
   - **`no-uppercase`:** no element has computed `text-transform: uppercase`.
   - **`links-underlined`:** every visible `a.text-brand-ink` has a computed `text-decoration-line` that includes `underline`.
   - **`focus-ink`:** focus the first `.btn-primary` with the keyboard (Tab until active). Its computed `outline-color` is neutral and `outline-offset` is ≥ 2px.
@@ -68,7 +68,7 @@
 
   With argv[2] set, it saves `<dir>/<page>-<theme>.png` (full page). It exits 1 if anything failed, and prints `all printed-page checks passed` otherwise.
 
-- [ ] **Step 4: Run it.** `cd platform/dashboard-tests && npm run test:print`. Expected: exit 1, with FAILs in `no-hue` (link blue, JMA cells, field blue-grey, alert badges), `mincho-headings`, `page-width` (campaigns, publisher stats), `links-underlined`, `focus-ink` and `scale`. Read the output. A crash or a 404 is not the expected failure: fix the harness until only check FAILs remain.
+- [ ] **Step 4: Run it.** `cd platform/dashboard-tests && npm run test:print`. Expected: exit 1, with FAILs in `no-hue` (link blue, JMA cells, field blue-grey, alert badges), `mincho-headings`, `no-hscroll` (wallet, admin pages, and any capped page whose table overflows), `links-underlined`, `focus-ink` and `scale`. Read the output. A crash or a 404 is not the expected failure: fix the harness until only check FAILs remain.
 
 - [ ] **Step 5: Commit.**
 ```bash
@@ -115,7 +115,7 @@ git commit -m "test(platform): printed-page guards (source scan + computed-style
 - [ ] **Step 6: Rebuild and run.** Run `scripts/build-tailwind.sh`, then `cd platform/dashboard-tests && npm run test:print`. Expected:
   - `scale`, `now-halo`, `links-underlined` and `focus-ink` PASS.
   - `no-hue` fails only on elements that carry a hue utility class or a hard-coded colour from a template (the detail shows `text-red-…`, `bg-amber-…` and so on). Task 4 removes those.
-  - `mincho-headings` and `page-width` still FAIL.
+  - `mincho-headings` and `no-hscroll` still FAIL.
 - [ ] **Step 7: Go tests.** `cd platform && go test ./...`. Expected: PASS except `TestTemplatesArePrintedPage` (still failing until Task 4).
 - [ ] **Step 8: Commit.**
 ```bash
@@ -182,17 +182,16 @@ git commit -m "feat(platform): Mincho headings (BIZ UDPMincho, self-hosted)"
 - [ ] **Step 6: Run.** Run `cd platform && go test ./...`, then `scripts/build-tailwind.sh`, then `npm run test:print`. Expected:
   - `TestTemplatesArePrintedPage` PASSes, and so does every other Go test.
   - `no-hue` and `no-uppercase` PASS on every page and theme.
-  - Only `page-width` still fails.
+  - Only `no-hscroll` still fails.
 - [ ] **Step 7: Commit.**
 ```bash
 git add platform/templates platform/internal platform/static/tailwind.css
 git commit -m "fix(platform): printed-page leftovers: hue utilities, glyphs, uppercase, notice words"
 ```
 
-### Task 5: One page width
+### Task 5: No width caps, no sideways scroll
 
 **Files:**
-- Modify: `platform/templates/layout.html:168` (`<main>`)
 - Modify: the page-level wrappers, which are the first `<div>` of the page with `max-w-*xl`:
   - `advertiser/wallet.html:2`
   - `publisher/earnings.html:2`
@@ -203,19 +202,20 @@ git commit -m "fix(platform): printed-page leftovers: hue utilities, glyphs, upp
   - `admin/sites.html:2`, `admin/users.html`, `admin/requests.html`, `admin/fraud.html`
   - `admin/billing*.html`
   - `help.html:2`
+- Modify: any table wrapper that still overflows at 1280px after that (the `no-hscroll` detail names it)
 
-- [ ] **Step 1: Layout wrapper.** Wrap `<main>`'s content in `<div class="max-w-7xl">`, left-aligned like a page. Keep `p-4 md:p-8` on `<main>`.
-- [ ] **Step 2: Remove page-level caps.** On the listed wrappers, remove `max-w-*xl` and keep the other classes. Where removing it leaves an empty `class`, drop the attribute.
+- [ ] **Step 1: Remove page-level caps.** On the listed wrappers, remove `max-w-*xl` and keep the other classes. Where removing it leaves an empty `class`, drop the attribute. `<main>` gets no new cap.
 
   Keep these caps:
   - inner blocks: `max-w-3xl` on `.page-sub` and campaign sentences, `max-w-2xl` on forms and notices
   - `help.html`'s prose column, if it is the inner one (not the page wrapper)
   - the auth pages (`login`, `setup`, `recover`, `request-account`, `guard-error`)
+- [ ] **Step 2: Fix any remaining overflow.** If `no-hscroll` still names a table at 1280px, make its columns fit: let long text cells wrap (`whitespace-normal`, `break-words`), and drop fixed `w-*` or `min-w-*` on cells. Don't hide columns.
 - [ ] **Step 3: Run.** Run `scripts/build-tailwind.sh`, then `npm run test:print`. Expected: `all printed-page checks passed`. Then run `cd platform && go test ./...` (PASS).
 - [ ] **Step 4: Commit.**
 ```bash
 git add platform/templates platform/static/tailwind.css
-git commit -m "feat(platform): one page width (max-w-7xl) for every dashboard page"
+git commit -m "fix(platform): drop page width caps so tables never scroll sideways"
 ```
 
 ### Task 6: Creative designer chrome

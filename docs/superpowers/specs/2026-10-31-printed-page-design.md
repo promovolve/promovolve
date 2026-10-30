@@ -10,7 +10,7 @@ The dashboard should read as a printed black-and-white page, like a newspaper. M
 
 1. **Fully greyscale.** No hue anywhere in the dashboard chrome, the data or the alerts. Newspaper readers read black-and-white charts and tables without trouble.
 2. **Mincho headings.** BIZ UDPMincho (Morisawa, OFL, weights 400 and 700) for page titles, section headings and the big figure. Body, tables, forms and labels stay BIZ UDPGothic.
-3. **Layout unchanged**, except that every page shares one width.
+3. **Layout unchanged**, except that pages lose their width caps: no table on any page scrolls sideways (user, 2026-10-31: "I don't like the horizontal scrollbar").
 4. **Ad creatives keep their colour.** Banners, magazine previews and uploaded images are content, like photos in a newspaper.
 
 ## 1. Colour
@@ -69,7 +69,7 @@ Each error and advisory notice must open with its word (エラー / Error, 注�
 - **Hue utilities** (about 100, in 16 templates; the biggest are creative-editor, approval and campaigns): replace them with greys, the alert classes or notices. A grep for `(text|bg|border)-(amber|red|green|emerald|yellow|orange|blue|indigo|rose)-[0-9]` over `platform/templates` must come back empty.
 - **✓/✗ glyphs** (9, in sites, layout, creative-editor and campaigns): replace each with the word it stands for.
 - **Uppercase** (25, in 10 templates): remove it.
-- **Page width:** `<main>` in `layout.html` gets one `max-w-7xl` wrapper. Page-level `max-w-*xl` wrappers are removed. Narrow caps stay only on forms, prose, notices and the auth pages.
+- **Page width:** page-level `max-w-*xl` wrappers are removed and no page-wide cap replaces them, so content (tables above all) uses the full width of `<main>`. At 1280px and 1440px no page and no table scrolls sideways. Narrow caps stay only on forms, prose, notices and the auth pages. Phone-width table reflow is out of scope.
 
 ## 4. Docs and verification
 

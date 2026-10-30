@@ -20,7 +20,7 @@ import { currentItem, currentLayout, currentPage, fieldColorSyncKey, hasLocalTex
 import type { Store } from "../store";
 import type { DesignerState, ImageItem, LayoutItem, RectItem } from "../types";
 import { scrimGradient, SCRIM_EDGES, type ScrimEdge, type ScrimSpec } from "../scrim";
-import { contrastRatio, WCAG_AA_NORMAL } from "../color-contrast";
+import { lowContrastRatio } from "../color-contrast";
 import { loadBrandKit } from "../brand-kit";
 import { mountKitColorChips } from "./brand-kit-chips";
 import { isFormula } from "../formula";
@@ -876,8 +876,8 @@ function contrastWarningRow(parent: HTMLElement, store: Store): (item: LayoutIte
       return;
     }
     const page = currentPage(store.state);
-    const ratio = contrastRatio(item.color, page?.bg);
-    if (ratio < WCAG_AA_NORMAL) {
+    const ratio = lowContrastRatio(item.color, page?.bg);
+    if (ratio !== null) {
       wrap.style.display = "flex";
       wrap.textContent = `⚠ Low contrast (${ratio.toFixed(1)}:1) — readers may not see this text`;
     } else {

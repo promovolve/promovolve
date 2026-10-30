@@ -22,6 +22,7 @@ import { currentLayout, currentPage, isSelected, reorderItem, selectItem, setVid
 import type { Store } from "../store";
 import type { DesignerState, LayoutItem } from "../types";
 import { tokens } from "./tokens";
+import { itemName } from "../selection-model";
 import { visualRect } from "./visual-rect";
 
 export interface LayersHandle {
@@ -415,25 +416,6 @@ function iconBtn(
     btn.style.color = active ? tokens.ink200 : tokens.ink500;
   });
   return btn;
-}
-
-function itemName(item: LayoutItem): string {
-  if (item.type === "text") {
-    const t = (item.text ?? item.field ?? "").trim();
-    if (!t) return "Text";
-    const first = t.split(/\r?\n/, 1)[0]!;
-    return first.length > 40 ? first.slice(0, 40) + "…" : first;
-  }
-  if (item.type === "image") {
-    if (item.latex) return item.latex.length > 40 ? item.latex.slice(0, 40) + "…" : item.latex;
-    const src = (item.src ?? item.field ?? "").trim();
-    if (!src) return "Image";
-    const parts = src.split("/");
-    return parts[parts.length - 1] || "Image";
-  }
-  if (item.type === "rect") return "Scrim";
-  if (item.type === "circle") return "Circle";
-  return "Item";
 }
 
 function typeIcon(type: string): string {

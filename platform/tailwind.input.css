@@ -4,56 +4,73 @@
 
 /* ── Theme variables ────────────────────────────────────────────────────
    Forecast world (DESIGN.md). gray-* and white resolve to these RGB
-   triples (tailwind.config.js): a cool blue-grey scale whose ink step
-   (gray-900) is #1a1a1a. The DARK block keeps each step's CONTRAST ROLE
+   triples (tailwind.config.js): a NEUTRAL grey scale (r=g=b, a
+   printed page) whose ink step (gray-900) is #1a1a1a. The jma-* steps
+   are the grey intensity scale; in dark it runs light-for-more. The DARK block keeps each step's CONTRAST ROLE
    inverted — surfaces go dark, text steps go light — so a light-authored
    template renders correctly in both. Toggled by `.dark` on <html>. */
 @layer base {
   :root {
     --c-white: 255 255 255;
-    --c-gray-50: 246 248 250;
-    --c-gray-100: 232 237 242;
-    --c-gray-200: 214 222 229;
-    --c-gray-300: 189 199 208;
-    --c-gray-400: 138 150 161; /* rules and icons only: 3:1, never text */
-    --c-gray-500: 74 85 96;    /* secondary text, 7.4:1 */
-    --c-gray-600: 58 67 77;
-    --c-gray-700: 42 49 56;
-    --c-gray-800: 30 35 40;
+    --c-gray-50: 248 248 248;
+    --c-gray-100: 236 236 236;
+    --c-gray-200: 221 221 221;
+    --c-gray-300: 198 198 198;
+    --c-gray-400: 148 148 148; /* rules and icons only: 3:1, never text */
+    --c-gray-500: 84 84 84;    /* secondary text, 7.4:1 */
+    --c-gray-600: 66 66 66;
+    --c-gray-700: 48 48 48;
+    --c-gray-800: 34 34 34;
     --c-gray-900: 26 26 26;    /* ink */
     --c-gray-950: 12 12 12;
-    --c-field: 223 231 238;    /* #dfe7ee: top bar, selected rows */
+    --c-field: 230 230 230;    /* top bar, selected rows */
     --c-brand: 26 26 26;       /* ink action fill */
     --c-on-brand: 255 255 255;
-    --c-brand-ink: 0 65 255;   /* link blue #0041ff, 7.9:1 */
+    --c-brand-ink: 26 26 26;   /* links: ink, told apart by the underline */
+    --c-jma-1: 204 204 204;
+    --c-jma-2: 171 171 171;
+    --c-jma-3: 139 139 139;
+    --c-jma-4: 109 109 109;
+    --c-jma-5: 80 80 80;
+    --c-jma-6: 53 53 53;
+    --c-jma-7: 27 27 27;
     color-scheme: light;
   }
   .dark {
-    --c-white: 26 31 36;       /* raised surface */
-    --c-gray-50: 17 21 25;     /* page */
-    --c-gray-100: 36 42 48;
-    --c-gray-200: 50 58 66;
-    --c-gray-300: 66 76 86;
-    --c-gray-400: 130 142 153;
-    --c-gray-500: 168 179 189;
-    --c-gray-600: 195 204 212;
-    --c-gray-700: 216 223 229;
-    --c-gray-800: 232 236 240;
-    --c-gray-900: 242 245 248;
-    --c-gray-950: 250 251 252;
-    --c-field: 34 42 51;
-    --c-brand: 232 237 242;
-    --c-on-brand: 17 21 25;
-    --c-brand-ink: 160 210 255; /* #a0d2ff */
+    --c-white: 30 30 30;       /* raised surface */
+    --c-gray-50: 21 21 21;     /* page */
+    --c-gray-100: 41 41 41;
+    --c-gray-200: 57 57 57;
+    --c-gray-300: 75 75 75;
+    --c-gray-400: 140 140 140;
+    --c-gray-500: 177 177 177;
+    --c-gray-600: 203 203 203;
+    --c-gray-700: 222 222 222;
+    --c-gray-800: 235 235 235;
+    --c-gray-900: 245 245 245;
+    --c-gray-950: 251 251 251;
+    --c-field: 41 41 41;
+    --c-brand: 236 236 236;
+    --c-on-brand: 21 21 21;
+    --c-brand-ink: 245 245 245;
     color-scheme: dark;
+    --c-jma-1: 71 71 71;
+    --c-jma-2: 95 95 95;
+    --c-jma-3: 121 121 121;
+    --c-jma-4: 147 147 147;
+    --c-jma-5: 175 175 175;
+    --c-jma-6: 203 203 203;
+    --c-jma-7: 232 232 232;
   }
 
   html { -webkit-text-size-adjust: 100%; }
   body { font-feature-settings: "palt" 0; }
   /* Figures line up in every table and money column. */
   table, .tabular { font-variant-numeric: tabular-nums; }
-  ::selection { background: #a0d2ff; color: #1a1a1a; }
-  :focus-visible { outline: 2px solid #2185ff; outline-offset: 2px; }
+  ::selection { background: rgb(var(--c-gray-300)); color: rgb(var(--c-gray-900)); }
+  :focus-visible { outline: 2px solid rgb(var(--c-gray-900)); outline-offset: 2px; }
+  /* No link colour on a printed page: the underline is the link. */
+  a.text-brand-ink, button.text-brand-ink { text-decoration-line: underline; text-underline-offset: 2px; }
   input[type='checkbox'], input[type='radio'], input[type='range'], progress { accent-color: rgb(var(--c-brand)); }
   * { scrollbar-color: rgb(var(--c-gray-300)) transparent; }
 
@@ -85,34 +102,30 @@
   .card { @apply border-t border-gray-300 py-6; }
   .card-tight { @apply py-4; }
   .badge { @apply inline-flex items-center px-2 py-0.5 rounded-sm text-xs font-bold whitespace-nowrap; }
-  /* Plain states read as words; only advisory (yellow) and warning (red)
-     wear a colour. */
+  /* Plain states read as words. The two alert levels are typographic:
+     warning reversed out (white on ink), advisory ink on mid grey. */
   .badge-info { @apply bg-gray-100 text-gray-700; }
   .badge-success { @apply bg-gray-100 text-gray-900; }
-  .badge-warning { @apply bg-advisory text-[#1a1a1a]; }   /* JMA advisory */
-  .badge-danger { @apply bg-warning text-white; }          /* JMA warning */
+  .badge-warning { @apply bg-gray-300 text-gray-900; }     /* 注意報 */
+  .badge-danger { @apply bg-gray-900 text-white; }         /* 警報 */
   .badge-neutral { @apply bg-gray-100 text-gray-700; }
   /* × inside a badge: inherits the badge's text colour, 24px hit area
      (WCAG 2.5.8) pulled back with negative margins so the tag doesn't grow. */
   .chip-x { @apply inline-flex items-center justify-center min-w-6 min-h-6 -my-1 -mr-1.5 ml-0.5 rounded-full font-bold opacity-70 hover:opacity-100 hover:bg-black/5 cursor-pointer; }
   .form-label { @apply block text-sm font-bold text-gray-700 mb-1; }
-  .form-input { @apply w-full px-3 py-2 border border-gray-300 rounded-sm text-sm bg-white text-gray-900 placeholder:text-gray-500 focus:outline-none focus:border-gray-900 focus:ring-2 focus:ring-[#2185ff]/40; }
+  .form-input { @apply w-full px-3 py-2 border border-gray-300 rounded-sm text-sm bg-white text-gray-900 placeholder:text-gray-500 focus:outline-none focus:border-gray-900 focus:ring-2 focus:ring-gray-900/40; }
   .form-hint { @apply text-xs text-gray-500 mt-1; }
   .page-title { @apply text-3xl font-bold tracking-tight; }
   .page-sub { @apply text-sm text-gray-500 mt-1 max-w-3xl; }
   .section-title { @apply text-xl font-bold; }
 
-  /* Notices: a framed line, never a coloured side stripe. error = JMA
-     warning red, advisory = yellow, ok = green, info = intensity blue. */
+  /* Notices: a framed line, never a coloured side stripe. Neutral fills,
+     told apart by edge weight and by their lead word (Error: / Note:). */
   .notice { @apply text-sm text-gray-900 px-3 py-2 border rounded-sm; }
-  .notice-error { background-color: #fff1f0; border-color: #d70a00; }
-  .notice-advisory { background-color: #fffbd1; border-color: #b3a600; }
-  .notice-ok { background-color: #e3f1e7; border-color: #146c2e; }
-  .notice-info { background-color: #e6efff; border-color: #2185ff; }
-  .dark .notice-error { background-color: rgb(215 10 0 / 0.16); border-color: #ff6a5f; }
-  .dark .notice-advisory { background-color: rgb(255 245 0 / 0.1); border-color: rgb(255 245 0 / 0.55); }
-  .dark .notice-ok { background-color: rgb(20 108 46 / 0.3); border-color: #8fd6a3; }
-  .dark .notice-info { background-color: rgb(33 133 255 / 0.18); border-color: #a0d2ff; }
+  .notice-error { @apply border-2 border-gray-900 bg-white; }
+  .notice-advisory { @apply border-gray-400 bg-gray-100; }
+  .notice-ok { @apply border-gray-300 bg-gray-50; }
+  .notice-info { @apply border-gray-300 bg-gray-50; }
 
   /* A row of headline figures under an ink rule (stats, earnings,
      billing totals): no boxes, the numbers carry the weight. */
@@ -162,7 +175,7 @@
   .prose-doc code { @apply font-mono text-xs bg-gray-100 rounded px-1 py-0.5; }
   /* Code blocks stay a dark slab in BOTH themes (literal colors so the gray
      variables don't invert them to light-on-dark). */
-  .prose-doc pre { @apply rounded-lg p-4 my-4 overflow-x-auto; background: #14110e; color: #f5f3f0; }
+  .prose-doc pre { @apply rounded-lg p-4 my-4 overflow-x-auto; background: #141414; color: #f4f4f4; }
   .prose-doc pre code { @apply bg-transparent p-0 text-xs leading-relaxed; }
   .prose-doc table { @apply w-full text-sm my-4 border-collapse; }
   .prose-doc th { @apply text-left text-gray-500 font-medium border-b px-3 py-2; }
@@ -203,10 +216,6 @@
 .dark .ring-amber-200 { --tw-ring-color: rgba(245, 158, 11, .3); }
 .dark .ring-orange-200 { --tw-ring-color: rgba(249, 115, 22, .3); }
 
-/* Solid buttons on stable fills: text-white routes through the inverting
-   vars and would flip dark in dark mode, so pin it. */
-.dark .badge-danger { color: #fff; }
-.dark .badge-warning { color: #1a1a1a; }
 
 /* Inbox selection: the selected row takes the field fill and bold text,
    in both themes. */

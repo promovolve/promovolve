@@ -38,8 +38,8 @@ module.exports = {
       colors: {
         /* brand = the ink action colour: ink-filled primary buttons and
            selected states in light mode, light fill in dark mode. Text on
-           it is on-brand. brand-ink = link blue; brand-soft = the
-           blue-grey field used for selected rows and the top bar. */
+           it is on-brand. brand-ink = link ink (underlined); brand-soft =
+           the grey field used for selected rows and the top bar. */
         brand: {
           DEFAULT: 'rgb(var(--c-brand) / <alpha-value>)',
           ink: 'rgb(var(--c-brand-ink) / <alpha-value>)',
@@ -47,16 +47,20 @@ module.exports = {
         },
         'on-brand': 'rgb(var(--c-on-brand) / <alpha-value>)',
         field: 'rgb(var(--c-field) / <alpha-value>)',
-        /* JMA rainfall-intensity scale: ONLY for intensity data (spend or
-           impressions per hour). Never decoration. */
+        /* Intensity scale: seven grey tints (CSS variables, so the dark
+           theme can run light-for-more). ONLY for intensity data (spend or
+           impressions per hour). Step 0 is the zero cell. Never decoration. */
         jma: {
-          0: '#f2f2ff', 1: '#a0d2ff', 2: '#2185ff', 3: '#0041ff',
-          4: '#fff500', 5: '#ff9900', 6: '#ff2800', 7: '#b40068',
+          0: 'rgb(var(--c-gray-100) / <alpha-value>)',
+          1: 'rgb(var(--c-jma-1) / <alpha-value>)', 2: 'rgb(var(--c-jma-2) / <alpha-value>)',
+          3: 'rgb(var(--c-jma-3) / <alpha-value>)', 4: 'rgb(var(--c-jma-4) / <alpha-value>)',
+          5: 'rgb(var(--c-jma-5) / <alpha-value>)', 6: 'rgb(var(--c-jma-6) / <alpha-value>)',
+          7: 'rgb(var(--c-jma-7) / <alpha-value>)',
         },
-        /* Alert levels, JMA convention: advisory = yellow with ink text,
-           warning = red with white text (5.4:1). Stable across themes. */
-        advisory: '#fff500',
-        warning: '#d70a00',
+        /* Alert levels are typographic on a printed page: advisory = ink
+           on mid grey, warning = reversed out of ink. */
+        advisory: 'rgb(var(--c-gray-300) / <alpha-value>)',
+        warning: 'rgb(var(--c-gray-900) / <alpha-value>)',
         /* Neutrals + white route through CSS variables (tailwind.input.css
            :root / .dark); each step keeps its contrast role in both themes,
            so a light-authored template reads correctly in dark. */

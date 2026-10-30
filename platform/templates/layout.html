@@ -433,9 +433,9 @@
 </div>
 {{end}}
 
-{{/* forecast-strip: a run of cells on the JMA intensity scale
+{{/* forecast-strip: a run of cells on the grey intensity scale
      (handler/forecast.go) — a day's 24 hours, or the wallet's days. Cells
-     after now are the "at this pace" projection: faded with a dashed edge. The bar marks now. The outlook
+     after now are the "at this pace" projection: faded with a dashed edge. The bar marks now, with a ground-colour halo so it shows on the darkest cells. The outlook
      sentence is the accessible text; every cell carries its value as a
      title. Pass a forecast. */}}
 {{define "forecast-strip"}}
@@ -443,7 +443,7 @@
   <div class="grid gap-px" style="grid-template-columns:repeat({{len .Cells}},minmax(0,1fr))">
     {{range .Cells}}<span title="{{.Title}}" class="h-3.5 {{if .Level}}bg-jma-{{.Level}}{{else}}bg-gray-100{{end}}{{if .Projected}} opacity-40 outline-dashed outline-1 -outline-offset-1 outline-gray-500{{end}}"></span>{{end}}
   </div>
-  <span class="absolute -top-1 -bottom-1 w-0.5 bg-gray-900" style="left:{{.NowPct}}%" aria-hidden="true"></span>
+  <span class="absolute -top-1 -bottom-1 w-0.5 bg-gray-900 outline outline-1 outline-white" style="left:{{.NowPct}}%" aria-hidden="true"></span>
 </div>
 {{end}}
 

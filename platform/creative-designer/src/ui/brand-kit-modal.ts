@@ -156,7 +156,7 @@ export function openBrandKitModal(campaignId: string): void {
 function sectionLabel(text: string): HTMLElement {
   const l = document.createElement("div");
   l.textContent = text;
-  l.style.cssText = `text-transform:uppercase;font-size:10px;letter-spacing:1.5px;color:${tokens.ink300};margin-bottom:6px;`;
+  l.style.cssText = `font-weight:700;font-size:10px;color:${tokens.ink100};margin-bottom:6px;`;
   return l;
 }
 

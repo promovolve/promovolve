@@ -302,7 +302,7 @@ const INPUT_STYLE = `background:${tokens.ink900};color:${tokens.ink100};border:1
 
 function header(parent: HTMLElement, text: string): void {
   const h = document.createElement("div");
-  h.style.cssText = `font-size:11px;letter-spacing:2px;color:${tokens.ink300};margin-bottom:12px;text-transform:uppercase;`;
+  h.style.cssText = `font-weight:700;font-size:11px;color:${tokens.ink100};margin-bottom:12px;`;
   h.textContent = text;
   parent.appendChild(h);
 }

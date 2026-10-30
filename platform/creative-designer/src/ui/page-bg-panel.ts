@@ -43,7 +43,7 @@ export function mountPageBgPanel(container: HTMLElement, store: Store): PageBgPa
   // Subhead between sections so the two surfaces read as related but
   // distinct ("Color" vs "Video").
   const videoHeader = document.createElement("div");
-  videoHeader.style.cssText = `font-size:11px;letter-spacing:2px;color:${tokens.ink300};margin:18px 0 10px;text-transform:uppercase;`;
+  videoHeader.style.cssText = `font-weight:700;font-size:11px;color:${tokens.ink100};margin:18px 0 10px;`;
   videoHeader.textContent = "Video";
   panel.appendChild(videoHeader);
 
@@ -54,7 +54,7 @@ export function mountPageBgPanel(container: HTMLElement, store: Store): PageBgPa
   // Subhead + body for the texture surface. A texture is a full-bleed
   // image that fills the page behind the layout — tiled or covering.
   const textureHeader = document.createElement("div");
-  textureHeader.style.cssText = `font-size:11px;letter-spacing:2px;color:${tokens.ink300};margin:18px 0 10px;text-transform:uppercase;`;
+  textureHeader.style.cssText = `font-weight:700;font-size:11px;color:${tokens.ink100};margin:18px 0 10px;`;
   textureHeader.textContent = "Texture";
   panel.appendChild(textureHeader);
 

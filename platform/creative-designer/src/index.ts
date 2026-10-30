@@ -394,6 +394,7 @@ function boot(ctx: DesignerContext): void {
     canvasFt.update(state);
     bannerConfig.update(state);
     pageBg.update(state);
+    sidebar.update(state);
     props.update(state);
     animation.update(state);
     layers.update(state);
@@ -405,6 +406,7 @@ function boot(ctx: DesignerContext): void {
   canvasFt.update(store.state);
   bannerConfig.update(store.state);
   pageBg.update(store.state);
+  sidebar.update(store.state);
   props.update(store.state);
   animation.update(store.state);
   layers.update(store.state);

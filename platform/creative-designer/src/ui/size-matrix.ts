@@ -89,7 +89,7 @@ export function mountSizeMatrix(host: HTMLElement, store: Store): SizeMatrixHand
   progAuth.style.background = tokens.ok;
   progAuth.style.transition = "flex-basis .15s";
   const progGen = document.createElement("div");
-  progGen.style.background = tokens.warn;
+  progGen.style.background = tokens.ink400;
   progGen.style.transition = "flex-basis .15s";
   const progEmpty = document.createElement("div");
   progEmpty.style.background = "transparent";
@@ -107,7 +107,7 @@ export function mountSizeMatrix(host: HTMLElement, store: Store): SizeMatrixHand
     `font-family: ${tokens.sans}`,
   ].join(";");
   const legAuth  = legendItem(tokens.ok,    "Authored");
-  const legGen   = legendItem(tokens.warn,  "Generated");
+  const legGen   = legendItem(tokens.ink400, "Generated");
   const legEmpty = legendItem("",           "Empty");
   legend.append(legAuth.el, legGen.el, legEmpty.el);
   summary.appendChild(legend);
@@ -392,7 +392,7 @@ export function mountSizeMatrix(host: HTMLElement, store: Store): SizeMatrixHand
           dot.style.background = tokens.ok;
           dot.style.boxShadow = "none";
         } else if (status === "generated") {
-          dot.style.background = tokens.warn;
+          dot.style.background = tokens.ink400;
           dot.style.boxShadow = "none";
         } else {
           dot.style.background = "transparent";

@@ -3,107 +3,106 @@
 @tailwind utilities;
 
 /* ── Theme variables ────────────────────────────────────────────────────
-   gray-* and white resolve to these RGB triples (tailwind.config.js). The
-   LIGHT block is the dashboard's original warm-ink scale verbatim. The DARK
-   block preserves each step's CONTRAST ROLE inverted — surfaces (white,
-   gray-50/100) go dark, text steps (gray-500..950) go light — so a
-   light-authored template renders correctly in both. Toggled by `.dark` on
-   <html>. */
+   Forecast world (DESIGN.md). gray-* and white resolve to these RGB
+   triples (tailwind.config.js): a cool blue-grey scale whose ink step
+   (gray-900) is #1a1a1a. The DARK block keeps each step's CONTRAST ROLE
+   inverted — surfaces go dark, text steps go light — so a light-authored
+   template renders correctly in both. Toggled by `.dark` on <html>. */
 @layer base {
   :root {
     --c-white: 255 255 255;
-    --c-gray-50: 252 250 247;
-    --c-gray-100: 245 243 240;
-    --c-gray-200: 234 231 228;
-    --c-gray-300: 211 208 205;
-    --c-gray-400: 168 164 159;
-    --c-gray-500: 107 103 98;
-    --c-gray-600: 91 87 83;
-    --c-gray-700: 64 60 56;
-    --c-gray-800: 39 35 32;
-    --c-gray-900: 20 17 14;
-    --c-gray-950: 12 8 6;
-    --c-brand-ink: 176 80 0; /* amber for TEXT: 5.0:1 on paper (brand itself is 3.9:1) */
+    --c-gray-50: 246 248 250;
+    --c-gray-100: 232 237 242;
+    --c-gray-200: 214 222 229;
+    --c-gray-300: 189 199 208;
+    --c-gray-400: 138 150 161; /* rules and icons only: 3:1, never text */
+    --c-gray-500: 74 85 96;    /* secondary text, 7.4:1 */
+    --c-gray-600: 58 67 77;
+    --c-gray-700: 42 49 56;
+    --c-gray-800: 30 35 40;
+    --c-gray-900: 26 26 26;    /* ink */
+    --c-gray-950: 12 12 12;
+    --c-field: 223 231 238;    /* #dfe7ee: top bar, selected rows */
+    --c-brand: 26 26 26;       /* ink action fill */
+    --c-on-brand: 255 255 255;
+    --c-brand-ink: 0 65 255;   /* link blue #0041ff, 7.9:1 */
+    color-scheme: light;
   }
-  /* Pin an element's subtree to the LIGHT scale regardless of `.dark` — for
-     chrome that is intentionally dark in BOTH themes (the sidebar), so its
-     bg-gray-900 / text-white don't invert. */
-  .theme-light-scope {
-    --c-white: 255 255 255;
-    --c-gray-50: 252 250 247;
-    --c-gray-100: 245 243 240;
-    --c-gray-200: 234 231 228;
-    --c-gray-300: 211 208 205;
-    --c-gray-400: 168 164 159;
-    --c-gray-500: 107 103 98;
-    --c-gray-600: 91 87 83;
-    --c-gray-700: 64 60 56;
-    --c-gray-800: 39 35 32;
-    --c-gray-900: 20 17 14;
-    --c-gray-950: 12 8 6;
+  .dark {
+    --c-white: 26 31 36;       /* raised surface */
+    --c-gray-50: 17 21 25;     /* page */
+    --c-gray-100: 36 42 48;
+    --c-gray-200: 50 58 66;
+    --c-gray-300: 66 76 86;
+    --c-gray-400: 130 142 153;
+    --c-gray-500: 168 179 189;
+    --c-gray-600: 195 204 212;
+    --c-gray-700: 216 223 229;
+    --c-gray-800: 232 236 240;
+    --c-gray-900: 242 245 248;
+    --c-gray-950: 250 251 252;
+    --c-field: 34 42 51;
+    --c-brand: 232 237 242;
+    --c-on-brand: 17 21 25;
+    --c-brand-ink: 160 210 255; /* #a0d2ff */
+    color-scheme: dark;
   }
+
+  html { -webkit-text-size-adjust: 100%; }
+  body { font-feature-settings: "palt" 0; }
+  /* Figures line up in every table and money column. */
+  table, .tabular { font-variant-numeric: tabular-nums; }
+  ::selection { background: #a0d2ff; color: #1a1a1a; }
+  :focus-visible { outline: 2px solid #2185ff; outline-offset: 2px; }
+  input[type='checkbox'], input[type='radio'], input[type='range'], progress { accent-color: rgb(var(--c-brand)); }
+  * { scrollbar-color: rgb(var(--c-gray-300)) transparent; }
+
   /* Safety net for raw form controls that don't use .form-input: theme their
      background + text so a stray <input>/<select>/<textarea> is never
      white-on-dark. Base layer = lowest priority, so explicit utility classes
-     (e.g. a disabled field's bg-gray-50) still win. Checkbox/radio/buttons
-     excluded — an opaque bg would hide their glyph/accent. */
+     still win. Checkbox/radio/buttons excluded. */
   input:not([type='checkbox']):not([type='radio']):not([type='submit']):not([type='button']):not([type='range']),
   select,
   textarea {
     background-color: rgb(var(--c-white));
     color: rgb(var(--c-gray-900));
   }
-
-  .dark {
-    --c-white: 24 22 20;    /* raised card/surface, sits above the page void */
-    --c-gray-50: 15 13 11;  /* page background */
-    --c-gray-100: 32 29 26; /* subtle fills / faint borders */
-    --c-gray-200: 45 41 37; /* standard border */
-    --c-gray-300: 58 53 48; /* stronger border */
-    --c-gray-400: 145 140 134; /* muted text */
-    --c-gray-500: 176 171 165; /* secondary text */
-    --c-gray-600: 200 195 189;
-    --c-gray-700: 220 216 210;
-    --c-gray-800: 235 232 227;
-    --c-gray-900: 245 243 239; /* headings → near-white */
-    --c-gray-950: 250 249 246;
-    --c-brand-ink: 236 140 69; /* 7.2:1 on the dark surface */
-  }
 }
 
 /* Canonical component classes — the design system's shared vocabulary
-   (DESIGN.md). Moved verbatim from layout.html's
-   text/tailwindcss block when the Play CDN was replaced by this build. */
+   (DESIGN.md). */
 @layer components {
-  .btn { @apply inline-flex items-center justify-center gap-1.5 px-4 py-2 text-sm font-medium rounded-md cursor-pointer transition-colors disabled:opacity-50 disabled:cursor-not-allowed; }
-  .btn-sm { @apply px-3 py-1 text-xs; }
-  .btn-primary { @apply bg-brand text-gray-950 hover:bg-brand-hover; }
-  .btn-secondary { @apply bg-white border border-gray-300 text-gray-700 hover:bg-gray-50; }
-  .btn-success { @apply bg-green-600 text-white hover:bg-green-700; }
-  .btn-danger { @apply bg-red-600 text-white hover:bg-red-700; }
-  .card { @apply bg-white border rounded-lg p-6; }
+  .btn { @apply inline-flex items-center justify-center gap-1.5 min-h-9 px-4 py-2 text-sm font-bold rounded-sm cursor-pointer transition-colors disabled:opacity-50 disabled:cursor-not-allowed; }
+  .btn-sm { @apply min-h-6 px-3 py-1 text-xs; }
+  .btn-primary { @apply bg-brand text-on-brand hover:bg-brand/85; }
+  .btn-secondary { @apply bg-white border border-gray-900 text-gray-900 hover:bg-gray-100; }
+  .btn-success { @apply text-white hover:brightness-110; background-color: #146c2e; } /* 6.9:1 */
+  .btn-danger { @apply bg-warning text-white hover:brightness-110; }
+  .card { @apply bg-white border border-gray-200 rounded-sm p-6; }
   .card-tight { @apply p-4; }
-  .badge { @apply inline-flex items-center px-2 py-0.5 rounded-full text-xs font-medium; }
-  /* Badge colors aren't variable-driven (blue/green/etc.), so give each a
-     muted dark variant instead of a bright chip glowing on a dark surface. */
-  .badge-info { @apply bg-blue-100 text-blue-800 dark:bg-blue-500/15 dark:text-blue-300; }
-  .badge-success { @apply bg-green-100 text-green-700 dark:bg-green-500/15 dark:text-green-300; }
-  .badge-warning { @apply bg-yellow-100 text-yellow-800 dark:bg-yellow-500/15 dark:text-yellow-300; }
-  .badge-danger { @apply bg-red-100 text-red-700 dark:bg-red-500/15 dark:text-red-300; }
-  .badge-neutral { @apply bg-gray-100 text-gray-600; }
-  /* × inside a badge: inherits the badge's text color, 24px hit area
-     (WCAG 2.5.8) pulled back with negative margins so the pill doesn't grow. */
+  .badge { @apply inline-flex items-center px-2 py-0.5 rounded-sm text-xs font-bold; }
+  .badge-info { background-color: #e6efff; color: #0036d6; }
+  .badge-success { background-color: #e3f1e7; color: #146c2e; }
+  .badge-warning { @apply bg-advisory text-[#1a1a1a]; }   /* JMA advisory */
+  .badge-danger { @apply bg-warning text-white; }          /* JMA warning */
+  .badge-neutral { @apply bg-gray-100 text-gray-700; }
+  .dark .badge-info { background-color: rgb(33 133 255 / 0.2); color: #a0d2ff; }
+  .dark .badge-success { background-color: rgb(20 108 46 / 0.35); color: #8fd6a3; }
+  /* × inside a badge: inherits the badge's text colour, 24px hit area
+     (WCAG 2.5.8) pulled back with negative margins so the tag doesn't grow. */
   .chip-x { @apply inline-flex items-center justify-center min-w-6 min-h-6 -my-1 -mr-1.5 ml-0.5 rounded-full font-bold opacity-70 hover:opacity-100 hover:bg-black/5 cursor-pointer; }
-  .form-label { @apply block text-sm font-medium text-gray-700 mb-1; }
-  /* bg-white + text-gray-900 both route through the inverting vars: white bg
-     / dark text in light mode, dark surface / light text in dark mode. Before
-     this, the input had NO bg/text of its own — it kept the browser's white
-     background while text inherited the page's dark-mode light color, i.e.
-     invisible light-on-white. */
-  .form-input { @apply w-full px-3 py-2 border border-gray-300 rounded-md text-sm bg-white text-gray-900 placeholder:text-gray-500 focus:outline-none focus:ring-2 focus:ring-brand/20 focus:border-brand; }
+  .form-label { @apply block text-sm font-bold text-gray-700 mb-1; }
+  .form-input { @apply w-full px-3 py-2 border border-gray-300 rounded-sm text-sm bg-white text-gray-900 placeholder:text-gray-500 focus:outline-none focus:border-gray-900 focus:ring-2 focus:ring-[#2185ff]/40; }
   .form-hint { @apply text-xs text-gray-500 mt-1; }
-  .page-title { @apply text-2xl font-semibold; }
-  .page-sub { @apply text-sm text-gray-500 mt-1; }
+  .page-title { @apply text-3xl font-bold tracking-tight; }
+  .page-sub { @apply text-sm text-gray-500 mt-1 max-w-3xl; }
+  .section-title { @apply text-lg font-bold; }
+
+  /* Top-bar navigation (layout.html). Horizontal tabs from lg up; a
+     stacked list in the menu panel below that. */
+  .nav-tab { @apply flex items-center px-3 py-2 text-sm text-gray-600 whitespace-nowrap hover:text-gray-900
+                     aria-[current=page]:font-bold aria-[current=page]:text-gray-900 aria-[current=page]:bg-white
+                     lg:py-0 lg:border-b-[3px] lg:border-transparent lg:aria-[current=page]:bg-transparent lg:aria-[current=page]:border-gray-900; }
 
   /* Rendered-markdown typography for the in-app Help pages (goldmark
      output — plain h1/h2/p/pre/table tags, so descendant selectors, not
@@ -161,17 +160,11 @@
 .dark .ring-amber-200 { --tw-ring-color: rgba(245, 158, 11, .3); }
 .dark .ring-orange-200 { --tw-ring-color: rgba(249, 115, 22, .3); }
 
-/* Solid buttons: their text (text-white / text-gray-950) routes through the
-   inverting vars and would flip to DARK text on a colored background in dark
-   mode. These bgs are stable across themes, so pin the text contrast. */
-.dark .btn-primary { color: #14110e; }              /* dark ink on amber (both themes) */
-.dark .btn-success, .dark .btn-danger { color: #fff; } /* white on green/red */
+/* Solid buttons on stable fills: text-white routes through the inverting
+   vars and would flip dark in dark mode, so pin it. */
+.dark .btn-success, .dark .btn-danger, .dark .badge-danger { color: #fff; }
+.dark .badge-warning { color: #1a1a1a; }
 
-/* Inbox selection highlight: bg-brand-soft is a literal pale peach that
-   doesn't invert — in dark mode it's a light fill under the theme's light
-   text (unreadable). Give the selected row a translucent brand-amber fill
-   that reads in dark, plus a left accent bar so selection is unmistakable in
-   both themes. Scoped to [data-inbox-item] so other bg-brand-soft uses (date
-   picker, request-account radios) are untouched. */
-[data-inbox-item].bg-brand-soft { box-shadow: inset 3px 0 0 0 #d35f00; }
-.dark [data-inbox-item].bg-brand-soft { background-color: rgba(211, 95, 0, .22); }
+/* Inbox selection: the selected row takes the field fill and bold text,
+   in both themes. */
+[data-inbox-item].bg-brand-soft { font-weight: 700; }

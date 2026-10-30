@@ -16,30 +16,48 @@ module.exports = {
     './static/passkey.js',
   ],
   theme: {
+    /* Forecast world (DESIGN.md): every corner is 2px; only dots and the
+       chip × stay round. */
+    borderRadius: {
+      none: '0', sm: '2px', DEFAULT: '2px', md: '2px', lg: '2px', xl: '2px', '2xl': '2px', full: '9999px',
+    },
+    /* No decorative depth. Only floating layers (popovers, menus) cast a
+       shadow, so they read as above the page. */
+    boxShadow: {
+      none: 'none', sm: 'none', DEFAULT: 'none', md: 'none',
+      lg: '0 8px 24px -6px rgb(16 24 32 / 0.22)', xl: '0 8px 24px -6px rgb(16 24 32 / 0.22)',
+    },
     extend: {
+      fontFamily: {
+        /* Morisawa's Universal Design gothic, self-hosted (static/fonts),
+           for Latin and Japanese alike. */
+        sans: ['"BIZ UDPGothic"', '"BIZ UDPゴシック"', 'system-ui', '-apple-system', '"Hiragino Sans"', '"Yu Gothic UI"', 'sans-serif'],
+      },
       colors: {
-        /* Brand = the creative designer's amber (tokens.ts light theme,
-           oklch(0.62 0.17 50) → hex). Text on brand is DARK INK, not
-           white — the designer's convention; white fails AA on this amber.
-           Intentionally NOT variable-driven: the accent is stable across
-           themes. */
+        /* brand = the ink action colour: ink-filled primary buttons and
+           selected states in light mode, light fill in dark mode. Text on
+           it is on-brand. brand-ink = link blue; brand-soft = the
+           blue-grey field used for selected rows and the top bar. */
         brand: {
-          DEFAULT: '#d35f00', hover: '#c35800', soft: '#fce4c4',
-          /* Amber for TEXT (links, inline emphasis). The brand fill is
-             3.9:1 on white — fine under dark ink, too light AS text — so
-             text uses this theme-aware step instead (5.0:1 light, 7.2:1
-             dark; tailwind.input.css --c-brand-ink). */
+          DEFAULT: 'rgb(var(--c-brand) / <alpha-value>)',
           ink: 'rgb(var(--c-brand-ink) / <alpha-value>)',
+          soft: 'rgb(var(--c-field) / <alpha-value>)',
         },
-        /* Neutrals + white route through CSS variables (space-separated RGB
-           triples, defined in tailwind.input.css :root / .dark). Every
-           bg-white / bg-gray-* / text-gray-* / border-gray-* across the
-           templates re-themes when `.dark` flips those variables — no
-           per-page edits. `<alpha-value>` keeps opacity modifiers
-           (bg-gray-100/40) working. Each step preserves its CONTRAST ROLE
-           across themes (gray-50 = lightest surface in light mode → the page
-           void in dark; gray-900 = darkest text in light → near-white text
-           in dark), so a light-authored template reads correctly in both. */
+        'on-brand': 'rgb(var(--c-on-brand) / <alpha-value>)',
+        field: 'rgb(var(--c-field) / <alpha-value>)',
+        /* JMA rainfall-intensity scale: ONLY for intensity data (spend or
+           impressions per hour). Never decoration. */
+        jma: {
+          0: '#f2f2ff', 1: '#a0d2ff', 2: '#2185ff', 3: '#0041ff',
+          4: '#fff500', 5: '#ff9900', 6: '#ff2800', 7: '#b40068',
+        },
+        /* Alert levels, JMA convention: advisory = yellow with ink text,
+           warning = red with white text (5.4:1). Stable across themes. */
+        advisory: '#fff500',
+        warning: '#d70a00',
+        /* Neutrals + white route through CSS variables (tailwind.input.css
+           :root / .dark); each step keeps its contrast role in both themes,
+           so a light-authored template reads correctly in dark. */
         white: 'rgb(var(--c-white) / <alpha-value>)',
         gray: {
           50: 'rgb(var(--c-gray-50) / <alpha-value>)',

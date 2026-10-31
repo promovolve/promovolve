@@ -21,7 +21,7 @@ const shots = process.argv[2];
 // 1. Render the real pages through the Go preview tests.
 const previewDir = mkdtempSync(join(tmpdir(), "pv-print-"));
 execFileSync("go", ["test", "./internal/handler/", "-count=1", "-run",
-  "TestCampaignsForecastRenders|TestWalletForecastRenders|TestSitesAndCreativesTemplatesRender|TestBillingTemplatesRender"], {
+  "TestCampaignsForecastRenders|TestWalletForecastRenders|TestSitesAndCreativesTemplatesRender|TestBillingTemplatesRender|TestCreativeEditorTrayRenders"], {
   cwd: PLATFORM,
   env: { ...process.env, PREVIEW_OUT: previewDir },
   stdio: "inherit",
@@ -52,7 +52,32 @@ const check = (name, ok, detail = "") => {
 };
 
 const PAGES = ["advertiser-forecast", "advertiser-wallet", "publisher-stats", "publisher-sites",
-  "admin-sites", "admin-billing", "advertiser-creatives"];
+  "admin-sites", "admin-billing", "advertiser-creatives", "editor"];
+
+// The creative editor opens on its analyze step; its review surface is the
+// compose step, so fill that in (the analysis itself needs the core API).
+const img = (c, w, h) => `data:image/svg+xml,${encodeURIComponent(`<svg xmlns="http://www.w3.org/2000/svg" width="${w}" height="${h}"><rect width="100%" height="100%" fill="${c}"/></svg>`)}`;
+const EDITOR_IMAGES = [img("#b5651d", 800, 600), img("#2e5e4e", 600, 800), img("#c9a227", 800, 500), img("#7a3b2e", 700, 700),
+  img("#4a6fa5", 900, 600), img("#d8b4a0", 600, 600), img("#333333", 800, 450)];
+const composeEditor = (imgs) => {
+  const d = Alpine.$data(document.querySelector('[x-data="creativeEditor()"]'));
+  Object.assign(d, {
+    analyzing: false, analyzeError: "", step: "compose", allTexts: [{ heading: "", text: "x" }],
+    allImages: imgs.map((src) => ({ src })), fitArcIds: ["hook-proof-call", "feature-story-plan", "tease-reveal-invite"],
+    arcReason: "A seasonal sweet sells on craving, not on a problem.",
+    synthesizedPages: [
+      { tag: "HOOK", headline: "Autumn chestnut tart, baked this morning", sub: "Only at the Ginza shop", body: "Hand-peeled chestnuts folded into butter pastry." },
+      { tag: "PROOF", headline: "12,000 sold last season", sub: "Rated 4.8 by 900 customers", body: "Every tart reaches the counter the day it is baked." },
+      { tag: "CALL", headline: "Order for pickup this weekend", sub: "Free gift box until Nov 30", body: "Reserve online, collect at any shop." }],
+    pageSlots: [{ imageIdx: 0 }, { imageIdx: 3 }, { imageIdx: null }],
+    originalFonts: [{ family: "Shippori Mincho", weight: 700 }],
+    templates: [
+      { id: "a", name: "Hero top", description: "Big image, copy below", slots: [{ role: "hero", region: "top" }, { role: "headline", region: "center", prominence: "primary" }] },
+      { id: "b", name: "Split", description: "Image left, copy right", slots: [{ role: "hero", region: "left" }, { role: "headline", region: "right" }, { role: "cta", region: "bottom-right" }] },
+      { id: "c", name: "Poster", description: "Full-bleed image", slots: [{ role: "hero", region: "center" }, { role: "headline", region: "top" }] }],
+    selectedTemplateId: "b", creativeName: "Chestnut tart — autumn",
+  });
+};
 
 const browser = await chromium.launch();
 for (const theme of ["light", "dark"]) {
@@ -70,7 +95,35 @@ for (const theme of ["light", "dark"]) {
       await page.setViewportSize({ width: 1440, height: 900 });
       await page.goto(`http://127.0.0.1:${PORT}/preview/${name}-${lang}.html`, { waitUntil: "load" });
       await page.evaluate(() => document.fonts.ready);
+      if (name === "editor") {
+        // Let the auto-analyze (no API here) fail first, or it lands later.
+        await page.waitForFunction(() => window.Alpine
+          && Alpine.$data(document.querySelector('[x-data="creativeEditor()"]')).analyzeError);
+        await page.evaluate(composeEditor, EDITOR_IMAGES);
+        await page.waitForTimeout(500); // the compose reveal transition
+      }
       await page.waitForTimeout(150);
+
+      // editor-printed: ruled sections, not boxes; one primary action; the
+      // image pool in columns, so each image keeps its shape with no holes.
+      if (name === "editor") {
+        const ed = await page.evaluate(() => {
+          const main = document.querySelector("main");
+          // A panel: a framed block holding a heading or a form control.
+          const boxes = [...main.querySelectorAll("div, section, label")].filter((e) => {
+            if (e.offsetParent === null || !e.querySelector("h2, h3, input, textarea")) return false;
+            const cs = getComputedStyle(e);
+            return ["Top", "Right", "Bottom", "Left"].every((s) => parseFloat(cs[`border${s}Width`]) > 0);
+          }).map((e) => String(e.className).trim().split(/\s+/).slice(0, 4).join("."));
+          const primaries = [...main.querySelectorAll(".btn-primary")].filter((e) => e.offsetParent !== null)
+            .map((e) => e.textContent.trim().slice(0, 24));
+          const pool = main.querySelector("[data-image-pool]");
+          return { boxes, primaries, poolColumns: pool ? getComputedStyle(pool).columnCount : null };
+        });
+        check(`${id}: editor-no-boxes`, ed.boxes.length === 0, `${ed.boxes.length} boxed: ${ed.boxes.slice(0, 3).join(" | ")}`);
+        check(`${id}: editor-one-primary`, ed.primaries.length === 1, ed.primaries.join(" | "));
+        check(`${id}: editor-pool-columns`, Number(ed.poolColumns) >= 2, `column-count ${ed.poolColumns}`);
+      }
 
       // no-hue: every painted colour outside the ad creatives is neutral.
       const hue = await page.evaluate(() => {
@@ -202,6 +255,14 @@ for (const theme of ["light", "dark"]) {
           return out;
         });
         check(`${id}: no-hscroll @${w}`, hs.length === 0, hs.slice(0, 3).join(" | "));
+      }
+      // The editor also works on a phone: nothing wider than the screen.
+      if (name === "editor") {
+        await page.setViewportSize({ width: 390, height: 844 });
+        await page.waitForTimeout(100);
+        const wide = await page.evaluate(() => document.documentElement.scrollWidth);
+        if (shots) await page.screenshot({ path: `${shots}/${name}-${lang}-${theme}-390.png`, fullPage: true });
+        check(`${id}: no-hscroll @390`, wide <= 390, `page ${wide}>390`);
       }
     }
   }

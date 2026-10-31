@@ -3803,9 +3803,9 @@ func (h *Handler) CreativePages(w http.ResponseWriter, r *http.Request) {
 	})
 }
 
-// --- Advertiser Stats ---
+// --- Advertiser Overview ---
 
-func (h *Handler) AdvertiserStats(w http.ResponseWriter, r *http.Request) {
+func (h *Handler) AdvertiserOverview(w http.ResponseWriter, r *http.Request) {
 	user, claims := h.sessionUser(r)
 	if user == nil {
 		http.Redirect(w, r, "/login", http.StatusSeeOther)
@@ -3977,9 +3977,9 @@ func (h *Handler) AdvertiserStats(w http.ResponseWriter, r *http.Request) {
 	if user.CanBilling() {
 		walletBalance, walletUnfunded = h.walletSummary(r.Context(), claims.AdvertiserID)
 	}
-	h.render(w, r, "advertiser/stats.html", pageData{
+	h.render(w, r, "advertiser/overview.html", pageData{
 		Title:          "Overview",
-		Nav:            "stats",
+		Nav:            "overview",
 		User:           user,
 		Campaigns:      campaigns,
 		AdvHourly:      hourly,

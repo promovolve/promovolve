@@ -107,7 +107,7 @@
         {{/* Creatives has no tab of its own — it is reached from each
              campaign (a creative belongs to a campaign); the tab stays on
              Campaigns there. */}}
-        <a href="/advertiser/stats" class="nav-tab" {{if eq .Nav "stats"}}aria-current="page"{{end}}>{{t "Overview"}}</a>
+        <a href="/advertiser/overview" class="nav-tab" {{if eq .Nav "overview"}}aria-current="page"{{end}}>{{t "Overview"}}</a>
         {{/* Until the wallet is first funded these stay shut (RoleGuard
              redirects them to Overview), so they read as plain grey text. */}}
         {{if .WalletLocked}}

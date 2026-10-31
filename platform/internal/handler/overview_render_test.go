@@ -1,6 +1,6 @@
 package handler
 
-// Render test for the advertiser Overview (advertiser/stats.html), funded
+// Render test for the advertiser Overview (advertiser/overview.html), funded
 // and locked. With PREVIEW_OUT set, dumps both renders for the
 // printed-page browser suite.
 
@@ -26,7 +26,7 @@ func TestAdvertiserOverviewRenders(t *testing.T) {
 		}
 	}
 	funded := pageData{
-		Title: "Overview", Nav: "stats", User: adv,
+		Title: "Overview", Nav: "overview", User: adv,
 		AdvHourly: hourly, AdvHourlyTotal: 1204,
 		AdvBudget:     &advertiserBudget{DailyBudget: "50.00", SpendToday: "12.40", Remaining: "37.60"},
 		WalletBalance: "$1,250.00",
@@ -37,7 +37,7 @@ func TestAdvertiserOverviewRenders(t *testing.T) {
 		ListNav: &listNav{Page: 1, TotalPages: 1, Total: 2, From: 1, To: 2},
 	}
 	locked := pageData{
-		Title: "Overview", Nav: "stats", User: adv, WalletLocked: true,
+		Title: "Overview", Nav: "overview", User: adv, WalletLocked: true,
 		AdvBudget:     &advertiserBudget{DailyBudget: "0.00", SpendToday: "0.00", Remaining: "0.00", IsZero: true},
 		WalletBalance: "$0.00", WalletUnfunded: true,
 	}
@@ -47,7 +47,7 @@ func TestAdvertiserOverviewRenders(t *testing.T) {
 	}{{"advertiser-overview", funded}, {"advertiser-overview-locked", locked}} {
 		for _, tlang := range []string{i18n.LangEN, i18n.LangJA} {
 			var sb strings.Builder
-			if err := getPage(tlang, "advertiser/stats.html").ExecuteTemplate(&sb, "layout", c.data); err != nil {
+			if err := getPage(tlang, "advertiser/overview.html").ExecuteTemplate(&sb, "layout", c.data); err != nil {
 				t.Fatalf("%s %s: render failed: %v", c.name, tlang, err)
 			}
 			out := sb.String()

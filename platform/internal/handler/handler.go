@@ -86,9 +86,9 @@ type Handler struct {
 	// walletEndorsed is billingSvc.WalletEndorsed (nil without billing):
 	// the unfunded-advertiser lock's one question, a field so tests stub it.
 	walletEndorsed func(ctx context.Context, advertiserID string) (bool, error)
-	siteReqSvc      *siterequest.Service
-	orgRepo         *org.Repository
-	auditRepo       *audit.Repository
+	siteReqSvc     *siterequest.Service
+	orgRepo        *org.Repository
+	auditRepo      *audit.Repository
 	// settler is only used to resume core serving immediately after an
 	// admin tops up a suspended wallet; the job itself runs from main.
 	settler *billing.Settler
@@ -1041,7 +1041,7 @@ func (h *Handler) requireRole(w http.ResponseWriter, r *http.Request, role model
 // open before the operator first credits the wallet; everything else under
 // /advertiser — including routes added later — redirects to Overview.
 var unfundedOpen = []string{
-	"/advertiser/stats", "/advertiser/account", "/advertiser/budget",
+	"/advertiser/overview", "/advertiser/account", "/advertiser/budget",
 	"/advertiser/wallet", "/advertiser/help",
 }
 
@@ -1096,7 +1096,7 @@ func (h *Handler) RoleGuard(role model.Role, handler http.HandlerFunc) http.Hand
 			if isSSE {
 				http.Error(w, "wallet not funded", http.StatusForbidden)
 			} else {
-				http.Redirect(w, r, "/advertiser/stats", http.StatusSeeOther)
+				http.Redirect(w, r, "/advertiser/overview", http.StatusSeeOther)
 			}
 			return
 		}

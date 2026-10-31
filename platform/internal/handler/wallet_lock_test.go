@@ -12,7 +12,8 @@ import (
 // Overview: only these pages (and what they post to) stay open.
 func TestOpenWhileUnfunded(t *testing.T) {
 	for path, want := range map[string]bool{
-		"/advertiser/stats":                true,
+		"/advertiser/overview":             true,
+		"/advertiser/stats":                false, // renamed; no longer a page
 		"/advertiser/account":              true,
 		"/advertiser/budget":               true,
 		"/advertiser/wallet":               true,
@@ -24,7 +25,7 @@ func TestOpenWhileUnfunded(t *testing.T) {
 		"/advertiser/creatives/editor":     false,
 		"/advertiser/report":               false,
 		"/advertiser/assets":               false,
-		"/advertiser/statsx":               false, // a prefix is not a match
+		"/advertiser/overviewx":            false, // a prefix is not a match
 	} {
 		if got := openWhileUnfunded(path); got != want {
 			t.Errorf("openWhileUnfunded(%q) = %v, want %v", path, got, want)
@@ -60,7 +61,7 @@ func TestWalletLocked(t *testing.T) {
 // Advertisers land on Overview: it is the one page open to every
 // advertiser, funded or not.
 func TestAdvertiserHomeIsOverview(t *testing.T) {
-	if got := homeFor(model.RoleAdvertiser); got != "/advertiser/stats" {
-		t.Errorf("homeFor(advertiser) = %q, want /advertiser/stats", got)
+	if got := homeFor(model.RoleAdvertiser); got != "/advertiser/overview" {
+		t.Errorf("homeFor(advertiser) = %q, want /advertiser/overview", got)
 	}
 }

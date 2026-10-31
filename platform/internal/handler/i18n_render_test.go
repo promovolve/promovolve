@@ -29,7 +29,7 @@ func TestI18nSweptPagesRenderBothLangs(t *testing.T) {
 		{"help.html", pageData{Title: "Help", User: user}},
 		{"advertiser/campaigns.html", pageData{Title: "Campaigns", User: user}},
 		{"advertiser/creatives.html", pageData{Title: "Creatives", User: user}},
-		{"advertiser/stats.html", pageData{Title: "Stats", User: user}},
+		{"advertiser/overview.html", pageData{Title: "Overview", User: user}},
 		{"advertiser/wallet.html", pageData{Title: "Wallet", User: user}},
 		{"advertiser/account.html", pageData{Title: "Account", User: user}},
 		{"advertiser/report.html", pageData{Title: "Report", User: user,

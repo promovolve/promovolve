@@ -34,7 +34,8 @@ class ServeFloorPrefilterSpec extends AnyWordSpec with Matchers {
 
   "clearsAnySlotFloor" should {
     "keep a bid that clears a slot's admin override but not the category floor" in {
-      AdServer.clearsAnySlotFloor(c, Vector(plain, overridden), categoryFloor, Map(SlotId("cheap") -> CPM(1.0))) shouldBe true
+      AdServer.clearsAnySlotFloor(c, Vector(plain, overridden), categoryFloor,
+        Map(SlotId("cheap") -> CPM(1.0))) shouldBe true
     }
     "drop it when no requested slot carries an override it clears" in {
       AdServer.clearsAnySlotFloor(c, Vector(plain), categoryFloor, Map(SlotId("cheap") -> CPM(1.0))) shouldBe false

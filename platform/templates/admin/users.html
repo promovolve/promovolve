@@ -1,7 +1,12 @@
 {{define "content"}}
 <div>
-  <h1 class="page-title">{{t "Users"}}</h1>
-  <p class="page-sub">{{t "Every account on this platform, including past requests."}}</p>
+  <div class="flex flex-wrap items-start justify-between gap-4">
+    <div>
+      <h1 class="page-title">{{t "Users"}}</h1>
+      <p class="page-sub">{{t "Every account on this platform, including past requests."}}</p>
+    </div>
+    <button type="button" onclick="document.getElementById('invite-admin').showModal()" class="btn btn-secondary">{{t "Add a platform admin"}}</button>
+  </div>
 
   {{if .Error}}
   <div class="notice notice-error p-3 mt-6 text-sm" data-lead="{{t "Error:"}}">{{.Error}}</div>
@@ -14,100 +19,116 @@
   </div>
   {{end}}
 
+  {{/* Organizations: one ruled line each. The rare controls (timezone,
+       view-as, suspend/resume) sit in a per-org Manage dialog so the list
+       scans and never shifts. */}}
   {{if or .AdminOrgs .AdminOrgsQ}}
-  <div class="card mt-6">
-    <div class="flex items-end justify-between gap-4">
-      <h2 class="font-semibold text-lg">{{t "Organizations"}}</h2>
-      <form method="GET" action="/admin/users" class="flex items-center gap-2 shrink-0">
-        <input name="orgQ" value="{{.AdminOrgsQ}}" class="form-input w-56 text-sm" placeholder="{{t "domain, name, or reason"}}">
+  <section aria-labelledby="orgs-h" class="mt-10">
+    <div class="flex flex-wrap items-end justify-between gap-3 mb-2">
+      <h2 id="orgs-h" class="section-title">{{t "Organizations"}}</h2>
+      <form method="GET" action="/admin/users" class="flex items-center gap-2 w-full sm:w-auto">
+        <input name="orgQ" value="{{.AdminOrgsQ}}" aria-label="{{t "domain, name, or reason"}}" class="form-input text-sm flex-1 min-w-0 sm:w-56" placeholder="{{t "domain, name, or reason"}}">
         <button type="submit" class="btn btn-secondary btn-sm">{{t "Search"}}</button>
         {{if .AdminOrgsQ}}<a href="/admin/users" class="text-sm text-brand-ink hover:underline">{{t "clear"}}</a>{{end}}
       </form>
     </div>
+    <table class="data-table">
+      <thead>
+        <tr>
+          <th>{{t "Organization"}}</th>
+          <th class="hidden md:table-cell">{{t "Sides"}}</th>
+          <th class="hidden lg:table-cell">{{t "Timezone"}}</th>
+          <th>{{t "Status"}}</th>
+          <th><span class="sr-only">{{t "Manage"}}</span></th>
+        </tr>
+      </thead>
+      <tbody>
+        {{range .AdminOrgs}}
+        <tr>
+          <td class="max-w-0 w-full lg:max-w-[18rem] lg:w-auto">
+            <span class="block truncate font-bold">{{if .Name}}{{.Name}}{{else}}{{.Domain}}{{end}}</span>
+            <span class="block truncate text-xs text-gray-500">@{{.Domain}}</span>
+          </td>
+          <td class="hidden md:table-cell whitespace-nowrap">
+            {{if .HasAdvertiser}}<span class="badge badge-neutral">{{t "advertiser"}}</span>{{end}}
+            {{if .HasPublisher}}<span class="badge badge-neutral">{{t "publisher"}}</span>{{end}}
+          </td>
+          <td class="hidden lg:table-cell whitespace-nowrap text-sm">{{if .Timezone}}{{.Timezone}}{{else}}<span class="text-gray-500">{{t "Platform default (%s)" platformZone}}</span>{{end}}</td>
+          <td class="text-sm">
+            {{if .Suspended}}<span class="badge badge-danger">{{t "Suspended"}}</span>
+            <span class="block text-xs text-gray-500 mt-1 min-w-[10rem] max-w-[18rem]">{{.SuspendReason}} — {{.SuspendedBy}} · {{.SuspendedAt}}</span>
+            {{else}}{{t "Active"}}{{end}}
+          </td>
+          <td class="text-right">
+            <button type="button" onclick="document.getElementById('org-{{.ID}}').showModal()" class="btn btn-secondary btn-sm whitespace-nowrap" data-org-manage>{{t "Manage"}}</button>
+            <dialog id="org-{{.ID}}" aria-labelledby="org-{{.ID}}-h" class="p-0 rounded-sm shadow-2xl backdrop:bg-black/60 bg-white text-gray-900 text-left w-[min(34rem,92vw)]">
+              <div class="p-6 text-sm divide-y divide-gray-200">
+                <div class="pb-4">
+                  <h2 id="org-{{.ID}}-h" class="section-title">{{if .Name}}{{.Name}}{{else}}{{.Domain}}{{end}}</h2>
+                  <p class="text-gray-500">@{{.Domain}}</p>
+                </div>
 
-    <div class="mt-4 space-y-3">
-      {{range .AdminOrgs}}
-      <div class="border rounded-lg p-4">
-        <!-- Identity columns -->
-        <div class="grid grid-cols-[minmax(9rem,1fr)_auto_auto] gap-x-8 gap-y-1 items-start">
-          <div>
-            <div class="text-xs text-gray-500">{{t "Organization"}}</div>
-            <div class="font-medium">{{if .Name}}{{.Name}}{{else}}{{.Domain}}{{end}}</div>
-            <div class="text-xs text-gray-500">@{{.Domain}}</div>
-          </div>
-          <div>
-            <div class="text-xs text-gray-500">{{t "Sides"}}</div>
-            <div class="flex gap-1 mt-1">
-              {{if .HasAdvertiser}}<span class="badge badge-neutral">{{t "advertiser"}}</span>{{end}}
-              {{if .HasPublisher}}<span class="badge badge-neutral">{{t "publisher"}}</span>{{end}}
-            </div>
-          </div>
-          <div>
-            <div class="text-xs text-gray-500">{{t "Status"}}</div>
-            <div class="mt-1">
-              {{if .Suspended}}<span class="badge badge-danger">{{t "Suspended"}}</span>{{else}}<span class="badge bg-gray-100 text-gray-900">{{t "Active"}}</span>{{end}}
-            </div>
-            {{if .Suspended}}<p class="text-xs text-gray-500 mt-1 max-w-xs">{{.SuspendReason}} <span class="text-gray-500">— {{.SuspendedBy}} · {{.SuspendedAt}}</span></p>{{end}}
-          </div>
-        </div>
+                <form method="POST" action="/admin/orgs/timezone" class="py-4"
+                      onsubmit="return confirm('{{t "Change the timezone for %s? Budget, billing and earnings days roll at the new zone midnight from now on; the change day is one shortened or extended window, booked once." .Domain}}')">
+                  <label for="org-{{.ID}}-tz" class="form-label">{{t "Timezone"}}</label>
+                  <input type="hidden" name="orgId" value="{{.ID}}">
+                  {{$tz := .Timezone}}
+                  <div class="flex items-center gap-2">
+                    <select id="org-{{.ID}}-tz" name="timezone" class="form-input flex-1 min-w-0">
+                      <option value="">{{t "Platform default (%s)" platformZone}}</option>
+                      {{range $.Timezones}}{{if ne . "UTC"}}<option value="{{.}}" {{if eq . $tz}}selected{{end}}>{{.}}</option>{{end}}{{end}}
+                    </select>
+                    <button type="submit" class="btn btn-secondary btn-sm">{{t "Save"}}</button>
+                  </div>
+                </form>
 
-        <!-- Timezone -->
-        <div class="mt-3 pt-3 border-t">
-          <form method="POST" action="/admin/orgs/timezone" class="flex items-center gap-2 flex-wrap"
-                onsubmit="return confirm('{{t "Change the timezone for %s? Budget, billing and earnings days roll at the new zone midnight from now on; the change day is one shortened or extended window, booked once." .Domain}}')">
-            <span class="text-xs text-gray-500 shrink-0">{{t "Timezone"}}</span>
-            <input type="hidden" name="orgId" value="{{.ID}}">
-            {{$tz := .Timezone}}
-            <select name="timezone" class="form-input text-sm w-72">
-              <option value="">{{t "Platform default (%s)" platformZone}}</option>
-              {{range $.Timezones}}{{if ne . "UTC"}}<option value="{{.}}" {{if eq . $tz}}selected{{end}}>{{.}}</option>{{end}}{{end}}
-            </select>
-            <button type="submit" class="btn btn-secondary btn-sm">{{t "Save"}}</button>
-          </form>
-        </div>
+                <div class="py-4">
+                  {{if .ViewAsUserID}}
+                  <form method="POST" action="/admin/view-as" class="flex items-center gap-3 flex-wrap">
+                    <input type="hidden" name="userId" value="{{.ViewAsUserID}}">
+                    <button type="submit" class="btn btn-secondary btn-sm"
+                            title="{{t "Open a read-only session as an admin of %s" .Domain}}">{{t "View as"}}</button>
+                    <span class="text-xs text-gray-500">{{t "Read-only session as an admin — see their dashboard."}}</span>
+                  </form>
+                  {{else}}
+                  <p class="text-gray-500">{{t "No active admin to view."}}</p>
+                  {{end}}
+                </div>
 
-        <!-- Oversight: observe (view as) and control access (suspend) -->
-        <div class="mt-3 border rounded-lg p-3">
-          <div class="text-xs text-gray-500 mb-2">{{t "Oversight"}}</div>
-          <!-- Observe -->
-          <div class="flex items-center gap-3 flex-wrap">
-            {{if .ViewAsUserID}}
-            <form method="POST" action="/admin/view-as" class="inline">
-              <input type="hidden" name="userId" value="{{.ViewAsUserID}}">
-              <button type="submit" class="btn btn-secondary btn-sm"
-                      title="{{t "Open a read-only session as an admin of %s" .Domain}}">{{t "View as"}}</button>
-            </form>
-            <span class="text-xs text-gray-500">{{t "Read-only session as an admin — see their dashboard."}}</span>
-            {{else}}
-            <button type="button" disabled class="btn btn-secondary btn-sm opacity-50 cursor-not-allowed">{{t "View as"}}</button>
-            <span class="text-xs text-gray-500">{{t "No active admin to view."}}</span>
-            {{end}}
-          </div>
-          <!-- Control access -->
-          <div class="flex items-center gap-3 flex-wrap mt-2 pt-2 border-t">
-            {{if .Suspended}}
-            <form method="POST" action="/admin/orgs/resume"
-                  onsubmit="return confirm('{{t "Resume %s? Serving and billing unfreeze." .Domain}}')">
-              <input type="hidden" name="orgId" value="{{.ID}}">
-              <button type="submit" class="btn btn-secondary btn-sm">{{t "Resume"}}</button>
-            </form>
-            <span class="text-xs text-gray-500">{{t "Serving and billing are frozen — resume to restore access."}}</span>
-            {{else}}
-            <form method="POST" action="/admin/orgs/suspend" class="flex items-center gap-2 flex-wrap">
-              <input type="hidden" name="orgId" value="{{.ID}}">
-              <input name="reason" required class="form-input w-56 text-xs"
-                     placeholder="{{t "Reason (shown to their members)"}}">
-              <button type="submit" class="btn btn-danger btn-sm"
-                      onclick="return confirm('{{t "Suspend %s? Members see your reason at login; serving and billing freeze." .Domain}}')">{{t "Suspend"}}</button>
-            </form>
-            {{end}}
-          </div>
-        </div>
-      </div>
-      {{else}}
-      <p class="text-gray-500 py-2">{{t "No organizations match your search."}}</p>
-      {{end}}
-    </div>
+                <div class="py-4">
+                  {{if .Suspended}}
+                  <form method="POST" action="/admin/orgs/resume" class="flex items-center gap-3 flex-wrap"
+                        onsubmit="return confirm('{{t "Resume %s? Serving and billing unfreeze." .Domain}}')">
+                    <input type="hidden" name="orgId" value="{{.ID}}">
+                    <button type="submit" class="btn btn-secondary btn-sm">{{t "Resume"}}</button>
+                    <span class="text-xs text-gray-500">{{t "Serving and billing are frozen — resume to restore access."}}</span>
+                  </form>
+                  {{else}}
+                  <form method="POST" action="/admin/orgs/suspend">
+                    <label for="org-{{.ID}}-reason" class="form-label">{{t "Suspend"}}</label>
+                    <input type="hidden" name="orgId" value="{{.ID}}">
+                    <div class="flex items-center gap-2">
+                      <input id="org-{{.ID}}-reason" name="reason" required class="form-input flex-1 min-w-0"
+                             placeholder="{{t "Reason (shown to their members)"}}">
+                      <button type="submit" class="btn btn-danger btn-sm"
+                              onclick="return confirm('{{t "Suspend %s? Members see your reason at login; serving and billing freeze." .Domain}}')">{{t "Suspend"}}</button>
+                    </div>
+                  </form>
+                  {{end}}
+                </div>
+
+                <div class="pt-4 text-right">
+                  <button type="button" onclick="this.closest('dialog').close()" class="text-gray-900 underline underline-offset-2 hover:no-underline">{{t "Close"}}</button>
+                </div>
+              </div>
+            </dialog>
+          </td>
+        </tr>
+        {{else}}
+        <tr><td colspan="5" class="text-gray-500">{{t "No organizations match your search."}}</td></tr>
+        {{end}}
+      </tbody>
+    </table>
 
     {{if and .AdminOrgsNav (gt .AdminOrgsNav.TotalPages 1)}}
     <div class="flex items-center justify-between pt-4 text-sm text-gray-500">
@@ -119,94 +140,103 @@
       </div>
     </div>
     {{end}}
-  </div>
+  </section>
   {{end}}
 
-  <form method="GET" action="/admin/users" class="flex items-end gap-3 mt-6">
-    <div>
-      <label for="users-q" class="form-label">{{t "Search"}}</label>
-      <input id="users-q" name="q" value="{{.Query}}" class="form-input w-72" placeholder="{{t "email, name, company, or id"}}">
+  {{/* Accounts. Below lg, name/company, org and role fold under the email
+       so the table never scrolls sideways on a phone. */}}
+  <section aria-labelledby="accounts-h" class="mt-10">
+    <div class="flex flex-wrap items-end justify-between gap-3 mb-2">
+      <h2 id="accounts-h" class="section-title">{{t "Accounts"}}</h2>
+      <form method="GET" action="/admin/users" class="flex items-center gap-2 w-full sm:w-auto">
+        <input id="users-q" name="q" value="{{.Query}}" aria-label="{{t "email, name, company, or id"}}" class="form-input text-sm flex-1 min-w-0 sm:w-64" placeholder="{{t "email, name, company, or id"}}">
+        <button type="submit" class="btn btn-secondary btn-sm">{{t "Search"}}</button>
+        {{if .Query}}<a href="/admin/users" class="text-sm text-brand-ink hover:underline">{{t "clear"}}</a>{{end}}
+      </form>
     </div>
-    <button type="submit" class="btn btn-secondary">{{t "Search"}}</button>
-    {{if .Query}}<a href="/admin/users" class="text-sm text-brand-ink hover:underline pb-2">{{t "clear"}}</a>{{end}}
-  </form>
-
-  <div class="card mt-4 overflow-x-auto p-0">
     <table class="data-table">
       <thead>
         <tr>
-          <th class="px-4 py-3 font-medium">{{t "Email"}}</th>
-          <th class="px-4 py-3 font-medium">{{t "Name / company"}}</th>
-          <th class="px-4 py-3 font-medium">{{t "Role"}}</th>
-          <th class="px-4 py-3 font-medium">{{t "Org"}}</th>
-          <th class="px-4 py-3 font-medium">{{t "Status"}}</th>
-          <th class="px-4 py-3 font-medium">{{t "Passkeys"}}</th>
-          <th class="px-4 py-3 font-medium">{{t "Created"}}</th>
-          <th class="px-4 py-3"></th>
+          <th>{{t "Email"}}</th>
+          <th class="hidden lg:table-cell">{{t "Name / company"}}</th>
+          <th class="hidden lg:table-cell">{{t "Role"}}</th>
+          <th class="hidden lg:table-cell">{{t "Org"}}</th>
+          <th>{{t "Status"}}</th>
+          <th class="hidden md:table-cell num">{{t "Passkeys"}}</th>
+          <th class="hidden md:table-cell">{{t "Created"}}</th>
+          <th><span class="sr-only">{{t "Actions"}}</span></th>
         </tr>
       </thead>
       <tbody>
         {{range .AdminUsers}}
         <tr>
-          <td class="px-4 py-3">{{.Email}}</td>
-          <td class="px-4 py-3">{{.Display}}{{if and .Company (ne .Company .Display)}} <span class="text-gray-500">({{.Company}})</span>{{end}}</td>
-          <td class="px-4 py-3">
-            {{/* Org users: show the ORG's sides (what they can operate) —
-                 the row's requested-at-signup role is meaningless once an
-                 org holds both. Pending rows keep the requested role. */}}
-            {{if eq .Role "admin"}}{{t "admin"}}
-            {{else if .OrgDomain}}
-              {{if .OrgAdvertiser}}<span class="badge badge-success">{{t "advertiser"}}</span>{{end}}
-              {{if .OrgPublisher}}<span class="badge badge-info">{{t "publisher"}}</span>{{end}}
-            {{else}}{{t .Role}}{{if eq .Status "pending"}} <span class="text-gray-500">{{t "(requested)"}}</span>{{end}}{{end}}
+          <td class="max-w-0 w-full lg:max-w-[18rem] lg:w-auto">
+            <span class="block truncate" title="{{.Email}}">{{.Email}}</span>
+            <span class="lg:hidden block text-xs text-gray-500 mt-0.5">
+              {{if .Display}}<span class="block truncate">{{.Display}}{{if and .Company (ne .Company .Display)}} ({{.Company}}){{end}}</span>{{end}}
+              <span class="block">{{template "admin-user-role" .}}{{if .OrgDomain}} · {{template "admin-user-org" .}}{{end}}</span>
+            </span>
           </td>
-          <td class="px-4 py-3">
-            {{if .OrgDomain}}@{{.OrgDomain}} <span class="badge {{if eq .OrgRole "admin"}}badge-info{{else}}badge-neutral{{end}}">{{t .OrgRole}}</span>{{else}}<span class="text-gray-300">—</span>{{end}}
+          <td class="hidden lg:table-cell min-w-[9rem]">{{.Display}}{{if and .Company (ne .Company .Display)}} <span class="text-gray-500">({{.Company}})</span>{{end}}</td>
+          <td class="hidden lg:table-cell">{{template "admin-user-role" .}}</td>
+          <td class="hidden lg:table-cell">{{if .OrgDomain}}{{template "admin-user-org" .}}{{else}}<span class="text-gray-300">—</span>{{end}}</td>
+          <td class="whitespace-nowrap">
+            {{/* An account's state, not a campaign's: "active" here is an
+                 approved account, never 配信中 (serving). */}}
+            {{if eq .Status "active"}}{{t "Approved"}}{{else if eq .Status "pending"}}<span class="badge badge-warning">{{t "Pending"}}</span>{{else if eq .Status "rejected"}}<span class="text-gray-500">{{t "Rejected"}}</span>{{else}}{{.Status}}{{end}}
           </td>
-          <td class="px-4 py-3">
-            <span class="badge {{if eq .Status "active"}}badge-success{{else if eq .Status "pending"}}badge-warning{{else}}badge-danger{{end}}">{{t .Status}}</span>
-          </td>
-          <td class="px-4 py-3">{{.Passkeys}}</td>
-          <td class="px-4 py-3 text-gray-500">{{.CreatedAt}}</td>
-          <td class="px-4 py-3 text-right whitespace-nowrap">
-            {{if eq .Status "active"}}
-            <form method="POST" action="/admin/users/recovery-link" class="inline"
-              onsubmit="return confirm('{{t "Issue a one-time passkey recovery link for %s?" .Email}}')">
-              <input type="hidden" name="userId" value="{{.ID}}">
-              <button type="submit" class="btn btn-secondary btn-sm">{{t "Recovery link"}}</button>
-            </form>
-            {{end}}
-            {{if not .IsSelf}}
-            <form method="POST" action="/admin/users/delete" class="inline"
-              onsubmit="return confirm('{{t "Delete %s permanently? Their passkeys go with them; if they are their org's last member the org is deleted too and the domain is freed." .Email}}')">
-              <input type="hidden" name="userId" value="{{.ID}}">
-              <button type="submit" class="btn btn-danger btn-sm">{{t "Delete"}}</button>
-            </form>
-            {{end}}
+          <td class="hidden md:table-cell num">{{.Passkeys}}</td>
+          <td class="hidden md:table-cell text-gray-500 whitespace-nowrap">{{.CreatedAt}}</td>
+          <td class="text-right">
+            <div class="flex flex-wrap 2xl:flex-nowrap justify-end gap-2">
+              {{if eq .Status "active"}}
+              <form method="POST" action="/admin/users/recovery-link"
+                onsubmit="return confirm('{{t "Issue a one-time passkey recovery link for %s?" .Email}}')">
+                <input type="hidden" name="userId" value="{{.ID}}">
+                <button type="submit" class="btn btn-secondary btn-sm whitespace-nowrap">{{t "Recovery link"}}</button>
+              </form>
+              {{end}}
+              {{if not .IsSelf}}
+              <form method="POST" action="/admin/users/delete"
+                onsubmit="return confirm('{{t "Delete %s permanently? Their passkeys go with them; if they are their org's last member the org is deleted too and the domain is freed." .Email}}')">
+                <input type="hidden" name="userId" value="{{.ID}}">
+                <button type="submit" class="btn btn-danger btn-sm">{{t "Delete"}}</button>
+              </form>
+              {{end}}
+            </div>
           </td>
         </tr>
         {{end}}
       </tbody>
     </table>
-  </div>
 
-  {{template "list-pagination" .}}
+    {{template "list-pagination" .}}
+  </section>
 
-  <div class="card mt-6">
-    <h2 class="text-lg font-medium mb-1">{{t "Add a platform admin"}}</h2>
-    <p class="text-sm text-gray-500 mb-4">{{t "Creates another operator account and a one-time link for them to register their own passkey. Operators have full platform access — add people you trust with the money pages."}}</p>
-    <form method="POST" action="/admin/users/invite-admin" class="flex flex-wrap items-end gap-3"
+  <dialog id="invite-admin" aria-labelledby="invite-admin-h" class="p-0 rounded-sm shadow-2xl backdrop:bg-black/60 bg-white text-gray-900 w-[min(32rem,92vw)]">
+    <form method="POST" action="/admin/users/invite-admin" class="p-6 space-y-4 text-sm"
       onsubmit="return confirm('{{t "Add %s as a platform admin with full operator access?"}}'.replace('%s', this.email.value))">
+      <h2 id="invite-admin-h" class="section-title">{{t "Add a platform admin"}}</h2>
+      <p class="text-gray-500">{{t "Creates another operator account and a one-time link for them to register their own passkey. Operators have full platform access — add people you trust with the money pages."}}</p>
       <div>
         <label for="users-email" class="form-label">{{t "Email"}}</label>
-        <input id="users-email" name="email" type="email" required class="form-input w-72" placeholder="colleague@yourcompany.com">
+        <input id="users-email" name="email" type="email" required class="form-input w-full" placeholder="colleague@yourcompany.com">
       </div>
       <div>
         <label for="users-displayname" class="form-label">{{t "Name"}} <span class="text-gray-500">{{t "(optional)"}}</span></label>
-        <input id="users-displayname" name="displayName" class="form-input w-56">
+        <input id="users-displayname" name="displayName" class="form-input w-full">
       </div>
-      <button type="submit" class="btn btn-primary">{{t "Create admin invite"}}</button>
+      <div class="flex items-center gap-4">
+        <button type="submit" class="btn btn-primary">{{t "Create admin invite"}}</button>
+        <button type="button" onclick="this.closest('dialog').close()" class="text-gray-900 underline underline-offset-2 hover:no-underline">{{t "Cancel"}}</button>
+      </div>
     </form>
-  </div>
+  </dialog>
 </div>
 {{end}}
+
+{{/* Org users show the ORG's sides (what they can operate); the
+     requested-at-signup role is meaningless once an org holds both.
+     Pending rows keep the requested role. */}}
+{{define "admin-user-role"}}{{if eq .Role "admin"}}{{t "admin"}}{{else if .OrgDomain}}{{if .OrgAdvertiser}}<span class="badge badge-neutral">{{t "advertiser"}}</span>{{end}}{{if .OrgPublisher}} <span class="badge badge-neutral">{{t "publisher"}}</span>{{end}}{{else}}{{t .Role}}{{if eq .Status "pending"}} <span class="text-gray-500">{{t "(requested)"}}</span>{{end}}{{end}}{{end}}
+{{define "admin-user-org"}}@{{.OrgDomain}} <span class="badge badge-neutral">{{t .OrgRole}}</span>{{end}}

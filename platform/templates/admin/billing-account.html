@@ -4,7 +4,7 @@
   <div class="flex items-center gap-3">
     <h1 class="page-title">{{.Label}}</h1>
     <span class="badge badge-neutral">{{t .Type}}</span>
-    <span class="badge {{.StatusBadge}}">{{t .Status}}</span>
+    <span class="badge {{.StatusBadge}}">{{template "account-status" .Status}}</span>
   </div>
   <p class="page-sub">{{.ID}}</p>
   {{end}}

@@ -353,6 +353,10 @@
      monospace block with a clipboard button — not a text field, nothing to
      select by hand. Pass the string. .stop keeps the click out of any
      enclosing accordion/card toggles. */}}
+{{/* A billing account's status. "active" is good standing; the shared
+     "active" key reads 配信中 (serving), which is a campaign's state. */}}
+{{define "account-status"}}{{if eq . "active"}}{{t "In good standing"}}{{else}}{{t .}}{{end}}{{end}}
+
 {{define "copy-field"}}
 <div class="flex items-center gap-2" x-data="{ copied: false }">
   <code x-ref="val" class="flex-1 min-w-0 bg-white border border-gray-200 rounded-md px-3 py-2 font-mono text-xs break-all">{{.}}</code>

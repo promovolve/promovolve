@@ -33,7 +33,7 @@
             <a href="{{.URL}}" class="text-brand-ink hover:underline" title="{{.ID}}">{{.Label}}</a>
           </td>
           <td class="text-gray-500">{{t .Type}}</td>
-          <td><span class="badge {{.StatusBadge}}">{{t .Status}}</span></td>
+          <td><span class="badge {{.StatusBadge}}">{{template "account-status" .Status}}</span></td>
           <td class="text-right font-medium">{{.Balance}}</td>
         </tr>
         {{else}}

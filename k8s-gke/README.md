@@ -179,3 +179,9 @@ Auth: GCP via Workload Identity Federation (pool `github`, provider
 `github-oidc`, SA `github-deployer@promovolve.iam.gserviceaccount.com`,
 restricted to this repo — no keys). Docker Hub via DOCKERHUB_USERNAME /
 DOCKERHUB_TOKEN repo secrets.
+
+# Browser runtime changes
+
+For existing clusters, follow the [staged browser worker rollout](../k8s/browser-runtime.md)
+before a full `--deploy-only`. `--browser-only` prepares the isolated worker
+without switching API dispatch. CI remains image-only.

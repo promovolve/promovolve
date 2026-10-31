@@ -245,6 +245,12 @@ jobs:
       - name: Roll api (by digest)
         if: needs.build-api.result == 'success'
         run: |
+          # Prepare the worker before API clients change; initial installation remains manual.
+          browser=$(kubectl -n promovolve get deployment promovolve-browser --ignore-not-found -o name)
+          if [ -n "$browser" ]; then
+            kubectl -n promovolve set image "$browser" browser=${API_IMAGE}@${{ needs.build-api.outputs.digest }}
+            kubectl -n promovolve rollout status "$browser" --timeout=600s
+          fi
           kubectl -n promovolve set image statefulset/promovolve-api \
             api=${API_IMAGE}@${{ needs.build-api.outputs.digest }}
           # Keep the parked singleton tier's spec current so un-parking it
@@ -262,6 +268,10 @@ jobs:
         run: |
           if [ "${{ needs.build-api.result }}" = "success" ]; then
             kubectl -n promovolve rollout status statefulset/promovolve-api --timeout=600s
+            browser=$(kubectl -n promovolve get deployment promovolve-browser --ignore-not-found -o name)
+            if [ -n "$browser" ]; then
+              kubectl -n promovolve rollout status "$browser" --timeout=600s
+            fi
           fi
           if [ "${{ needs.build-platform.result }}" = "success" ]; then
             kubectl -n promovolve rollout status deployment/promovolve-platform --timeout=300s
@@ -406,6 +416,11 @@ jobs:
           for wl in statefulset/promovolve-api statefulset/promovolve-singleton deployment/promovolve-platform; do
             kubectl -n promovolve set env "$wl" BANNER_SCRIPT_URL="$URL"
           done
+          browser=$(kubectl -n promovolve get deployment promovolve-browser --ignore-not-found -o name)
+          if [ -n "$browser" ]; then
+            kubectl -n promovolve set env "$browser" BANNER_SCRIPT_URL="$URL"
+            kubectl -n promovolve rollout status "$browser" --timeout=600s
+          fi
           kubectl -n promovolve rollout status statefulset/promovolve-api --timeout=600s
           kubectl -n promovolve rollout status deployment/promovolve-platform --timeout=300s
 

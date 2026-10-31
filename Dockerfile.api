@@ -54,6 +54,8 @@ ENV PATH=$JAVA_HOME/bin:$PATH
 
 WORKDIR /app
 COPY --from=build /src/modules/api/target/universal/stage/ /app/
+RUN chmod 0755 /app/bin/api \
+ && chmod -R go-w /ms-playwright /ms-playwright-driver
 
 # DData (LMDB) lives here; mount a PVC at this path in K8s.
 ENV DDATA_DIR=/data/ddata

@@ -1293,13 +1293,12 @@ floors layer on top of it, tuned automatically by a direct sweep optimizer.
 1. Admin override        (publisher escape hatch — adminSlotFloorOverrides,
                           or an override carried on the slot spec via the
                           classify-page path; always wins)
-2. (Per-category floor, else site floor) × slot-prior scaling
-                          — SlotPrior: floor × (0.5 + qualityScore), a
-                            0.5×–1.5× band. The prior is measured by the AD
-                            TAG in the visitor's real viewport (above-fold,
-                            viewability, region, text density) — the crawler
-                            that used to produce it is gone
+2. Per-category floor    (the category's learned floor)
 3. Site floor            (fallback — the base floor-cpm above)
+
+The slot's quality prior (measured by the ad tag in the visitor's real
+viewport: above-fold, viewability, region, text density) does NOT scale
+the floor; serving checks the same unscaled floor the auction admits at.
 ```
 
 **FloorSweepOptimizer — the sole floor mechanism.** The former DQN agent was

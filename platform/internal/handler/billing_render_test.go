@@ -131,6 +131,11 @@ func TestBillingTemplatesRender(t *testing.T) {
 			if err := getPage(tlang, c.name).ExecuteTemplate(&sb, "layout", c.data); err != nil {
 				t.Errorf("%s failed to render: %v", c.name, err)
 			}
+			// An account's status isn't a campaign's: "active" must not
+			// read 配信中 (serving).
+			if tlang == i18n.LangJA && strings.HasPrefix(c.name, "admin/billing-account") && strings.Contains(sb.String(), "配信中") {
+				t.Errorf("%s: account status reads 配信中", c.name)
+			}
 			// With PREVIEW_OUT set, dump the admin renders for a local
 			// screenshot pass (the wallet's preview comes from
 			// forecast_preview_test, which carries a strip).

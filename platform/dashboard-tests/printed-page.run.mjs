@@ -21,7 +21,7 @@ const shots = process.argv[2];
 // 1. Render the real pages through the Go preview tests.
 const previewDir = mkdtempSync(join(tmpdir(), "pv-print-"));
 execFileSync("go", ["test", "./internal/handler/", "-count=1", "-run",
-  "TestCampaignsForecastRenders|TestWalletForecastRenders|TestSitesAndCreativesTemplatesRender|TestBillingTemplatesRender|TestCreativeEditorTrayRenders|TestAdvertiserOverviewRenders|TestPublisherOverviewRenders"], {
+  "TestCampaignsForecastRenders|TestWalletForecastRenders|TestSitesAndCreativesTemplatesRender|TestBillingTemplatesRender|TestCreativeEditorTrayRenders|TestAdvertiserOverviewRenders|TestPublisherOverviewRenders|TestAdminUsersTemplateRenders"], {
   cwd: PLATFORM,
   env: { ...process.env, PREVIEW_OUT: previewDir },
   stdio: "inherit",
@@ -54,7 +54,7 @@ const check = (name, ok, detail = "") => {
 
 const PAGES = ["advertiser-forecast", "advertiser-wallet", "publisher-overview", "publisher-overview-member", "publisher-sites",
   "admin-sites", "admin-billing", "advertiser-creatives", "editor",
-  "advertiser-overview", "advertiser-overview-locked"];
+  "advertiser-overview", "advertiser-overview-locked", "admin-users"];
 
 // The creative editor opens on its analyze step; its review surface is the
 // compose step, so fill that in (the analysis itself needs the core API).
@@ -310,6 +310,22 @@ for (const theme of ["light", "dark"]) {
           return out;
         });
         check(`${id}: no-hscroll @${w}`, hs.length === 0, hs.slice(0, 3).join(" | "));
+      }
+      // Admin users on a phone: no sideways page or table scroll.
+      if (name === "admin-users") {
+        await page.setViewportSize({ width: 390, height: 844 });
+        await page.waitForTimeout(100);
+        const hs = await page.evaluate(() => {
+          const out = [];
+          if (document.documentElement.scrollWidth > innerWidth) out.push(`page ${document.documentElement.scrollWidth}>${innerWidth}`);
+          for (const el of document.querySelectorAll("main *")) {
+            const ox = getComputedStyle(el).overflowX;
+            if ((ox === "auto" || ox === "scroll") && el.scrollWidth > el.clientWidth + 1 && el.offsetParent !== null) out.push(`${el.tagName.toLowerCase()} scrolls ${el.scrollWidth}>${el.clientWidth}`);
+          }
+          return out;
+        });
+        if (shots) await page.screenshot({ path: `${shots}/${name}-${lang}-${theme}-390.png`, fullPage: true });
+        check(`${id}: no-hscroll @390`, hs.length === 0, hs.slice(0, 3).join(" | "));
       }
       // The editor also works on a phone: nothing wider than the screen.
       if (name === "editor") {

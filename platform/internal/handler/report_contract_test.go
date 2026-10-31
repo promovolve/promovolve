@@ -165,3 +165,39 @@ func TestPublisherSiteCategoryEmptyContract(t *testing.T) {
 		t.Errorf("coverageFrom = %q, want empty", coverageFrom)
 	}
 }
+
+func TestSiteTopContract(t *testing.T) {
+	h := coreServing(t, "publisher-site-top.json")
+	// 3000 bps = 30% platform margin.
+	top := h.fetchSiteTop("site_8821", "Asia/Tokyo", 3000, advertiserClaims())
+	if top == nil {
+		t.Fatal("fetchSiteTop returned nil")
+	}
+	if len(top.Pages) != 2 || len(top.Ads) != 2 {
+		t.Fatalf("pages/ads = %d/%d, want 2/2", len(top.Pages), len(top.Ads))
+	}
+	p := top.Pages[0]
+	// The page shows as its path; the full URL stays for the link.
+	if p.Path != "/stays/hakone" || p.URL != "https://onsen.example.jp/stays/hakone" {
+		t.Errorf("page = %q / %q", p.Path, p.URL)
+	}
+	// grossRevenue arrives BEFORE margin; the publisher earns the net.
+	if p.Net != 700 || p.Impressions != 4210 || p.Clicks != 61 {
+		t.Errorf("page 0 = net %v, %d imps, %d clicks", p.Net, p.Impressions, p.Clicks)
+	}
+	// A blank URL (old events) stays blank; the template labels it.
+	if top.Pages[1].Path != "" || top.Pages[1].URL != "" {
+		t.Errorf("blank page = %q / %q", top.Pages[1].Path, top.Pages[1].URL)
+	}
+	a := top.Ads[0]
+	if a.Name != "Autumn ryokan" || a.Domain != "ryokan.example.jp" || a.AssetURL == "" || a.CTR != "1.85%" {
+		t.Errorf("ad 0 = %+v", a)
+	}
+	if a.Net != 568.75 {
+		t.Errorf("ad 0 net = %v, want 568.75 at 30%% margin", a.Net)
+	}
+	// A deleted creative: no name, so the id stands in.
+	if top.Ads[1].Name != "01JC8R2W6K4R" || top.Ads[1].CTR != "0.00%" {
+		t.Errorf("ad 1 = %+v", top.Ads[1])
+	}
+}

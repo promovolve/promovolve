@@ -538,6 +538,34 @@ object ApiModels {
   )
 
   /**
+   * A site's top pages and top creatives over the publisher's last `days`
+   * local days, by gross revenue then impressions (publisher Overview).
+   * Same event rules as revenue-today: clean events only, dogeared re-views
+   * neither counted nor paid. Revenue is gross — the platform nets it down.
+   */
+  case class SiteTopResponse(
+      siteId: String,
+      sinceUtc: String, // ISO timestamp of the window's first local midnight
+      days: Int,
+      pages: Vector[SiteTopPage],
+      creatives: Vector[SiteTopCreative]
+  )
+
+  /** `page` is the URL without query or fragment; "" = not recorded. */
+  case class SiteTopPage(page: String, impressions: Long, clicks: Long, grossRevenue: String)
+
+  /** Name, domain and asset are "" once the creative is deleted. */
+  case class SiteTopCreative(
+      creativeId: String,
+      name: String,
+      landingDomain: String,
+      assetUrl: String,
+      impressions: Long,
+      clicks: Long,
+      grossRevenue: String
+  )
+
+  /**
    * One row of the advertiser-facing market-rate view: what impressions
    * on this site actually CLEARED at (trailing window, dogeared/unbilled
    * excluded), plus the site-wide floor — the entry ticket where there is

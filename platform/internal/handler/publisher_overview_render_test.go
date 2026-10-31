@@ -27,9 +27,20 @@ func TestPublisherOverviewRenders(t *testing.T) {
 		Title: "Overview", Nav: "overview", User: &model.User{Email: "pub@test", Role: model.RolePublisher},
 		Sites: sites, SiteID: "s1", Stats: stats,
 		Earnings: &earningsPageData{Accrued: "1,204.50", LifetimePaid: "3,880.00"},
+		PubTop: &publisherTop{
+			Pages: []topPageRow{
+				{Path: "/stays/箱根", URL: "https://site.example.com/stays/箱根", Impressions: 4210, Clicks: 61, Net: 700},
+				{Path: "/guides/autumn-leaves-in-kyoto-a-very-long-article-slug-that-should-truncate", URL: "https://site.example.com/guides/autumn-leaves-in-kyoto-a-very-long-article-slug-that-should-truncate", Impressions: 980, Clicks: 9, Net: 88.2},
+				{Impressions: 3, Net: 0.01},
+			},
+			Ads: []topAdRow{
+				{Name: "Autumn ryokan", Domain: "ryokan.example.jp", AssetURL: "https://cdn.example.com/assets/ab12.png", Impressions: 3900, Clicks: 72, CTR: "1.85%", Net: 568.75},
+				{Name: "01JC8R2W6K4R", Impressions: 12, CTR: "0.00%"},
+			},
+		},
 	}
 	member := pageData{
-		Title: "Overview", Nav: "overview", Sites: sites, SiteID: "s1", Stats: stats,
+		Title: "Overview", Nav: "overview", Sites: sites, SiteID: "s1", Stats: stats, PubTop: &publisherTop{},
 		User: &model.User{Email: "m@test", Role: model.RolePublisher, Org: &model.Org{ID: "o1"}, OrgRole: model.OrgRoleMember},
 	}
 	for _, c := range []struct {
@@ -53,6 +64,20 @@ func TestPublisherOverviewRenders(t *testing.T) {
 			}
 			if !strings.Contains(out, `href="/publisher/overview"`) || strings.Contains(out, `href="/publisher/stats"`) {
 				t.Errorf("%s %s: nav should link Overview, not Stats", c.name, tlang)
+			}
+			// The last 7 days' top pages and ads show for everyone; with no
+			// rows, the tables say so instead of vanishing.
+			if !strings.Contains(out, "data-top-pages") || !strings.Contains(out, "data-top-ads") {
+				t.Errorf("%s %s: top pages/ads tables missing", c.name, tlang)
+			}
+			if len(c.data.PubTop.Pages) > 0 {
+				for _, want := range []string{"/stays/箱根", `href="https://site.example.com/stays/`, "ryokan.example.jp", "1.85%"} {
+					if !strings.Contains(out, want) {
+						t.Errorf("%s %s: top tables missing %q", c.name, tlang, want)
+					}
+				}
+			} else if !strings.Contains(out, i18n.T(tlang, "No impressions in the last 7 days.")) {
+				t.Errorf("%s %s: no empty-state line", c.name, tlang)
 			}
 			if dir := os.Getenv("PREVIEW_OUT"); dir != "" {
 				p := filepath.Join(dir, c.name+"-"+tlang+".html")

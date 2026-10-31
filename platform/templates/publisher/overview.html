@@ -51,6 +51,66 @@
 
 {{end}}
 {{if not .Stats}}{{template "settled-money" $}}{{end}}
+
+{{/* Top pages and ads for the selected site, last 7 local days, by net
+     earnings (clean, billed views only — the earnings figures' rules). */}}
+{{with .PubTop}}
+<div class="grid gap-x-10 gap-y-8 lg:grid-cols-2">
+  <section data-top-pages aria-labelledby="top-pages-h" class="min-w-0">
+    <div class="flex flex-wrap items-baseline justify-between gap-x-4 mb-2">
+      <h2 id="top-pages-h" class="section-title">{{t "Top pages"}}</h2>
+      <span class="text-xs text-gray-500">{{t "Last 7 days, by earnings"}}</span>
+    </div>
+    {{if .Pages}}
+    <table class="data-table">
+      <thead><tr><th>{{t "Page"}}</th><th class="num">{{t "Impressions"}}</th><th class="num">{{t "Clicks"}}</th><th class="num">{{t "Earnings"}}</th></tr></thead>
+      <tbody>
+        {{range .Pages}}
+        <tr>
+          <td class="max-w-0 w-full">{{if .URL}}<a href="{{.URL}}" target="_blank" rel="noopener" class="block truncate hover:underline" title="{{.URL}}">{{.Path}}</a>{{else}}<span class="text-gray-500">{{t "Unknown page"}}</span>{{end}}</td>
+          <td class="num">{{.Impressions}}</td>
+          <td class="num">{{.Clicks}}</td>
+          <td class="num font-bold">{{money .Net}}</td>
+        </tr>
+        {{end}}
+      </tbody>
+    </table>
+    {{else}}
+    <p class="py-6 border-t border-gray-900 text-sm text-gray-500">{{t "No impressions in the last 7 days."}}</p>
+    {{end}}
+  </section>
+
+  <section data-top-ads aria-labelledby="top-ads-h" class="min-w-0">
+    <div class="flex flex-wrap items-baseline justify-between gap-x-4 mb-2">
+      <h2 id="top-ads-h" class="section-title">{{t "Top ads"}}</h2>
+      <span class="text-xs text-gray-500">{{t "Last 7 days, by earnings"}}</span>
+    </div>
+    {{if .Ads}}
+    <table class="data-table">
+      <thead><tr><th>{{t "Ad"}}</th><th class="num">{{t "Impressions"}}</th><th class="num">{{t "CTR"}}</th><th class="num">{{t "Earnings"}}</th></tr></thead>
+      <tbody>
+        {{range .Ads}}
+        <tr>
+          <td class="max-w-0 w-full">
+            <div class="flex items-center gap-3 min-w-0">
+              {{/* A grey square stands in for a deleted or unreachable image. */}}
+              <span class="w-10 h-10 shrink-0 bg-gray-100" aria-hidden="true">{{if .AssetURL}}<img src="{{.AssetURL}}" alt="" loading="lazy" width="40" height="40" class="w-10 h-10 object-cover" onerror="this.remove()">{{end}}</span>
+              <span class="min-w-0"><span class="block truncate font-bold" title="{{.Name}}">{{.Name}}</span>{{if .Domain}}<span class="block truncate text-xs text-gray-500">{{.Domain}}</span>{{end}}</span>
+            </div>
+          </td>
+          <td class="num">{{.Impressions}}</td>
+          <td class="num">{{.CTR}}</td>
+          <td class="num font-bold">{{money .Net}}</td>
+        </tr>
+        {{end}}
+      </tbody>
+    </table>
+    {{else}}
+    <p class="py-6 border-t border-gray-900 text-sm text-gray-500">{{t "No impressions in the last 7 days."}}</p>
+    {{end}}
+  </section>
+</div>
+{{end}}
 {{end}}
 
 {{/* The settled balance beside today's live figures: what Earnings

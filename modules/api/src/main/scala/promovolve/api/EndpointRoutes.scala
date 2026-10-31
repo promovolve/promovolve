@@ -5463,6 +5463,39 @@ class EndpointRoutes(
       }
   }
 
+  private val getSiteTopLogic: ((String, String, Option[String])) => Future[Either[ErrorResponse, SiteTopResponse]] = {
+    case (_publisherId, siteId, tz) =>
+      // The publisher Overview's "last 7 days" tables. Same event rules as
+      // revenue-today, so these reconcile with the earnings figures.
+      val Days = 7
+      val zone = promovolve.common.Timezones.zoneOf(tz.getOrElse(""))
+      val since = java.time.LocalDate.now(zone).minusDays(Days - 1L).atStartOfDay(zone).toInstant
+      val empty = SiteTopResponse(siteId, since.toString, Days, Vector.empty, Vector.empty)
+      dashboardDb match {
+        case None     => Future.successful(Right(empty))
+        case Some(db) =>
+          import promovolve.publisher.SiteTopQueries
+          db.run(SiteTopQueries.pages(siteId, since).zip(SiteTopQueries.creatives(siteId, since))).map {
+            case (pages, creatives) =>
+              Right(empty.copy(
+                pages = pages.map(p => SiteTopPage(p.page, p.impressions, p.clicks, f"${p.grossRevenue}%.4f")),
+                creatives = creatives.map(c =>
+                  SiteTopCreative(
+                    c.creativeId,
+                    c.name,
+                    c.landingDomain,
+                    if (c.s3Key.isEmpty) "" else s"$cdnBaseUrl/${c.s3Key}",
+                    c.impressions,
+                    c.clicks,
+                    f"${c.grossRevenue}%.4f"
+                  ))
+              ))
+          }.recover { case ex =>
+            Left(ErrorResponse("site_top_failed", ex.getMessage))
+          }
+      }
+  }
+
   private val getAdvertiserMarketRatesLogic
       : ((String, Option[Int], Option[String])) => Future[Either[ErrorResponse, MarketRatesResponse]] = {
     case (_advertiserId, daysOpt, categoriesOpt) =>
@@ -6417,6 +6450,7 @@ class EndpointRoutes(
     PekkoHttpServerInterpreter().toRoute(Endpoints.getCategoryDemand.serverLogic(gateSite2(getCategoryDemandLogic))),
     PekkoHttpServerInterpreter().toRoute(
       Endpoints.getSiteRevenueToday.serverLogic(gateSite3(getSiteRevenueTodayLogic))),
+    PekkoHttpServerInterpreter().toRoute(Endpoints.getSiteTop.serverLogic(gateSite3(getSiteTopLogic))),
     PekkoHttpServerInterpreter().toRoute(
       Endpoints.getSiteMountHealth.serverLogic(gateSite3(getSiteMountHealthLogic))),
     PekkoHttpServerInterpreter().toRoute(Endpoints.getAdvertiserSpendToday.serverLogic(getAdvertiserSpendTodayLogic)),

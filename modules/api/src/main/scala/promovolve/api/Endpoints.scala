@@ -435,6 +435,18 @@ object Endpoints extends ApiJsonFormats {
       .out(jsonBody[SiteRevenueTodayResponse])
       .errorOut(jsonBody[ErrorResponse])
 
+  val getSiteTop: PublicEndpoint[(String, String, Option[String]), ErrorResponse, SiteTopResponse, Any] =
+    endpoint
+      .tag("Sites")
+      .summary("A site's top pages and creatives over the last 7 days, sourced from tracking_events")
+      .description(
+        "Top 5 pages (URL without query or fragment) and top 5 creatives by gross revenue, then impressions, since local midnight 6 days ago in the given IANA timezone (the publisher's local day; unset/invalid = UTC). Clean events only; dogeared re-views are neither counted nor paid. Returns empty lists if the projection DB isn't configured.")
+      .get
+      .in(sitesBase / path[String]("siteId") / "top")
+      .in(query[Option[String]]("tz").description("IANA timezone for the day boundary; unset = UTC"))
+      .out(jsonBody[SiteTopResponse])
+      .errorOut(jsonBody[ErrorResponse])
+
   val getSiteMountHealth: PublicEndpoint[(String, String, Option[Int]), ErrorResponse, SiteMountHealthResponse, Any] =
     endpoint
       .tag("Sites")

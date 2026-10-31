@@ -1681,14 +1681,12 @@ func (h *Handler) MarketRatesHint(w http.ResponseWriter, r *http.Request) {
 	getPage(h.lang(r, user), "advertiser/campaigns.html").ExecuteTemplate(w, "market-rates-hint", data)
 }
 
-func (h *Handler) AdvertiserAccount(w http.ResponseWriter, r *http.Request) {
-	user, claims := h.sessionUser(r)
-	if user == nil {
-		http.Redirect(w, r, "/login", http.StatusSeeOther)
-		return
-	}
-
-	var advBudget *advertiserBudget
+// advertiserBudgetFor reads the account-level daily budget (nil when the
+// core can't be read). Spent/remaining come from the entity's
+// reserved-spend counter — the values the serve-time gate benches on — so
+// they match the bench and agree with the Campaigns page. Delivered spend
+// is billing/performance (Report), not this budget-enforcement view.
+func (h *Handler) advertiserBudgetFor(claims *model.Claims) *advertiserBudget {
 	advBody, _ := h.coreGet("/v1/advertisers/me", claims)
 	var advResp struct {
 		Budget struct {
@@ -1698,22 +1696,28 @@ func (h *Handler) AdvertiserAccount(w http.ResponseWriter, r *http.Request) {
 		} `json:"budget"`
 		BudgetMode string `json:"budgetMode"`
 	}
-	budgetUnset := true
-	if json.Unmarshal(advBody, &advResp) == nil {
-		parsed, _ := strconv.ParseFloat(advResp.Budget.DailyBudget, 64)
-		// Spent/remaining from the entity's reserved-spend counter — the values
-		// the serve-time gate benches on — so this line matches the bench and
-		// agrees with the Campaigns page. Delivered spend is billing/performance
-		// (Stats/Report), not this budget-enforcement view.
-		advBudget = &advertiserBudget{
-			DailyBudget: money(advResp.Budget.DailyBudget),
-			Remaining:   money(advResp.Budget.Remaining),
-			SpendToday:  money(advResp.Budget.SpendToday),
-			IsZero:      parsed <= 0,
-			BudgetMode:  advResp.BudgetMode,
-		}
-		budgetUnset = advBudget.IsZero
+	if json.Unmarshal(advBody, &advResp) != nil {
+		return nil
 	}
+	parsed, _ := strconv.ParseFloat(advResp.Budget.DailyBudget, 64)
+	return &advertiserBudget{
+		DailyBudget: money(advResp.Budget.DailyBudget),
+		Remaining:   money(advResp.Budget.Remaining),
+		SpendToday:  money(advResp.Budget.SpendToday),
+		IsZero:      parsed <= 0,
+		BudgetMode:  advResp.BudgetMode,
+	}
+}
+
+func (h *Handler) AdvertiserAccount(w http.ResponseWriter, r *http.Request) {
+	user, claims := h.sessionUser(r)
+	if user == nil {
+		http.Redirect(w, r, "/login", http.StatusSeeOther)
+		return
+	}
+
+	advBudget := h.advertiserBudgetFor(claims)
+	budgetUnset := advBudget == nil || advBudget.IsZero
 
 	noCampaigns := true
 	if !budgetUnset {
@@ -3799,9 +3803,9 @@ func (h *Handler) CreativePages(w http.ResponseWriter, r *http.Request) {
 	})
 }
 
-// --- Advertiser Stats ---
+// --- Advertiser Overview ---
 
-func (h *Handler) AdvertiserStats(w http.ResponseWriter, r *http.Request) {
+func (h *Handler) AdvertiserOverview(w http.ResponseWriter, r *http.Request) {
 	user, claims := h.sessionUser(r)
 	if user == nil {
 		http.Redirect(w, r, "/login", http.StatusSeeOther)
@@ -3967,15 +3971,24 @@ func (h *Handler) AdvertiserStats(w http.ResponseWriter, r *http.Request) {
 	start, end, nav := buildListNav(r, len(campaigns), 8)
 	campaigns = campaigns[start:end]
 
-	h.render(w, r, "advertiser/stats.html", pageData{
-		Title:          "Stats",
-		Nav:            "stats",
+	// The budget + wallet figures beside the chart. The balance is
+	// money-page content: org members see the budget, not the wallet.
+	walletBalance, walletUnfunded := "", false
+	if user.CanBilling() {
+		walletBalance, walletUnfunded = h.walletSummary(r.Context(), claims.AdvertiserID)
+	}
+	h.render(w, r, "advertiser/overview.html", pageData{
+		Title:          "Overview",
+		Nav:            "overview",
 		User:           user,
 		Campaigns:      campaigns,
 		AdvHourly:      hourly,
 		AdvHourlyTotal: hourlyTotal,
 		ListNav:        nav,
 		WalletNotice:   h.walletNotice(r.Context(), claims.AdvertiserID),
+		AdvBudget:      h.advertiserBudgetFor(claims),
+		WalletBalance:  walletBalance,
+		WalletUnfunded: walletUnfunded,
 	})
 }
 

@@ -83,9 +83,12 @@ type Handler struct {
 	setupSvc        *setup.Service
 	settingsSvc     *settings.Service
 	billingSvc      *billing.Service
-	siteReqSvc      *siterequest.Service
-	orgRepo         *org.Repository
-	auditRepo       *audit.Repository
+	// walletEndorsed is billingSvc.WalletEndorsed (nil without billing):
+	// the unfunded-advertiser lock's one question, a field so tests stub it.
+	walletEndorsed func(ctx context.Context, advertiserID string) (bool, error)
+	siteReqSvc     *siterequest.Service
+	orgRepo        *org.Repository
+	auditRepo      *audit.Repository
 	// settler is only used to resume core serving immediately after an
 	// admin tops up a suspended wallet; the job itself runs from main.
 	settler *billing.Settler
@@ -333,7 +336,7 @@ func toMicros(v any) (int64, bool) {
 }
 
 func New(d Deps) *Handler {
-	return &Handler{
+	h := &Handler{
 		coreAPIURL:      d.CoreAPIURL,
 		bannerScriptURL: d.BannerScriptURL,
 		jwtSvc:          d.JWTSvc,
@@ -350,6 +353,10 @@ func New(d Deps) *Handler {
 		devAuth:         d.DevAuth,
 		secureCookies:   d.SecureCookies,
 	}
+	if d.BillingSvc != nil {
+		h.walletEndorsed = d.BillingSvc.WalletEndorsed
+	}
+	return h
 }
 
 // funcMapFor returns the shared funcMap plus the language-bound helpers:
@@ -472,6 +479,10 @@ type pageData struct {
 	// (pacing) and wallet (funds) are never seen in isolation.
 	WalletBalance  string
 	WalletUnfunded bool
+	// WalletLocked: a never-funded advertiser, pinned to Overview (see
+	// RoleGuard). Set centrally in renderStatus for the pages that stay
+	// open; the nav greys out the rest.
+	WalletLocked bool
 	// OrgMaxMembers is the operator-set member cap per organization.
 	OrgMaxMembers int
 	// PayoutFloor is the platform-wide minimum payout (dollars string) on
@@ -844,6 +855,12 @@ func (h *Handler) renderStatus(w http.ResponseWriter, r *http.Request, status in
 	// through untouched; already-translated strings miss the catalog and
 	// pass through unchanged, so this is safe to layer.
 	data.Title = i18n.T(lang, data.Title)
+	// Only the pages open to a locked advertiser can render while locked.
+	if data.User != nil && data.User.Role == model.RoleAdvertiser && openWhileUnfunded(r.URL.Path) {
+		if _, claims := h.sessionUser(r); claims != nil {
+			data.WalletLocked = h.walletLocked(r.Context(), claims.AdvertiserID)
+		}
+	}
 	t := getPage(lang, name)
 	if err := t.ExecuteTemplate(w, "layout", data); err != nil {
 		slog.Error("template render failed", "error", err, "template", name)
@@ -1020,10 +1037,41 @@ func (h *Handler) requireRole(w http.ResponseWriter, r *http.Request, role model
 	return user, claims, true
 }
 
+// unfundedOpen are the advertiser pages (and what they post to) that stay
+// open before the operator first credits the wallet; everything else under
+// /advertiser — including routes added later — redirects to Overview.
+var unfundedOpen = []string{
+	"/advertiser/overview", "/advertiser/account", "/advertiser/budget",
+	"/advertiser/wallet", "/advertiser/help",
+}
+
+func openWhileUnfunded(path string) bool {
+	for _, p := range unfundedOpen {
+		if path == p || strings.HasPrefix(path, p+"/") {
+			return true
+		}
+	}
+	return false
+}
+
+// walletLocked: the advertiser's wallet has never been credited. Fails
+// open — a billing outage must not lock paying advertisers out.
+func (h *Handler) walletLocked(ctx context.Context, advertiserID string) bool {
+	if h.walletEndorsed == nil || advertiserID == "" {
+		return false
+	}
+	ok, err := h.walletEndorsed(ctx, advertiserID)
+	if err != nil {
+		slog.Warn("wallet endorsement check failed; not locking", "advertiser", advertiserID, "error", err)
+		return false
+	}
+	return !ok
+}
+
 // RoleGuard wraps a handler with role checking
 func (h *Handler) RoleGuard(role model.Role, handler http.HandlerFunc) http.HandlerFunc {
 	return func(w http.ResponseWriter, r *http.Request) {
-		user, _ := h.sessionUser(r)
+		user, claims := h.sessionUser(r)
 		isSSE := r.Header.Get("Accept") == "text/event-stream" ||
 			strings.Contains(r.URL.Path, "/sse/")
 		if user == nil {
@@ -1039,6 +1087,16 @@ func (h *Handler) RoleGuard(role model.Role, handler http.HandlerFunc) http.Hand
 				http.Error(w, "forbidden", http.StatusForbidden)
 			} else {
 				http.Redirect(w, r, homeFor(user.Role), http.StatusSeeOther)
+			}
+			return
+		}
+		// Never-funded advertisers are pinned to Overview (view-as too: the
+		// operator sees exactly what the advertiser sees).
+		if role == model.RoleAdvertiser && !openWhileUnfunded(r.URL.Path) && h.walletLocked(r.Context(), claims.AdvertiserID) {
+			if isSSE {
+				http.Error(w, "wallet not funded", http.StatusForbidden)
+			} else {
+				http.Redirect(w, r, "/advertiser/overview", http.StatusSeeOther)
 			}
 			return
 		}

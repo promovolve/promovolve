@@ -369,9 +369,9 @@ func main() {
 	mux.HandleFunc("GET /advertiser/campaigns", adv(h.AdvertiserCampaigns))
 	mux.HandleFunc("GET /advertiser/market-rates-hint", adv(h.MarketRatesHint))
 	mux.HandleFunc("GET /advertiser/category-availability", adv(h.CategoryAvailability))
-	// Stats existed as a handler+template but was never routed (nor
-	// linked in the nav) — the page was unreachable dead code.
-	mux.HandleFunc("GET /advertiser/stats", adv(h.AdvertiserStats))
+	// Overview: the advertiser home, and the page a never-funded
+	// advertiser is pinned to (RoleGuard).
+	mux.HandleFunc("GET /advertiser/overview", adv(h.AdvertiserOverview))
 	mux.HandleFunc("GET /advertiser/report", adv(h.AdvertiserReport))
 	mux.HandleFunc("POST /advertiser/report/conversions", adv(h.AdvertiserReportConversions))
 	mux.HandleFunc("GET /advertiser/wallet", adv(h.AdvertiserWallet))

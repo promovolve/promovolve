@@ -321,6 +321,26 @@ func (s *Service) ListAccountActivity(ctx context.Context, ownerType OwnerType, 
 	return out, rows.Err()
 }
 
+// WalletEndorsed reports whether the operator has ever credited this
+// advertiser's wallet: a top-up, or an adjustment that credits it (a
+// negative entry; positive debits). Until then the dashboard pins the
+// advertiser to Overview. Never cleared: a wallet spent back to zero stays
+// endorsed — that is the suspended state, not this one.
+func (s *Service) WalletEndorsed(ctx context.Context, advertiserID string) (bool, error) {
+	var ok bool
+	err := s.pool.QueryRow(ctx, `
+		SELECT EXISTS (
+			SELECT 1
+			FROM ledger_entries e
+			JOIN billing_accounts a ON a.id = e.account_id
+			JOIN ledger_transactions t ON t.id = e.txn_id
+			WHERE a.owner_type = $1 AND a.owner_id = $2
+			  AND t.kind IN ('topup', 'adjustment') AND e.amount_micros < 0)`,
+		OwnerAdvertiser, advertiserID,
+	).Scan(&ok)
+	return ok, err
+}
+
 // MonthlySpendRow aggregates an owner's settled money by calendar month.
 type MonthlySpendRow struct {
 	Month       string // YYYY-MM

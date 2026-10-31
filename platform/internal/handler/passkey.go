@@ -119,7 +119,7 @@ func homeFor(role model.Role) string {
 	case model.RolePublisher:
 		return "/publisher/approval"
 	case model.RoleAdvertiser:
-		return "/advertiser/campaigns"
+		return "/advertiser/stats"
 	case model.RoleAdmin:
 		return "/admin/requests"
 	default:

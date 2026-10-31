@@ -21,7 +21,7 @@ const shots = process.argv[2];
 // 1. Render the real pages through the Go preview tests.
 const previewDir = mkdtempSync(join(tmpdir(), "pv-print-"));
 execFileSync("go", ["test", "./internal/handler/", "-count=1", "-run",
-  "TestCampaignsForecastRenders|TestWalletForecastRenders|TestSitesAndCreativesTemplatesRender|TestBillingTemplatesRender|TestCreativeEditorTrayRenders"], {
+  "TestCampaignsForecastRenders|TestWalletForecastRenders|TestSitesAndCreativesTemplatesRender|TestBillingTemplatesRender|TestCreativeEditorTrayRenders|TestAdvertiserOverviewRenders"], {
   cwd: PLATFORM,
   env: { ...process.env, PREVIEW_OUT: previewDir },
   stdio: "inherit",
@@ -52,7 +52,8 @@ const check = (name, ok, detail = "") => {
 };
 
 const PAGES = ["advertiser-forecast", "advertiser-wallet", "publisher-stats", "publisher-sites",
-  "admin-sites", "admin-billing", "advertiser-creatives", "editor"];
+  "admin-sites", "admin-billing", "advertiser-creatives", "editor",
+  "advertiser-overview", "advertiser-overview-locked"];
 
 // The creative editor opens on its analyze step; its review surface is the
 // compose step, so fill that in (the analysis itself needs the core API).
@@ -228,6 +229,19 @@ for (const theme of ["light", "dark"]) {
         });
         check(`${id}: scale`, sc.n === 7 && sc.mono && sc.zeroVsOne >= 1.3, JSON.stringify(sc));
         check(`${id}: now-halo`, sc.halo, JSON.stringify(sc));
+      }
+
+      // overview-beside: the day's money sits to the right of the chart,
+      // tops aligned, filling the space the chart leaves.
+      if (name.startsWith("advertiser-overview")) {
+        const ov = await page.evaluate(() => {
+          const chart = document.querySelector("[data-overview-today] > div");
+          const money = document.querySelector("[data-overview-money]");
+          if (!chart || !money) return null;
+          const a = chart.getBoundingClientRect(), b = money.getBoundingClientRect();
+          return { beside: b.left >= a.right, topGap: Math.round(Math.abs(b.top - a.top)) };
+        });
+        check(`${id}: overview-beside`, !!ov && ov.beside && ov.topGap <= 4, JSON.stringify(ov));
       }
 
       if (shots) await page.screenshot({ path: `${shots}/${name}-${lang}-${theme}.png`, fullPage: true });

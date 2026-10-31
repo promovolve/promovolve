@@ -107,9 +107,16 @@
         {{/* Creatives has no tab of its own — it is reached from each
              campaign (a creative belongs to a campaign); the tab stays on
              Campaigns there. */}}
+        <a href="/advertiser/stats" class="nav-tab" {{if eq .Nav "stats"}}aria-current="page"{{end}}>{{t "Overview"}}</a>
+        {{/* Until the wallet is first funded these stay shut (RoleGuard
+             redirects them to Overview), so they read as plain grey text. */}}
+        {{if .WalletLocked}}
+        <span class="nav-tab text-gray-400 hover:text-gray-400 cursor-not-allowed" aria-disabled="true" title="{{t "Opens once your wallet is funded"}}">{{t "Campaigns"}}</span>
+        <span class="nav-tab text-gray-400 hover:text-gray-400 cursor-not-allowed" aria-disabled="true" title="{{t "Opens once your wallet is funded"}}">{{t "Report"}}</span>
+        {{else}}
         <a href="/advertiser/campaigns" class="nav-tab" {{if or (eq .Nav "campaigns") (eq .Nav "creatives")}}aria-current="page"{{end}}>{{t "Campaigns"}}</a>
-        <a href="/advertiser/stats" class="nav-tab" {{if eq .Nav "stats"}}aria-current="page"{{end}}>{{t "Stats"}}</a>
         <a href="/advertiser/report" class="nav-tab" {{if eq .Nav "report"}}aria-current="page"{{end}}>{{t "Report"}}</a>
+        {{end}}
         {{if .User.CanBilling}}
         <a href="/advertiser/wallet" class="nav-tab" {{if eq .Nav "wallet"}}aria-current="page"{{end}}>{{t "Wallet"}}</a>
         {{end}}

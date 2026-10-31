@@ -58,10 +58,13 @@ func TestWalletLocked(t *testing.T) {
 	}
 }
 
-// Advertisers land on Overview: it is the one page open to every
-// advertiser, funded or not.
+// Both sides land on Overview. For advertisers it is the one page open
+// funded or not; for publishers it carries the review count and its link.
 func TestAdvertiserHomeIsOverview(t *testing.T) {
 	if got := homeFor(model.RoleAdvertiser); got != "/advertiser/overview" {
 		t.Errorf("homeFor(advertiser) = %q, want /advertiser/overview", got)
+	}
+	if got := homeFor(model.RolePublisher); got != "/publisher/overview" {
+		t.Errorf("homeFor(publisher) = %q, want /publisher/overview", got)
 	}
 }

@@ -705,7 +705,9 @@ type publisherStats struct {
 	PendingCreatives int
 }
 
-func (h *Handler) PublisherStats(w http.ResponseWriter, r *http.Request) {
+// PublisherOverview is the publisher home: today's live figures for one
+// site, and for billing users the settled balance beside them.
+func (h *Handler) PublisherOverview(w http.ResponseWriter, r *http.Request) {
 	user, claims := h.sessionUser(r)
 	if user == nil {
 		http.Redirect(w, r, "/login", http.StatusSeeOther)
@@ -834,13 +836,18 @@ func (h *Handler) PublisherStats(w http.ResponseWriter, r *http.Request) {
 		}
 	}
 
-	h.render(w, r, "publisher/stats.html", pageData{
-		Title:  "Stats",
-		Nav:    "stats",
-		User:   user,
-		SiteID: siteID,
-		Sites:  sites,
-		Stats:  stats,
+	var earnings *earningsPageData
+	if user.CanBilling() && h.billingSvc != nil {
+		earnings = h.settledEarnings(r.Context(), claims.PublisherID)
+	}
+	h.render(w, r, "publisher/overview.html", pageData{
+		Title:    "Overview",
+		Nav:      "overview",
+		User:     user,
+		SiteID:   siteID,
+		Sites:    sites,
+		Stats:    stats,
+		Earnings: earnings,
 	})
 }
 

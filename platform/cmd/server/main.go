@@ -357,7 +357,7 @@ func main() {
 	mux.HandleFunc("POST /publisher/sites/filler-traffic", pub(h.UpdateAcceptsFillerTraffic))
 	mux.HandleFunc("POST /publisher/sites/block-ad-product", pub(h.BlockAdProduct))
 	mux.HandleFunc("POST /publisher/sites/unblock-ad-product", pub(h.UnblockAdProduct))
-	mux.HandleFunc("GET /publisher/stats", pub(h.PublisherStats))
+	mux.HandleFunc("GET /publisher/overview", pub(h.PublisherOverview))
 	mux.HandleFunc("GET /publisher/earnings", pub(h.PublisherEarnings))
 	mux.HandleFunc("GET /publisher/report", pub(h.PublisherReport))
 	mux.HandleFunc("GET /publisher/help", pub(h.HelpPage(model.RolePublisher)))

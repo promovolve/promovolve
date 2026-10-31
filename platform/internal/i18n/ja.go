@@ -42,7 +42,6 @@ var ja = map[string]string{
 	"No advertisers have offered creatives to this site yet.": "このサイトにクリエイティブを提供した広告主はまだいません。",
 	"Trusted Advertisers":                                     "信頼済み広告主",
 	"Sites":                                                   "サイト",
-	"Stats":                                                   "統計",
 	"Earnings":                                                "収益",
 	"Report":                                                  "レポート",
 	"Help":                                                    "ヘルプ",
@@ -762,12 +761,13 @@ var ja = map[string]string{
 	"and its campaign and landing domain will appear here.": "でクリエイティブを承認すると、そのキャンペーンとランディングドメインがここに表示されます。",
 
 	// ── earnings ──
-	"Settled earnings and payouts — days and payout periods follow your organization's timezone (%s). The Stats page shows today's live revenue; the balance here is what has been settled and is owed to you.": "精算済みの収益と支払いです。日と支払い期間は組織のタイムゾーン(%s)に従います。統計ページには本日のライブ収益が表示されます。ここの残高は精算済みで、あなたに支払われるべき金額です。",
-	"Settled earnings and payouts — days and payout periods follow your organization's timezone. The Stats page shows today's live revenue; the balance here is what has been settled and is owed to you.":      "精算済みの収益と支払いです。日と支払い期間は組織のタイムゾーンに従います。統計ページには本日のライブ収益が表示されます。ここの残高は精算済みで、あなたに支払われるべき金額です。",
+	"Settled earnings and payouts — days and payout periods follow your organization's timezone (%s). Overview shows today's live revenue; the balance here is what has been settled and is owed to you.": "精算済みの収益と支払いです。日と支払い期間は組織のタイムゾーン(%s)に従います。本日のライブ収益は概要に表示されます。ここの残高は精算済みで、あなたに支払われるべき金額です。",
+	"Settled earnings and payouts — days and payout periods follow your organization's timezone. Overview shows today's live revenue; the balance here is what has been settled and is owed to you.":      "精算済みの収益と支払いです。日と支払い期間は組織のタイムゾーンに従います。本日のライブ収益は概要に表示されます。ここの残高は精算済みで、あなたに支払われるべき金額です。",
 	"Settled net earnings not yet paid out":         "未払いの精算済み純収益",
 	"Balance owed":                                  "未払い残高",
 	"settled through yesterday, after platform fee": "昨日までの精算済み、プラットフォーム手数料控除後",
 	"Lifetime paid":                                 "累計支払額",
+	"Earnings & payouts":                            "収益と支払い",
 	"Created":                                       "作成",
 	"Period":                                        "期間",
 	"Status":                                        "ステータス",
@@ -986,7 +986,6 @@ var ja = map[string]string{
 	"Relative":                             "相対",
 
 	// ── publisher stats ──
-	"Site Statistics": "サイト統計",
 	"\"Today\" is your organization's local day, matching settlement and your payout statements":                                                                                              "「本日」は組織のローカル日で、精算と支払い明細に一致します",
 	"Your net earnings today after the platform fee. Sourced from tracking_events. Resets at midnight of your organization's timezone. Advertiser-side Today's Spend shows the gross amount.": "プラットフォーム手数料控除後の本日の純収益です。tracking_events が情報源です。組織のタイムゾーンの深夜0時にリセットされます。広告主側の「本日の消化額」には総額が表示されます。",
 	"%s gross − %s platform fee (%s%%)": "総額 %s − プラットフォーム手数料 %s(%s%%)",

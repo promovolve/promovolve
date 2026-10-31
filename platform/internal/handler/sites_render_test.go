@@ -124,16 +124,6 @@ func TestSitesAndCreativesTemplatesRender(t *testing.T) {
 				{ID: "cr-2", Name: "Rendering", ActiveStatus: "Draft"},
 			},
 		}},
-		{"publisher/stats.html", pageData{
-			Title: "Stats", Nav: "stats", User: pub,
-			Sites:  []site{{ID: "s1", Domain: "site.example.com"}},
-			SiteID: "s1",
-			Stats: &publisherStats{
-				Impressions: 91, Requests: 1, FillRate: "100.0%",
-				Revenue: "0.08", GrossRevenue: "0.09", Fee: "0.01", FeePct: "15", ECPM: "0.84",
-				CreativesServed: 1, PendingCreatives: 2,
-			},
-		}},
 	}
 
 	for _, c := range cases {

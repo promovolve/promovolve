@@ -21,7 +21,7 @@ const shots = process.argv[2];
 // 1. Render the real pages through the Go preview tests.
 const previewDir = mkdtempSync(join(tmpdir(), "pv-print-"));
 execFileSync("go", ["test", "./internal/handler/", "-count=1", "-run",
-  "TestCampaignsForecastRenders|TestWalletForecastRenders|TestSitesAndCreativesTemplatesRender|TestBillingTemplatesRender|TestCreativeEditorTrayRenders|TestAdvertiserOverviewRenders"], {
+  "TestCampaignsForecastRenders|TestWalletForecastRenders|TestSitesAndCreativesTemplatesRender|TestBillingTemplatesRender|TestCreativeEditorTrayRenders|TestAdvertiserOverviewRenders|TestPublisherOverviewRenders"], {
   cwd: PLATFORM,
   env: { ...process.env, PREVIEW_OUT: previewDir },
   stdio: "inherit",
@@ -52,7 +52,7 @@ const check = (name, ok, detail = "") => {
   if (!ok) failures.push(name);
 };
 
-const PAGES = ["advertiser-forecast", "advertiser-wallet", "publisher-stats", "publisher-sites",
+const PAGES = ["advertiser-forecast", "advertiser-wallet", "publisher-overview", "publisher-overview-member", "publisher-sites",
   "admin-sites", "admin-billing", "advertiser-creatives", "editor",
   "advertiser-overview", "advertiser-overview-locked"];
 

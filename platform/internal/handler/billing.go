@@ -1268,16 +1268,9 @@ func (h *Handler) PublisherEarnings(w http.ResponseWriter, r *http.Request) {
 	}
 	ctx := r.Context()
 	publisherID := claims.PublisherID
-	data := &earningsPageData{Accrued: "0.00", LifetimePaid: "0.00"}
+	data := h.settledEarnings(ctx, publisherID)
 	if tz, err := h.orgRepo.TimezoneByEntity(ctx, publisherID); err == nil {
 		data.Timezone = tz
-	}
-
-	if acc, err := h.billingSvc.GetAccount(ctx, billing.OwnerPublisher, publisherID); err == nil {
-		data.Accrued = usd(acc.BalanceMicros)
-	}
-	if paid, err := h.billingSvc.LifetimePaid(ctx, publisherID); err == nil {
-		data.LifetimePaid = usd(paid)
 	}
 	if payouts, err := h.billingSvc.ListPayouts(ctx, publisherID, 20, 0); err == nil {
 		data.Payouts = toPayoutRows(payouts, user.Location())
@@ -1306,6 +1299,19 @@ func (h *Handler) PublisherEarnings(w http.ResponseWriter, r *http.Request) {
 		User:     user,
 		Earnings: data,
 	})
+}
+
+// settledEarnings is the balance owed and lifetime paid: the Earnings
+// page's headline, and the money figures on the publisher Overview.
+func (h *Handler) settledEarnings(ctx context.Context, publisherID string) *earningsPageData {
+	data := &earningsPageData{Accrued: "0.00", LifetimePaid: "0.00"}
+	if acc, err := h.billingSvc.GetAccount(ctx, billing.OwnerPublisher, publisherID); err == nil {
+		data.Accrued = usd(acc.BalanceMicros)
+	}
+	if paid, err := h.billingSvc.LifetimePaid(ctx, publisherID); err == nil {
+		data.LifetimePaid = usd(paid)
+	}
+	return data
 }
 
 func (h *Handler) UpdatePayoutMethod(w http.ResponseWriter, r *http.Request) {

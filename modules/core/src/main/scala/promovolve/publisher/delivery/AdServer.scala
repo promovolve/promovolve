@@ -289,6 +289,20 @@ object AdServer {
   val PageCapPenalty: Double = 0.3
 
   /**
+   * Batch-serve pre-filter: keep a candidate when at least one requested
+   * slot would accept it — that slot's admin override if it has one (the
+   * auctioneer admitted the bid under it), else the candidate's category
+   * floor. The picker then applies each slot's own floor.
+   */
+  def clearsAnySlotFloor(
+      c: CandidateView,
+      slots: Vector[Protocol.BatchSlotSpec],
+      categoryFloor: CPM,
+      adminSlotFloors: Map[SlotId, CPM]
+  ): Boolean =
+    slots.exists(s => c.cpm >= adminSlotFloors.getOrElse(s.slotId, categoryFloor))
+
+  /**
    * Greedy assignment of candidates to slots for batch serve.
    *
    * Algorithm:
@@ -3219,7 +3233,8 @@ private[delivery] class AdServer(
             lastCampaignSet = newCampaignSet
           ))
         } else {
-          val afterFloor = eligibleCandidates.filter(c => c.cpm >= categoryFloorFor(c.category))
+          val afterFloor = eligibleCandidates.filter(c =>
+            AdServer.clearsAnySlotFloor(c, slots, categoryFloorFor(c.category), adminSlotFloors))
           // Only short-circuit to "all empty" when nothing clears the floor
           // AND no slot carries a pin. If a pin is present we must still fall
           // through to batchReserveWithRetry: dog-ear pins bypass the floor

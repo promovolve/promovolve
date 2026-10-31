@@ -553,6 +553,8 @@ type pageData struct {
 	FloorObservations *floorObservationsData
 	// Publisher stats
 	Stats *publisherStats
+	// Publisher Overview: the selected site's top pages and ads, last 7 days
+	PubTop *publisherTop
 	// Advertiser
 	Campaigns []campaignData
 	AdvBudget *advertiserBudget

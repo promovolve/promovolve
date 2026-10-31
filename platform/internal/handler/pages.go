@@ -836,6 +836,13 @@ func (h *Handler) PublisherOverview(w http.ResponseWriter, r *http.Request) {
 		}
 	}
 
+	// The selected site's top pages and ads over the last 7 local days.
+	var top *publisherTop
+	if siteID != "" {
+		tz, _ := h.orgRepo.TimezoneByEntity(r.Context(), claims.PublisherID)
+		top = h.fetchSiteTop(siteID, tz, h.settingsSvc.CurrentMarginBps(r.Context()), claims)
+	}
+
 	var earnings *earningsPageData
 	if user.CanBilling() && h.billingSvc != nil {
 		earnings = h.settledEarnings(r.Context(), claims.PublisherID)
@@ -847,6 +854,7 @@ func (h *Handler) PublisherOverview(w http.ResponseWriter, r *http.Request) {
 		SiteID:   siteID,
 		Sites:    sites,
 		Stats:    stats,
+		PubTop:   top,
 		Earnings: earnings,
 	})
 }

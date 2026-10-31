@@ -375,8 +375,12 @@ object AdServer {
         // Pricing reads the posterior-MEAN side of CandidateScore (meanScore
         // / engagement), never the Thompson draws — sample for allocation,
         // price on means, so the same auction state clears at the same price.
+        // The runner-up is another CAMPAIGN: the winner's own second
+        // creative is not a competitor and would price it near its own bid.
         val bestLoserScore = sortedEligible.tail
-          .collectFirst { case (c, s) if c.category == winner.category => s.meanScore }
+          .collectFirst {
+            case (c, s) if c.category == winner.category && c.campaignId != winner.campaignId => s.meanScore
+          }
           .getOrElse(0.0)
         val clearing = ThompsonSampling.qualityAdjustedClearing(
           winnerEngagement = winnerScore.meanEngagement,
@@ -510,8 +514,12 @@ object AdServer {
       // IN ITS OWN category (cross-category runners-up never set the price),
       // clamped to the winner's category floor. Pricing reads the posterior-
       // MEAN side of CandidateScore, never the Thompson draws.
+      // The runner-up is another CAMPAIGN: the winner's own second
+      // creative is not a competitor and would price it near its own bid.
       val bestLoserScore = sorted.tail
-        .collectFirst { case (c, s) if c.category == winner.category => s.meanScore }
+        .collectFirst {
+          case (c, s) if c.category == winner.category && c.campaignId != winner.campaignId => s.meanScore
+        }
         .getOrElse(0.0)
       val clearing = ThompsonSampling.qualityAdjustedClearing(
         winnerEngagement = winnerScore.meanEngagement,

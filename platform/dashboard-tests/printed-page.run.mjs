@@ -46,6 +46,7 @@ await new Promise((r) => server.listen(0, r));
 const PORT = server.address().port;
 
 const failures = [];
+const innerHeightOf = page => page.viewportSize().height;
 const check = (name, ok, detail = "") => {
   console.log(`${ok ? "PASS" : "FAIL"}  ${name}${ok ? "" : `  ${detail}`}`);
   if (!ok) failures.push(name);
@@ -253,6 +254,23 @@ for (const theme of ["light", "dark"]) {
         const after = await tableTop();
         await page.evaluate(() => document.getElementById("budget")?.close());
         check(`${id}: budget-dialog`, open && before !== null && before === after, JSON.stringify({ open, before, after }));
+      }
+
+      // edit-focus: ?edit=<id> (Overview's Edit creatives) opens that row's
+      // edit panel, and only that one, and scrolls it into view.
+      if (name === "advertiser-forecast") {
+        await page.goto(`http://127.0.0.1:${PORT}/preview/${name}-${lang}.html?edit=c-09`, { waitUntil: "load" });
+        await page.waitForTimeout(800);
+        const r = await page.evaluate(() => {
+          const panels = [...document.querySelectorAll("[data-camp]")].map(el => {
+            const p = el.querySelector("[x-ref=editPanel]");
+            return { id: el.querySelector("[aria-controls]")?.getAttribute("aria-controls"), shown: p && p.offsetParent !== null, top: p?.getBoundingClientRect().top };
+          });
+          return { open: panels.filter(p => p.shown).map(p => p.id), top: panels.find(p => p.shown)?.top };
+        });
+        if (shots) await page.screenshot({ path: `${shots}/${name}-${lang}-${theme}-edit.png` });
+        check(`${id}: edit-focus`, r.open.length === 1 && r.open[0] === "camp-detail-c-09" && r.top >= 0 && r.top < innerHeightOf(page), JSON.stringify(r));
+        await page.goto(`http://127.0.0.1:${PORT}/preview/${name}-${lang}.html`, { waitUntil: "load" });
       }
 
       if (shots) await page.screenshot({ path: `${shots}/${name}-${lang}-${theme}.png`, fullPage: true });

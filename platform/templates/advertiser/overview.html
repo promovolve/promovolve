@@ -140,7 +140,7 @@
   <table class="data-table">
     <thead><tr>
       <th>{{t "Campaign"}}</th><th class="num">{{t "Impressions"}}</th><th class="num">{{t "Clicks"}}</th><th class="num">{{t "CTR"}}</th>
-      <th class="num">{{t "Spend"}}</th><th>{{t "Budget Used"}}</th><th class="num">{{t "eCPM"}}</th><th class="num">{{t "Lifetime spend"}}</th><th class="num">{{t "Max CPM"}}</th>
+      <th class="num">{{t "Spend"}}</th><th>{{t "Budget Used"}}</th><th class="num">{{t "eCPM"}}</th><th class="num">{{t "Lifetime spend"}}</th><th class="num">{{t "Max CPM"}}</th><th><span class="sr-only">{{t "Edit creatives"}}</span></th>
     </tr></thead>
     <tbody>
       {{range .Campaigns}}
@@ -154,6 +154,9 @@
         <td class="num">{{if .ECPM}}{{money .ECPM}}{{else}}&mdash;{{end}}</td>
         <td class="num">{{if .LifetimeSpend}}{{money .LifetimeSpend}}{{else}}&mdash;{{end}}</td>
         <td class="num">{{if .MaxCPM}}{{money .MaxCPM}}{{else}}&mdash;{{end}}</td>
+        {{/* Lands on this campaign's row in Campaigns with its edit panel
+             open; its Creatives link sits beside it. */}}
+        <td class="whitespace-nowrap"><a href="/advertiser/campaigns?edit={{.ID}}" class="btn btn-secondary btn-sm" data-edit-creatives>{{t "Edit creatives"}}</a></td>
       </tr>
       {{end}}
     </tbody>

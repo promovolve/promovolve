@@ -322,6 +322,7 @@ var ja = map[string]string{
 	"New Campaign": "新規キャンペーン",
 	"Account budget: %s/day (%s remaining, %s spent today)": "アカウント予算: %[1]s/日(残り %[2]s、本日消化 %[3]s)",
 	"Edit":                                "編集",
+	"Edit creatives":                      "クリエイティブ編集",
 	"Avg CTR":                             "平均CTR",
 	"Blocked Domains:":                    "ブロック中のドメイン:",
 	"None":                                "なし",

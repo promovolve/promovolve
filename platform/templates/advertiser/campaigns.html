@@ -326,7 +326,8 @@
     <span class="text-right">{{t "max CPM"}}</span><span></span>
   </div>
   {{range .Campaigns}}
-  <div class="bg-white border-b border-gray-200" x-data="{ open: false, editOpen: false }" data-camp data-status="{{.Status}}" data-alert="{{.Forecast.Alert}}"
+  <div class="bg-white border-b border-gray-200" x-data="{ open: false, editOpen: false }" data-camp
+       x-init="new URLSearchParams(location.search).get('edit') === '{{.ID}}' && $nextTick(() => $refs.editBtn.click())" data-status="{{.Status}}" data-alert="{{.Forecast.Alert}}"
        x-show="f === 'all' || (f === 'active' && $el.dataset.status === 'active') || (f === 'paused' && $el.dataset.status !== 'active') || (f === 'alerts' && $el.dataset.alert)">
     <div class="camp-row px-4 py-3">
       <span class="text-sm">{{if eq .Status "active"}}<span class="font-bold">{{t "Active"}}</span>{{else if eq .Status "paused"}}<span class="text-gray-500">{{t "Paused"}}</span>{{else}}<span class="text-gray-500">{{.Status}}</span>{{end}}</span>
@@ -364,7 +365,8 @@
              alone is NOT enough in Safari (WebKit hasn't laid the panel out
              yet and scrollIntoView no-ops); one rAF after nextTick
              guarantees a layout pass first. */}}
-        <button type="button" @click="editOpen = true; window.__scopeHintIn && __scopeHintIn($refs.editPanel); $nextTick(() => requestAnimationFrame(() => $refs.editPanel.scrollIntoView({ behavior: 'smooth', block: 'start' })))"
+        {{/* ?edit=<id> (Overview's "Edit creatives") clicks this on load. */}}
+        <button type="button" x-ref="editBtn" @click="editOpen = true; window.__scopeHintIn && __scopeHintIn($refs.editPanel); $nextTick(() => requestAnimationFrame(() => $refs.editPanel.scrollIntoView({ behavior: 'smooth', block: 'start' })))"
                 class="text-sm text-brand-ink hover:underline">{{t "Edit"}}</button>
       </div>
     </div>

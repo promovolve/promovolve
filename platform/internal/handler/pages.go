@@ -1434,6 +1434,7 @@ func (h *Handler) AdvertiserCampaigns(w http.ResponseWriter, r *http.Request) {
 	// the whole account, not the visible page.
 	totalCampaigns := len(campaigns)
 	sortCampaigns(campaigns, r.URL.Query().Get("sort"))
+	focusPage(r, campaigns, 10)
 	start, end, nav := buildListNav(r, len(campaigns), 10)
 	campaigns = campaigns[start:end]
 
@@ -4019,6 +4020,24 @@ func buildListNavParam(r *http.Request, total, pageSize int, pageParam string) (
 		nav.NextURL = mk(page + 1)
 	}
 	return
+}
+
+// focusPage points ?page at the page holding campaign ?edit=<id> (Overview's
+// "Edit creatives" link), so the row whose edit panel opens is on screen.
+// An explicit ?page wins; an unknown id leaves the page alone.
+func focusPage(r *http.Request, cs []campaignData, pageSize int) {
+	q := r.URL.Query()
+	id := q.Get("edit")
+	if id == "" || q.Get("page") != "" {
+		return
+	}
+	for i := range cs {
+		if cs[i].ID == id {
+			q.Set("page", strconv.Itoa(i/pageSize+1))
+			r.URL.RawQuery = q.Encode()
+			return
+		}
+	}
 }
 
 // sortCampaigns orders the campaigns list by the pulldown's key.

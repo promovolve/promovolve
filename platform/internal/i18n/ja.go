@@ -832,6 +832,7 @@ var ja = map[string]string{
 	"No — the campaign’s max CPM is below this site’s floor.":                                                                                                   "いいえ。キャンペーンの上限 CPM がこのサイトのフロアを下回っています。",
 	"No — the campaign is paused.":                              "いいえ。キャンペーンは一時停止中です。",
 	"No — the page’s category is on this campaign’s blocklist.": "いいえ。ページのカテゴリはこのキャンペーンのブロックリストにあります。",
+	"No — the campaign is outside its start and end dates.":     "いいえ。キャンペーンの開始日・終了日の期間外です。",
 	"No":                   "いいえ",
 	"Page categories:":     "ページのカテゴリ:",
 	"Page places:":         "ページの場所:",

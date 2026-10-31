@@ -451,7 +451,8 @@
                   <span x-show="!r.wouldBid && r.reason === 'BelowFloor'">{{t "No — the campaign’s max CPM is below this site’s floor."}}</span>
                   <span x-show="!r.wouldBid && r.reason === 'Paused'">{{t "No — the campaign is paused."}}</span>
                   <span x-show="!r.wouldBid && r.reason === 'CategoryBlocked'">{{t "No — the page’s category is on this campaign’s blocklist."}}</span>
-                  <span x-show="!r.wouldBid && !['UnknownSite','PageNotClassified','CategoryMismatch','PlaceNotAllowed','AudienceNotAllowed','SiteNotAllowed','BelowFloor','Paused','CategoryBlocked'].includes(r.reason)" x-text="'{{t "No"}} — ' + r.reason"></span>
+                  <span x-show="!r.wouldBid && r.reason === 'OutsideSchedule'">{{t "No — the campaign is outside its start and end dates."}}</span>
+                  <span x-show="!r.wouldBid && !['UnknownSite','PageNotClassified','CategoryMismatch','PlaceNotAllowed','AudienceNotAllowed','SiteNotAllowed','BelowFloor','Paused','CategoryBlocked','OutsideSchedule'].includes(r.reason)" x-text="'{{t "No"}} — ' + r.reason"></span>
                 </p>
                 <p class="text-gray-500" x-show="r.siteId">
                   {{t "Page categories:"}} <span x-text="r.pageCategoryNames && r.pageCategoryNames.length ? r.pageCategoryNames.join(', ') : '—'"></span>

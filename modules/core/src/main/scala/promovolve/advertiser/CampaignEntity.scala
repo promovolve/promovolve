@@ -760,9 +760,9 @@ object CampaignEntity {
             // Piggyback the timezone self-heal on the roll tick.
             refreshTimezoneFromAdvertiser()
             // Auto-flip Active → Ended when endAt has passed. This is a
-            // pure UI / housekeeping transition — canBid already returns
-            // false from isWithinSchedule regardless of status, so the
-            // serve path doesn't depend on this flip happening.
+            // pure UI / housekeeping transition — both bid paths (the book's
+            // quote and the live path's bidRejectReason) already refuse
+            // outside isWithinSchedule, so serving doesn't wait on this flip.
             val nowForEnd = nowOverride.getOrElse(Instant.now())
             val needsEndFlip = state.status == Status.Active && state.endAt.exists(nowForEnd.isAfter)
             if (needsEndFlip) {
@@ -2052,7 +2052,8 @@ object CampaignEntity {
 
   enum BidRejectReason:
     case Paused, CategoryMismatch, CategoryBlocked, SizeMismatch,
-      BelowFloor, BudgetExhausted, NoCreatives, SiteNotAllowed, AudienceNotAllowed, PlaceNotAllowed
+      BelowFloor, BudgetExhausted, NoCreatives, SiteNotAllowed, AudienceNotAllowed, PlaceNotAllowed,
+      OutsideSchedule
 
   /** Record spend (buffered, flushed periodically) */
   final case class RecordSpend(
@@ -2375,6 +2376,7 @@ object CampaignEntity {
     ): Option[BidRejectReason] = {
       val isFillerOptIn = pageCategory == CategoryId.Filler && bidOnUnmatchedContext
       if (status != Status.Active) Some(BidRejectReason.Paused)
+      else if (!isWithinSchedule(Instant.now())) Some(BidRejectReason.OutsideSchedule)
       else if (siteAllowlist.nonEmpty && !siteAllowlist.contains(siteId.value)) Some(BidRejectReason.SiteNotAllowed)
       else if (!audienceAdmits(
           audienceTargeting, siteAudience, requireVerifiedAudience, siteAudienceVerified))

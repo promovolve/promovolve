@@ -245,6 +245,18 @@ for (const theme of ["light", "dark"]) {
         check(`${id}: overview-beside`, !!ov && ov.beside && ov.topGap <= 4, JSON.stringify(ov));
       }
 
+      // on-image-chip: a label drawn over a creative (bg-black/*) keeps
+      // white text in both themes; the theme's "white" is a dark surface
+      // in dark mode, which made "Preview creative" unreadable.
+      {
+        const chips = () => [...document.querySelectorAll('[class*="bg-black/"]')]
+          .filter(el => [...el.classList].some(c => c.startsWith("bg-black/")));
+        const bad = await page.evaluate(`(${chips})().filter(el => getComputedStyle(el).color !== "rgb(255, 255, 255)")
+          .map(el => el.textContent.trim().slice(0, 30) + " " + getComputedStyle(el).color)`);
+        const n = await page.evaluate(`(${chips})().length`);
+        if (n) check(`${id}: on-image-chip`, bad.length === 0, JSON.stringify(bad));
+      }
+
       // budget-dialog: Change budget opens a modal; nothing under it moves.
       if (name === "advertiser-overview") {
         const tableTop = () => page.evaluate(() => document.querySelector(".data-table")?.getBoundingClientRect().top ?? null);

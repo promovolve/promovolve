@@ -2,11 +2,11 @@
 <!-- Header -->
 <div class="flex items-center justify-between mb-6">
   <div>
-    <h1 class="page-title">{{t "Site Statistics"}}</h1>
+    <h1 class="page-title">{{t "Overview"}}</h1>
     <p class="page-sub">{{t "\"Today\" is your organization's local day, matching settlement and your payout statements"}}</p>
   </div>
   {{if .Sites}}
-  <form method="GET" action="/publisher/stats">
+  <form method="GET" action="/publisher/overview">
     <select name="siteId" onchange="this.form.submit()" class="form-input" aria-label="{{t "Site"}}">
       {{range .Sites}}
       <option value="{{.ID}}" {{if eq .ID $.SiteID}}selected{{end}}>{{if .Domain}}{{.Domain}}{{else}}{{.ID}}{{end}}</option>
@@ -24,7 +24,8 @@
 {{else}}
 <!-- Headline metrics — all three share the same persistent local-midnight
      window (tracking_events), so they always reconcile with each other. -->
-<section aria-labelledby="today-h" class="mb-4">
+<div class="grid gap-x-10 gap-y-6 mb-8 lg:grid-cols-3">
+<section aria-labelledby="today-h" class="lg:col-span-2 min-w-0">
   <h2 id="today-h" class="sr-only">{{t "Today"}}</h2>
   <div class="flex flex-wrap items-baseline gap-x-4 gap-y-1" title="{{t "Your net earnings today after the platform fee. Sourced from tracking_events. Resets at midnight of your organization's timezone. Advertiser-side Today's Spend shows the gross amount."}}">
     <p class="figure-lead text-5xl font-bold tracking-tight tabular leading-none">{{money .Stats.Revenue}}</p>
@@ -37,15 +38,37 @@
     · <strong>{{.Stats.CreativesServed}}</strong> {{t "creatives served"}}
     · <strong>{{.Stats.PendingCreatives}}</strong> {{t "awaiting your review"}}{{if .Stats.PendingCreatives}} — <a href="/publisher/approval{{if .SiteID}}?siteId={{.SiteID}}{{end}}" class="text-brand-ink hover:underline">{{t "Review now"}}</a>{{end}}
   </p>
+  <!-- Session diagnostics: in-memory serveStats, scoped to the current cluster
+       session (resets on every restart/deploy), so they are shown as a muted
+       footnote rather than headline tiles a publisher would compare against
+       Impressions Today. -->
+  <p class="mt-4 text-xs text-gray-500" title="{{t "From in-memory serve stats since the last cluster restart — a different scope than the day-scoped tiles above. tracking_events doesn't log no-candidate batches, so true daily fill rate can't be derived from the persistent store."}}">
+    {{if eq .Stats.Requests 1}}{{t "Since last restart: 1 serve request · %s fill rate" .Stats.FillRate}}{{else}}{{t "Since last restart: %d serve requests · %s fill rate" .Stats.Requests .Stats.FillRate}}{{end}}
+  </p>
 </section>
+{{template "settled-money" $}}
+</div>
 
-<!-- Session diagnostics: in-memory serveStats, scoped to the current cluster
-     session (resets on every restart/deploy), so they are shown as a muted
-     footnote rather than headline tiles a publisher would compare against
-     Impressions Today. -->
-<p class="text-xs text-gray-500 mb-8" title="{{t "From in-memory serve stats since the last cluster restart — a different scope than the day-scoped tiles above. tracking_events doesn't log no-candidate batches, so true daily fill rate can't be derived from the persistent store."}}">
-  {{if eq .Stats.Requests 1}}{{t "Since last restart: 1 serve request · %s fill rate" .Stats.FillRate}}{{else}}{{t "Since last restart: %d serve requests · %s fill rate" .Stats.Requests .Stats.FillRate}}{{end}}
-</p>
+{{end}}
+{{if not .Stats}}{{template "settled-money" $}}{{end}}
+{{end}}
 
+{{/* The settled balance beside today's live figures: what Earnings
+     itemizes, for the org admins who can open it (moneyPages). */}}
+{{define "settled-money"}}
+{{if and .User.CanBilling .Earnings}}
+<div data-overview-money>
+  <dl class="figures grid-cols-2 lg:grid-cols-1">
+    <div class="figure col-span-2 lg:col-span-1" title="{{t "Settled net earnings not yet paid out"}}">
+      <dt>{{t "Balance owed"}}</dt>
+      <dd class="figure-lead">{{money .Earnings.Accrued}}</dd>
+    </div>
+    <div class="figure">
+      <dt>{{t "Lifetime paid"}}</dt>
+      <dd>{{money .Earnings.LifetimePaid}}</dd>
+    </div>
+  </dl>
+  <p class="pt-3 text-sm"><a href="/publisher/earnings" class="text-brand-ink">{{t "Earnings & payouts"}}</a></p>
+</div>
 {{end}}
 {{end}}

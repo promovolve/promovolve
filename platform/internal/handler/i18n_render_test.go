@@ -35,7 +35,7 @@ func TestI18nSweptPagesRenderBothLangs(t *testing.T) {
 			Report: &reportPageData{From: "2026-06-30", To: "2026-07-06", Preset: "custom", Presets: reportPresets("/advertiser/report", time.UTC)}}},
 		{"publisher/trusted.html", pageData{Title: "Trusted Advertisers", User: user}},
 		{"publisher/earnings.html", pageData{Title: "Earnings", User: user}},
-		{"publisher/stats.html", pageData{Title: "Stats", User: user}},
+		{"publisher/overview.html", pageData{Title: "Overview", User: user}},
 		{"publisher/approval.html", pageData{Title: "Approval", User: user}},
 		{"admin/requests.html", pageData{Title: "Account Requests", User: user}},
 		{"admin/sites.html", pageData{Title: "Site Requests", User: user}},

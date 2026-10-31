@@ -94,10 +94,10 @@
            class="hidden data-[open=true]:flex flex-col absolute top-full inset-x-0 bg-field px-2 pb-3 border-b border-gray-300
                   lg:flex lg:flex-row lg:static lg:p-0 lg:border-0 lg:min-w-0 lg:overflow-x-auto">
         {{if eq .User.Role "publisher"}}
+        <a href="/publisher/overview" class="nav-tab" {{if eq .Nav "overview"}}aria-current="page"{{end}}>{{t "Overview"}}</a>
         <a href="/publisher/approval" class="nav-tab" {{if eq .Nav "approval"}}aria-current="page"{{end}}>{{t "Approval Queue"}}</a>
         <a href="/publisher/trusted" class="nav-tab" {{if eq .Nav "trusted"}}aria-current="page"{{end}}>{{t "Trusted Advertisers"}}</a>
         <a href="/publisher/sites" class="nav-tab" {{if eq .Nav "sites"}}aria-current="page"{{end}}>{{t "Sites"}}</a>
-        <a href="/publisher/stats" class="nav-tab" {{if eq .Nav "stats"}}aria-current="page"{{end}}>{{t "Stats"}}</a>
         {{if .User.CanBilling}}
         <a href="/publisher/earnings" class="nav-tab" {{if eq .Nav "earnings"}}aria-current="page"{{end}}>{{t "Earnings"}}</a>
         {{end}}

@@ -87,4 +87,4 @@ done
 echo ""
 echo "=== done ==="
 echo "Observation data wiped. Campaigns/creatives/sites preserved."
-echo "Refresh /publisher/stats and /publisher/sites/<id>/observations — should show zeros."
+echo "Refresh /publisher/overview and /publisher/sites/<id>/observations — should show zeros."

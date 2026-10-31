@@ -2,7 +2,8 @@
 <div class="flex items-center justify-center min-h-screen bg-gray-50">
   <div class="w-full max-w-lg p-8">
     <h1 class="text-3xl font-semibold text-center mb-2">Promovolve</h1>
-    <p class="text-gray-500 text-center mb-10">{{t "Content-based ad serving platform"}}</p>
+    <p class="text-center mb-10"><span class="block text-gray-900">{{t "Ads delivered to pages, not people."}}</span>
+      <span class="block text-sm text-gray-500 mt-1">{{t "An open-source ad serving platform."}}</span></p>
 
     {{if .Error}}
     <div class="notice notice-error p-3 mb-6 text-sm" data-lead="{{t "Error:"}}">{{.Error}}</div>

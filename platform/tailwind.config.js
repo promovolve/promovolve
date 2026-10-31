@@ -49,6 +49,9 @@ module.exports = {
           soft: 'rgb(var(--c-field) / <alpha-value>)',
         },
         'on-brand': 'rgb(var(--c-on-brand) / <alpha-value>)',
+        /* Text on a dark scrim over a creative: white in BOTH themes, since
+           the photo under it doesn't change with the theme. */
+        'on-image': 'rgb(255 255 255 / <alpha-value>)',
         field: 'rgb(var(--c-field) / <alpha-value>)',
         /* Intensity scale: seven grey tints (CSS variables, so the dark
            theme can run light-for-more). ONLY for intensity data (spend or

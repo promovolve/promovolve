@@ -101,14 +101,14 @@ observation window from the latest per-category auction report
 
 ## Admission: how a floor reaches a bid request
 
-The floor a campaign is asked to beat is
-`effectiveFloor = categoryFloor × min(1.0, 0.5 + slotQuality)` — the
-slot-quality prior is **discount-only** (0.5×–1.0×): a weak slot may price
-below the category floor to attract fill; a premium slot never surcharges
-above it. Consequence: the effective floor is always ≤ the raw floor,
-which is always ≤ the observed bids — the system cannot ask bidders to
-beat a price derived from their own bids plus a markup. Categories with no
-learned floor fall back to the site-level sweep floor under the same rule.
+The floor a campaign is asked to beat is the slot's admin override if it
+has one, otherwise the category's learned floor, otherwise the site-level
+sweep floor. Serving checks the same floor. The slot-quality prior does
+not scale it: a discounted admission floor (0.5×–1.0×, until 2026-11) let
+in bids that serving, which checks the raw floor, refused on every
+request, and those admitted-but-unservable bids kept the zero-servable
+collapse and the FLOOR-BLOCKED warning from firing. The effective floor is
+always ≤ the observed bids, because the raw floor already is.
 
 ## Observability
 

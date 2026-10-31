@@ -2197,31 +2197,18 @@ object SiteEntity {
   ) extends promovolve.CborSerializable
 
   /**
-   * Per-slot effective floor: explicit override wins; otherwise the
-   * site floor is scaled by the crawler prior's qualityScore into a
-   * 0.5x..1.0x band; absent a prior, fall through to the site floor.
+   * Per-slot admission floor: the admin override, else the raw floor.
    *
-   * DISCOUNT-ONLY (capped at 1.0x): the prior may lower the floor on weak
-   * slots but never surcharge premium ones. The old 0.5x..1.5x band let a
-   * quality prior lift the EFFECTIVE floor above every bid that the floor
-   * system itself had learned from — the learned floors honor the
-   * "never above the observed bids" ceiling, but that ceiling is checked
-   * on the RAW floor, and a 1.275x surcharge silently re-broke it one
-   * level up: category floors ratcheted to bid level (monopoly rule),
-   * admission then asked bid×1.275, every bidder rejected itself, revenue
-   * pinned at zero, and the sweep froze there (live 2026-07-24, tech/food
-   * categories). With the cap, effective ≤ raw ≤ observed-bid ceiling —
-   * the invariant holds at the layer auctions actually use.
+   * The slot's quality prior does NOT scale it. A discounted admission
+   * floor (0.5x..1.0x by quality, until 2026-11) let in bids that serving,
+   * which always checks the raw floor, then refused on every request; and
+   * because they counted as admitted, the zero-servable floor collapse and
+   * the FLOOR-BLOCKED warning never fired. The prior still ranks slots for
+   * reporting (priorQualityScore). An earlier 1.5x surcharge was worse: it
+   * priced out the whole field (live 2026-07-24).
    */
   def effectiveFloor(slot: AdSlotConfig, siteFloor: CPM): CPM =
-    slot.floorOverride match {
-      case Some(cpm) => cpm
-      case None      =>
-        slot.prior match {
-          case Some(p) => siteFloor * math.min(1.0, 0.5 + p.qualityScore)
-          case None    => siteFloor
-        }
-    }
+    slot.floorOverride.getOrElse(siteFloor)
 
   /** Configuration for a site's crawler and taxonomy analysis */
   /**

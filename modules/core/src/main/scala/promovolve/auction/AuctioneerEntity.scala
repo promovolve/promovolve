@@ -1503,8 +1503,7 @@ private final class AuctioneerEntity private (
         //   1. Admin override   (publisher escape hatch — adminSlotFloorOverrides)
         //   2. Admin override carried on the AdSlotSpec (path used by
         //      the external classify-page endpoint; equivalent source)
-        //   3. Site floor scaled by crawler prior
-        //   4. Site floor
+        //   3. The category's learned floor, else the site floor
         val adminOverride = adminSlotFloorOverrides.get(slot.slotId)
           .orElse(slot.floorOverride)
         // Remember the spec-carried override (or its absence) so
@@ -1516,8 +1515,8 @@ private final class AuctioneerEntity private (
           case None    => slotSpecAdminFloors - slot.slotId
         }
         // Per-category effective floor: the category's learned floor (or the
-        // site floor when absent) scaled by the slot's quality prior. The
-        // admin override still takes precedence inside `effectiveFloor`.
+        // site floor when absent). The admin override takes precedence
+        // inside `effectiveFloor`; the slot's quality prior does not scale it.
         def floorForCategory(category: String): CPM =
           SiteEntity.effectiveFloor(
             SiteEntity.AdSlotConfig(

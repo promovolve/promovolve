@@ -61,6 +61,12 @@ func TestAdvertiserOverviewRenders(t *testing.T) {
 			if dlg := strings.Index(out, `<dialog id="budget"`); dlg < 0 || !strings.Contains(out[dlg:], `action="/advertiser/budget"`) {
 				t.Errorf("%s %s: no budget form in a dialog on Overview", c.name, tlang)
 			}
+			// Each campaign row links to its edit panel on Campaigns.
+			for _, cd := range c.data.Campaigns {
+				if !strings.Contains(out, `href="/advertiser/campaigns?edit=`+cd.ID+`"`) {
+					t.Errorf("%s %s: no Edit creatives link for %s", c.name, tlang, cd.ID)
+				}
+			}
 			if strings.Contains(out, `href="/advertiser/account"`) {
 				t.Errorf("%s %s: still links to the Account page", c.name, tlang)
 			}

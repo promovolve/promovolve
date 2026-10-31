@@ -41,10 +41,14 @@ func TestAdvertiserOverviewRenders(t *testing.T) {
 		AdvBudget:     &advertiserBudget{DailyBudget: "0.00", SpendToday: "0.00", Remaining: "0.00", IsZero: true},
 		WalletBalance: "$0.00", WalletUnfunded: true,
 	}
+	// An admin viewing as that unfunded advertiser: the budget dialog
+	// auto-opens over the Exit view banner, so its Cancel must still work.
+	viewAs := locked
+	viewAs.User = &model.User{Email: "adv@test", Role: model.RoleAdvertiser, ViewAsBy: "admin@test"}
 	for _, c := range []struct {
 		name string
 		data pageData
-	}{{"advertiser-overview", funded}, {"advertiser-overview-locked", locked}} {
+	}{{"advertiser-overview", funded}, {"advertiser-overview-locked", locked}, {"advertiser-overview-viewas", viewAs}} {
 		for _, tlang := range []string{i18n.LangEN, i18n.LangJA} {
 			var sb strings.Builder
 			if err := getPage(tlang, "advertiser/overview.html").ExecuteTemplate(&sb, "layout", c.data); err != nil {

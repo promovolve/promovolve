@@ -59,8 +59,10 @@
        below makes that visible up front by inerting every mutating control
        (POST forms + htmx triggers) except the session's own (exit,
        side-switch), so the operator sees "disabled", not a 403. */}}
+  {{/* type="button" (a dialog's Cancel/Close) submits nothing: leave it
+       live, or an auto-opened modal covers the Exit view link for good. */}}
   <style>
-    form[method="post" i]:not([data-viewas-allowed]) button,
+    form[method="post" i]:not([data-viewas-allowed]) button:not([type="button"]),
     form[method="post" i]:not([data-viewas-allowed]) input,
     form[method="post" i]:not([data-viewas-allowed]) select,
     form[method="post" i]:not([data-viewas-allowed]) textarea,

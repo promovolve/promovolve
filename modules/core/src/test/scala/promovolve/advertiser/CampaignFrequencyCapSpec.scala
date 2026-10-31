@@ -22,7 +22,7 @@ import scala.concurrent.duration.*
  * CampaignEntity (DurableStateBehavior on the persistence-testkit state
  * plugin) — set, no-change, clear — read back through GetCampaign. This is
  * the first spec to drive UpdateConfig end to end; the scaffold mirrors
- * CampaignEntityRolloverSpec (advertiser stub ignores everything, directory
+ * CampaignEntityRolloverSpec (advertiser stub answers only the warm-up, directory
  * ignores everything — a paused campaign never registers anyway).
  */
 class CampaignFrequencyCapSpec extends AnyWordSpec with Matchers with BeforeAndAfterAll {
@@ -91,11 +91,26 @@ class CampaignFrequencyCapSpec extends AnyWordSpec with Matchers with BeforeAndA
   cluster.manager ! Join(cluster.selfMember.address)
   lazy val sharding: ClusterSharding = ClusterSharding(testKit.system)
 
-  sharding.init(Entity(AdvertiserEntity.TypeKey)(_ =>
-    Behaviors.receiveMessage[AdvertiserEntity.Command | AdvertiserEntity.DDataUpdateResponse] { _ =>
-      Behaviors.same
+  sharding.init(Entity(AdvertiserEntity.TypeKey)(entityCtx =>
+    Behaviors.receiveMessage[AdvertiserEntity.Command | AdvertiserEntity.DDataUpdateResponse] {
+      case AdvertiserEntity.GetTimezone(replyTo) if entityCtx.entityId == "warm-up" =>
+        replyTo ! AdvertiserEntity.AdvertiserTimezone(AdvertiserId("warm-up"), "UTC")
+        Behaviors.same
+      case _ =>
+        Behaviors.same
     }
   ))
+
+  // Don't start until the shard coordinator answers. Every campaign tells the
+  // advertiser entity on recovery and on each spend flush; if the suite ends
+  // before this one-node cluster is Up (a busy CI JVM), the node leaves without
+  // ever starting the coordinator, those messages sit in the region's buffer,
+  // and graceful shutdown waits them out past shutdownTestKit's 10 seconds.
+  locally {
+    val probe = testKit.createTestProbe[AdvertiserEntity.AdvertiserTimezone]()
+    sharding.entityRefFor(AdvertiserEntity.TypeKey, "warm-up") ! AdvertiserEntity.GetTimezone(probe.ref)
+    probe.receiveMessage(20.seconds)
+  }
 
   private val directory: ActorRef[CampaignDirectory.Command] =
     testKit.spawn(Behaviors.ignore[CampaignDirectory.Command])

@@ -48,7 +48,8 @@ class RunnerUpOtherCampaignSpec extends AnyWordSpec with Matchers {
   "batchAssign" should {
     "price the winner against the best OTHER campaign, not its own second creative" in {
       val view = ServeView(pool, version = 1L, expiresAtMs = Long.MaxValue)
-      val outcomes = AdServer.batchAssign(view, Vector(slot), siteFloor, Set.empty, 0.5, stats, new scala.util.Random(7L))
+      val outcomes =
+        AdServer.batchAssign(view, Vector(slot), siteFloor, Set.empty, 0.5, stats, new scala.util.Random(7L))
       outcomes.head.winner.map(_.campaignId) shouldBe Some(CampaignId("A"))
       outcomes.head.clearingPrice.toDouble should be < 3.0
     }

@@ -87,7 +87,7 @@
                   <form method="POST" action="/admin/view-as" class="flex items-center gap-3 flex-wrap">
                     <input type="hidden" name="userId" value="{{.ViewAsUserID}}">
                     <button type="submit" class="btn btn-secondary btn-sm"
-                            title="{{t "Open a read-only session as an admin of %s" .Domain}}">{{t "View as"}}</button>
+                            title="{{t "Open a read-only session as an admin of %s" .Domain}}">{{t "View"}}</button>
                     <span class="text-xs text-gray-500">{{t "Read-only session as an admin — see their dashboard."}}</span>
                   </form>
                   {{else}}

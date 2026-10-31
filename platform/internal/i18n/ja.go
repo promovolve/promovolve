@@ -516,19 +516,12 @@ var ja = map[string]string{
 	"No settled charges yet.": "精算済みの請求はまだありません。",
 
 	// ── account ──
-	"Manage your advertiser account settings":               "広告主アカウントの設定を管理します",
 	"Set your daily budget to start advertising":            "日予算を設定して広告を始めましょう",
 	"Your campaigns won't run until a daily budget is set.": "日予算を設定するまでキャンペーンは配信されません。",
 	"Wallet balance":     "ウォレット残高",
 	"Wallet & statement": "ウォレットと明細",
-	"Your wallet is unfunded. The daily budget only paces delivery — impressions are paid from the wallet, and serving pauses while it's at zero. Contact the platform operator to top up.": "ウォレットに入金がありません。日予算は配信ペースを制御するだけで、インプレッションの支払いはウォレットから行われます。残高がゼロの間、配信は停止します。チャージについてはプラットフォーム運営者にお問い合わせください。",
-	"Impressions are paid from this balance; the daily budget paces how fast it spends.":                                                                                                    "インプレッションはこの残高から支払われます。日予算は消化の速さを制御します。",
-	"Maximum amount spent per day across all campaigns":                                                                                                                                     "全キャンペーン合計での1日あたり最大消化額",
-	"Current Daily Budget": "現在の日予算",
-	"Spent Today":          "本日の消化額",
-	"Remaining Today":      "本日の残り",
-	"New Daily Budget":     "新しい日予算",
-	"Update Budget":        "予算を更新",
+	"New Daily Budget":   "新しい日予算",
+	"Update Budget":      "予算を更新",
 	// ── Campaign Budget Optimization ──
 	"Budget mode": "予算モード",
 	"Manual":      "手動",

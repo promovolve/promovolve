@@ -45,7 +45,8 @@
     {{end}}
   </div>
 
-  <dl class="figures grid-cols-2 lg:grid-cols-1" data-overview-money>
+  <div data-overview-money>
+  <dl class="figures grid-cols-2 lg:grid-cols-1">
     {{if .User.CanBilling}}
     <div class="figure col-span-2 lg:col-span-1">
       <dt>{{t "Wallet balance"}}</dt>
@@ -66,11 +67,58 @@
       <dd>{{money .AdvBudget.Remaining}}</dd>
     </div>
     {{end}}
-    <div class="col-span-2 lg:col-span-1 pt-3 text-sm flex flex-wrap gap-x-4 gap-y-1">
-      <a href="/advertiser/account" class="text-brand-ink">{{if and .AdvBudget .AdvBudget.IsZero}}{{t "Set budget"}}{{else}}{{t "Change budget"}}{{end}}</a>
-      {{if .User.CanBilling}}<a href="/advertiser/wallet" class="text-brand-ink">{{t "Wallet & statement"}}</a>{{end}}
-    </div>
   </dl>
+    {{$unset := or (not .AdvBudget) .AdvBudget.IsZero}}
+    {{$mode := "manual"}}{{if .AdvBudget}}{{if eq .AdvBudget.BudgetMode "optimized"}}{{$mode = "optimized"}}{{end}}{{end}}
+    <p class="pt-3 text-sm flex flex-wrap gap-x-4 gap-y-1">
+      <button type="button" data-budget-open onclick="document.getElementById('budget').showModal()"
+              class="text-gray-900 underline underline-offset-2 hover:no-underline">{{if $unset}}{{t "Set budget"}}{{else}}{{t "Change budget"}}{{end}}</button>
+      {{if .User.CanBilling}}<a href="/advertiser/wallet" class="text-brand-ink">{{t "Wallet & statement"}}</a>{{end}}
+    </p>
+    {{/* The account budget form (this used to be the Account page), in a
+         dialog so opening it never pushes the page down. Opened directly
+         via #budget (the Campaigns page's Edit link and its no-budget
+         redirect). */}}
+    <dialog id="budget" aria-labelledby="budget-h" class="p-0 rounded-sm shadow-2xl backdrop:bg-black/60 bg-white text-gray-900 w-[min(32rem,92vw)]">
+      <form method="POST" action="/advertiser/budget" class="p-6 space-y-4 text-sm">
+        <h2 id="budget-h" class="section-title">{{t "Daily budget"}}</h2>
+        {{if $unset}}<div>
+          <p class="font-bold text-gray-900">{{t "Set your daily budget to start advertising"}}</p>
+          <p class="text-gray-700 mt-1">{{t "Your campaigns won't run until a daily budget is set."}}</p>
+        </div>{{end}}
+        <div>
+          <label for="overview-dailybudget" class="form-label">{{t "New Daily Budget"}}</label>
+          <div class="flex items-center gap-2">
+            <span class="text-gray-500">{{sym}}</span>
+            <input id="overview-dailybudget" type="number" name="dailyBudget" required step="{{moneystep}}" min="0"
+                   value="{{if .AdvBudget}}{{.AdvBudget.DailyBudget}}{{end}}"
+                   placeholder="{{moneyhint 500.0}}"
+                   class="form-input w-40">
+          </div>
+        </div>
+        <fieldset>
+          <legend class="form-label">{{t "Budget mode"}}</legend>
+          <div class="flex items-center gap-4">
+            <label class="flex items-center gap-2 cursor-pointer">
+              <input type="radio" name="budgetMode" value="manual" {{if ne $mode "optimized"}}checked{{end}}>
+              <span>{{t "Manual"}}</span>
+            </label>
+            <label class="flex items-center gap-2 cursor-pointer">
+              <input type="radio" name="budgetMode" value="optimized" {{if eq $mode "optimized"}}checked{{end}}>
+              <span>{{t "Optimized"}}</span>
+            </label>
+          </div>
+        </fieldset>
+        <p class="text-xs text-gray-500">{{t "Changes apply immediately. Today's spend is not reset."}}</p>
+        <p class="text-xs text-gray-500">{{t "Manual: every campaign keeps its own daily budget and the account budget is a hard cap on all of them. Optimized: the account budget is re-split every few minutes across all live campaigns, toward the ones earning the most tap-throughs per unit of spend; no campaign drops below a fifth of its equal share. It needs at least two live campaigns; below that it does nothing."}}</p>
+        <div class="flex items-center gap-4 pt-2">
+          <button type="submit" class="btn btn-primary">{{t "Update Budget"}}</button>
+          <button type="button" onclick="this.closest('dialog').close()" class="text-gray-900 underline underline-offset-2 hover:no-underline">{{t "Cancel"}}</button>
+        </div>
+      </form>
+    </dialog>
+    <script>if (location.hash === '#budget') document.getElementById('budget').showModal();</script>
+  </div>
 </div>
 
 {{if .WalletLocked}}

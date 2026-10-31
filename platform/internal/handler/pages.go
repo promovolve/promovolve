@@ -1117,7 +1117,7 @@ func (h *Handler) AdvertiserCampaigns(w http.ResponseWriter, r *http.Request) {
 			BudgetMode:  advResp.BudgetMode,
 		}
 		if advBudget.IsZero {
-			http.Redirect(w, r, "/advertiser/account", http.StatusSeeOther)
+			http.Redirect(w, r, "/advertiser/overview#budget", http.StatusSeeOther)
 			return
 		}
 	}
@@ -1709,46 +1709,6 @@ func (h *Handler) advertiserBudgetFor(claims *model.Claims) *advertiserBudget {
 	}
 }
 
-func (h *Handler) AdvertiserAccount(w http.ResponseWriter, r *http.Request) {
-	user, claims := h.sessionUser(r)
-	if user == nil {
-		http.Redirect(w, r, "/login", http.StatusSeeOther)
-		return
-	}
-
-	advBudget := h.advertiserBudgetFor(claims)
-	budgetUnset := advBudget == nil || advBudget.IsZero
-
-	noCampaigns := true
-	if !budgetUnset {
-		campsBody, _ := h.coreGet("/v1/advertisers/me/campaigns?limit=1", claims)
-		var campsResp struct {
-			Data []json.RawMessage `json:"data"`
-		}
-		if json.Unmarshal(campsBody, &campsResp) == nil {
-			noCampaigns = len(campsResp.Data) == 0
-		}
-	}
-
-	// The embedded wallet summary is money-page content: org members see
-	// budget (pacing) but the balance stays with the org's admins.
-	walletBalance, walletUnfunded := "", false
-	if user.CanBilling() {
-		walletBalance, walletUnfunded = h.walletSummary(r.Context(), claims.AdvertiserID)
-	}
-	h.render(w, r, "advertiser/account.html", pageData{
-		Title:          "Account",
-		Nav:            "account",
-		User:           user,
-		AdvBudget:      advBudget,
-		BudgetUnset:    budgetUnset,
-		NoCampaigns:    noCampaigns,
-		WalletNotice:   h.walletNotice(r.Context(), claims.AdvertiserID),
-		WalletBalance:  walletBalance,
-		WalletUnfunded: walletUnfunded,
-	})
-}
-
 func (h *Handler) SetAdvertiserBudget(w http.ResponseWriter, r *http.Request) {
 	_, claims := h.sessionUser(r)
 	if claims == nil {
@@ -1766,7 +1726,7 @@ func (h *Handler) SetAdvertiserBudget(w http.ResponseWriter, r *http.Request) {
 	h.corePut("/v1/advertisers/me/budget", claims, string(body))
 	redirect := r.Referer()
 	if redirect == "" {
-		redirect = "/advertiser/campaigns"
+		redirect = "/advertiser/overview"
 	}
 	http.Redirect(w, r, redirect, http.StatusSeeOther)
 }

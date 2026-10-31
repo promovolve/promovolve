@@ -14,7 +14,7 @@ func TestOpenWhileUnfunded(t *testing.T) {
 	for path, want := range map[string]bool{
 		"/advertiser/overview":             true,
 		"/advertiser/stats":                false, // renamed; no longer a page
-		"/advertiser/account":              true,
+		"/advertiser/account":              false, // folded into Overview
 		"/advertiser/budget":               true,
 		"/advertiser/wallet":               true,
 		"/advertiser/help":                 true,

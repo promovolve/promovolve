@@ -365,7 +365,6 @@ func main() {
 
 	// Advertiser pages (role-guarded)
 	adv := func(fn http.HandlerFunc) http.HandlerFunc { return h.RoleGuard("advertiser", fn) }
-	mux.HandleFunc("GET /advertiser/account", adv(h.AdvertiserAccount))
 	mux.HandleFunc("GET /advertiser/campaigns", adv(h.AdvertiserCampaigns))
 	mux.HandleFunc("GET /advertiser/market-rates-hint", adv(h.MarketRatesHint))
 	mux.HandleFunc("GET /advertiser/category-availability", adv(h.CategoryAvailability))

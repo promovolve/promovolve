@@ -162,6 +162,11 @@
     .camp-row > .span { grid-column: auto; }
   }
 
+  /* Creative editor (advertiser/creative-editor.html): numbered form
+     sections under rules, the heading in a left column from lg up. */
+  .editor-section { @apply border-t border-gray-300 py-6 lg:grid lg:grid-cols-[13rem_minmax(0,1fr)] lg:gap-x-8; }
+  .editor-heading { @apply font-serif text-xl font-bold mb-3 lg:mb-0; }
+
   /* Top-bar navigation (layout.html). Horizontal tabs from lg up; a
      stacked list in the menu panel below that. */
   .nav-tab { @apply flex items-center px-3 py-2 text-sm text-gray-600 whitespace-nowrap hover:text-gray-900

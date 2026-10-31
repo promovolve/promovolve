@@ -120,7 +120,6 @@
         {{if .User.CanBilling}}
         <a href="/advertiser/wallet" class="nav-tab" {{if eq .Nav "wallet"}}aria-current="page"{{end}}>{{t "Wallet"}}</a>
         {{end}}
-        <a href="/advertiser/account" class="nav-tab" {{if eq .Nav "account"}}aria-current="page"{{end}}>{{t "Account"}}</a>
         <a href="/advertiser/help" class="nav-tab" {{if eq .Nav "help"}}aria-current="page"{{end}}>{{t "Help"}}</a>
         {{else if eq .User.Role "admin"}}
         <a href="/admin/requests" class="nav-tab" {{if eq .Nav "admin-requests"}}aria-current="page"{{end}}>{{t "Requests"}}</a>

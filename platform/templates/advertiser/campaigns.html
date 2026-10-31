@@ -27,7 +27,7 @@
   </div>
   <p class="mt-2 text-sm text-gray-500">
     {{if .AdvBalance}}<a href="/advertiser/wallet" class="text-brand-ink hover:underline">{{t "Balance %s" .AdvBalance}}</a>{{if ge .AdvRunwayDays 0}} · {{t "lasts about %d days at this pace" .AdvRunwayDays}}{{end}} · {{end}}{{if .AdvBudget}}{{t "Account budget: %s/day (%s remaining, %s spent today)" (money .AdvBudget.DailyBudget) (money .AdvBudget.Remaining) (money .AdvBudget.SpendToday)}}{{if eq .AdvBudget.BudgetMode "optimized"}} &middot; <span class="badge badge-info" title="{{t "The account budget is re-split across all live campaigns."}}">{{t "Optimized budget mode"}}</span>{{if .AdvBudget.MovedToday}} &middot; {{t "moved %s between campaigns today" .AdvBudget.MovedToday}}{{end}}{{end}}{{if .AdvAvgCTR}} &middot; {{t "Avg CTR"}} {{.AdvAvgCTR}}{{end}}
-    &middot; <a href="/advertiser/account" class="text-brand-ink hover:underline">{{t "Edit"}}</a>{{end}}
+    &middot; <a href="/advertiser/overview#budget" class="text-brand-ink hover:underline">{{t "Edit"}}</a>{{end}}
   </p>
   {{if .AdvForecast}}
   <div class="mt-4 max-w-3xl">

@@ -244,6 +244,17 @@ for (const theme of ["light", "dark"]) {
         check(`${id}: overview-beside`, !!ov && ov.beside && ov.topGap <= 4, JSON.stringify(ov));
       }
 
+      // budget-dialog: Change budget opens a modal; nothing under it moves.
+      if (name === "advertiser-overview") {
+        const tableTop = () => page.evaluate(() => document.querySelector(".data-table")?.getBoundingClientRect().top ?? null);
+        const before = await tableTop();
+        await page.click("[data-budget-open]");
+        const open = await page.evaluate(() => document.getElementById("budget")?.open === true);
+        const after = await tableTop();
+        await page.evaluate(() => document.getElementById("budget")?.close());
+        check(`${id}: budget-dialog`, open && before !== null && before === after, JSON.stringify({ open, before, after }));
+      }
+
       if (shots) await page.screenshot({ path: `${shots}/${name}-${lang}-${theme}.png`, fullPage: true });
 
       // no-hscroll: nothing scrolls sideways at 1440 or at 1280.

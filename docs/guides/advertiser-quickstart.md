@@ -17,14 +17,20 @@ Accounts are requested, then approved by an operator admin:
 
 > **Keep your passkey safe.** There is no self-service recovery — if you
 > lose access to your passkey (and haven't added a second one under
-> Account), an admin has to mint you a one-time recovery link.
+> **Passkeys** in your account menu), an admin has to mint you a one-time
+> recovery link.
 
-## 2. Set your daily budget first
+## 2. Wait for funds, then set your daily budget
 
-The campaigns page redirects you to **Account** until you've set an
-account-level daily budget — that's the first thing to do after signing
-in. Note there are two budget layers: this account-wide daily budget, and
-a per-campaign daily budget you set on each campaign.
+Signing in lands you on **Overview**: today's delivery, with your wallet
+balance and daily budget beside it. Until the platform operator first
+credits your wallet, Overview is where you stay — Campaigns and Report open
+once the money arrives (Wallet and Help stay reachable meanwhile).
+
+Set your account-level daily budget from **Set budget** on Overview; the
+Campaigns page sends you there until you have one. Note there are two
+budget layers: this account-wide daily budget, and a per-campaign daily
+budget you set on each campaign.
 
 ## 3. Create a campaign
 

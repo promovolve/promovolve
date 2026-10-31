@@ -67,5 +67,5 @@ unaffected by the experiment.
 - **Exact-boundary check:** set daily budget = $2.00 with CPM $1000 — you
   should get exactly **two** impressions before the bench.
 - **Advertiser-level bench:** the same experiment works one level up by
-  setting the account-wide daily budget on the Account page; the
+  setting the account-wide daily budget on Overview (Set budget); the
   account-level gate is checked before every campaign reserve.

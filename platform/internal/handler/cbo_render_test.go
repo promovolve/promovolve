@@ -97,19 +97,19 @@ func TestCboTemplatesRender(t *testing.T) {
 			t.Errorf("%s: expected no Optimized badge under a manual account, got %d", lang, n)
 		}
 
-		html = render(lang, "advertiser/account.html", pageData{Title: "Account", Nav: "account", User: adv, AdvBudget: optimized})
+		html = render(lang, "advertiser/overview.html", pageData{Title: "Overview", Nav: "overview", User: adv, AdvBudget: optimized})
 		if !strings.Contains(html, `name="budgetMode" value="optimized" checked`) {
-			t.Errorf("%s: account page does not pre-select the optimized mode", lang)
+			t.Errorf("%s: overview budget form does not pre-select the optimized mode", lang)
 		}
 		if strings.Contains(html, `name="budgetMode" value="manual" checked`) {
-			t.Errorf("%s: account page pre-selects manual while optimized", lang)
+			t.Errorf("%s: overview budget form pre-selects manual while optimized", lang)
 		}
 	}
 
 	// Manual account, no budget yet: the form must still render, defaulting to manual.
-	html := render(i18n.LangEN, "advertiser/account.html", pageData{Title: "Account", Nav: "account", User: adv, BudgetUnset: true})
+	html := render(i18n.LangEN, "advertiser/overview.html", pageData{Title: "Overview", Nav: "overview", User: adv})
 	if !strings.Contains(html, `name="budgetMode" value="manual" checked`) {
-		t.Errorf("account page without a budget does not default to manual")
+		t.Errorf("overview budget form without a budget does not default to manual")
 	}
 }
 

@@ -584,9 +584,7 @@ type pageData struct {
 	// Publisher-side: advertiser landing-page domains this publisher blocks.
 	BlockedAdvertiserDomains []string
 	ServedSites              []servedSite
-	// Sidebar nav gating: disable Campaigns when no daily budget,
-	// disable Creatives when no campaigns exist.
-	BudgetUnset      bool
+	// NoCampaigns: the advertiser has no campaign yet.
 	NoCampaigns      bool
 	Creatives        []creativeData
 	HasPendingRender bool
@@ -1041,7 +1039,7 @@ func (h *Handler) requireRole(w http.ResponseWriter, r *http.Request, role model
 // open before the operator first credits the wallet; everything else under
 // /advertiser — including routes added later — redirects to Overview.
 var unfundedOpen = []string{
-	"/advertiser/overview", "/advertiser/account", "/advertiser/budget",
+	"/advertiser/overview", "/advertiser/budget",
 	"/advertiser/wallet", "/advertiser/help",
 }
 

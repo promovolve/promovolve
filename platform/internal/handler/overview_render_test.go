@@ -54,6 +54,16 @@ func TestAdvertiserOverviewRenders(t *testing.T) {
 			if !strings.Contains(out, "data-overview-money") {
 				t.Errorf("%s %s: no budget/wallet figures beside the chart", c.name, tlang)
 			}
+			// Account is folded in: the budget form lives here, and the nav
+			// has no Account page to link to.
+			// The budget form opens in a dialog, so the page under it never
+			// moves (an inline form pushed the campaign table down).
+			if dlg := strings.Index(out, `<dialog id="budget"`); dlg < 0 || !strings.Contains(out[dlg:], `action="/advertiser/budget"`) {
+				t.Errorf("%s %s: no budget form in a dialog on Overview", c.name, tlang)
+			}
+			if strings.Contains(out, `href="/advertiser/account"`) {
+				t.Errorf("%s %s: still links to the Account page", c.name, tlang)
+			}
 			// Locked: the shut tabs are text, not links, and the page says why.
 			hasCampaignsLink := strings.Contains(out, `href="/advertiser/campaigns"`)
 			if c.data.WalletLocked == hasCampaignsLink {

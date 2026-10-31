@@ -1200,7 +1200,7 @@ var ja = map[string]string{
 	"Suspended":               "凍結中",
 	"Change the timezone for %s? Budget, billing and earnings days roll at the new zone midnight from now on; the change day is one shortened or extended window, booked once.": "%s のタイムゾーンを変更しますか?予算・請求・収益の日は今後、新しいタイムゾーンの深夜0時に切り替わります。変更当日は短縮または延長された1ウィンドウとして、1回だけ記帳されます。",
 	"Open a read-only session as an admin of %s": "%s の管理者として読み取り専用セッションを開く",
-	"View as": "として閲覧",
+	"View": "閲覧",
 	"Read-only session as an admin — see their dashboard.": "管理者としての読み取り専用セッション — 相手のダッシュボードを見られます。",
 	"No active admin to view.":                             "閲覧できるアクティブな管理者がいません。",
 	"Resume %s? Serving and billing unfreeze.":             "%s を再開しますか?配信と請求の凍結が解除されます。",

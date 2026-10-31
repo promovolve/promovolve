@@ -174,8 +174,9 @@ var ja = map[string]string{
 	"Download CSV": "CSVをダウンロード",
 
 	// ── login ──
-	"Content-based ad serving platform": "コンテンツベースの広告配信プラットフォーム",
-	"Sign in":                           "サインイン",
+	"Ads delivered to pages, not people.":                            "広告は、人ではなくページへ。",
+	"An open-source ad serving platform.":                            "オープンソースの広告配信プラットフォーム。",
+	"Sign in":                                                        "サインイン",
 	"Use the passkey you registered for this dashboard.":             "このダッシュボードに登録したパスキーでサインインします。",
 	"Your account request is pending review.":                        "アカウント申請は審査待ちです。",
 	"You will be able to sign in once an administrator approves it.": "管理者が承認するとサインインできるようになります。",

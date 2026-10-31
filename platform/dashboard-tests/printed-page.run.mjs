@@ -54,7 +54,7 @@ const check = (name, ok, detail = "") => {
 
 const PAGES = ["advertiser-forecast", "advertiser-wallet", "publisher-overview", "publisher-overview-member", "publisher-sites",
   "admin-sites", "admin-billing", "advertiser-creatives", "editor",
-  "advertiser-overview", "advertiser-overview-locked", "admin-users"];
+  "advertiser-overview", "advertiser-overview-locked", "advertiser-overview-viewas", "admin-users"];
 
 // The creative editor opens on its analyze step; its review surface is the
 // compose step, so fill that in (the analysis itself needs the core API).
@@ -266,6 +266,16 @@ for (const theme of ["light", "dark"]) {
         const after = await tableTop();
         await page.evaluate(() => document.getElementById("budget")?.close());
         check(`${id}: budget-dialog`, open && before !== null && before === after, JSON.stringify({ open, before, after }));
+      }
+
+      // viewas-cancel: in an admin's read-only view-as session the budget
+      // dialog opens over the Exit view banner; its Cancel must still close it.
+      if (name === "advertiser-overview-viewas") {
+        await page.click("[data-budget-open]");
+        await page.click('#budget button[type="button"]', { timeout: 2000 }).catch(() => {});
+        const open = await page.evaluate(() => document.getElementById("budget")?.open === true);
+        check(`${id}: viewas-cancel`, !open, JSON.stringify({ open }));
+        await page.evaluate(() => document.getElementById("budget")?.close());
       }
 
       // edit-focus: ?edit=<id> (Overview's Edit creatives) opens that row's

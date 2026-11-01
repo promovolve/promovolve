@@ -840,8 +840,9 @@ object SiteEntity {
                   slotId = SlotId(slot.slotId),
                   declaredSizes = List(sz),
                   computedSize = sz,
-                  prior = slot.prior,
-                  floorOverride = slot.floorOverride
+                  // No floorOverride copy: the auction takes admin floors
+                  // only from the pushed map, so a saved copy would go stale.
+                  prior = slot.prior
                 )
               }
             else {
@@ -1861,8 +1862,7 @@ object SiteEntity {
                       slotId = SlotId(slot.slotId),
                       declaredSizes = List(sz),
                       computedSize = sz,
-                      prior = slot.prior,
-                      floorOverride = slot.floorOverride
+                      prior = slot.prior
                     )
                   }
                 else

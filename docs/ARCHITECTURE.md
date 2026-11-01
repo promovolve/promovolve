@@ -1290,9 +1290,10 @@ floors layer on top of it, tuned automatically by a direct sweep optimizer.
 `AuctioneerEntity` resolves each slot's effective floor in priority order:
 
 ```
-1. Admin override        (publisher escape hatch — adminSlotFloorOverrides,
-                          or an override carried on the slot spec via the
-                          classify-page path; always wins)
+1. Admin override        (publisher escape hatch — only the map SiteEntity
+                          pushes, adminSlotFloorOverrides; always wins. A
+                          copy saved with a page's slots is ignored, so a
+                          cleared override stays cleared)
 2. Per-category floor    (the category's learned floor)
 3. Site floor            (fallback — the base floor-cpm above)
 

@@ -432,6 +432,7 @@ func main() {
 	mux.HandleFunc("GET /api/places", h.SearchPlaces)
 	mux.HandleFunc("GET /api/geo-availability", h.GeoAvailability)
 	mux.HandleFunc("GET /api/bid-check", h.BidCheck)
+	mux.HandleFunc("GET /api/delivery-check", h.DeliveryCheck)
 	mux.HandleFunc("GET /api/advertiser-domains", h.SearchAdvertiserDomains)
 	mux.HandleFunc("GET /api/image-proxy", h.ImageProxy)
 

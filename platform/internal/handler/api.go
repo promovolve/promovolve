@@ -1,11 +1,14 @@
 package handler
 
 import (
+	"encoding/json"
 	"fmt"
 	"log/slog"
 	"net/http"
 	"net/url"
 	"strings"
+
+	"github.com/hanishi/promovolve/platform/internal/billing"
 )
 
 // SearchAdProducts proxies taxonomy search to core API and returns JSON.
@@ -116,6 +119,74 @@ func (h *Handler) BidCheck(w http.ResponseWriter, r *http.Request) {
 	}
 	w.Header().Set("Content-Type", "application/json")
 	w.Write(body)
+}
+
+// DeliveryCheck proxies the core's delivery checklist for one campaign. The
+// core knows an advertiser is suspended but not why; when that item blocks,
+// this adds detail.reason (org | wallet | other) from the org and wallet
+// records only the platform holds.
+func (h *Handler) DeliveryCheck(w http.ResponseWriter, r *http.Request) {
+	_, claims := h.sessionUser(r)
+	if claims == nil {
+		http.Error(w, `{"error":"unauthorized"}`, http.StatusUnauthorized)
+		return
+	}
+	campaignID := r.URL.Query().Get("campaignId")
+	if campaignID == "" {
+		http.Error(w, `{"error":"campaignId is required"}`, http.StatusBadRequest)
+		return
+	}
+	body, err := h.coreGet(fmt.Sprintf("/v1/advertisers/me/campaigns/%s/delivery-check",
+		url.PathEscape(campaignID)), claims)
+	if err != nil {
+		http.Error(w, `{"error":"delivery check unavailable"}`, http.StatusBadGateway)
+		return
+	}
+	var check struct {
+		Items []struct {
+			Key    string            `json:"key"`
+			Status string            `json:"status"`
+			Detail map[string]string `json:"detail"`
+		} `json:"items"`
+		FirstBlocked *string `json:"firstBlocked,omitempty"`
+	}
+	if json.Unmarshal(body, &check) == nil && len(check.Items) > 0 &&
+		check.Items[0].Key == "advertiserActive" && check.Items[0].Status == "blocked" {
+		ctx := r.Context()
+		suspended := false
+		if h.orgRepo != nil {
+			suspended, _ = h.orgRepo.IsEntitySuspended(ctx, claims.AdvertiserID)
+		}
+		balance := int64(1) // unknown wallet → "other", never a wrong "top up"
+		if h.billingSvc != nil {
+			if acc, err := h.billingSvc.GetAccount(ctx, billing.OwnerAdvertiser, claims.AdvertiserID); err == nil {
+				balance = acc.BalanceMicros
+			}
+		}
+		if check.Items[0].Detail == nil {
+			check.Items[0].Detail = map[string]string{}
+		}
+		check.Items[0].Detail["reason"] = suspensionReason(suspended, balance)
+		if b, err := json.Marshal(check); err == nil {
+			body = b
+		}
+	}
+	w.Header().Set("Content-Type", "application/json")
+	w.Write(body)
+}
+
+// suspensionReason says why a suspended advertiser is suspended: the
+// operator suspended its org, else its wallet ran dry (the wallet sweep),
+// else something the platform doesn't track.
+func suspensionReason(orgSuspended bool, balanceMicros int64) string {
+	switch {
+	case orgSuspended:
+		return "org"
+	case balanceMicros <= 0:
+		return "wallet"
+	default:
+		return "other"
+	}
 }
 
 // advertiser edits targeting, so a campaign that would never serve says so

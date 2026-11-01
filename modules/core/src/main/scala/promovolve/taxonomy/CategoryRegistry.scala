@@ -143,6 +143,10 @@ object CategoryRegistry {
           replyTo ! CategoryCoverage(coverageRows(state.publisherCategories, categories))
           Behaviors.same
 
+        case GetCarriers(categories, replyTo) =>
+          replyTo ! Carriers(subtreeCarriers(state.publisherCategories, categories))
+          Behaviors.same
+
         case GetCategoryStats(replyTo) =>
           val stats = state.categoryToPublishers.map { case (cat, pubs) =>
             CategorySummary(decodeCategory(cat), pubs.size)
@@ -225,6 +229,22 @@ object CategoryRegistry {
       CategorySummary(c, pubs)
     }.sortBy(_.categoryId.value)
 
+  /**
+   * Pure core of [[GetCarriers]]: per site, the declared categories inside
+   * any requested category's subtree (same rule as [[coverageRows]]). Sites
+   * carrying none are absent.
+   */
+  private[taxonomy] def subtreeCarriers(
+      publisherCategories: Map[String, Set[String]],
+      categories: Set[CategoryId]
+  ): Map[SiteId, Set[String]] = {
+    val subtree = categories.flatMap(c =>
+      TieredCategory.normalize(c.value) :: TieredCategory.getAllDescendants(c.value).map(_.id))
+    publisherCategories.collect {
+      case (site, cats) if cats.exists(subtree.contains) => decodePublisher(site) -> cats.filter(subtree.contains)
+    }
+  }
+
   private def encodePublisher(siteId: SiteId): String = siteId.value
   private def decodePublisher(s: String): SiteId = SiteId(s)
   private def encodeCategories(cats: Set[CategoryId]): Set[String] = cats.map(_.value)
@@ -288,6 +308,12 @@ object CategoryRegistry {
   final case class CategoryCoverage(
       rows: Vector[CategorySummary]
   ) extends promovolve.CborSerializable
+
+  /** Which sites carry these categories or their descendants (the Delivery check). */
+  final case class GetCarriers(categories: Set[CategoryId], replyTo: ActorRef[Carriers]) extends Command
+
+  /** Reply to [[GetCarriers]]: per site, the declared categories it carries. */
+  final case class Carriers(bySite: Map[SiteId, Set[String]]) extends promovolve.CborSerializable
 
   /** Publishers for a single category (for detail view) */
   final case class PublishersForCategory(

@@ -52,7 +52,9 @@ class EndpointRoutes(
     // Tier 3 observed reader countries. None = the counter is off, and the
     // endpoint reports an empty, insufficient-sample result rather than an
     // error — "we are not measuring" is a valid answer.
-    audienceObservationRepo: Option[promovolve.publisher.AudienceObservationRepo] = None
+    audienceObservationRepo: Option[promovolve.publisher.AudienceObservationRepo] = None,
+    // The Delivery check's "registered with the bidders" item.
+    campaignDirectory: Option[ActorRef[promovolve.advertiser.CampaignDirectory.Command]] = None
 )(using system: ActorSystem[?])
     extends ApiJsonFormats {
 
@@ -1801,6 +1803,105 @@ class EndpointRoutes(
       requireOwnedCampaign(advertiserId, campaignId).flatMap {
         case Left(err) => Future.successful(Left(err))
         case Right(_)  => bidCheckLogic((advertiserId, campaignId, url))
+      }
+  }
+
+  /**
+   * Gathers the Delivery check's inputs; DeliveryCheck.evaluate decides.
+   * Every source degrades to None (item "unknown") rather than failing the
+   * whole check.
+   */
+  private val deliveryCheckLogic: ((String, String)) => Future[Either[ErrorResponse, DeliveryCheckResponse]] = {
+    case (advertiserId, campaignId) =>
+      import org.apache.pekko.cluster.ddata.LWWMap
+      import org.apache.pekko.cluster.ddata.typed.scaladsl.{
+        DistributedData => ClusterDData,
+        Replicator => DDReplicator
+      }
+      given Timeout = Timeout(5.seconds)
+      def opt[T](f: => Future[T]): Future[Option[T]] =
+        scala.util.Try(f).fold(_ => Future.successful(None), _.map(Some(_)).recover { case _ => None })
+
+      // ponytail: two asks per eligible site, capped; past this many sites read
+      // the latest floor_decisions rows instead.
+      val MaxSites = 200
+
+      def sitesFor(campaign: CampaignEntity.CampaignInfo): Future[Option[Map[SiteId, DeliveryCheck.SiteFloors]]] =
+        categoryRegistry match {
+          case None           => Future.successful(None)
+          case Some(registry) =>
+            val replicator = ClusterDData(system).replicator
+            val suspendedF = replicator
+              .ask[DDReplicator.GetResponse[LWWMap[SiteId, SiteEntity.CachedSiteSuspended]]](
+                DDReplicator.Get(SiteEntity.SiteSuspendedKey, DDReplicator.ReadLocal, _))
+              .map {
+                case rsp @ DDReplicator.GetSuccess(SiteEntity.SiteSuspendedKey) =>
+                  rsp.get(SiteEntity.SiteSuspendedKey).entries.collect { case (s, v) if v.suspended => s }.toSet
+                case _ => Set.empty[SiteId]
+              }
+            opt(for {
+              carriers <- registry.ask[promovolve.taxonomy.CategoryRegistry.Carriers](
+                promovolve.taxonomy.CategoryRegistry.GetCarriers(DeliveryCheck.effectiveCategories(campaign), _))
+              suspended <- suspendedF
+              eligible = carriers.bySite.filter { case (site, _) =>
+                !suspended.contains(site) &&
+                (campaign.siteAllowlist.isEmpty || campaign.siteAllowlist.contains(site.value))
+              }.take(MaxSites)
+              floors <- Future.traverse(eligible.toVector) { case (site, carried) =>
+                for {
+                  siteFloor <- siteRef(site.value).ask[CPM](SiteEntity.GetFloorCpm(_))
+                  catFloors <- siteRef(site.value)
+                    .ask[promovolve.proto.site.CategoryFloors](SiteEntity.GetCategoryFloors(_))
+                } yield site -> DeliveryCheck.SiteFloors(siteFloor.toDouble, catFloors.floors, carried)
+              }
+            } yield floors.toMap)
+        }
+
+      def directoryFor(campaign: CampaignEntity.CampaignInfo): Future[Option[Map[String, Boolean]]] =
+        campaignDirectory match {
+          case None            => Future.successful(None)
+          case Some(directory) =>
+            opt(Future.traverse(DeliveryCheck.effectiveCategories(campaign).toVector) { cat =>
+              directory
+                .ask[promovolve.advertiser.CampaignDirectory.CampaignsForResult](
+                  promovolve.advertiser.CampaignDirectory.GetCampaignsFor(cat, _))
+                .map(r => cat.value -> r.campaigns.contains(CampaignId(campaignId)))
+            }.map(_.toMap))
+        }
+
+      val infoF =
+        advertiserRef(advertiserId).ask[AdvertiserEntity.AdvertiserInfo](AdvertiserEntity.GetAdvertiserInfo(_))
+      val campaignF =
+        campaignRef(advertiserId, campaignId).ask[CampaignEntity.CampaignInfo](CampaignEntity.GetCampaign(_))
+      val advBudgetF = opt(advertiserRef(advertiserId)
+        .ask[AdvertiserEntity.AdvertiserBudgetStatus](AdvertiserEntity.GetBudgetStatus(_)))
+      val campBudgetF = opt(campaignRef(advertiserId, campaignId)
+        .ask[CampaignEntity.BudgetInfo](CampaignEntity.GetBudgetInfo(_)))
+      val creativesF = opt(advertiserRef(advertiserId)
+        .ask[AdvertiserEntity.CreativesResponse](AdvertiserEntity.GetCreatives(_)).map(_.creatives))
+      (for {
+        info <- infoF
+        campaign <- campaignF
+        sites <- sitesFor(campaign)
+        directory <- directoryFor(campaign)
+        advBudget <- advBudgetF
+        campBudget <- campBudgetF
+        creatives <- creativesF
+      } yield {
+        val items = DeliveryCheck.evaluate(
+          DeliveryCheck.Inputs(info, advBudget, campaign, campBudget, creatives, sites, directory),
+          java.time.Instant.now())
+        Right(DeliveryCheckResponse(
+          items.map(i => DeliveryCheckItem(i.key, i.status, i.detail)),
+          DeliveryCheck.firstBlocked(items)))
+      }).recover { case ex => Left(ErrorResponse("delivery_check_failed", ex.getMessage)) }
+  }
+
+  private val deliveryCheckOwnedLogic: ((String, String)) => Future[Either[ErrorResponse, DeliveryCheckResponse]] = {
+    case (advertiserId, campaignId) =>
+      requireOwnedCampaign(advertiserId, campaignId).flatMap {
+        case Left(err) => Future.successful(Left(err))
+        case Right(_)  => deliveryCheckLogic((advertiserId, campaignId))
       }
   }
 
@@ -4581,6 +4682,7 @@ class EndpointRoutes(
     PekkoHttpServerInterpreter().toRoute(Endpoints.listCampaigns.serverLogic(listCampaignsLogic)),
     PekkoHttpServerInterpreter().toRoute(Endpoints.getCampaign.serverLogic(getCampaignOwnedLogic)),
     PekkoHttpServerInterpreter().toRoute(Endpoints.bidCheck.serverLogic(bidCheckOwnedLogic)),
+    PekkoHttpServerInterpreter().toRoute(Endpoints.deliveryCheck.serverLogic(deliveryCheckOwnedLogic)),
     PekkoHttpServerInterpreter().toRoute(Endpoints.createCampaign.serverLogic(createCampaignLogic)),
     PekkoHttpServerInterpreter().toRoute(Endpoints.updateCampaign.serverLogic(updateCampaignLogic))
   )

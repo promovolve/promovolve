@@ -436,7 +436,8 @@ object HttpBootstrap {
         lpWorkerNumWorkers = lpWorkerNumWorkers,
         pendingSelectionStore = Some(pendingSelectionStore),
         categoryRegistry = Some(categoryRegistry),
-        audienceObservationRepo = audienceObservationRepo
+        audienceObservationRepo = audienceObservationRepo,
+        campaignDirectory = Some(campaignDirectory)
       )(using system)
 
       // Dashboard routes for advertiser performance data

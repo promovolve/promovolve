@@ -381,6 +381,11 @@ object ApiModels {
   // if not, which gate stops it. Everything the verdict used is echoed so
   // the answer can be read without a second question: what the page is
   // classified as, what the site declares, the floor in force.
+  // The Delivery check (DeliveryCheck.scala): keys and numbers, copy lives
+  // in the dashboard.
+  case class DeliveryCheckItem(key: String, status: String, detail: Map[String, String])
+  case class DeliveryCheckResponse(items: Vector[DeliveryCheckItem], firstBlocked: Option[String])
+
   case class BidCheckResponse(
       url: String,
       siteId: Option[String],

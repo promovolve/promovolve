@@ -7,7 +7,7 @@ import org.apache.pekko.http.scaladsl.model.*
 import org.apache.pekko.http.scaladsl.unmarshalling.Unmarshal
 import org.slf4j.LoggerFactory
 import promovolve.GeminiRateLimiter
-import promovolve.taxonomy.{ AdProductTaxonomy, TieredCategory }
+import promovolve.taxonomy.{ AdProductTaxonomy, IABTaxonomy, TieredCategory }
 import spray.json.*
 
 import java.util.Base64
@@ -286,24 +286,7 @@ $contentCategoryList
 JSON: {"match_confidence": 0.5, "reason": "description of product", "suggested_content_categories": ["category_id", ...], "adult_content": false, "violence": false, "hate_speech": false, "safety_score": 0.0-1.0}"""
     }
 
-    val safetySettings = JsArray(
-      JsObject("category" -> JsString("HARM_CATEGORY_HARASSMENT"), "threshold" -> JsString("BLOCK_NONE")),
-      JsObject("category" -> JsString("HARM_CATEGORY_HATE_SPEECH"), "threshold" -> JsString("BLOCK_NONE")),
-      JsObject("category" -> JsString("HARM_CATEGORY_SEXUALLY_EXPLICIT"), "threshold" -> JsString("BLOCK_NONE")),
-      JsObject("category" -> JsString("HARM_CATEGORY_DANGEROUS_CONTENT"), "threshold" -> JsString("BLOCK_NONE"))
-    )
-
-    JsObject(
-      "contents" -> JsArray(
-        JsObject("parts" -> JsArray(JsObject("text" -> JsString(prompt))))
-      ),
-      "safetySettings" -> safetySettings,
-      "generationConfig" -> JsObject(
-        "temperature" -> JsNumber(0.1),
-        "maxOutputTokens" -> JsNumber(2048),
-        "responseMimeType" -> JsString("application/json")
-      )
-    ).compactPrint
+    CategoryVerificationClient.textRequestBody(prompt, model)
   }
 
   private def buildRequestBody(base64Image: String, mimeType: String, declaredCategory: Option[String]): String = {
@@ -377,13 +360,6 @@ $contentCategoryList
 JSON: {"match_confidence": 0.5, "reason": "description of ad", "suggested_content_categories": ["category_id", ...], "adult_content": false, "violence": false, "hate_speech": false, "safety_score": 0.0-1.0}"""
     }
 
-    val safetySettings = JsArray(
-      JsObject("category" -> JsString("HARM_CATEGORY_HARASSMENT"), "threshold" -> JsString("BLOCK_NONE")),
-      JsObject("category" -> JsString("HARM_CATEGORY_HATE_SPEECH"), "threshold" -> JsString("BLOCK_NONE")),
-      JsObject("category" -> JsString("HARM_CATEGORY_SEXUALLY_EXPLICIT"), "threshold" -> JsString("BLOCK_NONE")),
-      JsObject("category" -> JsString("HARM_CATEGORY_DANGEROUS_CONTENT"), "threshold" -> JsString("BLOCK_NONE"))
-    )
-
     JsObject(
       "contents" -> JsArray(
         JsObject(
@@ -398,12 +374,8 @@ JSON: {"match_confidence": 0.5, "reason": "description of ad", "suggested_conten
           )
         )
       ),
-      "safetySettings" -> safetySettings,
-      "generationConfig" -> JsObject(
-        "temperature" -> JsNumber(0.1),
-        "maxOutputTokens" -> JsNumber(2048),
-        "responseMimeType" -> JsString("application/json")
-      )
+      "safetySettings" -> CategoryVerificationClient.safetySettings,
+      "generationConfig" -> CategoryVerificationClient.generationConfig(model)
     ).compactPrint
   }
 
@@ -500,7 +472,7 @@ JSON: {"match_confidence": 0.5, "reason": "description of ad", "suggested_conten
 
         val suggestedContentCategories = getField("suggested_content_categories")
           .collect { case JsArray(elements) =>
-            elements.collect { case JsString(s) if s.nonEmpty => s }.toList
+            CategoryVerificationClient.contentCategoryIds(elements.collect { case JsString(s) => s })
           }
           .getOrElse(Nil)
 
@@ -543,4 +515,41 @@ object CategoryVerificationClient {
 
   /** `GEMINI_CAMPAIGN_MODEL` moves it without a release (e.g. when Google retires a model). */
   def modelFromEnv(): String = sys.env.get("GEMINI_CAMPAIGN_MODEL").filter(_.nonEmpty).getOrElse(DefaultModel)
+
+  /**
+   * The prompt lists the taxonomy as `- 58: Business and Finance > …` and the
+   * model sometimes echoes the whole line back. Keep the id before the `:`,
+   * and only ids the taxonomy knows: anything else would become a campaign
+   * category that no page can ever match (#429).
+   */
+  def contentCategoryIds(values: Seq[String]): List[String] =
+    values.flatMap(v => TieredCategory.get(v.takeWhile(_ != ':').trim)).map(_.id).distinct.toList
+
+  private[assessment] val safetySettings = JsArray(
+    JsObject("category" -> JsString("HARM_CATEGORY_HARASSMENT"), "threshold" -> JsString("BLOCK_NONE")),
+    JsObject("category" -> JsString("HARM_CATEGORY_HATE_SPEECH"), "threshold" -> JsString("BLOCK_NONE")),
+    JsObject("category" -> JsString("HARM_CATEGORY_SEXUALLY_EXPLICIT"), "threshold" -> JsString("BLOCK_NONE")),
+    JsObject("category" -> JsString("HARM_CATEGORY_DANGEROUS_CONTENT"), "threshold" -> JsString("BLOCK_NONE"))
+  )
+
+  // Thinking off, as on the page classifier: 2.5 models count thinking
+  // against maxOutputTokens, and 1963 of 2048 going to thinking cut the JSON
+  // off mid-answer (#429).
+  private[assessment] def generationConfig(model: String): JsObject =
+    JsObject(
+      Map(
+        "temperature" -> (JsNumber(0.1): JsValue),
+        "maxOutputTokens" -> (JsNumber(2048): JsValue),
+        "responseMimeType" -> (JsString("application/json"): JsValue)
+      ) ++ IABTaxonomy.geminiThinkingConfig(model)
+    )
+
+  private[assessment] def textRequestBody(prompt: String, model: String): String =
+    JsObject(
+      "contents" -> JsArray(
+        JsObject("parts" -> JsArray(JsObject("text" -> JsString(prompt))))
+      ),
+      "safetySettings" -> safetySettings,
+      "generationConfig" -> generationConfig(model)
+    ).compactPrint
 }

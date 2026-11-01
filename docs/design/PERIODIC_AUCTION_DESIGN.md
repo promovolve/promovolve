@@ -303,10 +303,10 @@ final case class Settings(
 **Candidate Ordering with Campaign Diversity (No Cap):**
 
 There is **no artificial candidate cap** — *all* competitive bids pass through
-to serve-time Thompson Sampling. The CPM threshold filter in
-`CategoryBidderEntity` (bids within 80% of the category's best) and its
-per-category cap (`maxCampaignsPerCategory = 50`, top campaigns by CPM) are
-the only limits on pool size.
+to serve-time Thompson Sampling. The per-category cap in
+`CategoryBidderEntity` (`maxCampaignsPerCategory = 50`, top campaigns by
+CPM) is the only limit on pool size; there is no cutoff relative to the
+category's best bid.
 The auction does, however, **order** candidates so that each campaign's best
 creative comes first:
 

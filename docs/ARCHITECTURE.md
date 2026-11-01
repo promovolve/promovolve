@@ -368,8 +368,8 @@ Phase 3: BID COLLECTION
     ├── For each slot × eligible category:
     │   └── CategoryBidderEntity ! CategoryBidRequest
     ├── Aggregate with timeout
-    ├── Filter in CategoryBidderEntity: bids within 80% of the
-    │   category's best + top-50 campaigns per category by CPM
+    ├── Filter in CategoryBidderEntity: top-50 campaigns per
+    │   category by CPM (no cutoff relative to the best bid)
     └── Keep ALL bids from those campaigns — no further cap;
         dedupe by creativeId, order best-per-campaign first
 
@@ -428,9 +428,9 @@ State:
 1. Receive `CategoryBidRequest` from AuctioneerEntity
 2. Fan-out to all active campaigns
 3. Collect responses
-4. Filter: Keep bids within 20% of winner (`cpm ≥ maxCPM × 0.80`)
-   If the highest bid is $10 CPM, it keeps all bids ≥ $8 CPM (within 20% of winner). 
-   This ensures close competitors stay in the shortlist rather than being eliminated by tiny CPM differences.
+4. Keep the top 50 campaigns by CPM. There is no cutoff relative to the
+   best bid: every bid above the floor reaches serve-time scoring and the
+   floor stats, so the second-bid rule always sees the real top two.
 5. Return top candidates
 
 ---
@@ -759,7 +759,7 @@ Value: ServeView
 │                   └──► CampaignEntity[adv3|camp3] ──► CampaignBidResponse    │
 │                   │                                                          │
 │                   ▼                                                          │
-│              Filter: Keep bids ≥ (maxCPM × 80%)                              │
+│              Keep: top 50 campaigns by CPM                                   │
 │              Return: CategoryBidResponse(candidates)                         │
 │         │                                                                    │
 │         ▼                                                                    │

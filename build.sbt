@@ -176,7 +176,7 @@ lazy val commonSettings = Seq(
     "com.softwaremill.sttp.tapir" %% "tapir-openapi-docs"      % tapirVersion,
     "com.softwaremill.sttp.tapir" %% "tapir-swagger-ui-bundle" % tapirVersion,
     // Test
-    "org.scalatest"          %% "scalatest"                    % "3.2.19"     % Test,
+    "org.scalatest"          %% "scalatest"                    % "3.2.20"     % Test,
     "org.scalatestplus"      %% "scalacheck-1-17"              % "3.2.18.0"   % Test,
     "org.apache.pekko"       %% "pekko-actor-testkit-typed"    % pekkoVersion % Test,
     "org.apache.pekko"       %% "pekko-testkit"                % pekkoVersion % Test,

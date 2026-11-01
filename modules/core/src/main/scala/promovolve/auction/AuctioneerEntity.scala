@@ -234,10 +234,10 @@ object AuctioneerEntity {
       slotId: SlotId,
       declaredSizes: List[AdSize],
       computedSize: AdSize,
-      // Per-slot floor knobs — see SiteEntity.SlotPrior / effectiveFloor.
-      // prior is crawler-derived; floorOverride is admin-set.
-      // Both default to None so existing call sites compile unchanged
-      // and the system falls through to the site-level floor.
+      // prior: the slot's measured quality (reporting only; it does not
+      // scale the floor). floorOverride: IGNORED by the auction — admin
+      // floors come only from UpdateAdminSlotFloors. Kept so persisted
+      // classifications and older nodes still decode.
       prior: Option[SiteEntity.SlotPrior] = None,
       floorOverride: Option[CPM] = None
   )
@@ -946,8 +946,7 @@ private final class AuctioneerEntity private (
       // nothing about what floor the sweep-governed inventory can support —
       // reporting them would stretch the sweep's candidate range toward
       // demand that only exists behind the override.
-      val slotIsOverridden =
-        adminSlotFloorOverrides.contains(slotId) || slotSpecAdminFloors.contains(slotId)
+      val slotIsOverridden = adminSlotFloorOverrides.contains(slotId)
       if (!slotIsOverridden) {
         siteRef ! SiteEntity.AuctionOutcomeReport(outcome)
       }
@@ -1460,13 +1459,6 @@ private final class AuctioneerEntity private (
   // The only per-slot floor override there is — see the UpdateSlotFloors
   // removal note above.
   private var adminSlotFloorOverrides: Map[SlotId, CPM] = Map.empty
-  // Admin overrides carried on AdSlotSpec (the classify-page path's
-  // equivalent source). Recorded at fan-out so finishAuction can resolve
-  // the slot's effective admin floor with the same precedence the bid
-  // admission used, and forward it to AdServer — the serve-time floor
-  // gate must agree with the auction-time one or an approved winner
-  // gets silently blocked at serve.
-  private var slotSpecAdminFloors: Map[SlotId, CPM] = Map.empty
   // Publisher-declared audience regions for this site, pushed by
   // SiteEntity. Carried onto every CategoryBidRequest so the demand side
   // can gate on it; empty = nothing declared = UNKNOWN.
@@ -1500,20 +1492,12 @@ private final class AuctioneerEntity private (
       slots.foreach { slot =>
         val slotSizes = normalizeSizes((slot.declaredSizes :+ slot.computedSize).toSet)
         // Per-slot effective floor priority (most authoritative first):
-        //   1. Admin override   (publisher escape hatch — adminSlotFloorOverrides)
-        //   2. Admin override carried on the AdSlotSpec (path used by
-        //      the external classify-page endpoint; equivalent source)
-        //   3. The category's learned floor, else the site floor
+        //   1. Admin override — ONLY the map SiteEntity pushes
+        //      (adminSlotFloorOverrides). An override saved on the slot spec
+        //      of a persisted classification is a stale copy: honouring it
+        //      revived a floor the admin had cleared until reclassification.
+        //   2. The category's learned floor, else the site floor
         val adminOverride = adminSlotFloorOverrides.get(slot.slotId)
-          .orElse(slot.floorOverride)
-        // Remember the spec-carried override (or its absence) so
-        // finishAuction resolves the same effective admin floor this
-        // admission used. Presence updates, absence clears — a removed
-        // override must stop shielding the slot at serve time.
-        slotSpecAdminFloors = slot.floorOverride match {
-          case Some(f) => slotSpecAdminFloors.updated(slot.slotId, f)
-          case None    => slotSpecAdminFloors - slot.slotId
-        }
         // Per-category effective floor: the category's learned floor (or the
         // site floor when absent). The admin override takes precedence
         // inside `effectiveFloor`; the slot's quality prior does not scale it.
@@ -2027,7 +2011,7 @@ private final class AuctioneerEntity private (
       case None             => Instant.now
     }
     val pageCategories = lastPage.get(url).map(_._1.keySet).getOrElse(Set.empty)
-    val slotAdminFloor = adminSlotFloorOverrides.get(slotId).orElse(slotSpecAdminFloors.get(slotId))
+    val slotAdminFloor = adminSlotFloorOverrides.get(slotId)
     adServer ! AdServer.CandidatesCollected(
       url, slotId, Vector.empty, classifiedAt, cfg.ttl, pageCategories,
       currentFloorCpm, currentCategoryFloors, slotAdminFloor,
@@ -2073,10 +2057,9 @@ private final class AuctioneerEntity private (
       ordered.headOption.map(_.cpm).getOrElse(CPM(0.0))
     )
     val pageCategories = lastPage.get(url).map(_._1.keySet).getOrElse(Set.empty)
-    // Resolve the slot's admin floor with the SAME precedence bid admission
-    // used (admin map, then spec-carried) so AdServer's serve-time gate
-    // agrees with the auction-time one for this slot.
-    val slotAdminFloor = adminSlotFloorOverrides.get(slotId).orElse(slotSpecAdminFloors.get(slotId))
+    // The same admin floor bid admission used, so AdServer's serve-time
+    // gate agrees with the auction-time one for this slot.
+    val slotAdminFloor = adminSlotFloorOverrides.get(slotId)
     adServer ! AdServer.CandidatesCollected(url, slotId, ordered, classifiedAt, cfg.ttl, pageCategories,
       currentFloorCpm, currentCategoryFloors, slotAdminFloor,
       authoritativeAbsent = currentAuthoritativeAbsent(),

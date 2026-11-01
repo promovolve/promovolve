@@ -113,6 +113,23 @@ object Endpoints extends ApiJsonFormats {
       .out(jsonBody[BidCheckResponse])
       .errorOut(jsonBody[ErrorResponse])
 
+  /**
+   * The Delivery check: an ordered checklist of what stops this campaign
+   * from serving (docs/superpowers/specs/2026-11-01-delivery-check-design.md).
+   */
+  val deliveryCheck: PublicEndpoint[(String, String), ErrorResponse, DeliveryCheckResponse, Any] =
+    endpoint
+      .tag("Campaigns")
+      .summary("What stops this campaign from serving?")
+      .description(
+        "Runs ten ordered checks (advertiser, budgets, status, schedule, categories, creatives, " +
+        "approval, floors, bidders); each is ok, blocked, warning or unknown. firstBlocked names the " +
+        "first blocked one.")
+      .get
+      .in(campaignsBase / path[String]("campaignId") / "delivery-check")
+      .out(jsonBody[DeliveryCheckResponse])
+      .errorOut(jsonBody[ErrorResponse])
+
   val getCampaign: PublicEndpoint[(String, String), ErrorResponse, Campaign, Any] =
     endpoint
       .tag("Campaigns")

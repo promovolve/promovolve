@@ -158,6 +158,8 @@ trait ApiJsonFormats extends DefaultJsonProtocol {
   given RootJsonFormat[TokenCheckRequest] = jsonFormat1(TokenCheckRequest.apply)
   given RootJsonFormat[TokenCheckResponse] = jsonFormat1(TokenCheckResponse.apply)
   given RootJsonFormat[BidCheckResponse] = jsonFormat14(BidCheckResponse.apply)
+  given RootJsonFormat[DeliveryCheckItem] = jsonFormat3(DeliveryCheckItem.apply)
+  given RootJsonFormat[DeliveryCheckResponse] = jsonFormat2(DeliveryCheckResponse.apply)
   given RootJsonFormat[VerificationResponse] = jsonFormat3(VerificationResponse.apply)
 
   // Pacing Config

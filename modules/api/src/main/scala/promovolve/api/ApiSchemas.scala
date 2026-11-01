@@ -54,6 +54,8 @@ object ApiSchemas {
   given Schema[TokenCheckRequest] = Schema.derived
   given Schema[TokenCheckResponse] = Schema.derived
   given Schema[BidCheckResponse] = Schema.derived
+  given Schema[DeliveryCheckItem] = Schema.derived
+  given Schema[DeliveryCheckResponse] = Schema.derived
   given Schema[VerificationResponse] = Schema.derived
 
   // Pacing Config

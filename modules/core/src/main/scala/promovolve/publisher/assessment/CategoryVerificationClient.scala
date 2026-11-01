@@ -360,23 +360,7 @@ $contentCategoryList
 JSON: {"match_confidence": 0.5, "reason": "description of ad", "suggested_content_categories": ["category_id", ...], "adult_content": false, "violence": false, "hate_speech": false, "safety_score": 0.0-1.0}"""
     }
 
-    JsObject(
-      "contents" -> JsArray(
-        JsObject(
-          "parts" -> JsArray(
-            JsObject(
-              "inline_data" -> JsObject(
-                "mime_type" -> JsString(mimeType),
-                "data" -> JsString(base64Image)
-              )
-            ),
-            JsObject("text" -> JsString(prompt))
-          )
-        )
-      ),
-      "safetySettings" -> CategoryVerificationClient.safetySettings,
-      "generationConfig" -> CategoryVerificationClient.generationConfig(model)
-    ).compactPrint
+    CategoryVerificationClient.imageRequestBody(base64Image, mimeType, prompt, model)
   }
 
   private def parseResponse(body: String, declaredCategory: Option[String]): CategoryVerificationResult = {
@@ -557,7 +541,27 @@ object CategoryVerificationClient {
       ) ++ IABTaxonomy.geminiThinkingConfig(model)
     )
 
-  private[assessment] def textRequestBody(prompt: String, model: String): String =
+  private[promovolve] def imageRequestBody(base64Image: String, mimeType: String, prompt: String, model: String)
+      : String =
+    JsObject(
+      "contents" -> JsArray(
+        JsObject(
+          "parts" -> JsArray(
+            JsObject(
+              "inline_data" -> JsObject(
+                "mime_type" -> JsString(mimeType),
+                "data" -> JsString(base64Image)
+              )
+            ),
+            JsObject("text" -> JsString(prompt))
+          )
+        )
+      ),
+      "safetySettings" -> safetySettings,
+      "generationConfig" -> generationConfig(model)
+    ).compactPrint
+
+  private[promovolve] def textRequestBody(prompt: String, model: String): String =
     JsObject(
       "contents" -> JsArray(
         JsObject("parts" -> JsArray(JsObject("text" -> JsString(prompt))))

@@ -799,15 +799,7 @@ final class LPExtractor(
       |""".stripMargin
 
   private def callGemini(fullPrompt: String): Future[Vector[BannerPage]] = {
-    val requestBody = JsObject(
-      "contents" -> JsArray(JsObject(
-        "parts" -> JsArray(JsObject("text" -> JsString(fullPrompt)))
-      )),
-      "generationConfig" -> JsObject(
-        "temperature" -> JsNumber(0.7),
-        "maxOutputTokens" -> JsNumber(8000)
-      )
-    ).compactPrint
+    val requestBody = LPExtractor.requestBody(fullPrompt, temperature = 0.7)
 
     val apiUrl = s"https://generativelanguage.googleapis.com/v1beta/models/$model:generateContent?key=$geminiApiKey"
     val request = HttpRequest(
@@ -840,15 +832,7 @@ final class LPExtractor(
       // 0.5 produces near-identical layouts.
       temperature: Double = 0.5
   ): Future[JsValue] = {
-    val requestBody = JsObject(
-      "contents" -> JsArray(JsObject(
-        "parts" -> JsArray(JsObject("text" -> JsString(fullPrompt)))
-      )),
-      "generationConfig" -> JsObject(
-        "temperature" -> JsNumber(temperature),
-        "maxOutputTokens" -> JsNumber(8000)
-      )
-    ).compactPrint
+    val requestBody = LPExtractor.requestBody(fullPrompt, temperature)
 
     val apiUrl =
       s"https://generativelanguage.googleapis.com/v1beta/models/$overrideModel:generateContent?key=$geminiApiKey"
@@ -898,4 +882,18 @@ final class LPExtractor(
         throw new RuntimeException(s"Rewrite failed: ${e.getMessage}", e)
     }
   }
+}
+
+object LPExtractor {
+
+  private[promovolve] def requestBody(prompt: String, temperature: Double): String =
+    JsObject(
+      "contents" -> JsArray(JsObject(
+        "parts" -> JsArray(JsObject("text" -> JsString(prompt)))
+      )),
+      "generationConfig" -> JsObject(
+        "temperature" -> JsNumber(temperature),
+        "maxOutputTokens" -> JsNumber(8000)
+      )
+    ).compactPrint
 }

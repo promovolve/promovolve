@@ -343,7 +343,7 @@ class IABTaxonomy(
     )
   }
 
-  private def buildGeminiRequest(p: Provider.Gemini, prompt: String): (String, List[HttpHeader], String) = {
+  private[promovolve] def buildGeminiRequest(p: Provider.Gemini, prompt: String): (String, List[HttpHeader], String) = {
     val thinkingConfig = IABTaxonomy.geminiThinkingConfig(p.model)
     val body = JsObject(
       "contents" -> JsArray(

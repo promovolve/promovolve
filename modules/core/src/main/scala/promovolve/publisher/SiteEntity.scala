@@ -279,6 +279,9 @@ object SiteEntity {
           // priced out must read as no demand, not as satisfied demand.
           // Transient; rebuilt as auctions report.
           var categoryBidInfo: Map[String, (Int, Int, Double, Double)] = Map.empty
+          // Site-wide (bidders, second bid) from the aggregate report, for
+          // the same second-bid ceiling on the site floor. Transient.
+          var siteBidInfo: Option[(Int, Double)] = None
 
           // Sweep-optimizer tuning, read once from the `floor-optimizer`
           // HOCON block. Missing keys fall back to FloorSweepOptimizer.Config
@@ -436,12 +439,10 @@ object SiteEntity {
                   // competitive floor never exceeds secondBid × 0.99, so the
                   // top two bidders always clear. Extraction above the
                   // second bid is second-price clearing's job.
-                  val secondCap = info.collect {
-                    case (n, _, _, second) if n >= 2 && second > 0.0 => second * 0.99
+                  val applied = info.fold(opt.currentFloorCpm.max(state.minFloorCpm.toDouble)) {
+                    case (n, _, _, second) =>
+                      capAtSecondBid(opt.currentFloorCpm, n, second, state.minFloorCpm.toDouble)
                   }
-                  val applied = secondCap
-                    .fold(opt.currentFloorCpm)(c => math.min(opt.currentFloorCpm, c))
-                    .max(state.minFloorCpm.toDouble)
                   floors = floors.updated(cat, CPM(applied))
                   snaps = snaps.updated(cat, opt.snapshot())
                   // Change-gated like the monopoly and zero-servable branches
@@ -1568,7 +1569,9 @@ object SiteEntity {
               case AuctionOutcomeReport(outcome, category) =>
                 category match {
                   // Site-wide aggregate (legacy): feeds the site optimizer.
-                  case None => floorSweepOptimizer.foreach(_.recordAuctionOutcome(outcome))
+                  case None =>
+                    floorSweepOptimizer.foreach(_.recordAuctionOutcome(outcome))
+                    siteBidInfo = Some((outcome.totalBidders, outcome.secondMaxObservedCpm))
                   // Per-category report: feeds that category's optimizer AND
                   // records (bidderCount, bid) for the bid-derived monopoly path.
                   case Some(c) =>
@@ -1659,8 +1662,20 @@ object SiteEntity {
                       // persist (shadow mode logs + persists; it does not push).
                       val (catFloors, catSnaps, catDecisions) = observeAllCategories(state)
 
-                      observeResult match {
-                        case Some(FloorSweepOptimizer.ObserveResult(newFloor, completedCycle)) =>
+                      // The sweep's pick (or the standing floor), under the
+                      // second-bid ceiling every window: a stale floor above
+                      // the field comes down even when the sweep didn't move.
+                      val minFloor = state.minFloorCpm.toDouble
+                      def capped(f: Double) =
+                        siteBidInfo.fold(f.max(minFloor)) { case (n, second) => capAtSecondBid(f, n, second, minFloor) }
+                      val current = state.floorCpm.toDouble
+                      val siteFloorUpdate = observeResult match {
+                        case Some(r)                            => Some((capped(r.newFloor), r.completedCycle))
+                        case None if capped(current) != current => Some((capped(current), None))
+                        case None                               => None
+                      }
+                      siteFloorUpdate match {
+                        case Some((newFloor, completedCycle)) =>
                           val cpm = CPM(newFloor)
                           ctx.log.info(
                             "SiteEntity {} sweep floor CPM update: floor={} progress={}",
@@ -2209,6 +2224,15 @@ object SiteEntity {
    */
   def effectiveFloor(slot: AdSlotConfig, siteFloor: CPM): CPM =
     slot.floorOverride.getOrElse(siteFloor)
+
+  /**
+   * SECOND-BID CEILING at the applied layer, site-wide and per category:
+   * with two or more bidders the floor never exceeds secondBid × 0.99, so
+   * the top two always clear (extraction above the second bid is second-
+   * price clearing's job). Never below the publisher's minimum.
+   */
+  def capAtSecondBid(floor: Double, bidders: Int, secondBid: Double, minFloor: Double): Double =
+    (if (bidders >= 2 && secondBid > 0.0) math.min(floor, secondBid * 0.99) else floor).max(minFloor)
 
   /** Configuration for a site's crawler and taxonomy analysis */
   /**

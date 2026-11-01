@@ -97,7 +97,9 @@ observation window from the latest per-category auction report
   lowball bids, but never the top two; extraction above the second bid is
   second-price clearing's job, not the reserve's. The same ceiling is
   enforced on the **applied** floor each window (mid-cycle probes and
-  stale anchors get clamped immediately, not just next cycle).
+  stale anchors get clamped immediately, not just next cycle), for the
+  site-wide floor as well as each category's. Bidders are counted per
+  **campaign**: a campaign's second creative is not a second bidder.
 
 ## Admission: how a floor reaches a bid request
 

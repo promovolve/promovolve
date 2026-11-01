@@ -65,6 +65,43 @@ object AuctioneerEntity {
    * distance 0. The distance is relevance metadata — fan-out itself
    * remains distance-blind (every shard still gets asked).
    */
+  /** What one auction tells the site-wide floor optimizer. */
+  final case class SiteFloorStats(bidders: Int, maxBid: Double, minBid: Double, secondBid: Double)
+
+  /**
+   * Site-wide floor stats from one auction's APPROVED bids (one entry per
+   * candidate creative) and its approved below-floor rejects (known only
+   * by count, max and min). One bid per CAMPAIGN: a campaign's second
+   * creative is not a second bidder, and counting it made a lone campaign
+   * look competitive with its own bid as "the second bid".
+   */
+  def siteFloorStats(
+      approvedBids: Seq[(CampaignId, Double)],
+      approvedRejects: Int,
+      maxRejected: Double,
+      minRejected: Double
+  ): SiteFloorStats = {
+    val bids = approvedBids.groupMapReduce(_._1)(_._2)(math.max).values.toSeq
+    val qMax = bids.maxOption.getOrElse(0.0)
+    val qMin = bids.filter(_ > 0.0).minOption.getOrElse(0.0)
+    val minBid = (qMin, minRejected) match {
+      case (q, r) if q > 0.0 && r > 0.0 => math.min(q, r)
+      case (q, _) if q > 0.0            => q
+      case (_, r) if r > 0.0            => r
+      case _                            => 0.0
+    }
+    // Rejects are known only by their bounds: the middle of the reject
+    // field is invisible, which can only underestimate the second bid.
+    val rejBids = if (approvedRejects >= 2) Seq(maxRejected, minRejected) else Seq(maxRejected)
+    val known = (bids ++ rejBids).filter(_ > 0.0).sorted(using Ordering[Double].reverse)
+    SiteFloorStats(
+      bidders = bids.size + approvedRejects,
+      maxBid = math.max(qMax, maxRejected),
+      minBid = minBid,
+      secondBid = known.lift(1).getOrElse(0.0)
+    )
+  }
+
   def expandWithHops(pageCategories: List[String]): Map[String, Int] =
     pageCategories
       .flatMap { c =>
@@ -785,8 +822,8 @@ private final class AuctioneerEntity private (
       }
       // Campaign-fair ordering: best creative per campaign first (by CPM), then remaining.
       // No artificial candidate cap — all competitive bids pass through to serve-time
-      // Thompson Sampling. The CPM threshold filter in CategoryBidderEntity (top 20%)
-      // provides the natural limit on candidate pool size.
+      // Thompson Sampling. CategoryBidderEntity's top-50-campaigns cap bounds
+      // the pool size.
       //
       // Deduplicate by creativeId — same creative can enter via multiple category paths
       val deduped = candidates
@@ -912,33 +949,21 @@ private final class AuctioneerEntity private (
       // Pending demand competes for the approval queue but must not
       // teach a floor nothing can currently fulfil. (The eviction
       // gating above deliberately keeps the RAW reject counts.)
-      val approvedDeduped = deduped.filter(c => approvedCampaignIds.contains(c.campaignId))
-      val qualifyingMax = if (approvedDeduped.nonEmpty) approvedDeduped.map(_.cpm.toDouble).max else 0.0
-      val qualifyingMin = if (approvedDeduped.nonEmpty) approvedDeduped.map(_.cpm.toDouble).min else 0.0
-      val maxObserved = math.max(qualifyingMax, maxApprovedRejectedCpm)
-      val minObserved = (qualifyingMin, minApprovedRejectedCpm) match {
-        case (q, r) if q > 0.0 && r > 0.0 => math.min(q, r)
-        case (q, _) if q > 0.0            => q
-        case (_, r) if r > 0.0            => r
-        case _                            => 0.0
-      }
-      // Aggregate second bid mirrors the per-category computation: known
-      // bids = qualifying + reject bounds (middle rejects invisible → can
-      // only underestimate → fails open).
-      val aggRejBids =
-        if (approvedFloorRejects >= 2) Seq(maxApprovedRejectedCpm, minApprovedRejectedCpm)
-        else Seq(maxApprovedRejectedCpm)
-      val aggKnownBids = (approvedDeduped.map(_.cpm.toDouble) ++ aggRejBids).filter(_ > 0.0).sorted(
-        using Ordering[Double].reverse)
+      val siteStats = AuctioneerEntity.siteFloorStats(
+        deduped.filter(c => approvedCampaignIds.contains(c.campaignId)).map(c => c.campaignId -> c.cpm.toDouble),
+        approvedFloorRejects,
+        maxApprovedRejectedCpm,
+        minApprovedRejectedCpm
+      )
       val outcome = FloorSweepOptimizer.AuctionOutcome(
-        totalBidders = approvedDeduped.size + approvedFloorRejects,
+        totalBidders = siteStats.bidders,
         rejectedByFloor = approvedFloorRejects,
         winnerCpm = winnerCpm,
         clearingPrice = clearingPrice,
-        maxObservedCpm = maxObserved,
-        minObservedCpm = minObserved,
+        maxObservedCpm = siteStats.maxBid,
+        minObservedCpm = siteStats.minBid,
         slotId = Some(slotId.value),
-        secondMaxObservedCpm = aggKnownBids.lift(1).getOrElse(0.0)
+        secondMaxObservedCpm = siteStats.secondBid
       )
       val siteRef = sharding.entityRefFor(SiteEntity.TypeKey, siteId.value)
       // Admin-overridden slots are invisible to floor LEARNING: their

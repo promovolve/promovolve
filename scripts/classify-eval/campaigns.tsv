@@ -4,3 +4,28 @@
 #   accepted: `|`-separated IAB Content Taxonomy 3.0 ids; ANY one present = hit;
 #   a child of an accepted id also counts as hit, an ancestor as "broad", a
 #   sibling as WRONG. Unrelated extras are not judged — watch the count column.
+#   ad-product id may be empty: production sends none today (creative.declared_category is blank on every row, 2026-11-01).
+#   Landing pages from production `creative` rows, 2026-11-01. Labels are a first draft — correct them freely.
+http://ryutetsu.jp/		669|679	Ryutetsu: local railway line (Nagareyama)
+https://asteknot.co.jp/			company site — label me
+https://hanabi.walkerplus.com/list/ar0312/		8VZQHL|1KXCLD	fireworks festival listings
+https://jp.iqos.com/		pg0WhF	heated tobacco: sensitive category only
+https://midorinomajo30.com/			label me
+https://nagareyamakankou.com/		657|679|150	Nagareyama city tourism
+https://narashikanko.or.jp/		657|153	Nara city tourism
+https://shiro-mirin.com/museum/		155|216	mirin museum
+https://souda-kyoto.jp/		657|153	JR Kyoto tourism campaign
+https://store.ace.jp/shop/default.aspx		473|663	ACE bags and luggage shop
+https://t0m0h1de.github.io/thawline-lp			label me
+https://t0m0h1de.github.io/thawline-lp/yohaku/			label me
+https://toyota.jp/		1	Toyota cars
+https://tver.jp/episodes/ep9g9yncsv		640|647	TV drama episode
+https://www.awaodorimirai.com/		8VZQHL|203	Awa Odori dance festival
+https://www.chanel.com/jp/fashion/collection/fall-winter-pre-collection-2026/		560|552	women's fashion collection
+https://www.earth.jp/en/oh-nomat/index.html		479|274	insect repellent mat (household)
+https://www.fourseasons.com/macau/		668|657	hotel in Macau
+https://www.shiki.jp/applause/lionking/		156|209	The Lion King musical
+https://www.soratobi.jp/			label me
+https://www.tbs.co.jp/VIVANT_tbs/		640|647	TV drama
+https://www.yadotime.jp/		668|674	hotel booking
+https://www.yukoyuko.net/onsen		671|668	onsen inn booking

@@ -81,7 +81,9 @@ GEMINI_CAMPAIGN_MODEL=gemini-3.5-flash-lite \
   --baseline scripts/classify-eval/out/campaigns-gemini-2.5-flash.json
 ```
 
-`campaigns.tsv` is `url  ad-product-id  accepted-content-ids  note`, scored
+`campaigns.tsv` is `url  ad-product-id  accepted-content-ids  note` (the
+landing pages from production's `creative` table; ad-product id empty =
+none, which is what production sends today), scored
 with the page eval's rule. The count column shows how many categories each
 answer had: a wide answer spends the campaign's budget on loosely related
 pages, and the score does not catch that. Text comes from `extract.mjs`

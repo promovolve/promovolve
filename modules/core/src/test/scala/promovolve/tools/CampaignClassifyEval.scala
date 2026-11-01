@@ -30,7 +30,7 @@ import scala.util.Try
 object CampaignClassifyEval {
   import ClassifyEval.{ Expect, Verdict }
 
-  final case class Case(url: String, adProduct: String, expect: Expect)
+  final case class Case(url: String, adProduct: Option[String], expect: Expect)
   final case class Row(url: String, categories: Vector[String], verdict: Verdict, error: Option[String])
 
   def main(args: Array[String]): Unit = {
@@ -53,9 +53,9 @@ object CampaignClassifyEval {
       try
         cases.map { c =>
           texts.get(c.url) match {
-            case None => Row(c.url, Vector.empty, Verdict.Skip, Some("no extracted text — run extract.mjs"))
+            case None       => Row(c.url, Vector.empty, Verdict.Skip, Some("no extracted text — run extract.mjs"))
             case Some(text) =>
-              Try(Await.result(client.verifyText(text, Some(c.adProduct)), 90.seconds)).fold(
+              Try(Await.result(client.verifyText(text, c.adProduct), 90.seconds)).fold(
                 ex => Row(c.url, Vector.empty, Verdict.Skip, Some(ex.getMessage)),
                 r => {
                   val cats = r.suggestedContentCategories.toVector
@@ -92,13 +92,14 @@ object CampaignClassifyEval {
 
   private def catName(id: String): String = TieredCategory.get(id).map(c => s"${c.name}($id)").getOrElse(id)
 
-  // url <TAB> ad-product category id <TAB> accepted content categories (|-separated) <TAB> note
+  // url <TAB> ad-product category id (empty = none, as production sends today) <TAB> accepted (|-separated) <TAB> note
   private def readCases(tsv: Path): Vector[Case] =
     Files.readAllLines(tsv).asScala.toVector.map(_.trim).filter(l => l.nonEmpty && !l.startsWith("#")).map { l =>
       val cols = l.split("\t", -1).map(_.trim)
       val accepted =
         if (cols.length > 2) cols(2).split("\\|").map(_.trim).filter(_.nonEmpty).toVector else Vector.empty
-      Case(cols(0), cols(1), Expect(cols(0), accepted, Vector.empty, if (cols.length > 3) cols(3) else ""))
+      Case(cols(0), Option.when(cols.length > 1 && cols(1).nonEmpty)(cols(1)),
+        Expect(cols(0), accepted, Vector.empty, if (cols.length > 3) cols(3) else ""))
     }
 
   private def readTexts(dir: Path): Map[String, String] =

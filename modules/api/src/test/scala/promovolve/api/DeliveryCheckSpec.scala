@@ -28,7 +28,7 @@ class DeliveryCheckSpec extends AnyWordSpec with Matchers {
       startAt = now.minus(1, ChronoUnit.DAYS)),
     campaignBudget = Some(CampaignEntity.BudgetInfo(Budget(500.0), Spend(50.0), Budget(450.0))),
     creatives = Some(Set(AdvertiserEntity.Creative(cr, approvedSites = Set("site-a")))),
-    sites = Some(Map(SiteId("site-a") -> SiteFloors(1.0, Map.empty, Set("483")))),
+    sites = Some(Map(SiteId("site-a") -> SiteFloors(1.0, Map.empty))),
     directory = Some(Map("483" -> true))
   )
 
@@ -119,9 +119,9 @@ class DeliveryCheckSpec extends AnyWordSpec with Matchers {
 
     "judge floors per site with the category floor, else the site floor" in {
       val sites = Map(
-        SiteId("a") -> SiteFloors(1.0, Map("483" -> 3.0), Set("483")), // category floor above max 2.0
-        SiteId("b") -> SiteFloors(3.0, Map("483" -> 1.5), Set("483")), // category floor below max
-        SiteId("c") -> SiteFloors(1.0, Map.empty, Set("483")) // site floor below max
+        SiteId("a") -> SiteFloors(1.0, Map("483" -> 3.0)), // category floor above max 2.0
+        SiteId("b") -> SiteFloors(3.0, Map("483" -> 1.5)), // category floor below max
+        SiteId("c") -> SiteFloors(1.0, Map.empty) // site floor below max
       )
       val items = evaluate(healthy.copy(sites = Some(sites)), now)
       val floors = items.find(_.key == "floors").get
@@ -130,11 +130,15 @@ class DeliveryCheckSpec extends AnyWordSpec with Matchers {
     }
 
     "block when no eligible site clears" in {
-      status(healthy.copy(sites = Some(Map(SiteId("a") -> SiteFloors(5.0, Map.empty, Set("483"))))),
+      status(healthy.copy(sites = Some(Map(SiteId("a") -> SiteFloors(5.0, Map.empty)))),
         "floors") shouldBe "blocked"
     }
 
-    "warn, not block, when no site carries the categories" in {
+    "price a campaign with no categories against the site floor, not block it twice" in {
+      status(withCampaign(_.copy(categories = Set.empty)), "floors") shouldBe "ok"
+    }
+
+    "warn, not block, when no site can serve it" in {
       status(healthy.copy(sites = Some(Map.empty)), "floors") shouldBe "warning"
     }
 
@@ -147,8 +151,7 @@ class DeliveryCheckSpec extends AnyWordSpec with Matchers {
 
     "judge a filler-only campaign against the site floor, as the filler auction does" in {
       val in = withCampaign(_.copy(categories = Set.empty, bidOnUnmatchedContext = true)).copy(
-        sites = Some(Map(SiteId("a") -> SiteFloors(1.0, Map(CategoryId.Filler.value -> 5.0),
-          Set(CategoryId.Filler.value)))),
+        sites = Some(Map(SiteId("a") -> SiteFloors(1.0, Map(CategoryId.Filler.value -> 5.0)))),
         directory = Some(Map(CategoryId.Filler.value -> true)))
       status(in, "floors") shouldBe "ok"
     }

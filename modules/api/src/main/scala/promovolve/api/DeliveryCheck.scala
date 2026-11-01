@@ -14,8 +14,8 @@ import promovolve.advertiser.{ AdvertiserEntity, CampaignEntity }
  */
 object DeliveryCheck {
 
-  /** One eligible site: its floors, and the campaign categories it carries. */
-  final case class SiteFloors(siteFloor: Double, categoryFloors: Map[String, Double], carried: Set[String])
+  /** One eligible site's floors. */
+  final case class SiteFloors(siteFloor: Double, categoryFloors: Map[String, Double])
 
   final case class Inputs(
       advertiser: AdvertiserEntity.AdvertiserInfo,
@@ -23,7 +23,7 @@ object DeliveryCheck {
       campaign: CampaignEntity.CampaignInfo,
       campaignBudget: Option[CampaignEntity.BudgetInfo],
       creatives: Option[Set[AdvertiserEntity.Creative]],
-      sites: Option[Map[SiteId, SiteFloors]], // eligible only: allowlist and site suspension already applied
+      sites: Option[Map[SiteId, SiteFloors]], // sites that can serve, within the allowlist, not suspended
       directory: Option[Map[String, Boolean]] // effective category -> campaign listed under it
   )
 
@@ -83,7 +83,7 @@ object DeliveryCheck {
         budgetItem("campaignBudget", b.dailyBudget.toDouble, b.remaining.toDouble,
           spentOut = b.remaining.toDouble <= 0)
       },
-      in.sites.fold(Item("floors", Unknown))(floorsItem(c.maxCpm.toDouble, _)),
+      in.sites.fold(Item("floors", Unknown))(floorsItem(c.maxCpm.toDouble, effectiveCategories(c), _)),
       // Pausing (or ending) takes a campaign out of the directory on purpose.
       if (c.status != CampaignEntity.Status.Active) Item("bidders", Ok, Map("inactive" -> "true"))
       else in.directory.fold(Item("bidders", Unknown)) { listed =>
@@ -93,14 +93,16 @@ object DeliveryCheck {
     )
   }
 
-  // The auction's floor rule (AuctioneerEntity: currentCategoryFloors.getOrElse(cat, currentFloorCpm));
-  // the filler auction prices at the site floor alone.
-  private def floorsItem(maxCpm: Double, sites: Map[SiteId, SiteFloors]): Item =
+  // The auction's floor rule (AuctioneerEntity: currentCategoryFloors.getOrElse(cat, currentFloorCpm)),
+  // under the campaign's own categories — any site's pages can classify into them. The filler
+  // auction, and a campaign with no categories yet, face the site floor alone.
+  private def floorsItem(maxCpm: Double, categories: Set[CategoryId], sites: Map[SiteId, SiteFloors]): Item =
     if (sites.isEmpty) Item("floors", Warning, Map("cleared" -> "0", "eligible" -> "0"))
     else {
       val floors = sites.values.map(s =>
-        s.carried.map(cat =>
-          if (cat == CategoryId.Filler.value) s.siteFloor else s.categoryFloors.getOrElse(cat, s.siteFloor)))
+        if (categories.isEmpty) Set(s.siteFloor)
+        else categories.map(cat =>
+          if (cat == CategoryId.Filler) s.siteFloor else s.categoryFloors.getOrElse(cat.value, s.siteFloor)))
       val cleared = floors.count(_.exists(maxCpm >= _))
       val all = floors.flatten
       val status = if (cleared == 0) Blocked else if (cleared < sites.size) Warning else Ok

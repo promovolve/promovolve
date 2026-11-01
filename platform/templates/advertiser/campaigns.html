@@ -373,44 +373,6 @@
 
     <!-- Expanded details -->
     <div id="camp-detail-{{.ID}}" x-show="open" x-cloak class="border-t px-4 py-4 bg-gray-50">
-      {{/* The Delivery check: the core runs ten checks in order and names
-           the first that stops this campaign serving. Fetched on first open. */}}
-      <div class="mb-5 text-xs" x-data="{ r: null, err: false,
-          load() {
-            fetch('/api/delivery-check?campaignId={{.ID}}')
-              .then(res => res.ok ? res.json() : Promise.reject())
-              .then(d => { if (d && Array.isArray(d.items)) this.r = d; else this.err = true; })
-              .catch(() => { this.err = true; });
-          },
-          money(v) { return '{{sym}}' + Number(v).toLocaleString(undefined, { minimumFractionDigits: {{decimals}}, maximumFractionDigits: {{decimals}} }); },
-          fill(s, d) { return s.replace(/\{(\w+)\}/g, (_, k) => /daily|remaining|Floor/.test(k) ? this.money(d[k]) : (d[k] ?? '')); } }"
-           x-init="$watch('open', v => v && !r && !err && load())">
-        <p class="text-gray-500 mb-1">{{t "Delivery check"}}</p>
-        <p x-show="!r && !err" class="text-gray-500">…</p>
-        <p x-show="err" class="font-bold">{{t "Could not run the delivery check."}}</p>
-        <template x-if="r">
-          <div>
-            <p class="text-sm mb-2" :class="r.firstBlocked && 'font-bold'">
-              <span x-show="!r.firstBlocked">{{t "Nothing is stopping this campaign."}}</span>
-              <template x-for="it in r.items.filter(i => i.key === r.firstBlocked)" :key="it.key">{{template "delivery-check-sentence" .}}</template>
-            </p>
-            <ul class="space-y-0.5">
-              <template x-for="it in r.items" :key="it.key">
-                <li class="flex gap-2">
-                  <span class="w-14 shrink-0" :class="it.status === 'ok' ? 'text-gray-500' : 'font-bold'"
-                        x-text="{ ok: '{{t "OK"}}', blocked: '{{t "Blocked"}}', warning: '{{t "Note"}}', unknown: '{{t "Unknown"}}' }[it.status]"></span>
-                  <span><span class="text-gray-500" x-text="{
-                      advertiserActive: '{{t "Account"}}', advertiserBudget: '{{t "Account budget"}}',
-                      campaignActive: '{{t "Status"}}', schedule: '{{t "Schedule"}}', categories: '{{t "Categories"}}',
-                      creatives: '{{t "Creatives"}}', approval: '{{t "Publisher approval"}}',
-                      campaignBudget: '{{t "Campaign budget"}}', floors: '{{t "Floors"}}', bidders: '{{t "Bidders"}}' }[it.key]"></span>
-                    · {{template "delivery-check-sentence" .}}</span>
-                </li>
-              </template>
-            </ul>
-          </div>
-        </template>
-      </div>
       <div class="grid grid-cols-1 sm:grid-cols-3 gap-6 text-sm">
         <div>
           <dl class="grid grid-cols-3 gap-3 mb-4 tabular">
@@ -452,6 +414,52 @@
             <p class="text-xs text-gray-500">{{t "Times are in your account timezone (%s) — the same boundary your daily budget resets at." $.ScheduleTz}}</p>
           </form>
           <p class="text-xs text-gray-500 mt-2">{{if .EndAtDisplay}}{{t "Stops bidding %s. Dog-ear pins expire then." .EndAtDisplay}}{{else}}{{t "Open-ended — runs until paused."}}{{end}}</p>
+
+          {{/* The Delivery check: on request, the core runs ten checks in
+               order and names the first that stops this campaign serving.
+               Only the lines that need attention show until "Show all". */}}
+          <div class="mt-4" x-data="{ r: null, busy: false, err: false, all: false,
+              load() {
+                this.busy = true; this.err = false; this.r = null;
+                fetch('/api/delivery-check?campaignId={{.ID}}')
+                  .then(res => res.ok ? res.json() : Promise.reject())
+                  .then(d => { if (d && Array.isArray(d.items)) this.r = d; else this.err = true; })
+                  .catch(() => { this.err = true; })
+                  .finally(() => { this.busy = false; });
+              },
+              money(v) { return '{{sym}}' + Number(v).toLocaleString(undefined, { minimumFractionDigits: {{decimals}}, maximumFractionDigits: {{decimals}} }); },
+              fill(s, d) { return s.replace(/\{(\w+)\}/g, (_, k) => /daily|remaining|Floor/.test(k) ? this.money(d[k]) : (d[k] ?? '')); } }">
+            <div class="flex items-center gap-2">
+              <p class="text-gray-500 text-xs flex-1">{{t "Is anything stopping this campaign from serving?"}}</p>
+              <button type="button" class="btn btn-secondary btn-sm" :disabled="busy" @click="load()" x-text="busy ? '…' : '{{t "Check"}}'">{{t "Check"}}</button>
+            </div>
+            <p x-show="err" class="text-xs font-bold mt-1">{{t "Could not run the delivery check."}}</p>
+            <template x-if="r">
+              <div class="text-xs mt-2 space-y-1">
+                <p class="font-medium" :class="r.firstBlocked && 'font-bold'">
+                  <span x-show="!r.firstBlocked">{{t "Nothing is stopping this campaign."}}</span>
+                  <template x-for="it in r.items.filter(i => i.key === r.firstBlocked)" :key="it.key">{{template "delivery-check-sentence" .}}</template>
+                </p>
+                <ul class="space-y-1">
+                  <template x-for="it in r.items.filter(i => all || (i.status !== 'ok' && i.key !== r.firstBlocked))" :key="it.key">
+                    <li class="flex items-baseline gap-2">
+                      <span class="w-14 shrink-0"><span class="badge"
+                            :class="{ ok: 'badge-success', blocked: 'badge-danger', warning: 'badge-warning', unknown: 'badge-neutral' }[it.status]"
+                            x-text="{ ok: '{{t "OK"}}', blocked: '{{t "Blocked"}}', warning: '{{t "Note"}}', unknown: '{{t "Unknown"}}' }[it.status]"></span></span>
+                      <span><span class="text-gray-500" x-text="{
+                          advertiserActive: '{{t "Account"}}', advertiserBudget: '{{t "Account budget"}}',
+                          campaignActive: '{{t "Status"}}', schedule: '{{t "Schedule"}}', categories: '{{t "Categories"}}',
+                          creatives: '{{t "Creatives"}}', approval: '{{t "Publisher approval"}}',
+                          campaignBudget: '{{t "Campaign budget"}}', floors: '{{t "Floors"}}', bidders: '{{t "Bidders"}}' }[it.key]"></span>
+                        · {{template "delivery-check-sentence" .}}</span>
+                    </li>
+                  </template>
+                </ul>
+                <button type="button" class="text-brand-ink hover:underline" @click="all = !all"
+                        x-text="all ? '{{t "Show only what needs attention"}}' : '{{t "Show all checks"}}'"></button>
+              </div>
+            </template>
+          </div>
 
           {{/* The bid checker. "I targeted X and the page I care about shows
                no ads" has five possible answers (category, place, audience,
@@ -1105,8 +1113,8 @@
     <span x-show="it.status === 'warning'">{{t "No publisher has approved a creative yet. Its first win puts it in their review queues; nothing to do."}}</span>
   </span></template>
   <template x-if="it.key === 'floors'"><span>
-    <span x-show="it.status === 'ok'" x-text="fill('{{t "Your max bid clears the floor on all {eligible} sites that carry its categories."}}', it.detail)"></span>
-    <span x-show="it.status === 'warning' && it.detail.eligible === '0'">{{t "No site carries its categories yet."}}</span>
+    <span x-show="it.status === 'ok'" x-text="fill('{{t "Your max bid clears the floor on all {eligible} sites."}}', it.detail)"></span>
+    <span x-show="it.status === 'warning' && it.detail.eligible === '0'">{{t "No site can show it yet."}}</span>
     <span x-show="it.status === 'warning' && it.detail.eligible !== '0'" x-text="fill('{{t "Your max bid clears {cleared} of {eligible} sites; floors run {lowestFloor}–{highestFloor}. Raise Max Bid to reach more."}}', it.detail)"></span>
     <span x-show="it.status === 'blocked'" x-text="fill('{{t "Your max bid is below the floor on all {eligible} sites; floors run {lowestFloor}–{highestFloor}. Raise Max Bid."}}', it.detail)"></span>
   </span></template>

@@ -1828,36 +1828,33 @@ class EndpointRoutes(
       // the latest floor_decisions rows instead.
       val MaxSites = 200
 
+      // Every site that can serve (the serve gate's verified-host map), minus
+      // suspended ones, within the allowlist. A failed read is unknown, not empty.
+      def ddSites[V](key: org.apache.pekko.cluster.ddata.LWWMapKey[SiteId, V]): Future[Map[SiteId, V]] =
+        ClusterDData(system).replicator
+          .ask[DDReplicator.GetResponse[LWWMap[SiteId, V]]](DDReplicator.Get(key, DDReplicator.ReadLocal, _))
+          .flatMap {
+            case rsp @ DDReplicator.GetSuccess(`key`) => Future.successful(rsp.get(key).entries)
+            case DDReplicator.NotFound(`key`)         => Future.successful(Map.empty)
+            case other                                => Future.failed(new IllegalStateException(s"$key read: $other"))
+          }
+
       def sitesFor(campaign: CampaignEntity.CampaignInfo): Future[Option[Map[SiteId, DeliveryCheck.SiteFloors]]] =
-        categoryRegistry match {
-          case None           => Future.successful(None)
-          case Some(registry) =>
-            val replicator = ClusterDData(system).replicator
-            val suspendedF = replicator
-              .ask[DDReplicator.GetResponse[LWWMap[SiteId, SiteEntity.CachedSiteSuspended]]](
-                DDReplicator.Get(SiteEntity.SiteSuspendedKey, DDReplicator.ReadLocal, _))
-              .map {
-                case rsp @ DDReplicator.GetSuccess(SiteEntity.SiteSuspendedKey) =>
-                  rsp.get(SiteEntity.SiteSuspendedKey).entries.collect { case (s, v) if v.suspended => s }.toSet
-                case _ => Set.empty[SiteId]
-              }
-            opt(for {
-              carriers <- registry.ask[promovolve.taxonomy.CategoryRegistry.Carriers](
-                promovolve.taxonomy.CategoryRegistry.GetCarriers(DeliveryCheck.effectiveCategories(campaign), _))
-              suspended <- suspendedF
-              eligible = carriers.bySite.filter { case (site, _) =>
-                !suspended.contains(site) &&
-                (campaign.siteAllowlist.isEmpty || campaign.siteAllowlist.contains(site.value))
-              }.take(MaxSites)
-              floors <- Future.traverse(eligible.toVector) { case (site, carried) =>
-                for {
-                  siteFloor <- siteRef(site.value).ask[CPM](SiteEntity.GetFloorCpm(_))
-                  catFloors <- siteRef(site.value)
-                    .ask[promovolve.proto.site.CategoryFloors](SiteEntity.GetCategoryFloors(_))
-                } yield site -> DeliveryCheck.SiteFloors(siteFloor.toDouble, catFloors.floors, carried)
-              }
-            } yield floors.toMap)
-        }
+        opt(for {
+          verified <- ddSites(SiteEntity.VerifiedHostKey)
+          suspended <- ddSites(SiteEntity.SiteSuspendedKey)
+          eligible = verified.keySet.filter { site =>
+            !suspended.get(site).exists(_.suspended) &&
+            (campaign.siteAllowlist.isEmpty || campaign.siteAllowlist.contains(site.value))
+          }.take(MaxSites)
+          floors <- Future.traverse(eligible.toVector) { site =>
+            val siteFloorF = siteRef(site.value).ask[CPM](SiteEntity.GetFloorCpm(_))
+            val catFloorsF =
+              siteRef(site.value).ask[promovolve.proto.site.CategoryFloors](SiteEntity.GetCategoryFloors(_))
+            for { siteFloor <- siteFloorF; catFloors <- catFloorsF } yield site ->
+            DeliveryCheck.SiteFloors(siteFloor.toDouble, catFloors.floors)
+          }
+        } yield floors.toMap)
 
       def directoryFor(campaign: CampaignEntity.CampaignInfo): Future[Option[Map[String, Boolean]]] =
         campaignDirectory match {
@@ -1891,8 +1888,7 @@ class EndpointRoutes(
       (for {
         info <- infoF
         campaign <- campaignF
-        sites <- sitesFor(campaign)
-        directory <- directoryFor(campaign)
+        (sites, directory) <- sitesFor(campaign).zip(directoryFor(campaign))
         advBudget <- advBudgetF
         campBudget <- campBudgetF
         creatives <- creativesF

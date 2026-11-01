@@ -88,7 +88,7 @@ object ClassifyEval {
             case Some(t) =>
               val hint = Option.when(!noHints && t.section.nonEmpty)(t.section)
               val placeHint = Option.when(!noHints && t.place.nonEmpty)(t.place)
-              val attempt = Try(Await.result(classifier.analyze(e.url, t.text, Set.empty, hint, placeHint), 60.seconds))
+              val attempt = Try(Await.result(classifier.analyze(e.url, t.text, hint, placeHint), 60.seconds))
               val r = attempt.fold(
                 ex =>
                   Result(e.url, Vector.empty, Vector.empty, Verdict.Skip, Verdict.Skip,

@@ -62,4 +62,19 @@ class CategoryRegistrySpec extends AnyWordSpec with Matchers {
       CategoryRegistry.coverageRows(Map("pub1" -> Set("483")), Set.empty) shouldBe empty
     }
   }
+
+  "subtreeCarriers" should {
+
+    def carriers(pubs: Map[String, Set[String]], cats: String*) =
+      CategoryRegistry.subtreeCarriers(pubs, cats.map(CategoryId(_)).toSet)
+
+    "list each carrying site with the declared categories inside the request's subtree" in {
+      val pubs = Map("s1" -> Set("497", "181"), "s2" -> Set("483"), "s3" -> Set("181"))
+      carriers(pubs, "483") shouldBe Map(promovolve.SiteId("s1") -> Set("497"), promovolve.SiteId("s2") -> Set("483"))
+    }
+
+    "never credit a parent-only declaration to a child request" in {
+      carriers(Map("s2" -> Set("483")), "497") shouldBe empty
+    }
+  }
 }

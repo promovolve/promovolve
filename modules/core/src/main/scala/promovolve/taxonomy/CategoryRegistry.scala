@@ -230,18 +230,22 @@ object CategoryRegistry {
     }.sortBy(_.categoryId.value)
 
   /**
-   * Pure core of [[GetCarriers]]: per site, the declared categories inside
-   * any requested category's subtree (same rule as [[coverageRows]]). Sites
-   * carrying none are absent.
+   * Pure core of [[GetCarriers]]: per site, the requested categories whose
+   * subtree it declares into (same rule as [[coverageRows]]) — the keys the
+   * auction prices floors under. Every site carries Filler. Sites carrying
+   * none are absent.
    */
   private[taxonomy] def subtreeCarriers(
       publisherCategories: Map[String, Set[String]],
       categories: Set[CategoryId]
   ): Map[SiteId, Set[String]] = {
-    val subtree = categories.flatMap(c =>
-      TieredCategory.normalize(c.value) :: TieredCategory.getAllDescendants(c.value).map(_.id))
-    publisherCategories.collect {
-      case (site, cats) if cats.exists(subtree.contains) => decodePublisher(site) -> cats.filter(subtree.contains)
+    val subtrees = categories.toVector.map(c =>
+      c.value -> (TieredCategory.normalize(c.value) :: TieredCategory.getAllDescendants(c.value).map(_.id)).toSet)
+    publisherCategories.flatMap { case (site, cats) =>
+      val carried = subtrees.collect {
+        case (c, subtree) if c == CategoryId.Filler.value || cats.exists(subtree.contains) => c
+      }.toSet
+      Option.when(carried.nonEmpty)(decodePublisher(site) -> carried)
     }
   }
 
@@ -312,7 +316,7 @@ object CategoryRegistry {
   /** Which sites carry these categories or their descendants (the Delivery check). */
   final case class GetCarriers(categories: Set[CategoryId], replyTo: ActorRef[Carriers]) extends Command
 
-  /** Reply to [[GetCarriers]]: per site, the declared categories it carries. */
+  /** Reply to [[GetCarriers]]: per site, the requested categories it carries. */
   final case class Carriers(bySite: Map[SiteId, Set[String]]) extends promovolve.CborSerializable
 
   /** Publishers for a single category (for detail view) */

@@ -68,9 +68,19 @@ class CategoryRegistrySpec extends AnyWordSpec with Matchers {
     def carriers(pubs: Map[String, Set[String]], cats: String*) =
       CategoryRegistry.subtreeCarriers(pubs, cats.map(CategoryId(_)).toSet)
 
-    "list each carrying site with the declared categories inside the request's subtree" in {
+    "list each carrying site with the requested categories it carries, keyed as the auction keys floors" in {
       val pubs = Map("s1" -> Set("497", "181"), "s2" -> Set("483"), "s3" -> Set("181"))
-      carriers(pubs, "483") shouldBe Map(promovolve.SiteId("s1") -> Set("497"), promovolve.SiteId("s2") -> Set("483"))
+      carriers(pubs, "483") shouldBe Map(promovolve.SiteId("s1") -> Set("483"), promovolve.SiteId("s2") -> Set("483"))
+      carriers(pubs, "483", "181") shouldBe Map(
+        promovolve.SiteId("s1") -> Set("483", "181"),
+        promovolve.SiteId("s2") -> Set("483"),
+        promovolve.SiteId("s3") -> Set("181"))
+    }
+
+    "let every site carry Filler, as the filler auction runs on every site" in {
+      carriers(Map("s1" -> Set("181"), "s2" -> Set("483")), CategoryId.Filler.value) shouldBe Map(
+        promovolve.SiteId("s1") -> Set(CategoryId.Filler.value),
+        promovolve.SiteId("s2") -> Set(CategoryId.Filler.value))
     }
 
     "never credit a parent-only declaration to a child request" in {

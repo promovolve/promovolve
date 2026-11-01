@@ -1861,11 +1861,18 @@ class EndpointRoutes(
         campaignDirectory match {
           case None            => Future.successful(None)
           case Some(directory) =>
+            // Filler campaigns live in the directory's own filler pool, not under a category.
             opt(Future.traverse(DeliveryCheck.effectiveCategories(campaign).toVector) { cat =>
-              directory
-                .ask[promovolve.advertiser.CampaignDirectory.CampaignsForResult](
-                  promovolve.advertiser.CampaignDirectory.GetCampaignsFor(cat, _))
-                .map(r => cat.value -> r.campaigns.contains(CampaignId(campaignId)))
+              if (cat == CategoryId.Filler)
+                directory
+                  .ask[promovolve.advertiser.CampaignDirectory.FillerCampaignsResult](
+                    promovolve.advertiser.CampaignDirectory.GetFillerCampaigns(_))
+                  .map(r => cat.value -> r.campaigns.contains(CampaignId(campaignId)))
+              else
+                directory
+                  .ask[promovolve.advertiser.CampaignDirectory.CampaignsForResult](
+                    promovolve.advertiser.CampaignDirectory.GetCampaignsFor(cat, _))
+                  .map(r => cat.value -> r.campaigns.contains(CampaignId(campaignId)))
             }.map(_.toMap))
         }
 

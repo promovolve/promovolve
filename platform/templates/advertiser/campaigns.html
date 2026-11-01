@@ -1085,7 +1085,8 @@
   </span></template>
   <template x-if="it.key === 'campaignActive'"><span>
     <span x-show="it.status === 'ok'">{{t "Active."}}</span>
-    <span x-show="it.status === 'blocked'">{{t "The campaign is paused. Activate it under Actions."}}</span>
+    <span x-show="it.status === 'blocked' && it.detail.status !== 'Ended'">{{t "The campaign is paused. Activate it under Actions."}}</span>
+    <span x-show="it.status === 'blocked' && it.detail.status === 'Ended'">{{t "The campaign has ended. Move its end date later under Schedule, then activate it under Actions."}}</span>
   </span></template>
   <template x-if="it.key === 'schedule'"><span>
     <span x-show="it.status === 'ok'">{{t "Inside its start and end dates."}}</span>
@@ -1110,7 +1111,8 @@
     <span x-show="it.status === 'blocked'" x-text="fill('{{t "Your max bid is below the floor on all {eligible} sites; floors run {lowestFloor}–{highestFloor}. Raise Max Bid."}}', it.detail)"></span>
   </span></template>
   <template x-if="it.key === 'bidders'"><span>
-    <span x-show="it.status === 'ok'">{{t "Listed with the bidders."}}</span>
+    <span x-show="it.status === 'ok' && !it.detail.inactive">{{t "Listed with the bidders."}}</span>
+    <span x-show="it.status === 'ok' && it.detail.inactive">{{t "Listed again with the bidders once the campaign is active."}}</span>
     <span x-show="it.status === 'warning'">{{t "Still being registered with the bidders; this clears on its own."}}</span>
   </span></template>
 </span>{{end}}

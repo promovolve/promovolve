@@ -37,12 +37,12 @@
             {{if .DisplayName}}<span class="block text-xs text-gray-500">{{.DisplayName}}</span>{{end}}
           </td>
           <td class="px-4 py-3">
-            <span class="badge {{if eq .OrgRole "admin"}}badge-info{{else}}badge-neutral{{end}}">{{t (printf "%s" .OrgRole)}}</span>
+            <span class="badge {{if eq .OrgRole "admin"}}badge-info{{else}}badge-neutral{{end}}">{{t (printf "%s" .OrgRole)}}</span>{{if .Operator}} <span class="badge badge-neutral" title="{{t "Platform operators are admins of the organization for their own email domain. They are managed on the operator's Users page, not here."}}">{{t "Operator"}}</span>{{end}}
           </td>
           <td class="px-4 py-3">{{.Passkeys}}{{if eq .Passkeys 0}} <span class="text-xs text-gray-500">{{t "(hasn't joined yet)"}}</span>{{end}}</td>
           <td class="px-4 py-3 text-gray-500">{{.JoinedAt}}</td>
           <td class="px-4 py-3 text-right whitespace-nowrap">
-            {{if $page.IsAdmin}}
+            {{if and $page.IsAdmin (not .Operator)}}
               {{if eq .Passkeys 0}}
               <form method="POST" action="/org/invite-link" class="inline">
                 <input type="hidden" name="userId" value="{{.UserID}}">

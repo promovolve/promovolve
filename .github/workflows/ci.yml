@@ -241,7 +241,7 @@ jobs:
       # there is no service container here and no wait-for-healthy shim; on a
       # startup failure the test binary prints the container logs before
       # exiting non-zero.
-      - run: go test -tags=integration ./internal/billing/ -count=1
+      - run: go test -tags=integration ./internal/billing/ ./internal/org/ -count=1
   scala-db:
     name: Scala persistence (timescaledb)
     runs-on: ubuntu-latest

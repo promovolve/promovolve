@@ -64,6 +64,39 @@ type User struct {
 	// ViewAsBy is the operator's email when this session is a read-only
 	// admin "view as" of the account; drives the banner in layout.html.
 	ViewAsBy string `json:"-"`
+	// IsOperator: the stored role is admin, whatever side this session is on.
+	// Operators are implicit admins of the org for their email domain;
+	// OperatorOrg is that org while they are in their operator session (the
+	// switcher offers its sides).
+	IsOperator  bool `json:"-"`
+	OperatorOrg *Org `json:"-"`
+}
+
+// SwitchTargets lists the side switcher's buttons: in an operator session,
+// "admin" plus the sides of the org at the operator's domain; in an org
+// session, both sides when the org holds both. Fewer than two means no
+// switcher. (An operator on an org side gets back through the account menu,
+// so the org header stays as wide as every member's.)
+func (u *User) SwitchTargets() []Role {
+	if u.Org != nil {
+		if u.HasBothSides() {
+			return []Role{RoleAdvertiser, RolePublisher}
+		}
+		return nil
+	}
+	if !u.IsOperator || u.OperatorOrg == nil {
+		return nil
+	}
+	out := []Role{RoleAdmin}
+	for _, side := range []Role{RoleAdvertiser, RolePublisher} {
+		if u.OperatorOrg.HasSide(side) {
+			out = append(out, side)
+		}
+	}
+	if len(out) < 2 {
+		return nil
+	}
+	return out
 }
 
 // HasBothSides reports whether the user's org holds both an advertiser and a

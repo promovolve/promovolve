@@ -4452,7 +4452,7 @@ func (h *Handler) CreativeEditor(w http.ResponseWriter, r *http.Request) {
 	}
 
 	// With no creatives yet there is no list to go back to — the template
-	// disables "Back to Creatives" rather than link to an empty page.
+	// links back to Campaigns instead of to an empty Creatives page.
 	crBody, _ := h.coreGet(fmt.Sprintf("/v1/advertisers/me/campaigns/%s/creatives?limit=1", campID), claims)
 
 	h.render(w, r, "advertiser/creative-editor.html", pageData{

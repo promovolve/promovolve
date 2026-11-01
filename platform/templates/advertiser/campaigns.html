@@ -373,6 +373,44 @@
 
     <!-- Expanded details -->
     <div id="camp-detail-{{.ID}}" x-show="open" x-cloak class="border-t px-4 py-4 bg-gray-50">
+      {{/* The Delivery check: the core runs ten checks in order and names
+           the first that stops this campaign serving. Fetched on first open. */}}
+      <div class="mb-5 text-xs" x-data="{ r: null, err: false,
+          load() {
+            fetch('/api/delivery-check?campaignId={{.ID}}')
+              .then(res => res.ok ? res.json() : Promise.reject())
+              .then(d => { if (d && Array.isArray(d.items)) this.r = d; else this.err = true; })
+              .catch(() => { this.err = true; });
+          },
+          money(v) { return '{{sym}}' + Number(v).toLocaleString(undefined, { minimumFractionDigits: {{decimals}}, maximumFractionDigits: {{decimals}} }); },
+          fill(s, d) { return s.replace(/\{(\w+)\}/g, (_, k) => /daily|remaining|Floor/.test(k) ? this.money(d[k]) : (d[k] ?? '')); } }"
+           x-init="$watch('open', v => v && !r && !err && load())">
+        <p class="text-gray-500 mb-1">{{t "Delivery check"}}</p>
+        <p x-show="!r && !err" class="text-gray-500">…</p>
+        <p x-show="err" class="font-bold">{{t "Could not run the delivery check."}}</p>
+        <template x-if="r">
+          <div>
+            <p class="text-sm mb-2" :class="r.firstBlocked && 'font-bold'">
+              <span x-show="!r.firstBlocked">{{t "Nothing is stopping this campaign."}}</span>
+              <template x-for="it in r.items.filter(i => i.key === r.firstBlocked)" :key="it.key">{{template "delivery-check-sentence" .}}</template>
+            </p>
+            <ul class="space-y-0.5">
+              <template x-for="it in r.items" :key="it.key">
+                <li class="flex gap-2">
+                  <span class="w-14 shrink-0" :class="it.status === 'ok' ? 'text-gray-500' : 'font-bold'"
+                        x-text="{ ok: '{{t "OK"}}', blocked: '{{t "Blocked"}}', warning: '{{t "Note"}}', unknown: '{{t "Unknown"}}' }[it.status]"></span>
+                  <span><span class="text-gray-500" x-text="{
+                      advertiserActive: '{{t "Account"}}', advertiserBudget: '{{t "Account budget"}}',
+                      campaignActive: '{{t "Status"}}', schedule: '{{t "Schedule"}}', categories: '{{t "Categories"}}',
+                      creatives: '{{t "Creatives"}}', approval: '{{t "Publisher approval"}}',
+                      campaignBudget: '{{t "Campaign budget"}}', floors: '{{t "Floors"}}', bidders: '{{t "Bidders"}}' }[it.key]"></span>
+                    · {{template "delivery-check-sentence" .}}</span>
+                </li>
+              </template>
+            </ul>
+          </div>
+        </template>
+      </div>
       <div class="grid grid-cols-1 sm:grid-cols-3 gap-6 text-sm">
         <div>
           <dl class="grid grid-cols-3 gap-3 mb-4 tabular">
@@ -1023,3 +1061,56 @@
 </div>
 {{end}}
 {{end}}
+
+{{/* One Delivery check item's sentence, for the Alpine item `it` (used by
+     the headline and the list). `.` is the campaign row. Numbers come from
+     it.detail through fill(). */}}
+{{define "delivery-check-sentence"}}<span>
+  <span x-show="it.status === 'unknown'">{{t "Could not check this right now."}}</span>
+  <template x-if="it.key === 'advertiserActive'"><span>
+    <span x-show="it.status === 'ok'">{{t "Active."}}</span>
+    <span x-show="it.status === 'blocked' && it.detail.reason === 'org'">{{t "Your organization is suspended. Contact the operator to resume it."}}</span>
+    <span x-show="it.status === 'blocked' && it.detail.reason === 'wallet'">{{t "Your account is suspended because the wallet is empty."}} <a href="/advertiser/overview" class="text-brand-ink hover:underline">{{t "Top up"}}</a></span>
+    <span x-show="it.status === 'blocked' && !['org', 'wallet'].includes(it.detail.reason)">{{t "Your account is suspended."}}</span>
+  </span></template>
+  <template x-if="it.key === 'advertiserBudget' || it.key === 'campaignBudget'"><span>
+    <span x-show="it.status === 'ok'" x-text="fill('{{t "{remaining} left of {daily} today."}}', it.detail)"></span>
+    <span x-show="it.status === 'warning'" x-text="fill('{{t "Only {remaining} left of {daily} today."}}', it.detail)"></span>
+    <span x-show="it.status === 'blocked' && Number(it.detail.daily) <= 0">{{t "No daily budget is set."}}</span>
+    <span x-show="it.status === 'blocked' && Number(it.detail.daily) > 0">{{t "Today’s budget is spent. It resets at your midnight; raise it to keep serving today."}}</span>
+    <span x-show="it.status !== 'ok' && it.status !== 'unknown'">
+      <a x-show="it.key === 'advertiserBudget'" href="/advertiser/overview#budget" class="text-brand-ink hover:underline">{{t "Change the budget"}}</a>
+      <button type="button" x-show="it.key === 'campaignBudget'" @click="editOpen = true" class="text-brand-ink hover:underline">{{t "Change the budget"}}</button>
+    </span>
+  </span></template>
+  <template x-if="it.key === 'campaignActive'"><span>
+    <span x-show="it.status === 'ok'">{{t "Active."}}</span>
+    <span x-show="it.status === 'blocked'">{{t "The campaign is paused. Activate it under Actions."}}</span>
+  </span></template>
+  <template x-if="it.key === 'schedule'"><span>
+    <span x-show="it.status === 'ok'">{{t "Inside its start and end dates."}}</span>
+    <span x-show="it.status === 'blocked'">{{t "Outside its start and end dates. Change them under Schedule."}}</span>
+  </span></template>
+  <template x-if="it.key === 'categories'"><span>
+    <span x-show="it.status === 'ok'">{{t "Has categories to bid under."}}</span>
+    <span x-show="it.status === 'blocked'">{{t "No target categories, so it bids nowhere. Set categories, or turn on bidding on unmatched pages."}} <button type="button" @click="editOpen = true" class="text-brand-ink hover:underline">{{t "Edit"}}</button></span>
+  </span></template>
+  <template x-if="it.key === 'creatives'"><span>
+    <span x-show="it.status === 'ok'" x-text="fill('{{t "Active creatives: {active}."}}', it.detail)"></span>
+    <span x-show="it.status === 'blocked'">{{t "No active creative is assigned."}} <a href="/advertiser/creatives?campaignId={{.ID}}&amp;auto=1" class="text-brand-ink hover:underline">{{t "Creatives"}}</a></span>
+  </span></template>
+  <template x-if="it.key === 'approval'"><span>
+    <span x-show="it.status === 'ok'" x-text="fill('{{t "Approved on {sites} site(s)."}}', it.detail)"></span>
+    <span x-show="it.status === 'warning'">{{t "No publisher has approved a creative yet. Its first win puts it in their review queues; nothing to do."}}</span>
+  </span></template>
+  <template x-if="it.key === 'floors'"><span>
+    <span x-show="it.status === 'ok'" x-text="fill('{{t "Your max bid clears the floor on all {eligible} sites that carry its categories."}}', it.detail)"></span>
+    <span x-show="it.status === 'warning' && it.detail.eligible === '0'">{{t "No site carries its categories yet."}}</span>
+    <span x-show="it.status === 'warning' && it.detail.eligible !== '0'" x-text="fill('{{t "Your max bid clears {cleared} of {eligible} sites; floors run {lowestFloor}–{highestFloor}. Raise Max Bid to reach more."}}', it.detail)"></span>
+    <span x-show="it.status === 'blocked'" x-text="fill('{{t "Your max bid is below the floor on all {eligible} sites; floors run {lowestFloor}–{highestFloor}. Raise Max Bid."}}', it.detail)"></span>
+  </span></template>
+  <template x-if="it.key === 'bidders'"><span>
+    <span x-show="it.status === 'ok'">{{t "Listed with the bidders."}}</span>
+    <span x-show="it.status === 'warning'">{{t "Still being registered with the bidders; this clears on its own."}}</span>
+  </span></template>
+</span>{{end}}

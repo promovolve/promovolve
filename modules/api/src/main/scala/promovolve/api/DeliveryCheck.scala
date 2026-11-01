@@ -84,18 +84,23 @@ object DeliveryCheck {
           spentOut = b.remaining.toDouble <= 0)
       },
       in.sites.fold(Item("floors", Unknown))(floorsItem(c.maxCpm.toDouble, _)),
-      in.directory.fold(Item("bidders", Unknown)) { listed =>
+      // Pausing (or ending) takes a campaign out of the directory on purpose.
+      if (c.status != CampaignEntity.Status.Active) Item("bidders", Ok, Map("inactive" -> "true"))
+      else in.directory.fold(Item("bidders", Unknown)) { listed =>
         val missing = listed.collect { case (cat, false) => cat }.toVector.sorted
         if (missing.isEmpty) Item("bidders", Ok) else Item("bidders", Warning, Map("missing" -> missing.mkString(",")))
       }
     )
   }
 
-  // The auction's floor rule (AuctioneerEntity: currentCategoryFloors.getOrElse(cat, currentFloorCpm)).
+  // The auction's floor rule (AuctioneerEntity: currentCategoryFloors.getOrElse(cat, currentFloorCpm));
+  // the filler auction prices at the site floor alone.
   private def floorsItem(maxCpm: Double, sites: Map[SiteId, SiteFloors]): Item =
     if (sites.isEmpty) Item("floors", Warning, Map("cleared" -> "0", "eligible" -> "0"))
     else {
-      val floors = sites.values.map(s => s.carried.map(cat => s.categoryFloors.getOrElse(cat, s.siteFloor)))
+      val floors = sites.values.map(s =>
+        s.carried.map(cat =>
+          if (cat == CategoryId.Filler.value) s.siteFloor else s.categoryFloors.getOrElse(cat, s.siteFloor)))
       val cleared = floors.count(_.exists(maxCpm >= _))
       val all = floors.flatten
       val status = if (cleared == 0) Blocked else if (cleared < sites.size) Warning else Ok

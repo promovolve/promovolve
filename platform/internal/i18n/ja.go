@@ -1375,6 +1375,8 @@ var ja = map[string]string{
 	"No site carries its categories yet.":                                                                    "このカテゴリーを扱うサイトはまだありません。",
 	"Your max bid clears {cleared} of {eligible} sites; floors run {lowestFloor}–{highestFloor}. Raise Max Bid to reach more.": "上限入札額がフロア価格を上回るのは{eligible}サイト中{cleared}サイトです（フロア価格 {lowestFloor}〜{highestFloor}）。より多くのサイトに届けるには上限入札額を上げてください。",
 	"Your max bid is below the floor on all {eligible} sites; floors run {lowestFloor}–{highestFloor}. Raise Max Bid.":         "上限入札額が全{eligible}サイトのフロア価格を下回っています（フロア価格 {lowestFloor}〜{highestFloor}）。上限入札額を上げてください。",
-	"Listed with the bidders.": "入札者に登録済みです。",
-	"Still being registered with the bidders; this clears on its own.": "入札者への登録中です。自動的に解消されます。",
+	"Listed with the bidders.":                                                                        "入札者に登録済みです。",
+	"Listed again with the bidders once the campaign is active.":                                      "キャンペーンを有効にすると、入札者に再び登録されます。",
+	"The campaign has ended. Move its end date later under Schedule, then activate it under Actions.": "キャンペーンは終了しました。「スケジュール」で終了日を後ろにずらしてから、「操作」で有効にしてください。",
+	"Still being registered with the bidders; this clears on its own.":                                "入札者への登録中です。自動的に解消されます。",
 }

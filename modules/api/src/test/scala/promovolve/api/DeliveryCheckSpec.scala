@@ -145,6 +145,22 @@ class DeliveryCheckSpec extends AnyWordSpec with Matchers {
       bidders.detail shouldBe Map("missing" -> "483")
     }
 
+    "judge a filler-only campaign against the site floor, as the filler auction does" in {
+      val in = withCampaign(_.copy(categories = Set.empty, bidOnUnmatchedContext = true)).copy(
+        sites = Some(Map(SiteId("a") -> SiteFloors(1.0, Map(CategoryId.Filler.value -> 5.0),
+          Set(CategoryId.Filler.value)))),
+        directory = Some(Map(CategoryId.Filler.value -> true)))
+      status(in, "floors") shouldBe "ok"
+    }
+
+    "not report a paused campaign as missing from the bidders, which pausing removes it from" in {
+      val items = evaluate(
+        withCampaign(_.copy(status = CampaignEntity.Status.Paused)).copy(directory = Some(Map("483" -> false))), now)
+      val bidders = items.find(_.key == "bidders").get
+      bidders.status shouldBe "ok"
+      bidders.detail shouldBe Map("inactive" -> "true")
+    }
+
     "mark unanswered sources unknown, and never block on them" in {
       val in = healthy.copy(advertiserBudget = None, campaignBudget = None, creatives = None, sites = None,
         directory = None)

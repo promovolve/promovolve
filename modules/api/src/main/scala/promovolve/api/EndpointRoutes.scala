@@ -1752,6 +1752,8 @@ class EndpointRoutes(
                 val pageF = siteRef(siteId.value)
                   .ask[SiteEntity.PageClassificationResult](SiteEntity.GetPageClassification(url, _))
                 val floorF = siteRef(siteId.value).ask[CPM](SiteEntity.GetFloorCpm(_))
+                val catFloorsF = siteRef(siteId.value)
+                  .ask[promovolve.proto.site.CategoryFloors](SiteEntity.GetCategoryFloors(_)).map(_.floors)
                 val geoF = replicator
                   .ask[DDReplicator.GetResponse[LWWMap[SiteId, SiteEntity.CachedSiteGeo]]](
                     DDReplicator.Get(SiteEntity.SiteGeoKey, DDReplicator.ReadLocal, _))
@@ -1763,13 +1765,14 @@ class EndpointRoutes(
                 for {
                   page <- pageF
                   floor <- floorF
+                  catFloors <- catFloorsF
                   geo <- geoF
                   cats = page.entry.map(_.categories.keySet).getOrElse(Set.empty)
                   places = page.entry.map(_.places).getOrElse(Set.empty)
                   audience = geo.map(_.audienceRegions).getOrElse(Set.empty)
                   verified = geo.exists(_.audienceVerified)
                   v <- campaignRef(advertiserId, campaignId).ask[CampaignEntity.BidVerdict](
-                    CampaignEntity.CheckBid(siteId, cats, floor, audience, verified, places, _))
+                    CampaignEntity.CheckBid(siteId, cats, floor, audience, verified, places, Some(catFloors), _))
                 } yield Right(BidCheckResponse(
                   url = url,
                   siteId = Some(siteId.value),
@@ -1780,7 +1783,7 @@ class EndpointRoutes(
                   pagePlaces = places.toVector.sorted,
                   siteAudience = audience.toVector.sorted,
                   siteAudienceVerified = verified,
-                  floorCpm = floor.toDouble,
+                  floorCpm = v.floorCpm.getOrElse(floor.toDouble),
                   wouldBid = v.wouldBid,
                   matchedCategory = v.matchedCategory,
                   categoryHops = v.categoryHops,

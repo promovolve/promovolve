@@ -985,8 +985,10 @@ object CampaignEntity {
         // ═══════════════════════════════════════════════════════════════════════
 
         def configManagement(state: State): PartialFunction[Command, Effect[State]] = {
-          case CheckBid(siteId, pageCategories, floorCpm, siteAudience, verified, pagePlaces, replyTo) =>
-            replyTo ! state.bidVerdict(siteId, pageCategories, floorCpm, siteAudience, verified, pagePlaces)
+          case CheckBid(siteId, pageCategories, floorCpm, siteAudience, verified, pagePlaces, categoryFloors,
+                replyTo) =>
+            replyTo ! state.bidVerdict(siteId, pageCategories, floorCpm, categoryFloors.getOrElse(Map.empty),
+              siteAudience, verified, pagePlaces)
             Effect.none
 
           case GetCampaign(replyTo) =>
@@ -1836,6 +1838,9 @@ object CampaignEntity {
       siteAudience: Set[String],
       siteAudienceVerified: Boolean,
       pagePlaces: Set[String],
+      // The site's per-category floors; None from an older sender, which
+      // then judges every category against `floorCpm` (the site floor).
+      categoryFloors: Option[Map[String, Double]],
       replyTo: ActorRef[BidVerdict]
   ) extends Command
   final case class BidVerdict(
@@ -1843,7 +1848,10 @@ object CampaignEntity {
       matchedCategory: Option[String],
       categoryHops: Int,
       placeHops: Int,
-      reason: Option[String]
+      reason: Option[String],
+      // The floor the verdict was judged against (the matched category's,
+      // else the reported one's). Option: older replies lack it.
+      floorCpm: Option[Double] = None
   ) extends promovolve.CborSerializable
 
   /**
@@ -2418,6 +2426,7 @@ object CampaignEntity {
         siteId: SiteId,
         pageCategories: Set[String],
         floorCpm: CPM,
+        categoryFloors: Map[String, Double],
         siteAudience: Set[String],
         siteAudienceVerified: Boolean,
         pagePlaces: Set[String]
@@ -2434,19 +2443,22 @@ object CampaignEntity {
             .groupMapReduce(_._1)(_._2)(math.min)
             .toList
             .sortBy(_._2)
+      // The auction's floor rule: the category's floor, else the site floor.
+      def floorFor(c: String): CPM = categoryFloors.get(c).map(CPM(_)).getOrElse(floorCpm)
       val tried = expanded.map { case (c, hops) =>
-        (c, hops, bidRejectReason(siteId, CategoryId(c), floorCpm, siteAudience, siteAudienceVerified, pagePlaces))
+        (c, hops, bidRejectReason(siteId, CategoryId(c), floorFor(c), siteAudience, siteAudienceVerified, pagePlaces))
       }
       val hops = placeAdmits(placeTargeting, pagePlaces)
       tried.collectFirst { case (c, catHops, None) => (c, catHops) } match {
         case Some((c, catHops)) =>
           BidVerdict(wouldBid = true, matchedCategory = Some(c), categoryHops = catHops,
-            placeHops = hops.getOrElse(0), reason = None)
+            placeHops = hops.getOrElse(0), reason = None, floorCpm = Some(floorFor(c).toDouble))
         case None =>
-          val reasons = tried.flatMap(_._3)
-          val reason = reasons.find(_ != BidRejectReason.CategoryMismatch).orElse(reasons.headOption)
+          val rejected = tried.collect { case (c, _, Some(r)) => (c, r) }
+          val reported = rejected.find(_._2 != BidRejectReason.CategoryMismatch).orElse(rejected.headOption)
           BidVerdict(wouldBid = false, matchedCategory = None, categoryHops = -1,
-            placeHops = hops.getOrElse(-1), reason = reason.map(_.toString))
+            placeHops = hops.getOrElse(-1), reason = reported.map(_._2.toString),
+            floorCpm = Some(reported.fold(floorCpm)(r => floorFor(r._1)).toDouble))
       }
     }
 

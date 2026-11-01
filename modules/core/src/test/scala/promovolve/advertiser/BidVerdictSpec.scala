@@ -57,7 +57,7 @@ class BidVerdictSpec extends AnyWordSpec with Matchers {
       siteAudience: Set[String] = Set.empty,
       verified: Boolean = false,
       floor: CPM = CPM(1.0)
-  ) = c.bidVerdict(site, pageCategories, floor, siteAudience, verified, pagePlaces)
+  ) = c.bidVerdict(site, pageCategories, floor, Map.empty, siteAudience, verified, pagePlaces)
 
   "State.bidVerdict" should {
 

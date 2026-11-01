@@ -1,12 +1,11 @@
 package promovolve.taxonomy
 
 import org.apache.pekko.actor.typed.{ ActorRef, ActorSystem }
-import org.apache.pekko.http.scaladsl.Http
 import org.apache.pekko.http.scaladsl.model.*
 import org.apache.pekko.http.scaladsl.model.headers.RawHeader
-import org.apache.pekko.http.scaladsl.unmarshalling.Unmarshal
 import org.slf4j.LoggerFactory
 import promovolve.{ CategoryId, Confidence, GeminiRateLimiter }
+import promovolve.llm.{ GeminiGateway, LlmHttp }
 import spray.json.*
 
 import scala.concurrent.{ ExecutionContext, Future }
@@ -31,13 +30,17 @@ class IABTaxonomy(
   import IABTaxonomy.*
 
   private val logger = LoggerFactory.getLogger(getClass)
-  private val http = Http(system.classicSystem)
 
-  // Circuit breaker: after 5 consecutive failures, open for 30s before retrying
+  private val llmHttp = new LlmHttp
+
+  // Circuit breaker: after 5 consecutive failed classifications, open for
+  // 30s before retrying. The call it times now includes the rate-limit token
+  // waits and LlmHttp's retries (Retry-After, 429 backoff from 5s), so the
+  // timeout only catches a call that is truly stuck (#432).
   private val breaker = org.apache.pekko.pattern.CircuitBreaker(
     scheduler = system.classicSystem.scheduler,
     maxFailures = 5,
-    callTimeout = 15.seconds,
+    callTimeout = 3.minutes,
     resetTimeout = 30.seconds
   ).onOpen(logger.warn(s"Circuit breaker OPEN for ${provider.name} — failing fast"))
     .onHalfOpen(logger.info(s"Circuit breaker HALF-OPEN for ${provider.name} — testing"))
@@ -84,129 +87,76 @@ class IABTaxonomy(
       placeHint.flatMap(sanitizeHint))
     val validIds = candidates.keySet
 
-    val (apiUrl, headers, body) = provider match {
-      case p: Provider.OpenAI    => buildOpenAIRequest(p, prompt)
-      case p: Provider.Anthropic => buildAnthropicRequest(p, prompt)
-      case p: Provider.Gemini    => buildGeminiRequest(p, prompt)
+    // OpenAI and Anthropic go through the same retry policy; only Gemini has
+    // a shared rate limiter (GeminiGateway takes its token per attempt).
+    def send(): Future[LlmHttp.Reply] = provider match {
+      case p: Provider.Gemini =>
+        new GeminiGateway(p.apiKey, rateLimiter).generate(p.model, Seq(GeminiGateway.Part.Text(prompt)), PageConfig,
+          url)
+      case p: Provider.OpenAI    => other(buildOpenAIRequest(p, prompt))
+      case p: Provider.Anthropic => other(buildAnthropicRequest(p, prompt))
+    }
+    def other(req: (String, List[HttpHeader], String)): Future[LlmHttp.Reply] = {
+      val (apiUrl, headers, body) = req
+      llmHttp.send(
+        HttpRequest(HttpMethods.POST, apiUrl, headers, HttpEntity(ContentTypes.`application/json`, body)),
+        url
+      )
     }
 
-    val request = HttpRequest(
-      method = HttpMethods.POST,
-      uri = apiUrl,
-      headers = headers,
-      entity = HttpEntity(ContentTypes.`application/json`, body)
-    )
-
-    // Acquire a rate limit token before calling Gemini; other providers pass through
-    val rateLimitGate: Future[Unit] = (provider, rateLimiter) match {
-      case (_: Provider.Gemini, Some(limiter)) => GeminiRateLimiter.acquire(limiter)
-      case _                                   => Future.successful(())
-    }
-
-    def callOnce(): Future[scala.util.Either[(Int, String, Option[FiniteDuration]), Analysis]] = {
-      http
-        .singleRequest(request)
-        .flatMap { response =>
-          // Parse Retry-After up front while we still have the headers.
-          // Google sends integer seconds; RFC 7231 also permits HTTP-date
-          // but Vertex/AI Studio don't. Integer-only is fine.
-          val retryAfter: Option[FiniteDuration] = response.headers
-            .find(_.lowercaseName == "retry-after")
-            .flatMap(h => h.value.trim.toIntOption)
-            .map(_.seconds)
-          Unmarshal(response.entity).to[String].map { responseBody =>
-            if (response.status.isSuccess()) {
-              logger.debug(s"${provider.name} response for $url: $responseBody")
-              val selections = provider match {
-                case _: Provider.OpenAI    => parseOpenAIResponse(responseBody)
-                case _: Provider.Anthropic => parseAnthropicResponse(responseBody)
-                case _: Provider.Gemini    => parseGeminiResponse(responseBody)
-              }
-              val (valid, invalid) = selections.partition(s => validIds.contains(s.id))
-              if (invalid.nonEmpty) {
-                logger.warn(
-                  s"${provider.name} returned category IDs not in candidate set for $url: ${invalid.map(_.id).mkString(", ")} — filtered out")
-              }
-              // Places go through the SAME closed-vocabulary gate the
-              // categories do, but from the other end: the model NAMES a
-              // place and the shipped table supplies the code, scoped
-              // level by level (Ishikawa inside Japan, Kanazawa inside
-              // Ishikawa). Nothing here trusts the model to recall a code.
-              // Anything the table cannot place is dropped, never coerced.
-              val rawPlaces = parsePlaces(responseBody, provider)
-              val resolvedPlaces = rawPlaces.map(p => p -> resolvePlace(p))
-              val places = promovolve.taxonomy.Places
-                .validate(resolvedPlaces.flatMap(_._2.map(_.code))).toList.sorted
-              val droppedPlaces = resolvedPlaces.collect {
-                case (raw, resolved) if !resolved.exists(r => places.contains(r.code)) => raw.describe
-              }
-              if (droppedPlaces.nonEmpty) {
-                logger.warn(
-                  s"${provider.name} returned unplaceable places for $url: ${droppedPlaces.mkString("; ")} — filtered out")
-              }
-              // A place that resolved only PARTLY is the signal the old
-              // code-shaped answer could never give: a wrong code and a
-              // right one both parse, but a region that is not in the
-              // named country is a contradiction the table can see. The
-              // coarser code still serves; this is how we find out the
-              // classifier is drifting.
-              val partial = resolvedPlaces.flatMap(_._2.toList.flatMap(_.unresolved))
-              if (partial.nonEmpty) {
-                logger.warn(
-                  s"${provider.name} named places it could not place for $url: ${partial.mkString("; ")} — degraded")
-              }
-              logger.info(
-                s"${provider.name} classified $url: ${valid.map(s => s"${s.id}(${s.confidence})").mkString(", ")}" +
-                (if (places.isEmpty) "" else s" places=${places.mkString(",")}"))
-              Right(Analysis(IABTaxonomy.withTravelLocations(valid, places), places))
-            } else {
-              Left((response.status.intValue, responseBody, retryAfter))
-            }
-          }
+    breaker.withCircuitBreaker(send().map {
+      case LlmHttp.Reply(status, responseBody) if status.isSuccess() =>
+        logger.debug(s"${provider.name} response for $url: $responseBody")
+        val selections = provider match {
+          case _: Provider.OpenAI    => parseOpenAIResponse(responseBody)
+          case _: Provider.Anthropic => parseAnthropicResponse(responseBody)
+          case _: Provider.Gemini    => parseGeminiResponse(responseBody)
         }
-    }
-
-    // Retry policy:
-    //  * 5xx → short exponential backoff (transient flake, usually a few seconds is enough).
-    //  * 429 → long exponential backoff. RESOURCE_EXHAUSTED means the provider-side quota
-    //    window is empty; hammering every 500ms just burns more budget without recovering.
-    //    5s base with 2^(attempt-1) growth gives 5/10/20/40s windows, matching the typical
-    //    quota reset period for Gemini.
-    //  * If the server sent a Retry-After header, use that verbatim (with a small jitter)
-    //    instead of our exponential — it's authoritative about when the quota frees up.
-    def withRetry(attempt: Int, maxAttempts: Int): Future[Analysis] = {
-      callOnce().flatMap {
-        case Right(sel)                                                                                    => Future.successful(sel)
-        case Left((status, body, retryAfter)) if (status == 429 || status >= 500) && attempt < maxAttempts =>
-          val baseMs = if (status == 429) 5000L else 500L
-          val expMs = baseMs * (1L << (attempt - 1)) // 429: 5s,10s,20s,40s | 5xx: 500ms,1s,2s,4s
-          val jitterMs = scala.util.Random.nextLong(expMs / 2)
-          val fallbackDelayMs = expMs + jitterMs
-          val (delayMs, source) = retryAfter match {
-            case Some(ra) => (ra.toMillis + scala.util.Random.nextLong(1000L), "server Retry-After")
-            case None     => (fallbackDelayMs, "exponential backoff")
-          }
+        val (valid, invalid) = selections.partition(s => validIds.contains(s.id))
+        if (invalid.nonEmpty) {
           logger.warn(
-            s"${provider.name} $status for $url (attempt $attempt/$maxAttempts) — retrying in ${delayMs}ms ($source). Body: $body"
-          )
-          val p = scala.concurrent.Promise[Analysis]()
-          system.classicSystem.scheduler.scheduleOnce(
-            scala.concurrent.duration.FiniteDuration(delayMs, scala.concurrent.duration.MILLISECONDS)
-          )(p.completeWith(withRetry(attempt + 1, maxAttempts)))
-          p.future
-        case Left((status, body, _)) =>
-          logger.error(s"${provider.name} API error $status for $url: $body")
-          // Carry the full response body in the exception so the caller's
-          // failure log (SiteEntity's FailedToAnalyzeContent) can surface it —
-          // otherwise only "API error: 429" makes it out and the actual
-          // provider message (rate-limit detail, quota info, etc.) gets swallowed.
-          throw new RuntimeException(s"${provider.name} API error $status: $body")
-      }
-    }
-
-    rateLimitGate.flatMap { _ =>
-      breaker.withCircuitBreaker(withRetry(attempt = 1, maxAttempts = 4))
-    }
+            s"${provider.name} returned category IDs not in candidate set for $url: ${invalid.map(_.id).mkString(", ")} — filtered out")
+        }
+        // Places go through the SAME closed-vocabulary gate the
+        // categories do, but from the other end: the model NAMES a
+        // place and the shipped table supplies the code, scoped
+        // level by level (Ishikawa inside Japan, Kanazawa inside
+        // Ishikawa). Nothing here trusts the model to recall a code.
+        // Anything the table cannot place is dropped, never coerced.
+        val rawPlaces = parsePlaces(responseBody, provider)
+        val resolvedPlaces = rawPlaces.map(p => p -> resolvePlace(p))
+        val places = promovolve.taxonomy.Places
+          .validate(resolvedPlaces.flatMap(_._2.map(_.code))).toList.sorted
+        val droppedPlaces = resolvedPlaces.collect {
+          case (raw, resolved) if !resolved.exists(r => places.contains(r.code)) => raw.describe
+        }
+        if (droppedPlaces.nonEmpty) {
+          logger.warn(
+            s"${provider.name} returned unplaceable places for $url: ${droppedPlaces.mkString("; ")} — filtered out")
+        }
+        // A place that resolved only PARTLY is the signal the old
+        // code-shaped answer could never give: a wrong code and a
+        // right one both parse, but a region that is not in the
+        // named country is a contradiction the table can see. The
+        // coarser code still serves; this is how we find out the
+        // classifier is drifting.
+        val partial = resolvedPlaces.flatMap(_._2.toList.flatMap(_.unresolved))
+        if (partial.nonEmpty) {
+          logger.warn(
+            s"${provider.name} named places it could not place for $url: ${partial.mkString("; ")} — degraded")
+        }
+        logger.info(
+          s"${provider.name} classified $url: ${valid.map(s => s"${s.id}(${s.confidence})").mkString(", ")}" +
+          (if (places.isEmpty) "" else s" places=${places.mkString(",")}"))
+        Analysis(IABTaxonomy.withTravelLocations(valid, places), places)
+      case LlmHttp.Reply(status, responseBody) =>
+        logger.error(s"${provider.name} API error ${status.intValue} for $url: $responseBody")
+        // Carry the full response body in the exception so the caller's
+        // failure log (SiteEntity's FailedToAnalyzeContent) can surface it —
+        // otherwise only "API error: 429" makes it out and the actual
+        // provider message (rate-limit detail, quota info, etc.) gets swallowed.
+        throw new RuntimeException(s"${provider.name} API error ${status.intValue}: $responseBody")
+    })
   }
 
   // ========== Request Builders ==========
@@ -343,31 +293,12 @@ class IABTaxonomy(
     )
   }
 
-  private[promovolve] def buildGeminiRequest(p: Provider.Gemini, prompt: String): (String, List[HttpHeader], String) = {
-    val thinkingConfig = IABTaxonomy.geminiThinkingConfig(p.model)
-    val body = JsObject(
-      "contents" -> JsArray(
-        JsObject("parts" -> JsArray(JsObject("text" -> JsString(prompt))))
-      ),
-      "generationConfig" -> JsObject(
-        Map(
-          "temperature" -> (JsNumber(0.1): JsValue),
-          // The budget bump from 1024 to 4096 is belt-and-suspenders for
-          // longer category lists; without disabled thinking, 1024 was
-          // getting exhausted by reasoning tokens and the JSON came back
-          // truncated mid-field.
-          "maxOutputTokens" -> (JsNumber(4096): JsValue),
-          "responseMimeType" -> (JsString("application/json"): JsValue)
-        ) ++ thinkingConfig
-      )
-    ).compactPrint
-
+  private[promovolve] def buildGeminiRequest(p: Provider.Gemini, prompt: String): (String, List[HttpHeader], String) =
     (
-      s"https://generativelanguage.googleapis.com/v1beta/models/${p.model}:generateContent?key=${p.apiKey}",
+      GeminiGateway.url(p.model, p.apiKey),
       List.empty,
-      body
+      GeminiGateway.requestBody(p.model, Seq(GeminiGateway.Part.Text(prompt)), PageConfig)
     )
-  }
 
   // ========== Response Parsers ==========
 
@@ -646,23 +577,11 @@ If nothing matches:
 
 object IABTaxonomy extends DefaultJsonProtocol {
 
-  /**
-   * 2.5-family models include "thinking" tokens in the output budget;
-   * classification doesn't benefit from chain-of-thought (the answer is
-   * a short list of IDs), so thinking is disabled via thinkingBudget=0.
-   * The 3.5 generation RETIRED that field — sending it is a hard 400
-   * ("Request contains an invalid argument", found 2026-08-27 probing
-   * gemini-3.5-flash-lite) — and replaced it with thinkingLevel, which
-   * the 2.5 family in turn does not accept. So the config is chosen by
-   * model generation, and an unknown future generation gets NEITHER:
-   * a model's own default thinking beats a guaranteed 400. Shared with the
-   * campaign classifier (CategoryVerificationClient).
-   */
-  def geminiThinkingConfig(model: String): Option[(String, JsValue)] =
-    if (model.startsWith("gemini-2.5")) Some("thinkingConfig" -> JsObject("thinkingBudget" -> JsNumber(0)))
-    else if (model.startsWith("gemini-3.5"))
-      Some("thinkingConfig" -> JsObject("thinkingLevel" -> JsString("minimal")))
-    else None
+  // Page classification: a short JSON list of ids. The budget bump from 1024
+  // to 4096 is belt-and-suspenders for longer category lists; thinking off,
+  // or 1024 was exhausted by reasoning tokens and the JSON came back cut off.
+  private[taxonomy] val PageConfig =
+    GeminiGateway.Config(temperature = 0.1, maxOutputTokens = 4096, json = true, minimalThinking = true)
 
   /**
    * One classification: what the page is about, and where it is about.

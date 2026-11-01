@@ -200,6 +200,15 @@ cp k8s/secrets.env.example k8s/secrets.env
 `k8s/secrets.env` is gitignored. `JDBC_PASSWORD` defaults to the dev value and
 must match the DB password in `kustomization.yaml`.
 
+The api reads every key in it as an environment variable, so the optional
+model settings go there too. Leave them out to use the defaults, which are the
+models the classify evals measured (`scripts/classify-eval/`):
+
+- `GEMINI_MODEL`: page classification, default `gemini-3.5-flash-lite`.
+- `GEMINI_CAMPAIGN_MODEL`: campaign classification, default `gemini-3.5-flash-lite`.
+
+Change either only after running its eval on the new model.
+
 ### Image pull secret (private Docker Hub repos)
 
 The images live in **private** Docker Hub repos, so the cluster needs

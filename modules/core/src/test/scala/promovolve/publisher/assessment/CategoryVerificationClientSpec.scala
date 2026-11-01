@@ -2,7 +2,7 @@ package promovolve.publisher.assessment
 
 import org.scalatest.matchers.should.Matchers
 import org.scalatest.wordspec.AnyWordSpec
-import promovolve.taxonomy.IABTaxonomy
+import promovolve.llm.GeminiGateway
 import spray.json.*
 
 class CategoryVerificationClientSpec extends AnyWordSpec with Matchers {
@@ -43,17 +43,17 @@ class CategoryVerificationClientSpec extends AnyWordSpec with Matchers {
   "the Gemini thinking config" should {
 
     "turn thinking off for the 2.5 family" in {
-      IABTaxonomy.geminiThinkingConfig("gemini-2.5-flash") shouldBe
+      GeminiGateway.thinkingConfig("gemini-2.5-flash") shouldBe
       Some("thinkingConfig" -> JsObject("thinkingBudget" -> JsNumber(0)))
     }
 
     "use the minimal thinking level for the 3.5 family" in {
-      IABTaxonomy.geminiThinkingConfig("gemini-3.5-flash-lite") shouldBe
+      GeminiGateway.thinkingConfig("gemini-3.5-flash-lite") shouldBe
       Some("thinkingConfig" -> JsObject("thinkingLevel" -> JsString("minimal")))
     }
 
     "send nothing for an unknown generation" in {
-      IABTaxonomy.geminiThinkingConfig("gemini-9-pro") shouldBe None
+      GeminiGateway.thinkingConfig("gemini-9-pro") shouldBe None
     }
 
     "be part of the campaign classifier's text request" in {

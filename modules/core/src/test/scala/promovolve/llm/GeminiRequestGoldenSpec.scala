@@ -40,7 +40,8 @@ class GeminiRequestGoldenSpec extends AnyWordSpec with Matchers with BeforeAndAf
 
     "send JSON mode, 4096 tokens and minimal thinking on 3.5" in {
       val (url, headers, body) = request("gemini-3.5-flash-lite")
-      url shouldBe "https://generativelanguage.googleapis.com/v1beta/models/gemini-3.5-flash-lite:generateContent?key=test-key"
+      url shouldBe
+      "https://generativelanguage.googleapis.com/v1beta/models/gemini-3.5-flash-lite:generateContent?key=test-key"
       headers shouldBe empty
       sameJson(body,
         """{"contents":[{"parts":[{"text":"PROMPT"}]}],
@@ -78,10 +79,12 @@ class GeminiRequestGoldenSpec extends AnyWordSpec with Matchers with BeforeAndAf
   "landing-page extraction (LPExtractor)" should {
 
     "send only temperature and 8000 tokens: no JSON mode, no thinking setting" in {
-      sameJson(LPExtractor.requestBody("PROMPT", temperature = 0.7),
+      sameJson(GeminiGateway.requestBody("gemini-2.5-flash", Seq(GeminiGateway.Part.Text("PROMPT")),
+        LPExtractor.config(0.7)),
         """{"contents":[{"parts":[{"text":"PROMPT"}]}],
           | "generationConfig":{"temperature":0.7,"maxOutputTokens":8000}}""".stripMargin)
-      sameJson(LPExtractor.requestBody("PROMPT", temperature = 0.95),
+      sameJson(GeminiGateway.requestBody("gemini-3.1-flash-lite-preview", Seq(GeminiGateway.Part.Text("PROMPT")),
+        LPExtractor.config(0.95)),
         """{"contents":[{"parts":[{"text":"PROMPT"}]}],
           | "generationConfig":{"temperature":0.95,"maxOutputTokens":8000}}""".stripMargin)
     }

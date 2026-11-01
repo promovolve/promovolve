@@ -1,18 +1,15 @@
 package promovolve.publisher.assessment
 
 import org.apache.pekko.actor.typed.{ ActorRef, ActorSystem }
-import org.apache.pekko.actor.typed.scaladsl.adapter.*
-import org.apache.pekko.http.scaladsl.Http
 import org.apache.pekko.http.scaladsl.model.*
-import org.apache.pekko.http.scaladsl.unmarshalling.Unmarshal
 import org.slf4j.LoggerFactory
 import promovolve.GeminiRateLimiter
-import promovolve.taxonomy.{ AdProductTaxonomy, IABTaxonomy, TieredCategory }
+import promovolve.llm.GeminiGateway
+import promovolve.taxonomy.{ AdProductTaxonomy, TieredCategory }
 import spray.json.*
 
 import java.util.Base64
 import scala.concurrent.{ ExecutionContext, Future }
-import scala.concurrent.duration.*
 
 /** Result of category verification and safety assessment */
 final case class CategoryVerificationResult(
@@ -40,24 +37,24 @@ final case class CategoryVerificationResult(
 final class CategoryVerificationClient(
     apiKey: String,
     model: String = CategoryVerificationClient.DefaultModel,
-    maxRetries: Int = 5,
-    baseDelay: FiniteDuration = 1.second,
     rateLimiter: Option[ActorRef[GeminiRateLimiter.Command]] = None
 )(using system: ActorSystem[?], ec: ExecutionContext) {
 
-  private val log = LoggerFactory.getLogger(getClass)
-  private val http = Http(system.toClassic)
-  private val scheduler = system.toClassic.scheduler
+  import CategoryVerificationClient.CampaignConfig
 
-  private def apiUrl: String =
-    s"https://generativelanguage.googleapis.com/v1beta/models/$model:generateContent?key=$apiKey"
+  private val log = LoggerFactory.getLogger(getClass)
+  private val gemini = new GeminiGateway(apiKey, rateLimiter)
 
   def verify(
       imageBytes: Array[Byte],
       mimeType: String,
       declaredCategory: Option[String]
-  ): Future[CategoryVerificationResult] =
-    verifyWithRetry(imageBytes, mimeType, declaredCategory, attempt = 0)
+  ): Future[CategoryVerificationResult] = {
+    val base64Image = Base64.getEncoder.encodeToString(imageBytes)
+    val parts =
+      Seq(GeminiGateway.Part.InlineData(mimeType, base64Image), GeminiGateway.Part.Text(imagePrompt(declaredCategory)))
+    gemini.generate(model, parts, CampaignConfig, "verify").flatMap(handle("Gemini API error", declaredCategory))
+  }
 
   /**
    * Text-based category verification — passes raw LP text instead of a
@@ -68,92 +65,18 @@ final class CategoryVerificationClient(
       adText: String,
       declaredCategory: Option[String]
   ): Future[CategoryVerificationResult] =
-    verifyTextWithRetry(adText, declaredCategory, attempt = 0)
+    gemini
+      .generate(model, Seq(GeminiGateway.Part.Text(textPrompt(adText, declaredCategory))), CampaignConfig, "verifyText")
+      .flatMap(handle("Gemini verifyText error", declaredCategory))
 
-  private def verifyTextWithRetry(
-      adText: String,
-      declaredCategory: Option[String],
-      attempt: Int
-  ): Future[CategoryVerificationResult] = {
-    val requestBody = buildTextRequestBody(adText, declaredCategory)
-    val request = HttpRequest(
-      method = HttpMethods.POST,
-      uri = apiUrl,
-      entity = HttpEntity(ContentTypes.`application/json`, requestBody)
-    )
-
-    val gate: Future[Unit] = rateLimiter match {
-      case Some(limiter) => GeminiRateLimiter.acquire(limiter)
-      case None          => Future.successful(())
+  private def handle(errorPrefix: String, declaredCategory: Option[String])(
+      reply: promovolve.llm.LlmHttp.Reply
+  ): Future[CategoryVerificationResult] =
+    if (reply.status == StatusCodes.OK) Future(parseResponse(reply.body, declaredCategory))
+    else {
+      log.error("{} {}: {}", errorPrefix, reply.status.intValue(), reply.body)
+      Future.failed(new RuntimeException(s"$errorPrefix ${reply.status}: ${reply.body}"))
     }
-
-    gate.flatMap { _ => http.singleRequest(request) }.flatMap { response =>
-      response.status match {
-        case StatusCodes.OK =>
-          Unmarshal(response.entity).to[String].map(parseResponse(_, declaredCategory))
-        case status if isRetryable(status) && attempt < maxRetries =>
-          response.entity.discardBytes()
-          val delay = calculateBackoff(attempt)
-          log.warn("Gemini verifyText returned {}, retrying in {} (attempt {}/{})",
-            status.intValue(), delay, attempt + 1, maxRetries)
-          org.apache.pekko.pattern.after(delay, scheduler)(
-            verifyTextWithRetry(adText, declaredCategory, attempt + 1)
-          )
-        case status =>
-          Unmarshal(response.entity).to[String].flatMap { body =>
-            log.error("Gemini verifyText error {}: {}", status.intValue(), body)
-            Future.failed(new RuntimeException(s"Gemini verifyText error $status: $body"))
-          }
-      }
-    }
-  }
-
-  private def verifyWithRetry(
-      imageBytes: Array[Byte],
-      mimeType: String,
-      declaredCategory: Option[String],
-      attempt: Int
-  ): Future[CategoryVerificationResult] = {
-    val base64Image = Base64.getEncoder.encodeToString(imageBytes)
-    val requestBody = buildRequestBody(base64Image, mimeType, declaredCategory)
-
-    val request = HttpRequest(
-      method = HttpMethods.POST,
-      uri = apiUrl,
-      entity = HttpEntity(ContentTypes.`application/json`, requestBody)
-    )
-
-    // Acquire rate limit token before calling Gemini
-    val gate: Future[Unit] = rateLimiter match {
-      case Some(limiter) => GeminiRateLimiter.acquire(limiter)
-      case None          => Future.successful(())
-    }
-
-    gate.flatMap { _ => http.singleRequest(request) }.flatMap { response =>
-      response.status match {
-        case StatusCodes.OK =>
-          Unmarshal(response.entity).to[String].map(parseResponse(_, declaredCategory))
-
-        case status if isRetryable(status) && attempt < maxRetries =>
-          response.entity.discardBytes()
-          val delay = calculateBackoff(attempt)
-          log.warn("Gemini API returned {}, retrying in {} (attempt {}/{})",
-            status.intValue(), delay, attempt + 1, maxRetries)
-          org.apache.pekko.pattern.after(delay, scheduler)(
-            verifyWithRetry(imageBytes, mimeType, declaredCategory, attempt + 1)
-          )
-
-        case status =>
-          Unmarshal(response.entity).to[String].flatMap { body =>
-            log.error("Gemini API error {}: {}", status.intValue(), body)
-            Future.failed(new RuntimeException(s"Gemini API error $status: $body"))
-          }
-      }
-    }
-  }
-
-  private def isRetryable(status: StatusCode): Boolean =
-    promovolve.llm.HttpRetryPolicy.isRetryable(status)
 
   /** Attempt to fix truncated JSON by closing open structures */
   private def fixTruncatedJson(json: String): String = {
@@ -203,10 +126,7 @@ final class CategoryVerificationClient(
     result
   }
 
-  private def calculateBackoff(attempt: Int): FiniteDuration =
-    promovolve.llm.HttpRetryPolicy.backoff(attempt, baseDelay)
-
-  private def buildTextRequestBody(adText: String, declaredCategory: Option[String]): String = {
+  private def textPrompt(adText: String, declaredCategory: Option[String]): String = {
     // Show the full IAB 3.0 taxonomy (~700 nodes including descendants)
     // so the LLM can pick at any tier-level — tier-1 ("Sports") is fine
     // for broad ads, but a Pilates studio should get tier-2/3 ("Fitness
@@ -225,7 +145,7 @@ final class CategoryVerificationClient(
     // tail off into boilerplate anyway (footers, site-wide nav links).
     val trimmed = if (adText.length > 30000) adText.take(30000) + "..." else adText
 
-    val prompt = declaredCategory match {
+    declaredCategory match {
       case Some(catId) =>
         val categoryInfo = AdProductTaxonomy.get(catId) match {
           case Some(cat) =>
@@ -286,10 +206,9 @@ $contentCategoryList
 JSON: {"match_confidence": 0.5, "reason": "description of product", "suggested_content_categories": ["category_id", ...], "adult_content": false, "violence": false, "hate_speech": false, "safety_score": 0.0-1.0}"""
     }
 
-    CategoryVerificationClient.textRequestBody(prompt, model)
   }
 
-  private def buildRequestBody(base64Image: String, mimeType: String, declaredCategory: Option[String]): String = {
+  private def imagePrompt(declaredCategory: Option[String]): String = {
     // Full IAB 3.0 taxonomy with hierarchical path so the LLM can pick at
     // any tier-level. See buildTextRequestBody for the same approach + the
     // reasoning (tier-1-only caused over-broad targeting after ancestor
@@ -302,7 +221,7 @@ JSON: {"match_confidence": 0.5, "reason": "description of product", "suggested_c
       }
       .mkString("\n")
 
-    val prompt = declaredCategory match {
+    declaredCategory match {
       case Some(catId) =>
         // Look up category name from Ad Product Taxonomy (not Content Taxonomy!)
         val categoryInfo = AdProductTaxonomy.get(catId) match {
@@ -360,7 +279,6 @@ $contentCategoryList
 JSON: {"match_confidence": 0.5, "reason": "description of ad", "suggested_content_categories": ["category_id", ...], "adult_content": false, "violence": false, "hate_speech": false, "safety_score": 0.0-1.0}"""
     }
 
-    CategoryVerificationClient.imageRequestBody(base64Image, mimeType, prompt, model)
   }
 
   private def parseResponse(body: String, declaredCategory: Option[String]): CategoryVerificationResult = {
@@ -522,51 +440,25 @@ object CategoryVerificationClient {
       .distinct
       .toList
 
-  private[assessment] val safetySettings = JsArray(
-    JsObject("category" -> JsString("HARM_CATEGORY_HARASSMENT"), "threshold" -> JsString("BLOCK_NONE")),
-    JsObject("category" -> JsString("HARM_CATEGORY_HATE_SPEECH"), "threshold" -> JsString("BLOCK_NONE")),
-    JsObject("category" -> JsString("HARM_CATEGORY_SEXUALLY_EXPLICIT"), "threshold" -> JsString("BLOCK_NONE")),
-    JsObject("category" -> JsString("HARM_CATEGORY_DANGEROUS_CONTENT"), "threshold" -> JsString("BLOCK_NONE"))
+  // Campaign classification: a short JSON answer, thinking off so 2.5 models
+  // don't spend the output budget on it (#429), and Gemini's own safety
+  // filters off because the answer carries our own safety flags.
+  private[assessment] val CampaignConfig = GeminiGateway.Config(
+    temperature = 0.1,
+    maxOutputTokens = 2048,
+    json = true,
+    minimalThinking = true,
+    safetyFiltersOff = true
   )
-
-  // Thinking off, as on the page classifier: 2.5 models count thinking
-  // against maxOutputTokens, and 1963 of 2048 going to thinking cut the JSON
-  // off mid-answer (#429).
-  private[assessment] def generationConfig(model: String): JsObject =
-    JsObject(
-      Map(
-        "temperature" -> (JsNumber(0.1): JsValue),
-        "maxOutputTokens" -> (JsNumber(2048): JsValue),
-        "responseMimeType" -> (JsString("application/json"): JsValue)
-      ) ++ IABTaxonomy.geminiThinkingConfig(model)
-    )
 
   private[promovolve] def imageRequestBody(base64Image: String, mimeType: String, prompt: String, model: String)
       : String =
-    JsObject(
-      "contents" -> JsArray(
-        JsObject(
-          "parts" -> JsArray(
-            JsObject(
-              "inline_data" -> JsObject(
-                "mime_type" -> JsString(mimeType),
-                "data" -> JsString(base64Image)
-              )
-            ),
-            JsObject("text" -> JsString(prompt))
-          )
-        )
-      ),
-      "safetySettings" -> safetySettings,
-      "generationConfig" -> generationConfig(model)
-    ).compactPrint
+    GeminiGateway.requestBody(
+      model,
+      Seq(GeminiGateway.Part.InlineData(mimeType, base64Image), GeminiGateway.Part.Text(prompt)),
+      CampaignConfig
+    )
 
   private[promovolve] def textRequestBody(prompt: String, model: String): String =
-    JsObject(
-      "contents" -> JsArray(
-        JsObject("parts" -> JsArray(JsObject("text" -> JsString(prompt))))
-      ),
-      "safetySettings" -> safetySettings,
-      "generationConfig" -> generationConfig(model)
-    ).compactPrint
+    GeminiGateway.requestBody(model, Seq(GeminiGateway.Part.Text(prompt)), CampaignConfig)
 }

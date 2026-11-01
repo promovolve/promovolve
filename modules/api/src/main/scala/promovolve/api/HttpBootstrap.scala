@@ -350,9 +350,6 @@ object HttpBootstrap {
           None
       }
 
-      // Creative assessor: disabled (using CategoryVerificationClient instead)
-      val creativeAssessor: Option[ActorRef[promovolve.publisher.assessment.CreativeAssessor.Command]] = None
-
       // Creative processor: orchestrates image download, banner render, verification
       val creativeProcessor: Option[ActorRef[CreativeProcessor.Command]] = {
         import org.apache.pekko.actor.typed.DispatcherSelector
@@ -420,7 +417,6 @@ object HttpBootstrap {
         sharding,
         serveIndex,
         categoryVerificationClient,
-        creativeAssessor,
         Some(imageAssetRepo),
         Some(creativeRepo),
         Some(imageStorage),

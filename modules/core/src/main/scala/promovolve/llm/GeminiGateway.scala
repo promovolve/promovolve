@@ -72,8 +72,8 @@ object GeminiGateway {
         "temperature" -> JsNumber(config.temperature),
         "maxOutputTokens" -> JsNumber(config.maxOutputTokens)
       )
-        ++ Option.when(config.json)("responseMimeType" -> JsString("application/json"))
-        ++ Option.when(config.minimalThinking)(thinkingConfig(model)).flatten
+      ++ Option.when(config.json)("responseMimeType" -> JsString("application/json"))
+      ++ Option.when(config.minimalThinking)(thinkingConfig(model)).flatten
     )
     JsObject(
       Map[String, JsValue](

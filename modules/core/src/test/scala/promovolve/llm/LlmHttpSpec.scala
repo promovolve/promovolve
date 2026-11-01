@@ -70,7 +70,8 @@ class LlmHttpSpec extends AnyWordSpec with Matchers with BeforeAndAfterAll {
       val (uri, calls) = stub(StatusCodes.OK -> "answer")
       val refusals = new AtomicInteger(0)
       val refuse = () => { refusals.incrementAndGet(); Future.failed(new RuntimeException("queue full")) }
-      Try(Await.result(http.send(HttpRequest(HttpMethods.POST, uri), "test", refuse), 10.seconds)).isFailure shouldBe true
+      Try(Await.result(http.send(HttpRequest(HttpMethods.POST, uri), "test", refuse), 10.seconds)).isFailure shouldBe
+      true
       calls.get shouldBe 0
       refusals.get shouldBe 1
     }
@@ -97,14 +98,16 @@ class LlmHttpSpec extends AnyWordSpec with Matchers with BeforeAndAfterAll {
         LlmHttp.retryDelay(attempt = 1, status = Some(503), retryAfter = None) should be <= 2.seconds
         LlmHttp.retryDelay(attempt = 1, status = None, retryAfter = None) should be <= 2.seconds
       }
-      (1 to 50).map(_ => LlmHttp.retryDelay(attempt = 1, status = Some(429), retryAfter = None)).max should be > 2.seconds
+      (1 to 50).map(_ => LlmHttp.retryDelay(attempt = 1, status = Some(429), retryAfter = None)).max should
+      be > 2.seconds
     }
   }
 
   "LlmHttp.retryAfter" should {
     "read integer seconds and ignore anything else" in {
       LlmHttp.retryAfter(HttpResponse(headers = List(RawHeader("Retry-After", "12")))) shouldBe Some(12.seconds)
-      LlmHttp.retryAfter(HttpResponse(headers = List(RawHeader("Retry-After", "Wed, 21 Oct 2026 07:28:00 GMT")))) shouldBe None
+      LlmHttp.retryAfter(HttpResponse(headers = List(RawHeader("Retry-After",
+        "Wed, 21 Oct 2026 07:28:00 GMT")))) shouldBe None
       LlmHttp.retryAfter(HttpResponse()) shouldBe None
     }
   }

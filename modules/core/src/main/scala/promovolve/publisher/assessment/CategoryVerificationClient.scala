@@ -39,7 +39,7 @@ final case class CategoryVerificationResult(
  */
 final class CategoryVerificationClient(
     apiKey: String,
-    model: String = "gemini-2.5-flash",
+    model: String = CategoryVerificationClient.DefaultModel,
     maxRetries: Int = 5,
     baseDelay: FiniteDuration = 1.second,
     rateLimiter: Option[ActorRef[GeminiRateLimiter.Command]] = None
@@ -529,4 +529,18 @@ JSON: {"match_confidence": 0.5, "reason": "description of ad", "suggested_conten
         throw new RuntimeException(s"Failed to parse response: ${e.getMessage}")
     }
   }
+}
+
+object CategoryVerificationClient {
+
+  /**
+   * The campaign-side model. Deliberately NOT the page classifier's
+   * `IABTaxonomy.Provider.DefaultGeminiModel`: this prompt was tuned and is
+   * running on 2.5-flash, and a model change ships only after
+   * scripts/classify-eval/run-campaigns.sh compares it (#422).
+   */
+  val DefaultModel = "gemini-2.5-flash"
+
+  /** `GEMINI_CAMPAIGN_MODEL` moves it without a release (e.g. when Google retires a model). */
+  def modelFromEnv(): String = sys.env.get("GEMINI_CAMPAIGN_MODEL").filter(_.nonEmpty).getOrElse(DefaultModel)
 }

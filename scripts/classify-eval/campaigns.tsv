@@ -1,0 +1,6 @@
+# Campaign-side eval set (#422) — landing pages with the content categories we'd accept.
+# url <TAB> ad-product category id <TAB> accepted content categories <TAB> note
+#   ad-product id: AdProductTaxonomy (what the advertiser declares at creation).
+#   accepted: `|`-separated IAB Content Taxonomy 3.0 ids; ANY one present = hit;
+#   a child of an accepted id also counts as hit, an ancestor as "broad", a
+#   sibling as WRONG. Unrelated extras are not judged — watch the count column.

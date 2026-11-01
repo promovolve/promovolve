@@ -59,7 +59,7 @@ var auditedPrefixes = []string{
 func (h *Handler) SessionGuard(next http.Handler) http.Handler {
 	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		cookie, err := r.Cookie("token")
-		if err != nil {
+		if err != nil || signInCeremony(r.URL.Path) {
 			next.ServeHTTP(w, r)
 			return
 		}
@@ -179,6 +179,19 @@ func (h *Handler) clearDeadSessionCookie(w http.ResponseWriter) {
 		Name: "token", Value: "", Path: "/", MaxAge: -1,
 		HttpOnly: true, SameSite: http.SameSiteLaxMode, Secure: h.secureCookies,
 	})
+}
+
+// signInCeremony reports the passkey ceremonies that mint a fresh session
+// and never act as the cookie's user — sign-in, recovery link, /setup,
+// account request. A leftover view-as or suspended-org cookie must not
+// 403 them: that locked the operator out twice (2026-08-24, 2026-11-01).
+func signInCeremony(path string) bool {
+	for _, p := range []string{"/webauthn/login/", "/webauthn/recover/", "/webauthn/setup/", "/webauthn/request-account/"} {
+		if strings.HasPrefix(path, p) {
+			return true
+		}
+	}
+	return false
 }
 
 // suspensionExemptPath lists what a suspended org's member may still reach:

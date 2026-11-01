@@ -63,6 +63,15 @@ class AuctioneerClearedSlotFloorSpec extends AnyWordSpec with Matchers with Befo
       case _                                          => Behaviors.same
     }
   ))
+  // Filler auctions ask campaigns directly; their floors land here.
+  val campaignBidRequests: TestProbe[CampaignEntity.CampaignBidRequest] =
+    testKit.createTestProbe[CampaignEntity.CampaignBidRequest]()
+  sharding.init(Entity(CampaignEntity.TypeKey)(_ =>
+    Behaviors.receiveMessage[CampaignEntity.Command] {
+      case r: CampaignEntity.CampaignBidRequest => campaignBidRequests.ref ! r; Behaviors.same
+      case _                                    => Behaviors.same
+    }
+  ))
   sharding.init(Entity(AdServer.TypeKey)(_ => Behaviors.ignore[AdServer.Command]))
   sharding.init(Entity(promovolve.publisher.SiteEntity.TypeKey)(_ =>
     Behaviors.ignore[promovolve.publisher.SiteEntity.Command]))
@@ -96,6 +105,32 @@ class AuctioneerClearedSlotFloorSpec extends AnyWordSpec with Matchers with Befo
         else org.apache.pekko.actor.testkit.typed.scaladsl.FishingOutcomes.continueAndIgnore
       }.last
       req.floorCpm shouldBe CPM(2.0)
+      testKit.stop(ref)
+    }
+
+    "admit filler bids at the slot's admin floor, the same floor serving checks" in {
+      import java.time.Instant
+      import promovolve.advertiser.CampaignDirectory
+
+      val directory = testKit.spawn(Behaviors.receiveMessage[CampaignDirectory.Command] {
+        case CampaignDirectory.GetFillerCampaigns(replyTo) =>
+          replyTo ! CampaignDirectory.FillerCampaignsResult(Map(CampaignId("filler") -> AdvertiserId("adv")))
+          Behaviors.same
+        case _ => Behaviors.same
+      })
+      val ref = testKit.spawn(AuctioneerEntity(
+        SiteId("site-b"), sharding, testKit.spawn(Behaviors.ignore[Topic.Command[BudgetEvent]]),
+        testKit.spawn(Topic[CampaignEntity.CampaignChanged](s"cc-${java.util.UUID.randomUUID()}")),
+        campaignDirectory = Some(directory)))
+      Thread.sleep(300)
+      ref ! AuctioneerEntity.UpdateFloorCpm(CPM(2.0))
+      ref ! AuctioneerEntity.UpdateAdminSlotFloors(Map(SlotId("SLOT-F") -> CPM(0.5)))
+      ref ! AuctioneerEntity.FillerAuctionRequested(
+        URL("https://pub.example/filler"),
+        List(AuctioneerEntity.AdSlotSpec(SlotId("SLOT-F"), declaredSizes = Nil, computedSize = AdSize(300, 250))),
+        Instant.now())
+
+      campaignBidRequests.receiveMessage(3.seconds).floorCpm shouldBe CPM(0.5)
       testKit.stop(ref)
     }
   }

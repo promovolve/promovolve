@@ -1722,7 +1722,9 @@ private final class AuctioneerEntity private (
       slots: List[AdSlotSpec]
   ): Unit = {
     slots.foreach { slot =>
-      val floor = currentFloorCpm
+      // The slot's admin floor if it has one, else the site floor — the
+      // same floor the serve gate applies to this slot.
+      val floor = adminSlotFloorOverrides.getOrElse(slot.slotId, currentFloorCpm)
 
       ctx.log.debug(
         "📨 Filler bid requests: url={} slot={} campaigns={} floor={}",

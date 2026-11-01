@@ -58,7 +58,6 @@ object CategoryBidderEntity {
       // window — the whole category silently vanished from the auction.
       // 550ms leaves ~250ms of hop/mailbox margin for the partial to land.
       askTimeout: FiniteDuration = 550.millis,
-      cpmThresholdPct: Double = 0.80, // Return campaigns within 80% of winner (widened: quality-adjusted pricing handles diverse bids)
       maxCampaignsPerCategory: Int = 50, // Limit campaigns to bound downstream creative evaluation
       // STANDING BID BOOK (docs/design/bid-book.md): answer auctions
       // synchronously from pushed quotes instead of racing live asks
@@ -77,7 +76,6 @@ object CategoryBidderEntity {
         sharding,
         categoryDemandRepo,
         askTimeout,
-        cpmThresholdPct,
         maxCampaignsPerCategory,
         bidBookEnabled,
         ctx
@@ -229,32 +227,28 @@ object CategoryBidderEntity {
   extension (collected: Collected) {
 
     /**
-     * Select campaigns within CPM threshold, limited to top N by CPM.
+     * The top `maxCampaigns` campaigns by CPM, highest first.
      *
-     * - Find maximum CPM across collected campaigns.
-     * - Keep campaigns whose CPM is within (1 - cpmThresholdPct) of the winner.
-     * - Sort by CPM descending and take top `maxCampaigns`.
+     * There is no cutoff relative to the top bid. An 80%-of-winner cutoff
+     * used to drop far-lower bids, but it was measured from bids that
+     * could not serve (a pending $10 knocked out an approved $1.50, leaving
+     * the category with no servable demand), and a cut-off approved bid
+     * vanished from the floor stats: a $10 + $1 category read as a $10
+     * monopoly (floor $9.90), then as two bidders once $1 was floor-
+     * rejected (floor $0.99), flipping every tick. Quality-adjusted
+     * pricing already ranks diverse bids; the cap bounds the pool.
      */
-    def selectCampaigns(
-        cpmThresholdPct: Double,
-        maxCampaigns: Int
-    ): Vector[CampaignBid] =
-      if (collected.isEmpty) Vector.empty
-      else {
-        val topCpm = collected.map(_._4.value).max
-        val threshold = topCpm * (1.0 - cpmThresholdPct)
-
-        collected
-          .filter { case (_, _, creatives, cpm, _, _, _, _, _, _) => cpm.value >= threshold && creatives.nonEmpty }
-          .sortBy { case (_, _, _, cpm, _, _, _, _, _, _) => -cpm.value }
-          .take(maxCampaigns)
-          .map {
-            case (campaignId, advertiserId, creatives, cpm, maxCpm, adProductCat, landingDomain, hasApproved,
-                  placeHops, placeTargeting) =>
-              CampaignBid(campaignId, advertiserId, creatives, cpm, maxCpm, adProductCat, landingDomain, hasApproved,
-                placeHops, placeTargeting)
-          }
-      }
+    def selectCampaigns(maxCampaigns: Int): Vector[CampaignBid] =
+      collected
+        .filter { case (_, _, creatives, _, _, _, _, _, _, _) => creatives.nonEmpty }
+        .sortBy { case (_, _, _, cpm, _, _, _, _, _, _) => -cpm.value }
+        .take(maxCampaigns)
+        .map {
+          case (campaignId, advertiserId, creatives, cpm, maxCpm, adProductCat, landingDomain, hasApproved,
+                placeHops, placeTargeting) =>
+            CampaignBid(campaignId, advertiserId, creatives, cpm, maxCpm, adProductCat, landingDomain, hasApproved,
+              placeHops, placeTargeting)
+        }
   }
 }
 
@@ -263,7 +257,6 @@ private final class CategoryBidderEntity(
     sharding: ClusterSharding,
     categoryDemandRepo: CategoryDemandRepo,
     askTimeout: FiniteDuration,
-    cpmThresholdPct: Double,
     maxCampaignsPerCategory: Int,
     bidBookEnabled: Boolean,
     ctx: org.apache.pekko.actor.typed.scaladsl.ActorContext[CategoryBidderEntity.Command]
@@ -365,7 +358,7 @@ private final class CategoryBidderEntity(
           CampaignEntity.placeAdmits(e.placeTargeting, pagePlaces).getOrElse(0),
           e.placeTargeting))
     }
-    val qualifying = collected.selectCampaigns(cpmThresholdPct, maxCampaignsPerCategory)
+    val qualifying = collected.selectCampaigns(maxCampaignsPerCategory)
 
     val rejCpms = belowFloor.map(_.maxCpm.toDouble).filter(_ > 0.0)
     val approvedBelow = belowFloor.filter(hasApproved)
@@ -625,14 +618,14 @@ private final class CategoryBidderEntity(
                   }.toVector
 
                 val qualifying =
-                  collected.selectCampaigns(cpmThresholdPct, maxCampaignsPerCategory)
+                  collected.selectCampaigns(maxCampaignsPerCategory)
 
-                // ---- Scorecard: CPM threshold drops ----
+                // ---- Scorecard: campaigns past the top-N cap ----
                 if (collected.size > qualifying.size) {
                   val qualIds = qualifying.map(_.campaignId).toSet
                   val dropped = collected.filterNot(c => qualIds.contains(c._1))
                   log.debug(
-                    "CategoryScorecard cat={} cpmThreshold dropped=[{}]",
+                    "CategoryScorecard cat={} topN dropped=[{}]",
                     categoryId.value,
                     dropped.map(c => s"${c._1.value}(cpm=${c._4.toDouble})").mkString(", ")
                   )

@@ -133,6 +133,30 @@ class BidBookSpec extends AnyWordSpec with Matchers with BeforeAndAfterAll {
       resp.rejectedByFloor shouldBe 0
     }
 
+    "pass every bid above the floor, however far below the top bid" in {
+      // No CPM cutoff relative to the top bid: quality-adjusted pricing
+      // ranks diverse bids, and a cut-off bid vanished from the floor stats
+      // (a $10 + $1 category looked like a $10 monopoly one minute and a
+      // two-bidder market the next, so the floor flipped $9.90 <-> $0.99).
+      val bidder = spawnBookBidder("BB5|0", Vector("big" -> "advA", "small" -> "advB"))
+      val probe = testKit.createTestProbe[CategoryBidResponse]()
+      bidder ! quote("big", "advA", 10.0, Set(creative("c9", approvedOn = Set("site-a"))))
+      bidder ! quote("small", "advB", 1.0, Set(creative("c10", approvedOn = Set("site-a"))))
+
+      bidder ! bidRequest(probe.ref, floor = 0.5)
+      probe.receiveMessage().campaigns.map(_.campaignId.value) shouldBe Vector("big", "small")
+    }
+
+    "never let a pending bid push an approved one out of the auction" in {
+      val bidder = spawnBookBidder("BB6|0", Vector("pending" -> "advA", "approved" -> "advB"))
+      val probe = testKit.createTestProbe[CategoryBidResponse]()
+      bidder ! quote("pending", "advA", 10.0, Set(creative("c11")))
+      bidder ! quote("approved", "advB", 1.5, Set(creative("c12", approvedOn = Set("site-a"))))
+
+      bidder ! bidRequest(probe.ref, floor = 0.5)
+      probe.receiveMessage().campaigns.map(_.campaignId.value) should contain("approved")
+    }
+
     "quotes for campaigns outside the registry never answer" in {
       val bidder = spawnBookBidder("BB4|0", Vector("member" -> "advA"))
       val probe = testKit.createTestProbe[CategoryBidResponse]()

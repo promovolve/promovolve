@@ -29,7 +29,6 @@ var ja = map[string]string{
 	"Operator":         "運営者",
 	"Back to operator": "運営者に戻る",
 	"Platform operators are admins of the organization for their own email domain. They are managed on the operator's Users page, not here.": "プラットフォーム運営者は、自分のメールドメインの組織の管理者になります。運営者の管理はここではなく、運営者のユーザーページで行います。",
-	"that email belongs to a platform operator — operators are already members of your organization":                                         "このメールアドレスはプラットフォーム運営者のものです。運営者はすでにこの組織のメンバーです。",
 	"advertiser":      "広告主",
 	"publisher":       "パブリッシャー",
 	"Approval Queue":  "承認キュー",

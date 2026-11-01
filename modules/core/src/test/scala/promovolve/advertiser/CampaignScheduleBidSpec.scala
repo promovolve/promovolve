@@ -50,7 +50,7 @@ class CampaignScheduleBidSpec extends AnyWordSpec with Matchers {
 
     "report the schedule on the advertiser's bid checker too" in {
       stateWith(now.plus(1, ChronoUnit.DAYS), None)
-        .bidVerdict(site, Set(cat.value), floor, Set.empty, false, Set.empty)
+        .bidVerdict(site, Set(cat.value), floor, Map.empty, Set.empty, false, Set.empty)
         .reason shouldBe Some("OutsideSchedule")
     }
   }

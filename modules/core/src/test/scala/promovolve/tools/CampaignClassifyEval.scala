@@ -18,7 +18,8 @@ import scala.util.Try
  * this. The page eval's sibling: runs the REAL CategoryVerificationClient
  * (same prompt and model as campaign creation) over campaigns.tsv, using
  * landing-page text captured by extract.mjs, and scores the content
- * categories it picks with the page eval's own rule (ClassifyEval.scoreCategories).
+ * categories it picks with the page eval's own rule (ClassifyEval.scoreCategories),
+ * minus its sibling-contradiction check.
  * Also prints how many categories each answer had: on this side breadth is
  * the cost, and the score does not judge unrelated extras.
  *
@@ -32,6 +33,10 @@ object CampaignClassifyEval {
 
   final case class Case(url: String, adProduct: Option[String], expect: Expect)
   final case class Row(url: String, categories: Vector[String], verdict: Verdict, error: Option[String])
+
+  // Below this the browser got a stub (chanel 244, fourseasons 205 chars of
+  // "Access Denied"), not the landing page: nothing there to score (#429).
+  private val MinText = 400
 
   def main(args: Array[String]): Unit = {
     val dir = Paths.get(args.headOption.getOrElse("scripts/classify-eval"))
@@ -53,13 +58,16 @@ object CampaignClassifyEval {
       try
         cases.map { c =>
           texts.get(c.url) match {
-            case None       => Row(c.url, Vector.empty, Verdict.Skip, Some("no extracted text — run extract.mjs"))
+            case None                                => Row(c.url, Vector.empty, Verdict.Skip, Some("no extracted text — run extract.mjs"))
+            case Some(text) if text.length < MinText =>
+              Row(c.url, Vector.empty, Verdict.Skip,
+                Some(s"only ${text.length} chars — blocked or access-denied page?"))
             case Some(text) =>
               Try(Await.result(client.verifyText(text, c.adProduct), 90.seconds)).fold(
                 ex => Row(c.url, Vector.empty, Verdict.Skip, Some(ex.getMessage)),
                 r => {
                   val cats = r.suggestedContentCategories.toVector
-                  Row(c.url, cats, ClassifyEval.scoreCategories(c.expect, cats), None)
+                  Row(c.url, cats, ClassifyEval.scoreCategories(c.expect, cats, siblingsContradict = false), None)
                 }
               )
           }

@@ -23,5 +23,15 @@ class ClassifyEvalSpec extends AnyWordSpec with Matchers {
       cats("654|663", "663", "654") shouldBe Verdict.Hit
       cats("657", "653") shouldBe Verdict.Broad
     }
+
+    // A campaign's categories are who should see the ad, not what one page is
+    // about: Budget Travel beside Air Travel on a flight-search site is not a
+    // contradiction (#429). Only the page eval treats siblings as WRONG.
+    "not call a sibling WRONG when siblings may coexist" in {
+      ClassifyEval.scoreCategories(Expect("u", Vector("672"), Vector.empty, ""), Vector("653", "672", "676"),
+        siblingsContradict = false) shouldBe Verdict.Hit
+      ClassifyEval.scoreCategories(Expect("u", Vector("672"), Vector.empty, ""), Vector("676"),
+        siblingsContradict = false) shouldBe Verdict.Wrong
+    }
   }
 }

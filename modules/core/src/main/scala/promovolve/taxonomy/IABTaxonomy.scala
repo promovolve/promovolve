@@ -344,20 +344,7 @@ class IABTaxonomy(
   }
 
   private def buildGeminiRequest(p: Provider.Gemini, prompt: String): (String, List[HttpHeader], String) = {
-    // 2.5-family models include "thinking" tokens in the output budget;
-    // classification doesn't benefit from chain-of-thought (the answer is
-    // a short list of IDs), so thinking is disabled via thinkingBudget=0.
-    // The 3.5 generation RETIRED that field — sending it is a hard 400
-    // ("Request contains an invalid argument", found 2026-08-27 probing
-    // gemini-3.5-flash-lite) — and replaced it with thinkingLevel, which
-    // the 2.5 family in turn does not accept. So the config is chosen by
-    // model generation, and an unknown future generation gets NEITHER:
-    // a model's own default thinking beats a guaranteed 400.
-    val thinkingConfig: Option[(String, JsValue)] =
-      if (p.model.startsWith("gemini-2.5")) Some("thinkingConfig" -> JsObject("thinkingBudget" -> JsNumber(0)))
-      else if (p.model.startsWith("gemini-3.5"))
-        Some("thinkingConfig" -> JsObject("thinkingLevel" -> JsString("minimal")))
-      else None
+    val thinkingConfig = IABTaxonomy.geminiThinkingConfig(p.model)
     val body = JsObject(
       "contents" -> JsArray(
         JsObject("parts" -> JsArray(JsObject("text" -> JsString(prompt))))
@@ -658,6 +645,24 @@ If nothing matches:
 }
 
 object IABTaxonomy extends DefaultJsonProtocol {
+
+  /**
+   * 2.5-family models include "thinking" tokens in the output budget;
+   * classification doesn't benefit from chain-of-thought (the answer is
+   * a short list of IDs), so thinking is disabled via thinkingBudget=0.
+   * The 3.5 generation RETIRED that field — sending it is a hard 400
+   * ("Request contains an invalid argument", found 2026-08-27 probing
+   * gemini-3.5-flash-lite) — and replaced it with thinkingLevel, which
+   * the 2.5 family in turn does not accept. So the config is chosen by
+   * model generation, and an unknown future generation gets NEITHER:
+   * a model's own default thinking beats a guaranteed 400. Shared with the
+   * campaign classifier (CategoryVerificationClient).
+   */
+  def geminiThinkingConfig(model: String): Option[(String, JsValue)] =
+    if (model.startsWith("gemini-2.5")) Some("thinkingConfig" -> JsObject("thinkingBudget" -> JsNumber(0)))
+    else if (model.startsWith("gemini-3.5"))
+      Some("thinkingConfig" -> JsObject("thinkingLevel" -> JsString("minimal")))
+    else None
 
   /**
    * One classification: what the page is about, and where it is about.

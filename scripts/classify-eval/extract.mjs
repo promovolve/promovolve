@@ -24,7 +24,11 @@ const browser = await chromium.launch();
 const page = await browser.newPage({ viewport: { width: 1280, height: 900 } });
 for (const url of urls) {
   try {
-    await page.goto(url, { waitUntil: "networkidle", timeout: 45000 });
+    // DOM ready, then a short best-effort wait for client-rendered text: pages
+    // with trackers or polling never reach "networkidle", and waiting for it
+    // timed out 10 of 23 landing pages (#429).
+    await page.goto(url, { waitUntil: "domcontentloaded", timeout: 45000 });
+    await page.waitForLoadState("networkidle", { timeout: 5000 }).catch(() => {});
     const got = await page.evaluate(() => {
       const MAX = 8000;
       const parts = []; let len = 0;

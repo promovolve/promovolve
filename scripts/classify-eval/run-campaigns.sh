@@ -4,8 +4,8 @@
 #
 #   [GEMINI_CAMPAIGN_MODEL=…] scripts/classify-eval/run-campaigns.sh [--no-extract] [--label NAME] [--baseline out/campaigns-NAME.json]
 #
-# A/B a model: run once as-is (2.5-flash, the production default), then with
-# GEMINI_CAMPAIGN_MODEL=<candidate> --no-extract --baseline out/campaigns-gemini-2.5-flash.json
+# A/B a model: run once as-is (3.5-flash-lite, the production default), then with
+# GEMINI_CAMPAIGN_MODEL=<candidate> --no-extract --baseline scripts/classify-eval/out/campaigns-gemini-3.5-flash-lite.json
 set -euo pipefail
 ROOT="$(cd "$(dirname "${BASH_SOURCE[0]}")/../.." && pwd)"
 HERE="$ROOT/scripts/classify-eval"

@@ -125,7 +125,10 @@ object ClassifyEval {
 
   // ── scoring ──────────────────────────────────────────────────────────
 
-  private[tools] def scoreCategories(e: Expect, actual: Vector[String]): Verdict =
+  // siblingsContradict = false for the campaign eval: a campaign's categories
+  // are who should see the ad, and Budget Travel beside Air Travel on a flight
+  // site is breadth, not a contradiction (#429).
+  private[tools] def scoreCategories(e: Expect, actual: Vector[String], siblingsContradict: Boolean = true): Verdict =
     if (e.categories.isEmpty) Verdict.Skip
     else if (e.categoriesMustBeEmpty) { if (actual.isEmpty) Verdict.Ok else Verdict.Invented }
     else if (actual.isEmpty) Verdict.Missing
@@ -148,7 +151,7 @@ object ClassifyEval {
       // (Food & Drink on a travel page) are not judged.
       def related(a: String, x: String) = a == x || ancestorsOf(a).contains(x) || ancestorsOf(x).contains(a)
       def parentOf(id: String) = TieredCategory.get(id).flatMap(_.parent).map(_.id)
-      val contradicts = actual.exists(a =>
+      val contradicts = siblingsContradict && actual.exists(a =>
         parentOf(a).isDefined && !accepted.exists(related(a, _)) && accepted.exists(x => parentOf(x) == parentOf(a)))
       if (contradicts) Verdict.Wrong else if (hit) Verdict.Hit else if (broad) Verdict.Broad else Verdict.Wrong
     }

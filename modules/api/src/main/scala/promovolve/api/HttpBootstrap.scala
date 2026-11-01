@@ -313,8 +313,12 @@ object HttpBootstrap {
       val geminiEnabled = Try(config.getBoolean("promovolve.gemini.enabled")).getOrElse(false)
       val categoryVerificationClient = if (geminiEnabled) {
         sys.env.get("GEMINI_API_KEY").filter(_.nonEmpty).map { apiKey =>
-          system.log.info("CategoryVerificationClient enabled (Gemini)")
-          new promovolve.publisher.assessment.CategoryVerificationClient(apiKey)(using system, system.executionContext)
+          val model = promovolve.publisher.assessment.CategoryVerificationClient.modelFromEnv()
+          system.log.info("CategoryVerificationClient enabled (Gemini {}), rate-limited={}", model,
+            geminiRateLimiter.isDefined)
+          // Shares the Gemini RPM budget with page classification and LP extraction.
+          new promovolve.publisher.assessment.CategoryVerificationClient(apiKey, model = model,
+            rateLimiter = geminiRateLimiter)(using system, system.executionContext)
         }
       } else {
         system.log.info("CategoryVerificationClient disabled (promovolve.gemini.enabled=false)")

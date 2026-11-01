@@ -2,10 +2,12 @@ package promovolve.llm
 
 import org.apache.pekko.actor.typed.{ ActorRef, ActorSystem }
 import org.apache.pekko.http.scaladsl.model.*
+import org.slf4j.LoggerFactory
 import promovolve.GeminiRateLimiter
 import spray.json.*
 
 import scala.concurrent.{ ExecutionContext, Future }
+import scala.util.Try
 
 /**
  * Every Gemini call goes through here (#432): the URL and API key, the
@@ -21,6 +23,7 @@ final class GeminiGateway(
   import GeminiGateway.*
 
   private val http = new LlmHttp
+  private val log = LoggerFactory.getLogger(getClass)
 
   /** Final status and raw response body; the caller parses the candidates and handles non-2xx. */
   def generate(model: String, parts: Seq[Part], config: Config, tag: String): Future[LlmHttp.Reply] =
@@ -29,7 +32,12 @@ final class GeminiGateway(
         entity = HttpEntity(ContentTypes.`application/json`, requestBody(model, parts, config))),
       tag,
       acquire = () => rateLimiter.fold(Future.unit)(GeminiRateLimiter.acquire)
-    )
+    ).map { reply =>
+      // cached > 0 means Gemini served the prompt's start from its cache (#437).
+      usage(reply.body).foreach(u =>
+        log.info("[Gemini {}] {} prompt={} cached={} out={}", tag, model, u.prompt, u.cached, u.output))
+      reply
+    }
 }
 
 object GeminiGateway {
@@ -57,6 +65,15 @@ object GeminiGateway {
       minimalThinking: Boolean = false,
       safetyFiltersOff: Boolean = false
   )
+
+  final case class Usage(prompt: Int, cached: Int, output: Int)
+
+  /** Token counts from a reply's `usageMetadata`; Gemini leaves `cachedContentTokenCount` out when nothing was cached. */
+  def usage(body: String): Option[Usage] =
+    Try(body.parseJson.asJsObject.fields("usageMetadata").asJsObject.fields).toOption.map { f =>
+      def count(k: String) = f.get(k).collect { case JsNumber(n) => n.toInt }.getOrElse(0)
+      Usage(count("promptTokenCount"), count("cachedContentTokenCount"), count("candidatesTokenCount"))
+    }
 
   def url(model: String, apiKey: String): String =
     s"https://generativelanguage.googleapis.com/v1beta/models/$model:generateContent?key=$apiKey"

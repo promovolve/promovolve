@@ -270,15 +270,23 @@ object SiteEntity {
           // (and, in shadow mode, the only floor that is actually applied).
           var floorSweepOptimizerByCategory: Map[String, FloorSweepOptimizer] = Map.empty
 
-          // Latest (bidderCount, floorRejected, bid) observed per category, from
-          // the per-category AuctionOutcomeReport. Drives the bid-derived
+          // Demand per category (BidWindow), from the per-category
+          // AuctionOutcomeReports. Drives the bid-derived
           // shortcut: a MONOPOLY category (1 bidder) sets floor to (just under)
           // that bid directly — no sweep needed, no drift, instant adaptation.
           // Competitive categories (≥2) fall back to the sweep. floorRejected
           // feeds the zero-SERVABLE collapse: bidders that exist but are all
           // priced out must read as no demand, not as satisfied demand.
           // Transient; rebuilt as auctions report.
-          var categoryBidInfo: Map[String, (Int, Int, Double, Double)] = Map.empty
+          // The last COMPLETED window's merged view per category (what the
+          // tick and the dashboard read), and the window being filled now.
+          // A window with no reports keeps the previous view, so a quiet
+          // minute never drops the second-bid cap.
+          var categoryBidInfo: Map[String, BidWindow] = Map.empty
+          var categoryWindow: Map[String, BidWindow] = Map.empty
+          // Site-wide, for the same second-bid ceiling on the site floor.
+          var siteBidInfo: Option[BidWindow] = None
+          var siteWindow: Option[BidWindow] = None
 
           // Sweep-optimizer tuning, read once from the `floor-optimizer`
           // HOCON block. Missing keys fall back to FloorSweepOptimizer.Config
@@ -369,11 +377,9 @@ object SiteEntity {
               // a MISSING entry (None) is the transient restart state
               // (categoryBidInfo is rebuilt from reports), which must retain
               // the persisted floor, not collapse to min.
-              val isZeroServable = info.exists { case (n, rejected, _, _) =>
-                n == 0 || (n > 0 && rejected >= n)
-              }
-              val bidDerived = info.flatMap { case (n, _, b, _) =>
-                FloorSweepOptimizer.bidDerivedFloor(n, b, state.minFloorCpm.toDouble)
+              val isZeroServable = info.exists(!_.anyServable)
+              val bidDerived = info.flatMap { w =>
+                FloorSweepOptimizer.bidDerivedFloor(w.bidders, w.ceilingBid, state.minFloorCpm.toDouble)
               }
               if (isZeroServable) {
                 // ZERO SERVABLE DEMAND: the reserve pinned to the departed
@@ -436,12 +442,9 @@ object SiteEntity {
                   // competitive floor never exceeds secondBid × 0.99, so the
                   // top two bidders always clear. Extraction above the
                   // second bid is second-price clearing's job.
-                  val secondCap = info.collect {
-                    case (n, _, _, second) if n >= 2 && second > 0.0 => second * 0.99
+                  val applied = info.fold(opt.currentFloorCpm.max(state.minFloorCpm.toDouble)) { w =>
+                    capAtSecondBid(opt.currentFloorCpm, w.bidders, w.ceilingBid, state.minFloorCpm.toDouble)
                   }
-                  val applied = secondCap
-                    .fold(opt.currentFloorCpm)(c => math.min(opt.currentFloorCpm, c))
-                    .max(state.minFloorCpm.toDouble)
                   floors = floors.updated(cat, CPM(applied))
                   snaps = snaps.updated(cat, opt.snapshot())
                   // Change-gated like the monopoly and zero-servable branches
@@ -839,8 +842,9 @@ object SiteEntity {
                   slotId = SlotId(slot.slotId),
                   declaredSizes = List(sz),
                   computedSize = sz,
-                  prior = slot.prior,
-                  floorOverride = slot.floorOverride
+                  // No floorOverride copy: the auction takes admin floors
+                  // only from the pushed map, so a saved copy would go stale.
+                  prior = slot.prior
                 )
               }
             else {
@@ -902,13 +906,9 @@ object SiteEntity {
             // Replay admin per-slot floor overrides to AuctioneerEntity so
             // they survive restarts — they are the only per-slot overrides
             // the auctioneer takes.
-            state.config.foreach { cfg =>
-              val adminMap = cfg.slots
-                .flatMap(s => s.floorOverride.map(cpm => SlotId(s.slotId) -> cpm))
-                .toMap
-              if (adminMap.nonEmpty)
-                auctioneerRef ! AuctioneerEntity.UpdateAdminSlotFloors(adminMap)
-            }
+            val adminMap = state.adminSlotFloors
+            if (adminMap.nonEmpty)
+              auctioneerRef ! AuctioneerEntity.UpdateAdminSlotFloors(adminMap)
             // Replay persisted page classifications to AuctioneerEntity so the
             // auctioneer's `lastPage` is repopulated before the cluster sees
             // serve traffic — PeriodicReauction has something to chew on
@@ -1199,8 +1199,8 @@ object SiteEntity {
                     // lets the dashboard distinguish a floor pegged to a lone
                     // bid (1), a sweep-governed competitive one (2+), and a
                     // historical row nobody bids into anymore (absent).
-                    bidderCounts = categoryBidInfo.map { case (k, (n, _, _, _)) => k -> n },
-                    observedBids = categoryBidInfo.map { case (k, (_, _, b, _)) => k -> b },
+                    bidderCounts = categoryBidInfo.map { case (k, w) => k -> w.bidders },
+                    observedBids = categoryBidInfo.map { case (k, w) => k -> w.topBid },
                     sweepStates = sweepStates,
                     observationIntervalSeconds = obsIntervalSecs
                   ))
@@ -1225,6 +1225,10 @@ object SiteEntity {
                   .persist(adjustedState)
                   .thenRun { _ =>
                     floorSweepOptimizer.foreach(_.setMinFloor(cpm.toDouble))
+                    // Slot overrides are clamped to the minimum, so a new
+                    // minimum can change what the auctioneer should hold.
+                    if (adjustedState.adminSlotFloors != state.adminSlotFloors)
+                      auctioneerRef ! AuctioneerEntity.UpdateAdminSlotFloors(adjustedState.adminSlotFloors)
                     if (adjustedState.floorCpm != state.floorCpm) {
                       auctioneerRef ! AuctioneerEntity.UpdateFloorCpm(adjustedState.floorCpm)
                       publishPacingConfig(state.pacingConfig.copy(bidWeight = adjustedState.bidWeight,
@@ -1241,9 +1245,7 @@ object SiteEntity {
                 // re-admits bids below them until the next edit or
                 // SiteEntity restart. An empty map is sent too: it clears
                 // overrides that were removed while the auctioneer was down.
-                val adminMap = state.config.map(_.slots).getOrElse(Nil)
-                  .flatMap(s => s.floorOverride.map(cpm => SlotId(s.slotId) -> cpm))
-                  .toMap
+                val adminMap = state.adminSlotFloors
                 ctx.log.info(
                   "SiteEntity {} re-arming restarted auctioneer with {} admin slot floors",
                   siteId.value, adminMap.size)
@@ -1298,15 +1300,11 @@ object SiteEntity {
                         val newConfig = cfg.copy(slots = newSlots)
                         Effect
                           .persist(state.withConfig(newConfig))
-                          .thenRun { _ =>
+                          .thenRun { persisted =>
                             // Push the full admin-overrides map to the
-                            // auctioneer. Empty values mean "no admin
-                            // override" — those slots fall back to the
-                            // crawler prior at scoring time.
-                            val adminMap = newSlots
-                              .flatMap(s => s.floorOverride.map(cpm => SlotId(s.slotId) -> cpm))
-                              .toMap
-                            auctioneerRef ! AuctioneerEntity.UpdateAdminSlotFloors(adminMap)
+                            // auctioneer. Slots without an override fall
+                            // back to the site/category floor.
+                            auctioneerRef ! AuctioneerEntity.UpdateAdminSlotFloors(persisted.adminSlotFloors)
                           }
                           .thenReply(replyTo)(_ => SlotFloorOverrideUpdated(siteId, slotId, floor))
                     }
@@ -1568,16 +1566,19 @@ object SiteEntity {
               case AuctionOutcomeReport(outcome, category) =>
                 category match {
                   // Site-wide aggregate (legacy): feeds the site optimizer.
-                  case None => floorSweepOptimizer.foreach(_.recordAuctionOutcome(outcome))
+                  case None =>
+                    floorSweepOptimizer.foreach(_.recordAuctionOutcome(outcome))
+                    val w = BidWindow.of(outcome.totalBidders, outcome.rejectedByFloor, outcome.maxObservedCpm,
+                      outcome.secondMaxObservedCpm)
+                    siteWindow = Some(siteWindow.fold(w)(_.merge(w)))
                   // Per-category report: feeds that category's optimizer AND
-                  // records (bidderCount, bid) for the bid-derived monopoly path.
+                  // merges it into this window's view for the monopoly path,
+                  // the zero-servable collapse and the second-bid cap.
                   case Some(c) =>
                     categoryOptimizer(c, state).recordAuctionOutcome(outcome)
-                    categoryBidInfo = categoryBidInfo
-                      .updated(
-                        c,
-                        (outcome.totalBidders, outcome.rejectedByFloor, outcome.maxObservedCpm,
-                          outcome.secondMaxObservedCpm))
+                    val w = BidWindow.of(outcome.totalBidders, outcome.rejectedByFloor, outcome.maxObservedCpm,
+                      outcome.secondMaxObservedCpm)
+                    categoryWindow = categoryWindow.updated(c, categoryWindow.get(c).fold(w)(_.merge(w)))
                 }
                 Effect.none
 
@@ -1636,6 +1637,12 @@ object SiteEntity {
                 // demand refresh would stay dead until an unrelated message
                 // happened to respawn the shard. Skipping one tick is
                 // always safer than dying.
+                // Close the window: what reported this window replaces the
+                // last view; what stayed quiet keeps it.
+                categoryBidInfo = categoryBidInfo ++ categoryWindow
+                categoryWindow = Map.empty
+                siteBidInfo = siteWindow.orElse(siteBidInfo)
+                siteWindow = None
                 try floorSweepOptimizer match {
                     case Some(sweep) =>
                       val hour = java.time.LocalTime.now().getHour
@@ -1659,8 +1666,20 @@ object SiteEntity {
                       // persist (shadow mode logs + persists; it does not push).
                       val (catFloors, catSnaps, catDecisions) = observeAllCategories(state)
 
-                      observeResult match {
-                        case Some(FloorSweepOptimizer.ObserveResult(newFloor, completedCycle)) =>
+                      // The sweep's pick (or the standing floor), under the
+                      // second-bid ceiling every window: a stale floor above
+                      // the field comes down even when the sweep didn't move.
+                      val minFloor = state.minFloorCpm.toDouble
+                      def capped(f: Double) =
+                        siteBidInfo.fold(f.max(minFloor))(w => capAtSecondBid(f, w.bidders, w.ceilingBid, minFloor))
+                      val current = state.floorCpm.toDouble
+                      val siteFloorUpdate = observeResult match {
+                        case Some(r)                            => Some((capped(r.newFloor), r.completedCycle))
+                        case None if capped(current) != current => Some((capped(current), None))
+                        case None                               => None
+                      }
+                      siteFloorUpdate match {
+                        case Some((newFloor, completedCycle)) =>
                           val cpm = CPM(newFloor)
                           ctx.log.info(
                             "SiteEntity {} sweep floor CPM update: floor={} progress={}",
@@ -1846,8 +1865,7 @@ object SiteEntity {
                       slotId = SlotId(slot.slotId),
                       declaredSizes = List(sz),
                       computedSize = sz,
-                      prior = slot.prior,
-                      floorOverride = slot.floorOverride
+                      prior = slot.prior
                     )
                   }
                 else
@@ -2197,31 +2215,55 @@ object SiteEntity {
   ) extends promovolve.CborSerializable
 
   /**
-   * Per-slot effective floor: explicit override wins; otherwise the
-   * site floor is scaled by the crawler prior's qualityScore into a
-   * 0.5x..1.0x band; absent a prior, fall through to the site floor.
+   * Per-slot admission floor: the admin override, else the raw floor.
    *
-   * DISCOUNT-ONLY (capped at 1.0x): the prior may lower the floor on weak
-   * slots but never surcharge premium ones. The old 0.5x..1.5x band let a
-   * quality prior lift the EFFECTIVE floor above every bid that the floor
-   * system itself had learned from — the learned floors honor the
-   * "never above the observed bids" ceiling, but that ceiling is checked
-   * on the RAW floor, and a 1.275x surcharge silently re-broke it one
-   * level up: category floors ratcheted to bid level (monopoly rule),
-   * admission then asked bid×1.275, every bidder rejected itself, revenue
-   * pinned at zero, and the sweep froze there (live 2026-07-24, tech/food
-   * categories). With the cap, effective ≤ raw ≤ observed-bid ceiling —
-   * the invariant holds at the layer auctions actually use.
+   * The slot's quality prior does NOT scale it. A discounted admission
+   * floor (0.5x..1.0x by quality, until 2026-11) let in bids that serving,
+   * which always checks the raw floor, then refused on every request; and
+   * because they counted as admitted, the zero-servable floor collapse and
+   * the FLOOR-BLOCKED warning never fired. The prior still ranks slots for
+   * reporting (priorQualityScore). An earlier 1.5x surcharge was worse: it
+   * priced out the whole field (live 2026-07-24).
    */
   def effectiveFloor(slot: AdSlotConfig, siteFloor: CPM): CPM =
-    slot.floorOverride match {
-      case Some(cpm) => cpm
-      case None      =>
-        slot.prior match {
-          case Some(p) => siteFloor * math.min(1.0, 0.5 + p.qualityScore)
-          case None    => siteFloor
-        }
-    }
+    slot.floorOverride.getOrElse(siteFloor)
+
+  /**
+   * SECOND-BID CEILING at the applied layer, site-wide and per category:
+   * with two or more bidders the floor never exceeds secondBid × 0.99, so
+   * the top two always clear (extraction above the second bid is second-
+   * price clearing's job). Never below the publisher's minimum.
+   */
+  def capAtSecondBid(floor: Double, bidders: Int, secondBid: Double, minFloor: Double): Double =
+    (if (bidders >= 2 && secondBid > 0.0) math.min(floor, secondBid * 0.99) else floor).max(minFloor)
+
+  /**
+   * One floor window's view of a category's (or the site's) demand, merged
+   * over every auction reported in it. Pages differ (place targeting), so
+   * keeping only the last report flipped the floor rule with whichever
+   * page spoke last: a Tokyo page saw two bidders, the next page one.
+   *
+   *   bidders     — the most bidders any page saw
+   *   anyServable — some page had a bid that cleared the floor (else the
+   *                 floor collapses: demand that never clears isn't demand)
+   *   ceilingBid  — the lowest "protected" bid across pages: each page's
+   *                 second bid when two or more bid, else its sole bid.
+   *                 Capping under it keeps every page's top two clearing.
+   *   topBid      — the highest bid seen (dashboard display)
+   */
+  final case class BidWindow(bidders: Int, anyServable: Boolean, ceilingBid: Double, topBid: Double) {
+    def merge(o: BidWindow): BidWindow = BidWindow(
+      bidders = math.max(bidders, o.bidders),
+      anyServable = anyServable || o.anyServable,
+      ceilingBid = Seq(ceilingBid, o.ceilingBid).filter(_ > 0.0).minOption.getOrElse(0.0),
+      topBid = math.max(topBid, o.topBid)
+    )
+  }
+
+  object BidWindow {
+    def of(bidders: Int, floorRejected: Int, topBid: Double, secondBid: Double): BidWindow =
+      BidWindow(bidders, bidders > 0 && floorRejected < bidders, if (bidders >= 2) secondBid else topBid, topBid)
+  }
 
   /** Configuration for a site's crawler and taxonomy analysis */
   /**
@@ -2874,6 +2916,17 @@ object SiteEntity {
     def unblockAdProducts(cats: Set[AdProductCategoryId]): State = copy(adProductBlocklist = adProductBlocklist -- cats)
     def withFloorCpm(cpm: CPM): State = copy(floorCpm = cpm)
     def withMinFloorCpm(cpm: CPM): State = copy(minFloorCpm = cpm)
+
+    /**
+     * Per-slot floor overrides as the auctioneer takes them. An override
+     * under the publisher's minimum floor is lifted to the minimum: the
+     * minimum is "never sell below this", including when it is raised
+     * after the override was set.
+     */
+    def adminSlotFloors: Map[SlotId, CPM] =
+      config.map(_.slots).getOrElse(Nil)
+        .flatMap(s => s.floorOverride.map(cpm => SlotId(s.slotId) -> (if (cpm < minFloorCpm) minFloorCpm else cpm)))
+        .toMap
     def withBidWeight(w: Double): State = copy(bidWeight = w)
     def withFloorSweepSnapshot(snap: FloorSweepOptimizer.Snapshot): State = copy(floorSweepSnapshot = Some(snap))
     def withRecentFloorObservations(obs: Vector[FloorObservation]): State = copy(recentFloorObservations = obs)

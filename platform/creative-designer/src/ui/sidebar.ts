@@ -1,4 +1,8 @@
-// Right-docked sidebar. Hosts the Properties / Animation tabs.
+// Right-docked sidebar — "what are its settings?". Values only: actions
+// on the selection live in the selection bar. Hosts the Properties /
+// Animation tabs. The Properties tab shows the selection's scope: with
+// nothing selected, the Banner and Page background sections; with an
+// item selected, that item's Properties. Layers shows in both.
 // Layers lives inside the Properties tab as a collapsible region
 // below the per-item props panel — it owns its own click-to-collapse
 // header (see ui/layers.ts) so the props panel above keeps the
@@ -11,6 +15,8 @@
 // Callers mount their content into the returned `propsSection`,
 // `animationSection`, and `layersSection` elements.
 
+import { panelScope, scopeLabel } from "../selection-model";
+import type { DesignerState } from "../types";
 import { tokens } from "./tokens";
 
 const TABS = [
@@ -28,13 +34,14 @@ export interface SidebarHandle {
   propsSection: HTMLElement;
   animationSection: HTMLElement;
   layersSection: HTMLElement;
+  update(state: DesignerState): void;
 }
 
 export function mountSidebar(host: HTMLElement): SidebarHandle {
   const panel = document.createElement("aside");
   panel.className = "cd-sidebar";
   // Mounts into the flex sidebarHost from renderShell(), which
-  // already sizes to 320px wide. The panel itself is a flex column
+  // already sizes to 300px wide. The panel itself is a flex column
   // filling that host with a top tab bar, scrollable tab body, and
   // bottom Layers section.
   panel.style.cssText = [
@@ -42,8 +49,8 @@ export function mountSidebar(host: HTMLElement): SidebarHandle {
     "min-height: 0",
     "display: flex",
     "flex-direction: column",
-    `background: ${tokens.ink800}`,
-    `border-left: 1px solid ${tokens.ink500}`,
+    `background: ${tokens.ink900}`,
+    `border-left: 1px solid ${tokens.ink600}`,
     `color: ${tokens.ink200}`,
     "font-size: 12px",
     "overflow: hidden",
@@ -55,11 +62,8 @@ export function mountSidebar(host: HTMLElement): SidebarHandle {
   tabsBar.setAttribute("role", "tablist");
   tabsBar.style.cssText = [
     "display: flex",
-    // Fixed 35 + 1px border = 36 on the shared pre-zoom grid (see the
-    // makeSection header note): menu 40 + tabs 35 + 3 x 35 collapsed
-    // rows = 180 = menu 40 + size-strip 90 + canvas-header 50, so the
-    // sidebar's section boundary MEETS the canvas-header's bottom
-    // border across the vertical divider at every zoom rounding.
+    // Fixed 35 + 1px border = 36 on the shared pre-zoom grid: every
+    // multiple-of-5 height is integral under UI_SCALE 1.2.
     "height: 34px", // +1px border = 35 on the pre-zoom grid
     `border-bottom: 1px solid ${tokens.ink500}`,
     "flex: 0 0 auto",
@@ -87,6 +91,23 @@ export function mountSidebar(host: HTMLElement): SidebarHandle {
     tabBtns.set(tab.key, btn);
   }
   panel.appendChild(tabsBar);
+
+  // Scope line: what the Properties tab is showing right now.
+  const scope = document.createElement("div");
+  scope.style.cssText = [
+    "flex: 0 0 auto",
+    "padding: 7px 14px",
+    `border-bottom: 1px solid ${tokens.ink600}`,
+    `color: ${tokens.ink300}`,
+    "font-size: 11px",
+    "white-space: nowrap",
+    "overflow: hidden",
+    "text-overflow: ellipsis",
+  ].join(";");
+  const scopeText = document.createElement("b");
+  scopeText.style.color = tokens.ink100;
+  scope.append("Showing: ", scopeText);
+  panel.appendChild(scope);
 
   // Tab body — only one tab's contents are visible at a time. Scrolls
   // with no visible bar (Figma/Sketch convention): wheel/trackpad still
@@ -117,22 +138,18 @@ export function mountSidebar(host: HTMLElement): SidebarHandle {
   const makeSection = (label: string, withCount = false): { group: HTMLElement; body: HTMLElement } => {
     const group = document.createElement("section");
     group.className = "cd-group";
-    group.style.cssText = `border-bottom:1px solid ${tokens.ink500};display:flex;flex-direction:column;`;
+    // Forecast section: a 2px ink rule over a heading, no box.
+    group.style.cssText = `border-top:2px solid ${tokens.ink100};margin:0 14px;display:flex;flex-direction:column;`;
 
     const header = document.createElement("button");
     header.type = "button";
     header.className = "cd-group-header";
     // FIXED height, not font-derived padding: collapsed rows measured
-    // 36px vs 37px depending on line rounding, and the stack's bottom
-    // line drifted a pixel — visibly missing the canvas-header's bottom
-    // border across the vertical divider ("pixel off where the line
-    // between Properties and Layers meets the horizontal menu",
-    // 2026-08-18). 34px + the group's 1px border-bottom = 35px rows on
-    // the shared PRE-ZOOM grid: with UI_SCALE 1.2 every multiple-of-5
-    // height is integral post-zoom, and menu 40 + tab-bar 35 + 3 x 35 =
-    // 180 = menu 40 + size-strip 90 + canvas-header 50 — the section
-    // boundary and the canvas-header's bottom border are the SAME pixel.
-    header.style.cssText = `width:100%;height:34px;box-sizing:border-box;display:flex;align-items:center;justify-content:space-between;gap:6px;background:none;border:none;color:${tokens.ink300};font:inherit;font-size:10px;letter-spacing:2px;padding:0 14px;cursor:pointer;text-transform:uppercase;`;
+    // 36px vs 37px depending on line rounding, and stacked rows drifted
+    // a pixel. 33px + the group's 2px rule = 35px rows on the shared
+    // PRE-ZOOM grid: with UI_SCALE 1.2 every multiple-of-5 height is
+    // integral post-zoom.
+    header.style.cssText = `width:100%;height:33px;box-sizing:border-box;display:flex;align-items:center;justify-content:space-between;gap:6px;background:none;border:none;color:${tokens.ink100};font:inherit;font-size:12px;padding:0;cursor:pointer;font-weight:700;`;
     const labelSpan = document.createElement("span");
     labelSpan.textContent = label;
     const right = document.createElement("span");
@@ -140,7 +157,7 @@ export function mountSidebar(host: HTMLElement): SidebarHandle {
     if (withCount) {
       const count = document.createElement("span");
       count.className = "cd-group-count";
-      count.style.cssText = `color:${tokens.ink400};font-size:10px;font-family:${tokens.sans};letter-spacing:0;`;
+      count.style.cssText = `color:${tokens.ink300};font-size:10px;font-family:${tokens.sans};letter-spacing:0;`;
       right.appendChild(count);
     }
     const caret = document.createElement("span");
@@ -159,7 +176,7 @@ export function mountSidebar(host: HTMLElement): SidebarHandle {
   };
 
   const bannerG = makeSection("Banner");
-  const pageBgG = makeSection("Page Background");
+  const pageBgG = makeSection("Page background");
   const propsG  = makeSection("Properties");
   const layersG = makeSection("Layers", true);   // count badge in header
   const propTabGroups = [bannerG, pageBgG, propsG, layersG];
@@ -228,13 +245,32 @@ export function mountSidebar(host: HTMLElement): SidebarHandle {
       btn.setAttribute("aria-selected", active ? "true" : "false");
       btn.style.color = active ? tokens.ink100 : tokens.ink300;
       btn.style.fontWeight = active ? "600" : "400";
-      btn.style.borderBottomColor = active ? tokens.amber : "transparent";
+      btn.style.borderBottomColor = active ? tokens.ink100 : "transparent";
     }
-    // Toggle the whole collapsible group (not its body) so each
-    // section's open/closed accordion state survives a tab switch.
-    for (const g of propTabGroups) g.group.style.display = key === "properties" ? "" : "none";
+    currentTab = key;
+    scope.style.display = key === "properties" ? "" : "none";
+    applyVisibility();
     animationSection.style.display = key === "animation" ? "" : "none";
   }
+
+  // Which top-level groups the Properties tab shows: the selection's
+  // scope decides. Toggles the whole collapsible group (not its body) so
+  // each section's open/closed accordion state survives. If the open
+  // section was just hidden, the first visible one opens — one section
+  // is always open.
+  function applyVisibility(): void {
+    const visible = (g: typeof bannerG): boolean =>
+      currentTab === "properties" && (g === layersG || (currentScope === "item" ? g === propsG : g !== propsG));
+    for (const g of propTabGroups) g.group.style.display = visible(g) ? "" : "none";
+    if (currentTab !== "properties") return;
+    const isOpen = (g: typeof bannerG): boolean => g.body.style.display !== "none";
+    if (!propTabGroups.some((g) => visible(g) && isOpen(g))) {
+      const first = propTabGroups.find(visible);
+      if (first) for (const g of propTabGroups) setSectionOpen(g, g === first);
+    }
+  }
+  let currentTab: TabKey = "properties";
+  let currentScope: "banner" | "item" = "banner";
   setTab("properties");
 
   // Selecting a component on the canvas opens the Properties tab + section
@@ -258,5 +294,14 @@ export function mountSidebar(host: HTMLElement): SidebarHandle {
     for (const g of propTabGroups) setSectionOpen(g, g === bannerG);
   });
 
-  return { bannerConfigSection, pageBgSection, propsSection, animationSection, layersSection };
+  return {
+    bannerConfigSection, pageBgSection, propsSection, animationSection, layersSection,
+    update(state) {
+      scopeText.textContent = scopeLabel(state);
+      const next = panelScope(state);
+      if (next === currentScope) return;
+      currentScope = next;
+      applyVisibility();
+    },
+  };
 }

@@ -190,7 +190,7 @@ object CampaignEntity {
 
         /** Mark requestId as processed in bloom filter */
         def markProcessed(requestId: String): Unit =
-          ephemeral.markProcessed(requestId)
+          ephemeral = ephemeral.markProcessed(requestId)
 
         /** Get serialized bloom filter for persistence */
         def serializeFilter(): Array[Byte] =
@@ -760,9 +760,9 @@ object CampaignEntity {
             // Piggyback the timezone self-heal on the roll tick.
             refreshTimezoneFromAdvertiser()
             // Auto-flip Active → Ended when endAt has passed. This is a
-            // pure UI / housekeeping transition — canBid already returns
-            // false from isWithinSchedule regardless of status, so the
-            // serve path doesn't depend on this flip happening.
+            // pure UI / housekeeping transition — both bid paths (the book's
+            // quote and the live path's bidRejectReason) already refuse
+            // outside isWithinSchedule, so serving doesn't wait on this flip.
             val nowForEnd = nowOverride.getOrElse(Instant.now())
             val needsEndFlip = state.status == Status.Active && state.endAt.exists(nowForEnd.isAfter)
             if (needsEndFlip) {
@@ -985,8 +985,10 @@ object CampaignEntity {
         // ═══════════════════════════════════════════════════════════════════════
 
         def configManagement(state: State): PartialFunction[Command, Effect[State]] = {
-          case CheckBid(siteId, pageCategories, floorCpm, siteAudience, verified, pagePlaces, replyTo) =>
-            replyTo ! state.bidVerdict(siteId, pageCategories, floorCpm, siteAudience, verified, pagePlaces)
+          case CheckBid(siteId, pageCategories, floorCpm, siteAudience, verified, pagePlaces, categoryFloors,
+                replyTo) =>
+            replyTo ! state.bidVerdict(siteId, pageCategories, floorCpm, categoryFloors.getOrElse(Map.empty),
+              siteAudience, verified, pagePlaces)
             Effect.none
 
           case GetCampaign(replyTo) =>
@@ -1732,7 +1734,13 @@ object CampaignEntity {
       flushSeq: Long,
       idempotencyFilter: BloomFilter, // Bloom filter for idempotency (serialized on flush)
       lastRolledEpochDay: Long = -1L, // Guard against double day-roll (prevents race between RecordSpend and CheckWindowRoll)
-      bidsToday: Long = 0 // Eligible bid count today (for win rate: impressions / bidsToday)
+      bidsToday: Long = 0, // Eligible bid count today (for win rate: impressions / bidsToday)
+      // A Bloom filter's false-positive rate climbs fast past its sized
+      // capacity, and a false positive skips a real charge. So when the
+      // current filter is full it becomes `previousFilter` (still checked)
+      // and a fresh one starts. Only the current filter is persisted.
+      previousFilter: Option[BloomFilter] = None,
+      filterInserts: Int = 0
   ) {
     def spend: Spend = buffer.spend
     def count: Int = buffer.count
@@ -1753,12 +1761,21 @@ object CampaignEntity {
     }
 
     /** Check if requestId might be a duplicate */
-    def mightContain(requestId: String): Boolean =
-      idempotencyFilter.maybeContains(requestId.hash)
+    def mightContain(requestId: String): Boolean = {
+      val h = requestId.hash
+      idempotencyFilter.maybeContains(h) || previousFilter.exists(_.maybeContains(h))
+    }
 
-    /** Mark requestId as processed */
-    def markProcessed(requestId: String): Unit =
-      idempotencyFilter.add(requestId.hash)
+    /** Mark requestId as processed, rotating the filter when it is full */
+    def markProcessed(requestId: String): EphemeralState =
+      if (filterInserts >= EphemeralState.FilterCapacity) {
+        val fresh = EphemeralState.createFilter()
+        fresh.add(requestId.hash)
+        copy(idempotencyFilter = fresh, previousFilter = Some(idempotencyFilter), filterInserts = 1)
+      } else {
+        idempotencyFilter.add(requestId.hash)
+        copy(filterInserts = filterInserts + 1)
+      }
 
     /** Serialize the filter for persistence */
     def serializeFilter: Array[Byte] =
@@ -1766,7 +1783,7 @@ object CampaignEntity {
 
     /** Reset filter for new day */
     def withFreshFilter: EphemeralState =
-      copy(idempotencyFilter = EphemeralState.createFilter(), bidsToday = 0)
+      copy(idempotencyFilter = EphemeralState.createFilter(), previousFilter = None, filterInserts = 0, bidsToday = 0)
 
     /**
      * Check if we've already rolled to the given epoch day (guards against double roll).
@@ -1821,6 +1838,9 @@ object CampaignEntity {
       siteAudience: Set[String],
       siteAudienceVerified: Boolean,
       pagePlaces: Set[String],
+      // The site's per-category floors; None from an older sender, which
+      // then judges every category against `floorCpm` (the site floor).
+      categoryFloors: Option[Map[String, Double]],
       replyTo: ActorRef[BidVerdict]
   ) extends Command
   final case class BidVerdict(
@@ -1828,7 +1848,10 @@ object CampaignEntity {
       matchedCategory: Option[String],
       categoryHops: Int,
       placeHops: Int,
-      reason: Option[String]
+      reason: Option[String],
+      // The floor the verdict was judged against (the matched category's,
+      // else the reported one's). Option: older replies lack it.
+      floorCpm: Option[Double] = None
   ) extends promovolve.CborSerializable
 
   /**
@@ -2052,7 +2075,8 @@ object CampaignEntity {
 
   enum BidRejectReason:
     case Paused, CategoryMismatch, CategoryBlocked, SizeMismatch,
-      BelowFloor, BudgetExhausted, NoCreatives, SiteNotAllowed, AudienceNotAllowed, PlaceNotAllowed
+      BelowFloor, BudgetExhausted, NoCreatives, SiteNotAllowed, AudienceNotAllowed, PlaceNotAllowed,
+      OutsideSchedule
 
   /** Record spend (buffered, flushed periodically) */
   final case class RecordSpend(
@@ -2375,6 +2399,7 @@ object CampaignEntity {
     ): Option[BidRejectReason] = {
       val isFillerOptIn = pageCategory == CategoryId.Filler && bidOnUnmatchedContext
       if (status != Status.Active) Some(BidRejectReason.Paused)
+      else if (!isWithinSchedule(Instant.now())) Some(BidRejectReason.OutsideSchedule)
       else if (siteAllowlist.nonEmpty && !siteAllowlist.contains(siteId.value)) Some(BidRejectReason.SiteNotAllowed)
       else if (!audienceAdmits(
           audienceTargeting, siteAudience, requireVerifiedAudience, siteAudienceVerified))
@@ -2401,6 +2426,7 @@ object CampaignEntity {
         siteId: SiteId,
         pageCategories: Set[String],
         floorCpm: CPM,
+        categoryFloors: Map[String, Double],
         siteAudience: Set[String],
         siteAudienceVerified: Boolean,
         pagePlaces: Set[String]
@@ -2417,19 +2443,22 @@ object CampaignEntity {
             .groupMapReduce(_._1)(_._2)(math.min)
             .toList
             .sortBy(_._2)
+      // The auction's floor rule: the category's floor, else the site floor.
+      def floorFor(c: String): CPM = categoryFloors.get(c).map(CPM(_)).getOrElse(floorCpm)
       val tried = expanded.map { case (c, hops) =>
-        (c, hops, bidRejectReason(siteId, CategoryId(c), floorCpm, siteAudience, siteAudienceVerified, pagePlaces))
+        (c, hops, bidRejectReason(siteId, CategoryId(c), floorFor(c), siteAudience, siteAudienceVerified, pagePlaces))
       }
       val hops = placeAdmits(placeTargeting, pagePlaces)
       tried.collectFirst { case (c, catHops, None) => (c, catHops) } match {
         case Some((c, catHops)) =>
           BidVerdict(wouldBid = true, matchedCategory = Some(c), categoryHops = catHops,
-            placeHops = hops.getOrElse(0), reason = None)
+            placeHops = hops.getOrElse(0), reason = None, floorCpm = Some(floorFor(c).toDouble))
         case None =>
-          val reasons = tried.flatMap(_._3)
-          val reason = reasons.find(_ != BidRejectReason.CategoryMismatch).orElse(reasons.headOption)
+          val rejected = tried.collect { case (c, _, Some(r)) => (c, r) }
+          val reported = rejected.find(_._2 != BidRejectReason.CategoryMismatch).orElse(rejected.headOption)
           BidVerdict(wouldBid = false, matchedCategory = None, categoryHops = -1,
-            placeHops = hops.getOrElse(-1), reason = reason.map(_.toString))
+            placeHops = hops.getOrElse(-1), reason = reported.map(_._2.toString),
+            floorCpm = Some(reported.fold(floorCpm)(r => floorFor(r._1)).toDouble))
       }
     }
 
@@ -2532,9 +2561,9 @@ object CampaignEntity {
     val empty: SpendBuffer = SpendBuffer(Spend.zero, 0)
   }
 
-  private object EphemeralState {
+  private[advertiser] object EphemeralState {
     // Bloom filter sizing for idempotency
-    private val FilterCapacity = 50000 // Expected unique requestIds per day
+    private[advertiser] val FilterCapacity = 50000 // Expected unique requestIds per day
     private val FilterFpp = 0.0001 // 0.01% false positive rate (lower than before for fewer false skips)
 
     def empty: EphemeralState =
@@ -2546,7 +2575,7 @@ object CampaignEntity {
           scala.util.Try(BloomFilter.deserialize(filter)).getOrElse(createFilter())
         else
           createFilter()
-      EphemeralState(SpendBuffer.empty, 0L, bf)
+      EphemeralState(SpendBuffer.empty, 0L, bf, filterInserts = bf.estimateInsertCount)
     }
 
     def createFilter(): BloomFilter = BloomFilter.create(FilterCapacity, FilterFpp)

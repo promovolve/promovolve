@@ -1,7 +1,6 @@
 {{define "content"}}
 <div class="min-h-screen flex items-center justify-center p-8 bg-gray-50">
   <div class="card max-w-md w-full text-center">
-    <p class="text-4xl mb-4">{{if .GuardExit}}👁{{else if .LogoutOnly}}⏸{{else}}🔒{{end}}</p>
     <h1 class="text-lg font-semibold mb-2">{{.Title}}</h1>
     <p class="text-sm text-gray-500 mb-6">{{.Error}}</p>
     <div class="flex items-center justify-center gap-3">

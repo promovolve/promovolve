@@ -252,6 +252,59 @@ func (r *Repository) ForUser(ctx context.Context, userID string) (*model.Org, *m
 	return o, m, err
 }
 
+// SessionMembership is ForUser plus the operators' implicit membership: an
+// active operator with no stored membership is an admin of the org for their
+// own email domain, if one exists. Nothing is stored, so there is nothing to
+// invite or remove — operators are managed on Admin → Users.
+func (r *Repository) SessionMembership(ctx context.Context, userID string) (*model.Org, *model.OrgMembership, error) {
+	o, m, err := r.ForUser(ctx, userID)
+	if !errors.Is(err, ErrNotFound) {
+		return o, m, err
+	}
+	var email string
+	err = r.pool.QueryRow(ctx, `
+		SELECT email FROM platform_users WHERE id = $1 AND role = 'admin' AND status = 'active'`,
+		userID).Scan(&email)
+	if errors.Is(err, pgx.ErrNoRows) {
+		return nil, nil, ErrNotFound
+	}
+	if err != nil {
+		return nil, nil, err
+	}
+	o, err = r.GetByDomain(ctx, DomainOf(email))
+	if err != nil {
+		return nil, nil, err
+	}
+	return o, &model.OrgMembership{OrgID: o.ID, UserID: userID, OrgRole: model.OrgRoleAdmin}, nil
+}
+
+// OperatorMembers lists the operators who are implicit admins of the org for
+// domain (see SessionMembership), for the Team page.
+func (r *Repository) OperatorMembers(ctx context.Context, domain string) ([]MemberRow, error) {
+	rows, err := r.pool.Query(ctx, `
+		SELECT u.id, u.email, u.display_name,
+		       (SELECT COUNT(*) FROM webauthn_credentials c WHERE c.user_id = u.id),
+		       to_char(u.created_at, 'YYYY-MM-DD')
+		FROM platform_users u
+		WHERE u.role = 'admin' AND u.status = 'active'
+		  AND lower(split_part(u.email, '@', 2)) = $1
+		  AND NOT EXISTS (SELECT 1 FROM org_members m WHERE m.user_id = u.id)
+		ORDER BY u.created_at`, strings.ToLower(domain))
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	var out []MemberRow
+	for rows.Next() {
+		m := MemberRow{OrgRole: model.OrgRoleAdmin, Operator: true}
+		if err := rows.Scan(&m.UserID, &m.Email, &m.DisplayName, &m.Passkeys, &m.JoinedAt); err != nil {
+			return nil, err
+		}
+		out = append(out, m)
+	}
+	return out, rows.Err()
+}
+
 // SetPreferredSide remembers the member's last-used side (their next fresh
 // login lands there).
 func (r *Repository) SetPreferredSide(ctx context.Context, orgID, userID string, side model.Role) error {
@@ -289,6 +342,7 @@ type MemberRow struct {
 	OrgRole     model.OrgRole
 	Passkeys    int
 	JoinedAt    string
+	Operator    bool // an operator: an implicit admin, managed on Admin → Users
 }
 
 func (r *Repository) Members(ctx context.Context, orgID string) ([]MemberRow, error) {

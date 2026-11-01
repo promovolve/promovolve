@@ -368,8 +368,8 @@ Phase 3: BID COLLECTION
     ├── For each slot × eligible category:
     │   └── CategoryBidderEntity ! CategoryBidRequest
     ├── Aggregate with timeout
-    ├── Filter in CategoryBidderEntity: bids within 80% of the
-    │   category's best + top-50 campaigns per category by CPM
+    ├── Filter in CategoryBidderEntity: top-50 campaigns per
+    │   category by CPM (no cutoff relative to the best bid)
     └── Keep ALL bids from those campaigns — no further cap;
         dedupe by creativeId, order best-per-campaign first
 
@@ -428,9 +428,9 @@ State:
 1. Receive `CategoryBidRequest` from AuctioneerEntity
 2. Fan-out to all active campaigns
 3. Collect responses
-4. Filter: Keep bids within 20% of winner (`cpm ≥ maxCPM × 0.80`)
-   If the highest bid is $10 CPM, it keeps all bids ≥ $8 CPM (within 20% of winner). 
-   This ensures close competitors stay in the shortlist rather than being eliminated by tiny CPM differences.
+4. Keep the top 50 campaigns by CPM. There is no cutoff relative to the
+   best bid: every bid above the floor reaches serve-time scoring and the
+   floor stats, so the second-bid rule always sees the real top two.
 5. Return top candidates
 
 ---
@@ -759,7 +759,7 @@ Value: ServeView
 │                   └──► CampaignEntity[adv3|camp3] ──► CampaignBidResponse    │
 │                   │                                                          │
 │                   ▼                                                          │
-│              Filter: Keep bids ≥ (maxCPM × 80%)                              │
+│              Keep: top 50 campaigns by CPM                                   │
 │              Return: CategoryBidResponse(candidates)                         │
 │         │                                                                    │
 │         ▼                                                                    │
@@ -1290,16 +1290,18 @@ floors layer on top of it, tuned automatically by a direct sweep optimizer.
 `AuctioneerEntity` resolves each slot's effective floor in priority order:
 
 ```
-1. Admin override        (publisher escape hatch — adminSlotFloorOverrides,
-                          or an override carried on the slot spec via the
-                          classify-page path; always wins)
-2. (Per-category floor, else site floor) × slot-prior scaling
-                          — SlotPrior: floor × (0.5 + qualityScore), a
-                            0.5×–1.5× band. The prior is measured by the AD
-                            TAG in the visitor's real viewport (above-fold,
-                            viewability, region, text density) — the crawler
-                            that used to produce it is gone
+1. Admin override        (publisher escape hatch — only the map SiteEntity
+                          pushes, adminSlotFloorOverrides; always wins. A
+                          copy saved with a page's slots is ignored, so a
+                          cleared override stays cleared. Never below the
+                          publisher's minimum floor: a lower override is
+                          lifted to the minimum)
+2. Per-category floor    (the category's learned floor)
 3. Site floor            (fallback — the base floor-cpm above)
+
+The slot's quality prior (measured by the ad tag in the visitor's real
+viewport: above-fold, viewability, region, text density) does NOT scale
+the floor; serving checks the same unscaled floor the auction admits at.
 ```
 
 **FloorSweepOptimizer — the sole floor mechanism.** The former DQN agent was

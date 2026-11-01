@@ -131,6 +131,22 @@ class ReportContractSpec extends AnyWordSpec with Matchers with ApiJsonFormats {
     }
   }
 
+  "SiteTopResponse" should {
+    "match the canonical body" in {
+      pin[SiteTopResponse]("publisher-site-top.json") { r =>
+        r.siteId shouldBe "site_8821"
+        r.days shouldBe 7
+        r.pages.map(_.page) shouldBe Vector("https://onsen.example.jp/stays/hakone", "")
+        // Gross, BEFORE platform margin: the Go side nets it down.
+        r.pages.head.grossRevenue shouldBe "1000.0000"
+        r.creatives.head.landingDomain shouldBe "ryokan.example.jp"
+        // A deleted creative keeps its row with blank details.
+        r.creatives(1).name shouldBe ""
+        r.creatives(1).assetUrl shouldBe ""
+      }
+    }
+  }
+
   "PublisherSiteCategoryReportResponse" should {
     "match the canonical multi-row body" in {
       pin[PublisherSiteCategoryReportResponse]("publisher-site-categories.json") { r =>

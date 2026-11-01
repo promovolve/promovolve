@@ -14,7 +14,7 @@
          Campaigns page, not here). The sub line anchors the context:
          back link + which campaign these creatives belong to. */}}
     <p class="page-sub">
-      <a href="/advertiser/campaigns" class="text-brand-ink hover:underline">← {{t "Campaigns"}}</a>
+      <a href="/advertiser/campaigns" class="text-brand-ink hover:underline">{{template "i-back"}} {{t "Campaigns"}}</a>
       <span class="mx-1">·</span>
       <span class="font-medium">{{range .Campaigns}}{{if eq .ID $.CampaignID}}{{if .Name}}{{.Name}}{{else}}{{.ID}}{{end}}{{end}}{{end}}</span>
       <span class="mx-1">·</span>
@@ -168,7 +168,8 @@
               class="relative w-full h-full flex items-center justify-center cursor-zoom-in"
               title="{{t "Preview creative"}}">
         <img src="{{.AssetURL}}" alt="{{.Name}}" class="max-w-full max-h-full object-contain">
-        <span class="absolute bottom-1.5 left-1.5 inline-flex items-center gap-1.5 px-2 py-1 rounded bg-black/60 text-white text-xs font-medium opacity-0 group-hover:opacity-90 transition">
+        {{/* Over the creative: on-image stays white in dark mode; the theme's "white" is a dark surface there. */}}
+        <span class="absolute bottom-1.5 left-1.5 inline-flex items-center gap-1.5 px-2 py-1 rounded bg-black/60 text-on-image text-xs font-medium opacity-0 group-hover:opacity-90 transition">
           <svg class="w-3.5 h-3.5" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" d="M4 8V4m0 0h4M4 4l5 5m11-1V4m0 0h-4m4 0l-5 5M4 16v4m0 0h4m-4 0l5-5m11 5l-5-5m5 5v-4m0 4h-4"/></svg>
           {{t "Preview"}}
         </span>
@@ -197,14 +198,14 @@
         {{end}}
       </div>
       {{if .BrokenImages}}
-      <div class="flex items-center gap-1.5 mt-2 text-xs text-amber-700"
+      <div class="flex items-center gap-1.5 mt-2 text-xs text-gray-700"
            title="{{t "These images couldn't be loaded when the banner was rendered — a dead or hotlink-protected source URL the render can't reach — so they were hidden. Replace the image on the landing page, or edit the creative in the designer."}}">
         <svg class="w-3.5 h-3.5 shrink-0" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" d="M12 9v4m0 4h.01M10.29 3.86 1.82 18a2 2 0 0 0 1.71 3h16.94a2 2 0 0 0 1.71-3L13.71 3.86a2 2 0 0 0-3.42 0z"/></svg>
         <span>{{t "%d images couldn’t load" .BrokenImages}}</span>
       </div>
       {{end}}
       {{if .SafetyAdvisories}}
-      <div class="flex items-center gap-1.5 mt-2 text-xs text-amber-700"
+      <div class="flex items-center gap-1.5 mt-2 text-xs text-gray-700"
            title="{{t "Flagged by automated review — usually the subject being advertised, not the ad itself. Delivery continues; each publisher decides whether to accept it."}}">
         <svg class="w-3.5 h-3.5 shrink-0" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" d="M12 9v4m0 4h.01M10.29 3.86 1.82 18a2 2 0 0 0 1.71 3h16.94a2 2 0 0 0 1.71-3L13.71 3.86a2 2 0 0 0-3.42 0z"/></svg>
         <span>{{t "Content flagged"}}: {{range $i, $a := .SafetyAdvisories}}{{if $i}}, {{end}}{{t $a}}{{end}}</span>
@@ -219,8 +220,8 @@
       </div>
       {{end}}
       {{if .DogearedImpressions}}
-      <div class="flex items-center gap-3 mt-1 text-xs text-amber-700" title="{{t "Re-encounters via honored pin (bookmark fulfillment — not billed)"}}">
-        <span>📌 {{t "%d pin re-views" .DogearedImpressions}}</span>
+      <div class="flex items-center gap-3 mt-1 text-xs text-gray-700" title="{{t "Re-encounters via honored pin (bookmark fulfillment — not billed)"}}">
+        <span>{{t "%d pin re-views" .DogearedImpressions}}</span>
         {{if .DogearedClicks}}<span>{{t "%d clicks" .DogearedClicks}}</span>{{end}}
         {{if .DogearedCTAClicks}}<span>{{t "%d CTA" .DogearedCTAClicks}}</span>{{end}}
         {{if .PinCTR}}<span title="{{t "Re-engagement click-through rate"}}">{{t "%s pin CTR" .PinCTR}}</span>{{end}}
@@ -268,10 +269,10 @@
           <input type="hidden" name="creativeId" value="{{.ID}}">
           {{if eq .ActiveStatus "Active"}}
           <input type="hidden" name="status" value="Paused">
-          <button type="submit" class="text-xs text-red-600 hover:underline">{{t "Pause"}}</button>
+          <button type="submit" class="text-xs text-gray-900 underline hover:no-underline">{{t "Pause"}}</button>
           {{else}}
           <input type="hidden" name="status" value="Active">
-          <button type="submit" class="text-xs text-green-700 hover:underline">{{t "Activate"}}</button>
+          <button type="submit" class="text-xs text-gray-900 underline hover:no-underline">{{t "Activate"}}</button>
           {{end}}
         </form>
         {{end}}
@@ -280,7 +281,7 @@
               onsubmit="return confirm('{{t "Delete this creative? It is removed from the campaign; reports are kept."}}')">
           <input type="hidden" name="campaignId" value="{{$.CampaignID}}">
           <input type="hidden" name="creativeId" value="{{.ID}}">
-          <button type="submit" class="px-2.5 py-1 text-xs border border-red-300 rounded-md text-red-600 hover:bg-red-50">{{t "Delete"}}</button>
+          <button type="submit" class="px-2.5 py-1 text-xs border border-gray-900 rounded-md text-gray-900 hover:bg-gray-100">{{t "Delete"}}</button>
         </form>
         {{else}}
         <button type="button" disabled title="{{t "Pause this creative before deleting it"}}"

@@ -97,7 +97,7 @@ On `CategoryBidRequest(siteId, floorCpm, …)` the bidder, synchronously:
   floor-rejected (with max/min rejected stats, approved-only variants —
   exactly the fields `CategoryBidResponse` carries today, so floors and
   the auctioneer see an unchanged contract);
-- applies the existing top-N / cpm-threshold selection;
+- applies the existing top-N selection;
 - replies immediately. The auctioneer's 800ms window becomes a
   formality covering one mailbox hop.
 

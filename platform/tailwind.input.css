@@ -3,107 +3,175 @@
 @tailwind utilities;
 
 /* ── Theme variables ────────────────────────────────────────────────────
-   gray-* and white resolve to these RGB triples (tailwind.config.js). The
-   LIGHT block is the dashboard's original warm-ink scale verbatim. The DARK
-   block preserves each step's CONTRAST ROLE inverted — surfaces (white,
-   gray-50/100) go dark, text steps (gray-500..950) go light — so a
-   light-authored template renders correctly in both. Toggled by `.dark` on
-   <html>. */
+   Forecast world (DESIGN.md). gray-* and white resolve to these RGB
+   triples (tailwind.config.js): a NEUTRAL grey scale (r=g=b, a
+   printed page) whose ink step (gray-900) is #1a1a1a. The jma-* steps
+   are the grey intensity scale; in dark it runs light-for-more. The DARK block keeps each step's CONTRAST ROLE
+   inverted — surfaces go dark, text steps go light — so a light-authored
+   template renders correctly in both. Toggled by `.dark` on <html>. */
 @layer base {
   :root {
     --c-white: 255 255 255;
-    --c-gray-50: 252 250 247;
-    --c-gray-100: 245 243 240;
-    --c-gray-200: 234 231 228;
-    --c-gray-300: 211 208 205;
-    --c-gray-400: 168 164 159;
-    --c-gray-500: 107 103 98;
-    --c-gray-600: 91 87 83;
-    --c-gray-700: 64 60 56;
-    --c-gray-800: 39 35 32;
-    --c-gray-900: 20 17 14;
-    --c-gray-950: 12 8 6;
-    --c-brand-ink: 176 80 0; /* amber for TEXT: 5.0:1 on paper (brand itself is 3.9:1) */
+    --c-gray-50: 248 248 248;
+    --c-gray-100: 236 236 236;
+    --c-gray-200: 221 221 221;
+    --c-gray-300: 198 198 198;
+    --c-gray-400: 148 148 148; /* rules and icons only: 3:1, never text */
+    --c-gray-500: 84 84 84;    /* secondary text, 7.4:1 */
+    --c-gray-600: 66 66 66;
+    --c-gray-700: 48 48 48;
+    --c-gray-800: 34 34 34;
+    --c-gray-900: 26 26 26;    /* ink */
+    --c-gray-950: 12 12 12;
+    --c-field: 230 230 230;    /* top bar, selected rows */
+    --c-brand: 26 26 26;       /* ink action fill */
+    --c-on-brand: 255 255 255;
+    --c-brand-ink: 26 26 26;   /* links: ink, told apart by the underline */
+    --c-jma-1: 204 204 204;
+    --c-jma-2: 171 171 171;
+    --c-jma-3: 139 139 139;
+    --c-jma-4: 109 109 109;
+    --c-jma-5: 80 80 80;
+    --c-jma-6: 53 53 53;
+    --c-jma-7: 27 27 27;
+    color-scheme: light;
   }
-  /* Pin an element's subtree to the LIGHT scale regardless of `.dark` — for
-     chrome that is intentionally dark in BOTH themes (the sidebar), so its
-     bg-gray-900 / text-white don't invert. */
-  .theme-light-scope {
-    --c-white: 255 255 255;
-    --c-gray-50: 252 250 247;
-    --c-gray-100: 245 243 240;
-    --c-gray-200: 234 231 228;
-    --c-gray-300: 211 208 205;
-    --c-gray-400: 168 164 159;
-    --c-gray-500: 107 103 98;
-    --c-gray-600: 91 87 83;
-    --c-gray-700: 64 60 56;
-    --c-gray-800: 39 35 32;
-    --c-gray-900: 20 17 14;
-    --c-gray-950: 12 8 6;
+  .dark {
+    --c-white: 30 30 30;       /* raised surface */
+    --c-gray-50: 21 21 21;     /* page */
+    --c-gray-100: 41 41 41;
+    --c-gray-200: 57 57 57;
+    --c-gray-300: 75 75 75;
+    --c-gray-400: 140 140 140;
+    --c-gray-500: 177 177 177;
+    --c-gray-600: 203 203 203;
+    --c-gray-700: 222 222 222;
+    --c-gray-800: 235 235 235;
+    --c-gray-900: 245 245 245;
+    --c-gray-950: 251 251 251;
+    --c-field: 41 41 41;
+    --c-brand: 236 236 236;
+    --c-on-brand: 21 21 21;
+    --c-brand-ink: 245 245 245;
+    color-scheme: dark;
+    --c-jma-1: 71 71 71;
+    --c-jma-2: 95 95 95;
+    --c-jma-3: 121 121 121;
+    --c-jma-4: 147 147 147;
+    --c-jma-5: 175 175 175;
+    --c-jma-6: 203 203 203;
+    --c-jma-7: 232 232 232;
   }
+
+  html { -webkit-text-size-adjust: 100%; }
+  /* Two faces (DESIGN.md): headings in Mincho, everything read or
+     operated in Gothic. h3 and below are labels and stay Gothic. */
+  h1, h2 { font-family: theme('fontFamily.serif'); }
+  body { font-feature-settings: "palt" 0; }
+  /* Figures line up in every table and money column. */
+  table, .tabular { font-variant-numeric: tabular-nums; }
+  ::selection { background: rgb(var(--c-gray-300)); color: rgb(var(--c-gray-900)); }
+  :focus-visible { outline: 2px solid rgb(var(--c-gray-900)); outline-offset: 2px; }
+  /* No link colour on a printed page: the underline is the link. */
+  a.text-brand-ink, button.text-brand-ink { text-decoration-line: underline; text-underline-offset: 2px; }
+  input[type='checkbox'], input[type='radio'], input[type='range'], progress { accent-color: rgb(var(--c-brand)); }
+  * { scrollbar-color: rgb(var(--c-gray-300)) transparent; }
+
   /* Safety net for raw form controls that don't use .form-input: theme their
      background + text so a stray <input>/<select>/<textarea> is never
      white-on-dark. Base layer = lowest priority, so explicit utility classes
-     (e.g. a disabled field's bg-gray-50) still win. Checkbox/radio/buttons
-     excluded — an opaque bg would hide their glyph/accent. */
+     still win. Checkbox/radio/buttons excluded. */
   input:not([type='checkbox']):not([type='radio']):not([type='submit']):not([type='button']):not([type='range']),
   select,
   textarea {
     background-color: rgb(var(--c-white));
     color: rgb(var(--c-gray-900));
   }
-
-  .dark {
-    --c-white: 24 22 20;    /* raised card/surface, sits above the page void */
-    --c-gray-50: 15 13 11;  /* page background */
-    --c-gray-100: 32 29 26; /* subtle fills / faint borders */
-    --c-gray-200: 45 41 37; /* standard border */
-    --c-gray-300: 58 53 48; /* stronger border */
-    --c-gray-400: 145 140 134; /* muted text */
-    --c-gray-500: 176 171 165; /* secondary text */
-    --c-gray-600: 200 195 189;
-    --c-gray-700: 220 216 210;
-    --c-gray-800: 235 232 227;
-    --c-gray-900: 245 243 239; /* headings → near-white */
-    --c-gray-950: 250 249 246;
-    --c-brand-ink: 236 140 69; /* 7.2:1 on the dark surface */
-  }
 }
 
 /* Canonical component classes — the design system's shared vocabulary
-   (DESIGN.md). Moved verbatim from layout.html's
-   text/tailwindcss block when the Play CDN was replaced by this build. */
+   (DESIGN.md). */
 @layer components {
-  .btn { @apply inline-flex items-center justify-center gap-1.5 px-4 py-2 text-sm font-medium rounded-md cursor-pointer transition-colors disabled:opacity-50 disabled:cursor-not-allowed; }
-  .btn-sm { @apply px-3 py-1 text-xs; }
-  .btn-primary { @apply bg-brand text-gray-950 hover:bg-brand-hover; }
-  .btn-secondary { @apply bg-white border border-gray-300 text-gray-700 hover:bg-gray-50; }
-  .btn-success { @apply bg-green-600 text-white hover:bg-green-700; }
-  .btn-danger { @apply bg-red-600 text-white hover:bg-red-700; }
-  .card { @apply bg-white border rounded-lg p-6; }
-  .card-tight { @apply p-4; }
-  .badge { @apply inline-flex items-center px-2 py-0.5 rounded-full text-xs font-medium; }
-  /* Badge colors aren't variable-driven (blue/green/etc.), so give each a
-     muted dark variant instead of a bright chip glowing on a dark surface. */
-  .badge-info { @apply bg-blue-100 text-blue-800 dark:bg-blue-500/15 dark:text-blue-300; }
-  .badge-success { @apply bg-green-100 text-green-700 dark:bg-green-500/15 dark:text-green-300; }
-  .badge-warning { @apply bg-yellow-100 text-yellow-800 dark:bg-yellow-500/15 dark:text-yellow-300; }
-  .badge-danger { @apply bg-red-100 text-red-700 dark:bg-red-500/15 dark:text-red-300; }
-  .badge-neutral { @apply bg-gray-100 text-gray-600; }
-  /* × inside a badge: inherits the badge's text color, 24px hit area
-     (WCAG 2.5.8) pulled back with negative margins so the pill doesn't grow. */
+  .btn { @apply inline-flex items-center justify-center gap-1.5 min-h-9 px-4 py-2 text-sm font-bold rounded-sm cursor-pointer transition-colors disabled:opacity-50 disabled:cursor-not-allowed; }
+  .btn-sm { @apply min-h-6 px-3 py-1 text-xs; }
+  .btn-primary { @apply bg-brand text-on-brand hover:bg-brand/85; }
+  .btn-secondary { @apply bg-white border border-gray-900 text-gray-900 hover:bg-gray-100; }
+  /* Colour belongs to data and alert levels, not to actions: approving
+     is an ink primary, a destructive action an ink outline (its confirm
+     dialog is the guard). */
+  .btn-success { @apply bg-brand text-on-brand hover:bg-brand/85; }
+  .btn-danger { @apply bg-white border border-gray-900 text-gray-900 hover:bg-gray-100; }
+  /* A card is a ruled section on the white ground, not a box. */
+  .card { @apply border-t border-gray-300 py-6; }
+  .card-tight { @apply py-4; }
+  .badge { @apply inline-flex items-center px-2 py-0.5 rounded-sm text-xs font-bold whitespace-nowrap; }
+  /* Plain states read as words. The two alert levels are typographic:
+     warning reversed out (white on ink), advisory ink on mid grey. */
+  .badge-info { @apply bg-gray-100 text-gray-700; }
+  .badge-success { @apply bg-gray-100 text-gray-900; }
+  .badge-warning { @apply bg-gray-300 text-gray-900; }     /* 注意報 */
+  .badge-danger { @apply bg-gray-900 text-white; }         /* 警報 */
+  .badge-neutral { @apply bg-gray-100 text-gray-700; }
+  /* × inside a badge: inherits the badge's text colour, 24px hit area
+     (WCAG 2.5.8) pulled back with negative margins so the tag doesn't grow. */
   .chip-x { @apply inline-flex items-center justify-center min-w-6 min-h-6 -my-1 -mr-1.5 ml-0.5 rounded-full font-bold opacity-70 hover:opacity-100 hover:bg-black/5 cursor-pointer; }
-  .form-label { @apply block text-sm font-medium text-gray-700 mb-1; }
-  /* bg-white + text-gray-900 both route through the inverting vars: white bg
-     / dark text in light mode, dark surface / light text in dark mode. Before
-     this, the input had NO bg/text of its own — it kept the browser's white
-     background while text inherited the page's dark-mode light color, i.e.
-     invisible light-on-white. */
-  .form-input { @apply w-full px-3 py-2 border border-gray-300 rounded-md text-sm bg-white text-gray-900 placeholder:text-gray-500 focus:outline-none focus:ring-2 focus:ring-brand/20 focus:border-brand; }
+  .form-label { @apply block text-sm font-bold text-gray-700 mb-1; }
+  .form-input { @apply w-full px-3 py-2 border border-gray-300 rounded-sm text-sm bg-white text-gray-900 placeholder:text-gray-500 focus:outline-none focus:border-gray-900 focus:ring-2 focus:ring-gray-900/40; }
   .form-hint { @apply text-xs text-gray-500 mt-1; }
-  .page-title { @apply text-2xl font-semibold; }
-  .page-sub { @apply text-sm text-gray-500 mt-1; }
+  .page-title { @apply font-serif text-3xl font-bold tracking-tight; }
+  .page-sub { @apply text-sm text-gray-500 mt-1 max-w-3xl; }
+  .section-title { @apply font-serif text-xl font-bold; }
+  /* The one large number of a region, set in Mincho like a headline. */
+  .figure-lead { @apply font-serif; }
+
+  /* Notices: a framed line, never a coloured side stripe. Neutral fills,
+     told apart by edge weight and by their lead word (Error: / Note:). */
+  .notice { @apply text-sm text-gray-900 px-3 py-2 border rounded-sm; }
+  .notice-error { @apply border-2 border-gray-900 bg-white; }
+  .notice-advisory { @apply border-gray-400 bg-gray-100; }
+  .notice-ok { @apply border-gray-300 bg-gray-50; }
+  .notice-info { @apply border-gray-300 bg-gray-50; }
+  /* The lead word (data-lead="Error:" / "Note:") works for server- and
+     script-filled notices alike, so meaning never rests on the edge. */
+  .notice[data-lead]::before { content: attr(data-lead) " "; font-weight: 700; }
+
+  /* A row of headline figures under an ink rule (stats, earnings,
+     billing totals): no boxes, the numbers carry the weight. */
+  .figures { @apply grid gap-x-6 border-t-2 border-gray-900; }
+  .figure { @apply py-3 border-b border-gray-200; }
+  .figure > dt { @apply text-xs text-gray-500; }
+  .figure > dd { @apply text-2xl font-bold tabular-nums mt-1; }
+
+  /* Forecast legend: each step's lower bound, centred on its left edge. */
+  .legend-tick { @apply absolute top-3 left-0 -translate-x-1/2 font-normal tabular-nums; }
+
+  /* Flat data table: an ink rule over the header, hairlines between rows,
+     no box around it. Wrap in overflow-x-auto where it can be wide. */
+  .data-table { @apply w-full text-sm border-t-2 border-gray-900; }
+  .data-table th { @apply px-3 py-2 text-left text-xs font-bold text-gray-500 border-b border-gray-300 whitespace-nowrap; }
+  .data-table td { @apply px-3 py-2 border-b border-gray-200; }
+  .data-table .num { @apply text-right whitespace-nowrap; }
+
+  /* Campaigns list (advertiser/campaigns.html): one grid for the header
+     and every row, so columns line up like a table from xl up; below that
+     a row stacks, status beside the name and each cell full width. */
+  .camp-row { display: grid; grid-template-columns: auto minmax(0, 1fr); gap: 0.5rem 0.75rem; align-items: center; }
+  .camp-row > .span { grid-column: 1 / -1; }
+  @media (min-width: 1280px) {
+    .camp-row { grid-template-columns: 5.5rem minmax(9rem, 1fr) 8.5rem 12rem 11rem 6.5rem 4.5rem 8rem; }
+    .camp-row > .span { grid-column: auto; }
+  }
+
+  /* Creative editor (advertiser/creative-editor.html): numbered form
+     sections under rules, the heading in a left column from lg up. */
+  .editor-section { @apply border-t border-gray-300 py-6 lg:grid lg:grid-cols-[13rem_minmax(0,1fr)] lg:gap-x-8; }
+  .editor-heading { @apply font-serif text-xl font-bold mb-3 lg:mb-0; }
+
+  /* Top-bar navigation (layout.html). Horizontal tabs from lg up; a
+     stacked list in the menu panel below that. */
+  .nav-tab { @apply flex items-center px-3 py-2 text-sm text-gray-600 whitespace-nowrap hover:text-gray-900
+                     aria-[current=page]:font-bold aria-[current=page]:text-gray-900 aria-[current=page]:bg-white
+                     lg:py-0 lg:border-b-[3px] lg:border-transparent lg:aria-[current=page]:bg-transparent lg:aria-[current=page]:border-gray-900; }
 
   /* Rendered-markdown typography for the in-app Help pages (goldmark
      output — plain h1/h2/p/pre/table tags, so descendant selectors, not
@@ -120,7 +188,7 @@
   .prose-doc code { @apply font-mono text-xs bg-gray-100 rounded px-1 py-0.5; }
   /* Code blocks stay a dark slab in BOTH themes (literal colors so the gray
      variables don't invert them to light-on-dark). */
-  .prose-doc pre { @apply rounded-lg p-4 my-4 overflow-x-auto; background: #14110e; color: #f5f3f0; }
+  .prose-doc pre { @apply rounded-lg p-4 my-4 overflow-x-auto; background: #141414; color: #f4f4f4; }
   .prose-doc pre code { @apply bg-transparent p-0 text-xs leading-relaxed; }
   .prose-doc table { @apply w-full text-sm my-4 border-collapse; }
   .prose-doc th { @apply text-left text-gray-500 font-medium border-b px-3 py-2; }
@@ -129,49 +197,6 @@
   .prose-doc hr { @apply my-6 border-gray-100; }
 }
 
-/* ── Dark-mode overrides for NON-variable colors ────────────────────────────
-   The gray/white scale re-themes via CSS vars, but colored callouts
-   (bg-blue-50 info, bg-amber-50 warn, bg-green-50 success, bg-red-50 error)
-   and solid buttons use LITERAL Tailwind colors that don't invert — they'd
-   stay light-on-dark. These plain (unlayered) rules win over Tailwind's
-   layered utilities by cascade origin, re-theming every callout across all
-   templates from one place (no per-page edits). Muted translucent fills +
-   light text, matching the badge dark variants. */
-
-/* Callout backgrounds → translucent dark tint of the family */
-.dark .bg-red-50, .dark .bg-red-100 { background-color: rgba(239, 68, 68, .12); }
-.dark .bg-amber-50, .dark .bg-amber-100, .dark .bg-yellow-50 { background-color: rgba(245, 158, 11, .12); }
-.dark .bg-orange-50 { background-color: rgba(249, 115, 22, .12); }
-.dark .bg-green-50, .dark .bg-green-100 { background-color: rgba(34, 197, 94, .12); }
-.dark .bg-blue-50, .dark .bg-blue-100, .dark .bg-sky-100 { background-color: rgba(59, 130, 246, .12); }
-
-/* Callout text (all shade steps in use) → light, readable on dark */
-.dark .text-red-600, .dark .text-red-700, .dark .text-red-800, .dark .text-red-900 { color: rgb(252 165 165); }
-.dark .text-amber-600, .dark .text-amber-700, .dark .text-amber-800, .dark .text-amber-900,
-.dark .text-yellow-800 { color: rgb(253 224 71); }
-.dark .text-orange-600, .dark .text-orange-700, .dark .text-orange-800 { color: rgb(253 186 116); }
-.dark .text-green-600, .dark .text-green-700 { color: rgb(134 239 172); }
-.dark .text-blue-700, .dark .text-blue-800, .dark .text-blue-900, .dark .text-sky-700 { color: rgb(147 197 253); }
-
-/* Callout borders + rings */
-.dark .border-red-200, .dark .border-red-300 { border-color: rgba(239, 68, 68, .28); }
-.dark .border-amber-200, .dark .border-amber-300, .dark .border-yellow-200 { border-color: rgba(245, 158, 11, .28); }
-.dark .border-orange-300 { border-color: rgba(249, 115, 22, .3); }
-.dark .border-green-200 { border-color: rgba(34, 197, 94, .28); }
-.dark .ring-amber-200 { --tw-ring-color: rgba(245, 158, 11, .3); }
-.dark .ring-orange-200 { --tw-ring-color: rgba(249, 115, 22, .3); }
-
-/* Solid buttons: their text (text-white / text-gray-950) routes through the
-   inverting vars and would flip to DARK text on a colored background in dark
-   mode. These bgs are stable across themes, so pin the text contrast. */
-.dark .btn-primary { color: #14110e; }              /* dark ink on amber (both themes) */
-.dark .btn-success, .dark .btn-danger { color: #fff; } /* white on green/red */
-
-/* Inbox selection highlight: bg-brand-soft is a literal pale peach that
-   doesn't invert — in dark mode it's a light fill under the theme's light
-   text (unreadable). Give the selected row a translucent brand-amber fill
-   that reads in dark, plus a left accent bar so selection is unmistakable in
-   both themes. Scoped to [data-inbox-item] so other bg-brand-soft uses (date
-   picker, request-account radios) are untouched. */
-[data-inbox-item].bg-brand-soft { box-shadow: inset 3px 0 0 0 #d35f00; }
-.dark [data-inbox-item].bg-brand-soft { background-color: rgba(211, 95, 0, .22); }
+/* Inbox selection: the selected row takes the field fill and bold text,
+   in both themes. */
+[data-inbox-item].bg-brand-soft { font-weight: 700; }

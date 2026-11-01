@@ -97,18 +97,20 @@ observation window from the latest per-category auction report
   lowball bids, but never the top two; extraction above the second bid is
   second-price clearing's job, not the reserve's. The same ceiling is
   enforced on the **applied** floor each window (mid-cycle probes and
-  stale anchors get clamped immediately, not just next cycle).
+  stale anchors get clamped immediately, not just next cycle), for the
+  site-wide floor as well as each category's. Bidders are counted per
+  **campaign**: a campaign's second creative is not a second bidder.
 
 ## Admission: how a floor reaches a bid request
 
-The floor a campaign is asked to beat is
-`effectiveFloor = categoryFloor × min(1.0, 0.5 + slotQuality)` — the
-slot-quality prior is **discount-only** (0.5×–1.0×): a weak slot may price
-below the category floor to attract fill; a premium slot never surcharges
-above it. Consequence: the effective floor is always ≤ the raw floor,
-which is always ≤ the observed bids — the system cannot ask bidders to
-beat a price derived from their own bids plus a markup. Categories with no
-learned floor fall back to the site-level sweep floor under the same rule.
+The floor a campaign is asked to beat is the slot's admin override if it
+has one, otherwise the category's learned floor, otherwise the site-level
+sweep floor. Serving checks the same floor. The slot-quality prior does
+not scale it: a discounted admission floor (0.5×–1.0×, until 2026-11) let
+in bids that serving, which checks the raw floor, refused on every
+request, and those admitted-but-unservable bids kept the zero-servable
+collapse and the FLOOR-BLOCKED warning from firing. The effective floor is
+always ≤ the observed bids, because the raw floor already is.
 
 ## Observability
 
@@ -129,7 +131,8 @@ noise.
   plateau.
 - Per-slot floor overrides (admin escape hatch) bypass the category floor and
   the quality scaling entirely; overridden slots are also excluded from floor
-  learning.
+  learning. An override below the publisher's minimum floor is lifted to the
+  minimum, including when the minimum is raised after the override was set.
 - Per-category floors are pushed state (SiteEntity → auctioneer → AdServer):
   a freshly restarted auctioneer serves under defaults until the first push
   arrives, then under the learned floors. Both regimes obey the same

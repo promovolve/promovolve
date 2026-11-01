@@ -54,6 +54,8 @@ object ApiSchemas {
   given Schema[TokenCheckRequest] = Schema.derived
   given Schema[TokenCheckResponse] = Schema.derived
   given Schema[BidCheckResponse] = Schema.derived
+  given Schema[DeliveryCheckItem] = Schema.derived
+  given Schema[DeliveryCheckResponse] = Schema.derived
   given Schema[VerificationResponse] = Schema.derived
 
   // Pacing Config
@@ -70,6 +72,9 @@ object ApiSchemas {
   given Schema[CategoryDemand] = Schema.derived
   given Schema[CategoryDemandResponse] = Schema.derived
   given Schema[SiteRevenueTodayResponse] = Schema.derived
+  given Schema[SiteTopPage] = Schema.derived
+  given Schema[SiteTopCreative] = Schema.derived
+  given Schema[SiteTopResponse] = Schema.derived
   given Schema[MarketRateRow] = Schema.derived
   given Schema[MarketRatesResponse] = Schema.derived
   given Schema[CategoryAvailability] = Schema.derived
@@ -119,6 +124,7 @@ object ApiSchemas {
   given Schema[CampaignSpendTodayRow] = Schema.derived
   given Schema[AdvertiserCampaignSpendTodayResponse] = Schema.derived
   given Schema[HourlyDeliveryRow] = Schema.derived
+  given Schema[CampaignHourlyRow] = Schema.derived
   given Schema[AdvertiserHourlyTodayResponse] = Schema.derived
   given Schema[ReportDailyRow] = Schema.derived
   given Schema[AdvertiserReportResponse] = Schema.derived

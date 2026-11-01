@@ -59,7 +59,7 @@ var auditedPrefixes = []string{
 func (h *Handler) SessionGuard(next http.Handler) http.Handler {
 	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		cookie, err := r.Cookie("token")
-		if err != nil {
+		if err != nil || signInCeremony(r.URL.Path) {
 			next.ServeHTTP(w, r)
 			return
 		}
@@ -97,7 +97,7 @@ func (h *Handler) SessionGuard(next http.Handler) http.Handler {
 		}
 
 		if claims.OrgID != "" && !viewAs && (moneyPages[r.URL.Path] || !suspensionExemptPath(r.URL.Path)) {
-			o, m, err := h.orgRepo.ForUser(r.Context(), claims.UserID)
+			o, m, err := h.orgRepo.SessionMembership(r.Context(), claims.UserID)
 			if errors.Is(err, org.ErrNotFound) {
 				// Dead session (user/org gone — reset or offboarding): not a
 				// member sneaking into billing. Pass through; sessionUser
@@ -111,8 +111,9 @@ func (h *Handler) SessionGuard(next http.Handler) http.Handler {
 			// see the notice on every dashboard request — fresh DB read, so it
 			// applies immediately to live sessions. Auth itself still works
 			// (the user is told WHY, no mystery 403s); logout and static
-			// assets stay reachable. Operators are org-less and view-as
-			// sessions (an operator investigating) never reach this branch.
+			// assets stay reachable. Operator sessions and view-as sessions
+			// (an operator investigating) never reach this branch; an
+			// operator on their own org's side does, like any member.
 			if err == nil && o.Suspended && !suspensionExemptPath(r.URL.Path) {
 				gu, _ := h.userSvc.GetByID(r.Context(), claims.UserID)
 				glang := h.lang(r, gu)
@@ -180,6 +181,19 @@ func (h *Handler) clearDeadSessionCookie(w http.ResponseWriter) {
 	})
 }
 
+// signInCeremony reports the passkey ceremonies that mint a fresh session
+// and never act as the cookie's user — sign-in, recovery link, /setup,
+// account request. A leftover view-as or suspended-org cookie must not
+// 403 them: that locked the operator out twice (2026-08-24, 2026-11-01).
+func signInCeremony(path string) bool {
+	for _, p := range []string{"/webauthn/login/", "/webauthn/recover/", "/webauthn/setup/", "/webauthn/request-account/"} {
+		if strings.HasPrefix(path, p) {
+			return true
+		}
+	}
+	return false
+}
+
 // suspensionExemptPath lists what a suspended org's member may still reach:
 // the exits (logout/login) and the assets the notice page itself needs.
 func suspensionExemptPath(path string) bool {
@@ -221,23 +235,44 @@ func (h *Handler) issueSessionFor(ctx context.Context, u *model.User) (token, re
 // must actually hold the requested side; membership role is re-read fresh.
 func (h *Handler) SwitchSide(w http.ResponseWriter, r *http.Request) {
 	u, claims := h.sessionUser(r)
-	if u == nil || u.Org == nil {
+	if u == nil || (u.Org == nil && u.OperatorOrg == nil) {
 		http.Redirect(w, r, "/login", http.StatusSeeOther)
 		return
 	}
 	r.ParseForm()
 	side := model.Role(r.FormValue("side"))
-	if (side != model.RoleAdvertiser && side != model.RolePublisher) || !u.Org.HasSide(side) {
-		http.Redirect(w, r, homeFor(u.Role), http.StatusSeeOther)
+	// An operator on an org side switches back to the operator session. Never
+	// inside a view-as: that session belongs to the viewed member.
+	if side == model.RoleAdmin {
+		if !u.IsOperator || claims.ActorID != "" {
+			http.Redirect(w, r, homeFor(u.Role), http.StatusSeeOther)
+			return
+		}
+		op, err := h.userSvc.GetByID(r.Context(), u.ID)
+		if err != nil {
+			http.Redirect(w, r, "/login", http.StatusSeeOther)
+			return
+		}
+		token, err := h.jwtSvc.Issue(op)
+		if err != nil {
+			http.Error(w, "failed to switch side", http.StatusInternalServerError)
+			return
+		}
+		h.setSessionCookie(w, token)
+		http.Redirect(w, r, homeFor(model.RoleAdmin), http.StatusSeeOther)
 		return
 	}
-	_, m, err := h.orgRepo.ForUser(r.Context(), u.ID)
+	o, m, err := h.orgRepo.SessionMembership(r.Context(), u.ID)
 	if err != nil {
 		http.Redirect(w, r, "/login", http.StatusSeeOther)
 		return
 	}
+	if (side != model.RoleAdvertiser && side != model.RolePublisher) || !o.HasSide(side) {
+		http.Redirect(w, r, homeFor(u.Role), http.StatusSeeOther)
+		return
+	}
 	token, err := h.jwtSvc.IssueSession(u, auth.SessionOpts{
-		Org: u.Org, OrgRole: m.OrgRole, Side: side, ActorID: claims.ActorID,
+		Org: o, OrgRole: m.OrgRole, Side: side, ActorID: claims.ActorID,
 	})
 	if err != nil {
 		http.Error(w, "failed to switch side", http.StatusInternalServerError)
@@ -247,7 +282,7 @@ func (h *Handler) SwitchSide(w http.ResponseWriter, r *http.Request) {
 	// admin is flipping sides inside a view-as, which must never rewrite
 	// the member's own preference.
 	if claims.ActorID == "" {
-		if err := h.orgRepo.SetPreferredSide(r.Context(), u.Org.ID, u.ID, side); err != nil {
+		if err := h.orgRepo.SetPreferredSide(r.Context(), o.ID, u.ID, side); err != nil {
 			slog.Warn("persist preferred side failed", "error", err)
 		}
 	}
@@ -296,13 +331,19 @@ func (h *Handler) renderOrgMembers(w http.ResponseWriter, r *http.Request, errMs
 		errMsg = "could not load your team"
 	}
 	maxMembers := h.orgRepo.MaxMembers(r.Context())
+	canInvite := u.IsOrgAdmin() && len(members) < maxMembers // operators don't count
+	if ops, oerr := h.orgRepo.OperatorMembers(r.Context(), u.Org.Domain); oerr == nil {
+		members = append(members, ops...)
+	} else {
+		slog.Warn("list operator members failed", "error", oerr)
+	}
 	data := &orgPageData{
 		Domain:      u.Org.Domain,
 		Name:        u.Org.Name,
 		Members:     members,
 		SelfID:      u.ID,
 		IsAdmin:     u.IsOrgAdmin(),
-		CanInvite:   u.IsOrgAdmin() && len(members) < maxMembers,
+		CanInvite:   canInvite,
 		MaxMembers:  maxMembers,
 		InviteURL:   inviteURL,
 		InviteEmail: inviteEmail,
@@ -370,6 +411,10 @@ func (h *Handler) OrgInvite(w http.ResponseWriter, r *http.Request) {
 	// The invitee's landing side starts as the inviter's active side.
 	if err := h.userSvc.InviteMember(r.Context(), invitee, u.Org.ID, u.ID, u.ActiveSide); err != nil {
 		if errors.Is(err, user.ErrDuplicateEmail) {
+			if existing, gerr := h.userSvc.GetByEmail(r.Context(), email); gerr == nil && existing.Role == model.RoleAdmin {
+				h.renderOrgMembers(w, r, "that email belongs to a platform operator — operators are already members of your organization", "", "", "")
+				return
+			}
 			h.renderOrgMembers(w, r, "that email already has an account or pending request", "", "", "")
 			return
 		}

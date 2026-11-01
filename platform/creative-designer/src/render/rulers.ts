@@ -163,7 +163,7 @@ function renderTicks(strip: HTMLElement, spanPx: number, axis: "h" | "v"): void 
         bottom: "0",
         width: "1px",
         height: `${tickLen}px`,
-        background: "rgba(148, 163, 184, 0.55)",
+        background: tokens.ink400,
       });
     } else {
       Object.assign(tick.style, {
@@ -172,7 +172,7 @@ function renderTicks(strip: HTMLElement, spanPx: number, axis: "h" | "v"): void 
         right: "0",
         width: `${tickLen}px`,
         height: "1px",
-        background: "rgba(148, 163, 184, 0.55)",
+        background: tokens.ink400,
       });
     }
     strip.appendChild(tick);

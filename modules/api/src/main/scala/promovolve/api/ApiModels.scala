@@ -381,6 +381,11 @@ object ApiModels {
   // if not, which gate stops it. Everything the verdict used is echoed so
   // the answer can be read without a second question: what the page is
   // classified as, what the site declares, the floor in force.
+  // The Delivery check (DeliveryCheck.scala): keys and numbers, copy lives
+  // in the dashboard.
+  case class DeliveryCheckItem(key: String, status: String, detail: Map[String, String])
+  case class DeliveryCheckResponse(items: Vector[DeliveryCheckItem], firstBlocked: Option[String])
+
   case class BidCheckResponse(
       url: String,
       siteId: Option[String],
@@ -535,6 +540,34 @@ object ApiModels {
       revenue: String, // dollars, %.4f
       impressions: Long,
       eCpm: String // dollars per 1k imps, %.4f
+  )
+
+  /**
+   * A site's top pages and top creatives over the publisher's last `days`
+   * local days, by gross revenue then impressions (publisher Overview).
+   * Same event rules as revenue-today: clean events only, dogeared re-views
+   * neither counted nor paid. Revenue is gross — the platform nets it down.
+   */
+  case class SiteTopResponse(
+      siteId: String,
+      sinceUtc: String, // ISO timestamp of the window's first local midnight
+      days: Int,
+      pages: Vector[SiteTopPage],
+      creatives: Vector[SiteTopCreative]
+  )
+
+  /** `page` is the URL without query or fragment; "" = not recorded. */
+  case class SiteTopPage(page: String, impressions: Long, clicks: Long, grossRevenue: String)
+
+  /** Name, domain and asset are "" once the creative is deleted. */
+  case class SiteTopCreative(
+      creativeId: String,
+      name: String,
+      landingDomain: String,
+      assetUrl: String,
+      impressions: Long,
+      clicks: Long,
+      grossRevenue: String
   )
 
   /**
@@ -1290,10 +1323,19 @@ object ApiModels {
       impressions: Long,
       spend: String // dollars, %.4f
   )
+  case class CampaignHourlyRow(
+      campaignId: String,
+      hour: Int, // 0-23, advertiser's zone
+      impressions: Long,
+      spend: String // dollars, %.4f
+  )
   case class AdvertiserHourlyTodayResponse(
       advertiserId: String,
       sinceUtc: String,
-      hours: Vector[HourlyDeliveryRow]
+      hours: Vector[HourlyDeliveryRow],
+      // The same hours split by campaign (the campaigns page's forecast
+      // strips). Option so older readers of this payload are unaffected.
+      byCampaign: Option[Vector[CampaignHourlyRow]] = None
   )
 
   /**

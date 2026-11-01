@@ -289,6 +289,20 @@ object AdServer {
   val PageCapPenalty: Double = 0.3
 
   /**
+   * Batch-serve pre-filter: keep a candidate when at least one requested
+   * slot would accept it — that slot's admin override if it has one (the
+   * auctioneer admitted the bid under it), else the candidate's category
+   * floor. The picker then applies each slot's own floor.
+   */
+  def clearsAnySlotFloor(
+      c: CandidateView,
+      slots: Vector[Protocol.BatchSlotSpec],
+      categoryFloor: CPM,
+      adminSlotFloors: Map[SlotId, CPM]
+  ): Boolean =
+    slots.exists(s => c.cpm >= adminSlotFloors.getOrElse(s.slotId, categoryFloor))
+
+  /**
    * Greedy assignment of candidates to slots for batch serve.
    *
    * Algorithm:
@@ -375,8 +389,12 @@ object AdServer {
         // Pricing reads the posterior-MEAN side of CandidateScore (meanScore
         // / engagement), never the Thompson draws — sample for allocation,
         // price on means, so the same auction state clears at the same price.
+        // The runner-up is another CAMPAIGN: the winner's own second
+        // creative is not a competitor and would price it near its own bid.
         val bestLoserScore = sortedEligible.tail
-          .collectFirst { case (c, s) if c.category == winner.category => s.meanScore }
+          .collectFirst {
+            case (c, s) if c.category == winner.category && c.campaignId != winner.campaignId => s.meanScore
+          }
           .getOrElse(0.0)
         val clearing = ThompsonSampling.qualityAdjustedClearing(
           winnerEngagement = winnerScore.meanEngagement,
@@ -510,8 +528,12 @@ object AdServer {
       // IN ITS OWN category (cross-category runners-up never set the price),
       // clamped to the winner's category floor. Pricing reads the posterior-
       // MEAN side of CandidateScore, never the Thompson draws.
+      // The runner-up is another CAMPAIGN: the winner's own second
+      // creative is not a competitor and would price it near its own bid.
       val bestLoserScore = sorted.tail
-        .collectFirst { case (c, s) if c.category == winner.category => s.meanScore }
+        .collectFirst {
+          case (c, s) if c.category == winner.category && c.campaignId != winner.campaignId => s.meanScore
+        }
         .getOrElse(0.0)
       val clearing = ThompsonSampling.qualityAdjustedClearing(
         winnerEngagement = winnerScore.meanEngagement,
@@ -3211,7 +3233,8 @@ private[delivery] class AdServer(
             lastCampaignSet = newCampaignSet
           ))
         } else {
-          val afterFloor = eligibleCandidates.filter(c => c.cpm >= categoryFloorFor(c.category))
+          val afterFloor = eligibleCandidates.filter(c =>
+            AdServer.clearsAnySlotFloor(c, slots, categoryFloorFor(c.category), adminSlotFloors))
           // Only short-circuit to "all empty" when nothing clears the floor
           // AND no slot carries a pin. If a pin is present we must still fall
           // through to batchReserveWithRetry: dog-ear pins bypass the floor

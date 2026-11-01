@@ -20,14 +20,10 @@ import { currentItem, currentLayout, currentPage, fieldColorSyncKey, hasLocalTex
 import type { Store } from "../store";
 import type { DesignerState, ImageItem, LayoutItem, RectItem } from "../types";
 import { scrimGradient, SCRIM_EDGES, type ScrimEdge, type ScrimSpec } from "../scrim";
-import { contrastRatio, WCAG_AA_NORMAL } from "../color-contrast";
+import { lowContrastRatio } from "../color-contrast";
 import { loadBrandKit } from "../brand-kit";
 import { mountKitColorChips } from "./brand-kit-chips";
-import { openAssetModal } from "./asset-modal";
-import { openCropModal } from "./crop-modal";
 import { isFormula } from "../formula";
-import { openFormulaModal } from "./formula-modal";
-import { openRemoveBgModal } from "./remove-bg-modal";
 import { tokens } from "./tokens";
 
 export interface PropsPanelHandle {
@@ -146,7 +142,7 @@ function build(panel: HTMLElement, idx: number, item: LayoutItem, store: Store):
   const setters: Record<string, (item: LayoutItem) => void> = {};
 
   const header = document.createElement("div");
-  header.style.cssText = `font-size:11px;letter-spacing:2px;color:${tokens.ink300};margin-bottom:12px;text-transform:uppercase;`;
+  header.style.cssText = `font-weight:700;font-size:11px;color:${tokens.ink100};margin-bottom:12px;`;
   header.textContent = item.type === "rect" && item.scrim ? "scrim" : item.type;
   panel.appendChild(header);
 
@@ -370,21 +366,7 @@ function build(panel: HTMLElement, idx: number, item: LayoutItem, store: Store):
   } else if (item.type === "image" && isFormula(item)) {
     // A formula is a rendered SVG, not a photo: Replace / Remove
     // background / crop / fill mode / edge effects don't apply. Its
-    // content is edited as LaTeX.
-    const content = group("Formula");
-    const formulaBtn = document.createElement("button");
-    formulaBtn.type = "button";
-    formulaBtn.textContent = "Edit formula…";
-    formulaBtn.style.cssText = `background:${tokens.ink700};color:${tokens.ink100};border:1px solid ${tokens.ink500};border-radius:4px;padding:4px 8px;font:inherit;font-size:11px;cursor:pointer;align-self:flex-start;`;
-    // Read the LIVE item: after an Update the panel isn't rebuilt (same
-    // key), so the build-time `item` would reopen the previous formula.
-    formulaBtn.addEventListener("click", () => {
-      const live = currentItem(store.state);
-      if (live?.type === "image" && isFormula(live)) openFormulaModal(store, { idx, item: live });
-    });
-    appendToGroup(content, formulaBtn);
-    panel.appendChild(content);
-    sections.push(content);
+    // content is edited as LaTeX — "Edit formula" in the selection bar.
   } else if (item.type === "image") {
     const content = group("Image");
     // No pin/sync toggle here (removed 2026-07-13, user decision): THE
@@ -393,30 +375,11 @@ function build(panel: HTMLElement, idx: number, item: LayoutItem, store: Store):
     // out. Sizes only place/crop it; a per-view checkbox was confusing.
     // "Replace image…" sets/replaces the shared main from the asset library;
     // in a size you adjust placement + crop.
-    if (isExpanded) {
-      const replaceBtn = document.createElement("button");
-      replaceBtn.type = "button";
-      replaceBtn.textContent = "Replace image…";
-      replaceBtn.style.cssText = `background:${tokens.ink700};color:${tokens.ink100};border:1px solid ${tokens.ink500};border-radius:4px;padding:4px 8px;font:inherit;font-size:11px;cursor:pointer;align-self:flex-start;`;
-      replaceBtn.addEventListener("click", () => openAssetModal(store));
-      // Into the accordion BODY (not the section), so it collapses with
-      // the "Image" section instead of dangling below the header.
-      appendToGroup(content, replaceBtn);
-    } else {
+    // ("Replace" lives in the selection bar, expanded view only.)
+    if (!isExpanded) {
       contentHint(content, "Image set in the Expanded view");
     }
-    // "Remove background…" — in-browser u2netp matte, uploads a cutout
-    // as a new asset. The main image is only editable from the expanded
-    // view (same rule as Replace); a baked local image from anywhere.
-    if (isExpanded || item.src) {
-      const rmBgBtn = document.createElement("button");
-      rmBgBtn.type = "button";
-      rmBgBtn.textContent = "Remove background…";
-      rmBgBtn.title = "Cut the subject out of its background (runs in your browser; the result is saved as a new asset)";
-      rmBgBtn.style.cssText = `background:${tokens.ink700};color:${tokens.ink100};border:1px solid ${tokens.ink500};border-radius:4px;padding:4px 8px;font:inherit;font-size:11px;cursor:pointer;align-self:flex-start;`;
-      rmBgBtn.addEventListener("click", () => openRemoveBgModal(store, idx, item));
-      appendToGroup(content, rmBgBtn);
-    }
+    // ("Remove background" lives in the selection bar.)
     // Fill = cover (may crop to the box, honours the crop window).
     // Fit  = contain (whole image at its natural proportion, letterboxed).
     selectField(content, "fill mode", item.fillMode ?? "fill", ["fill", "fit"],
@@ -602,9 +565,9 @@ function normalizeShadowColor(c: string | undefined): string {
 
 // ─── Image crop row ──────────────────────────────────────────────────
 
-// Renders the current crop readout (or "no crop") plus two buttons:
-// "Crop image…" opens the modal, "Clear" strips the crop field so
-// the banner reverts to the fast <img>+object-fit:cover path.
+// Renders the current crop readout (or "none") plus "Clear", which strips
+// the crop field so the banner reverts to the fast <img>+object-fit:cover
+// path. Cropping itself is "Crop" in the selection bar.
 function cropRow(parent: HTMLElement, idx: number, item: ImageItem, store: Store): void {
   const wrap = document.createElement("div");
   wrap.style.cssText = "display:flex;align-items:center;gap:8px;margin:10px 0 4px;";
@@ -614,28 +577,13 @@ function cropRow(parent: HTMLElement, idx: number, item: ImageItem, store: Store
   label.textContent = "crop";
 
   const status = document.createElement("span");
-  status.style.cssText = `flex:1;font-family:${tokens.sans};font-size:10px;color:${tokens.ink400};`;
+  status.style.cssText = `flex:1;font-family:${tokens.sans};font-size:10px;color:${tokens.ink300};`;
   const c = item.crop;
   status.textContent = c
     ? `${c.w.toFixed(0)}×${c.h.toFixed(0)}% @ ${c.x.toFixed(0)},${c.y.toFixed(0)}`
     : "none";
 
-  const editBtn = document.createElement("button");
-  editBtn.type = "button";
-  editBtn.textContent = c ? "Edit…" : "Crop…";
-  editBtn.style.cssText = [
-    "padding: 3px 8px",
-    "background: transparent",
-    `color: ${tokens.ink200}`,
-    `border: 1px solid ${tokens.ink500}`,
-    "border-radius: 3px",
-    "font: inherit",
-    "font-size: 10px",
-    "cursor: pointer",
-  ].join(";");
-  editBtn.addEventListener("click", () => openCropModal(store, idx, item));
-
-  wrap.append(label, status, editBtn);
+  wrap.append(label, status);
 
   if (c) {
     const clearBtn = document.createElement("button");
@@ -647,7 +595,7 @@ function cropRow(parent: HTMLElement, idx: number, item: ImageItem, store: Store
       "height: 18px",
       "padding: 0",
       "background: transparent",
-      `color: ${tokens.ink400}`,
+      `color: ${tokens.ink300}`,
       "border: none",
       "cursor: pointer",
       "font-size: 14px",
@@ -681,7 +629,7 @@ function group(label: string): HTMLElement {
   const header = document.createElement("button");
   header.type = "button";
   header.className = "cd-group-header";
-  header.style.cssText = `width:100%;display:flex;align-items:center;justify-content:space-between;gap:6px;background:none;border:none;color:${tokens.ink300};font:inherit;font-size:10px;letter-spacing:2px;padding:10px 0 8px;cursor:pointer;text-transform:uppercase;`;
+  header.style.cssText = `width:100%;display:flex;align-items:center;justify-content:space-between;gap:6px;background:none;border:none;color:${tokens.ink100};font:inherit;font-size:10px;padding:10px 0 8px;cursor:pointer;font-weight:700;`;
   const labelSpan = document.createElement("span");
   labelSpan.textContent = label;
   const caret = document.createElement("span");
@@ -757,7 +705,7 @@ function rowStacked(parent: HTMLElement, label: string, input: HTMLElement): voi
   appendToGroup(parent, wrap);
 }
 
-const INPUT_STYLE = `background:${tokens.ink900};color:${tokens.ink100};border:1px solid ${tokens.ink500};border-radius:4px;padding:4px 6px;font:inherit;`;
+const INPUT_STYLE = `background:${tokens.ink900};color:${tokens.ink100};border:1px solid ${tokens.ink500};border-radius:2px;padding:4px 6px;font:inherit;`;
 
 function numberField(
   parent: HTMLElement, label: string, value: number,
@@ -796,7 +744,7 @@ function numberField(
 // pre-shrink value.
 function fitNote(parent: HTMLElement, idx: number): (item: LayoutItem) => void {
   const note = document.createElement("div");
-  note.style.cssText = `color:${tokens.amber};font-size:11px;margin:-2px 0 6px 88px;display:none;`;
+  note.style.cssText = `color:${tokens.ink300};font-size:11px;margin:-2px 0 6px 88px;display:none;`;
   appendToGroup(parent, note);
   let pending = false;
   return (item) => {
@@ -907,13 +855,19 @@ function contrastWarningRow(parent: HTMLElement, store: Store): (item: LayoutIte
     "align-items: center",
     "gap: 6px",
     "margin: 2px 0 8px",
-    "padding-left: 88px", // matches the `flex: 0 0 80px` label gutter in `row()`
-    `color: ${tokens.amber}`,
+    // 81 + 3px Advisory marker + 4 = the 88px label gutter in `row()`.
+    "margin-left: 81px",
+    `border-left: 3px solid ${tokens.warn}`,
+    "padding-left: 4px",
+    `color: ${tokens.ink100}`,
     "font-size: 10.5px",
     "letter-spacing: 0.3px",
     "min-height: 14px",
   ].join(";");
   wrap.textContent = "";
+  // Hidden until the first check finds low contrast — the Advisory
+  // marker would otherwise show as an empty yellow stub.
+  wrap.style.display = "none";
   appendToGroup(parent, wrap);
 
   return (item: LayoutItem) => {
@@ -922,9 +876,9 @@ function contrastWarningRow(parent: HTMLElement, store: Store): (item: LayoutIte
       return;
     }
     const page = currentPage(store.state);
-    const ratio = contrastRatio(item.color, page?.bg);
-    if (ratio < WCAG_AA_NORMAL) {
-      wrap.style.display = "";
+    const ratio = lowContrastRatio(item.color, page?.bg);
+    if (ratio !== null) {
+      wrap.style.display = "flex";
       wrap.textContent = `⚠ Low contrast (${ratio.toFixed(1)}:1) — readers may not see this text`;
     } else {
       wrap.style.display = "none";
@@ -1073,6 +1027,6 @@ function contentHint(parent: HTMLElement, value: string): void {
   const hint = document.createElement("div");
   hint.textContent = value || "(empty)";
   hint.title = "Edit content in the Expanded view";
-  hint.style.cssText = `color:${tokens.ink300};font-size:11px;background:${tokens.ink900};border:1px dashed ${tokens.ink500};border-radius:4px;padding:4px 6px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;`;
+  hint.style.cssText = `color:${tokens.ink300};font-size:11px;background:${tokens.ink900};border:1px dashed ${tokens.ink500};border-radius:2px;padding:4px 6px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;`;
   parent.appendChild(hint);
 }

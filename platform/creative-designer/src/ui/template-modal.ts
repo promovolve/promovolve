@@ -34,7 +34,7 @@ export function openTemplateModal(store: Store): void {
   modal.style.cssText = [
     `background: ${tokens.ink800}`,
     `border: 1px solid ${tokens.ink500}`,
-    "border-radius: 8px",
+    "border-radius: 2px",
     "width: 640px",
     "max-height: 75vh",
     "padding: 16px 18px 18px",
@@ -47,11 +47,12 @@ export function openTemplateModal(store: Store): void {
   const header = document.createElement("div");
   header.style.cssText = "display:flex;align-items:center;justify-content:space-between;";
   const title = document.createElement("h3");
+  title.className = "cd-title";
   title.textContent = "Apply layout template";
-  title.style.cssText = "margin:0;font-size:14px;font-weight:600;";
+  title.style.cssText = "margin:0;font-size:14px;font-weight:700;";
   const note = document.createElement("span");
   note.textContent = "Replaces this size's layout — Cmd+Z to undo";
-  note.style.cssText = `font-size:11px;color:${tokens.ink400};`;
+  note.style.cssText = `font-size:11px;color:${tokens.ink300};`;
   const close = document.createElement("button");
   close.textContent = "×";
   close.style.cssText = `background:none;border:none;color:${tokens.ink300};font-size:22px;line-height:1;cursor:pointer;padding:0 4px;`;
@@ -95,7 +96,7 @@ function buildTemplateCard(
   card.style.cssText = [
     `background: ${tokens.ink700}`,
     `border: 1px solid ${tokens.ink600}`,
-    "border-radius: 6px",
+    "border-radius: 2px",
     "padding: 8px",
     "display: flex",
     "flex-direction: column",
@@ -107,7 +108,7 @@ function buildTemplateCard(
   ].join(";");
   card.addEventListener("mouseenter", () => {
     card.style.background = tokens.ink600;
-    card.style.borderColor = tokens.amber;
+    card.style.borderColor = tokens.focus;
   });
   card.addEventListener("mouseleave", () => {
     card.style.background = tokens.ink700;
@@ -126,7 +127,7 @@ function buildLabel(tpl: LayoutTemplate): HTMLElement {
   const wrap = document.createElement("div");
   const name = document.createElement("div");
   name.textContent = tpl.name;
-  name.style.cssText = "font-size:12px;font-weight:600;margin-bottom:2px;";
+  name.style.cssText = "font-size:12px;font-weight:700;margin-bottom:2px;";
   const desc = document.createElement("div");
   desc.textContent = tpl.description;
   desc.style.cssText = `font-size:10px;color:${tokens.ink300};line-height:1.3;`;
@@ -150,8 +151,8 @@ function buildPreview(tpl: LayoutTemplate, canvasAspect: number): SVGElement {
   svg.setAttribute("preserveAspectRatio", "none");
   svg.style.width = `${targetW}px`;
   svg.style.height = `${targetH}px`;
-  svg.style.background = "#f5f5f4";
-  svg.style.borderRadius = "3px";
+  svg.style.background = tokens.canvas;
+  svg.style.borderRadius = "2px";
   svg.style.display = "block";
 
   for (const item of tpl.items) {

@@ -38,7 +38,7 @@ export function mountCanvas(container: HTMLElement, state: DesignerState, store?
     // width + aspect-ratio set per-mode + zoom in update()
     `background: ${tokens.ink900}`,
     `border: 1px solid ${tokens.ink500}`,
-    "border-radius: 6px",
+    "border-radius: 2px",
     "overflow: hidden",
   ].join(";");
 

@@ -1,0 +1,39 @@
+{
+  "siteId": "site_8821",
+  "sinceUtc": "2026-10-24T15:00:00Z",
+  "days": 7,
+  "pages": [
+    {
+      "page": "https://onsen.example.jp/stays/hakone",
+      "impressions": 4210,
+      "clicks": 61,
+      "grossRevenue": "1000.0000"
+    },
+    {
+      "page": "",
+      "impressions": 3,
+      "clicks": 0,
+      "grossRevenue": "0.0001"
+    }
+  ],
+  "creatives": [
+    {
+      "creativeId": "01JC8R2W6K4Q",
+      "name": "Autumn ryokan",
+      "landingDomain": "ryokan.example.jp",
+      "assetUrl": "https://cdn.example.com/assets/ab12.png",
+      "impressions": 3900,
+      "clicks": 72,
+      "grossRevenue": "812.5000"
+    },
+    {
+      "creativeId": "01JC8R2W6K4R",
+      "name": "",
+      "landingDomain": "",
+      "assetUrl": "",
+      "impressions": 12,
+      "clicks": 0,
+      "grossRevenue": "0.0001"
+    }
+  ]
+}

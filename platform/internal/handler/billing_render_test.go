@@ -6,7 +6,9 @@ package handler
 
 import (
 	"github.com/hanishi/promovolve/platform/internal/i18n"
-	"io"
+	"os"
+	"path/filepath"
+	"strings"
 	"testing"
 
 	platform "github.com/hanishi/promovolve/platform"
@@ -46,7 +48,7 @@ func TestBillingTemplatesRender(t *testing.T) {
 			Title: "Billing", Nav: "admin-billing", Tab: "topups", User: admin, ListNav: nav,
 			AdminTopups: &adminTopupsData{
 				Nonce:  "n",
-				Topups: []topupRow{{Created: "2026-07-05", Kind: "topup", KindBadge: "badge-success", Memo: "wire", Wallet: "Acme (@acme.com)", Amount: "+$5.00"}},
+				Topups: []topupRow{{Created: "2026-07-05", Kind: "topup", Memo: "wire", Wallet: "Acme (@acme.com)", Amount: "+$5.00"}},
 			},
 		}},
 		{"admin/billing-payouts.html", pageData{
@@ -65,7 +67,7 @@ func TestBillingTemplatesRender(t *testing.T) {
 			AdminJournal: &adminJournalData{
 				Nonce: "n",
 				Journal: []journalRow{{
-					Created: "2026-07-05", Kind: "topup", KindBadge: "badge-success", Memo: "m",
+					Created: "2026-07-05", Kind: "topup", Memo: "m",
 					Summary: "Credited $1.00 to Acme (@acme.com)'s wallet",
 					Legs: []journalLeg{
 						{Label: "Acme (@acme.com)'s advertiser wallet", Amount: "+$1.00"},
@@ -89,7 +91,7 @@ func TestBillingTemplatesRender(t *testing.T) {
 			AdminAccount: &adminAccountDetailData{
 				Type: "publisher", ID: "PUB1", Label: "pub@x.co", Balance: "$1.00",
 				Status: "active", StatusBadge: "badge-success", IsPublisher: true, LifetimePaid: "2.00",
-				Activity:  []walletActivityRow{{Date: "d", Kind: "payout", KindBadge: "badge-info", Memo: "m", Amount: "−$1.00"}},
+				Activity:  []walletActivityRow{{Date: "d", Kind: "payout", Memo: "m", Amount: "−$1.00"}},
 				Statement: []statementRow{{Day: "d", CampaignID: "cid", Campaign: "Camp", SiteID: "s", Impressions: 1, Amount: "0.01"}},
 				Months:    []monthlyRow{{Month: "2026-07", Impressions: 1, Gross: "0.01", Fee: "0.00", Net: "0.01"}},
 				Payouts: []payoutRow{{
@@ -102,7 +104,7 @@ func TestBillingTemplatesRender(t *testing.T) {
 			Title: "Wallet", Nav: "wallet", User: adv,
 			Wallet: &walletPageData{
 				Balance: "4.77", Status: "low_balance", LowBalance: true, Timezone: "Asia/Tokyo",
-				Activity:  []walletActivityRow{{Date: "d", Kind: "topup", KindBadge: "badge-success", Memo: "m", Amount: "+$5.00"}},
+				Activity:  []walletActivityRow{{Date: "d", Kind: "topup", Memo: "m", Amount: "+$5.00"}},
 				Statement: []statementRow{{Day: "d", CampaignID: "c", SiteID: "s", Impressions: 1, Amount: "0.01"}},
 				Months:    []monthlyRow{{Month: "2026-07", Impressions: 1, Gross: "0.01", Fee: "0.00", Net: "0.01"}},
 			},
@@ -125,8 +127,23 @@ func TestBillingTemplatesRender(t *testing.T) {
 
 	for _, c := range cases {
 		for _, tlang := range []string{i18n.LangEN, i18n.LangJA} {
-			if err := getPage(tlang, c.name).ExecuteTemplate(io.Discard, "layout", c.data); err != nil {
+			var sb strings.Builder
+			if err := getPage(tlang, c.name).ExecuteTemplate(&sb, "layout", c.data); err != nil {
 				t.Errorf("%s failed to render: %v", c.name, err)
+			}
+			// An account's status isn't a campaign's: "active" must not
+			// read 配信中 (serving).
+			if tlang == i18n.LangJA && strings.HasPrefix(c.name, "admin/billing-account") && strings.Contains(sb.String(), "配信中") {
+				t.Errorf("%s: account status reads 配信中", c.name)
+			}
+			// With PREVIEW_OUT set, dump the admin renders for a local
+			// screenshot pass (the wallet's preview comes from
+			// forecast_preview_test, which carries a strip).
+			if dir := os.Getenv("PREVIEW_OUT"); dir != "" && strings.HasPrefix(c.name, "admin/") {
+				p := filepath.Join(dir, strings.ReplaceAll(strings.TrimSuffix(c.name, ".html"), "/", "-")+"-"+tlang+".html")
+				if err := os.WriteFile(p, []byte(sb.String()), 0o644); err != nil {
+					t.Fatalf("write %s: %v", p, err)
+				}
 			}
 		}
 	}

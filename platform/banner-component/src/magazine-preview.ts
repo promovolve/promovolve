@@ -433,7 +433,7 @@ export class MagazinePreview extends HTMLElement {
 
     // PC / Mobile toggle.
     const toggles = document.createElement("div");
-    toggles.style.cssText = "display:flex;gap:6px;";
+    toggles.style.cssText = "display:grid;grid-template-columns:1fr 1fr;gap:6px;";
     this.pcBtn = this.mkToggle("PC", () => this.show("pc"));
     this.mbBtn = this.mkToggle("Mobile", () => this.show("mobile"));
     toggles.append(this.pcBtn, this.mbBtn);
@@ -509,10 +509,10 @@ export class MagazinePreview extends HTMLElement {
     b.textContent = label;
     b.style.cssText = [
       "padding: 4px 14px",
-      "border-radius: 4px",
-      "border: 1px solid #d0d0d6",
+      "border-radius: var(--mp-toggle-radius, 4px)",
+      "border: 1px solid var(--mp-toggle-border, #d0d0d6)",
       "background: transparent",
-      "color: #555",
+      "color: var(--mp-toggle-fg, #555)",
       "font: inherit",
       "font-size: 12px",
       "cursor: pointer",
@@ -522,12 +522,15 @@ export class MagazinePreview extends HTMLElement {
   }
 
   private setToggle(active: HTMLButtonElement, inactive: HTMLButtonElement): void {
-    active.style.borderColor = "#2563eb";
-    active.style.background = "#eff4ff";
-    active.style.color = "#2563eb";
-    inactive.style.borderColor = "#d0d0d6";
+    // The host page can restyle the toggle through these custom
+    // properties (they inherit into the shadow root); the fallbacks are
+    // the standalone look.
+    active.style.borderColor = "var(--mp-toggle-active-border, #2563eb)";
+    active.style.background = "var(--mp-toggle-active-bg, #eff4ff)";
+    active.style.color = "var(--mp-toggle-active-fg, #2563eb)";
+    inactive.style.borderColor = "var(--mp-toggle-border, #d0d0d6)";
     inactive.style.background = "transparent";
-    inactive.style.color = "#555";
+    inactive.style.color = "var(--mp-toggle-fg, #555)";
   }
 
   /** Switch which frame is shown (DOM + toggle styling), and expand it

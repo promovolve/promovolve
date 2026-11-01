@@ -65,6 +65,43 @@ object AuctioneerEntity {
    * distance 0. The distance is relevance metadata — fan-out itself
    * remains distance-blind (every shard still gets asked).
    */
+  /** What one auction tells the site-wide floor optimizer. */
+  final case class SiteFloorStats(bidders: Int, maxBid: Double, minBid: Double, secondBid: Double)
+
+  /**
+   * Site-wide floor stats from one auction's APPROVED bids (one entry per
+   * candidate creative) and its approved below-floor rejects (known only
+   * by count, max and min). One bid per CAMPAIGN: a campaign's second
+   * creative is not a second bidder, and counting it made a lone campaign
+   * look competitive with its own bid as "the second bid".
+   */
+  def siteFloorStats(
+      approvedBids: Seq[(CampaignId, Double)],
+      approvedRejects: Int,
+      maxRejected: Double,
+      minRejected: Double
+  ): SiteFloorStats = {
+    val bids = approvedBids.groupMapReduce(_._1)(_._2)(math.max).values.toSeq
+    val qMax = bids.maxOption.getOrElse(0.0)
+    val qMin = bids.filter(_ > 0.0).minOption.getOrElse(0.0)
+    val minBid = (qMin, minRejected) match {
+      case (q, r) if q > 0.0 && r > 0.0 => math.min(q, r)
+      case (q, _) if q > 0.0            => q
+      case (_, r) if r > 0.0            => r
+      case _                            => 0.0
+    }
+    // Rejects are known only by their bounds: the middle of the reject
+    // field is invisible, which can only underestimate the second bid.
+    val rejBids = if (approvedRejects >= 2) Seq(maxRejected, minRejected) else Seq(maxRejected)
+    val known = (bids ++ rejBids).filter(_ > 0.0).sorted(using Ordering[Double].reverse)
+    SiteFloorStats(
+      bidders = bids.size + approvedRejects,
+      maxBid = math.max(qMax, maxRejected),
+      minBid = minBid,
+      secondBid = known.lift(1).getOrElse(0.0)
+    )
+  }
+
   def expandWithHops(pageCategories: List[String]): Map[String, Int] =
     pageCategories
       .flatMap { c =>
@@ -234,10 +271,10 @@ object AuctioneerEntity {
       slotId: SlotId,
       declaredSizes: List[AdSize],
       computedSize: AdSize,
-      // Per-slot floor knobs — see SiteEntity.SlotPrior / effectiveFloor.
-      // prior is crawler-derived; floorOverride is admin-set.
-      // Both default to None so existing call sites compile unchanged
-      // and the system falls through to the site-level floor.
+      // prior: the slot's measured quality (reporting only; it does not
+      // scale the floor). floorOverride: IGNORED by the auction — admin
+      // floors come only from UpdateAdminSlotFloors. Kept so persisted
+      // classifications and older nodes still decode.
       prior: Option[SiteEntity.SlotPrior] = None,
       floorOverride: Option[CPM] = None
   )
@@ -785,8 +822,8 @@ private final class AuctioneerEntity private (
       }
       // Campaign-fair ordering: best creative per campaign first (by CPM), then remaining.
       // No artificial candidate cap — all competitive bids pass through to serve-time
-      // Thompson Sampling. The CPM threshold filter in CategoryBidderEntity (top 20%)
-      // provides the natural limit on candidate pool size.
+      // Thompson Sampling. CategoryBidderEntity's top-50-campaigns cap bounds
+      // the pool size.
       //
       // Deduplicate by creativeId — same creative can enter via multiple category paths
       val deduped = candidates
@@ -912,33 +949,21 @@ private final class AuctioneerEntity private (
       // Pending demand competes for the approval queue but must not
       // teach a floor nothing can currently fulfil. (The eviction
       // gating above deliberately keeps the RAW reject counts.)
-      val approvedDeduped = deduped.filter(c => approvedCampaignIds.contains(c.campaignId))
-      val qualifyingMax = if (approvedDeduped.nonEmpty) approvedDeduped.map(_.cpm.toDouble).max else 0.0
-      val qualifyingMin = if (approvedDeduped.nonEmpty) approvedDeduped.map(_.cpm.toDouble).min else 0.0
-      val maxObserved = math.max(qualifyingMax, maxApprovedRejectedCpm)
-      val minObserved = (qualifyingMin, minApprovedRejectedCpm) match {
-        case (q, r) if q > 0.0 && r > 0.0 => math.min(q, r)
-        case (q, _) if q > 0.0            => q
-        case (_, r) if r > 0.0            => r
-        case _                            => 0.0
-      }
-      // Aggregate second bid mirrors the per-category computation: known
-      // bids = qualifying + reject bounds (middle rejects invisible → can
-      // only underestimate → fails open).
-      val aggRejBids =
-        if (approvedFloorRejects >= 2) Seq(maxApprovedRejectedCpm, minApprovedRejectedCpm)
-        else Seq(maxApprovedRejectedCpm)
-      val aggKnownBids = (approvedDeduped.map(_.cpm.toDouble) ++ aggRejBids).filter(_ > 0.0).sorted(
-        using Ordering[Double].reverse)
+      val siteStats = AuctioneerEntity.siteFloorStats(
+        deduped.filter(c => approvedCampaignIds.contains(c.campaignId)).map(c => c.campaignId -> c.cpm.toDouble),
+        approvedFloorRejects,
+        maxApprovedRejectedCpm,
+        minApprovedRejectedCpm
+      )
       val outcome = FloorSweepOptimizer.AuctionOutcome(
-        totalBidders = approvedDeduped.size + approvedFloorRejects,
+        totalBidders = siteStats.bidders,
         rejectedByFloor = approvedFloorRejects,
         winnerCpm = winnerCpm,
         clearingPrice = clearingPrice,
-        maxObservedCpm = maxObserved,
-        minObservedCpm = minObserved,
+        maxObservedCpm = siteStats.maxBid,
+        minObservedCpm = siteStats.minBid,
         slotId = Some(slotId.value),
-        secondMaxObservedCpm = aggKnownBids.lift(1).getOrElse(0.0)
+        secondMaxObservedCpm = siteStats.secondBid
       )
       val siteRef = sharding.entityRefFor(SiteEntity.TypeKey, siteId.value)
       // Admin-overridden slots are invisible to floor LEARNING: their
@@ -946,8 +971,7 @@ private final class AuctioneerEntity private (
       // nothing about what floor the sweep-governed inventory can support —
       // reporting them would stretch the sweep's candidate range toward
       // demand that only exists behind the override.
-      val slotIsOverridden =
-        adminSlotFloorOverrides.contains(slotId) || slotSpecAdminFloors.contains(slotId)
+      val slotIsOverridden = adminSlotFloorOverrides.contains(slotId)
       if (!slotIsOverridden) {
         siteRef ! SiteEntity.AuctionOutcomeReport(outcome)
       }
@@ -1460,13 +1484,6 @@ private final class AuctioneerEntity private (
   // The only per-slot floor override there is — see the UpdateSlotFloors
   // removal note above.
   private var adminSlotFloorOverrides: Map[SlotId, CPM] = Map.empty
-  // Admin overrides carried on AdSlotSpec (the classify-page path's
-  // equivalent source). Recorded at fan-out so finishAuction can resolve
-  // the slot's effective admin floor with the same precedence the bid
-  // admission used, and forward it to AdServer — the serve-time floor
-  // gate must agree with the auction-time one or an approved winner
-  // gets silently blocked at serve.
-  private var slotSpecAdminFloors: Map[SlotId, CPM] = Map.empty
   // Publisher-declared audience regions for this site, pushed by
   // SiteEntity. Carried onto every CategoryBidRequest so the demand side
   // can gate on it; empty = nothing declared = UNKNOWN.
@@ -1500,24 +1517,15 @@ private final class AuctioneerEntity private (
       slots.foreach { slot =>
         val slotSizes = normalizeSizes((slot.declaredSizes :+ slot.computedSize).toSet)
         // Per-slot effective floor priority (most authoritative first):
-        //   1. Admin override   (publisher escape hatch — adminSlotFloorOverrides)
-        //   2. Admin override carried on the AdSlotSpec (path used by
-        //      the external classify-page endpoint; equivalent source)
-        //   3. Site floor scaled by crawler prior
-        //   4. Site floor
+        //   1. Admin override — ONLY the map SiteEntity pushes
+        //      (adminSlotFloorOverrides). An override saved on the slot spec
+        //      of a persisted classification is a stale copy: honouring it
+        //      revived a floor the admin had cleared until reclassification.
+        //   2. The category's learned floor, else the site floor
         val adminOverride = adminSlotFloorOverrides.get(slot.slotId)
-          .orElse(slot.floorOverride)
-        // Remember the spec-carried override (or its absence) so
-        // finishAuction resolves the same effective admin floor this
-        // admission used. Presence updates, absence clears — a removed
-        // override must stop shielding the slot at serve time.
-        slotSpecAdminFloors = slot.floorOverride match {
-          case Some(f) => slotSpecAdminFloors.updated(slot.slotId, f)
-          case None    => slotSpecAdminFloors - slot.slotId
-        }
         // Per-category effective floor: the category's learned floor (or the
-        // site floor when absent) scaled by the slot's quality prior. The
-        // admin override still takes precedence inside `effectiveFloor`.
+        // site floor when absent). The admin override takes precedence
+        // inside `effectiveFloor`; the slot's quality prior does not scale it.
         def floorForCategory(category: String): CPM =
           SiteEntity.effectiveFloor(
             SiteEntity.AdSlotConfig(
@@ -1714,7 +1722,9 @@ private final class AuctioneerEntity private (
       slots: List[AdSlotSpec]
   ): Unit = {
     slots.foreach { slot =>
-      val floor = currentFloorCpm
+      // The slot's admin floor if it has one, else the site floor — the
+      // same floor the serve gate applies to this slot.
+      val floor = adminSlotFloorOverrides.getOrElse(slot.slotId, currentFloorCpm)
 
       ctx.log.debug(
         "📨 Filler bid requests: url={} slot={} campaigns={} floor={}",
@@ -2028,7 +2038,7 @@ private final class AuctioneerEntity private (
       case None             => Instant.now
     }
     val pageCategories = lastPage.get(url).map(_._1.keySet).getOrElse(Set.empty)
-    val slotAdminFloor = adminSlotFloorOverrides.get(slotId).orElse(slotSpecAdminFloors.get(slotId))
+    val slotAdminFloor = adminSlotFloorOverrides.get(slotId)
     adServer ! AdServer.CandidatesCollected(
       url, slotId, Vector.empty, classifiedAt, cfg.ttl, pageCategories,
       currentFloorCpm, currentCategoryFloors, slotAdminFloor,
@@ -2074,10 +2084,9 @@ private final class AuctioneerEntity private (
       ordered.headOption.map(_.cpm).getOrElse(CPM(0.0))
     )
     val pageCategories = lastPage.get(url).map(_._1.keySet).getOrElse(Set.empty)
-    // Resolve the slot's admin floor with the SAME precedence bid admission
-    // used (admin map, then spec-carried) so AdServer's serve-time gate
-    // agrees with the auction-time one for this slot.
-    val slotAdminFloor = adminSlotFloorOverrides.get(slotId).orElse(slotSpecAdminFloors.get(slotId))
+    // The same admin floor bid admission used, so AdServer's serve-time
+    // gate agrees with the auction-time one for this slot.
+    val slotAdminFloor = adminSlotFloorOverrides.get(slotId)
     adServer ! AdServer.CandidatesCollected(url, slotId, ordered, classifiedAt, cfg.ttl, pageCategories,
       currentFloorCpm, currentCategoryFloors, slotAdminFloor,
       authoritativeAbsent = currentAuthoritativeAbsent(),

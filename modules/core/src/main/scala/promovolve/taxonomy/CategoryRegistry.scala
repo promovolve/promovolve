@@ -143,6 +143,10 @@ object CategoryRegistry {
           replyTo ! CategoryCoverage(coverageRows(state.publisherCategories, categories))
           Behaviors.same
 
+        case GetCarriers(categories, replyTo) =>
+          replyTo ! Carriers(subtreeCarriers(state.publisherCategories, categories))
+          Behaviors.same
+
         case GetCategoryStats(replyTo) =>
           val stats = state.categoryToPublishers.map { case (cat, pubs) =>
             CategorySummary(decodeCategory(cat), pubs.size)
@@ -225,6 +229,26 @@ object CategoryRegistry {
       CategorySummary(c, pubs)
     }.sortBy(_.categoryId.value)
 
+  /**
+   * Pure core of [[GetCarriers]]: per site, the requested categories whose
+   * subtree it declares into (same rule as [[coverageRows]]) — the keys the
+   * auction prices floors under. Every site carries Filler. Sites carrying
+   * none are absent.
+   */
+  private[taxonomy] def subtreeCarriers(
+      publisherCategories: Map[String, Set[String]],
+      categories: Set[CategoryId]
+  ): Map[SiteId, Set[String]] = {
+    val subtrees = categories.toVector.map(c =>
+      c.value -> (TieredCategory.normalize(c.value) :: TieredCategory.getAllDescendants(c.value).map(_.id)).toSet)
+    publisherCategories.flatMap { case (site, cats) =>
+      val carried = subtrees.collect {
+        case (c, subtree) if c == CategoryId.Filler.value || cats.exists(subtree.contains) => c
+      }.toSet
+      Option.when(carried.nonEmpty)(decodePublisher(site) -> carried)
+    }
+  }
+
   private def encodePublisher(siteId: SiteId): String = siteId.value
   private def decodePublisher(s: String): SiteId = SiteId(s)
   private def encodeCategories(cats: Set[CategoryId]): Set[String] = cats.map(_.value)
@@ -288,6 +312,12 @@ object CategoryRegistry {
   final case class CategoryCoverage(
       rows: Vector[CategorySummary]
   ) extends promovolve.CborSerializable
+
+  /** Which sites carry these categories or their descendants (the Delivery check). */
+  final case class GetCarriers(categories: Set[CategoryId], replyTo: ActorRef[Carriers]) extends Command
+
+  /** Reply to [[GetCarriers]]: per site, the requested categories it carries. */
+  final case class Carriers(bySite: Map[SiteId, Set[String]]) extends promovolve.CborSerializable
 
   /** Publishers for a single category (for detail view) */
   final case class PublishersForCategory(

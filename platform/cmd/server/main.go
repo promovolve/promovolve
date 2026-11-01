@@ -357,7 +357,7 @@ func main() {
 	mux.HandleFunc("POST /publisher/sites/filler-traffic", pub(h.UpdateAcceptsFillerTraffic))
 	mux.HandleFunc("POST /publisher/sites/block-ad-product", pub(h.BlockAdProduct))
 	mux.HandleFunc("POST /publisher/sites/unblock-ad-product", pub(h.UnblockAdProduct))
-	mux.HandleFunc("GET /publisher/stats", pub(h.PublisherStats))
+	mux.HandleFunc("GET /publisher/overview", pub(h.PublisherOverview))
 	mux.HandleFunc("GET /publisher/earnings", pub(h.PublisherEarnings))
 	mux.HandleFunc("GET /publisher/report", pub(h.PublisherReport))
 	mux.HandleFunc("GET /publisher/help", pub(h.HelpPage(model.RolePublisher)))
@@ -365,13 +365,12 @@ func main() {
 
 	// Advertiser pages (role-guarded)
 	adv := func(fn http.HandlerFunc) http.HandlerFunc { return h.RoleGuard("advertiser", fn) }
-	mux.HandleFunc("GET /advertiser/account", adv(h.AdvertiserAccount))
 	mux.HandleFunc("GET /advertiser/campaigns", adv(h.AdvertiserCampaigns))
 	mux.HandleFunc("GET /advertiser/market-rates-hint", adv(h.MarketRatesHint))
 	mux.HandleFunc("GET /advertiser/category-availability", adv(h.CategoryAvailability))
-	// Stats existed as a handler+template but was never routed (nor
-	// linked in the nav) — the page was unreachable dead code.
-	mux.HandleFunc("GET /advertiser/stats", adv(h.AdvertiserStats))
+	// Overview: the advertiser home, and the page a never-funded
+	// advertiser is pinned to (RoleGuard).
+	mux.HandleFunc("GET /advertiser/overview", adv(h.AdvertiserOverview))
 	mux.HandleFunc("GET /advertiser/report", adv(h.AdvertiserReport))
 	mux.HandleFunc("POST /advertiser/report/conversions", adv(h.AdvertiserReportConversions))
 	mux.HandleFunc("GET /advertiser/wallet", adv(h.AdvertiserWallet))
@@ -433,6 +432,7 @@ func main() {
 	mux.HandleFunc("GET /api/places", h.SearchPlaces)
 	mux.HandleFunc("GET /api/geo-availability", h.GeoAvailability)
 	mux.HandleFunc("GET /api/bid-check", h.BidCheck)
+	mux.HandleFunc("GET /api/delivery-check", h.DeliveryCheck)
 	mux.HandleFunc("GET /api/advertiser-domains", h.SearchAdvertiserDomains)
 	mux.HandleFunc("GET /api/image-proxy", h.ImageProxy)
 

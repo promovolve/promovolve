@@ -113,6 +113,23 @@ object Endpoints extends ApiJsonFormats {
       .out(jsonBody[BidCheckResponse])
       .errorOut(jsonBody[ErrorResponse])
 
+  /**
+   * The Delivery check: an ordered checklist of what stops this campaign
+   * from serving (docs/superpowers/specs/2026-11-01-delivery-check-design.md).
+   */
+  val deliveryCheck: PublicEndpoint[(String, String), ErrorResponse, DeliveryCheckResponse, Any] =
+    endpoint
+      .tag("Campaigns")
+      .summary("What stops this campaign from serving?")
+      .description(
+        "Runs ten ordered checks (advertiser, budgets, status, schedule, categories, creatives, " +
+        "approval, floors, bidders); each is ok, blocked, warning or unknown. firstBlocked names the " +
+        "first blocked one.")
+      .get
+      .in(campaignsBase / path[String]("campaignId") / "delivery-check")
+      .out(jsonBody[DeliveryCheckResponse])
+      .errorOut(jsonBody[ErrorResponse])
+
   val getCampaign: PublicEndpoint[(String, String), ErrorResponse, Campaign, Any] =
     endpoint
       .tag("Campaigns")
@@ -433,6 +450,18 @@ object Endpoints extends ApiJsonFormats {
       .in(sitesBase / path[String]("siteId") / "revenue-today")
       .in(query[Option[String]]("tz").description("IANA timezone for the 'today' boundary; unset = UTC"))
       .out(jsonBody[SiteRevenueTodayResponse])
+      .errorOut(jsonBody[ErrorResponse])
+
+  val getSiteTop: PublicEndpoint[(String, String, Option[String]), ErrorResponse, SiteTopResponse, Any] =
+    endpoint
+      .tag("Sites")
+      .summary("A site's top pages and creatives over the last 7 days, sourced from tracking_events")
+      .description(
+        "Top 5 pages (URL without query or fragment) and top 5 creatives by gross revenue, then impressions, since local midnight 6 days ago in the given IANA timezone (the publisher's local day; unset/invalid = UTC). Clean events only; dogeared re-views are neither counted nor paid. Returns empty lists if the projection DB isn't configured.")
+      .get
+      .in(sitesBase / path[String]("siteId") / "top")
+      .in(query[Option[String]]("tz").description("IANA timezone for the day boundary; unset = UTC"))
+      .out(jsonBody[SiteTopResponse])
       .errorOut(jsonBody[ErrorResponse])
 
   val getSiteMountHealth: PublicEndpoint[(String, String, Option[Int]), ErrorResponse, SiteMountHealthResponse, Any] =

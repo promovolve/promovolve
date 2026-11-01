@@ -1,0 +1,134 @@
+{{define "content"}}
+<!-- Header -->
+<div class="flex items-center justify-between mb-6">
+  <div>
+    <h1 class="page-title">{{t "Overview"}}</h1>
+    <p class="page-sub">{{t "\"Today\" is your organization's local day, matching settlement and your payout statements"}}</p>
+  </div>
+  {{if .Sites}}
+  <form method="GET" action="/publisher/overview">
+    <select name="siteId" onchange="this.form.submit()" class="form-input" aria-label="{{t "Site"}}">
+      {{range .Sites}}
+      <option value="{{.ID}}" {{if eq .ID $.SiteID}}selected{{end}}>{{if .Domain}}{{.Domain}}{{else}}{{.ID}}{{end}}</option>
+      {{end}}
+    </select>
+  </form>
+  {{end}}
+</div>
+
+{{if not .Stats}}
+<div class="text-center py-20 text-gray-500">
+  <p class="text-lg font-bold text-gray-900">{{t "No stats available"}}</p>
+  <p class="text-sm mt-2">{{t "Stats will appear once ads start serving on your site"}}</p>
+</div>
+{{else}}
+<!-- Headline metrics — all three share the same persistent local-midnight
+     window (tracking_events), so they always reconcile with each other. -->
+<div class="grid gap-x-10 gap-y-6 mb-8 lg:grid-cols-3">
+<section aria-labelledby="today-h" class="lg:col-span-2 min-w-0">
+  <h2 id="today-h" class="sr-only">{{t "Today"}}</h2>
+  <div class="flex flex-wrap items-baseline gap-x-4 gap-y-1" title="{{t "Your net earnings today after the platform fee. Sourced from tracking_events. Resets at midnight of your organization's timezone. Advertiser-side Today's Spend shows the gross amount."}}">
+    <p class="figure-lead text-5xl font-bold tracking-tight tabular leading-none">{{money .Stats.Revenue}}</p>
+    <p class="text-lg">{{t "earned today."}}</p>
+  </div>
+  {{if .Stats.FeePct}}<p class="mt-2 text-sm text-gray-500">{{t "%s gross − %s platform fee (%s%%)" (money .Stats.GrossRevenue) (money .Stats.Fee) .Stats.FeePct}}</p>{{end}}
+  <p class="mt-3 text-sm tabular">
+    <span title="{{t "Impressions served on this site since midnight of your organization's timezone. Sourced from tracking_events."}}"><strong>{{.Stats.Impressions}}</strong> {{t "impressions today"}}</span>
+    · <span title="{{t "Net earnings per 1000 impressions today (Revenue Today ÷ Impressions Today × 1000)."}}">{{t "eCPM"}} <strong>{{if .Stats.ECPM}}{{money .Stats.ECPM}}{{else}}&mdash;{{end}}</strong></span>
+    · <strong>{{.Stats.CreativesServed}}</strong> {{t "creatives served"}}
+    · <strong>{{.Stats.PendingCreatives}}</strong> {{t "awaiting your review"}}{{if .Stats.PendingCreatives}} — <a href="/publisher/approval{{if .SiteID}}?siteId={{.SiteID}}{{end}}" class="text-brand-ink hover:underline">{{t "Review now"}}</a>{{end}}
+  </p>
+  <!-- Session diagnostics: in-memory serveStats, scoped to the current cluster
+       session (resets on every restart/deploy), so they are shown as a muted
+       footnote rather than headline tiles a publisher would compare against
+       Impressions Today. -->
+  <p class="mt-4 text-xs text-gray-500" title="{{t "From in-memory serve stats since the last cluster restart — a different scope than the day-scoped tiles above. tracking_events doesn't log no-candidate batches, so true daily fill rate can't be derived from the persistent store."}}">
+    {{if eq .Stats.Requests 1}}{{t "Since last restart: 1 serve request · %s fill rate" .Stats.FillRate}}{{else}}{{t "Since last restart: %d serve requests · %s fill rate" .Stats.Requests .Stats.FillRate}}{{end}}
+  </p>
+</section>
+{{template "settled-money" $}}
+</div>
+
+{{end}}
+{{if not .Stats}}{{template "settled-money" $}}{{end}}
+
+{{/* Top pages and ads for the selected site, last 7 local days, by net
+     earnings (clean, billed views only — the earnings figures' rules). */}}
+{{with .PubTop}}
+<div class="grid gap-x-10 gap-y-8 lg:grid-cols-2">
+  <section data-top-pages aria-labelledby="top-pages-h" class="min-w-0">
+    <div class="flex flex-wrap items-baseline justify-between gap-x-4 mb-2">
+      <h2 id="top-pages-h" class="section-title">{{t "Top pages"}}</h2>
+      <span class="text-xs text-gray-500">{{t "Last 7 days, by earnings"}}</span>
+    </div>
+    {{if .Pages}}
+    <table class="data-table">
+      <thead><tr><th>{{t "Page"}}</th><th class="num">{{t "Impressions"}}</th><th class="num">{{t "Clicks"}}</th><th class="num">{{t "Earnings"}}</th></tr></thead>
+      <tbody>
+        {{range .Pages}}
+        <tr>
+          <td class="max-w-0 w-full">{{if .URL}}<a href="{{.URL}}" target="_blank" rel="noopener" class="block truncate hover:underline" title="{{.URL}}">{{.Path}}</a>{{else}}<span class="text-gray-500">{{t "Unknown page"}}</span>{{end}}</td>
+          <td class="num">{{.Impressions}}</td>
+          <td class="num">{{.Clicks}}</td>
+          <td class="num font-bold">{{money .Net}}</td>
+        </tr>
+        {{end}}
+      </tbody>
+    </table>
+    {{else}}
+    <p class="py-6 border-t border-gray-900 text-sm text-gray-500">{{t "No impressions in the last 7 days."}}</p>
+    {{end}}
+  </section>
+
+  <section data-top-ads aria-labelledby="top-ads-h" class="min-w-0">
+    <div class="flex flex-wrap items-baseline justify-between gap-x-4 mb-2">
+      <h2 id="top-ads-h" class="section-title">{{t "Top ads"}}</h2>
+      <span class="text-xs text-gray-500">{{t "Last 7 days, by earnings"}}</span>
+    </div>
+    {{if .Ads}}
+    <table class="data-table">
+      <thead><tr><th>{{t "Ad"}}</th><th class="num">{{t "Impressions"}}</th><th class="num">{{t "CTR"}}</th><th class="num">{{t "Earnings"}}</th></tr></thead>
+      <tbody>
+        {{range .Ads}}
+        <tr>
+          <td class="max-w-0 w-full">
+            <div class="flex items-center gap-3 min-w-0">
+              {{/* A grey square stands in for a deleted or unreachable image. */}}
+              <span class="w-10 h-10 shrink-0 bg-gray-100" aria-hidden="true">{{if .AssetURL}}<img src="{{.AssetURL}}" alt="" loading="lazy" width="40" height="40" class="w-10 h-10 object-cover" onerror="this.remove()">{{end}}</span>
+              <span class="min-w-0"><span class="block truncate font-bold" title="{{.Name}}">{{.Name}}</span>{{if .Domain}}<span class="block truncate text-xs text-gray-500">{{.Domain}}</span>{{end}}</span>
+            </div>
+          </td>
+          <td class="num">{{.Impressions}}</td>
+          <td class="num">{{.CTR}}</td>
+          <td class="num font-bold">{{money .Net}}</td>
+        </tr>
+        {{end}}
+      </tbody>
+    </table>
+    {{else}}
+    <p class="py-6 border-t border-gray-900 text-sm text-gray-500">{{t "No impressions in the last 7 days."}}</p>
+    {{end}}
+  </section>
+</div>
+{{end}}
+{{end}}
+
+{{/* The settled balance beside today's live figures: what Earnings
+     itemizes, for the org admins who can open it (moneyPages). */}}
+{{define "settled-money"}}
+{{if and .User.CanBilling .Earnings}}
+<div data-overview-money>
+  <dl class="figures grid-cols-2 lg:grid-cols-1">
+    <div class="figure col-span-2 lg:col-span-1" title="{{t "Settled net earnings not yet paid out"}}">
+      <dt>{{t "Balance owed"}}</dt>
+      <dd class="figure-lead">{{money .Earnings.Accrued}}</dd>
+    </div>
+    <div class="figure">
+      <dt>{{t "Lifetime paid"}}</dt>
+      <dd>{{money .Earnings.LifetimePaid}}</dd>
+    </div>
+  </dl>
+  <p class="pt-3 text-sm"><a href="/publisher/earnings" class="text-brand-ink">{{t "Earnings & payouts"}}</a></p>
+</div>
+{{end}}
+{{end}}

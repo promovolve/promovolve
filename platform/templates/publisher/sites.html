@@ -14,7 +14,7 @@
 </div>
 
 {{if .Error}}
-<div class="bg-red-50 border border-red-200 text-red-700 rounded-lg p-3 mb-6 text-sm">{{.Error}}</div>
+<div class="notice notice-error p-3 mb-6 text-sm" data-lead="{{t "Error:"}}">{{.Error}}</div>
 {{end}}
 
 <!-- Blocked advertiser domains (publisher-wide) -->
@@ -23,7 +23,7 @@
   <p class="text-xs text-gray-500 mb-3">{{t "Ads whose landing page is one of these domains won't serve on any of your sites."}}</p>
   <div class="flex flex-wrap gap-2 mb-3">
     {{range .BlockedAdvertiserDomains}}
-    <form method="POST" action="/publisher/unblock-advertiser-domain" class="badge badge-danger gap-1">
+    <form method="POST" action="/publisher/unblock-advertiser-domain" class="badge badge-neutral gap-1">
       <input type="hidden" name="domain" value="{{.}}">
       <span>{{.}}</span>
       <button type="submit" aria-label="{{t "Unblock %s" .}}" class="chip-x">×</button>
@@ -32,7 +32,7 @@
     {{if not .BlockedAdvertiserDomains}}<span class="text-sm text-gray-500">{{t "None blocked"}}</span>{{end}}
   </div>
   <form method="POST" action="/publisher/block-advertiser-domain"
-        class="relative inline-flex items-center gap-1"
+        class="relative flex flex-wrap items-center gap-1"
         x-data="{ query: '', results: [], open: false }"
         onclick="event.stopPropagation();">
     <input type="text" name="domain" x-model="query"
@@ -45,7 +45,7 @@
       placeholder="{{t "Search advertiser domains to block"}}"
       autocomplete="off"
       class="w-72 px-2 py-1 border rounded-md text-sm focus:outline-none focus:ring-2 focus:ring-brand/20 focus:border-brand">
-    <button type="submit" class="btn btn-danger btn-sm">{{t "Block"}}</button>
+    <button type="submit" class="btn btn-secondary btn-sm">{{t "Block"}}</button>
     <div x-show="open" x-transition
       class="absolute top-full left-0 z-10 w-72 mt-1 bg-white border rounded-md shadow-lg max-h-48 overflow-y-auto">
       <template x-for="d in results" :key="d">
@@ -82,15 +82,14 @@
 <div class="space-y-3 mb-3">
   {{range .SiteRequests}}
   <div class="bg-white rounded-lg border overflow-hidden">
-    <div class="p-4 flex items-center gap-4">
-      <div class="w-2 h-2 rounded-full shrink-0 {{if eq .Status "rejected"}}bg-red-500{{else}}bg-yellow-400{{end}}"></div>
-      <div class="flex-1 min-w-0">
+    <div class="p-4 flex flex-wrap items-center gap-x-4 gap-y-2">
+      <div class="flex-1 min-w-[12rem]">
         <p class="font-medium">
           {{.Domain}}
           {{if eq .Status "rejected"}}
-          <span class="badge badge-danger ml-2">{{t "Denied"}}</span>
+          <span class="badge badge-neutral ml-2">{{t "Denied"}}</span>
           {{else}}
-          <span class="badge badge-warning ml-2">{{t "Awaiting approval"}}</span>
+          <span class="badge badge-neutral ml-2">{{t "Awaiting approval"}}</span>
           {{end}}
         </p>
         {{if eq .Status "rejected"}}
@@ -103,12 +102,12 @@
       {{if eq .Status "rejected"}}
       <form method="POST" action="/publisher/sites/requests/{{.ID}}/delete"
             onsubmit="return confirm('{{t "Delete the denied request for %s?" .Domain}}')">
-        <button type="submit" class="text-sm text-red-600 hover:underline">{{t "Delete"}}</button>
+        <button type="submit" class="text-sm text-gray-900 underline hover:no-underline">{{t "Delete"}}</button>
       </form>
       {{else}}
       <form method="POST" action="/publisher/sites/requests/{{.ID}}/delete"
             onsubmit="return confirm('{{t "Cancel the request for %s?" .Domain}}')">
-        <button type="submit" class="text-sm text-gray-500 hover:underline">{{t "Cancel"}}</button>
+        <button type="submit" class="text-sm text-gray-500 underline hover:no-underline">{{t "Cancel"}}</button>
       </form>
       {{end}}
     </div>
@@ -128,20 +127,19 @@
   {{range .SitesData}}
   <div class="bg-white rounded-lg border overflow-hidden">
     <!-- Collapsed row -->
-    <div class="p-4 flex items-center gap-4 cursor-pointer hover:bg-gray-50"
+    <div class="p-4 flex flex-wrap items-center gap-x-4 gap-y-2 cursor-pointer hover:bg-gray-50"
          {{/* Opening the details is what triggers the ownership re-check
               below. Dispatched from here rather than x-init on the panel:
               the panel exists in the DOM for every site from first paint, so
               x-init would probe every publisher's server on page load. */}}
          onclick="var detail=this.nextElementSibling;detail.classList.toggle('hidden');var chevron=this.querySelector('[data-chevron]');chevron.classList.toggle('rotate-180');if(!detail.classList.contains('hidden')){detail.dispatchEvent(new CustomEvent('pv-opened'));}">
-      <div class="w-2 h-2 rounded-full shrink-0 {{if eq .VerificationStatus "verified"}}bg-green-500{{else}}bg-yellow-400{{end}}"></div>
       <div class="flex-1 min-w-0">
         <p class="font-medium">
           {{.Domain}}
           {{if eq .VerificationStatus "verified"}}
           <span class="badge badge-success ml-2">{{t "Verified"}}</span>
           {{else}}
-          <span class="badge badge-warning ml-2">{{t "Unverified"}}</span>
+          <span class="badge badge-neutral ml-2">{{t "Unverified"}}</span>
           {{end}}
         </p>
       </div>
@@ -151,7 +149,7 @@
       <div onclick="event.stopPropagation();">
         {{if ne .VerificationStatus "verified"}}
         <form method="POST" action="/publisher/sites/{{.ID}}/verify" onclick="event.stopPropagation();">
-          <button type="submit" class="text-sm text-amber-700 hover:underline">{{t "Verify"}}</button>
+          <button type="submit" class="text-sm text-gray-900 underline hover:no-underline">{{t "Verify"}}</button>
         </form>
         {{end}}
       </div>
@@ -184,7 +182,7 @@
            their earnings must not be made to think delivery is at risk. */}}
       <template x-if="probe">
         <p class="text-xs mb-3"
-           :class="probe.state === 'missing' ? 'text-amber-700' : 'text-gray-500'">
+           :class="probe.state === 'missing' ? 'text-gray-900 font-bold' : 'text-gray-500'">
           <template x-if="probe.state === 'present' && probe.method === 'file'">
             <span>{{t "Ownership re-checked: verification file in place."}}</span>
           </template>
@@ -204,11 +202,11 @@
       </template>
       <div class="grid grid-cols-1 sm:grid-cols-2 gap-6 text-sm">
         <div>
-          <p class="text-gray-500 text-xs uppercase mb-2">{{t "Classification"}}</p>
+          <p class="text-gray-500 text-xs mb-2">{{t "Classification"}}</p>
           <p class="text-gray-500">{{t "Pages classified on-demand from live traffic"}}</p>
         </div>
         <div>
-          <p class="text-gray-500 text-xs uppercase mb-2">{{t "Categories"}}</p>
+          <p class="text-gray-500 text-xs mb-2">{{t "Categories"}}</p>
           {{if .Categories}}
           <div class="flex flex-wrap gap-1">
             {{range .Categories}}
@@ -222,7 +220,7 @@
       </div>
       {{if ne .VerificationStatus "verified"}}
       <div class="mt-4 pt-3 border-t">
-        <p class="text-sm font-medium text-amber-700 mb-2">{{t "Domain Verification Required"}}</p>
+        <p class="text-sm font-bold text-gray-900 mb-2">{{t "Domain Verification Required"}}</p>
         <p class="text-xs text-gray-600 mb-3">
           {{t "To prove you own %s, use either method below, then click Verify." .Domain}}
           {{t "Ad serving is blocked until verification succeeds."}}
@@ -249,7 +247,7 @@
                   <code x-ref="val" class="flex-1 min-w-0 bg-gray-100 px-3 py-2 rounded text-xs font-mono break-all" x-text="token.fileUrl"></code>
                   <button type="button" class="btn btn-secondary btn-sm shrink-0"
                     @click.stop="navigator.clipboard.writeText($refs.val.textContent.trim()).then(() => { copied = true; setTimeout(() => copied = false, 1500) })"
-                    x-text="copied ? '{{t "Copied ✓"}}' : '{{t "Copy"}}'">{{t "Copy"}}</button>
+                    x-text="copied ? '{{t "Copied"}}' : '{{t "Copy"}}'">{{t "Copy"}}</button>
                 </div>
               </div>
               <div>
@@ -258,7 +256,7 @@
                   <code x-ref="val" class="flex-1 min-w-0 bg-gray-100 px-3 py-2 rounded text-xs font-mono break-all" x-text="token.fileContent"></code>
                   <button type="button" class="btn btn-secondary btn-sm shrink-0"
                     @click.stop="navigator.clipboard.writeText($refs.val.textContent.trim()).then(() => { copied = true; setTimeout(() => copied = false, 1500) })"
-                    x-text="copied ? '{{t "Copied ✓"}}' : '{{t "Copy"}}'">{{t "Copy"}}</button>
+                    x-text="copied ? '{{t "Copied"}}' : '{{t "Copy"}}'">{{t "Copy"}}</button>
                 </div>
               </div>
               <p class="text-xs font-semibold text-gray-600 pt-1">{{t "Option B — add a DNS TXT record"}}</p>
@@ -269,7 +267,7 @@
                   <code x-ref="val" class="flex-1 min-w-0 bg-gray-100 px-3 py-2 rounded text-xs font-mono break-all" x-text="token.dnsRecordName"></code>
                   <button type="button" class="btn btn-secondary btn-sm shrink-0"
                     @click.stop="navigator.clipboard.writeText($refs.val.textContent.trim()).then(() => { copied = true; setTimeout(() => copied = false, 1500) })"
-                    x-text="copied ? '{{t "Copied ✓"}}' : '{{t "Copy"}}'">{{t "Copy"}}</button>
+                    x-text="copied ? '{{t "Copied"}}' : '{{t "Copy"}}'">{{t "Copy"}}</button>
                 </div>
               </div>
               <div>
@@ -278,7 +276,7 @@
                   <code x-ref="val" class="flex-1 min-w-0 bg-gray-100 px-3 py-2 rounded text-xs font-mono break-all" x-text="token.dnsRecordValue"></code>
                   <button type="button" class="btn btn-secondary btn-sm shrink-0"
                     @click.stop="navigator.clipboard.writeText($refs.val.textContent.trim()).then(() => { copied = true; setTimeout(() => copied = false, 1500) })"
-                    x-text="copied ? '{{t "Copied ✓"}}' : '{{t "Copy"}}'">{{t "Copy"}}</button>
+                    x-text="copied ? '{{t "Copied"}}' : '{{t "Copy"}}'">{{t "Copy"}}</button>
                 </div>
               </div>
               <form method="POST" action="/publisher/sites/{{.ID}}/verify" class="pt-2">
@@ -320,7 +318,7 @@
               <code x-ref="val" class="flex-1 min-w-0 bg-gray-100 px-3 py-2 rounded text-xs font-mono break-all" x-text="token.fileContent"></code>
               <button type="button" class="btn btn-secondary btn-sm shrink-0"
                 @click.stop="navigator.clipboard.writeText($refs.val.textContent.trim()).then(() => { copied = true; setTimeout(() => copied = false, 1500) })"
-                x-text="copied ? '{{t "Copied ✓"}}' : '{{t "Copy"}}'">{{t "Copy"}}</button>
+                x-text="copied ? '{{t "Copied"}}' : '{{t "Copy"}}'">{{t "Copy"}}</button>
             </div>
           </template>
         </div>
@@ -329,7 +327,7 @@
       <!-- Site ID + floor decisions -->
       <div class="mt-4 pt-3 border-t flex items-center justify-between gap-2 flex-wrap">
         <p class="text-xs text-gray-500">{{t "Site ID:"}} <span class="font-mono">{{.ID}}</span></p>
-        <a href="/publisher/sites/{{.ID}}/observations" class="text-xs text-brand-ink hover:underline" onclick="event.stopPropagation();">{{t "Floor decisions"}} →</a>
+        <a href="/publisher/sites/{{.ID}}/observations" class="text-xs text-brand-ink hover:underline" onclick="event.stopPropagation();">{{t "Floor decisions"}} {{template "i-next"}}</a>
       </div>
 
       <!-- Read-only metrics -->
@@ -343,11 +341,11 @@
           <p class="text-xs text-gray-500 mb-1">{{t "Fallback floor:"}}</p>
           <div class="flex items-baseline gap-2">
             {{if .OptimizedFloor}}
-              <span class="text-lg font-semibold text-green-700">{{.OptimizedFloor}}</span>
+              <span class="text-lg font-semibold text-gray-900">{{.OptimizedFloor}}</span>
               {{if .OptimizedFloorDelta}}
                 <span class="text-xs
-                  {{if eq .OptimizedFloorTrend "▲"}}text-green-700{{end}}
-                  {{if eq .OptimizedFloorTrend "▼"}}text-red-600{{end}}
+                  {{if eq .OptimizedFloorTrend "▲"}}text-gray-900{{end}}
+                  {{if eq .OptimizedFloorTrend "▼"}}font-bold{{end}}
                   {{if eq .OptimizedFloorTrend "="}}text-gray-500{{end}}">
                   {{.OptimizedFloorTrend}} {{.OptimizedFloorDelta}}
                 </span>
@@ -369,12 +367,12 @@
              title="{{t "The ad tag reports its own lifecycle on every pageview. Healthy means an ad rendered or the auction genuinely had no ad to show; failures mean the integration is broken on some pageviews — the reasons say where it stopped."}}">
           <p class="text-xs text-gray-500 mb-1">{{t "Integration health (7d):"}}</p>
           <div class="flex items-baseline gap-2">
-            <span class="text-lg font-semibold {{if eq .HealthFailures 0}}text-green-700{{else}}text-amber-700{{end}}">{{.HealthOkPct}}%</span>
+            <span class="text-lg font-semibold text-gray-900">{{.HealthOkPct}}%</span>
             <span class="text-xs text-gray-500">{{t "healthy"}}</span>
           </div>
           <p class="text-xs text-gray-500 mt-1 whitespace-nowrap overflow-x-auto">
             {{.HealthPageviews}} {{t "pageviews"}} · {{.HealthRendered}} {{t "rendered"}} · {{.HealthNoFill}} {{t "no fill"}}{{if gt .HealthFailures 0}} ·
-            <span class="text-amber-700">{{.HealthFailures}} {{t "failed"}}</span>
+            <span class="text-gray-900 font-bold">{{.HealthFailures}} {{t "failed"}}</span>
             <span class="font-mono">({{range $i, $fr := .HealthTopReasons}}{{if $i}}, {{end}}{{$fr.Reason}} ×{{$fr.Count}}{{end}})</span>
             {{end}}
           </p>
@@ -484,7 +482,7 @@
           </p>
           <form method="POST" action="/publisher/sites/slot-floor"
                 hx-post="/publisher/sites/slot-floor" hx-swap="none"
-                hx-on::after-request="if(event.detail.successful){const s=this.querySelector('.save-status');s.textContent='{{t "Saved ✓"}}';setTimeout(()=>{s.textContent=''},2000)}">
+                hx-on::after-request="if(event.detail.successful){const s=this.querySelector('.save-status');s.textContent='{{t "Saved"}}';setTimeout(()=>{s.textContent=''},2000)}">
           <input type="hidden" name="siteId" value="{{$siteID}}">
           <table class="w-full text-xs">
             <thead class="text-gray-500">
@@ -542,7 +540,7 @@
           </table>
           <div class="mt-2 flex items-center gap-2">
             <button type="submit" class="btn btn-primary btn-sm">{{t "Save all overrides"}}</button>
-            <span class="save-status text-green-700 text-xs"></span>
+            <span class="save-status text-gray-900 text-xs"></span>
           </div>
           </form>
         </details>
@@ -555,7 +553,7 @@
                before ranging or the unblock form breaks the whole render. */}}
           {{$blockSiteID := .ID}}
           {{range .BlockedCategories}}
-          <span class="badge badge-danger gap-1">
+          <span class="badge badge-neutral gap-1">
             {{.}}
             <form method="POST" action="/publisher/sites/unblock-ad-product" class="inline">
               <input type="hidden" name="siteId" value="{{$blockSiteID}}">
@@ -565,7 +563,7 @@
           </span>
           {{end}}
           <form method="POST" action="/publisher/sites/block-ad-product"
-                class="relative inline-flex items-center gap-1"
+                class="relative flex flex-wrap items-center gap-1"
                 x-data="{ query: '', results: [], selectedId: '', open: false,
                   search() {
                     if (this.query.length > 0) {
@@ -586,7 +584,7 @@
               placeholder="{{t "Search categories to block"}}"
               autocomplete="off"
               class="w-48 px-2 py-0.5 border rounded-md text-xs focus:outline-none focus:ring-2 focus:ring-brand/20 focus:border-brand">
-            <button type="submit" class="btn btn-danger btn-sm">{{t "Block"}}</button>
+            <button type="submit" class="btn btn-secondary btn-sm">{{t "Block"}}</button>
             <div x-show="open" x-transition
               class="absolute top-full left-0 z-10 w-64 mt-1 bg-white border rounded-md shadow-lg max-h-48 overflow-y-auto">
               <template x-for="cat in results" :key="cat.id">
@@ -603,7 +601,7 @@
         <p class="text-xs text-gray-500">{{t "Removing the site stops ad serving immediately. Earnings and delivery history are kept."}}</p>
         <form method="POST" action="/publisher/sites/{{.ID}}/delete"
               onsubmit="return confirm('{{t "Remove %s? Ad serving stops immediately and the site disappears from this list. Earnings and delivery history are kept. Re-adding it later goes through admin approval and domain verification again." .Domain}}')">
-          <button type="submit" class="text-sm text-red-600 hover:underline">{{t "Remove site"}}</button>
+          <button type="submit" class="text-sm text-gray-900 underline hover:no-underline">{{t "Remove site"}}</button>
         </form>
       </div>
     </div>

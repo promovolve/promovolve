@@ -8,6 +8,8 @@
 // boot time, and interaction handlers call showGuides / hideGuides
 // during their gestures.
 
+import { tokens } from "../ui/tokens";
+
 export interface GuideLine {
   orientation: "h" | "v";
   pos: number; // percentage (0-100) along the canvas
@@ -27,7 +29,8 @@ export interface SnapResult {
 }
 
 const THRESHOLD = 1.5; // percent — how close before we snap + show guide
-const GUIDE_COLOR = "#ff3b82";
+// Ink, with the theme's paper as a halo so it shows on any image.
+const GUIDE_COLOR = tokens.focus;
 
 let layer: HTMLElement | null = null;
 
@@ -72,7 +75,7 @@ export function showGuides(lines: GuideLine[]): void {
     const shared = {
       position: "absolute",
       background: GUIDE_COLOR,
-      boxShadow: `0 0 2px ${GUIDE_COLOR}`,
+      boxShadow: `0 0 0 1px ${tokens.ink900}`,
     } as Partial<CSSStyleDeclaration>;
     if (line.orientation === "h") {
       Object.assign(el.style, shared, {

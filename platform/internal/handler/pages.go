@@ -25,6 +25,8 @@ import (
 	"sync"
 	"time"
 
+	"github.com/hanishi/promovolve/platform/internal/billing"
+	"github.com/hanishi/promovolve/platform/internal/currency"
 	"github.com/hanishi/promovolve/platform/internal/i18n"
 	"github.com/hanishi/promovolve/platform/internal/model"
 	"github.com/hanishi/promovolve/platform/internal/settings"
@@ -703,7 +705,9 @@ type publisherStats struct {
 	PendingCreatives int
 }
 
-func (h *Handler) PublisherStats(w http.ResponseWriter, r *http.Request) {
+// PublisherOverview is the publisher home: today's live figures for one
+// site, and for billing users the settled balance beside them.
+func (h *Handler) PublisherOverview(w http.ResponseWriter, r *http.Request) {
 	user, claims := h.sessionUser(r)
 	if user == nil {
 		http.Redirect(w, r, "/login", http.StatusSeeOther)
@@ -832,13 +836,26 @@ func (h *Handler) PublisherStats(w http.ResponseWriter, r *http.Request) {
 		}
 	}
 
-	h.render(w, r, "publisher/stats.html", pageData{
-		Title:  "Stats",
-		Nav:    "stats",
-		User:   user,
-		SiteID: siteID,
-		Sites:  sites,
-		Stats:  stats,
+	// The selected site's top pages and ads over the last 7 local days.
+	var top *publisherTop
+	if siteID != "" {
+		tz, _ := h.orgRepo.TimezoneByEntity(r.Context(), claims.PublisherID)
+		top = h.fetchSiteTop(siteID, tz, h.settingsSvc.CurrentMarginBps(r.Context()), claims)
+	}
+
+	var earnings *earningsPageData
+	if user.CanBilling() && h.billingSvc != nil {
+		earnings = h.settledEarnings(r.Context(), claims.PublisherID)
+	}
+	h.render(w, r, "publisher/overview.html", pageData{
+		Title:    "Overview",
+		Nav:      "overview",
+		User:     user,
+		SiteID:   siteID,
+		Sites:    sites,
+		Stats:    stats,
+		PubTop:   top,
+		Earnings: earnings,
 	})
 }
 
@@ -946,7 +963,6 @@ type campaignData struct {
 	LifetimeSpend  string // projection totalSpend, base-currency formatted
 	BidsToday      int
 	WinRate        string // e.g. "45.2%"
-	WinRateClass   string // CSS class: text-red-600, text-amber-600, text-green-600
 	// Opted in to bid on pages with no contextual match (filler
 	// auction). Drives the checkbox on campaigns.html.
 	BidOnUnmatchedContext bool
@@ -1001,6 +1017,8 @@ type campaignData struct {
 	EndAtLocal     string
 	EndAtDisplay   string
 	EndAtPassed    bool
+	// Today hour by hour on the intensity scale, with the outlook.
+	Forecast forecast
 }
 
 // budgetMoved renders a campaign's day-start wall and its move since, for
@@ -1114,7 +1132,7 @@ func (h *Handler) AdvertiserCampaigns(w http.ResponseWriter, r *http.Request) {
 			BudgetMode:  advResp.BudgetMode,
 		}
 		if advBudget.IsZero {
-			http.Redirect(w, r, "/advertiser/account", http.StatusSeeOther)
+			http.Redirect(w, r, "/advertiser/overview#budget", http.StatusSeeOther)
 			return
 		}
 	}
@@ -1239,6 +1257,39 @@ func (h *Handler) AdvertiserCampaigns(w http.ResponseWriter, r *http.Request) {
 		}
 	}
 
+	// Today's spend per local hour, account-wide and per campaign — the
+	// forecast strips. Missing or failed → empty strips, not an error.
+	var acctHours [24]float64
+	campHours := make(map[string]*[24]float64)
+	hBody, _ := h.coreGet("/v1/advertisers/me/hourly-today", claims)
+	var hResp struct {
+		Hours []struct {
+			Hour  int    `json:"hour"`
+			Spend string `json:"spend"`
+		} `json:"hours"`
+		ByCampaign []struct {
+			CampaignID string `json:"campaignId"`
+			Hour       int    `json:"hour"`
+			Spend      string `json:"spend"`
+		} `json:"byCampaign"`
+	}
+	if json.Unmarshal(hBody, &hResp) == nil {
+		for _, hr := range hResp.Hours {
+			if hr.Hour >= 0 && hr.Hour < 24 {
+				acctHours[hr.Hour], _ = strconv.ParseFloat(hr.Spend, 64)
+			}
+		}
+		for _, hr := range hResp.ByCampaign {
+			if hr.Hour < 0 || hr.Hour >= 24 {
+				continue
+			}
+			if campHours[hr.CampaignID] == nil {
+				campHours[hr.CampaignID] = new([24]float64)
+			}
+			campHours[hr.CampaignID][hr.Hour], _ = strconv.ParseFloat(hr.Spend, 64)
+		}
+	}
+
 	// Aggregates for the summary tiles. CTR is impression-weighted
 	// (total clicks / total impressions), win rate is bid-weighted —
 	// a flat average of per-campaign ratios would let a 3-impression
@@ -1250,6 +1301,7 @@ func (h *Handler) AdvertiserCampaigns(w http.ResponseWriter, r *http.Request) {
 	// same boundary the budget day rolls on. Stored instants are
 	// unchanged; only their interpretation and display shift.
 	schedTz, schedLoc := h.accountTimeContext(r.Context(), claims.AdvertiserID)
+	nowLocal := time.Now().In(schedLoc)
 	movedTotal := 0.0
 	for _, c := range campResp.Data {
 		var startLocal, startDisplay string
@@ -1321,6 +1373,16 @@ func (h *Handler) AdvertiserCampaigns(w http.ResponseWriter, r *http.Request) {
 				cd.BudgetPct = math.Round(math.Min(100, spend/budget*100)*10) / 10
 			}
 		}
+		var hours [24]float64
+		if hp := campHours[c.ID]; hp != nil {
+			hours = *hp
+		}
+		dailyBudget, _ := strconv.ParseFloat(c.Budget.Daily, 64)
+		cd.Forecast = buildForecast(lang, hours, dailyBudget, nowLocal, c.Status == "active")
+		if c.Untargeted && c.Status == "active" {
+			cd.Forecast.Alert = "advisory"
+			cd.Forecast.Outlook = i18n.T(lang, "Not bidding: no target categories")
+		}
 		// Pair each target-category id with its resolved name (index-aligned;
 		// fall back to the id) for the edit form's pre-filled chips.
 		for i, id := range c.TargetCategories {
@@ -1368,13 +1430,6 @@ func (h *Handler) AdvertiserCampaigns(w http.ResponseWriter, r *http.Request) {
 			cd.WinRate = fmt.Sprintf("%.1f%%", wr.WinRate*100)
 			sumBids += wr.BidsToday
 			sumWins += wr.WinRate * float64(wr.BidsToday)
-			if wr.WinRate < 0.1 {
-				cd.WinRateClass = "text-red-600"
-			} else if wr.WinRate < 0.3 {
-				cd.WinRateClass = "text-yellow-600"
-			} else {
-				cd.WinRateClass = "text-green-600"
-			}
 		}
 		campaigns = append(campaigns, cd)
 	}
@@ -1394,6 +1449,7 @@ func (h *Handler) AdvertiserCampaigns(w http.ResponseWriter, r *http.Request) {
 	// the whole account, not the visible page.
 	totalCampaigns := len(campaigns)
 	sortCampaigns(campaigns, r.URL.Query().Get("sort"))
+	focusPage(r, campaigns, 10)
 	start, end, nav := buildListNav(r, len(campaigns), 10)
 	campaigns = campaigns[start:end]
 
@@ -1461,21 +1517,49 @@ func (h *Handler) AdvertiserCampaigns(w http.ResponseWriter, r *http.Request) {
 		formError = i18n.T(lang, "Changes not saved — the update was rejected. Try again.")
 	}
 
+	acctBudget, _ := strconv.ParseFloat(advResp.Budget.DailyBudget, 64)
+	acctForecast := buildForecast(lang, acctHours, acctBudget, nowLocal, true)
+
+	// Balance and runway beside today's figure: the wallet's own outlook,
+	// with today's delivery so far as the pending charge.
+	var balanceDisp string
+	runway := -1
+	if h.billingSvc != nil {
+		if acc, err := h.billingSvc.GetAccount(r.Context(), billing.OwnerAdvertiser, claims.AdvertiserID); err == nil {
+			balanceDisp = usdTile(acc.BalanceMicros)
+			var pending float64
+			for _, v := range acctHours {
+				pending += v
+			}
+			charged := map[string]float64{}
+			if days, err := h.billingSvc.DailyCharged(r.Context(), claims.AdvertiserID, walletDays+1); err == nil {
+				for d, m := range days {
+					charged[d] = currency.Major(m)
+				}
+			}
+			_, runway = walletForecast(lang, charged, currency.Major(acc.BalanceMicros), pending, nowLocal)
+		}
+	}
+
 	h.render(w, r, "advertiser/campaigns.html", pageData{
-		Title:          "Campaigns",
-		Nav:            "campaigns",
-		User:           user,
-		Error:          formError,
-		Campaigns:      campaigns,
-		AdvBudget:      advBudget,
-		AdvAvgCTR:      avgCTR,
-		AdvAvgWinRate:  avgWinRate,
-		BlockedDomains: blockedDomains,
-		ServedSites:    servedSites,
-		NoCampaigns:    totalCampaigns == 0,
-		ListNav:        nav,
-		MarketRates:    marketRates,
-		ScheduleTz:     schedTz,
+		AdvForecast:     &acctForecast,
+		AdvBalance:      balanceDisp,
+		AdvRunwayDays:   runway,
+		AdvForecastAsOf: nowLocal.Format("15:04 MST"),
+		Title:           "Campaigns",
+		Nav:             "campaigns",
+		User:            user,
+		Error:           formError,
+		Campaigns:       campaigns,
+		AdvBudget:       advBudget,
+		AdvAvgCTR:       avgCTR,
+		AdvAvgWinRate:   avgWinRate,
+		BlockedDomains:  blockedDomains,
+		ServedSites:     servedSites,
+		NoCampaigns:     totalCampaigns == 0,
+		ListNav:         nav,
+		MarketRates:     marketRates,
+		ScheduleTz:      schedTz,
 	})
 }
 
@@ -1613,14 +1697,12 @@ func (h *Handler) MarketRatesHint(w http.ResponseWriter, r *http.Request) {
 	getPage(h.lang(r, user), "advertiser/campaigns.html").ExecuteTemplate(w, "market-rates-hint", data)
 }
 
-func (h *Handler) AdvertiserAccount(w http.ResponseWriter, r *http.Request) {
-	user, claims := h.sessionUser(r)
-	if user == nil {
-		http.Redirect(w, r, "/login", http.StatusSeeOther)
-		return
-	}
-
-	var advBudget *advertiserBudget
+// advertiserBudgetFor reads the account-level daily budget (nil when the
+// core can't be read). Spent/remaining come from the entity's
+// reserved-spend counter — the values the serve-time gate benches on — so
+// they match the bench and agree with the Campaigns page. Delivered spend
+// is billing/performance (Report), not this budget-enforcement view.
+func (h *Handler) advertiserBudgetFor(claims *model.Claims) *advertiserBudget {
 	advBody, _ := h.coreGet("/v1/advertisers/me", claims)
 	var advResp struct {
 		Budget struct {
@@ -1630,51 +1712,17 @@ func (h *Handler) AdvertiserAccount(w http.ResponseWriter, r *http.Request) {
 		} `json:"budget"`
 		BudgetMode string `json:"budgetMode"`
 	}
-	budgetUnset := true
-	if json.Unmarshal(advBody, &advResp) == nil {
-		parsed, _ := strconv.ParseFloat(advResp.Budget.DailyBudget, 64)
-		// Spent/remaining from the entity's reserved-spend counter — the values
-		// the serve-time gate benches on — so this line matches the bench and
-		// agrees with the Campaigns page. Delivered spend is billing/performance
-		// (Stats/Report), not this budget-enforcement view.
-		advBudget = &advertiserBudget{
-			DailyBudget: money(advResp.Budget.DailyBudget),
-			Remaining:   money(advResp.Budget.Remaining),
-			SpendToday:  money(advResp.Budget.SpendToday),
-			IsZero:      parsed <= 0,
-			BudgetMode:  advResp.BudgetMode,
-		}
-		budgetUnset = advBudget.IsZero
+	if json.Unmarshal(advBody, &advResp) != nil {
+		return nil
 	}
-
-	noCampaigns := true
-	if !budgetUnset {
-		campsBody, _ := h.coreGet("/v1/advertisers/me/campaigns?limit=1", claims)
-		var campsResp struct {
-			Data []json.RawMessage `json:"data"`
-		}
-		if json.Unmarshal(campsBody, &campsResp) == nil {
-			noCampaigns = len(campsResp.Data) == 0
-		}
+	parsed, _ := strconv.ParseFloat(advResp.Budget.DailyBudget, 64)
+	return &advertiserBudget{
+		DailyBudget: money(advResp.Budget.DailyBudget),
+		Remaining:   money(advResp.Budget.Remaining),
+		SpendToday:  money(advResp.Budget.SpendToday),
+		IsZero:      parsed <= 0,
+		BudgetMode:  advResp.BudgetMode,
 	}
-
-	// The embedded wallet summary is money-page content: org members see
-	// budget (pacing) but the balance stays with the org's admins.
-	walletBalance, walletUnfunded := "", false
-	if user.CanBilling() {
-		walletBalance, walletUnfunded = h.walletSummary(r.Context(), claims.AdvertiserID)
-	}
-	h.render(w, r, "advertiser/account.html", pageData{
-		Title:          "Account",
-		Nav:            "account",
-		User:           user,
-		AdvBudget:      advBudget,
-		BudgetUnset:    budgetUnset,
-		NoCampaigns:    noCampaigns,
-		WalletNotice:   h.walletNotice(r.Context(), claims.AdvertiserID),
-		WalletBalance:  walletBalance,
-		WalletUnfunded: walletUnfunded,
-	})
 }
 
 func (h *Handler) SetAdvertiserBudget(w http.ResponseWriter, r *http.Request) {
@@ -1694,7 +1742,7 @@ func (h *Handler) SetAdvertiserBudget(w http.ResponseWriter, r *http.Request) {
 	h.corePut("/v1/advertisers/me/budget", claims, string(body))
 	redirect := r.Referer()
 	if redirect == "" {
-		redirect = "/advertiser/campaigns"
+		redirect = "/advertiser/overview"
 	}
 	http.Redirect(w, r, redirect, http.StatusSeeOther)
 }
@@ -2238,7 +2286,7 @@ type argmaxHistoryPoint struct {
 // have to read the shape themselves.
 type argmaxStability struct {
 	Status      string // "Stable" / "Mildly variable" / "Highly variable" / "Insufficient data"
-	StatusColor string // tailwind color class for the badge
+	StatusColor string // badge class: badge-warning when highly variable, else badge-neutral
 	Summary     string // e.g. "Last 5 cycles agreed on $4.50" or "Last 5 picks ranged $1.20 - $5.60"
 	StdDev      string // base-currency formatted
 	Recent      string // e.g. "$4.50, $4.50, $3.40" — comma-separated recent picks
@@ -3731,9 +3779,9 @@ func (h *Handler) CreativePages(w http.ResponseWriter, r *http.Request) {
 	})
 }
 
-// --- Advertiser Stats ---
+// --- Advertiser Overview ---
 
-func (h *Handler) AdvertiserStats(w http.ResponseWriter, r *http.Request) {
+func (h *Handler) AdvertiserOverview(w http.ResponseWriter, r *http.Request) {
 	user, claims := h.sessionUser(r)
 	if user == nil {
 		http.Redirect(w, r, "/login", http.StatusSeeOther)
@@ -3899,15 +3947,24 @@ func (h *Handler) AdvertiserStats(w http.ResponseWriter, r *http.Request) {
 	start, end, nav := buildListNav(r, len(campaigns), 8)
 	campaigns = campaigns[start:end]
 
-	h.render(w, r, "advertiser/stats.html", pageData{
-		Title:          "Stats",
-		Nav:            "stats",
+	// The budget + wallet figures beside the chart. The balance is
+	// money-page content: org members see the budget, not the wallet.
+	walletBalance, walletUnfunded := "", false
+	if user.CanBilling() {
+		walletBalance, walletUnfunded = h.walletSummary(r.Context(), claims.AdvertiserID)
+	}
+	h.render(w, r, "advertiser/overview.html", pageData{
+		Title:          "Overview",
+		Nav:            "overview",
 		User:           user,
 		Campaigns:      campaigns,
 		AdvHourly:      hourly,
 		AdvHourlyTotal: hourlyTotal,
 		ListNav:        nav,
 		WalletNotice:   h.walletNotice(r.Context(), claims.AdvertiserID),
+		AdvBudget:      h.advertiserBudgetFor(claims),
+		WalletBalance:  walletBalance,
+		WalletUnfunded: walletUnfunded,
 	})
 }
 
@@ -3978,6 +4035,24 @@ func buildListNavParam(r *http.Request, total, pageSize int, pageParam string) (
 		nav.NextURL = mk(page + 1)
 	}
 	return
+}
+
+// focusPage points ?page at the page holding campaign ?edit=<id> (Overview's
+// "Edit creatives" link), so the row whose edit panel opens is on screen.
+// An explicit ?page wins; an unknown id leaves the page alone.
+func focusPage(r *http.Request, cs []campaignData, pageSize int) {
+	q := r.URL.Query()
+	id := q.Get("edit")
+	if id == "" || q.Get("page") != "" {
+		return
+	}
+	for i := range cs {
+		if cs[i].ID == id {
+			q.Set("page", strconv.Itoa(i/pageSize+1))
+			r.URL.RawQuery = q.Encode()
+			return
+		}
+	}
 }
 
 // sortCampaigns orders the campaigns list by the pulldown's key.
@@ -5163,7 +5238,7 @@ func computeArgmaxStability(lang string, history []argmaxHistoryPoint) *argmaxSt
 	if n == 1 {
 		return &argmaxStability{
 			Status:      "Insufficient data",
-			StatusColor: "bg-gray-100 text-gray-600",
+			StatusColor: "badge-neutral",
 			Summary:     i18n.T(lang, "Only one completed cycle so far (picked %s)", history[0].Label),
 			Recent:      history[0].Label,
 			N:           1,
@@ -5237,15 +5312,15 @@ func computeArgmaxStability(lang string, history []argmaxHistoryPoint) *argmaxSt
 	switch {
 	case spread < stableCV && n >= 3:
 		status = "Stable optimum"
-		color = "bg-green-100 text-green-800"
+		color = "badge-neutral"
 		summary = i18n.T(lang, "Last %d cycles all within %s of %s", agreed, fmtMoney(band), fmtMoney(latest))
 	case spread < mildCV:
 		status = "Mildly variable"
-		color = "bg-yellow-100 text-yellow-800"
+		color = "badge-neutral"
 		summary = i18n.T(lang, "Recent picks: %s (σ=%s)", recent, fmtMoney(stddev))
 	default:
 		status = "Highly variable"
-		color = "bg-red-100 text-red-700"
+		color = "badge-warning"
 		summary = i18n.T(lang, "Recent picks: %s (σ=%s over %d cycles)", recent, fmtMoney(stddev), n)
 	}
 
@@ -5253,7 +5328,7 @@ func computeArgmaxStability(lang string, history []argmaxHistoryPoint) *argmaxSt
 	// std-dev gates above require n≥3. Override label here.
 	if n == 2 && spread < stableCV {
 		status = "Converging"
-		color = "bg-blue-100 text-blue-800"
+		color = "badge-neutral"
 		summary = i18n.T(lang, "2 consecutive cycles agree on %s (collect more cycles to confirm stability)", history[n-1].Label)
 	}
 

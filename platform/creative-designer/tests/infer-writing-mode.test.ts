@@ -7,7 +7,7 @@
 
 import { describe, expect, it } from "vitest";
 import { addItem, initialState } from "../src/state";
-import { inferWritingModeFromLayout } from "../src/ui/toolbar";
+import { inferWritingModeFromLayout } from "../src/ui/tool-rail";
 import type { RectItem, TextItem } from "../src/types";
 
 const text = (over: Partial<TextItem> = {}): TextItem => ({

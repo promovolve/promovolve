@@ -15,6 +15,7 @@ body per response. Both sides read these same files in CI.
 | `advertiser-report-reach.json` | `AdvertiserReachResponse` | `fetchReach` |
 | `publisher-site-categories.json` | `PublisherSiteCategoryReportResponse` | `fetchPublisherSiteCategories` |
 | `publisher-site-categories-empty.json` | same, no rows | `fetchPublisherSiteCategories` |
+| `publisher-site-top.json` | `SiteTopResponse` | `fetchSiteTop` |
 
 **Producer** — `modules/api/src/test/scala/promovolve/api/ReportContractSpec.scala`
 parses each fixture into its DTO and re-encodes it, requiring an identical

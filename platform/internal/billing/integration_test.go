@@ -336,3 +336,61 @@ func TestAdjustRequiresMemoAndBalance(t *testing.T) {
 		t.Fatalf("revenue = %d, want -1000000", rec.RevenueMicros)
 	}
 }
+
+// Endorsed: the operator has credited the wallet at least once (a top-up
+// or a credit adjustment). Spending back down to zero never un-endorses.
+func TestWalletEndorsed(t *testing.T) {
+	pool := testPool(t)
+	svc := NewService(pool)
+	ctx := context.Background()
+
+	endorsed := func(id string) bool {
+		t.Helper()
+		ok, err := svc.WalletEndorsed(ctx, id)
+		if err != nil {
+			t.Fatalf("endorsed %s: %v", id, err)
+		}
+		return ok
+	}
+
+	if endorsed("advNone") {
+		t.Fatal("advertiser with no account is endorsed")
+	}
+	// An account row alone (settlement creates one) is not money.
+	if _, err := svc.EnsureAccount(ctx, OwnerAdvertiser, "advRow"); err != nil {
+		t.Fatalf("ensure: %v", err)
+	}
+	if endorsed("advRow") {
+		t.Fatal("bare account row is endorsed")
+	}
+
+	if _, err := svc.RecordTopup(ctx, TopupParams{
+		AdvertiserID: "advTop", AmountMicros: 5_000_000, IdempotencyKey: "endorse-top",
+	}); err != nil {
+		t.Fatalf("topup: %v", err)
+	}
+	if !endorsed("advTop") {
+		t.Fatal("topped-up advertiser not endorsed")
+	}
+
+	if _, _, err := svc.Adjust(ctx, AdjustParams{
+		Kind: TxnAdjustment, Memo: "signup credit", IdempotencyKey: "endorse-adj",
+		Legs: []Leg{
+			{OwnerType: OwnerAdvertiser, OwnerID: "advAdj", AmountMicros: -1_000_000},
+			{OwnerType: OwnerPlatform, OwnerID: PlatformRevenue, AmountMicros: 1_000_000},
+		},
+	}); err != nil {
+		t.Fatalf("adjust: %v", err)
+	}
+	if !endorsed("advAdj") {
+		t.Fatal("credit adjustment did not endorse")
+	}
+
+	// Refunded to zero: still endorsed (the lock is for never-funded only).
+	if _, err := svc.RefundAdvertiser(ctx, "advTop", 5_000_000, "closing", "", "endorse-refund"); err != nil {
+		t.Fatalf("refund: %v", err)
+	}
+	if !endorsed("advTop") {
+		t.Fatal("spent-down advertiser lost endorsement")
+	}
+}

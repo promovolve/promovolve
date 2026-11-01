@@ -117,9 +117,9 @@ func (h *Handler) PasskeyLoginFinish(w http.ResponseWriter, r *http.Request) {
 func homeFor(role model.Role) string {
 	switch role {
 	case model.RolePublisher:
-		return "/publisher/approval"
+		return "/publisher/overview"
 	case model.RoleAdvertiser:
-		return "/advertiser/campaigns"
+		return "/advertiser/overview"
 	case model.RoleAdmin:
 		return "/admin/requests"
 	default:

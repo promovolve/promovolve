@@ -16,6 +16,7 @@ import (
 	"log/slog"
 	"net/http"
 	"sort"
+	"strconv"
 	"strings"
 	"time"
 
@@ -73,13 +74,12 @@ type adminTopupsData struct {
 // how much, signed. The balancing platform-cash leg is deliberately omitted —
 // the Journal tab is the double-entry view.
 type topupRow struct {
-	Created   string
-	Kind      string
-	KindBadge string
-	Wallet    string // org label of the advertiser wallet
-	Amount    string // signed dollars
-	Negative  bool   // refunds render red
-	Memo      string
+	Created  string
+	Kind     string
+	Wallet   string // org label of the advertiser wallet
+	Amount   string // signed dollars
+	Negative bool   // refunds render red
+	Memo     string
 }
 
 type adminPayoutsData struct {
@@ -132,9 +132,9 @@ type payoutRow struct {
 // journalRow is one ledger transaction: a human summary up front, the raw
 // double-entry legs behind an expand.
 type journalRow struct {
-	Created, Kind, KindBadge, Memo string
-	Summary                        string
-	Legs                           []journalLeg
+	Created, Kind, Memo string
+	Summary             string
+	Legs                []journalLeg
 }
 
 type journalLeg struct {
@@ -157,12 +157,16 @@ type walletPageData struct {
 	Balance, Status       string
 	Timezone              string // billing/budget day zone; "" hides the mention (UTC default)
 	Suspended, LowBalance bool
-	Activity              []walletActivityRow
-	Statement             []statementRow
-	Months                []monthlyRow
+	// Today's delivery so far (charged after midnight), the balance once it
+	// is, and the outlook strip: settled days, today, the days ahead.
+	Pending, Projected string
+	Forecast           *forecast
+	Activity           []walletActivityRow
+	Statement          []statementRow
+	Months             []monthlyRow
 }
 
-type walletActivityRow struct{ Date, Kind, KindBadge, Memo, Amount string }
+type walletActivityRow struct{ Date, Kind, Memo, Amount string }
 
 type statementRow struct {
 	Day, CampaignID, Campaign, SiteID string
@@ -236,19 +240,20 @@ func validNonce(n string) bool { return len(n) >= 16 }
 // minus sign outside the currency symbol (−$12.34, not $-12.34).
 func usdTile(micros int64) string { return BaseCurrency().Format(micros) }
 
-func kindBadge(k billing.TxnKind) string {
+// kindLabel is a ledger transaction kind as shown (the template
+// translates it).
+func kindLabel(k billing.TxnKind) string {
 	switch k {
 	case billing.TxnTopup:
-		return "badge-success"
+		return "Top-up"
 	case billing.TxnPayout:
-		return "badge-info"
+		return "Payout"
 	case billing.TxnRefund:
-		return "badge-danger"
+		return "Refund"
 	case billing.TxnAdjustment:
-		return "badge-warning"
-	default:
-		return "badge-neutral"
+		return "Adjustment"
 	}
+	return string(k)
 }
 
 func statusBadge(s billing.AccountStatus) string {
@@ -410,12 +415,11 @@ func toJournalRows(lang string, txns []billing.Transaction, labels map[string]st
 			})
 		}
 		rows = append(rows, journalRow{
-			Created:   t.CreatedAt.In(loc).Format("2006-01-02 15:04"),
-			Kind:      string(t.Kind),
-			KindBadge: kindBadge(t.Kind),
-			Memo:      t.Memo,
-			Summary:   summarizeTxn(lang, t, labels),
-			Legs:      legs,
+			Created: t.CreatedAt.In(loc).Format("2006-01-02 15:04"),
+			Kind:    kindLabel(t.Kind),
+			Memo:    t.Memo,
+			Summary: summarizeTxn(lang, t, labels),
+			Legs:    legs,
 		})
 	}
 	return rows
@@ -516,10 +520,9 @@ func (h *Handler) renderAdminTopups(w http.ResponseWriter, r *http.Request, errM
 		labels := h.ownerLabels(ctx)
 		for _, t := range txns {
 			row := topupRow{
-				Created:   t.CreatedAt.In(user.Location()).Format("2006-01-02 15:04"),
-				Kind:      string(t.Kind),
-				KindBadge: kindBadge(t.Kind),
-				Memo:      t.Memo,
+				Created: t.CreatedAt.In(user.Location()).Format("2006-01-02 15:04"),
+				Kind:    kindLabel(t.Kind),
+				Memo:    t.Memo,
 			}
 			for _, e := range t.Entries {
 				if e.OwnerType == billing.OwnerAdvertiser {
@@ -714,11 +717,10 @@ func (h *Handler) AdminBillingAccount(w http.ResponseWriter, r *http.Request) {
 	if activity, err := h.billingSvc.ListAccountActivity(ctx, ownerType, ownerID, 20); err == nil {
 		for _, a := range activity {
 			data.Activity = append(data.Activity, walletActivityRow{
-				Date:      a.CreatedAt.In(user.Location()).Format("2006-01-02 15:04"),
-				Kind:      string(a.Kind),
-				KindBadge: kindBadge(a.Kind),
-				Memo:      a.Memo,
-				Amount:    signedUSD(a.AmountMicros),
+				Date:   a.CreatedAt.In(user.Location()).Format("2006-01-02 15:04"),
+				Kind:   kindLabel(a.Kind),
+				Memo:   a.Memo,
+				Amount: signedUSD(a.AmountMicros),
 			})
 		}
 	}
@@ -1184,20 +1186,49 @@ func (h *Handler) AdvertiserWallet(w http.ResponseWriter, r *http.Request) {
 		data.Timezone = tz
 	}
 
+	var balance float64
 	if acc, err := h.billingSvc.GetAccount(ctx, billing.OwnerAdvertiser, advertiserID); err == nil {
 		data.Balance = usdTile(acc.BalanceMicros)
 		data.Status = string(acc.Status)
 		data.Suspended = acc.Status == billing.StatusSuspended
 		data.LowBalance = acc.Status == billing.StatusLowBalance
+		balance = currency.Major(acc.BalanceMicros)
 	}
+	// Today's delivered spend (not yet settled) from the same hourly
+	// source as the campaigns page, and recent settled days.
+	var pending float64
+	hBody, _ := h.coreGet("/v1/advertisers/me/hourly-today", claims)
+	var hResp struct {
+		Hours []struct {
+			Spend string `json:"spend"`
+		} `json:"hours"`
+	}
+	if json.Unmarshal(hBody, &hResp) == nil {
+		for _, hr := range hResp.Hours {
+			v, _ := strconv.ParseFloat(hr.Spend, 64)
+			pending += v
+		}
+	}
+	charged := map[string]float64{}
+	if days, err := h.billingSvc.DailyCharged(ctx, advertiserID, walletDays+1); err == nil {
+		for d, m := range days {
+			charged[d] = currency.Major(m)
+		}
+	}
+	_, loc := h.accountTimeContext(ctx, advertiserID)
+	lang := h.lang(r, user)
+	f, _ := walletForecast(lang, charged, balance, pending, time.Now().In(loc))
+	if data.Suspended {
+		f.Alert, f.Outlook = "warning", i18n.T(lang, "Serving is paused — your wallet is out of funds.")
+	}
+	data.Forecast, data.Pending, data.Projected = &f, fmtMoney(pending), fmtMoney(balance-pending)
 	if activity, err := h.billingSvc.ListAccountActivity(ctx, billing.OwnerAdvertiser, advertiserID, 20); err == nil {
 		for _, a := range activity {
 			data.Activity = append(data.Activity, walletActivityRow{
-				Date:      a.CreatedAt.In(user.Location()).Format("2006-01-02 15:04"),
-				Kind:      string(a.Kind),
-				KindBadge: kindBadge(a.Kind),
-				Memo:      a.Memo,
-				Amount:    signedUSD(a.AmountMicros),
+				Date:   a.CreatedAt.In(user.Location()).Format("2006-01-02 15:04"),
+				Kind:   kindLabel(a.Kind),
+				Memo:   a.Memo,
+				Amount: signedUSD(a.AmountMicros),
 			})
 		}
 	}
@@ -1237,16 +1268,9 @@ func (h *Handler) PublisherEarnings(w http.ResponseWriter, r *http.Request) {
 	}
 	ctx := r.Context()
 	publisherID := claims.PublisherID
-	data := &earningsPageData{Accrued: "0.00", LifetimePaid: "0.00"}
+	data := h.settledEarnings(ctx, publisherID)
 	if tz, err := h.orgRepo.TimezoneByEntity(ctx, publisherID); err == nil {
 		data.Timezone = tz
-	}
-
-	if acc, err := h.billingSvc.GetAccount(ctx, billing.OwnerPublisher, publisherID); err == nil {
-		data.Accrued = usd(acc.BalanceMicros)
-	}
-	if paid, err := h.billingSvc.LifetimePaid(ctx, publisherID); err == nil {
-		data.LifetimePaid = usd(paid)
 	}
 	if payouts, err := h.billingSvc.ListPayouts(ctx, publisherID, 20, 0); err == nil {
 		data.Payouts = toPayoutRows(payouts, user.Location())
@@ -1275,6 +1299,19 @@ func (h *Handler) PublisherEarnings(w http.ResponseWriter, r *http.Request) {
 		User:     user,
 		Earnings: data,
 	})
+}
+
+// settledEarnings is the balance owed and lifetime paid: the Earnings
+// page's headline, and the money figures on the publisher Overview.
+func (h *Handler) settledEarnings(ctx context.Context, publisherID string) *earningsPageData {
+	data := &earningsPageData{Accrued: "0.00", LifetimePaid: "0.00"}
+	if acc, err := h.billingSvc.GetAccount(ctx, billing.OwnerPublisher, publisherID); err == nil {
+		data.Accrued = usd(acc.BalanceMicros)
+	}
+	if paid, err := h.billingSvc.LifetimePaid(ctx, publisherID); err == nil {
+		data.LifetimePaid = usd(paid)
+	}
+	return data
 }
 
 func (h *Handler) UpdatePayoutMethod(w http.ResponseWriter, r *http.Request) {

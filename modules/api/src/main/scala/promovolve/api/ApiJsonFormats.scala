@@ -158,6 +158,8 @@ trait ApiJsonFormats extends DefaultJsonProtocol {
   given RootJsonFormat[TokenCheckRequest] = jsonFormat1(TokenCheckRequest.apply)
   given RootJsonFormat[TokenCheckResponse] = jsonFormat1(TokenCheckResponse.apply)
   given RootJsonFormat[BidCheckResponse] = jsonFormat14(BidCheckResponse.apply)
+  given RootJsonFormat[DeliveryCheckItem] = jsonFormat3(DeliveryCheckItem.apply)
+  given RootJsonFormat[DeliveryCheckResponse] = jsonFormat2(DeliveryCheckResponse.apply)
   given RootJsonFormat[VerificationResponse] = jsonFormat3(VerificationResponse.apply)
 
   // Pacing Config
@@ -174,6 +176,9 @@ trait ApiJsonFormats extends DefaultJsonProtocol {
   given RootJsonFormat[CategoryDemand] = jsonFormat6(CategoryDemand.apply)
   given RootJsonFormat[CategoryDemandResponse] = jsonFormat2(CategoryDemandResponse.apply)
   given RootJsonFormat[SiteRevenueTodayResponse] = jsonFormat5(SiteRevenueTodayResponse.apply)
+  given RootJsonFormat[SiteTopPage] = jsonFormat4(SiteTopPage.apply)
+  given RootJsonFormat[SiteTopCreative] = jsonFormat7(SiteTopCreative.apply)
+  given RootJsonFormat[SiteTopResponse] = jsonFormat5(SiteTopResponse.apply)
   given RootJsonFormat[MarketRateRow] = jsonFormat7(MarketRateRow.apply)
   given RootJsonFormat[MarketRatesResponse] = jsonFormat6(MarketRatesResponse.apply)
   given RootJsonFormat[CategoryAvailability] = jsonFormat4(CategoryAvailability.apply)
@@ -264,7 +269,8 @@ trait ApiJsonFormats extends DefaultJsonProtocol {
   given RootJsonFormat[CampaignSpendTodayRow] = jsonFormat3(CampaignSpendTodayRow.apply)
   given RootJsonFormat[AdvertiserCampaignSpendTodayResponse] = jsonFormat3(AdvertiserCampaignSpendTodayResponse.apply)
   given RootJsonFormat[HourlyDeliveryRow] = jsonFormat3(HourlyDeliveryRow.apply)
-  given RootJsonFormat[AdvertiserHourlyTodayResponse] = jsonFormat3(AdvertiserHourlyTodayResponse.apply)
+  given RootJsonFormat[CampaignHourlyRow] = jsonFormat4(CampaignHourlyRow.apply)
+  given RootJsonFormat[AdvertiserHourlyTodayResponse] = jsonFormat4(AdvertiserHourlyTodayResponse.apply)
   given RootJsonFormat[ReportDailyRow] = jsonFormat11(ReportDailyRow.apply)
   given RootJsonFormat[AdvertiserReportResponse] = jsonFormat4(AdvertiserReportResponse.apply)
   given RootJsonFormat[ReportBreakdownRow] = jsonFormat7(ReportBreakdownRow.apply)

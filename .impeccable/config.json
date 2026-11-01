@@ -1,0 +1,9 @@
+{
+  "detector": {
+    "ignoreRules": [],
+    "ignoreFiles": [
+      ".impeccable/mocks/decision/r2-transit.html"
+    ],
+    "ignoreValues": []
+  }
+}

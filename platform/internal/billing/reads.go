@@ -321,6 +321,26 @@ func (s *Service) ListAccountActivity(ctx context.Context, ownerType OwnerType, 
 	return out, rows.Err()
 }
 
+// WalletEndorsed reports whether the operator has ever credited this
+// advertiser's wallet: a top-up, or an adjustment that credits it (a
+// negative entry; positive debits). Until then the dashboard pins the
+// advertiser to Overview. Never cleared: a wallet spent back to zero stays
+// endorsed — that is the suspended state, not this one.
+func (s *Service) WalletEndorsed(ctx context.Context, advertiserID string) (bool, error) {
+	var ok bool
+	err := s.pool.QueryRow(ctx, `
+		SELECT EXISTS (
+			SELECT 1
+			FROM ledger_entries e
+			JOIN billing_accounts a ON a.id = e.account_id
+			JOIN ledger_transactions t ON t.id = e.txn_id
+			WHERE a.owner_type = $1 AND a.owner_id = $2
+			  AND t.kind IN ('topup', 'adjustment') AND e.amount_micros < 0)`,
+		OwnerAdvertiser, advertiserID,
+	).Scan(&ok)
+	return ok, err
+}
+
 // MonthlySpendRow aggregates an owner's settled money by calendar month.
 type MonthlySpendRow struct {
 	Month       string // YYYY-MM
@@ -367,6 +387,31 @@ func (s *Service) MonthlySettled(ctx context.Context, ownerType OwnerType, owner
 			return nil, err
 		}
 		out = append(out, m)
+	}
+	return out, rows.Err()
+}
+
+// DailyCharged returns an advertiser's settled gross by local day
+// (YYYY-MM-DD) over roughly the last `days` days. Days with no delivery
+// have no entry; the caller reads them as zero.
+func (s *Service) DailyCharged(ctx context.Context, advertiserID string, days int) (map[string]int64, error) {
+	rows, err := s.pool.Query(ctx, `
+		SELECT to_char(local_date, 'YYYY-MM-DD'), COALESCE(SUM(gross_micros), 0)
+		FROM advertiser_settlements
+		WHERE advertiser_id = $1 AND local_date > CURRENT_DATE - $2::int - 2
+		GROUP BY local_date`, advertiserID, days)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	out := map[string]int64{}
+	for rows.Next() {
+		var day string
+		var gross int64
+		if err := rows.Scan(&day, &gross); err != nil {
+			return nil, err
+		}
+		out[day] = gross
 	}
 	return out, rows.Err()
 }

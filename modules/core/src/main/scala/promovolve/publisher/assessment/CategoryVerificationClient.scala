@@ -472,7 +472,7 @@ JSON: {"match_confidence": 0.5, "reason": "description of ad", "suggested_conten
 
         val suggestedContentCategories = getField("suggested_content_categories")
           .collect { case JsArray(elements) =>
-            CategoryVerificationClient.contentCategoryIds(elements.collect { case JsString(s) => s })
+            CategoryVerificationClient.contentCategoryIds(elements)
           }
           .getOrElse(Nil)
 
@@ -506,12 +506,16 @@ JSON: {"match_confidence": 0.5, "reason": "description of ad", "suggested_conten
 object CategoryVerificationClient {
 
   /**
-   * The campaign-side model. Deliberately NOT the page classifier's
-   * `IABTaxonomy.Provider.DefaultGeminiModel`: this prompt was tuned and is
-   * running on 2.5-flash, and a model change ships only after
-   * scripts/classify-eval/run-campaigns.sh compares it (#422).
+   * The campaign-side model. Kept separate from the page classifier's
+   * `IABTaxonomy.Provider.DefaultGeminiModel` so each moves only after its
+   * own eval. gemini-3.5-flash-lite since #429, measured by
+   * scripts/classify-eval/run-campaigns.sh on 21 production landing pages
+   * against 2.5-flash with thinking off: every answer well-formed and on
+   * topic, about half the categories per answer (5.4 vs 10.1). 2.5-flash
+   * without thinking ignored the JSON shape on 5 of 21 pages; with thinking
+   * it ran out of output tokens.
    */
-  val DefaultModel = "gemini-2.5-flash"
+  val DefaultModel = "gemini-3.5-flash-lite"
 
   /** `GEMINI_CAMPAIGN_MODEL` moves it without a release (e.g. when Google retires a model). */
   def modelFromEnv(): String = sys.env.get("GEMINI_CAMPAIGN_MODEL").filter(_.nonEmpty).getOrElse(DefaultModel)
@@ -520,10 +524,19 @@ object CategoryVerificationClient {
    * The prompt lists the taxonomy as `- 58: Business and Finance > …` and the
    * model sometimes echoes the whole line back. Keep the id before the `:`,
    * and only ids the taxonomy knows: anything else would become a campaign
-   * category that no page can ever match (#429).
+   * category that no page can ever match (#429). Numeric ids sometimes come
+   * back as JSON numbers.
    */
-  def contentCategoryIds(values: Seq[String]): List[String] =
-    values.flatMap(v => TieredCategory.get(v.takeWhile(_ != ':').trim)).map(_.id).distinct.toList
+  def contentCategoryIds(values: Seq[JsValue]): List[String] =
+    values
+      .collect {
+        case JsString(s) => s.takeWhile(_ != ':').trim
+        case JsNumber(n) => n.toString
+      }
+      .flatMap(TieredCategory.get)
+      .map(_.id)
+      .distinct
+      .toList
 
   private[assessment] val safetySettings = JsArray(
     JsObject("category" -> JsString("HARM_CATEGORY_HARASSMENT"), "threshold" -> JsString("BLOCK_NONE")),

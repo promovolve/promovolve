@@ -75,16 +75,15 @@ agree, so this side gets measured too.
 
 ```sh
 export GEMINI_API_KEY=…
-scripts/classify-eval/run-campaigns.sh                       # production model (2.5-flash)
-GEMINI_CAMPAIGN_MODEL=gemini-3.5-flash-lite \
-  scripts/classify-eval/run-campaigns.sh --no-extract \
-  --baseline scripts/classify-eval/out/campaigns-gemini-2.5-flash.json
+scripts/classify-eval/run-campaigns.sh                       # production model (3.5-flash-lite)
+GEMINI_CAMPAIGN_MODEL=<candidate> scripts/classify-eval/run-campaigns.sh --no-extract --baseline scripts/classify-eval/out/campaigns-gemini-3.5-flash-lite.json
 ```
 
 `campaigns.tsv` is `url  ad-product-id  accepted-content-ids  note` (the
 landing pages from production's `creative` table; ad-product id empty =
 none, which is what production sends today), scored
-with the page eval's rule. The count column shows how many categories each
+with the page eval's rule minus its sibling check (Budget Travel beside Air
+Travel is breadth on a campaign, not a contradiction). The count column shows how many categories each
 answer had: a wide answer spends the campaign's budget on loosely related
 pages, and the score does not catch that. Text comes from `extract.mjs`
 (8,000 chars); production reads up to 30,000 of the landing page, so very

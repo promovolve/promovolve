@@ -7,7 +7,8 @@ import spray.json.*
 
 class CategoryVerificationClientSpec extends AnyWordSpec with Matchers {
 
-  import CategoryVerificationClient.contentCategoryIds
+  private def contentCategoryIds(values: String*) =
+    CategoryVerificationClient.contentCategoryIds(values.map(JsString(_)))
 
   // The prompt lists the taxonomy as "- 58: Business and Finance > …" and the
   // model sometimes echoes the whole line back. Stored as-is, that string is a
@@ -15,20 +16,25 @@ class CategoryVerificationClientSpec extends AnyWordSpec with Matchers {
   "contentCategoryIds" should {
 
     "keep plain taxonomy ids" in {
-      contentCategoryIds(List("58", "479")) shouldBe List("58", "479")
+      contentCategoryIds("58", "479") shouldBe List("58", "479")
     }
 
     "strip a name echoed after the id" in {
-      contentCategoryIds(List("58: Business and Finance > Business > Marketing and Advertising", " 479 : Travel"))
+      contentCategoryIds("58: Business and Finance > Business > Marketing and Advertising", " 479 : Travel")
         .shouldBe(List("58", "479"))
     }
 
     "drop strings that are not taxonomy ids" in {
-      contentCategoryIds(List("category_id", "Travel", "999999")) shouldBe Nil
+      contentCategoryIds("category_id", "Travel", "999999") shouldBe Nil
     }
 
     "drop duplicates that differ only by the echoed name" in {
-      contentCategoryIds(List("58", "58: Business and Finance")) shouldBe List("58")
+      contentCategoryIds("58", "58: Business and Finance") shouldBe List("58")
+    }
+
+    // soratobi on the eval came back as [653, 672, 663, …] (#429)
+    "accept ids sent as JSON numbers" in {
+      CategoryVerificationClient.contentCategoryIds(Seq(JsNumber(653), JsNumber(672))) shouldBe List("653", "672")
     }
   }
 
@@ -38,12 +44,12 @@ class CategoryVerificationClientSpec extends AnyWordSpec with Matchers {
 
     "turn thinking off for the 2.5 family" in {
       IABTaxonomy.geminiThinkingConfig("gemini-2.5-flash") shouldBe
-        Some("thinkingConfig" -> JsObject("thinkingBudget" -> JsNumber(0)))
+      Some("thinkingConfig" -> JsObject("thinkingBudget" -> JsNumber(0)))
     }
 
     "use the minimal thinking level for the 3.5 family" in {
       IABTaxonomy.geminiThinkingConfig("gemini-3.5-flash-lite") shouldBe
-        Some("thinkingConfig" -> JsObject("thinkingLevel" -> JsString("minimal")))
+      Some("thinkingConfig" -> JsObject("thinkingLevel" -> JsString("minimal")))
     }
 
     "send nothing for an unknown generation" in {
@@ -53,7 +59,7 @@ class CategoryVerificationClientSpec extends AnyWordSpec with Matchers {
     "be part of the campaign classifier's text request" in {
       val body = CategoryVerificationClient.textRequestBody("prompt", "gemini-2.5-flash").parseJson.asJsObject
       body.fields("generationConfig").asJsObject.fields.get("thinkingConfig") shouldBe
-        Some(JsObject("thinkingBudget" -> JsNumber(0)))
+      Some(JsObject("thinkingBudget" -> JsNumber(0)))
     }
   }
 }

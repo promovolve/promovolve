@@ -18,7 +18,8 @@ import scala.util.Try
  * this. The page eval's sibling: runs the REAL CategoryVerificationClient
  * (same prompt and model as campaign creation) over campaigns.tsv, using
  * landing-page text captured by extract.mjs, and scores the content
- * categories it picks with the page eval's own rule (ClassifyEval.scoreCategories).
+ * categories it picks with the page eval's own rule (ClassifyEval.scoreCategories),
+ * minus its sibling-contradiction check.
  * Also prints how many categories each answer had: on this side breadth is
  * the cost, and the score does not judge unrelated extras.
  *
@@ -66,7 +67,7 @@ object CampaignClassifyEval {
                 ex => Row(c.url, Vector.empty, Verdict.Skip, Some(ex.getMessage)),
                 r => {
                   val cats = r.suggestedContentCategories.toVector
-                  Row(c.url, cats, ClassifyEval.scoreCategories(c.expect, cats), None)
+                  Row(c.url, cats, ClassifyEval.scoreCategories(c.expect, cats, siblingsContradict = false), None)
                 }
               )
           }

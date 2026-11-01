@@ -190,7 +190,7 @@ object CampaignEntity {
 
         /** Mark requestId as processed in bloom filter */
         def markProcessed(requestId: String): Unit =
-          ephemeral.markProcessed(requestId)
+          ephemeral = ephemeral.markProcessed(requestId)
 
         /** Get serialized bloom filter for persistence */
         def serializeFilter(): Array[Byte] =
@@ -1732,7 +1732,13 @@ object CampaignEntity {
       flushSeq: Long,
       idempotencyFilter: BloomFilter, // Bloom filter for idempotency (serialized on flush)
       lastRolledEpochDay: Long = -1L, // Guard against double day-roll (prevents race between RecordSpend and CheckWindowRoll)
-      bidsToday: Long = 0 // Eligible bid count today (for win rate: impressions / bidsToday)
+      bidsToday: Long = 0, // Eligible bid count today (for win rate: impressions / bidsToday)
+      // A Bloom filter's false-positive rate climbs fast past its sized
+      // capacity, and a false positive skips a real charge. So when the
+      // current filter is full it becomes `previousFilter` (still checked)
+      // and a fresh one starts. Only the current filter is persisted.
+      previousFilter: Option[BloomFilter] = None,
+      filterInserts: Int = 0
   ) {
     def spend: Spend = buffer.spend
     def count: Int = buffer.count
@@ -1753,12 +1759,21 @@ object CampaignEntity {
     }
 
     /** Check if requestId might be a duplicate */
-    def mightContain(requestId: String): Boolean =
-      idempotencyFilter.maybeContains(requestId.hash)
+    def mightContain(requestId: String): Boolean = {
+      val h = requestId.hash
+      idempotencyFilter.maybeContains(h) || previousFilter.exists(_.maybeContains(h))
+    }
 
-    /** Mark requestId as processed */
-    def markProcessed(requestId: String): Unit =
-      idempotencyFilter.add(requestId.hash)
+    /** Mark requestId as processed, rotating the filter when it is full */
+    def markProcessed(requestId: String): EphemeralState =
+      if (filterInserts >= EphemeralState.FilterCapacity) {
+        val fresh = EphemeralState.createFilter()
+        fresh.add(requestId.hash)
+        copy(idempotencyFilter = fresh, previousFilter = Some(idempotencyFilter), filterInserts = 1)
+      } else {
+        idempotencyFilter.add(requestId.hash)
+        copy(filterInserts = filterInserts + 1)
+      }
 
     /** Serialize the filter for persistence */
     def serializeFilter: Array[Byte] =
@@ -1766,7 +1781,7 @@ object CampaignEntity {
 
     /** Reset filter for new day */
     def withFreshFilter: EphemeralState =
-      copy(idempotencyFilter = EphemeralState.createFilter(), bidsToday = 0)
+      copy(idempotencyFilter = EphemeralState.createFilter(), previousFilter = None, filterInserts = 0, bidsToday = 0)
 
     /**
      * Check if we've already rolled to the given epoch day (guards against double roll).
@@ -2534,9 +2549,9 @@ object CampaignEntity {
     val empty: SpendBuffer = SpendBuffer(Spend.zero, 0)
   }
 
-  private object EphemeralState {
+  private[advertiser] object EphemeralState {
     // Bloom filter sizing for idempotency
-    private val FilterCapacity = 50000 // Expected unique requestIds per day
+    private[advertiser] val FilterCapacity = 50000 // Expected unique requestIds per day
     private val FilterFpp = 0.0001 // 0.01% false positive rate (lower than before for fewer false skips)
 
     def empty: EphemeralState =
@@ -2548,7 +2563,7 @@ object CampaignEntity {
           scala.util.Try(BloomFilter.deserialize(filter)).getOrElse(createFilter())
         else
           createFilter()
-      EphemeralState(SpendBuffer.empty, 0L, bf)
+      EphemeralState(SpendBuffer.empty, 0L, bf, filterInserts = bf.estimateInsertCount)
     }
 
     def createFilter(): BloomFilter = BloomFilter.create(FilterCapacity, FilterFpp)

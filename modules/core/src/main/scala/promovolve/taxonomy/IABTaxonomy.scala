@@ -45,11 +45,9 @@ class IABTaxonomy(
 
   // Classification is demand-INDEPENDENT: a page is classified against the FULL
   // IAB taxonomy (its intrinsic topic); demand is intersected later at the
-  // auction (ancestor-expanded). `fallbackCategories` does NOT influence the
-  // classification — it is used ONLY when the LLM call fails (see `.recover`
-  // below) to seed a broad low-confidence pool so the auction isn't starved.
-  // (Renamed from the old `categoryOverride`, which looked like it controlled
-  // classification but only fed this fallback.)
+  // auction (ancestor-expanded). A failed call FAILS the Future — never a
+  // guessed answer: SiteEntity then stores nothing and the next visit retries
+  // (#421; a guess was stored as a real classification for ~48h).
   /**
    * @param publisherHint
    *   Topic the PUBLISHER declares for this page — e.g. a WordPress post's
@@ -62,11 +60,10 @@ class IABTaxonomy(
   def analyzeTaxonomy(
       url: String,
       text: String,
-      fallbackCategories: Set[String] = Set.empty,
       publisherHint: Option[String] = None,
       placeHint: Option[String] = None
   ): Future[List[Selection]] =
-    analyze(url, text, fallbackCategories, publisherHint, placeHint).map(_.categories)
+    analyze(url, text, publisherHint, placeHint).map(_.categories)
 
   /**
    * Classify a page: what it is ABOUT (IAB categories) and, since 2026-08,
@@ -79,7 +76,6 @@ class IABTaxonomy(
   def analyze(
       url: String,
       text: String,
-      fallbackCategories: Set[String] = Set.empty,
       publisherHint: Option[String] = None,
       placeHint: Option[String] = None
   ): Future[Analysis] = {
@@ -200,40 +196,17 @@ class IABTaxonomy(
           p.future
         case Left((status, body, _)) =>
           logger.error(s"${provider.name} API error $status for $url: $body")
-          // Carry the full response body in the exception so the breaker's
-          // recover block can surface it — otherwise only "API error: 429"
-          // makes it out and the actual provider message (rate-limit detail,
-          // quota info, etc.) gets swallowed.
+          // Carry the full response body in the exception so the caller's
+          // failure log (SiteEntity's FailedToAnalyzeContent) can surface it —
+          // otherwise only "API error: 429" makes it out and the actual
+          // provider message (rate-limit detail, quota info, etc.) gets swallowed.
           throw new RuntimeException(s"${provider.name} API error $status: $body")
       }
     }
 
-    rateLimitGate
-      .flatMap { _ =>
-        breaker.withCircuitBreaker(withRetry(attempt = 1, maxAttempts = 4))
-      }
-      .recover { case e: Exception =>
-        // When the LLM fails (rate limit exhausted, breaker open, etc.)
-        // we don't want the auction to stall on an unclassified page —
-        // downstream treats empty category scores as "no demand
-        // matches" and the slot stays empty. Fall back to a uniform
-        // low-confidence match over the demand categories passed in
-        // so the auction sees a broad pool instead of nothing.
-        val fallbackConfidence = 0.25
-        val fallback = fallbackCategories.toList.map { cid =>
-          Selection(cid, fallbackConfidence)
-        }
-        logger.error(
-          s"IABTaxonomy ${provider.name} error for $url: ${e.getMessage} " +
-          s"— falling back to ${fallback.size} demand categories @ conf=$fallbackConfidence",
-          e
-        )
-        // No place fallback. A guessed category keeps the auction from
-        // starving; a guessed PLACE would put an advertiser's geographic
-        // buy on a page nobody established is about that place. Empty is
-        // the honest answer, and place targeting simply does not match.
-        Analysis(fallback, Nil)
-      }
+    rateLimitGate.flatMap { _ =>
+      breaker.withCircuitBreaker(withRetry(attempt = 1, maxAttempts = 4))
+    }
   }
 
   // ========== Request Builders ==========

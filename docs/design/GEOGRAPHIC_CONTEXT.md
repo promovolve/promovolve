@@ -955,10 +955,13 @@ anywhere. `analyzeTaxonomy` stays as a categories-only wrapper.
 > **Superseded 2026-08-25 (step 11).** The prompt no longer asks for codes at
 > all — see *Names, not codes*. Everything else in this step still holds.
 
-**No place fallback on LLM failure.** A guessed category keeps the auction from
-starving; a guessed *place* would put an advertiser's geographic buy on a page
-nobody established is about that place. The failure path returns
-`Analysis(fallbackCategories, Nil)`.
+**No place fallback on LLM failure.** A guessed *place* would put an
+advertiser's geographic buy on a page nobody established is about that place.
+
+> **Since #421 there is no category fallback either.** A failed call fails:
+> SiteEntity stores nothing and the next visit retries. The old fallback
+> (every demand category at confidence 0.25) was stored as a real
+> classification and served unrelated ads for the whole freshness window.
 
 Plugin **v0.4.0** sends `data-place` from location-ish taxonomy slugs
 (`destination`, `location`, `city`, …, filterable via

@@ -535,13 +535,10 @@ object SiteEntity {
             // are zero advertisers), but classification itself is demand-INDEPENDENT
             // (full taxonomy); the demand set is not passed in.
             (assistant, demandCategories) match {
-              case (Some(iabTaxonomy), Some(cats)) =>
-                // cats is the FALLBACK only (used if the LLM fails); classification
-                // itself is full-taxonomy / demand-independent.
+              case (Some(iabTaxonomy), Some(_)) =>
                 ctx.pipeToSelf(iabTaxonomy.analyze(
                   url,
                   text,
-                  fallbackCategories = cats,
                   publisherHint = publisherHint,
                   placeHint = placeHint
                 )) {

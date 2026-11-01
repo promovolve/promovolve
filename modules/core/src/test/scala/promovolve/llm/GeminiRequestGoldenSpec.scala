@@ -89,4 +89,24 @@ class GeminiRequestGoldenSpec extends AnyWordSpec with Matchers with BeforeAndAf
           | "generationConfig":{"temperature":0.95,"maxOutputTokens":8000}}""".stripMargin)
     }
   }
+
+  "reading Gemini's reply" should {
+
+    "report the prompt, cached and output token counts" in {
+      GeminiGateway.usage(
+        """{"candidates":[],"usageMetadata":{"promptTokenCount":11693,"cachedContentTokenCount":11264,
+          | "candidatesTokenCount":180,"totalTokenCount":11873}}""".stripMargin) shouldBe
+      Some(GeminiGateway.Usage(prompt = 11693, cached = 11264, output = 180))
+    }
+
+    "count no cached tokens when Gemini leaves the field out" in {
+      GeminiGateway.usage("""{"usageMetadata":{"promptTokenCount":11693,"candidatesTokenCount":180}}""") shouldBe
+      Some(GeminiGateway.Usage(prompt = 11693, cached = 0, output = 180))
+    }
+
+    "give nothing for a reply without usage" in {
+      GeminiGateway.usage("{}") shouldBe None
+      GeminiGateway.usage("not json") shouldBe None
+    }
+  }
 }

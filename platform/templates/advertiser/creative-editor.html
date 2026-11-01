@@ -39,8 +39,10 @@
   <div class="mb-6">
     <h1 class="page-title">{{t "Creative Editor"}}</h1>
     <p class="page-sub">
+      {{/* No creatives yet: the Creatives list would only send the
+           advertiser back here, so the way out is the campaign list. */}}
       {{if .NoCreatives}}
-      <span class="text-gray-500">{{template "i-back"}} {{t "Creatives"}}</span>
+      <a href="/advertiser/campaigns" class="text-brand-ink">{{template "i-back"}} {{t "Campaigns"}}</a>
       {{else}}
       <a href="/advertiser/creatives?campaignId={{.CampaignID}}" class="text-brand-ink">{{template "i-back"}} {{t "Creatives"}}</a>
       {{end}}

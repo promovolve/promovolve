@@ -4,6 +4,16 @@
     "ignoreFiles": [
       ".impeccable/mocks/decision/r2-transit.html"
     ],
-    "ignoreValues": []
+    "ignoreValues": [
+      {
+        "rule": "broken-image",
+        "value": "*",
+        "files": [
+          "platform/templates/advertiser/creative-editor.html"
+        ],
+        "createdAt": "2026-11-01T07:45:18.712Z",
+        "reason": "Claude: images bind src at runtime via Alpine :src (lines 195, 252, 284); not empty in the browser"
+      }
+    ]
   }
 }

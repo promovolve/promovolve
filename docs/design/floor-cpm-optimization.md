@@ -131,7 +131,8 @@ noise.
   plateau.
 - Per-slot floor overrides (admin escape hatch) bypass the category floor and
   the quality scaling entirely; overridden slots are also excluded from floor
-  learning.
+  learning. An override below the publisher's minimum floor is lifted to the
+  minimum, including when the minimum is raised after the override was set.
 - Per-category floors are pushed state (SiteEntity → auctioneer → AdServer):
   a freshly restarted auctioneer serves under defaults until the first push
   arrives, then under the learned floors. Both regimes obey the same

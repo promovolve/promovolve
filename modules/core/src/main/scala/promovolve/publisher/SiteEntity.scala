@@ -906,13 +906,9 @@ object SiteEntity {
             // Replay admin per-slot floor overrides to AuctioneerEntity so
             // they survive restarts — they are the only per-slot overrides
             // the auctioneer takes.
-            state.config.foreach { cfg =>
-              val adminMap = cfg.slots
-                .flatMap(s => s.floorOverride.map(cpm => SlotId(s.slotId) -> cpm))
-                .toMap
-              if (adminMap.nonEmpty)
-                auctioneerRef ! AuctioneerEntity.UpdateAdminSlotFloors(adminMap)
-            }
+            val adminMap = state.adminSlotFloors
+            if (adminMap.nonEmpty)
+              auctioneerRef ! AuctioneerEntity.UpdateAdminSlotFloors(adminMap)
             // Replay persisted page classifications to AuctioneerEntity so the
             // auctioneer's `lastPage` is repopulated before the cluster sees
             // serve traffic — PeriodicReauction has something to chew on
@@ -1229,6 +1225,10 @@ object SiteEntity {
                   .persist(adjustedState)
                   .thenRun { _ =>
                     floorSweepOptimizer.foreach(_.setMinFloor(cpm.toDouble))
+                    // Slot overrides are clamped to the minimum, so a new
+                    // minimum can change what the auctioneer should hold.
+                    if (adjustedState.adminSlotFloors != state.adminSlotFloors)
+                      auctioneerRef ! AuctioneerEntity.UpdateAdminSlotFloors(adjustedState.adminSlotFloors)
                     if (adjustedState.floorCpm != state.floorCpm) {
                       auctioneerRef ! AuctioneerEntity.UpdateFloorCpm(adjustedState.floorCpm)
                       publishPacingConfig(state.pacingConfig.copy(bidWeight = adjustedState.bidWeight,
@@ -1245,9 +1245,7 @@ object SiteEntity {
                 // re-admits bids below them until the next edit or
                 // SiteEntity restart. An empty map is sent too: it clears
                 // overrides that were removed while the auctioneer was down.
-                val adminMap = state.config.map(_.slots).getOrElse(Nil)
-                  .flatMap(s => s.floorOverride.map(cpm => SlotId(s.slotId) -> cpm))
-                  .toMap
+                val adminMap = state.adminSlotFloors
                 ctx.log.info(
                   "SiteEntity {} re-arming restarted auctioneer with {} admin slot floors",
                   siteId.value, adminMap.size)
@@ -1302,15 +1300,11 @@ object SiteEntity {
                         val newConfig = cfg.copy(slots = newSlots)
                         Effect
                           .persist(state.withConfig(newConfig))
-                          .thenRun { _ =>
+                          .thenRun { persisted =>
                             // Push the full admin-overrides map to the
-                            // auctioneer. Empty values mean "no admin
-                            // override" — those slots fall back to the
-                            // crawler prior at scoring time.
-                            val adminMap = newSlots
-                              .flatMap(s => s.floorOverride.map(cpm => SlotId(s.slotId) -> cpm))
-                              .toMap
-                            auctioneerRef ! AuctioneerEntity.UpdateAdminSlotFloors(adminMap)
+                            // auctioneer. Slots without an override fall
+                            // back to the site/category floor.
+                            auctioneerRef ! AuctioneerEntity.UpdateAdminSlotFloors(persisted.adminSlotFloors)
                           }
                           .thenReply(replyTo)(_ => SlotFloorOverrideUpdated(siteId, slotId, floor))
                     }
@@ -2922,6 +2916,17 @@ object SiteEntity {
     def unblockAdProducts(cats: Set[AdProductCategoryId]): State = copy(adProductBlocklist = adProductBlocklist -- cats)
     def withFloorCpm(cpm: CPM): State = copy(floorCpm = cpm)
     def withMinFloorCpm(cpm: CPM): State = copy(minFloorCpm = cpm)
+
+    /**
+     * Per-slot floor overrides as the auctioneer takes them. An override
+     * under the publisher's minimum floor is lifted to the minimum: the
+     * minimum is "never sell below this", including when it is raised
+     * after the override was set.
+     */
+    def adminSlotFloors: Map[SlotId, CPM] =
+      config.map(_.slots).getOrElse(Nil)
+        .flatMap(s => s.floorOverride.map(cpm => SlotId(s.slotId) -> (if (cpm < minFloorCpm) minFloorCpm else cpm)))
+        .toMap
     def withBidWeight(w: Double): State = copy(bidWeight = w)
     def withFloorSweepSnapshot(snap: FloorSweepOptimizer.Snapshot): State = copy(floorSweepSnapshot = Some(snap))
     def withRecentFloorObservations(obs: Vector[FloorObservation]): State = copy(recentFloorObservations = obs)

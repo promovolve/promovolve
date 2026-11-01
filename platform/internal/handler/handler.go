@@ -1145,8 +1145,14 @@ func (h *Handler) sessionUser(r *http.Request) (*model.User, *model.Claims) {
 		}
 		u.ViewAsBy = actor.Email
 	}
+	u.IsOperator = u.Role == model.RoleAdmin
+	if claims.OrgID == "" && u.IsOperator {
+		if o, _, err := h.orgRepo.SessionMembership(r.Context(), u.ID); err == nil {
+			u.OperatorOrg = o
+		}
+	}
 	if claims.OrgID != "" {
-		o, m, err := h.orgRepo.ForUser(r.Context(), u.ID)
+		o, m, err := h.orgRepo.SessionMembership(r.Context(), u.ID)
 		if err != nil || o.ID != claims.OrgID {
 			return nil, nil
 		}

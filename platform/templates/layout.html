@@ -133,17 +133,16 @@
         {{end}}
       </nav>
       <div class="ml-auto self-center flex items-center gap-1 sm:gap-2 min-w-0">
-        {{if .User.HasBothSides}}
-        {{/* Side switcher: the org holds both accounts; one login, pick a hat. */}}
+        {{with .User.SwitchTargets}}
+        {{/* Side switcher: one login, pick a hat — the org's two sides, or an
+             operator's own session plus their org's sides. */}}
         <div class="hidden sm:flex border border-gray-900 rounded-sm text-xs" role="group" aria-label="{{t "Account side"}}">
+          {{range .}}
           <form method="POST" action="/account/switch-side" data-viewas-allowed>
-            <input type="hidden" name="side" value="advertiser">
-            <button type="submit" class="px-3 py-1.5 {{if eq .User.Role "advertiser"}}bg-brand text-on-brand font-bold{{else}}hover:bg-white{{end}}" {{if eq .User.Role "advertiser"}}aria-pressed="true"{{else}}aria-pressed="false"{{end}}>{{t "Advertiser"}}</button>
+            <input type="hidden" name="side" value="{{.}}">
+            <button type="submit" class="px-3 py-1.5 {{if eq $.User.Role .}}bg-brand text-on-brand font-bold{{else}}hover:bg-white{{end}}" aria-pressed="{{if eq $.User.Role .}}true{{else}}false{{end}}">{{if eq . "admin"}}{{t "Operator"}}{{else if eq . "advertiser"}}{{t "Advertiser"}}{{else}}{{t "Publisher"}}{{end}}</button>
           </form>
-          <form method="POST" action="/account/switch-side" data-viewas-allowed>
-            <input type="hidden" name="side" value="publisher">
-            <button type="submit" class="px-3 py-1.5 {{if eq .User.Role "publisher"}}bg-brand text-on-brand font-bold{{else}}hover:bg-white{{end}}" {{if eq .User.Role "publisher"}}aria-pressed="true"{{else}}aria-pressed="false"{{end}}>{{t "Publisher"}}</button>
-          </form>
+          {{end}}
         </div>
         {{end}}
         {{/* The account menu is the viewed user's own controls — hidden in a
@@ -162,6 +161,12 @@
             <a href="/account/preferences" class="block px-4 py-2 hover:bg-gray-100" {{if eq .Nav "preferences"}}aria-current="page"{{end}}>{{t "Preferences"}}</a>
             <a href="/account/passkeys" class="block px-4 py-2 hover:bg-gray-100" {{if eq .Nav "passkeys"}}aria-current="page"{{end}}>{{t "Passkeys"}}</a>
             <button type="button" id="theme-cycle" class="block w-full text-left px-4 py-2 hover:bg-gray-100"><span data-label>{{t "Theme"}}</span></button>
+            {{if and .User.IsOperator .User.Org}}
+            <form method="POST" action="/account/switch-side" class="border-t border-gray-200">
+              <input type="hidden" name="side" value="admin">
+              <button type="submit" class="block w-full text-left px-4 py-2 hover:bg-gray-100">{{t "Back to operator"}}</button>
+            </form>
+            {{end}}
             <a href="/logout" class="block px-4 py-2 border-t border-gray-200 hover:bg-gray-100">{{t "Sign out"}}</a>
           </div>
         </div>

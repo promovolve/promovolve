@@ -270,18 +270,23 @@ object SiteEntity {
           // (and, in shadow mode, the only floor that is actually applied).
           var floorSweepOptimizerByCategory: Map[String, FloorSweepOptimizer] = Map.empty
 
-          // Latest (bidderCount, floorRejected, bid) observed per category, from
-          // the per-category AuctionOutcomeReport. Drives the bid-derived
+          // Demand per category (BidWindow), from the per-category
+          // AuctionOutcomeReports. Drives the bid-derived
           // shortcut: a MONOPOLY category (1 bidder) sets floor to (just under)
           // that bid directly — no sweep needed, no drift, instant adaptation.
           // Competitive categories (≥2) fall back to the sweep. floorRejected
           // feeds the zero-SERVABLE collapse: bidders that exist but are all
           // priced out must read as no demand, not as satisfied demand.
           // Transient; rebuilt as auctions report.
-          var categoryBidInfo: Map[String, (Int, Int, Double, Double)] = Map.empty
-          // Site-wide (bidders, second bid) from the aggregate report, for
-          // the same second-bid ceiling on the site floor. Transient.
-          var siteBidInfo: Option[(Int, Double)] = None
+          // The last COMPLETED window's merged view per category (what the
+          // tick and the dashboard read), and the window being filled now.
+          // A window with no reports keeps the previous view, so a quiet
+          // minute never drops the second-bid cap.
+          var categoryBidInfo: Map[String, BidWindow] = Map.empty
+          var categoryWindow: Map[String, BidWindow] = Map.empty
+          // Site-wide, for the same second-bid ceiling on the site floor.
+          var siteBidInfo: Option[BidWindow] = None
+          var siteWindow: Option[BidWindow] = None
 
           // Sweep-optimizer tuning, read once from the `floor-optimizer`
           // HOCON block. Missing keys fall back to FloorSweepOptimizer.Config
@@ -372,11 +377,9 @@ object SiteEntity {
               // a MISSING entry (None) is the transient restart state
               // (categoryBidInfo is rebuilt from reports), which must retain
               // the persisted floor, not collapse to min.
-              val isZeroServable = info.exists { case (n, rejected, _, _) =>
-                n == 0 || (n > 0 && rejected >= n)
-              }
-              val bidDerived = info.flatMap { case (n, _, b, _) =>
-                FloorSweepOptimizer.bidDerivedFloor(n, b, state.minFloorCpm.toDouble)
+              val isZeroServable = info.exists(!_.anyServable)
+              val bidDerived = info.flatMap { w =>
+                FloorSweepOptimizer.bidDerivedFloor(w.bidders, w.ceilingBid, state.minFloorCpm.toDouble)
               }
               if (isZeroServable) {
                 // ZERO SERVABLE DEMAND: the reserve pinned to the departed
@@ -439,9 +442,8 @@ object SiteEntity {
                   // competitive floor never exceeds secondBid × 0.99, so the
                   // top two bidders always clear. Extraction above the
                   // second bid is second-price clearing's job.
-                  val applied = info.fold(opt.currentFloorCpm.max(state.minFloorCpm.toDouble)) {
-                    case (n, _, _, second) =>
-                      capAtSecondBid(opt.currentFloorCpm, n, second, state.minFloorCpm.toDouble)
+                  val applied = info.fold(opt.currentFloorCpm.max(state.minFloorCpm.toDouble)) { w =>
+                    capAtSecondBid(opt.currentFloorCpm, w.bidders, w.ceilingBid, state.minFloorCpm.toDouble)
                   }
                   floors = floors.updated(cat, CPM(applied))
                   snaps = snaps.updated(cat, opt.snapshot())
@@ -1201,8 +1203,8 @@ object SiteEntity {
                     // lets the dashboard distinguish a floor pegged to a lone
                     // bid (1), a sweep-governed competitive one (2+), and a
                     // historical row nobody bids into anymore (absent).
-                    bidderCounts = categoryBidInfo.map { case (k, (n, _, _, _)) => k -> n },
-                    observedBids = categoryBidInfo.map { case (k, (_, _, b, _)) => k -> b },
+                    bidderCounts = categoryBidInfo.map { case (k, w) => k -> w.bidders },
+                    observedBids = categoryBidInfo.map { case (k, w) => k -> w.topBid },
                     sweepStates = sweepStates,
                     observationIntervalSeconds = obsIntervalSecs
                   ))
@@ -1572,16 +1574,17 @@ object SiteEntity {
                   // Site-wide aggregate (legacy): feeds the site optimizer.
                   case None =>
                     floorSweepOptimizer.foreach(_.recordAuctionOutcome(outcome))
-                    siteBidInfo = Some((outcome.totalBidders, outcome.secondMaxObservedCpm))
+                    val w = BidWindow.of(outcome.totalBidders, outcome.rejectedByFloor, outcome.maxObservedCpm,
+                      outcome.secondMaxObservedCpm)
+                    siteWindow = Some(siteWindow.fold(w)(_.merge(w)))
                   // Per-category report: feeds that category's optimizer AND
-                  // records (bidderCount, bid) for the bid-derived monopoly path.
+                  // merges it into this window's view for the monopoly path,
+                  // the zero-servable collapse and the second-bid cap.
                   case Some(c) =>
                     categoryOptimizer(c, state).recordAuctionOutcome(outcome)
-                    categoryBidInfo = categoryBidInfo
-                      .updated(
-                        c,
-                        (outcome.totalBidders, outcome.rejectedByFloor, outcome.maxObservedCpm,
-                          outcome.secondMaxObservedCpm))
+                    val w = BidWindow.of(outcome.totalBidders, outcome.rejectedByFloor, outcome.maxObservedCpm,
+                      outcome.secondMaxObservedCpm)
+                    categoryWindow = categoryWindow.updated(c, categoryWindow.get(c).fold(w)(_.merge(w)))
                 }
                 Effect.none
 
@@ -1640,6 +1643,12 @@ object SiteEntity {
                 // demand refresh would stay dead until an unrelated message
                 // happened to respawn the shard. Skipping one tick is
                 // always safer than dying.
+                // Close the window: what reported this window replaces the
+                // last view; what stayed quiet keeps it.
+                categoryBidInfo = categoryBidInfo ++ categoryWindow
+                categoryWindow = Map.empty
+                siteBidInfo = siteWindow.orElse(siteBidInfo)
+                siteWindow = None
                 try floorSweepOptimizer match {
                     case Some(sweep) =>
                       val hour = java.time.LocalTime.now().getHour
@@ -1668,7 +1677,7 @@ object SiteEntity {
                       // the field comes down even when the sweep didn't move.
                       val minFloor = state.minFloorCpm.toDouble
                       def capped(f: Double) =
-                        siteBidInfo.fold(f.max(minFloor)) { case (n, second) => capAtSecondBid(f, n, second, minFloor) }
+                        siteBidInfo.fold(f.max(minFloor))(w => capAtSecondBid(f, w.bidders, w.ceilingBid, minFloor))
                       val current = state.floorCpm.toDouble
                       val siteFloorUpdate = observeResult match {
                         case Some(r)                            => Some((capped(r.newFloor), r.completedCycle))
@@ -2233,6 +2242,34 @@ object SiteEntity {
    */
   def capAtSecondBid(floor: Double, bidders: Int, secondBid: Double, minFloor: Double): Double =
     (if (bidders >= 2 && secondBid > 0.0) math.min(floor, secondBid * 0.99) else floor).max(minFloor)
+
+  /**
+   * One floor window's view of a category's (or the site's) demand, merged
+   * over every auction reported in it. Pages differ (place targeting), so
+   * keeping only the last report flipped the floor rule with whichever
+   * page spoke last: a Tokyo page saw two bidders, the next page one.
+   *
+   *   bidders     — the most bidders any page saw
+   *   anyServable — some page had a bid that cleared the floor (else the
+   *                 floor collapses: demand that never clears isn't demand)
+   *   ceilingBid  — the lowest "protected" bid across pages: each page's
+   *                 second bid when two or more bid, else its sole bid.
+   *                 Capping under it keeps every page's top two clearing.
+   *   topBid      — the highest bid seen (dashboard display)
+   */
+  final case class BidWindow(bidders: Int, anyServable: Boolean, ceilingBid: Double, topBid: Double) {
+    def merge(o: BidWindow): BidWindow = BidWindow(
+      bidders = math.max(bidders, o.bidders),
+      anyServable = anyServable || o.anyServable,
+      ceilingBid = Seq(ceilingBid, o.ceilingBid).filter(_ > 0.0).minOption.getOrElse(0.0),
+      topBid = math.max(topBid, o.topBid)
+    )
+  }
+
+  object BidWindow {
+    def of(bidders: Int, floorRejected: Int, topBid: Double, secondBid: Double): BidWindow =
+      BidWindow(bidders, bidders > 0 && floorRejected < bidders, if (bidders >= 2) secondBid else topBid, topBid)
+  }
 
   /** Configuration for a site's crawler and taxonomy analysis */
   /**

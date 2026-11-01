@@ -1,10 +1,7 @@
 package promovolve.creative
 
 import org.apache.pekko.actor.typed.ActorSystem
-import org.apache.pekko.actor.typed.scaladsl.adapter.*
-import org.apache.pekko.http.scaladsl.Http
-import org.apache.pekko.http.scaladsl.model.*
-import org.apache.pekko.http.scaladsl.unmarshalling.Unmarshal
+import org.apache.pekko.http.scaladsl.model.StatusCode
 import org.slf4j.LoggerFactory
 import spray.json.*
 import spray.json.DefaultJsonProtocol.*
@@ -172,52 +169,19 @@ final class LPExtractor(
 )(using system: ActorSystem[?], ec: ExecutionContext) {
 
   private val log = LoggerFactory.getLogger(getClass)
-  private val http = Http(system.toClassic)
-  private given classicScheduler: org.apache.pekko.actor.Scheduler = system.toClassic.scheduler
 
-  /**
-   * Issue a Gemini request with the Vertex-aligned retry policy:
-   * retry on 408/429/500/502/503/504 and on network-layer failures,
-   * up to 5 attempts, capped exponential backoff with full jitter.
-   * Reads the response body as a String and returns it with the
-   * final status — callers decide how to parse the 2xx body and how
-   * to surface non-2xx terminal responses.
-   */
-  private def callGeminiWithRetry(
-      request: HttpRequest,
-      tag: String,
-      mdl: String
-  ): Future[(StatusCode, String)] = {
-    // Acquire a token before every attempt so each retry also counts
-    // against the shared bucket — retries are real API calls and
-    // skipping the gate on them would re-open the burst hole this
-    // limiter exists to close.
-    val op: () => Future[(StatusCode, String)] = () => {
-      val gate: Future[Unit] = rateLimiter match {
-        case Some(limiter) => promovolve.GeminiRateLimiter.acquire(limiter)
-        case None          => Future.successful(())
+  private val gemini = new promovolve.llm.GeminiGateway(geminiApiKey, rateLimiter)
+
+  /** Send through the gateway (shared retry policy and rate limiter) and log the final response. */
+  private def send(fullPrompt: String, mdl: String, temperature: Double, tag: String): Future[(StatusCode, String)] = {
+    logGeminiRequest(tag, mdl, fullPrompt)
+    val t0 = System.currentTimeMillis()
+    gemini
+      .generate(mdl, Seq(promovolve.llm.GeminiGateway.Part.Text(fullPrompt)), LPExtractor.config(temperature), tag)
+      .map { reply =>
+        logGeminiResponse(tag, mdl, reply.status.intValue, reply.body, System.currentTimeMillis() - t0)
+        (reply.status, reply.body)
       }
-      gate.flatMap { _ =>
-        val t0 = System.currentTimeMillis()
-        http.singleRequest(request).flatMap { response =>
-          Unmarshal(response.entity).to[String].map { body =>
-            logGeminiResponse(tag, mdl, response.status.intValue, body, System.currentTimeMillis() - t0)
-            (response.status, body)
-          }
-        }
-      }
-    }
-    promovolve.llm.HttpRetryPolicy.withRetry[(StatusCode, String)](
-      op = op,
-      shouldRetry = { case (status, _) => promovolve.llm.HttpRetryPolicy.isRetryable(status) },
-      onRetry = { (attempt, delay, outcome) =>
-        val reason = outcome match {
-          case Right((s, _)) => s"HTTP ${s.intValue()}"
-          case Left(ex)      => s"exception ${ex.getClass.getSimpleName}: ${ex.getMessage}"
-        }
-        log.warn("[Gemini {}] {} — retrying in {} (attempt {}/5)", tag, reason, delay, attempt + 1)
-      }
-    )
   }
 
   // Full request/response logging toggled by GEMINI_LOG_FULL=1; otherwise
@@ -798,33 +762,14 @@ final class LPExtractor(
       |}
       |""".stripMargin
 
-  private def callGemini(fullPrompt: String): Future[Vector[BannerPage]] = {
-    val requestBody = JsObject(
-      "contents" -> JsArray(JsObject(
-        "parts" -> JsArray(JsObject("text" -> JsString(fullPrompt)))
-      )),
-      "generationConfig" -> JsObject(
-        "temperature" -> JsNumber(0.7),
-        "maxOutputTokens" -> JsNumber(8000)
-      )
-    ).compactPrint
-
-    val apiUrl = s"https://generativelanguage.googleapis.com/v1beta/models/$model:generateContent?key=$geminiApiKey"
-    val request = HttpRequest(
-      method = HttpMethods.POST,
-      uri = apiUrl,
-      entity = HttpEntity(ContentTypes.`application/json`, requestBody)
-    )
-
-    logGeminiRequest("callGemini", model, fullPrompt)
-    callGeminiWithRetry(request, "callGemini", model).map { case (status, body) =>
+  private def callGemini(fullPrompt: String): Future[Vector[BannerPage]] =
+    send(fullPrompt, model, temperature = 0.7, "callGemini").map { case (status, body) =>
       if (status.isFailure()) {
         throw new RuntimeException(
           s"Gemini callGemini failed: HTTP ${status.intValue()} after retries: ${body.take(500)}")
       }
       parseGeminiResponse(body)
     }
-  }
 
   /**
    * Like callGemini, but returns the parsed JSON payload (array or object)
@@ -840,26 +785,7 @@ final class LPExtractor(
       // 0.5 produces near-identical layouts.
       temperature: Double = 0.5
   ): Future[JsValue] = {
-    val requestBody = JsObject(
-      "contents" -> JsArray(JsObject(
-        "parts" -> JsArray(JsObject("text" -> JsString(fullPrompt)))
-      )),
-      "generationConfig" -> JsObject(
-        "temperature" -> JsNumber(temperature),
-        "maxOutputTokens" -> JsNumber(8000)
-      )
-    ).compactPrint
-
-    val apiUrl =
-      s"https://generativelanguage.googleapis.com/v1beta/models/$overrideModel:generateContent?key=$geminiApiKey"
-    val request = HttpRequest(
-      method = HttpMethods.POST,
-      uri = apiUrl,
-      entity = HttpEntity(ContentTypes.`application/json`, requestBody)
-    )
-
-    logGeminiRequest("callGeminiRaw", overrideModel, fullPrompt)
-    callGeminiWithRetry(request, "callGeminiRaw", overrideModel).map { case (status, body) =>
+    send(fullPrompt, overrideModel, temperature, "callGeminiRaw").map { case (status, body) =>
       if (status.isFailure()) {
         throw new RuntimeException(
           s"Gemini callGeminiRaw failed: HTTP ${status.intValue()} after retries: ${body.take(500)}")
@@ -898,4 +824,12 @@ final class LPExtractor(
         throw new RuntimeException(s"Rewrite failed: ${e.getMessage}", e)
     }
   }
+}
+
+object LPExtractor {
+
+  // Copy and layout generation: free text, the model's own thinking, a large
+  // budget for whole-booklet answers.
+  private[promovolve] def config(temperature: Double): promovolve.llm.GeminiGateway.Config =
+    promovolve.llm.GeminiGateway.Config(temperature = temperature, maxOutputTokens = 8000)
 }

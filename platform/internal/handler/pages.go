@@ -4038,7 +4038,7 @@ func buildListNavParam(r *http.Request, total, pageSize int, pageParam string) (
 }
 
 // focusPage points ?page at the page holding campaign ?edit=<id> (Overview's
-// "Edit creatives" link), so the row whose edit panel opens is on screen.
+// "View campaign" link), so the row whose edit panel opens is on screen.
 // An explicit ?page wins; an unknown id leaves the page alone.
 func focusPage(r *http.Request, cs []campaignData, pageSize int) {
 	q := r.URL.Query()

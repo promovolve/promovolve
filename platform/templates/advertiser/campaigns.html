@@ -361,12 +361,9 @@
 
       <div class="span flex items-center gap-2 whitespace-nowrap xl:justify-end">
         <a href="/advertiser/creatives?campaignId={{.ID}}&amp;auto=1" class="text-sm text-brand-ink hover:underline">{{t "Creatives"}}</a>
-        {{/* After the inline panel opens, scroll it into view. $nextTick
-             alone is NOT enough in Safari (WebKit hasn't laid the panel out
-             yet and scrollIntoView no-ops); one rAF after nextTick
-             guarantees a layout pass first. */}}
-        {{/* ?edit=<id> (Overview's "Edit creatives") clicks this on load. */}}
-        <button type="button" x-ref="editBtn" @click="editOpen = true; window.__scopeHintIn && __scopeHintIn($refs.editPanel); $nextTick(() => requestAnimationFrame(() => $refs.editPanel.scrollIntoView({ behavior: 'smooth', block: 'start' })))"
+        {{/* After the inline panel opens, scroll the row into view (__scrollToPanel).
+             ?edit=<id> (Overview's "View campaign") clicks this on load. */}}
+        <button type="button" x-ref="editBtn" @click="editOpen = true; window.__scopeHintIn && __scopeHintIn($refs.editPanel); __scrollToPanel($refs.editPanel)"
                 class="text-sm text-brand-ink hover:underline">{{t "Edit"}}</button>
       </div>
     </div>
@@ -957,6 +954,21 @@
 {{/* Reach indicator: interpolates the clearing-price quantile ladder
      (5% steps) against whatever the author types into ANY maxCpm field —
      event delegation covers the create form and every edit panel. */}}
+<script>
+  // Once a just-opened panel has a size, scroll its campaign row to the top
+  // of the view, the panel right below it. Any sooner is a no-op: on a ?edit= load the click runs before the panel
+  // is laid out (height 0, nothing to scroll to), and WebKit lays a revealed
+  // element out a frame late even after a click. ResizeObserver reports the
+  // first real size, after layout, in every engine.
+  window.__scrollToPanel = function (panel) {
+    var ro = new ResizeObserver(function () {
+      if (panel.offsetHeight === 0) return;
+      ro.disconnect();
+      (panel.closest('[data-camp]') || panel).scrollIntoView({ behavior: 'smooth', block: 'start' });
+    });
+    ro.observe(panel);
+  };
+</script>
 {{if .MarketRates}}
 <script>
 (function(){

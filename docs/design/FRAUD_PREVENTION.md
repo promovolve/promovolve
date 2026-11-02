@@ -96,9 +96,12 @@ land. Budget: microseconds, no network calls.
   or ip2asn) loaded into memory at boot (same pattern as ServeIndex's local
   store). Every request gets an `IpClass`: `residential | datacenter |
   unknown`. Datacenter-class requests are marked `suspect(datacenter_asn)`.
-- **UA hygiene.** Compiled matcher over known crawler/bot UA fragments and
-  headless markers (IAB spiders-and-bots equivalent). Absent or degenerate
-  UAs are suspect.
+- **UA hygiene.** The maintained crawler-user-agents list (vendored from
+  github.com/monperrus/crawler-user-agents, MIT; refresh by replacing
+  `modules/core/src/main/resources/fraud/crawler-user-agents.json`) plus a
+  short hand-written list of generic terms and HTTP libraries. A few upstream
+  entries that also match real readers are excluded in `BotUaMatcher`.
+  Absent or degenerate UAs are suspect.
 - **Rate caps.** Token-bucket per (IP, site) on serve and per (IP, token
   family) on tracking events. Over-cap requests are marked, not refused.
 

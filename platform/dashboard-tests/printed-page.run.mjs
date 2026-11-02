@@ -278,20 +278,25 @@ for (const theme of ["light", "dark"]) {
         await page.evaluate(() => document.getElementById("budget")?.close());
       }
 
-      // edit-focus: ?edit=<id> (Overview's Edit creatives) opens that row's
-      // edit panel, and only that one, and scrolls it into view.
+      // edit-focus: ?edit=<id> (Overview's View campaign) opens that row's
+      // edit panel, and only that one, and scrolls the campaign's row to the
+      // top of <main> (the page's scroller), its open panel below it. "Somewhere on screen" is not enough: on this
+      // short fixture the unscrolled panel is already on screen, and that
+      // hid a scroll that never happened on page load.
       if (name === "advertiser-forecast") {
         await page.goto(`http://127.0.0.1:${PORT}/preview/${name}-${lang}.html?edit=c-09`, { waitUntil: "load" });
-        await page.waitForTimeout(800);
+        await page.waitForTimeout(1500);
         const r = await page.evaluate(() => {
           const panels = [...document.querySelectorAll("[data-camp]")].map(el => {
             const p = el.querySelector("[x-ref=editPanel]");
-            return { id: el.querySelector("[aria-controls]")?.getAttribute("aria-controls"), shown: p && p.offsetParent !== null, top: p?.getBoundingClientRect().top };
+            return { id: el.querySelector("[aria-controls]")?.getAttribute("aria-controls"), shown: p && p.offsetParent !== null, top: el.getBoundingClientRect().top };
           });
-          return { open: panels.filter(p => p.shown).map(p => p.id), top: panels.find(p => p.shown)?.top };
+          const main = document.querySelector("main");
+          return { open: panels.filter(p => p.shown).map(p => p.id), top: panels.find(p => p.shown)?.top,
+            mainTop: main.getBoundingClientRect().top, scrolled: main.scrollTop };
         });
         if (shots) await page.screenshot({ path: `${shots}/${name}-${lang}-${theme}-edit.png` });
-        check(`${id}: edit-focus`, r.open.length === 1 && r.open[0] === "camp-detail-c-09" && r.top >= 0 && r.top < innerHeightOf(page), JSON.stringify(r));
+        check(`${id}: edit-focus`, r.open.length === 1 && r.open[0] === "camp-detail-c-09" && r.scrolled > 0 && Math.abs(r.top - r.mainTop) < 4, JSON.stringify(r));
         await page.goto(`http://127.0.0.1:${PORT}/preview/${name}-${lang}.html`, { waitUntil: "load" });
       }
 

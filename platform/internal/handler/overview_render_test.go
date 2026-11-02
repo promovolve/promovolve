@@ -68,7 +68,7 @@ func TestAdvertiserOverviewRenders(t *testing.T) {
 			// Each campaign row links to its edit panel on Campaigns.
 			for _, cd := range c.data.Campaigns {
 				if !strings.Contains(out, `href="/advertiser/campaigns?edit=`+cd.ID+`"`) {
-					t.Errorf("%s %s: no Edit creatives link for %s", c.name, tlang, cd.ID)
+					t.Errorf("%s %s: no View campaign link for %s", c.name, tlang, cd.ID)
 				}
 			}
 			if strings.Contains(out, `href="/advertiser/account"`) {

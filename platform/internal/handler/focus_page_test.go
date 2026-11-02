@@ -5,7 +5,7 @@ import (
 	"testing"
 )
 
-// Overview's "Edit creatives" link sends ?edit=<id>; Campaigns opens on the
+// Overview's "View campaign" link sends ?edit=<id>; Campaigns opens on the
 // page holding that campaign so its edit panel is there to open.
 func TestFocusPage(t *testing.T) {
 	cs := make([]campaignData, 25)

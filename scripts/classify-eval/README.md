@@ -19,6 +19,7 @@ Not CI. It calls a paid model and reads live pages. Run it by hand:
 
 ```sh
 export GEMINI_API_KEY=…            # the same key the app uses (or OPENAI_/ANTHROPIC_API_KEY)
+# export LLM_PROVIDER=anthropic     # measure a provider other than the first key set
 scripts/classify-eval/run.sh --label before
 # …edit the prompt…
 scripts/classify-eval/run.sh --no-extract --label after --baseline scripts/classify-eval/out/before.json

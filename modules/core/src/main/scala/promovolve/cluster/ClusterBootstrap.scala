@@ -540,37 +540,13 @@ object ClusterBootstrap {
     )(using ExecutionContext): Unit = {
       val config = system.settings.config
 
-      // Determine LLM provider from config (prefer Gemini for cost savings)
+      // LLM_PROVIDER picks the page classifier; without it the first key
+      // set wins (gemini > openai > anthropic). See Provider.select (#441).
       def configuredKey(path: String): Option[String] =
-        if (config.hasPath(path)) Some(config.getString(path)).filter(_.nonEmpty) else None
+        if (config.hasPath(path)) Some(config.getString(path).trim).filter(_.nonEmpty) else None
 
-      val llmProvider: IABTaxonomy.Provider =
-        if (configuredKey("promovolve.gemini.api-key").isDefined) {
-          val apiKey = config.getString("promovolve.gemini.api-key")
-          val model = if (config.hasPath("promovolve.gemini.model"))
-            config.getString("promovolve.gemini.model")
-          else IABTaxonomy.Provider.DefaultGeminiModel
-          system.log.info("Using Gemini for taxonomy classification (model: {})", model)
-          IABTaxonomy.Provider.Gemini(apiKey, model)
-        } else if (configuredKey("promovolve.openai.api-key").isDefined) {
-          val apiKey = config.getString("promovolve.openai.api-key")
-          val model = if (config.hasPath("promovolve.openai.model"))
-            config.getString("promovolve.openai.model")
-          else "gpt-4o-mini"
-          system.log.info("Using OpenAI for taxonomy classification (model: {})", model)
-          IABTaxonomy.Provider.OpenAI(apiKey, model)
-        } else if (configuredKey("promovolve.anthropic.api-key").isDefined) {
-          val apiKey = config.getString("promovolve.anthropic.api-key")
-          val model = if (config.hasPath("promovolve.anthropic.model"))
-            config.getString("promovolve.anthropic.model")
-          else "claude-3-haiku-20240307"
-          system.log.info("Using Anthropic for taxonomy classification (model: {})", model)
-          IABTaxonomy.Provider.Anthropic(apiKey, model)
-        } else {
-          throw new IllegalStateException(
-            "No LLM provider configured. Set GEMINI_API_KEY, OPENAI_API_KEY, or ANTHROPIC_API_KEY environment variable"
-          )
-        }
+      val llmProvider: IABTaxonomy.Provider = IABTaxonomy.Provider.select(k => configuredKey(s"promovolve.$k"))
+      system.log.info("Using {} for taxonomy classification (model: {})", llmProvider.name, llmProvider.model)
 
       sharding.init(Entity(SiteEntity.TypeKey) { ctx =>
         SiteEntity(

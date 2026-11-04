@@ -15,10 +15,8 @@ import scala.util.Try
 /**
  * IAB Taxonomy classifier using LLM.
  *
- * Supports multiple providers:
- *   - OpenAI (gpt-4o-mini) - default
- *   - Anthropic (claude-3-haiku)
- *   - Google Gemini (gemini-2.5-flash) - cheapest
+ * Supports Gemini, OpenAI and Anthropic; `Provider.select` picks one at boot
+ * (#441). Only Gemini has passed the classify-eval so far.
  *
  * Uses Pekko HTTP for all providers.
  */
@@ -216,8 +214,12 @@ class IABTaxonomy(
         "role" -> JsString("user"),
         "content" -> JsString(prompt)
       )),
+      // gpt-6 models reason by default; "none" makes this a plain
+      // completion and is what lets temperature apply. Reasoning models
+      // take max_completion_tokens, not max_tokens.
+      "reasoning_effort" -> JsString("none"),
       "temperature" -> JsNumber(0.1),
-      "max_tokens" -> JsNumber(1024),
+      "max_completion_tokens" -> JsNumber(1024),
       "response_format" -> jsonSchema
     ).compactPrint
 
@@ -729,11 +731,11 @@ object IABTaxonomy extends DefaultJsonProtocol {
   }
 
   object Provider {
-    case class OpenAI(apiKey: String, model: String = "gpt-4o-mini") extends Provider {
+    case class OpenAI(apiKey: String, model: String = Provider.DefaultOpenAIModel) extends Provider {
       val name = "OpenAI"
     }
 
-    case class Anthropic(apiKey: String, model: String = "claude-3-haiku-20240307") extends Provider {
+    case class Anthropic(apiKey: String, model: String = Provider.DefaultAnthropicModel) extends Provider {
       val name = "Anthropic"
     }
 
@@ -755,14 +757,60 @@ object IABTaxonomy extends DefaultJsonProtocol {
      */
     val DefaultGeminiModel = "gemini-3.5-flash-lite"
 
-    /** Create provider from environment variables (cheapest first); GEMINI_MODEL overrides the model. */
+    /**
+     * Current models, replacing gpt-4o-mini (shuts down 2027-01-14) and
+     * claude-3-haiku-20240307 (retired 2026-04-20). Not yet measured by
+     * the classify-eval, so neither provider counts as supported (#441).
+     */
+    val DefaultOpenAIModel = "gpt-6-luna"
+    val DefaultAnthropicModel = "claude-haiku-5-5"
+
+    /**
+     * The page classifier's provider. `setting` reads a key relative to
+     * `promovolve` ("llm-provider", "openai.api-key", "openai.model", ...)
+     * and returns None when it is unset or blank.
+     *
+     * `llm-provider` (LLM_PROVIDER) names the provider explicitly, and its
+     * key must then be set. Without it the first key set wins: gemini,
+     * then openai, then anthropic.
+     */
+    def select(setting: String => Option[String]): Provider = {
+      def gemini =
+        setting("gemini.api-key").map(Gemini(_, setting("gemini.model").getOrElse(DefaultGeminiModel)))
+      def openai =
+        setting("openai.api-key").map(OpenAI(_, setting("openai.model").getOrElse(DefaultOpenAIModel)))
+      def anthropic =
+        setting("anthropic.api-key").map(Anthropic(_, setting("anthropic.model").getOrElse(DefaultAnthropicModel)))
+      setting("llm-provider").map(_.trim.toLowerCase) match {
+        case Some(name) =>
+          val chosen = name match {
+            case "gemini"    => gemini
+            case "openai"    => openai
+            case "anthropic" => anthropic
+            case other       =>
+              throw new IllegalStateException(s"LLM_PROVIDER=$other: expected gemini, openai or anthropic")
+          }
+          chosen.getOrElse(throw new IllegalStateException(
+            s"LLM_PROVIDER=$name but ${name.toUpperCase}_API_KEY is not set"))
+        case None =>
+          gemini.orElse(openai).orElse(anthropic).getOrElse(throw new IllegalStateException(
+            "No LLM provider configured. Set GEMINI_API_KEY, OPENAI_API_KEY, or ANTHROPIC_API_KEY"))
+      }
+    }
+
+    private val EnvNames = Map(
+      "llm-provider" -> "LLM_PROVIDER",
+      "gemini.api-key" -> "GEMINI_API_KEY",
+      "gemini.model" -> "GEMINI_MODEL",
+      "openai.api-key" -> "OPENAI_API_KEY",
+      "openai.model" -> "OPENAI_MODEL",
+      "anthropic.api-key" -> "ANTHROPIC_API_KEY",
+      "anthropic.model" -> "ANTHROPIC_MODEL"
+    )
+
+    /** `select` over environment variables, for tools that run without the app's config. */
     def fromEnv(): Provider =
-      sys.env.get("GEMINI_API_KEY").map(k => Gemini(k, sys.env.getOrElse("GEMINI_MODEL", DefaultGeminiModel)))
-        .orElse(sys.env.get("OPENAI_API_KEY").map(OpenAI(_)))
-        .orElse(sys.env.get("ANTHROPIC_API_KEY").map(Anthropic(_)))
-        .getOrElse(throw new IllegalStateException(
-          "None of GEMINI_API_KEY, OPENAI_API_KEY, or ANTHROPIC_API_KEY environment variables are set"
-        ))
+      select(k => EnvNames.get(k).flatMap(sys.env.get).map(_.trim).filter(_.nonEmpty))
   }
 
   /** Classification result with category ID and confidence score */
@@ -779,8 +827,4 @@ object IABTaxonomy extends DefaultJsonProtocol {
     def categoryScores: Map[CategoryId, Confidence] =
       selections.map(s => CategoryId(s.id) -> Confidence(s.confidence)).toMap
   }
-
-  // Backwards compatibility
-  def apply(apiKey: String)(using ActorSystem[?], ExecutionContext): IABTaxonomy =
-    new IABTaxonomy(Provider.OpenAI(apiKey))
 }

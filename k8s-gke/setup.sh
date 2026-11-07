@@ -83,9 +83,11 @@ BUILD_IMAGES=0
 
 DEPLOY_ONLY=0
 APPLY_ONLY=0
+BROWSER_ONLY=0
 while [ $# -gt 0 ]; do
   case "$1" in
     --deploy-only)  DEPLOY_ONLY=1; shift ;;
+    --browser-only) BROWSER_ONLY=1; DEPLOY_ONLY=1; shift ;;
     # Stop after the manifests are applied: no rollout waits, no epilogue.
     # For callers driving their own scale-up sequence — scripts/gke-factory-reset.sh
     # applies while Postgres is deliberately at zero, so waiting here would hang.
@@ -270,11 +272,12 @@ if [ "$BUILD_IMAGES" -eq 1 ]; then
   PIN_IMAGES=1
 fi
 
-LIVE_API=""; LIVE_SINGLETON=""; LIVE_PLATFORM=""
+LIVE_API=""; LIVE_SINGLETON=""; LIVE_PLATFORM=""; LIVE_BROWSER=""
 if [ "${PIN_IMAGES:-0}" -ne 1 ]; then
   LIVE_API=$(kc get statefulset promovolve-api -o jsonpath='{.spec.template.spec.containers[0].image}' 2>/dev/null || true)
   LIVE_SINGLETON=$(kc get statefulset promovolve-singleton -o jsonpath='{.spec.template.spec.containers[0].image}' 2>/dev/null || true)
   LIVE_PLATFORM=$(kc get deployment promovolve-platform -o jsonpath='{.spec.template.spec.containers[0].image}' 2>/dev/null || true)
+  LIVE_BROWSER=$(kc get deployment promovolve-browser -o jsonpath='{.spec.template.spec.containers[0].image}' 2>/dev/null || true)
 fi
 
 # publish-banner points the cluster at a new bundle with `kubectl set env`,
@@ -291,8 +294,11 @@ fi
 # CI now writes the published URL back into k8s/kustomization.yaml
 # (scripts/pin-banner-url.sh), so the configMap already holds what the
 # override was pinning. Harmless when there is no override to remove.
-if kc get deployment promovolve-platform >/dev/null 2>&1; then
+if [ "$BROWSER_ONLY" -ne 1 ] && kc get deployment promovolve-platform >/dev/null 2>&1; then
   kc set env deployment/promovolve-platform BANNER_SCRIPT_URL- >/dev/null 2>&1 || true
+fi
+if kc get deployment promovolve-browser >/dev/null 2>&1; then
+  kc set env deployment/promovolve-browser BANNER_SCRIPT_URL- >/dev/null
 fi
 
 # CI writes the live digests and banner URL back to k8s/kustomization.yaml
@@ -308,14 +314,38 @@ if [ "${ALLOW_OPEN_PINS:-0}" -ne 1 ] && command -v gh >/dev/null 2>&1; then
   [ -z "$open_pins" ] || die "a CI pin-back PR is still open ($open_pins) — the repo's pins lag the cluster. Merge it (or wait for auto-merge), then re-run; --allow-open-pins overrides."
 fi
 
+echo "==> installing Chromium seccomp profiles"
+kubectl kustomize --load-restrictor LoadRestrictionsNone "$BASEDIR/runtime-security" | kcg apply -f -
+kc rollout status daemonset/chromium-seccomp --timeout=180s
+
 echo "==> applying manifests (kustomize overlay k8s-gke, registry ${REGISTRY})"
-render | kcg apply -f -
+if [ "$BROWSER_ONLY" -eq 1 ]; then
+  kc get statefulset promovolve-api >/dev/null
+  render | kcg apply -l promovolve.dev/browser-bootstrap=true -f -
+else
+  render | kcg apply -f -
+fi
 
 if [ "${PIN_IMAGES:-0}" -ne 1 ]; then
   echo "==> restoring live (CI-deployed) images over the manifest pins"
-  [ -n "$LIVE_API" ]       && kc set image statefulset/promovolve-api       api="$LIVE_API"             >/dev/null
-  [ -n "$LIVE_SINGLETON" ] && kc set image statefulset/promovolve-singleton singleton="$LIVE_SINGLETON" >/dev/null
-  [ -n "$LIVE_PLATFORM" ]  && kc set image deployment/promovolve-platform   platform="$LIVE_PLATFORM"   >/dev/null
+  if [ "$BROWSER_ONLY" -ne 1 ]; then
+    [ -n "$LIVE_API" ]       && kc set image statefulset/promovolve-api       api="$LIVE_API"             >/dev/null
+    [ -n "$LIVE_SINGLETON" ] && kc set image statefulset/promovolve-singleton singleton="$LIVE_SINGLETON" >/dev/null
+    [ -n "$LIVE_PLATFORM" ]  && kc set image deployment/promovolve-platform   platform="$LIVE_PLATFORM"   >/dev/null
+  fi
+  if [ -n "$LIVE_BROWSER" ]; then
+    kc set image deployment/promovolve-browser browser="$LIVE_BROWSER" >/dev/null
+  fi
+fi
+
+profile_sha=$(shasum -a 256 "$BASEDIR/../docker/chromium-seccomp.json" | awk '{print $1}')
+kc patch deployment promovolve-browser --type merge -p \
+  "{\"spec\":{\"template\":{\"metadata\":{\"annotations\":{\"promovolve.dev/seccomp-sha256\":\"$profile_sha\"}}}}}" >/dev/null
+
+if [ "$BROWSER_ONLY" -eq 1 ]; then
+  kc rollout status deployment/promovolve-browser --timeout=600s
+  echo "Browser workload prepared; verify sandbox/cluster readiness before --deploy-only, then check both remote paths."
+  exit 0
 fi
 
 if [ "$APPLY_ONLY" -eq 1 ]; then
@@ -327,6 +357,7 @@ fi
 echo "==> waiting for rollout (cold start: image pulls -> DB init -> cluster form)"
 kc rollout status statefulset/promovolve-db       --timeout=300s
 kc rollout status statefulset/promovolve-api      --timeout=600s
+kc rollout status deployment/promovolve-browser   --timeout=600s
 kc rollout status deployment/promovolve-platform  --timeout=300s
 
 kc exec promovolve-api-0 -c api -- sh -c 'wget -qO- http://localhost:8558/cluster/members 2>/dev/null' 2>/dev/null \

@@ -21,11 +21,10 @@
 # timeoutSec=3600 on both services; EventSource auto-reconnects on the hourly
 # cut, which the UI already tolerates.
 #
-# Render/apply (load restrictor needed because the BASE single-sources
+# Render for inspection (load restrictor needed because the BASE single-sources
 # db-initdb from ../docker/init-db.sql):
-#   kubectl kustomize --load-restrictor LoadRestrictionsNone k8s-gke \
-#     | kubectl --context <gke-context> apply -f -
-# or just run k8s-gke/setup.sh (idempotent, provisions GCP too).
+#   kubectl kustomize --load-restrictor LoadRestrictionsNone k8s-gke
+# Deploy with k8s-gke/setup.sh so node seccomp profiles are installed first.
 apiVersion: kustomize.config.k8s.io/v1beta1
 kind: Kustomization
 

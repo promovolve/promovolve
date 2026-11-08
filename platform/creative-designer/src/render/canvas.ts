@@ -16,7 +16,7 @@
 // the drawn size separately when the two differ.
 
 import type { DesignerState, LayoutItem, Page } from "../types";
-import { currentLayout, fitReaderFieldBoxes, fitSizedFieldBoxes, currentPage, updateItem } from "../state";
+import { currentLayout, fitReaderFieldBoxes, fitSizedFieldBoxes, currentPage, updateItem, MOBILE_EXPANDED_KEY } from "../state";
 import { MODES, isSized, isMultiPage, type Mode } from "../modes";
 import type { Store } from "../store";
 import { tokens } from "../ui/tokens";
@@ -276,18 +276,24 @@ export function packReaderFieldBoxes(store: Store, field: string): void {
  * identity per role); per-bucket properties that legitimately differ
  * (fontSize, writingMode, geometry) are overridden per item. */
 export function packSizedFieldBoxes(
-  store: Store, field: string, onlySizeKey?: string, onlyGenerated?: boolean,
+  store: Store, field: string | null, onlySizeKey?: string, onlyGenerated?: boolean,
 ): void {
-  if (!field) return;
+  if (field === "") return;
   const banner = document.querySelector<HTMLElement>("#canvas-host expandable-magazine-banner");
   const shadow = banner?.shadowRoot;
   const stage = shadow?.querySelector<HTMLElement>(".design-box");
   if (!shadow || !stage) return;
-  const idx = currentLayout(store.state).findIndex(
+  const live = currentLayout(store.state);
+  const elAt = (i: number): HTMLElement | null =>
+    i >= 0 ? shadow.querySelector<HTMLElement>(`[data-layout-idx="${i}"]`) : null;
+  const fieldEl = field == null ? null : elAt(live.findIndex(
     (it) => it.type === "text" && (it as { field?: string }).field === field,
-  );
-  const el = idx >= 0 ? shadow.querySelector<HTMLElement>(`[data-layout-idx="${idx}"]`) : null;
-  if (!el) return;
+  ));
+  if (field != null && !fieldEl) return;
+  // Unbound (literal) text has no shared role identity to borrow, so its
+  // style template is its OWN element — measurable only when its bucket is
+  // the tab on screen (fitSizedFieldBoxes hands us the very item object).
+  const templateFor = (item: LayoutItem): HTMLElement | null => fieldEl ?? elAt(live.indexOf(item));
 
   // One measuring container per bucket, created on first use. Parented in
   // the stage so the clones inherit the same font/inheritance context.
@@ -309,6 +315,8 @@ export function packSizedFieldBoxes(
   const next = fitSizedFieldBoxes(store.state, field, (text, item, sizeKey) => {
     const box = containerFor(sizeKey);
     if (!box || box.clientWidth <= 0 || box.clientHeight <= 0) return null;
+    const el = templateFor(item);
+    if (!el) return null;
     const t = item as unknown as {
       fontSize?: number; lineHeight?: number; left?: number; top?: number;
       width?: number; height?: number; writingMode?: string; direction?: string;
@@ -340,12 +348,18 @@ export function packSizedFieldBoxes(
     // block-start anchor — then the block extent at that inline size.
     // Mirrors packTextItemHeight's fitWidth+height sequence with the
     // axes swapped for vertical-rl.
-    const availInline = Math.max(1, 100 - ((vertical ? t.top : t.left) ?? 0));
+    // The Map poster (the only caller that packs mobile-expanded) composes
+    // each box as its CAP — the band minus the crease insets — so its copy
+    // wraps inside the gutter and walks down to fit the band, not the canvas.
+    const cap = (pct: number | undefined): number =>
+      sizeKey === MOBILE_EXPANDED_KEY && pct != null ? pct : 100;
+    const availInline = Math.max(1, Math.min(
+      100 - ((vertical ? t.top : t.left) ?? 0), cap(vertical ? t.height : t.width)));
     // Available BLOCK space: horizontal text stacks lines below `top`;
     // vertical-rl adds columns leftward from the box's fixed RIGHT edge.
-    const availBlock = vertical
+    const availBlock = Math.min(cap(vertical ? t.width : t.height), vertical
       ? Math.max(1, Math.min(100, (t.left ?? 0) + (t.width ?? 0)))
-      : Math.max(1, 100 - (t.top ?? 0));
+      : Math.max(1, 100 - (t.top ?? 0)));
     const measureAt = (fontSize: number): { inlinePct: number; blockPct: number } | null => {
       const ic = mkClone(fontSize);
       if (vertical) { ic.style.height = `${availInline}%`; ic.style.width = "auto"; }

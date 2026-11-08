@@ -376,7 +376,9 @@ export interface SizedBoxFit {
 
 export function fitSizedFieldBoxes(
   state: DesignerState,
-  field: string,
+  // null = UNBOUND text (literal `text`, no field) — the Map poster's
+  // beats 2-3. Only ever paired with onlySizeKey by its caller.
+  field: string | null,
   measure: (text: string, item: LayoutItem, sizeKey: string) => SizedBoxFit | null,
   // Restrict the fit to ONE bucket. Synced edits pass nothing (the copy
   // changed everywhere, every bucket re-fits — ab79563); generation-time
@@ -389,7 +391,7 @@ export function fitSizedFieldBoxes(
   // nothing: a synced edit legitimately re-fits every box it re-rendered.
   onlyGenerated?: boolean,
 ): DesignerState {
-  if (!field) return state;
+  if (field === "") return state;
   let changed = false;
   const pages = state.pages.map((page) => {
     if (!page.banners) return page;
@@ -399,17 +401,21 @@ export function fitSizedFieldBoxes(
       // The mobile-expanded bucket is a READER surface — fitReaderFieldBoxes
       // owns it (and shares the current stage's geometry, which this
       // callback's per-bucket containers don't model).
-      if (sizeKey === MOBILE_EXPANDED_KEY) { banners[sizeKey] = items; continue; }
+      // EXCEPT when a caller targets it explicitly: the Map poster is a
+      // machine-composed bucket and packs through here (auto-layout).
+      if (sizeKey === MOBILE_EXPANDED_KEY && onlySizeKey !== MOBILE_EXPANDED_KEY) {
+        banners[sizeKey] = items; continue;
+      }
       if (onlySizeKey != null && sizeKey !== onlySizeKey) { banners[sizeKey] = items; continue; }
       let any = false;
       banners[sizeKey] = items.map((it) => {
-        if (it.type !== "text" || (it as { field?: string }).field !== field) return it;
+        if (it.type !== "text" || ((it as { field?: string }).field ?? null) !== field) return it;
         const generated = (it as { _generated?: boolean })._generated === true;
         if (onlyGenerated && !generated) return it;
         // Effective text: a detached override keeps its own copy — measuring
         // it is a no-op when the master edit didn't touch it.
         const local = (it as { text?: string }).text;
-        const text = (local != null && local !== ""
+        const text = (local != null && local !== "" || field == null
           ? local
           : (page as unknown as Record<string, unknown>)[field]) as string | undefined;
         if (!text) return it;

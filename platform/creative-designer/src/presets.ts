@@ -22,6 +22,29 @@ import { kitFont, type BrandKit } from "./brand-kit";
 import { pickContrast, resolveLayoutColors } from "./color-contrast";
 import { scrimGradient } from "./scrim";
 
+// Stamp generation metadata onto a layout that's about to be applied.
+//
+// 1. `_generated: true` on every item, so the size-matrix fanout status
+//    pill can tell "author designed this" from "Gemini / preset filled
+//    this in". The flag is stripped by state.ts's updateItem the moment
+//    the author touches a field.
+// 2. `textFit: "shrink"` on every TEXT item. Generated copy is
+//    unpredictably long (especially Gemini-returned layouts, whose
+//    textFit is dropped on the Scala wire), so it must scale DOWN into
+//    its slot rather than overflow/clip. applyLayout is the one funnel
+//    every source (preset / template / Gemini) passes through, so this
+//    covers them all — plus the Map poster, which skips applyLayout's
+//    copy strip (posterLayoutFor). Inert on heightless items — the
+//    renderer gates autofit on an explicit height — so free-growing
+//    fallback text and hand-drawn boxes are untouched.
+export function markGenerated(items: Page["layout"]): LayoutItem[] {
+  return (items ?? []).map((it) =>
+    it.type === "text"
+      ? { ...it, _generated: true, textFit: "shrink" as const }
+      : { ...it, _generated: true },
+  );
+}
+
 export function presetLayoutFor(mode: string, page: Page, kit?: BrandKit | null): LayoutItem[] | null {
   const fn = PRESETS[mode];
   return fn ? fn(page, kit ?? null) : null;
@@ -245,6 +268,7 @@ function skyscraper(page: Page, kit: BrandKit | null): LayoutItem[] {
 // against page.bg, which the full-bleed image hides.
 export const POSTER_BAND = 100 / 3;
 export const POSTER_CREASE_INSET = 4;
+const POSTER_HEADLINE_H = 13;
 
 export function posterLayoutFor(beats: Page[], kit: BrandKit | null): LayoutItem[] {
   const font = headlineFontOf(beats[0], kit);
@@ -255,18 +279,26 @@ export function posterLayoutFor(beats: Page[], kit: BrandKit | null): LayoutItem
   }
   const text = (o: Record<string, unknown>) =>
     ({ type: "text", left: 6, width: 88, color: "#ffffff", fontFamily: font, textAlign: "left", textFit: "shrink", ...o }) as LayoutItem;
+  // Each band's copy area is its third minus the crease inset on both sides.
+  // The boxes are CAPS, not final geometry: everything is `_generated`, so
+  // the mobile tab's self-heal (auto-layout packGeneratedOnTabOpen) walks a
+  // too-long beat's font down until it fits its cap, then hugs the box.
+  const usable = POSTER_BAND - 2 * POSTER_CREASE_INSET;
   beats.slice(0, 3).forEach((b, k) => {
     const y = k * POSTER_BAND + POSTER_CREASE_INSET;
+    const end = y + usable;
     const subField = b.sub ? "sub" : "body";
     const subText = b.sub || b.body;
     const bind = (field: string, literal: string | undefined) => (k === 0 ? { field } : { text: literal ?? "" });
-    items.push(text({ ...bind("headline", b.headline), top: y, height: 10, fontSize: 8, fontWeight: "bold" }));
-    if (subText) items.push(text({ ...bind(subField, subText), top: y + 11, height: 6, fontSize: 3.5 }));
-    if (k === 2 && b.ctaLabel) {
-      items.push(text({ text: b.ctaLabel, top: y + 19, height: 5, fontSize: 3.5, fontWeight: "bold" }));
+    const ctaH = k === 2 && b.ctaLabel ? 3.8 : 0;
+    const subTop = y + POSTER_HEADLINE_H + 1;
+    items.push(text({ ...bind("headline", b.headline), top: y, height: POSTER_HEADLINE_H, fontSize: 8, fontWeight: "bold" }));
+    if (subText) {
+      items.push(text({ ...bind(subField, subText), top: subTop, height: end - subTop - (ctaH ? ctaH + 0.5 : 0), fontSize: 3.5 }));
     }
+    if (ctaH) items.push(text({ text: b.ctaLabel, top: end - ctaH, height: ctaH, fontSize: 3.5, fontWeight: "bold" }));
   });
-  return items;
+  return markGenerated(items);
 }
 
 /** First open of a Map design: fold the three hand-off beats into one

@@ -36,6 +36,28 @@ describe("posterLayoutFor", () => {
     expect(ts.some((t) => t.text === "B1")).toBe(true);
   });
 
+  it("is machine-placed: every item _generated, every text shrink-to-fit (the pack's walk-down may size it)", () => {
+    const items = posterLayoutFor(beats({ ctaLabel: "Shop now" }), null);
+    for (const it of items) {
+      expect((it as { _generated?: boolean })._generated).toBe(true);
+      if (it.type === "text") expect((it as { textFit?: string }).textFit).toBe("shrink");
+    }
+  });
+
+  it("the copy boxes (pack caps) stay inside the 6% side gutters and never overlap within a band", () => {
+    const ts = texts(posterLayoutFor(beats({ ctaLabel: "Shop now" }), null));
+    for (const t of ts) {
+      expect(t.left).toBeGreaterThanOrEqual(6);
+      expect(t.left + t.width).toBeLessThanOrEqual(94);
+    }
+    for (let k = 0; k < 3; k++) {
+      const band = ts.filter((t) => bandOf(t) === k).sort((a, b) => a.top - b.top);
+      for (let i = 1; i < band.length; i++) {
+        expect(band[i].top).toBeGreaterThanOrEqual(band[i - 1].top + band[i - 1].height);
+      }
+    }
+  });
+
   it("image is full-bleed and first", () => {
     expect(posterLayoutFor(beats(), null)[0]).toMatchObject({ type: "image", left: 0, top: 0, width: 100, height: 100 });
   });

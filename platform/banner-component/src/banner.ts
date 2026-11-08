@@ -859,6 +859,9 @@ export class ExpandableMagazineBanner extends HTMLElement {
       onClosed: finish,
     });
     this._mapFold = { handle, finish };
+    // Shrink-to-fit clamp, same contract as the reader overlay's post-render
+    // pass: without it the faces clip any copy taller than its box.
+    requestAnimationFrame(() => root.querySelectorAll<HTMLElement>('[data-autofit="1"]').forEach(autoFitText));
     // Hold entrances at their start pose through the unfold, so the reveal
     // never shows resting items that jump backwards when they play.
     if (!reducedMotion) this.poseItemAnimationsAtStart(root);

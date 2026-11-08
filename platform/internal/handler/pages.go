@@ -4976,7 +4976,7 @@ func (h *Handler) CreativeDesign(w http.ResponseWriter, r *http.Request) {
 		TemplateID:      templateID,
 		LPFontsJSON:     lpFontsJSON,
 		// Fresh design only: resume/save-error paths carry their saved config.
-		BannerConfigJSON: formatBannerConfig(r.FormValue("format")),
+		BannerConfigJSON: seedBannerConfig(r.FormValue("format"), creativeID),
 	}
 
 	w.Header().Set("Content-Type", "text/html; charset=utf-8")
@@ -5380,4 +5380,12 @@ func formatBannerConfig(format string) string {
 		return `{"format":"map"}`
 	}
 	return ""
+}
+
+// seedBannerConfig seeds only a first-time design (no creativeId).
+func seedBannerConfig(format, creativeID string) string {
+	if creativeID != "" {
+		return ""
+	}
+	return formatBannerConfig(format)
 }

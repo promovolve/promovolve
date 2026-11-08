@@ -91,23 +91,47 @@ func TestFormatBannerConfig(t *testing.T) {
 
 func TestCreativeDesignCarriesMapFormat(t *testing.T) {
 	SetFS(platform.Templates, platform.Static)
-	data := creativeDesignData{
-		CampaignID:       "camp-1",
-		LandingURL:       "https://example.com",
-		CreativeName:     "Draft",
-		BannerSize:       "300x250",
-		PagesJSON:        `[]`,
-		CreativeID:       "01KXTEST",
-		BannerScriptURL:  "https://cdn.example/banner.js",
-		BannerConfigJSON: formatBannerConfig("map"),
+	render := func(cfg string) string {
+		data := creativeDesignData{
+			CampaignID:       "camp-1",
+			LandingURL:       "https://example.com",
+			CreativeName:     "Draft",
+			BannerSize:       "300x250",
+			PagesJSON:        `[]`,
+			CreativeID:       "01KXTEST",
+			BannerScriptURL:  "https://cdn.example/banner.js",
+			BannerConfigJSON: cfg,
+		}
+		var sb strings.Builder
+		if err := getPageStandalone(i18n.LangEN, "advertiser/creative-design.html").
+			ExecuteTemplate(&sb, "creative-design.html", data); err != nil {
+			t.Fatalf("render: %v", err)
+		}
+		return sb.String()
 	}
-	var sb strings.Builder
-	if err := getPageStandalone(i18n.LangEN, "advertiser/creative-design.html").
-		ExecuteTemplate(&sb, "creative-design.html", data); err != nil {
-		t.Fatalf("render: %v", err)
+	withMap, without := render(formatBannerConfig("map")), render("")
+	if withMap == without {
+		t.Fatal("map seed did not change the rendered page")
 	}
-	out := sb.String()
-	if !strings.Contains(out, "format") || !strings.Contains(out, "map") {
-		t.Error("map format did not reach the designer boot context")
+	if got, want := strings.TrimSpace(grepLine(withMap, "bannerConfigJson:")), `bannerConfigJson: "{\"format\":\"map\"}",`; got != want {
+		t.Errorf("bannerConfigJson line = %s, want %s", got, want)
+	}
+}
+
+func grepLine(s, sub string) string {
+	for _, l := range strings.Split(s, "\n") {
+		if strings.Contains(l, sub) {
+			return l
+		}
+	}
+	return ""
+}
+
+func TestSeedBannerConfigFreshOnly(t *testing.T) {
+	if got := seedBannerConfig("map", ""); got != `{"format":"map"}` {
+		t.Errorf("fresh: got %q", got)
+	}
+	if got := seedBannerConfig("map", "01KX"); got != "" {
+		t.Errorf("existing creative must not be seeded, got %q", got)
 	}
 }

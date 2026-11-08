@@ -828,7 +828,6 @@ export class ExpandableMagazineBanner extends HTMLElement {
       root,
       framed,
       face: () => this.buildStage(page, cfg, { video: false }),
-      slotRect: () => (collapsed() ?? this).getBoundingClientRect(),
       fitPct: sheetFitPct(this.isMobileReader()),
       // same lighting as the reader's flap, flattened to a soft sheen
       backBackground: paperBackBackground(

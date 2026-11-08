@@ -1,7 +1,7 @@
 import { describe, it, expect } from "vitest";
 import {
   isFoldout, hingeOpen, hingeAngle, springStep, springSettled,
-  releaseTarget, isTap, posterSize, liftT,
+  releaseTarget, isTap, posterSize, shuffledCells, dissolveClip,
 } from "../src/fold-out";
 
 describe("fold-out maths", () => {
@@ -36,10 +36,24 @@ describe("fold-out maths", () => {
     expect(releaseTarget(0.9, -6, 120)).toBe("closed"); expect(releaseTarget(1.5, -6, 120)).toBe("open");
     expect(isTap(8, 8)).toBe(true); expect(isTap(10, 10)).toBe(false);
   });
-  it("poster size / lift", () => {
+  it("poster size", () => {
     const a = posterSize(390, 844, 97);
     expect(a.w).toBeCloseTo(378.3, 1); expect(a.h).toBeCloseTo(672.5, 1);
     expect(posterSize(1280, 800, 88).h).toBeCloseTo(704); expect(posterSize(4000, 4000, 88).h).toBe(900);
-    expect(liftT(0)).toBe(0); expect(liftT(0.7)).toBe(1);
+  });
+});
+
+describe("pixel dissolve", () => {
+  it("shuffledCells is a permutation", () => {
+    const a = shuffledCells(50);
+    expect([...a].sort((x, y) => x - y)).toEqual(Array.from({ length: 50 }, (_, i) => i));
+  });
+  it("hidden at 0, unclipped when all cells are in, one square per revealed cell", () => {
+    const order = shuffledCells(24);
+    expect(dissolveClip(order, 0, 4, 0, 0, 10)).toBe("inset(50%)");
+    expect(dissolveClip(order, 24, 4, 0, 0, 10)).toBe("none");
+    const d = dissolveClip([5, 0], 1, 4, 100, 200, 10); // cell 5 = col 1, row 1
+    expect(d).toBe('path("M110.0 210.0h11v11h-11Z")');
+    expect(dissolveClip(order, 7, 4, 0, 0, 10).match(/Z/g)).toHaveLength(7);
   });
 });

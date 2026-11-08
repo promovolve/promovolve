@@ -126,7 +126,7 @@ function analyze(frames) {
 async function dragProbe(vp) {
   const { page, errors } = await openPage(vp);
   await page.locator("expandable-magazine-banner").click();
-  await page.waitForTimeout(1600);
+  await page.waitForTimeout(2200);
   const per = await page.evaluate(() =>
     document.querySelector("expandable-magazine-banner").shadowRoot.querySelector(".foldout-panel").getBoundingClientRect().height);
   let popup = false, navigated = false;
@@ -143,7 +143,7 @@ async function dragProbe(vp) {
   // above means the drag was told apart, not that popups go unseen
   const c = await openPage(vp);
   await c.page.locator("expandable-magazine-banner").click();
-  await c.page.waitForTimeout(1600);
+  await c.page.waitForTimeout(2200);
   const tapPopup = c.page.context().waitForEvent("page", { timeout: 1000 }).then(() => true, () => false);
   await c.page.mouse.click(cx, cy);
   const control = await tapPopup;
@@ -155,7 +155,7 @@ async function dragProbe(vp) {
 async function shots(name, vp) {
   const { page, errors } = await openPage(vp);
   await page.locator("expandable-magazine-banner").click();
-  await page.waitForTimeout(1600);
+  await page.waitForTimeout(2200);
   await page.screenshot({ path: `${SHOTS}/${name}-open.png` });
   const per = await page.evaluate(() =>
     document.querySelector("expandable-magazine-banner").shadowRoot.querySelector(".foldout-panel").getBoundingClientRect().height);

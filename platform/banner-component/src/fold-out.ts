@@ -5,7 +5,7 @@ import { buildCloseButton } from "./render-overlay";
 export const FOLDOUT_MAX = 2; // 3 panels -> progress 0..2
 export const FOLDOUT = {
   overlap: 0.45, omega: 8, coverRest: 178, innerRest: 180,
-  lift: 0.7, flickS: 0.15, restMs: 80, dtMax: 0.032, perspective: 1400, slop: 12,
+  flickS: 0.15, restMs: 80, dtMax: 0.032, perspective: 1400, slop: 12,
 } as const;
 
 const clamp = (x: number, lo: number, hi: number) => Math.min(hi, Math.max(lo, x));
@@ -59,9 +59,26 @@ export function posterSize(vw: number, vh: number, fitPct: number): { w: number;
   return { w: (h * 9) / 16, h };
 }
 
-export function liftT(progress: number): number {
-  return smooth(clamp(progress / FOLDOUT.lift, 0, 1));
+// Pixel dissolve: the poster's bounds cut into square cells, revealed in a
+// shuffled order as t goes 0 → 1. A clip-path (CSSOM, so strict-CSP safe)
+// on a flat wrapper: on the foldout itself it would flatten preserve-3d.
+export function shuffledCells(n: number, rand: () => number = Math.random): number[] {
+  const a = Array.from({ length: n }, (_, i) => i);
+  for (let i = n - 1; i > 0; i--) { const j = Math.floor(rand() * (i + 1)); [a[i], a[j]] = [a[j], a[i]]; }
+  return a;
 }
+export function dissolveClip(order: readonly number[], n: number, cols: number, x: number, y: number, cell: number): string {
+  if (n >= order.length) return "none";
+  if (n <= 0) return "inset(50%)";
+  const c1 = cell + 1; // 1px overlap: no hairlines between neighbours
+  let d = "";
+  for (let i = 0; i < n; i++) {
+    const c = order[i];
+    d += `M${(x + (c % cols) * cell).toFixed(1)} ${(y + Math.floor(c / cols) * cell).toFixed(1)}h${c1}v${c1}h${-c1}Z`;
+  }
+  return `path("${d}")`;
+}
+
 
 // ─── DOM ────────────────────────────────────────────────────────────
 // The delivery animation, ported from the approved dev/map-check.html
@@ -73,14 +90,13 @@ export interface FoldOutOptions {
   root: HTMLElement;            // empty element appended to the shadow root; fold-out styles it
   framed: boolean;              // true → root absolute inset:0 in the host frame; false → fixed inset:0
   face: () => HTMLElement;      // a fresh poster stage (called 3×); fold-out sizes + offsets it
-  slotRect: () => DOMRect;      // collapsed slot, client coords; read once per open and once per close
   fitPct: number;
   backBackground: string;       // background for panel backs (paper stock)
   closeLabel: string;
   rtl: boolean;                 // close pill on the right, dog-ear corner mirrored
   bottomClose: boolean;         // desktop: the reader's pill straddling the open poster's bottom edge; else the mobile top-left pill
   reducedMotion: boolean;
-  onLift(t: number): void;      // 0 at slot → 1 lifted; banner fades the collapsed frame to 1 - t
+  onLift(t: number): void;      // 0 hidden → 1 dissolved in; banner fades the collapsed frame to 1 - t
   onTap(): void;                // deliberate tap on the poster (isTap) → CTA
   onOpened(topPanelFace: HTMLElement): void; // fully open; paired with onFoldStart
   onFoldStart(): void;          // left fully-open (drag or close)
@@ -91,6 +107,7 @@ export interface FoldOutHandle { close(): void; destroy(): void; relayout(): voi
 
 const PANELS = FOLDOUT_MAX + 1;
 const FADE_MS = 200; // reduced motion: plain fade in and out
+const DISSOLVE_MS = 300; // pixel dissolve in (before the unfold) and out (after the fold-up)
 const lerp = (a: number, b: number, t: number) => a + (b - a) * t;
 
 const FOLDOUT_CSS = `
@@ -224,18 +241,21 @@ export function openFoldOut(o: FoldOutOptions): FoldOutHandle {
     chrome.style.opacity = v ? "1" : "0";
     chrome.style.visibility = v ? "visible" : "hidden"; // hidden = unclickable mid-fold
   };
-  root.append(foldout, chrome);
+  // Flat wrapper that carries the pixel-dissolve clip (see dissolveClip).
+  const veil = document.createElement("div");
+  Object.assign(veil.style, { position: "absolute", inset: "0", pointerEvents: "none" } as Partial<CSSStyleDeclaration>);
+  foldout.style.pointerEvents = "auto";
+  veil.append(foldout);
+  root.append(veil, chrome);
 
   // Geometry in root-local px. jsdom (and a not-yet-laid-out root) report
   // a zero rect; fall back to the window so sizes stay finite.
   let g = { vw: 0, vh: 0, w: 0, h: 0, ph: 0, cx: 0, cy: 0 };
-  let slot = { x: 0, y: 0, w: 0 };
   const rootRect = () => root.getBoundingClientRect();
-  const measureSlot = () => {
-    const r = rootRect();
-    const s = o.slotRect();
-    slot = { x: s.left - r.left, y: s.top - r.top, w: s.width };
-  };
+  const COLS = 12;
+  let cell = 0;
+  let order: number[] = [];
+  let shown = -1; // cells currently revealed (skip re-clipping when unchanged)
   const layout = () => {
     const r = rootRect();
     const vw = r.width || window.innerWidth;
@@ -246,6 +266,10 @@ export function openFoldOut(o: FoldOutOptions): FoldOutHandle {
     stages.forEach((st, i) => Object.assign(st.style, {
       inset: "auto", left: "0", top: `${-i * g.ph}px`, width: `${w}px`, height: `${h}px`,
     }));
+    cell = w / COLS;
+    const cells = COLS * Math.ceil(h / cell || 0);
+    if (order.length !== cells) order = shuffledCells(cells);
+    shown = -1;
     if (o.bottomClose) Object.assign(chrome.style, { left: `${g.cx}px`, top: `${g.cy}px`, width: `${w}px`, height: `${h}px` });
   };
 
@@ -263,16 +287,19 @@ export function openFoldOut(o: FoldOutOptions): FoldOutHandle {
       panels[k].style.transform = `rotateX(${hingeAngle(p, k - 1)}deg)`;
       creases[k - 1].style.opacity = String((1 - hingeOpen(p, k - 1)) * 0.9);
     }
-    // Fly from the slot to the centre over the first part of the unfold.
-    // perspective() rides the foldout with its vanishing point on the cover's
-    // centre: a viewport-centred one parallaxes the folded panels out from
-    // under the cover while the foldout sits off-centre in the slot.
-    const t = liftT(p);
-    const k = lerp(slot.w / g.w || 0, 1, t);
+    // The poster sits centred; it pixel-dissolves in folded, then unfolds,
+    // and folds up before it dissolves out. perspective() rides the foldout
+    // with its vanishing point on the cover's centre.
+    const t = vis;
     const ox = g.w / 2, oy = g.ph / 2;
     foldout.style.transform =
-      `translate(${lerp(slot.x, g.cx, t) + ox}px, ${lerp(slot.y, g.cy, t) + oy}px) ` +
-      `scale(${k}) perspective(${FOLDOUT.perspective}px) translate(${-ox}px, ${-oy}px)`;
+      `translate(${g.cx + ox}px, ${g.cy + oy}px) ` +
+      `perspective(${FOLDOUT.perspective}px) translate(${-ox}px, ${-oy}px)`;
+    const n = Math.round(t * order.length);
+    if (n !== shown) {
+      shown = n;
+      veil.style.clipPath = dissolveClip(order, n, COLS, g.cx, g.cy, cell);
+    }
     // backdrop fades via its background alpha, never opacity (that would fade the foldout too)
     root.style.backgroundColor = `rgba(11, 11, 16, ${0.75 * t})`;
     o.onLift(t);
@@ -287,7 +314,25 @@ export function openFoldOut(o: FoldOutOptions): FoldOutHandle {
   const arrive = () => {
     if (goal === FOLDOUT_MAX) {
       if (!isOpen) { isOpen = true; showChrome(true); o.onOpened(faces[0]); }
-    } else finish();
+    } else dissolveTo(0, finish);
+  };
+
+  // Timed pixel dissolve of the folded poster (vis 0 → 1 or back), own rAF
+  // so a grab (which cancels the spring) never strands it half-shown.
+  let vis = 0;
+  let draf = 0;
+  const dissolveTo = (target: number, then: () => void) => {
+    cancelAnimationFrame(draf);
+    let last = performance.now();
+    const step = (now: number) => {
+      const d = Math.max(0, now - last) / DISSOLVE_MS;
+      last = now;
+      vis = target > vis ? Math.min(target, vis + d) : Math.max(target, vis - d);
+      render();
+      if (vis === target) { then(); return; }
+      draf = requestAnimationFrame(step);
+    };
+    draf = requestAnimationFrame(step);
   };
 
   // Critically damped spring on progress, seeded with the current velocity:
@@ -307,7 +352,9 @@ export function openFoldOut(o: FoldOutOptions): FoldOutHandle {
     const step = (now: number) => {
       s = springStep(s, target, Math.max(0, now - last) / 1000);
       last = now;
-      if (springSettled(s, target)) {
+      // Closing: dissolve as soon as the panels read as shut, not after the
+      // spring's long settle tail (a visible pause before the dissolve).
+      if (springSettled(s, target) || (target === 0 && s.p < 0.02)) {
         s = { p: target, v: 0 };
         render();
         arrive();
@@ -331,7 +378,6 @@ export function openFoldOut(o: FoldOutOptions): FoldOutHandle {
     committed = true;
     leaveOpen();
     o.onCloseCommit();
-    measureSlot(); // the page may have scrolled while open
     springTo(0);
   };
 
@@ -398,6 +444,7 @@ export function openFoldOut(o: FoldOutOptions): FoldOutHandle {
   const destroy = () => {
     done = true;
     cancelAnimationFrame(raf);
+    cancelAnimationFrame(draf);
     window.clearTimeout(timer);
     window.removeEventListener("resize", relayout);
     root.removeEventListener("pointerdown", onDown);
@@ -412,9 +459,9 @@ export function openFoldOut(o: FoldOutOptions): FoldOutHandle {
     o.onClosed();
   }
 
-  measureSlot();
   layout();
   if (o.reducedMotion) {
+    vis = 1;
     s = { p: FOLDOUT_MAX, v: 0 };
     render();
     root.style.opacity = "0";
@@ -424,7 +471,9 @@ export function openFoldOut(o: FoldOutOptions): FoldOutHandle {
     timer = window.setTimeout(arrive, FADE_MS);
   } else {
     render();
-    springTo(FOLDOUT_MAX);
+    // Dissolve in folded, then unfold — unless a finger already holds it
+    // (its release springs to goal). A close cancels this via dissolveTo(0).
+    dissolveTo(1, () => { if (!drag) springTo(goal); });
   }
 
   return { close, destroy, relayout };

@@ -33,7 +33,6 @@ afterEach(() => {
   document.body.replaceChildren();
 });
 
-const slot = { x: 40, y: 300, left: 40, top: 300, width: 300, height: 250, right: 340, bottom: 550 } as DOMRect;
 
 function setup(over: Partial<FoldOutOptions> = {}) {
   const root = document.createElement("div");
@@ -42,7 +41,6 @@ function setup(over: Partial<FoldOutOptions> = {}) {
     root,
     framed: false,
     face: vi.fn(() => document.createElement("div")),
-    slotRect: () => slot,
     fitPct: 97,
     backBackground: "#eee",
     closeLabel: "Close",

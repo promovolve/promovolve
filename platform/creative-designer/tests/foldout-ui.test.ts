@@ -6,6 +6,7 @@ import { pagerVisible } from "../src/ui/canvas-foot";
 import { foldGuideTops } from "../src/render/overlay";
 import { videoAllowed } from "../src/ui/page-bg-panel";
 import { regenAllowed } from "../src/ui/menu-bar";
+import { templatesAllowed } from "../src/ui/tool-rail";
 
 const foldout = { format: "foldout" } as BannerConfig;
 const mag = {} as BannerConfig;
@@ -33,5 +34,10 @@ describe("Fold-out UI gates", () => {
   it("regenerate disabled for foldout", () => {
     expect(regenAllowed(foldout)).toBe(false);
     expect(regenAllowed(mag)).toBe(true);
+  });
+  it("layout templates disabled on the foldout expanded tab only", () => {
+    expect(templatesAllowed(st("mobile", foldout))).toBe(false);
+    expect(templatesAllowed(st("300x250", foldout))).toBe(true);
+    expect(templatesAllowed(st("mobile", mag))).toBe(true);
   });
 });

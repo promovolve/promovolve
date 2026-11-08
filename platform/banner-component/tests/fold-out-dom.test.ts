@@ -63,7 +63,7 @@ const settle = (until: () => boolean): void => {
 };
 
 const ptr = (el: Element, type: string, y: number, x = 50): void => {
-  el.dispatchEvent(new PointerEvent(type, { bubbles: true, clientX: x, clientY: y, pointerId: 1 }));
+  el.dispatchEvent(new PointerEvent(type, { bubbles: true, clientX: x, clientY: y, pointerId: 1, isPrimary: true }));
 };
 
 describe("fold-out DOM", () => {
@@ -163,6 +163,22 @@ describe("fold-out DOM", () => {
     expect(o.onCloseCommit).toHaveBeenCalledTimes(1);
     expect(o.onClosed).toHaveBeenCalledTimes(1);
     expect(o.onTap).not.toHaveBeenCalled();
+  });
+
+  it("a right-click (button 2) neither taps the poster nor closes from the backdrop", () => {
+    const { o, root } = setup();
+    settle(() => o.onOpened.mock.calls.length > 0);
+    const rc = (el: Element, type: string, y: number, x = 50) =>
+      el.dispatchEvent(new PointerEvent(type, { bubbles: true, clientX: x, clientY: y, pointerId: 1, button: 2, isPrimary: true }));
+    const face = root.querySelector(".foldout-face")!;
+    rc(face, "pointerdown", 100);
+    rc(face, "pointerup", 100);
+    rc(root, "pointerdown", 5, 5);
+    rc(root, "pointerup", 5, 5);
+    for (let i = 0; i < 60; i++) frame();
+    expect(o.onTap).not.toHaveBeenCalled();
+    expect(o.onCloseCommit).not.toHaveBeenCalled();
+    expect(o.onClosed).not.toHaveBeenCalled();
   });
 
   it("onCloseCommit fires once, before onClosed", () => {

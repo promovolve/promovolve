@@ -274,7 +274,7 @@ export function posterLayoutFor(beats: Page[], kit: BrandKit | null): LayoutItem
   const font = headlineFontOf(beats[0], kit);
   const items: LayoutItem[] = [{ type: "image", field: "img", left: 0, top: 0, width: 100, height: 100 }];
   for (let k = 0; k < 3; k++) {
-    const spec = { edge: k === 0 ? "top" : "bottom", color: "#000000", strength: 0.55 } as const;
+    const spec = { edge: "top", color: "#000000", strength: 0.55 } as const;
     items.push({ type: "rect", left: 0, top: k * POSTER_BAND, width: 100, height: POSTER_BAND, fill: scrimGradient(spec), scrim: spec } as LayoutItem);
   }
   const text = (o: Record<string, unknown>) =>

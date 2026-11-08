@@ -129,14 +129,15 @@ export function openFoldOut(o: FoldOutOptions): FoldOutHandle {
   // Constructed stylesheet, adopted by the shadow root: unlike a <style>
   // element it is not blocked by a strict `style-src 'self'` CSP (the
   // hostile suite's foldout-csp-strict fixture). <style> stays as fallback.
-  const style = document.createElement("style");
   const scope = root.getRootNode() as ShadowRoot;
   try {
     foldoutSheet ??= new CSSStyleSheet();
     foldoutSheet.replaceSync(FOLDOUT_CSS);
     if (!scope.adoptedStyleSheets.includes(foldoutSheet)) scope.adoptedStyleSheets = [...scope.adoptedStyleSheets, foldoutSheet];
   } catch {
+    const style = document.createElement("style");
     style.textContent = FOLDOUT_CSS;
+    root.append(style);
   }
   const foldout = document.createElement("div");
   foldout.className = "foldout";
@@ -199,7 +200,7 @@ export function openFoldOut(o: FoldOutOptions): FoldOutHandle {
     webkitBackdropFilter: "blur(6px)",
   } as Partial<CSSStyleDeclaration>);
   pill.addEventListener("click", () => close());
-  root.append(style, foldout, pill);
+  root.append(foldout, pill);
 
   // Geometry in root-local px. jsdom (and a not-yet-laid-out root) report
   // a zero rect; fall back to the window so sizes stay finite.
@@ -314,6 +315,8 @@ export function openFoldOut(o: FoldOutOptions): FoldOutHandle {
     const tgt = e.target as Element | null;
     // the close pill and the dog-ear keep their own clicks (capture would steal them)
     if (committed || tgt?.closest?.(".dogear-corner, a, button")) return;
+    // primary button/pointer only (isPrimary is undefined on synthetic events)
+    if ((e.button ?? 0) !== 0 || e.isPrimary === false) return;
     cancelAnimationFrame(raf);
     window.clearTimeout(timer);
     s = { p: s.p, v: 0 };

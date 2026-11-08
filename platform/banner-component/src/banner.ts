@@ -334,14 +334,7 @@ export class ExpandableMagazineBanner extends HTMLElement {
   disconnectedCallback(): void {
     // SPA unmount mid-foldout: stop its rAF/resize/timers and drop the root.
     // Silent — no collapse event for a teardown nobody performed.
-    if (this._foldOut) {
-      this._foldOut.handle.destroy();
-      this._foldOut = null;
-      this._expanded = false;
-      this._dogEars = [];
-      this.shadowRoot?.querySelector(".foldout-root")?.remove();
-      this.shadowRoot?.querySelector<HTMLElement>(".banner")?.style.removeProperty("opacity");
-    }
+    this._teardownFoldOut();
     this._rootBgRestore?.();
     this.teardownVideoBg();
     window.removeEventListener("keydown", this.handleKeyDown);
@@ -687,6 +680,16 @@ export class ExpandableMagazineBanner extends HTMLElement {
       if (rtl) this.next();
       else this.prev();
     }
+  }
+
+  private _teardownFoldOut(): void {
+    if (!this._foldOut) return;
+    this._foldOut.handle.destroy();
+    this._foldOut = null;
+    this._expanded = false;
+    this._dogEars = [];
+    this.shadowRoot?.querySelector(".foldout-root")?.remove();
+    this.shadowRoot?.querySelector<HTMLElement>(".banner")?.style.removeProperty("opacity");
   }
 
   private _expand(): void {
@@ -1379,6 +1382,7 @@ export class ExpandableMagazineBanner extends HTMLElement {
   // ═══════════════════════════════════════════════════════════════
 
   private render(): void {
+    this._teardownFoldOut(); // a rebuild must not orphan an open fold-out
     // Chromium resolves container-query units (the layout items' cqmax
     // font sizes) at their VIEWPORT fallback for elements rendered inside
     // a display:none ancestor, and never re-resolves after reveal — a

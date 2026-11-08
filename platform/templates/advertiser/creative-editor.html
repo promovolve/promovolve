@@ -362,10 +362,10 @@
       </div>
     </section>
 
-    <!-- 5. Layout — picking ONE named template is REQUIRED (gates Continue
+    <!-- 5. Layout (hidden for Fold-out) — picking ONE named template is REQUIRED (gates Continue
          via selectedTemplateId), so the creative is never silently
          defaulted. The fonts opt-in sits here too: both set the look. -->
-    <section class="editor-section">
+    <section class="editor-section" x-show="format !== 'foldout'" x-cloak>
       <h2 class="editor-heading"><span class="tabular">5</span> {{t "Layout"}}</h2>
       <div class="min-w-0">
         <p class="text-sm text-gray-500 mb-3">{{t "Pick a layout. Colours are set later in the designer."}}</p>
@@ -406,7 +406,7 @@
 
     <!-- 6. Name, then the page's one primary action. -->
     <section class="editor-section">
-      <h2 class="editor-heading"><span class="tabular">6</span> {{t "Creative name"}}</h2>
+      <h2 class="editor-heading"><span class="tabular" x-text="format === 'foldout' ? 5 : 6">6</span> {{t "Creative name"}}</h2>
       <div class="min-w-0">
         <label for="creative-editor-creativename" class="sr-only">{{t "Creative name"}}</label>
         <input id="creative-editor-creativename" type="text" x-model="creativeName" required maxlength="120"
@@ -1069,7 +1069,7 @@ function creativeEditor() {
       // pages without one fall back to the synthesized imgEmoji / gradient.
       return this.synthesizedPages.length >= 3
         && this.creativeName.trim() !== ''
-        && this.selectedTemplateId !== '';
+        && (this.format === 'foldout' || this.selectedTemplateId !== '');  // the designer ignores the template for Fold-out
     },
 
     // Pre-fill the creative name from the LP hostname when entering the

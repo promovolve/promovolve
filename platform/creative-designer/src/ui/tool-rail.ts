@@ -19,7 +19,13 @@ import { scrimGradient, SCRIM_DEFAULT_COLOR, SCRIM_DEFAULT_STRENGTH } from "../s
 import { openAssetModal } from "./asset-modal";
 import { openBrandKitModal } from "./brand-kit-modal";
 import { openTemplateModal } from "./template-modal";
+import { isMultiPage } from "../modes";
 import { tokens } from "./tokens";
+
+/** Applying a template replaces the layout wholesale, dropping the Fold-out poster. */
+export function templatesAllowed(state: DesignerState): boolean {
+  return !(state.bannerConfig.format === "foldout" && isMultiPage(state.mode));
+}
 
 export function mountToolRail(host: HTMLElement, store: Store): void {
   const bar = document.createElement("div");
@@ -64,6 +70,17 @@ export function mountToolRail(host: HTMLElement, store: Store): void {
     }));
   };
 
+  const tplBtn = toolBtn(ICON_TEMPLATE, "Layout templates", "", () => openTemplateModal(store));
+  const syncTpl = (state: DesignerState): void => {
+    const ok = templatesAllowed(state);
+    tplBtn.disabled = !ok;
+    tplBtn.style.opacity = ok ? "1" : "0.35";
+    tplBtn.style.cursor = ok ? "pointer" : "default";
+    tplBtn.title = ok ? "Layout templates" : "Layout templates aren't available for Fold-out creatives";
+  };
+  store.subscribe(syncTpl);
+  syncTpl(store.state);
+
   bar.append(
     groupHeading("Add"),
     toolBtn(ICON_SELECT, "Select", "V", () => store.commit(selectItem(store.state, null)), { active: true }),
@@ -73,7 +90,7 @@ export function mountToolRail(host: HTMLElement, store: Store): void {
     toolBtn(ICON_SCRIM, "Scrim", "", () => store.commit(addItem(store.state, defaultScrim()))),
     divider(),
     groupHeading("Start from"),
-    toolBtn(ICON_TEMPLATE, "Layout templates", "", () => openTemplateModal(store)),
+    tplBtn,
     toolBtn(ICON_BRAND, "Brand kit", "", () => openBrandKitModal(window.__DESIGNER__?.campaignId ?? "")),
   );
 

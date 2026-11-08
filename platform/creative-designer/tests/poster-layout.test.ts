@@ -62,6 +62,12 @@ describe("posterLayoutFor", () => {
     expect(posterLayoutFor(beats(), null)[0]).toMatchObject({ type: "image", left: 0, top: 0, width: 100, height: 100 });
   });
 
+  it("each band's scrim is dark at the top, where its headline sits", () => {
+    const rects = posterLayoutFor(beats(), null).filter((i) => i.type === "rect") as unknown as { scrim: { edge: string } }[];
+    expect(rects).toHaveLength(3);
+    for (const r of rects) expect(r.scrim.edge).toBe("top");
+  });
+
   it("every text item has a scrim behind it", () => {
     const items = posterLayoutFor(beats(), null);
     items.forEach((it, idx) => {

@@ -146,10 +146,10 @@ export function installAutoLayoutGenerator(
     if (key === lastTabKey) return;
     lastTabKey = key;
     if (state.mode.key === "expanded") return;
-    // The reader keeps its template geometry — except the Map poster, whose
+    // The reader keeps its template geometry — except the Fold-out poster, whose
     // 9:16 master is machine-composed (posterLayoutFor) and packs here like
     // any bucket, band-capped (packSizedFieldBoxes).
-    const poster = state.mode.key === "mobile" && state.bannerConfig.format === "map";
+    const poster = state.mode.key === "mobile" && state.bannerConfig.format === "foldout";
     if (state.mode.key === "mobile" && !poster) return;
     const sizeKey = state.mode.sizeKey;
     if (!sizeKey) return;
@@ -317,7 +317,7 @@ function applyPage(store: Store, pageIdx: number, nextPage: Page): void {
   });
 }
 
-// markGenerated lives in presets.ts (the Map poster uses it too); re-exported
+// markGenerated lives in presets.ts (the Fold-out poster uses it too); re-exported
 // here for callers and tests that know it as part of applyLayout.
 export { markGenerated };
 

@@ -6,11 +6,11 @@
   // Real creatives carry the poster in the portrait master
   // (banners["mobile-expanded"]); `layout` is the hidden 16:9 wide master.
   // The wide master here is deliberately WRONG: if it ever reaches the
-  // map, the probe sees "WIDE MASTER ONLY" in the map root and fails.
+  // fold-out, the probe sees "WIDE MASTER ONLY" in the fold-out root and fails.
   var PAGES = [
     { bg: "#1a1a2e",
       layout: [T("WIDE MASTER ONLY", 40)],
-      banners: { "mobile-expanded": [T("MAP TOP", 12), T("MAP MIDDLE", 46), T("MAP BOTTOM", 80)] } },
+      banners: { "mobile-expanded": [T("FOLDOUT TOP", 12), T("FOLDOUT MIDDLE", 46), T("FOLDOUT BOTTOM", 80)] } },
   ];
   function seed() {
     var slot = document.getElementById("slot");
@@ -19,7 +19,7 @@
     el.setAttribute("pages", JSON.stringify(PAGES));
     el.setAttribute("width", "300");
     el.setAttribute("height", "250");
-    el.setAttribute("config", JSON.stringify({ format: "map" }));
+    el.setAttribute("config", JSON.stringify({ format: "foldout" }));
     el.setAttribute("landing-url", "/tests/hostile/fixtures/_lp.html");
     slot.appendChild(el);
   }

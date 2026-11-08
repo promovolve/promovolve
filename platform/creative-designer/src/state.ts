@@ -376,7 +376,7 @@ export interface SizedBoxFit {
 
 export function fitSizedFieldBoxes(
   state: DesignerState,
-  // null = UNBOUND text (literal `text`, no field) — the Map poster's
+  // null = UNBOUND text (literal `text`, no field) — the Fold-out poster's
   // beats 2-3. Only ever paired with onlySizeKey by its caller.
   field: string | null,
   measure: (text: string, item: LayoutItem, sizeKey: string) => SizedBoxFit | null,
@@ -401,7 +401,7 @@ export function fitSizedFieldBoxes(
       // The mobile-expanded bucket is a READER surface — fitReaderFieldBoxes
       // owns it (and shares the current stage's geometry, which this
       // callback's per-bucket containers don't model).
-      // EXCEPT when a caller targets it explicitly: the Map poster is a
+      // EXCEPT when a caller targets it explicitly: the Fold-out poster is a
       // machine-composed bucket and packs through here (auto-layout).
       if (sizeKey === MOBILE_EXPANDED_KEY && onlySizeKey !== MOBILE_EXPANDED_KEY) {
         banners[sizeKey] = items; continue;

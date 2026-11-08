@@ -16,7 +16,7 @@ import { trustedHTML } from "./trusted-html";
 import { collectExpandedImageUrls, parseJSON, pickCollapsedLayout, pickExpandedLayout, sheetFitPct, sheetSizeFor } from "./utils";
 import { resolveExpandedFonts } from "./font-catalog";
 import { createViewableGate, viewableThreshold, type ViewableGate } from "./viewability";
-import { isMap, openMapFold, type MapFoldHandle } from "./map-fold";
+import { isFoldout, openFoldOut, type FoldOutHandle } from "./fold-out";
 import { animatePageTurn, createInteractivePeel, buildGrainOverlay, dogEarPeelFrame, DOGEAR_PEEL_TRAVEL, PAPER_CSS, PAPER_BACK_BLEND, paperBackBackground, paperBackStock } from "./paper";
 
 // The reader deals its sheets in by default (the kawaraban lifecycle);
@@ -153,9 +153,9 @@ export class ExpandableMagazineBanner extends HTMLElement {
   // all pages so folding one page folds every page (the pin is on the
   // creative, not a specific page index).
   private _dogEars: DogEarHandle[] = [];
-  // Live Map (gatefold) delivery: the fold handle and the banner-side
+  // Live Fold-out (gatefold) delivery: the fold handle and the banner-side
   // teardown (onClosed). Non-null from open until the fly-back lands.
-  private _mapFold: { handle: MapFoldHandle; finish: () => void } | null = null;
+  private _foldOut: { handle: FoldOutHandle; finish: () => void } | null = null;
   // Idempotency for the click beacon. A user that expands → closes →
   // expands again would re-fire the same signed click-url (same `rid`)
   // and get 409 from the server's duplicate check. Track per-mount so
@@ -332,14 +332,14 @@ export class ExpandableMagazineBanner extends HTMLElement {
   }
 
   disconnectedCallback(): void {
-    // SPA unmount mid-map: stop its rAF/resize/timers and drop the root.
+    // SPA unmount mid-foldout: stop its rAF/resize/timers and drop the root.
     // Silent — no collapse event for a teardown nobody performed.
-    if (this._mapFold) {
-      this._mapFold.handle.destroy();
-      this._mapFold = null;
+    if (this._foldOut) {
+      this._foldOut.handle.destroy();
+      this._foldOut = null;
       this._expanded = false;
       this._dogEars = [];
-      this.shadowRoot?.querySelector(".map-root")?.remove();
+      this.shadowRoot?.querySelector(".foldout-root")?.remove();
       this.shadowRoot?.querySelector<HTMLElement>(".banner")?.style.removeProperty("opacity");
     }
     this._rootBgRestore?.();
@@ -675,7 +675,7 @@ export class ExpandableMagazineBanner extends HTMLElement {
   private onKeyDown(e: KeyboardEvent): void {
     if (!this._expanded) return;
     if (e.key === "Escape") this._collapse();
-    if (this._mapFold) return; // one poster: no page keys
+    if (this._foldOut) return; // one poster: no page keys
     // RTL reading: the forward direction is to the LEFT, so the arrows
     // map the opposite way (← advances, → goes back).
     const rtl = resolveReadingRtl(this.configData, this.pagesData);
@@ -690,18 +690,18 @@ export class ExpandableMagazineBanner extends HTMLElement {
   }
 
   private _expand(): void {
-    // A Map fly-back still in flight from the last open: land it now,
+    // A Fold-out fly-back still in flight from the last open: land it now,
     // before _expanded flips (finish reads it to know who closed).
-    if (this._mapFold) {
-      this._mapFold.handle.destroy();
-      this._mapFold.finish();
+    if (this._foldOut) {
+      this._foldOut.handle.destroy();
+      this._foldOut.finish();
     }
     this._expanded = true;
     this.currentPage = 0;
     this._overlayTeasePlayed = false; // fresh open → one tease available
     window.addEventListener("keydown", this.handleKeyDown);
-    if (isMap(this.configData)) {
-      this.openMap();
+    if (isFoldout(this.configData)) {
+      this.openFoldout();
       return;
     }
     // Defensive: nuke any lingering overlays from a prior expansion whose
@@ -766,11 +766,11 @@ export class ExpandableMagazineBanner extends HTMLElement {
     this.dispatchPageChanged();
   }
 
-  /** Map (gatefold) delivery: the poster lifts out of the slot and unfolds
-    * downward (map-fold.ts). Replaces renderOverlay for format "map": no
+  /** Fold-out (gatefold) delivery: the poster lifts out of the slot and unfolds
+    * downward (fold-out.ts). Replaces renderOverlay for format "foldout": no
     * reader overlay, no page events, no framed hide timer — the collapsed
     * frame crossfades into the folded cover instead (onLift). */
-  private openMap(): void {
+  private openFoldout(): void {
     const sr = this.shadowRoot;
     if (!sr) return;
     const cfg = this.configData;
@@ -782,7 +782,7 @@ export class ExpandableMagazineBanner extends HTMLElement {
     const reducedMotion = prefersReducedMotion();
     const collapsed = (): HTMLElement | null => sr.querySelector<HTMLElement>(".banner");
     const root = document.createElement("div");
-    root.className = "map-root";
+    root.className = "foldout-root";
     // Same paper-back stock resolution as the reader (see renderOverlay).
     const backStock = paperBackStock(cfg.paperBackColor, page?.bg);
     if (backStock) root.style.setProperty("--paper-back-color", backStock);
@@ -806,14 +806,14 @@ export class ExpandableMagazineBanner extends HTMLElement {
     const commit = (): void => {
       if (committed) return;
       committed = true;
-      // _collapse's bookkeeping, for closes that start inside the map
+      // _collapse's bookkeeping, for closes that start inside the fold-out
       this._expanded = false;
       window.removeEventListener("keydown", this.handleKeyDown);
       if (!framed) this.dispatchEvent(new CustomEvent("magazine-collapse", { bubbles: true, composed: true }));
     };
     const finish = (): void => {
-      if (this._mapFold?.finish !== finish) return;
-      this._mapFold = null;
+      if (this._foldOut?.finish !== finish) return;
+      this._foldOut = null;
       commit(); // instant close (destroy) never committed in the module
       dropDogEars();
       root.remove();
@@ -821,7 +821,7 @@ export class ExpandableMagazineBanner extends HTMLElement {
       if (c) c.style.opacity = "";
       if (framed) this.dispatchEvent(new CustomEvent("magazine-collapse", { bubbles: true, composed: true }));
     };
-    const handle = openMapFold({
+    const handle = openFoldOut({
       root,
       framed,
       face: () => this.buildStage(page, cfg, { video: false }),
@@ -858,7 +858,7 @@ export class ExpandableMagazineBanner extends HTMLElement {
       onCloseCommit: commit,
       onClosed: finish,
     });
-    this._mapFold = { handle, finish };
+    this._foldOut = { handle, finish };
     // Shrink-to-fit clamp, same contract as the reader overlay's post-render
     // pass: without it the faces clip any copy taller than its box.
     requestAnimationFrame(() => root.querySelectorAll<HTMLElement>('[data-autofit="1"]').forEach(autoFitText));
@@ -871,7 +871,7 @@ export class ExpandableMagazineBanner extends HTMLElement {
     this.dispatchEvent(new CustomEvent("magazine-expand", {
       bubbles:  true,
       composed: true,
-      detail:   { ctaUrl: this.resolveCtaUrl(), pageIndex: 0, totalPages: 1, format: "map" },
+      detail:   { ctaUrl: this.resolveCtaUrl(), pageIndex: 0, totalPages: 1, format: "foldout" },
     }));
   }
 
@@ -930,13 +930,13 @@ export class ExpandableMagazineBanner extends HTMLElement {
     }
     window.removeEventListener("keydown", this.handleKeyDown);
     const framed = this.getAttribute("preview-frame") === "1";
-    const mapFold = this._mapFold;
-    if (mapFold) {
+    const foldOut = this._foldOut;
+    if (foldOut) {
       if (instant) {
-        mapFold.handle.destroy();
-        mapFold.finish();
+        foldOut.handle.destroy();
+        foldOut.finish();
       } else {
-        mapFold.handle.close(); // → onCloseCommit reports it
+        foldOut.handle.close(); // → onCloseCommit reports it
       }
       return;
     }
@@ -2806,7 +2806,7 @@ export class ExpandableMagazineBanner extends HTMLElement {
 
   /** The CTA's non-visual work: perf mark, `cta-click`, the CTA pixel, and
     * the landing page in a new tab. Shared by the reader sheet's tap and the
-    * Map poster's tap. No landing-url → nothing to open. */
+    * Fold-out poster's tap. No landing-url → nothing to open. */
   private fireCta(): void {
     const ctaHref = this.getAttribute("landing-url") ?? "";
     if (!ctaHref) return;
@@ -3225,7 +3225,7 @@ function hasJapanese(s: string): boolean {
 // no light-dismiss and no UA Escape handling (the reader owns its
 // exits). Framed previews must stay INSIDE their frames, and
 // engines without popover keep today's behavior — same code path,
-// just not promoted. Shared by the reader overlay and the Map root.
+// just not promoted. Shared by the reader overlay and the Fold-out root.
 function promoteToTopLayer(el: HTMLElement): void {
   if (typeof el.showPopover !== "function") return;
   el.setAttribute("popover", "manual");
@@ -3254,7 +3254,7 @@ function promoteToTopLayer(el: HTMLElement): void {
   }
 }
 
-/** The page the expanded views render (reader sheets and the Map poster):
+/** The page the expanded views render (reader sheets and the Fold-out poster):
  *  the portrait master as a 9:16 page, or — for creatives authored before
  *  it — the page itself with its 16:9 `layout`. See pickExpandedLayout. */
 function expandedPage(page: Page): Page {

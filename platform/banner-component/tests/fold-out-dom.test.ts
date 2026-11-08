@@ -1,9 +1,9 @@
 // @vitest-environment jsdom
-// Map (gatefold) DOM: panel structure, tap vs drag, the close lifecycle,
+// Fold-out (gatefold) DOM: panel structure, tap vs drag, the close lifecycle,
 // reduced motion. jsdom has no layout (root rect is all zeros) and no rAF
 // clock, so frames are driven by hand against a fake performance.now().
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
-import { openMapFold, type MapFoldOptions } from "../src/map-fold";
+import { openFoldOut, type FoldOutOptions } from "../src/fold-out";
 
 let now = 0;
 let nextId = 0;
@@ -35,7 +35,7 @@ afterEach(() => {
 
 const slot = { x: 40, y: 300, left: 40, top: 300, width: 300, height: 250, right: 340, bottom: 550 } as DOMRect;
 
-function setup(over: Partial<MapFoldOptions> = {}) {
+function setup(over: Partial<FoldOutOptions> = {}) {
   const root = document.createElement("div");
   document.body.append(root);
   const o = {
@@ -55,7 +55,7 @@ function setup(over: Partial<MapFoldOptions> = {}) {
     onCloseCommit: vi.fn(),
     onClosed: vi.fn(),
   };
-  return { o, root, h: openMapFold({ ...o, ...over }) };
+  return { o, root, h: openFoldOut({ ...o, ...over }) };
 }
 
 const settle = (until: () => boolean): void => {
@@ -66,18 +66,18 @@ const ptr = (el: Element, type: string, y: number, x = 50): void => {
   el.dispatchEvent(new PointerEvent(type, { bubbles: true, clientX: x, clientY: y, pointerId: 1 }));
 };
 
-describe("map-fold DOM", () => {
+describe("fold-out DOM", () => {
   it("builds 3 panels", () => {
     const { o, root } = setup();
-    expect(root.querySelectorAll(".map-panel")).toHaveLength(3);
-    expect(root.querySelectorAll(".map-face")).toHaveLength(3);
+    expect(root.querySelectorAll(".foldout-panel")).toHaveLength(3);
+    expect(root.querySelectorAll(".foldout-face")).toHaveLength(3);
     expect(o.face).toHaveBeenCalledTimes(3);
   });
 
   it("tap on poster calls onTap, drag does not", () => {
     const { o, root } = setup();
     settle(() => o.onOpened.mock.calls.length > 0);
-    const face = root.querySelector(".map-face")!;
+    const face = root.querySelector(".foldout-face")!;
     ptr(face, "pointerdown", 100);
     ptr(face, "pointerup", 100);
     expect(o.onTap).toHaveBeenCalledTimes(1);
@@ -102,7 +102,7 @@ describe("map-fold DOM", () => {
     const { o, root } = setup({ reducedMotion: true });
     vi.advanceTimersByTime(250);
     expect(o.onOpened).toHaveBeenCalledTimes(1);
-    const hinges = [...root.querySelectorAll<HTMLElement>(".map-panel")]
+    const hinges = [...root.querySelectorAll<HTMLElement>(".foldout-panel")]
       .map((p) => p.style.transform)
       .filter((t) => t);
     expect(hinges.length).toBeGreaterThan(0);
@@ -112,7 +112,7 @@ describe("map-fold DOM", () => {
   it("a tap during opening does not call onTap", () => {
     const { o, root } = setup();
     for (let i = 0; i < 3; i++) frame();
-    const face = root.querySelector(".map-face")!;
+    const face = root.querySelector(".foldout-face")!;
     ptr(face, "pointerdown", 100);
     ptr(face, "pointerup", 100);
     expect(o.onTap).not.toHaveBeenCalled();
@@ -125,7 +125,7 @@ describe("map-fold DOM", () => {
     settle(() => o.onOpened.mock.calls.length > 0);
     h.close();
     for (let i = 0; i < 5; i++) frame();
-    const face = root.querySelector(".map-face")!;
+    const face = root.querySelector(".foldout-face")!;
     ptr(face, "pointerdown", 100);
     ptr(face, "pointermove", 300);
     ptr(face, "pointerup", 300);
@@ -145,7 +145,7 @@ describe("map-fold DOM", () => {
     vi.advanceTimersByTime(250);
     h.close();
     vi.advanceTimersByTime(100);
-    const face = root.querySelector(".map-face")!;
+    const face = root.querySelector(".foldout-face")!;
     ptr(face, "pointerdown", 100);
     ptr(face, "pointerup", 100);
     vi.advanceTimersByTime(250);

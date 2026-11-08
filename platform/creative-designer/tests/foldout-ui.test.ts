@@ -7,31 +7,31 @@ import { foldGuideTops } from "../src/render/overlay";
 import { videoAllowed } from "../src/ui/page-bg-panel";
 import { regenAllowed } from "../src/ui/menu-bar";
 
-const map = { format: "map" } as BannerConfig;
+const foldout = { format: "foldout" } as BannerConfig;
 const mag = {} as BannerConfig;
 const st = (mode: string, cfg: BannerConfig) => initialState([], mode, cfg);
 
-describe("Map UI gates", () => {
-  it("entrance row hidden for map, shown for magazine", () => {
-    expect(entranceVisible(map)).toBe(false);
+describe("Fold-out UI gates", () => {
+  it("entrance row hidden for foldout, shown for magazine", () => {
+    expect(entranceVisible(foldout)).toBe(false);
     expect(entranceVisible(mag)).toBe(true);
   });
-  it("pager hidden for map", () => {
-    expect(pagerVisible(st("mobile", map))).toBe(false);
+  it("pager hidden for foldout", () => {
+    expect(pagerVisible(st("mobile", foldout))).toBe(false);
     expect(pagerVisible(st("mobile", mag))).toBe(true);
     expect(pagerVisible(st("300x250", mag))).toBe(false);
   });
-  it("fold guides drawn for map on the expanded mode only", () => {
-    expect(foldGuideTops(st("mobile", map))).toEqual([100 / 3, 200 / 3]);
-    expect(foldGuideTops(st("300x250", map))).toEqual([]);
+  it("fold guides drawn for foldout on the expanded mode only", () => {
+    expect(foldGuideTops(st("mobile", foldout))).toEqual([100 / 3, 200 / 3]);
+    expect(foldGuideTops(st("300x250", foldout))).toEqual([]);
     expect(foldGuideTops(st("mobile", mag))).toEqual([]);
   });
-  it("video controls disabled for map", () => {
-    expect(videoAllowed(map)).toBe(false);
+  it("video controls disabled for foldout", () => {
+    expect(videoAllowed(foldout)).toBe(false);
     expect(videoAllowed(mag)).toBe(true);
   });
-  it("regenerate disabled for map", () => {
-    expect(regenAllowed(map)).toBe(false);
+  it("regenerate disabled for foldout", () => {
+    expect(regenAllowed(foldout)).toBe(false);
     expect(regenAllowed(mag)).toBe(true);
   });
 });

@@ -79,17 +79,17 @@ func TestCreativeDesignCarriesBannerConfig(t *testing.T) {
 }
 
 func TestFormatBannerConfig(t *testing.T) {
-	if got := formatBannerConfig("map"); got != `{"format":"map"}` {
-		t.Errorf("map: got %q", got)
+	if got := formatBannerConfig("foldout"); got != `{"format":"foldout"}` {
+		t.Errorf("foldout: got %q", got)
 	}
-	for _, in := range []string{"", "magazine", "MAP", "map<script>"} {
+	for _, in := range []string{"", "magazine", "FOLDOUT", "foldout<script>"} {
 		if got := formatBannerConfig(in); got != "" {
 			t.Errorf("%q: got %q, want empty", in, got)
 		}
 	}
 }
 
-func TestCreativeDesignCarriesMapFormat(t *testing.T) {
+func TestCreativeDesignCarriesFoldoutFormat(t *testing.T) {
 	SetFS(platform.Templates, platform.Static)
 	render := func(cfg string) string {
 		data := creativeDesignData{
@@ -109,11 +109,11 @@ func TestCreativeDesignCarriesMapFormat(t *testing.T) {
 		}
 		return sb.String()
 	}
-	withMap, without := render(formatBannerConfig("map")), render("")
-	if withMap == without {
-		t.Fatal("map seed did not change the rendered page")
+	withFoldout, without := render(formatBannerConfig("foldout")), render("")
+	if withFoldout == without {
+		t.Fatal("foldout seed did not change the rendered page")
 	}
-	if got, want := strings.TrimSpace(grepLine(withMap, "bannerConfigJson:")), `bannerConfigJson: "{\"format\":\"map\"}",`; got != want {
+	if got, want := strings.TrimSpace(grepLine(withFoldout, "bannerConfigJson:")), `bannerConfigJson: "{\"format\":\"foldout\"}",`; got != want {
 		t.Errorf("bannerConfigJson line = %s, want %s", got, want)
 	}
 }
@@ -128,10 +128,10 @@ func grepLine(s, sub string) string {
 }
 
 func TestSeedBannerConfigFreshOnly(t *testing.T) {
-	if got := seedBannerConfig("map", ""); got != `{"format":"map"}` {
+	if got := seedBannerConfig("foldout", ""); got != `{"format":"foldout"}` {
 		t.Errorf("fresh: got %q", got)
 	}
-	if got := seedBannerConfig("map", "01KX"); got != "" {
+	if got := seedBannerConfig("foldout", "01KX"); got != "" {
 		t.Errorf("existing creative must not be seeded, got %q", got)
 	}
 }

@@ -262,7 +262,7 @@ export function mountBannerConfigPanel(
   };
 }
 
-/** A Map poster has no page-turn entrance. */
+/** A Fold-out poster has no page-turn entrance. */
 export function entranceVisible(cfg: BannerConfig): boolean {
-  return cfg.format !== "map";
+  return cfg.format !== "foldout";
 }

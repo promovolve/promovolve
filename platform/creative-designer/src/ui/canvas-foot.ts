@@ -257,7 +257,7 @@ function formatBytes(n: number): string {
   return `${(n / 1024 / 1024).toFixed(2)} MB`;
 }
 
-/** Map is one page: no pager even on the multi-page tab. */
+/** Fold-out is one page: no pager even on the multi-page tab. */
 export function pagerVisible(state: DesignerState): boolean {
-  return isMultiPage(state.mode) && state.bannerConfig.format !== "map";
+  return isMultiPage(state.mode) && state.bannerConfig.format !== "foldout";
 }

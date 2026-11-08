@@ -946,7 +946,7 @@ function handlePosition(dir: ResizeDir): string[] {
 }
 
 
-/** Map poster fold lines (percent from top), on the portrait master only. */
+/** Fold-out poster fold lines (percent from top), on the portrait master only. */
 export function foldGuideTops(state: DesignerState): number[] {
-  return state.bannerConfig.format === "map" && isMultiPage(state.mode) ? [100 / 3, 200 / 3] : [];
+  return state.bannerConfig.format === "foldout" && isMultiPage(state.mode) ? [100 / 3, 200 / 3] : [];
 }

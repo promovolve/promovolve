@@ -1,8 +1,8 @@
-// Map (gatefold poster) format: the fold maths (pure), then the DOM.
+// Fold-out (gatefold poster) format: the fold maths (pure), then the DOM.
 import { PAPER_BACK_BLEND } from "./paper";
 import { fontUI } from "./fonts";
-export const MAP_MAX = 2; // 3 panels -> progress 0..2
-export const MAP = {
+export const FOLDOUT_MAX = 2; // 3 panels -> progress 0..2
+export const FOLDOUT = {
   overlap: 0.45, omega: 8, coverRest: 178, innerRest: 180,
   lift: 0.7, flickS: 0.15, restMs: 80, dtMax: 0.032, perspective: 1400, slop: 12,
 } as const;
@@ -10,11 +10,11 @@ export const MAP = {
 const clamp = (x: number, lo: number, hi: number) => Math.min(hi, Math.max(lo, x));
 const smooth = (t: number) => t * t * (3 - 2 * t);
 
-export function isMap(cfg: { format?: unknown }): boolean {
-  return cfg.format === "map";
+export function isFoldout(cfg: { format?: unknown }): boolean {
+  return cfg.format === "foldout";
 }
 
-export function hingeOpen(progress: number, i: number, max = MAP_MAX, overlap = MAP.overlap): number {
+export function hingeOpen(progress: number, i: number, max = FOLDOUT_MAX, overlap = FOLDOUT.overlap): number {
   const L = Math.min(max, 1 + overlap);
   const gap = max > 1 ? (max - L) / (max - 1) : 0;
   return smooth(clamp((progress - i * gap) / L, 0, 1));
@@ -22,7 +22,7 @@ export function hingeOpen(progress: number, i: number, max = MAP_MAX, overlap = 
 
 // rotateX degrees: negative folds away from the viewer for a top-edge hinge.
 export function hingeAngle(progress: number, i: number): number {
-  const rest = i === 0 ? MAP.coverRest : MAP.innerRest;
+  const rest = i === 0 ? FOLDOUT.coverRest : FOLDOUT.innerRest;
   const sign = i % 2 === 0 ? -1 : 1;
   return sign * rest * (1 - hingeOpen(progress, i));
 }
@@ -30,12 +30,12 @@ export function hingeAngle(progress: number, i: number): number {
 type Spring = { p: number; v: number };
 
 export function springStep(s: Spring, target: number, dt: number): Spring {
-  const d = Math.min(dt, MAP.dtMax);
-  const w = MAP.omega;
+  const d = Math.min(dt, FOLDOUT.dtMax);
+  const w = FOLDOUT.omega;
   const v = s.v + (w * w * (target - s.p) - 2 * w * s.v) * d;
   const p = s.p + v * d;
   if (p <= 0) return { p: 0, v: 0 };
-  if (p >= MAP_MAX) return { p: MAP_MAX, v: 0 };
+  if (p >= FOLDOUT_MAX) return { p: FOLDOUT_MAX, v: 0 };
   return { p, v };
 }
 
@@ -44,12 +44,12 @@ export function springSettled(s: Spring, target: number): boolean {
 }
 
 export function releaseTarget(p: number, v: number, msSinceLastMove: number): "open" | "closed" {
-  const vv = msSinceLastMove > MAP.restMs ? 0 : v;
-  return p + vv * MAP.flickS < MAP_MAX / 2 ? "closed" : "open";
+  const vv = msSinceLastMove > FOLDOUT.restMs ? 0 : v;
+  return p + vv * FOLDOUT.flickS < FOLDOUT_MAX / 2 ? "closed" : "open";
 }
 
 export function isTap(dx: number, dy: number): boolean {
-  return Math.hypot(dx, dy) <= MAP.slop;
+  return Math.hypot(dx, dy) <= FOLDOUT.slop;
 }
 
 // Mirrors sheetSizeFor("9/16", fit) in px.
@@ -59,7 +59,7 @@ export function posterSize(vw: number, vh: number, fitPct: number): { w: number;
 }
 
 export function liftT(progress: number): number {
-  return smooth(clamp(progress / MAP.lift, 0, 1));
+  return smooth(clamp(progress / FOLDOUT.lift, 0, 1));
 }
 
 // ─── DOM ────────────────────────────────────────────────────────────
@@ -68,10 +68,10 @@ export function liftT(progress: number): number {
 // nested panels, each hinged on its parent's bottom edge; every face
 // holds the whole poster offset so only its third shows.
 
-export interface MapFoldOptions {
-  root: HTMLElement;            // empty element appended to the shadow root; map-fold styles it
+export interface FoldOutOptions {
+  root: HTMLElement;            // empty element appended to the shadow root; fold-out styles it
   framed: boolean;              // true → root absolute inset:0 in the host frame; false → fixed inset:0
-  face: () => HTMLElement;      // a fresh poster stage (called 3×); map-fold sizes + offsets it
+  face: () => HTMLElement;      // a fresh poster stage (called 3×); fold-out sizes + offsets it
   slotRect: () => DOMRect;      // collapsed slot, client coords; read once per open and once per close
   fitPct: number;
   backBackground: string;       // background for panel backs (paper stock)
@@ -85,35 +85,35 @@ export interface MapFoldOptions {
   onCloseCommit(): void;        // a close committed (pill, backdrop, drag, close()); once, before onClosed
   onClosed(): void;             // after fly-back; root emptied
 }
-export interface MapFoldHandle { close(): void; destroy(): void; relayout(): void; }
+export interface FoldOutHandle { close(): void; destroy(): void; relayout(): void; }
 
-const PANELS = MAP_MAX + 1;
+const PANELS = FOLDOUT_MAX + 1;
 const FADE_MS = 200; // reduced motion: plain fade in and out
 const lerp = (a: number, b: number, t: number) => a + (b - a) * t;
 
-const MAP_CSS = `
-.map { position: absolute; left: 0; top: 0; transform-style: preserve-3d; transform-origin: 0 0; }
-.map-panel { position: absolute; left: 0; top: 0; transform-style: preserve-3d;
+const FOLDOUT_CSS = `
+.foldout { position: absolute; left: 0; top: 0; transform-style: preserve-3d; transform-origin: 0 0; }
+.foldout-panel { position: absolute; left: 0; top: 0; transform-style: preserve-3d;
   transform-origin: center top; will-change: transform; }
-.map-panel .map-panel { top: 100%; }
+.foldout-panel .foldout-panel { top: 100%; }
 /* box-shadow, not a drop-shadow filter: a filter would flatten preserve-3d */
-.map-face, .map-back { position: absolute; inset: 0; overflow: hidden;
+.foldout-face, .foldout-back { position: absolute; inset: 0; overflow: hidden;
   backface-visibility: hidden; -webkit-backface-visibility: hidden;
   box-shadow: 0 1px 2px rgba(0,0,0,0.30), 0 4px 12px rgba(0,0,0,0.22); }
-.map-face { container-type: size; }
-.map-back { transform: rotateX(180deg); }
+.foldout-face { container-type: size; }
+.foldout-back { transform: rotateX(180deg); }
 /* crease shade on the hinge edge, darkens as the fold closes */
-.map-crease { position: absolute; inset: 0; z-index: 6; pointer-events: none; opacity: 0;
+.foldout-crease { position: absolute; inset: 0; z-index: 6; pointer-events: none; opacity: 0;
   background: linear-gradient(180deg, #0006, transparent 35%); }
 /* the crease stays in the paper once opened: a faint dark/lit line */
-.map-face.creased::before { content: ""; position: absolute; inset: 0 0 auto 0; height: 3px;
+.foldout-face.creased::before { content: ""; position: absolute; inset: 0 0 auto 0; height: 3px;
   z-index: 6; pointer-events: none;
   background: linear-gradient(180deg, rgba(0,0,0,.22), rgba(255,255,255,.16) 1px, transparent); }
 `;
 
-let mapSheet: CSSStyleSheet | undefined;
+let foldoutSheet: CSSStyleSheet | undefined;
 
-export function openMapFold(o: MapFoldOptions): MapFoldHandle {
+export function openFoldOut(o: FoldOutOptions): FoldOutHandle {
   const { root } = o;
   Object.assign(root.style, {
     position: o.framed ? "absolute" : "fixed",
@@ -128,38 +128,38 @@ export function openMapFold(o: MapFoldOptions): MapFoldHandle {
 
   // Constructed stylesheet, adopted by the shadow root: unlike a <style>
   // element it is not blocked by a strict `style-src 'self'` CSP (the
-  // hostile suite's map-csp-strict fixture). <style> stays as fallback.
+  // hostile suite's foldout-csp-strict fixture). <style> stays as fallback.
   const style = document.createElement("style");
   const scope = root.getRootNode() as ShadowRoot;
   try {
-    mapSheet ??= new CSSStyleSheet();
-    mapSheet.replaceSync(MAP_CSS);
-    if (!scope.adoptedStyleSheets.includes(mapSheet)) scope.adoptedStyleSheets = [...scope.adoptedStyleSheets, mapSheet];
+    foldoutSheet ??= new CSSStyleSheet();
+    foldoutSheet.replaceSync(FOLDOUT_CSS);
+    if (!scope.adoptedStyleSheets.includes(foldoutSheet)) scope.adoptedStyleSheets = [...scope.adoptedStyleSheets, foldoutSheet];
   } catch {
-    style.textContent = MAP_CSS;
+    style.textContent = FOLDOUT_CSS;
   }
-  const map = document.createElement("div");
-  map.className = "map";
+  const foldout = document.createElement("div");
+  foldout.className = "foldout";
   const panels: HTMLElement[] = [];
   const faces: HTMLElement[] = [];
   const stages: HTMLElement[] = [];
   const creases: HTMLElement[] = [];
-  let parent: HTMLElement = map;
+  let parent: HTMLElement = foldout;
   for (let i = 0; i < PANELS; i++) {
     const panel = document.createElement("div");
-    panel.className = "map-panel";
+    panel.className = "foldout-panel";
     const face = document.createElement("div");
-    face.className = i > 0 ? "map-face creased" : "map-face";
+    face.className = i > 0 ? "foldout-face creased" : "foldout-face";
     const stage = o.face(); // carries its own grain (buildStage)
     face.append(stage);
     if (i > 0) {
       const crease = document.createElement("div");
-      crease.className = "map-crease";
+      crease.className = "foldout-crease";
       face.append(crease);
       creases.push(crease);
     }
     const back = document.createElement("div");
-    back.className = "map-back";
+    back.className = "foldout-back";
     back.style.background = o.backBackground;
     back.style.backgroundBlendMode = PAPER_BACK_BLEND;
     panel.append(face, back);
@@ -172,7 +172,7 @@ export function openMapFold(o: MapFoldOptions): MapFoldHandle {
 
   const pill = document.createElement("button");
   pill.type = "button";
-  pill.className = "map-close";
+  pill.className = "foldout-close";
   pill.textContent = o.closeLabel;
   pill.setAttribute("aria-label", o.closeLabel);
   Object.assign(pill.style, {
@@ -199,7 +199,7 @@ export function openMapFold(o: MapFoldOptions): MapFoldHandle {
     webkitBackdropFilter: "blur(6px)",
   } as Partial<CSSStyleDeclaration>);
   pill.addEventListener("click", () => close());
-  root.append(style, map, pill);
+  root.append(style, foldout, pill);
 
   // Geometry in root-local px. jsdom (and a not-yet-laid-out root) report
   // a zero rect; fall back to the window so sizes stay finite.
@@ -224,7 +224,7 @@ export function openMapFold(o: MapFoldOptions): MapFoldHandle {
   };
 
   let s = { p: 0, v: 0 };
-  let goal = MAP_MAX;
+  let goal = FOLDOUT_MAX;
   let raf = 0;
   let timer = 0;
   let isOpen = false;
@@ -238,16 +238,16 @@ export function openMapFold(o: MapFoldOptions): MapFoldHandle {
       creases[k - 1].style.opacity = String((1 - hingeOpen(p, k - 1)) * 0.9);
     }
     // Fly from the slot to the centre over the first part of the unfold.
-    // perspective() rides the map with its vanishing point on the cover's
+    // perspective() rides the foldout with its vanishing point on the cover's
     // centre: a viewport-centred one parallaxes the folded panels out from
-    // under the cover while the map sits off-centre in the slot.
+    // under the cover while the foldout sits off-centre in the slot.
     const t = liftT(p);
     const k = lerp(slot.w / g.w || 0, 1, t);
     const ox = g.w / 2, oy = g.ph / 2;
-    map.style.transform =
+    foldout.style.transform =
       `translate(${lerp(slot.x, g.cx, t) + ox}px, ${lerp(slot.y, g.cy, t) + oy}px) ` +
-      `scale(${k}) perspective(${MAP.perspective}px) translate(${-ox}px, ${-oy}px)`;
-    // backdrop fades via its background alpha, never opacity (that would fade the map too)
+      `scale(${k}) perspective(${FOLDOUT.perspective}px) translate(${-ox}px, ${-oy}px)`;
+    // backdrop fades via its background alpha, never opacity (that would fade the foldout too)
     root.style.backgroundColor = `rgba(11, 11, 16, ${0.75 * t})`;
     o.onLift(t);
   };
@@ -258,14 +258,14 @@ export function openMapFold(o: MapFoldOptions): MapFoldHandle {
     o.onFoldStart();
   };
   const arrive = () => {
-    if (goal === MAP_MAX) {
+    if (goal === FOLDOUT_MAX) {
       if (!isOpen) { isOpen = true; o.onOpened(faces[0]); }
     } else finish();
   };
 
   // Critically damped spring on progress, seeded with the current velocity:
   // a flick carries its speed into the settle, a grab mid-flight picks up
-  // exactly where the map is.
+  // exactly where the foldout is.
   const springTo = (target: number) => {
     cancelAnimationFrame(raf);
     goal = target;
@@ -309,7 +309,7 @@ export function openMapFold(o: MapFoldOptions): MapFoldHandle {
   };
 
   // ── pointer: drag folds/unfolds, a tap is a CTA (poster) or a close (backdrop)
-  let drag: { x0: number; y0: number; a: number; p: number; t: number; last: number; onMap: boolean; moved: boolean } | null = null;
+  let drag: { x0: number; y0: number; a: number; p: number; t: number; last: number; onFoldout: boolean; moved: boolean } | null = null;
   const onDown = (e: PointerEvent) => {
     const tgt = e.target as Element | null;
     // the close pill and the dog-ear keep their own clicks (capture would steal them)
@@ -317,11 +317,11 @@ export function openMapFold(o: MapFoldOptions): MapFoldHandle {
     cancelAnimationFrame(raf);
     window.clearTimeout(timer);
     s = { p: s.p, v: 0 };
-    drag = { x0: e.clientX, y0: e.clientY, a: e.clientY, p: s.p, t: e.timeStamp, last: s.p, onMap: map.contains(tgt), moved: false };
+    drag = { x0: e.clientX, y0: e.clientY, a: e.clientY, p: s.p, t: e.timeStamp, last: s.p, onFoldout: foldout.contains(tgt), moved: false };
     try { root.setPointerCapture?.(e.pointerId); } catch { /* synthetic pointer */ }
   };
   const onMove = (e: PointerEvent) => {
-    if (!drag || committed) return; // Escape mid-drag: the close owns the map
+    if (!drag || committed) return; // Escape mid-drag: the close owns the foldout
     if (!drag.moved) {
       if (isTap(e.clientX - drag.x0, e.clientY - drag.y0)) return;
       drag.moved = true;
@@ -329,8 +329,8 @@ export function openMapFold(o: MapFoldOptions): MapFoldHandle {
       return;
     }
     // pulling down opens, pushing up folds
-    const p = Math.min(MAP_MAX, Math.max(0, drag.p + (e.clientY - drag.a) / g.ph));
-    if (p < MAP_MAX) leaveOpen();
+    const p = Math.min(FOLDOUT_MAX, Math.max(0, drag.p + (e.clientY - drag.a) / g.ph));
+    if (p < FOLDOUT_MAX) leaveOpen();
     // finger velocity in progress/s, smoothed so one noisy sample can't fling it
     const dt = (e.timeStamp - drag.t) / 1000;
     const v = dt > 0 ? lerp(s.v, (p - drag.last) / dt, 0.4) : s.v;
@@ -347,11 +347,11 @@ export function openMapFold(o: MapFoldOptions): MapFoldHandle {
     if (!d.moved && isTap(e.clientX - d.x0, e.clientY - d.y0)) {
       s = { p: s.p, v: 0 };
       // the CTA is a tap on the OPEN poster, never on one still unfolding
-      if (d.onMap) { if (isOpen) o.onTap(); springTo(goal); } else close();
+      if (d.onFoldout) { if (isOpen) o.onTap(); springTo(goal); } else close();
       return;
     }
     if (releaseTarget(s.p, s.v, e.timeStamp - d.t) === "closed") close();
-    else springTo(MAP_MAX);
+    else springTo(FOLDOUT_MAX);
   };
   const onCancel = () => {
     if (!drag) return;
@@ -386,7 +386,7 @@ export function openMapFold(o: MapFoldOptions): MapFoldHandle {
   measureSlot();
   layout();
   if (o.reducedMotion) {
-    s = { p: MAP_MAX, v: 0 };
+    s = { p: FOLDOUT_MAX, v: 0 };
     render();
     root.style.opacity = "0";
     void root.offsetWidth; // commit opacity 0 so the transition runs
@@ -395,7 +395,7 @@ export function openMapFold(o: MapFoldOptions): MapFoldHandle {
     timer = window.setTimeout(arrive, FADE_MS);
   } else {
     render();
-    springTo(MAP_MAX);
+    springTo(FOLDOUT_MAX);
   }
 
   return { close, destroy, relayout };

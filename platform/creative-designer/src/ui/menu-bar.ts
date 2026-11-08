@@ -144,7 +144,7 @@ export function mountMenuBar(
       regenBtn.title = regenEnabled
         ? `Regenerate ${modeName}`
         : !regenAllowed(state.bannerConfig)
-        ? "Regenerate isn't available for Map creatives"
+        ? "Regenerate isn't available for Fold-out creatives"
         : "Regenerate works on the expanded pages — banner sizes follow them automatically";
     },
   };
@@ -235,7 +235,7 @@ function themeToggle(): HTMLElement {
   return btn;
 }
 
-/** Regenerate runs applyLayout, which strips the Map poster's literal-text beats. */
+/** Regenerate runs applyLayout, which strips the Fold-out poster's literal-text beats. */
 export function regenAllowed(cfg: BannerConfig): boolean {
-  return cfg.format !== "map";
+  return cfg.format !== "foldout";
 }

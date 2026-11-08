@@ -69,23 +69,23 @@ async function probe(browser, name) {
     await page.waitForTimeout(400);
     await page.locator("expandable-magazine-banner").first().click();
     await page.waitForTimeout(1500); // deal-in settles
-    const st = await page.evaluate((expectMap) => {
+    const st = await page.evaluate((expectFoldout) => {
       const el = document.querySelector("expandable-magazine-banner");
       const sr = el?.shadowRoot;
       const overlay = sr?.querySelector(".overlay");
-      const mapRoot = sr?.querySelector(".map-root");
-      const panels = sr?.querySelectorAll(".map-panel").length ?? 0;
-      const coverEl = sr?.querySelector(".map-panel");
-      // Path pin: map fixtures open ONLY the map (3 panels, no reader);
-      // every other fixture opens ONLY the reader (no map root/panels).
-      // Map poster = the portrait master (banners["mobile-expanded"]), never
+      const foldoutRoot = sr?.querySelector(".foldout-root");
+      const panels = sr?.querySelectorAll(".foldout-panel").length ?? 0;
+      const coverEl = sr?.querySelector(".foldout-panel");
+      // Path pin: fold-out fixtures open ONLY the fold-out (3 panels, no reader);
+      // every other fixture opens ONLY the reader (no fold-out root/panels).
+      // Fold-out poster = the portrait master (banners["mobile-expanded"]), never
       // the 16:9 wide `layout` the seed plants beside it.
-      const mapText = mapRoot?.textContent ?? "";
-      const pathOk = expectMap
-        ? !!mapRoot && panels === 3 && !overlay
-          && mapText.includes("MAP MIDDLE") && !mapText.includes("WIDE MASTER ONLY")
-        : !!overlay && !mapRoot && panels === 0;
-      const host = expectMap ? mapRoot : overlay;
+      const foldoutText = foldoutRoot?.textContent ?? "";
+      const pathOk = expectFoldout
+        ? !!foldoutRoot && panels === 3 && !overlay
+          && foldoutText.includes("FOLDOUT MIDDLE") && !foldoutText.includes("WIDE MASTER ONLY")
+        : !!overlay && !foldoutRoot && panels === 0;
+      const host = expectFoldout ? foldoutRoot : overlay;
       if (!host) return { expanded: false, coverage: 0, closeVisible: false, pathOk, panels, transformStyle: "" };
       const r = host.getBoundingClientRect();
       const vw = window.innerWidth, vh = window.innerHeight;
@@ -106,7 +106,7 @@ async function probe(browser, name) {
         pathOk, panels,
         transformStyle: coverEl ? getComputedStyle(coverEl).transformStyle : "",
       };
-    }, name.startsWith("map"));
+    }, name.startsWith("foldout"));
     pathOk = st.pathOk; transformStyle = st.transformStyle;
     ({ expanded, coverage, closeVisible } = st);
   }
@@ -116,7 +116,7 @@ async function probe(browser, name) {
 
 const FIXTURES = ["quirks-mode", "css-bomb", "csp-strict", "trusted-types",
   "transformed-ancestor", "spa-remount", "zindex-war", "vertical-writing",
-  "map", "map-csp-strict"];
+  "foldout", "foldout-csp-strict"];
 
 // Short-viewport delivery behaviors — probed with phone emulation, not
 // the shared 900×700 probe, so it gets its own function and verdict:
@@ -169,40 +169,40 @@ async function probeShortViewport(browser) {
   const restoredAfterClose = (await rootBg()) === "";
   await port.close();
 
-  // 3. Map: open in portrait, rotate to landscape → no .map-panel remains.
-  const mapFixture = `http://127.0.0.1:${PORT}/tests/hostile/fixtures/map.html`;
-  const mapPanels = (page) => page.evaluate(() =>
-    document.querySelector("expandable-magazine-banner")?.shadowRoot?.querySelectorAll(".map-panel").length ?? 0);
+  // 3. Fold-out: open in portrait, rotate to landscape → no .foldout-panel remains.
+  const foldoutFixture = `http://127.0.0.1:${PORT}/tests/hostile/fixtures/foldout.html`;
+  const foldoutPanels = (page) => page.evaluate(() =>
+    document.querySelector("expandable-magazine-banner")?.shadowRoot?.querySelectorAll(".foldout-panel").length ?? 0);
   const mp = await browser.newPage({ viewport: { width: 390, height: 844 }, hasTouch: true, isMobile: true });
-  await mp.goto(mapFixture, { waitUntil: "load" });
+  await mp.goto(foldoutFixture, { waitUntil: "load" });
   await mp.waitForTimeout(600);
   await mp.locator("expandable-magazine-banner").click();
   await mp.waitForTimeout(1500);
-  const mapOpened = (await mapPanels(mp)) === 3;
+  const foldoutOpened = (await foldoutPanels(mp)) === 3;
   await mp.setViewportSize({ width: 844, height: 390 });
   await mp.waitForTimeout(1800);
-  const mapClosedOnRotate = (await mapPanels(mp)) === 0;
+  const foldoutClosedOnRotate = (await foldoutPanels(mp)) === 0;
   await mp.close();
 
-  return { directOk, openedPortrait, closedOnRotate, latchedWhileOpen, restoredAfterClose, mapOpened, mapClosedOnRotate };
+  return { directOk, openedPortrait, closedOnRotate, latchedWhileOpen, restoredAfterClose, foldoutOpened, foldoutClosedOnRotate };
 }
 
-// Disconnect while a map is open: the app swaps its subtree under the live
-// map. The old element's disconnectedCallback must tear the map down — no
-// map root left anywhere (the old shadow root, any live banner, or the
+// Disconnect while a fold-out is open: the app swaps its subtree under the live
+// fold-out. The old element's disconnectedCallback must tear the fold-out down — no
+// fold-out root left anywhere (the old shadow root, any live banner, or the
 // top layer), a fresh banner mounted, no page errors.
-async function probeMapRemount(browser) {
+async function probeFoldoutRemount(browser) {
   const page = await browser.newPage({ viewport: { width: 900, height: 700 } });
   const errors = [];
   page.on("pageerror", (e) => errors.push(String(e).slice(0, 200)));
-  await page.goto(`http://127.0.0.1:${PORT}/tests/hostile/fixtures/map-spa-remount.html`, { waitUntil: "load" });
+  await page.goto(`http://127.0.0.1:${PORT}/tests/hostile/fixtures/foldout-spa-remount.html`, { waitUntil: "load" });
   await page.waitForTimeout(1200);
   await page.locator("expandable-magazine-banner").first().click();
   await page.waitForTimeout(1500);
   const openedBefore = await page.evaluate(() => {
     const el = document.querySelector("expandable-magazine-banner");
     window.__oldSr = el.shadowRoot;
-    return el.shadowRoot.querySelectorAll(".map-panel").length === 3;
+    return el.shadowRoot.querySelectorAll(".foldout-panel").length === 3;
   });
   await page.evaluate(() => window.__swap());
   await page.waitForTimeout(1500);
@@ -210,14 +210,14 @@ async function probeMapRemount(browser) {
     const els = [...document.querySelectorAll("expandable-magazine-banner")];
     return {
       oldGone: !window.__oldSr.host.isConnected,
-      oldMapLeft: window.__oldSr.querySelectorAll(".map-root,.map-panel").length,
-      liveMapLeft: els.reduce((n, e) => n + (e.shadowRoot?.querySelectorAll(".map-root,.map-panel").length ?? 0), 0),
+      oldFoldoutLeft: window.__oldSr.querySelectorAll(".foldout-root,.foldout-panel").length,
+      liveFoldoutLeft: els.reduce((n, e) => n + (e.shadowRoot?.querySelectorAll(".foldout-root,.foldout-panel").length ?? 0), 0),
       topLayerLeft: document.querySelectorAll(":popover-open,dialog[open]").length,
       freshMounted: els.length === 1 && !!els[0].shadowRoot?.querySelector(".design-box"),
     };
   });
   await page.close();
-  const ok = openedBefore && after.oldGone && after.oldMapLeft === 0 && after.liveMapLeft === 0
+  const ok = openedBefore && after.oldGone && after.oldFoldoutLeft === 0 && after.liveFoldoutLeft === 0
     && after.freshMounted && errors.length === 0;
   return { ok, openedBefore, ...after, errors: errors.slice(0, 2) };
 }
@@ -303,7 +303,7 @@ const browser = await chromium.launch();
 const results = [];
 for (const f of FIXTURES) results.push(await probe(browser, f));
 const sv = await probeShortViewport(browser);
-const mr = await probeMapRemount(browser);
+const mr = await probeFoldoutRemount(browser);
 const vids = [
   await probeVideoBg(browser, { poster: true }),
   await probeVideoBg(browser, { poster: false }),
@@ -313,9 +313,9 @@ server.close();
 
 let failed = 0;
 for (const r of results) {
-  // map-csp-strict additionally needs the map's stylesheet to have survived
+  // foldout-csp-strict additionally needs the fold-out's stylesheet to have survived
   // the CSP: without it the cover loses preserve-3d and the fold flattens.
-  const styled = r.name !== "map-csp-strict" || r.transformStyle === "preserve-3d";
+  const styled = r.name !== "foldout-csp-strict" || r.transformStyle === "preserve-3d";
   const healthy = r.mounted && r.expanded && r.pathOk && styled && r.coverage >= 95 && r.closeVisible;
   const known = KNOWN[r.name];
   let verdict;
@@ -325,27 +325,27 @@ for (const r of results) {
   console.log(
     `${verdict.padEnd(10)} ${r.name.padEnd(22)} mounted=${r.mounted} expanded=${r.expanded} ` +
     `path=${r.pathOk} coverage=${r.coverage}% closeOnTop=${r.closeVisible}` +
-    (r.name === "map-csp-strict" ? ` transformStyle=${r.transformStyle}` : "") +
+    (r.name === "foldout-csp-strict" ? ` transformStyle=${r.transformStyle}` : "") +
     (r.errors.length ? `  err: ${r.errors.join(" | ")}` : "")
   );
   if (verdict === "FIXED (remove from KNOWN)") failed++;
 }
 {
   const ok = sv.directOk && sv.openedPortrait && sv.closedOnRotate
-    && sv.latchedWhileOpen && sv.restoredAfterClose && sv.mapOpened && sv.mapClosedOnRotate;
+    && sv.latchedWhileOpen && sv.restoredAfterClose && sv.foldoutOpened && sv.foldoutClosedOnRotate;
   if (!ok) failed++;
   console.log(
     `${(ok ? "ok" : "FAIL").padEnd(10)} ${"short-viewport".padEnd(22)} direct=${sv.directOk} ` +
     `openedPortrait=${sv.openedPortrait} closedOnRotate=${sv.closedOnRotate} ` +
     `rootBgLatched=${sv.latchedWhileOpen} rootBgRestored=${sv.restoredAfterClose} ` +
-    `mapOpened=${sv.mapOpened} mapClosedOnRotate=${sv.mapClosedOnRotate}`
+    `foldoutOpened=${sv.foldoutOpened} foldoutClosedOnRotate=${sv.foldoutClosedOnRotate}`
   );
 }
 {
   if (!mr.ok) failed++;
   console.log(
-    `${(mr.ok ? "ok" : "FAIL").padEnd(10)} ${"map-spa-remount".padEnd(22)} openedBefore=${mr.openedBefore} ` +
-    `oldDetached=${mr.oldGone} oldMapLeft=${mr.oldMapLeft} liveMapLeft=${mr.liveMapLeft} ` +
+    `${(mr.ok ? "ok" : "FAIL").padEnd(10)} ${"foldout-spa-remount".padEnd(22)} openedBefore=${mr.openedBefore} ` +
+    `oldDetached=${mr.oldGone} oldFoldoutLeft=${mr.oldFoldoutLeft} liveFoldoutLeft=${mr.liveFoldoutLeft} ` +
     `topLayerLeft=${mr.topLayerLeft} freshMounted=${mr.freshMounted}` +
     (mr.errors.length ? `  err: ${mr.errors.join(" | ")}` : "")
   );

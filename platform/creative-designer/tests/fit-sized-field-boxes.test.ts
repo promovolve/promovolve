@@ -46,7 +46,7 @@ describe("fitSizedFieldBoxes", () => {
     expect(r.pages[0].banners!["mobile-expanded"]).toBe(st.pages[0].banners!["mobile-expanded"]);
   });
 
-  it("packs mobile-expanded only when the caller targets it (the Map poster)", () => {
+  it("packs mobile-expanded only when the caller targets it (the Fold-out poster)", () => {
     const st = initialState(mk({ "300x250": [text()] }), "mobile");
     const r = fitSizedFieldBoxes(st, "headline", () => ({ width: 30, height: 12 }), "mobile-expanded");
     expect(bucketItem(r, "mobile-expanded").height).toBe(12);

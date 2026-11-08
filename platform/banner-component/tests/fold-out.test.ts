@@ -1,14 +1,14 @@
 import { describe, it, expect } from "vitest";
 import {
-  isMap, hingeOpen, hingeAngle, springStep, springSettled,
+  isFoldout, hingeOpen, hingeAngle, springStep, springSettled,
   releaseTarget, isTap, posterSize, liftT,
-} from "../src/map-fold";
+} from "../src/fold-out";
 
-describe("map-fold maths", () => {
-  it("isMap", () => {
-    expect(isMap({ format: "map" })).toBe(true);
-    expect(isMap({})).toBe(false);
-    expect(isMap({ format: "Map" })).toBe(false);
+describe("fold-out maths", () => {
+  it("isFoldout", () => {
+    expect(isFoldout({ format: "foldout" })).toBe(true);
+    expect(isFoldout({})).toBe(false);
+    expect(isFoldout({ format: "Fold-out" })).toBe(false);
   });
   it("hinges", () => {
     expect(hingeOpen(0, 0)).toBe(0); expect(hingeOpen(2, 1)).toBe(1);

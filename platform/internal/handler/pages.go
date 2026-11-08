@@ -5374,10 +5374,10 @@ func freqCapWindowOr(w string) string {
 }
 
 // formatBannerConfig returns the initial banner config for a fresh design:
-// `{"format":"map"}` for format "map", "" for anything else.
+// `{"format":"foldout"}` for format "foldout", "" for anything else.
 func formatBannerConfig(format string) string {
-	if format == "map" {
-		return `{"format":"map"}`
+	if format == "foldout" {
+		return `{"format":"foldout"}`
 	}
 	return ""
 }

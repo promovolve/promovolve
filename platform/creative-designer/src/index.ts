@@ -26,7 +26,7 @@ import { mountSelectionBar } from "./ui/selection-bar";
 import { mountLayers } from "./ui/layers";
 import { mountCanvasFoot } from "./ui/canvas-foot";
 import { installAutoLayoutGenerator, initialLayoutForPage } from "./auto-layout";
-import { composeMapPages } from "./presets";
+import { composeFoldoutPages } from "./presets";
 import { autoCropOnBoot } from "./auto-crop";
 import { prewarmSaliency } from "./saliency";
 import { mountGuides } from "./interaction/guides";
@@ -183,15 +183,15 @@ function boot(ctx: DesignerContext): void {
       if (parsed && typeof parsed === "object") savedBannerConfig = parsed;
     } catch { /* malformed blob → fresh defaults */ }
   }
-  const isMap = savedBannerConfig?.format === "map";
-  if (isMap) pages = composeMapPages(pages, hadPortrait, loadBrandKit(window.__DESIGNER__?.campaignId));
+  const isFoldout = savedBannerConfig?.format === "foldout";
+  if (isFoldout) pages = composeFoldoutPages(pages, hadPortrait, loadBrandKit(window.__DESIGNER__?.campaignId));
   // Honor the picked layout template on FIRST render. The editor's
   // generateCopy rewrites copy only — the layout is generated here — and
   // normalizePages' generic default ignores templateId, so without this a
   // picked template only appeared after a Regenerate ("picked template not
   // honored"). Re-lay-out only FRESH pages; saved creatives keep the layout
   // the author already edited.
-  if (!isMap && window.__DESIGNER__?.templateId) {
+  if (!isFoldout && window.__DESIGNER__?.templateId) {
     pages.forEach((page, i) => {
       if (hadLayout[i]) return;
       const items = initialLayoutForPage(page);

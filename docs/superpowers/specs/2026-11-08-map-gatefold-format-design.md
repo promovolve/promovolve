@@ -1,3 +1,5 @@
+> Renamed 2026-11-08: the format is **Fold-out** (折り込みポスター), stored as `format: "foldout"`. 'Map' below means Fold-out.
+
 # Map (gatefold poster) format — design
 
 Approved in conversation 2026-11-08, section by section. Prototype:

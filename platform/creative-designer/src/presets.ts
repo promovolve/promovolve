@@ -33,7 +33,7 @@ import { scrimGradient } from "./scrim";
 //    textFit is dropped on the Scala wire), so it must scale DOWN into
 //    its slot rather than overflow/clip. applyLayout is the one funnel
 //    every source (preset / template / Gemini) passes through, so this
-//    covers them all — plus the Map poster, which skips applyLayout's
+//    covers them all — plus the Fold-out poster, which skips applyLayout's
 //    copy strip (posterLayoutFor). Inert on heightless items — the
 //    renderer gates autofit on an explicit height — so free-growing
 //    fallback text and hand-drawn boxes are untouched.
@@ -261,7 +261,7 @@ function skyscraper(page: Page, kit: BrandKit | null): LayoutItem[] {
   return items;
 }
 
-// ── Map poster (gatefold) ─────────────────────────────────────────────
+// ── Fold-out poster (gatefold) ─────────────────────────────────────────────
 // One 9:16 page, three beats stacked in thirds; the banner folds it along
 // the two band lines. Text stays POSTER_CREASE_INSET clear of each fold.
 // Contrast comes from per-band scrims, not legibilizeItems: that measures
@@ -301,12 +301,12 @@ export function posterLayoutFor(beats: Page[], kit: BrandKit | null): LayoutItem
   return markGenerated(items);
 }
 
-/** First open of a Map design: fold the three hand-off beats into one
+/** First open of a Fold-out design: fold the three hand-off beats into one
   * poster page. The poster is the PORTRAIT master (banners["mobile-expanded"])
   * — what the 9:16 tab edits and delivery renders; `layout` stays the hidden
   * wide master. A resumed creative (portrait master already present) is left
-  * alone. Caller invokes this only when bannerConfig.format === "map". */
-export function composeMapPages(pages: Page[], hadPortrait: boolean, kit: BrandKit | null): Page[] {
+  * alone. Caller invokes this only when bannerConfig.format === "foldout". */
+export function composeFoldoutPages(pages: Page[], hadPortrait: boolean, kit: BrandKit | null): Page[] {
   if (hadPortrait || pages.length === 0) return pages.slice(0, 1);
   const p0 = pages[0];
   return [{ ...p0, banners: { ...p0.banners, "mobile-expanded": posterLayoutFor(pages, kit) } }];

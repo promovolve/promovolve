@@ -73,13 +73,13 @@ export function mountPageBgPanel(container: HTMLElement, store: Store): PageBgPa
       colorRow.update(page?.bg ?? "", state.pageIdx === 0, state.pages[0]?.syncBg !== false, isSized(state.mode));
       const videoBg = page?.videoBg;
       const allowed = videoAllowed(state.bannerConfig);
-      const src = allowed ? (videoBg?.src ?? null) : `map|${videoBg?.src ?? ""}`;
+      const src = allowed ? (videoBg?.src ?? null) : `foldout|${videoBg?.src ?? ""}`;
       // Only rebuild when present/absent state flips — otherwise
       // patching existing inputs keeps focus and avoids jitter.
       if (renderedSrc !== src) {
         body.innerHTML = "";
         if (!allowed) {
-          renderMapNote(body, !!videoBg);
+          renderFoldoutNote(body, !!videoBg);
         } else if (videoBg) {
           renderWithVideo(body, videoBg, store);
         } else {
@@ -304,20 +304,20 @@ function mountColorRow(store: Store): ColorRowHandle {
   };
 }
 
-/** Map is a still poster: a video background never plays there. */
+/** Fold-out is a still poster: a video background never plays there. */
 export function videoAllowed(cfg: BannerConfig): boolean {
-  return cfg.format !== "map";
+  return cfg.format !== "foldout";
 }
 
-function renderMapNote(body: HTMLElement, hasVideo: boolean): void {
+function renderFoldoutNote(body: HTMLElement, hasVideo: boolean): void {
   const note = document.createElement("p");
   note.style.cssText = `color:${tokens.ink300};font-size:11px;margin:0 0 10px;line-height:1.5;`;
-  note.textContent = "Video backgrounds aren't available in Map format";
+  note.textContent = "Video backgrounds aren't available in Fold-out format";
   body.appendChild(note);
   if (hasVideo) {
     const warn = document.createElement("p");
     warn.style.cssText = `color:${tokens.ink100};font-size:11px;margin:0 0 10px;line-height:1.5;`;
-    warn.textContent = "This video won't play in Map format — the page colour shows instead";
+    warn.textContent = "This video won't play in Fold-out format — the page colour shows instead";
     body.appendChild(warn);
   }
 }

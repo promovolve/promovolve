@@ -348,7 +348,7 @@ export function packSizedFieldBoxes(
     // block-start anchor — then the block extent at that inline size.
     // Mirrors packTextItemHeight's fitWidth+height sequence with the
     // axes swapped for vertical-rl.
-    // The Map poster (the only caller that packs mobile-expanded) composes
+    // The Fold-out poster (the only caller that packs mobile-expanded) composes
     // each box as its CAP — the band minus the crease insets — so its copy
     // wraps inside the gutter and walks down to fit the band, not the canvas.
     const cap = (pct: number | undefined): number =>

@@ -96,7 +96,7 @@
       // saved creatives carry — the engine must ignore it and deal anyway.
       const CONFIG = { layout: "auto", font: "sans", showTag: false, showSub: true, expandAnimation: "fade", paperWeight: "medium" };
       let legacy169 = false; // mount without portrait masters → 16:9 fallback
-      let mapMode = false; // first page only, config.format "map" (gatefold poster from its portrait master)
+      let foldoutMode = false; // first page only, config.format "foldout" (gatefold poster from its portrait master)
 
       const SIZES = {
         "300×250": [300, 250],
@@ -114,13 +114,13 @@
         slot.style.height = h + "px";
         slot.replaceChildren(); // re-create so the one-shot teaser re-arms
         const el = document.createElement("expandable-magazine-banner");
-        const pages = mapMode
+        const pages = foldoutMode
           ? PAGES.slice(0, 1)
           : legacy169
             ? PAGES.map(({ banners, ...p }) => p) // strip portrait masters
             : PAGES;
         el.setAttribute("pages", JSON.stringify(pages));
-        el.setAttribute("config", JSON.stringify(mapMode ? { ...CONFIG, format: "map" } : CONFIG));
+        el.setAttribute("config", JSON.stringify(foldoutMode ? { ...CONFIG, format: "foldout" } : CONFIG));
         el.setAttribute("width", String(w));
         el.setAttribute("height", String(h));
         el.setAttribute("landing-url", "https://example.com/landing");
@@ -156,16 +156,16 @@
       };
       document.querySelector(".bar").insertBefore(pBtn, document.querySelector(".bar .hint"));
 
-      // Map (gatefold poster) delivery: tap unfolds the first page downward.
-      const mapBtn = document.createElement("button");
-      mapBtn.textContent = "Map";
-      mapBtn.title = 'Mount the first page with config.format = "map"';
-      mapBtn.onclick = () => {
-        mapMode = !mapMode;
-        mapBtn.className = mapMode ? "active" : "";
+      // Fold-out (gatefold poster) delivery: tap unfolds the first page downward.
+      const foldoutBtn = document.createElement("button");
+      foldoutBtn.textContent = "Fold-out";
+      foldoutBtn.title = 'Mount the first page with config.format = "foldout"';
+      foldoutBtn.onclick = () => {
+        foldoutMode = !foldoutMode;
+        foldoutBtn.className = foldoutMode ? "active" : "";
         mount();
       };
-      document.querySelector(".bar").insertBefore(mapBtn, document.querySelector(".bar .hint"));
+      document.querySelector(".bar").insertBefore(foldoutBtn, document.querySelector(".bar .hint"));
 
       // Paper weight — the peel hand-feel preset (pull gain, commit line,
       // flick throw, settle spring). Expand the reader and drag a page up

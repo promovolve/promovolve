@@ -332,6 +332,16 @@ export class ExpandableMagazineBanner extends HTMLElement {
   }
 
   disconnectedCallback(): void {
+    // SPA unmount mid-map: stop its rAF/resize/timers and drop the root.
+    // Silent — no collapse event for a teardown nobody performed.
+    if (this._mapFold) {
+      this._mapFold.handle.destroy();
+      this._mapFold = null;
+      this._expanded = false;
+      this._dogEars = [];
+      this.shadowRoot?.querySelector(".map-root")?.remove();
+      this.shadowRoot?.querySelector<HTMLElement>(".banner")?.style.removeProperty("opacity");
+    }
     this._rootBgRestore?.();
     this.teardownVideoBg();
     window.removeEventListener("keydown", this.handleKeyDown);
@@ -788,21 +798,27 @@ export class ExpandableMagazineBanner extends HTMLElement {
       this._dogEars = [];
     };
     let played = false;
+    // One collapse signal on every close path (pill, backdrop, drag,
+    // Escape, rotate-out): delivery reports it the moment the close
+    // commits; framed previews once the fly-back has landed (finish).
+    let committed = false;
+    const commit = (): void => {
+      if (committed) return;
+      committed = true;
+      // _collapse's bookkeeping, for closes that start inside the map
+      this._expanded = false;
+      window.removeEventListener("keydown", this.handleKeyDown);
+      if (!framed) this.dispatchEvent(new CustomEvent("magazine-collapse", { bubbles: true, composed: true }));
+    };
     const finish = (): void => {
       if (this._mapFold?.finish !== finish) return;
       this._mapFold = null;
-      // Closed from inside the map (pill, backdrop tap, fold-up drag):
-      // _collapse never ran, so do its bookkeeping and report it here.
-      const viaMap = this._expanded;
-      if (viaMap) {
-        this._expanded = false;
-        window.removeEventListener("keydown", this.handleKeyDown);
-      }
+      commit(); // instant close (destroy) never committed in the module
       dropDogEars();
       root.remove();
       const c = collapsed();
       if (c) c.style.opacity = "";
-      if (framed || viaMap) this.dispatchEvent(new CustomEvent("magazine-collapse", { bubbles: true, composed: true }));
+      if (framed) this.dispatchEvent(new CustomEvent("magazine-collapse", { bubbles: true, composed: true }));
     };
     const handle = openMapFold({
       root,
@@ -838,6 +854,7 @@ export class ExpandableMagazineBanner extends HTMLElement {
           .forEach((item) => this.playItemAnimation(item));
       },
       onFoldStart: dropDogEars,
+      onCloseCommit: commit,
       onClosed: finish,
     });
     this._mapFold = { handle, finish };
@@ -915,11 +932,8 @@ export class ExpandableMagazineBanner extends HTMLElement {
         mapFold.handle.destroy();
         mapFold.finish();
       } else {
-        mapFold.handle.close();
+        mapFold.handle.close(); // → onCloseCommit reports it
       }
-      // Delivery reports the close now (tracking); framed fires from
-      // finish, once the fly-back has played.
-      if (!framed) this.dispatchEvent(new CustomEvent("magazine-collapse", { bubbles: true, composed: true }));
       return;
     }
     const overlay = this.shadowRoot?.querySelector<HTMLElement>(".overlay");

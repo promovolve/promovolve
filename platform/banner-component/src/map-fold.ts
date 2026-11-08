@@ -82,6 +82,7 @@ export interface MapFoldOptions {
   onTap(): void;                // deliberate tap on the poster (isTap) → CTA
   onOpened(topPanelFace: HTMLElement): void; // fully open; paired with onFoldStart
   onFoldStart(): void;          // left fully-open (drag or close)
+  onCloseCommit(): void;        // a close committed (pill, backdrop, drag, close()); once, before onClosed
   onClosed(): void;             // after fly-back; root emptied
 }
 export interface MapFoldHandle { close(): void; destroy(): void; relayout(): void; }
@@ -216,6 +217,7 @@ export function openMapFold(o: MapFoldOptions): MapFoldHandle {
   let timer = 0;
   let isOpen = false;
   let done = false;
+  let committed = false; // a close is under way: nothing reopens it
 
   const render = () => {
     const { p } = s;
@@ -286,8 +288,10 @@ export function openMapFold(o: MapFoldOptions): MapFoldHandle {
   };
 
   const close = () => {
-    if (done) return;
+    if (done || committed) return;
+    committed = true;
     leaveOpen();
+    o.onCloseCommit();
     measureSlot(); // the page may have scrolled while open
     springTo(0);
   };
@@ -297,7 +301,7 @@ export function openMapFold(o: MapFoldOptions): MapFoldHandle {
   const onDown = (e: PointerEvent) => {
     const tgt = e.target as Element | null;
     // the close pill and the dog-ear keep their own clicks (capture would steal them)
-    if (tgt?.closest?.(".dogear-corner, a, button")) return;
+    if (committed || tgt?.closest?.(".dogear-corner, a, button")) return;
     cancelAnimationFrame(raf);
     window.clearTimeout(timer);
     s = { p: s.p, v: 0 };
@@ -305,7 +309,7 @@ export function openMapFold(o: MapFoldOptions): MapFoldHandle {
     try { root.setPointerCapture?.(e.pointerId); } catch { /* synthetic pointer */ }
   };
   const onMove = (e: PointerEvent) => {
-    if (!drag) return;
+    if (!drag || committed) return; // Escape mid-drag: the close owns the map
     if (!drag.moved) {
       if (isTap(e.clientX - drag.x0, e.clientY - drag.y0)) return;
       drag.moved = true;
@@ -327,9 +331,11 @@ export function openMapFold(o: MapFoldOptions): MapFoldHandle {
     if (!drag) return;
     const d = drag;
     drag = null;
+    if (committed) return;
     if (!d.moved && isTap(e.clientX - d.x0, e.clientY - d.y0)) {
       s = { p: s.p, v: 0 };
-      if (d.onMap) { o.onTap(); springTo(goal); } else close();
+      // the CTA is a tap on the OPEN poster, never on one still unfolding
+      if (d.onMap) { if (isOpen) o.onTap(); springTo(goal); } else close();
       return;
     }
     if (releaseTarget(s.p, s.v, e.timeStamp - d.t) === "closed") close();
@@ -338,7 +344,7 @@ export function openMapFold(o: MapFoldOptions): MapFoldHandle {
   const onCancel = () => {
     if (!drag) return;
     drag = null;
-    springTo(goal);
+    if (!committed) springTo(goal);
   };
   root.addEventListener("pointerdown", onDown);
   root.addEventListener("pointermove", onMove);

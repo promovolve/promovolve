@@ -52,10 +52,15 @@ function setup(over: Partial<MapFoldOptions> = {}) {
     onTap: vi.fn(),
     onOpened: vi.fn(),
     onFoldStart: vi.fn(),
+    onCloseCommit: vi.fn(),
     onClosed: vi.fn(),
   };
   return { o, root, h: openMapFold({ ...o, ...over }) };
 }
+
+const settle = (until: () => boolean): void => {
+  for (let i = 0; i < 600 && !until(); i++) frame();
+};
 
 const ptr = (el: Element, type: string, y: number, x = 50): void => {
   el.dispatchEvent(new PointerEvent(type, { bubbles: true, clientX: x, clientY: y, pointerId: 1 }));
@@ -71,6 +76,7 @@ describe("map-fold DOM", () => {
 
   it("tap on poster calls onTap, drag does not", () => {
     const { o, root } = setup();
+    settle(() => o.onOpened.mock.calls.length > 0);
     const face = root.querySelector(".map-face")!;
     ptr(face, "pointerdown", 100);
     ptr(face, "pointerup", 100);
@@ -101,5 +107,83 @@ describe("map-fold DOM", () => {
       .filter((t) => t);
     expect(hinges.length).toBeGreaterThan(0);
     for (const t of hinges) expect(t).toBe("rotateX(0deg)");
+  });
+
+  it("a tap during opening does not call onTap", () => {
+    const { o, root } = setup();
+    for (let i = 0; i < 3; i++) frame();
+    const face = root.querySelector(".map-face")!;
+    ptr(face, "pointerdown", 100);
+    ptr(face, "pointerup", 100);
+    expect(o.onTap).not.toHaveBeenCalled();
+    settle(() => o.onOpened.mock.calls.length > 0);
+    expect(o.onOpened).toHaveBeenCalledTimes(1); // the unfold resumed
+  });
+
+  it("a grab during close stays committed", () => {
+    const { o, root, h } = setup();
+    settle(() => o.onOpened.mock.calls.length > 0);
+    h.close();
+    for (let i = 0; i < 5; i++) frame();
+    const face = root.querySelector(".map-face")!;
+    ptr(face, "pointerdown", 100);
+    ptr(face, "pointermove", 300);
+    ptr(face, "pointerup", 300);
+    ptr(face, "pointerdown", 100);
+    ptr(face, "pointerup", 100);
+    settle(() => o.onClosed.mock.calls.length > 0);
+    for (let i = 0; i < 60; i++) frame();
+    expect(o.onClosed).toHaveBeenCalledTimes(1);
+    expect(o.onOpened).toHaveBeenCalledTimes(1);
+    expect(o.onTap).not.toHaveBeenCalled();
+    expect(root.childElementCount).toBe(0);
+  });
+
+  it("a grab during a reduced-motion fade-out stays committed", () => {
+    vi.useFakeTimers({ toFake: ["setTimeout", "clearTimeout"] });
+    const { o, root, h } = setup({ reducedMotion: true });
+    vi.advanceTimersByTime(250);
+    h.close();
+    vi.advanceTimersByTime(100);
+    const face = root.querySelector(".map-face")!;
+    ptr(face, "pointerdown", 100);
+    ptr(face, "pointerup", 100);
+    vi.advanceTimersByTime(250);
+    expect(o.onClosed).toHaveBeenCalledTimes(1);
+    expect(o.onTap).not.toHaveBeenCalled();
+    expect(root.childElementCount).toBe(0);
+  });
+
+  it("a backdrop tap closes", () => {
+    const { o, root } = setup();
+    settle(() => o.onOpened.mock.calls.length > 0);
+    ptr(root, "pointerdown", 5, 5);
+    ptr(root, "pointerup", 5, 5);
+    settle(() => o.onClosed.mock.calls.length > 0);
+    expect(o.onCloseCommit).toHaveBeenCalledTimes(1);
+    expect(o.onClosed).toHaveBeenCalledTimes(1);
+    expect(o.onTap).not.toHaveBeenCalled();
+  });
+
+  it("onCloseCommit fires once, before onClosed", () => {
+    const { o, h } = setup();
+    settle(() => o.onOpened.mock.calls.length > 0);
+    h.close();
+    expect(o.onCloseCommit).toHaveBeenCalledTimes(1);
+    expect(o.onClosed).not.toHaveBeenCalled();
+    h.close();
+    settle(() => o.onClosed.mock.calls.length > 0);
+    expect(o.onCloseCommit).toHaveBeenCalledTimes(1);
+    expect(o.onCloseCommit.mock.invocationCallOrder[0]).toBeLessThan(o.onClosed.mock.invocationCallOrder[0]);
+  });
+
+  it("destroy() does not call onClosed", () => {
+    const { o, root, h } = setup();
+    for (let i = 0; i < 5; i++) frame();
+    h.destroy();
+    for (let i = 0; i < 120; i++) frame();
+    expect(o.onClosed).not.toHaveBeenCalled();
+    expect(o.onCloseCommit).not.toHaveBeenCalled();
+    expect(root.childElementCount).toBe(0);
   });
 });

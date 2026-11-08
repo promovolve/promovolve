@@ -362,14 +362,16 @@
       </div>
     </section>
 
-    <!-- 5. Layout (hidden for Fold-out) — picking ONE named template is REQUIRED (gates Continue
+    <!-- 5. Layout — picking ONE named template is REQUIRED (gates Continue
          via selectedTemplateId), so the creative is never silently
-         defaulted. The fonts opt-in sits here too: both set the look. -->
-    <section class="editor-section" x-show="format !== 'foldout'" x-cloak>
-      <h2 class="editor-heading"><span class="tabular">5</span> {{t "Layout"}}</h2>
+         defaulted. The fonts opt-in sits here too: both set the look.
+         Fold-out has no template (the designer composes the poster), so
+         the section shrinks to "Fonts" and vanishes when there are none. -->
+    <section class="editor-section" x-show="format !== 'foldout' || originalFonts.length > 0" x-cloak>
+      <h2 class="editor-heading"><span class="tabular">5</span> <span x-text="format === 'foldout' ? '{{t "Fonts"}}' : '{{t "Layout"}}'">{{t "Layout"}}</span></h2>
       <div class="min-w-0">
-        <p class="text-sm text-gray-500 mb-3">{{t "Pick a layout. Colours are set later in the designer."}}</p>
-        <div class="grid grid-cols-2 sm:grid-cols-4 gap-3">
+        <p x-show="format !== 'foldout'" class="text-sm text-gray-500 mb-3">{{t "Pick a layout. Colours are set later in the designer."}}</p>
+        <div x-show="format !== 'foldout'" class="grid grid-cols-2 sm:grid-cols-4 gap-3">
           <template x-for="t in templates" :key="t.id">
             <button type="button" @click="selectedTemplateId = t.id"
                     :aria-pressed="selectedTemplateId === t.id"
@@ -406,7 +408,7 @@
 
     <!-- 6. Name, then the page's one primary action. -->
     <section class="editor-section">
-      <h2 class="editor-heading"><span class="tabular" x-text="format === 'foldout' ? 5 : 6">6</span> {{t "Creative name"}}</h2>
+      <h2 class="editor-heading"><span class="tabular" x-text="format === 'foldout' && originalFonts.length === 0 ? 5 : 6">6</span> {{t "Creative name"}}</h2>
       <div class="min-w-0">
         <label for="creative-editor-creativename" class="sr-only">{{t "Creative name"}}</label>
         <input id="creative-editor-creativename" type="text" x-model="creativeName" required maxlength="120"

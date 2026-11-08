@@ -637,6 +637,7 @@ var ja = map[string]string{
 	"Magazine":                       "マガジン",
 	"3 pages":                        "3ページ",
 	"Fold-out":                       "折り込みポスター",
+	"Fonts":                          "フォント",
 	"One poster, folds in thirds":    "1枚のポスターを三つ折りに",
 	"— how the 3 panels persuade":    "— 3つの面で伝える流れ",
 	"Poster":                         "ポスター",

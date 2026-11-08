@@ -76,3 +76,22 @@ describe("gravity fall", () => {
     expect(settled).toBeLessThan(0.9);
   });
 });
+
+describe("tempo", () => {
+  const fallTime = (tempo: number) => {
+    let th = 178, w = -60 / tempo, t = 0;
+    while (th > 0 && t < 5) { [th, w] = fallStep(th, w, 1 / 240, tempo); t += 1 / 240; }
+    return t;
+  };
+  it("tempo T makes the fall T times slower", () => {
+    expect(fallTime(2) / fallTime(1)).toBeCloseTo(2, 1);
+  });
+  it("tempo T makes the fold-up spring T times slower", () => {
+    const settle = (tempo: number) => {
+      let s = { p: 2, v: 0 }, t = 0;
+      while (!springSettled(s, 0) && t < 10) { s = springStep(s, 0, 1 / 240, tempo); t += 1 / 240; }
+      return t;
+    };
+    expect(settle(1.5) / settle(1)).toBeCloseTo(1.5, 1);
+  });
+});

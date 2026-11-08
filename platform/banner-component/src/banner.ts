@@ -837,6 +837,7 @@ export class ExpandableMagazineBanner extends HTMLElement {
       rtl,
       bottomClose: !this.isMobileReader(),
       fade: cfg.entrance === "fade",
+      tempo: dealTempo(cfg),
       reducedMotion,
       onLift: (t) => {
         const c = collapsed();

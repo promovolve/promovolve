@@ -169,7 +169,7 @@ export function mountBannerConfigPanel(
   panel.appendChild(weightRow);
 
   // Deal/fly tempo: how fast the reader's sheets deal in on open and fly
-  // away on turns/close. Unset ("auto") follows the paper stock's preset
+  // away on turns/close (Fold-out: the dissolve, the fall open, the fold-up). Unset ("auto") follows the paper stock's preset
   // (light snaps, heavy is stately); the slider overrides it per
   // creative. The indicator always shows the EFFECTIVE multiplier.
   const tempoRow = document.createElement("div");
@@ -257,6 +257,9 @@ export function mountBannerConfigPanel(
       const slider = String(effTempo);
       if (tempoSlider.value !== slider) tempoSlider.value = slider;
       tempoOut.textContent = `${effTempo.toFixed(2)}×`;
+      tempoSlider.title = state.bannerConfig.format === "foldout"
+        ? "Unfold pace — 1.0 is natural, higher is slower, heavier paper"
+        : "Deal-in / fly-away pace — 1.0 is natural, higher is slower, statelier";
       tempoOut.style.color = overridden ? tokens.ink100 : tokens.ink300;
       tempoReset.style.opacity = overridden ? "1" : "0.5";
       // Unset back colour → show the default warm tone in the picker (it

@@ -47,6 +47,7 @@ function setup(over: Partial<FoldOutOptions> = {}) {
     rtl: false,
     bottomClose: false,
     fade: false,
+    tempo: 1,
     reducedMotion: false,
     onLift: vi.fn(),
     onTap: vi.fn(),

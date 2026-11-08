@@ -24,9 +24,10 @@ export function hingeOpen(progress: number, i: number, max = FOLDOUT_MAX, overla
 
 type Spring = { p: number; v: number };
 
-export function springStep(s: Spring, target: number, dt: number): Spring {
+// tempo > 1 slows every motion by that factor (the Designer's Tempo knob).
+export function springStep(s: Spring, target: number, dt: number, tempo = 1): Spring {
   const d = Math.min(dt, FOLDOUT.dtMax);
-  const w = FOLDOUT.omega;
+  const w = FOLDOUT.omega / tempo;
   const v = s.v + (w * w * (target - s.p) - 2 * w * s.v) * d;
   const p = s.p + v * d;
   if (p <= 0) return { p: 0, v: 0 };
@@ -52,9 +53,11 @@ export function releaseTarget(p: number, v: number, msSinceLastMove: number): "o
 // fall overlaps the first instead of starting from rest after it.
 export const FALL = { grav: 450, zeta: 0.6, nudge: 60, releaseAt: 140, inherit: 0.6, hMax: 1 / 240 } as const;
 const DEG = Math.PI / 180;
-export function fallStep(theta: number, omega: number, h: number): [number, number] {
-  const damp = 2 * FALL.zeta * Math.sqrt(FALL.grav);
-  const w = omega * DEG + (-FALL.grav * Math.sin(theta * DEG) - damp * omega * DEG) * h;
+// tempo T slows the fall by T: gravity / T², damping / T (same swing shape).
+export function fallStep(theta: number, omega: number, h: number, tempo = 1): [number, number] {
+  const grav = FALL.grav / (tempo * tempo);
+  const damp = 2 * FALL.zeta * Math.sqrt(grav);
+  const w = omega * DEG + (-grav * Math.sin(theta * DEG) - damp * omega * DEG) * h;
   return [theta + (w * h) / DEG, w / DEG];
 }
 
@@ -104,7 +107,8 @@ export interface FoldOutOptions {
   closeLabel: string;
   rtl: boolean;                 // close pill on the right, dog-ear corner mirrored
   bottomClose: boolean;
-  fade: boolean;                // entrance "fade": the folded poster fades in/out instead of the pixel dissolve         // desktop: the reader's pill straddling the open poster's bottom edge; else the mobile top-left pill
+  fade: boolean;                // entrance "fade": the folded poster fades in/out instead of the pixel dissolve
+  tempo: number;                // dealTempo(cfg): 1 = stock speed, >1 slower (dissolve, fall, fold-up)         // desktop: the reader's pill straddling the open poster's bottom edge; else the mobile top-left pill
   reducedMotion: boolean;
   onLift(t: number): void;      // 0 hidden → 1 dissolved in; banner fades the collapsed frame to 1 - t
   onTap(): void;                // deliberate tap on the poster (isTap) → CTA
@@ -354,7 +358,7 @@ export function openFoldOut(o: FoldOutOptions): FoldOutHandle {
     cancelAnimationFrame(draf);
     let last = performance.now();
     const step = (now: number) => {
-      const d = Math.max(0, now - last) / DISSOLVE_MS;
+      const d = Math.max(0, now - last) / (DISSOLVE_MS * o.tempo);
       last = now;
       vis = target > vis ? Math.min(target, vis + d) : Math.max(target, vis - d);
       render();
@@ -382,7 +386,7 @@ export function openFoldOut(o: FoldOutOptions): FoldOutHandle {
     s = { p: pFromAng(), v: s.v }; // may be mid-fall: continue from where the paper is
     let last = performance.now();
     const step = (now: number) => {
-      s = springStep(s, target, Math.max(0, now - last) / 1000);
+      s = springStep(s, target, Math.max(0, now - last) / 1000, o.tempo);
       ang = angFromP(s.p);
       last = now;
       // Closing: dissolve as soon as the panels read as shut, not after the
@@ -418,8 +422,8 @@ export function openFoldOut(o: FoldOutOptions): FoldOutHandle {
         for (let i = 0; i < ang.length; i++) {
           const atRest = ang[i] >= restOf(i) - 0.5;
           if (i > 0 && atRest && ang[i - 1] > FALL.releaseAt) continue; // still folded under
-          if (atRest && angV[i] >= 0) angV[i] = Math.min(-FALL.nudge, i > 0 ? FALL.inherit * angV[i - 1] : 0);
-          [ang[i], angV[i]] = fallStep(ang[i], angV[i], h);
+          if (atRest && angV[i] >= 0) angV[i] = Math.min(-FALL.nudge / o.tempo, i > 0 ? FALL.inherit * angV[i - 1] : 0);
+          [ang[i], angV[i]] = fallStep(ang[i], angV[i], h, o.tempo);
           ang[i] = Math.min(ang[i], restOf(i));
         }
       }

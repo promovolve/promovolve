@@ -270,9 +270,12 @@ export function posterLayoutFor(beats: Page[], kit: BrandKit | null): LayoutItem
 }
 
 /** First open of a Map design: fold the three hand-off beats into one
-  * poster page. A resumed creative (already has a layout) is left alone.
-  * Caller invokes this only when bannerConfig.format === "map". */
-export function composeMapPages(pages: Page[], hadLayout: boolean[], kit: BrandKit | null): Page[] {
-  if (hadLayout[0] || pages.length === 0) return pages.slice(0, 1);
-  return [{ ...pages[0], layout: posterLayoutFor(pages, kit) }];
+  * poster page. The poster is the PORTRAIT master (banners["mobile-expanded"])
+  * — what the 9:16 tab edits and delivery renders; `layout` stays the hidden
+  * wide master. A resumed creative (portrait master already present) is left
+  * alone. Caller invokes this only when bannerConfig.format === "map". */
+export function composeMapPages(pages: Page[], hadPortrait: boolean, kit: BrandKit | null): Page[] {
+  if (hadPortrait || pages.length === 0) return pages.slice(0, 1);
+  const p0 = pages[0];
+  return [{ ...p0, banners: { ...p0.banners, "mobile-expanded": posterLayoutFor(pages, kit) } }];
 }

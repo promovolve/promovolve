@@ -63,18 +63,31 @@ describe("posterLayoutFor", () => {
 });
 
 describe("composeMapPages", () => {
-  it("collapses three fresh pages to one", () => {
-    const out = composeMapPages(beats(), [false, false, false], null);
+  const wide = [{ type: "image", field: "img", left: 0, top: 0, width: 100, height: 100 }] as LayoutItem[];
+  const other = [{ type: "image", field: "img", left: 1, top: 1, width: 9, height: 9 }] as LayoutItem[];
+
+  it("writes the portrait master, leaves layout and other buckets, returns one page", () => {
+    const b = beats();
+    b[0] = beat(0, { layout: wide, banners: { "300x250": other } });
+    const out = composeMapPages(b, false, null);
     expect(out).toHaveLength(1);
-    expect(out[0].layout!.length).toBeGreaterThan(0);
     expect(out[0].headline).toBe("H0");
+    expect(out[0].banners!["mobile-expanded"].length).toBeGreaterThan(1);
+    expect(out[0].layout).toBe(wide);
+    expect(out[0].banners!["300x250"]).toBe(other);
   });
 
-  it("does not recompose a resumed one-page map", () => {
-    const layout = [{ type: "image", field: "img", left: 0, top: 0, width: 100, height: 100 }] as LayoutItem[];
-    const p = { ...beat(0), layout } as Page;
-    const out = composeMapPages([p], [true], null);
+  it("does not recompose a resumed map with a portrait master", () => {
+    const p = { ...beat(0), banners: { "mobile-expanded": other } } as Page;
+    const out = composeMapPages([p], true, null);
     expect(out).toHaveLength(1);
-    expect(out[0].layout).toBe(layout);
+    expect(out[0].banners!["mobile-expanded"]).toBe(other);
+  });
+
+  it("composes a page that has only a wide layout", () => {
+    const p = { ...beat(0), layout: wide } as Page;
+    const out = composeMapPages([p], false, null);
+    expect(out[0].banners!["mobile-expanded"][0]).toMatchObject({ type: "image", width: 100 });
+    expect(out[0].layout).toBe(wide);
   });
 });

@@ -73,7 +73,7 @@ wins and `format` is ignored.
   - Each beat's tag, headline and sub sit inside its third's safe area, inset from the crease lines at ⅓ and ⅔ so no text is cut by a fold.
   - The CTA goes in the bottom band.
   - The result goes through the existing `legibilizeItems` contrast pass.
-- **The pages collapse to one.** The poster becomes `pages[0].layout`, and `pages[0]`'s flat fields stay as beat 1, so the collapsed-size fanout builds the slot cover from the hook and the poster image. `pages[1]` and `pages[2]` are dropped.
+- **The pages collapse to one.** The poster becomes `pages[0].banners["mobile-expanded"]` (the 9:16 portrait master; `layout` stays the hidden wide master), and `pages[0]`'s flat fields stay as beat 1, so the collapsed-size fanout builds the slot cover from the hook and the poster image. `pages[1]` and `pages[2]` are dropped.
 - **No recompose on resume.** A resumed one-page Map isn't composed again, so the author's edits persist.
 
 **Banner config panel (`ui/banner-config-panel.ts`).**
@@ -104,7 +104,7 @@ Map creatives must behave the same in the designer, the preview and delivery.
 
 **What a Map creative is.**
 - **One page,** `pages[0]`:
-  - `layout`: the 9:16 poster;
+  - `banners["mobile-expanded"]`: the 9:16 poster (the portrait master; `layout` stays the wide master);
   - `banners`: the collapsed sizes;
   - flat fields from beat 1.
 - **Plus `bannerConfig.format = "map"`.**

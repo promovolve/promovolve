@@ -169,6 +169,7 @@ function boot(ctx: DesignerContext): void {
     const l = (p as Page).layout;
     return Array.isArray(l) && l.length > 0 && looksLikePercentLayout(l as LayoutItem[]);
   });
+  const hadPortrait = !!(rawPages[0] as Page | undefined)?.banners?.["mobile-expanded"]?.length;
   let pages = normalizePages(ctx.pages, {
     fillDefaultLayout: true,
     // Same kit the expanded presets use, so a synthesized collapsed layout
@@ -183,7 +184,7 @@ function boot(ctx: DesignerContext): void {
     } catch { /* malformed blob → fresh defaults */ }
   }
   const isMap = savedBannerConfig?.format === "map";
-  if (isMap) pages = composeMapPages(pages, hadLayout, loadBrandKit(window.__DESIGNER__?.campaignId));
+  if (isMap) pages = composeMapPages(pages, hadPortrait, loadBrandKit(window.__DESIGNER__?.campaignId));
   // Honor the picked layout template on FIRST render. The editor's
   // generateCopy rewrites copy only — the layout is generated here — and
   // normalizePages' generic default ignores templateId, so without this a

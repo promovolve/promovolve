@@ -2459,8 +2459,60 @@ export class ExpandableMagazineBanner extends HTMLElement {
     return missing;
   }
 
-  private createPageFromLayout(page: Page, index: number, cfg: BannerConfig): HTMLElement {
+  private buildStage(page: Page, cfg: BannerConfig, opts: { video: boolean }): HTMLElement {
     const defaultFont = fontMain(cfg);
+    const surface = pageSurface(page);
+    const stage = document.createElement("div");
+    // .paper-stage: lookup hook for animatePageTurn — during a peel
+    // of a dog-eared page, the fold's punch clip moves from the
+    // static pageBox onto this element so the notch travels with the
+    // peeling sheet (nested clips = intersection with the peel clip).
+    stage.classList.add("paper-stage");
+    Object.assign(stage.style, {
+      position: "absolute",
+      inset: "0",
+      containerType: "size",
+      background: surface.stage,
+      overflow: "hidden",
+      // The expanded magazine reader is always interactive — a tap
+      // navigates to the LP and page-turns are draggable — so the sheet
+      // reads as clickable. Set the finger cursor directly on the stage
+      // (the element the reader actually hovers) rather than relying on
+      // it inheriting from pageBox's CTA-gated cursor, which leaves the
+      // sheet showing the default arrow when landing-url resolves late
+      // (e.g. in the publisher approval preview). Edit mode keeps the
+      // default cursor — the designer canvas isn't a click target.
+      cursor: this.editMode ? "default" : "pointer",
+    });
+
+    // Full-bleed video behind every layout item, in every expanded
+    // view. Inserted first so subsequent layoutItemToNode calls stack
+    // on top (DOM order decides z-stack; layout items don't set an
+    // explicit z-index).
+    const video = opts.video ? applyVideoBg(stage, page.videoBg) : null;
+    // "transparent" is pageSurface's posterless fallback — the one case
+    // where the page has nothing of its own to show until the clip
+    // paints. Borrow the frame the collapsed ad already has decoded.
+    if (video && page.videoBg && surface.stage === "transparent") {
+      this.underlayCollapsedFrame(stage, video, page.videoBg);
+    }
+    applyTextureBg(stage, page.textureBg, video);
+    applyLogo(stage, this.configData.logo);
+
+    (page.layout ?? []).forEach((item, i) => {
+      const node = layoutItemToNode(item, page, defaultFont, i);
+      if (node) stage.appendChild(node);
+    });
+
+    // Paper grain over the whole composition. Appended after the
+    // layout items so it sits on top (they never set z-index);
+    // pointer-events:none keeps CTA hit-testing intact. Inside the
+    // stage so the dog-ear's punch-out clip applies to it too.
+    stage.appendChild(buildGrainOverlay());
+    return stage;
+  }
+
+  private createPageFromLayout(page: Page, index: number, cfg: BannerConfig): HTMLElement {
     const aspectCss = page.designAspect ?? cfg.designAspect ?? "16/9";
     const surface = pageSurface(page);
 
@@ -2530,53 +2582,7 @@ export class ExpandableMagazineBanner extends HTMLElement {
     });
     sheet.classList.add("paper-sheet");
 
-    const stage = document.createElement("div");
-    // .paper-stage: lookup hook for animatePageTurn — during a peel
-    // of a dog-eared page, the fold's punch clip moves from the
-    // static pageBox onto this element so the notch travels with the
-    // peeling sheet (nested clips = intersection with the peel clip).
-    stage.classList.add("paper-stage");
-    Object.assign(stage.style, {
-      position: "absolute",
-      inset: "0",
-      containerType: "size",
-      background: surface.stage,
-      overflow: "hidden",
-      // The expanded magazine reader is always interactive — a tap
-      // navigates to the LP and page-turns are draggable — so the sheet
-      // reads as clickable. Set the finger cursor directly on the stage
-      // (the element the reader actually hovers) rather than relying on
-      // it inheriting from pageBox's CTA-gated cursor, which leaves the
-      // sheet showing the default arrow when landing-url resolves late
-      // (e.g. in the publisher approval preview). Edit mode keeps the
-      // default cursor — the designer canvas isn't a click target.
-      cursor: this.editMode ? "default" : "pointer",
-    });
-
-    // Full-bleed video behind every layout item, in every expanded
-    // view. Inserted first so subsequent layoutItemToNode calls stack
-    // on top (DOM order decides z-stack; layout items don't set an
-    // explicit z-index).
-    const video = applyVideoBg(stage, page.videoBg);
-    // "transparent" is pageSurface's posterless fallback — the one case
-    // where the page has nothing of its own to show until the clip
-    // paints. Borrow the frame the collapsed ad already has decoded.
-    if (video && page.videoBg && surface.stage === "transparent") {
-      this.underlayCollapsedFrame(stage, video, page.videoBg);
-    }
-    applyTextureBg(stage, page.textureBg, video);
-    applyLogo(stage, this.configData.logo);
-
-    (page.layout ?? []).forEach((item, i) => {
-      const node = layoutItemToNode(item, page, defaultFont, i);
-      if (node) stage.appendChild(node);
-    });
-
-    // Paper grain over the whole composition. Appended after the
-    // layout items so it sits on top (they never set z-index);
-    // pointer-events:none keeps CTA hit-testing intact. Inside the
-    // stage so the dog-ear's punch-out clip applies to it too.
-    stage.appendChild(buildGrainOverlay());
+    const stage = this.buildStage(page, cfg, { video: true });
 
     sheet.appendChild(stage);
     // Dog-ear: fold affordance at the top-right of each expanded

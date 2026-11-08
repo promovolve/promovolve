@@ -147,7 +147,7 @@ export function mountCanvasFoot(host: HTMLElement, store: Store): CanvasFootHand
   return {
     update(state) {
       const total = state.pages.length;
-      pager.style.display = isMultiPage(state.mode) ? "flex" : "none";
+      pager.style.display = pagerVisible(state) ? "flex" : "none";
       pageLabel.textContent = total > 0 ? `Page ${state.pageIdx + 1} / ${total}` : "—";
       setEnabled(prev, state.pageIdx > 0);
       setEnabled(next, state.pageIdx < total - 1);
@@ -255,4 +255,9 @@ function formatBytes(n: number): string {
   if (n < 1024) return `${n} B`;
   if (n < 1024 * 1024) return `${(n / 1024).toFixed(1)} KB`;
   return `${(n / 1024 / 1024).toFixed(2)} MB`;
+}
+
+/** Map is one page: no pager even on the multi-page tab. */
+export function pagerVisible(state: DesignerState): boolean {
+  return isMultiPage(state.mode) && state.bannerConfig.format !== "map";
 }

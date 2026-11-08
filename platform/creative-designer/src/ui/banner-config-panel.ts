@@ -5,7 +5,7 @@
 // theatre), reading direction, and the paper stock (weight + back
 // colour). Deal tempo derives from the paper weight.
 
-import { PAPER_FEEL, PAPER_WEIGHTS, TEMPO_MAX, TEMPO_MIN, type PaperWeight } from "@banner/types";
+import { PAPER_FEEL, PAPER_WEIGHTS, TEMPO_MAX, TEMPO_MIN, type BannerConfig, type PaperWeight } from "@banner/types";
 import type { Store } from "../store";
 import type { DesignerState } from "../types";
 import { tokens } from "./tokens";
@@ -238,6 +238,7 @@ export function mountBannerConfigPanel(
 
   return {
     update(state) {
+      entRow.style.display = entranceVisible(state.bannerConfig) ? "flex" : "none";
       const ent = state.bannerConfig.entrance ?? "deal";
       if (entSelect.value !== ent) entSelect.value = ent;
       const dir = state.bannerConfig.readingDirection ?? "auto";
@@ -259,4 +260,9 @@ export function mountBannerConfigPanel(
       if (backColor.value !== back) backColor.value = back;
     },
   };
+}
+
+/** A Map poster has no page-turn entrance. */
+export function entranceVisible(cfg: BannerConfig): boolean {
+  return cfg.format !== "map";
 }

@@ -38,7 +38,7 @@ export function springStep(s: Spring, target: number, dt: number): Spring {
 }
 
 export function springSettled(s: Spring, target: number): boolean {
-  return Math.abs(s.p - target) < 0.002 && Math.abs(s.v) < 0.01;
+  return Math.abs(s.p - target) < 1e-3 && Math.abs(s.v) < 0.01;
 }
 
 export function releaseTarget(p: number, v: number, msSinceLastMove: number): "open" | "closed" {

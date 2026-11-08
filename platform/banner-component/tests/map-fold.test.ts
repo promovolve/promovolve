@@ -24,6 +24,11 @@ describe("map-fold maths", () => {
     expect(springStep({ p: 0, v: -5 }, 0, 0.016)).toEqual({ p: 0, v: 0 });
     expect(springStep({ p: 1, v: 0 }, 2, 1).p).toBeCloseTo(springStep({ p: 1, v: 0 }, 2, 0.032).p);
   });
+  it("settle thresholds", () => {
+    expect(springSettled({ p: 1.9995, v: 0 }, 2)).toBe(true);
+    expect(springSettled({ p: 1.998, v: 0 }, 2)).toBe(false);
+    expect(springSettled({ p: 2, v: 0.02 }, 2)).toBe(false);
+  });
   it("release / tap", () => {
     expect(releaseTarget(0.9, 0, 10)).toBe("closed");
     expect(releaseTarget(1.1, 0, 10)).toBe("open");

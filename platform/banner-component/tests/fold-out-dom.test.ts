@@ -46,6 +46,7 @@ function setup(over: Partial<FoldOutOptions> = {}) {
     closeLabel: "Close",
     rtl: false,
     bottomClose: false,
+    fade: false,
     reducedMotion: false,
     onLift: vi.fn(),
     onTap: vi.fn(),
@@ -81,6 +82,15 @@ describe("fold-out DOM", () => {
     const pill = root.querySelector<HTMLElement>(".foldout-close")!;
     expect(pill.style.top).toBe("12px");
     expect(pill.style.left).toBe("12px");
+  });
+
+  it("entrance fade: the veil fades instead of clipping", () => {
+    const { o, root } = setup({ fade: true });
+    const veil = root.querySelector<HTMLElement>(".foldout")!.parentElement!;
+    expect(veil.style.opacity).toBe("0");
+    settle(() => o.onOpened.mock.calls.length > 0);
+    expect(veil.style.opacity).toBe("1");
+    expect(veil.style.clipPath).toBe("");
   });
 
   it("builds 3 panels", () => {

@@ -1,7 +1,7 @@
 import { describe, expect, it } from "vitest";
 import { initialState } from "../src/state";
 import type { BannerConfig } from "../src/types";
-import { entranceVisible } from "../src/ui/banner-config-panel";
+import { entranceOptions, effectiveEntrance } from "../src/ui/banner-config-panel";
 import { pagerVisible } from "../src/ui/canvas-foot";
 import { foldGuideTops } from "../src/render/overlay";
 import { videoAllowed } from "../src/ui/page-bg-panel";
@@ -13,9 +13,12 @@ const mag = {} as BannerConfig;
 const st = (mode: string, cfg: BannerConfig) => initialState([], mode, cfg);
 
 describe("Fold-out UI gates", () => {
-  it("entrance row hidden for foldout, shown for magazine", () => {
-    expect(entranceVisible(foldout)).toBe(false);
-    expect(entranceVisible(mag)).toBe(true);
+  it("entrance: foldout offers dissolve | fade, magazine deal | fade", () => {
+    expect(entranceOptions(foldout).map((o) => o.value)).toEqual(["dissolve", "fade"]);
+    expect(entranceOptions(mag).map((o) => o.value)).toEqual(["deal", "fade"]);
+    expect(effectiveEntrance(foldout)).toBe("dissolve");
+    expect(effectiveEntrance({ ...foldout, entrance: "fade" })).toBe("fade");
+    expect(effectiveEntrance({ ...mag, entrance: "dissolve" })).toBe("deal");
   });
   it("pager hidden for foldout", () => {
     expect(pagerVisible(st("mobile", foldout))).toBe(false);

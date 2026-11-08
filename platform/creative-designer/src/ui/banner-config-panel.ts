@@ -57,24 +57,29 @@ export function mountBannerConfigPanel(
     "font: inherit",
     "font-size: 11px",
   ].join(";");
-  const ENT_LABELS: Record<string, string> = {
-    deal: "Sheets fly in / out (default)",
-    fade: "Fade in / out",
+  // Options depend on the format (Fold-out: dissolve | fade); rebuilt in
+  // update() when the set changes.
+  let entKeys = "";
+  const setEntOptions = (cfg: BannerConfig) => {
+    const opts = entranceOptions(cfg);
+    const keys = opts.map((o) => o.value).join();
+    if (keys === entKeys) return;
+    entKeys = keys;
+    entSelect.replaceChildren(...opts.map((o) => {
+      const opt = document.createElement("option");
+      opt.value = o.value;
+      opt.textContent = o.label;
+      return opt;
+    }));
   };
-  for (const v of ["deal", "fade"]) {
-    const opt = document.createElement("option");
-    opt.value = v;
-    opt.textContent = ENT_LABELS[v];
-    entSelect.appendChild(opt);
-  }
   entSelect.addEventListener("change", () => {
-    const v = entSelect.value as "deal" | "fade";
+    const v = entSelect.value as NonNullable<BannerConfig["entrance"]>;
     const current = store.state.bannerConfig;
     store.commit({
       ...store.state,
-      // "deal" is the engine default — store it as absence so configs
-      // stay minimal and the default can evolve without stale pins.
-      bannerConfig: { ...current, entrance: v === "deal" ? undefined : v },
+      // The format's default is stored as absence so configs stay minimal
+      // and the default can evolve without stale pins.
+      bannerConfig: { ...current, entrance: v === entranceOptions(current)[0].value ? undefined : v },
     });
   });
   entRow.appendChild(entSelect);
@@ -238,8 +243,8 @@ export function mountBannerConfigPanel(
 
   return {
     update(state) {
-      entRow.style.display = entranceVisible(state.bannerConfig) ? "flex" : "none";
-      const ent = state.bannerConfig.entrance ?? "deal";
+      setEntOptions(state.bannerConfig);
+      const ent = effectiveEntrance(state.bannerConfig);
       if (entSelect.value !== ent) entSelect.value = ent;
       const dir = state.bannerConfig.readingDirection ?? "auto";
       if (dirSelect.value !== dir) dirSelect.value = dir;
@@ -262,7 +267,13 @@ export function mountBannerConfigPanel(
   };
 }
 
-/** A Fold-out poster has no page-turn entrance. */
-export function entranceVisible(cfg: BannerConfig): boolean {
-  return cfg.format !== "foldout";
+/** Entrance choices per format; the first is the default (stored as absence). */
+export function entranceOptions(cfg: BannerConfig): { value: "deal" | "fade" | "dissolve"; label: string }[] {
+  return cfg.format === "foldout"
+    ? [{ value: "dissolve", label: "Pixel dissolve (default)" }, { value: "fade", label: "Fade in / out" }]
+    : [{ value: "deal", label: "Sheets fly in / out (default)" }, { value: "fade", label: "Fade in / out" }];
+}
+/** The entrance the format will play: "fade", else the format's default. */
+export function effectiveEntrance(cfg: BannerConfig): "deal" | "fade" | "dissolve" {
+  return cfg.entrance === "fade" ? "fade" : entranceOptions(cfg)[0].value;
 }

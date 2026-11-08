@@ -94,7 +94,8 @@ export interface FoldOutOptions {
   backBackground: string;       // background for panel backs (paper stock)
   closeLabel: string;
   rtl: boolean;                 // close pill on the right, dog-ear corner mirrored
-  bottomClose: boolean;         // desktop: the reader's pill straddling the open poster's bottom edge; else the mobile top-left pill
+  bottomClose: boolean;
+  fade: boolean;                // entrance "fade": the folded poster fades in/out instead of the pixel dissolve         // desktop: the reader's pill straddling the open poster's bottom edge; else the mobile top-left pill
   reducedMotion: boolean;
   onLift(t: number): void;      // 0 hidden → 1 dissolved in; banner fades the collapsed frame to 1 - t
   onTap(): void;                // deliberate tap on the poster (isTap) → CTA
@@ -295,10 +296,14 @@ export function openFoldOut(o: FoldOutOptions): FoldOutHandle {
     foldout.style.transform =
       `translate(${g.cx + ox}px, ${g.cy + oy}px) ` +
       `perspective(${FOLDOUT.perspective}px) translate(${-ox}px, ${-oy}px)`;
-    const n = Math.round(t * order.length);
-    if (n !== shown) {
-      shown = n;
-      veil.style.clipPath = dissolveClip(order, n, COLS, g.cx, g.cy, cell);
+    // opacity on the flat veil, like the clip: on the foldout it would flatten preserve-3d
+    if (o.fade) veil.style.opacity = String(t);
+    else {
+      const n = Math.round(t * order.length);
+      if (n !== shown) {
+        shown = n;
+        veil.style.clipPath = dissolveClip(order, n, COLS, g.cx, g.cy, cell);
+      }
     }
     // backdrop fades via its background alpha, never opacity (that would fade the foldout too)
     root.style.backgroundColor = `rgba(11, 11, 16, ${0.75 * t})`;

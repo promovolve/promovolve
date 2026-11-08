@@ -444,4 +444,7 @@ export interface BannerConfig {
   // page selector so the cover can be a later page if that frame is
   // the strongest hook.
   coverPageIdx?: number;
+  // Delivery format. "map" = gatefold poster that unfolds in the slot
+  // (see docs/superpowers/specs, Map (gatefold poster) format design).
+  format?: "map";
 }

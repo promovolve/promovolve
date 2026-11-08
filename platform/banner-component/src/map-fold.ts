@@ -1,4 +1,6 @@
-// Map (gatefold poster) format: pure fold maths. No DOM.
+// Map (gatefold poster) format: the fold maths (pure), then the DOM.
+import { PAPER_BACK_BLEND } from "./paper";
+import { fontUI } from "./fonts";
 export const MAP_MAX = 2; // 3 panels -> progress 0..2
 export const MAP = {
   overlap: 0.45, omega: 8, coverRest: 178, innerRest: 180,
@@ -58,4 +60,325 @@ export function posterSize(vw: number, vh: number, fitPct: number): { w: number;
 
 export function liftT(progress: number): number {
   return smooth(clamp(progress / MAP.lift, 0, 1));
+}
+
+// ─── DOM ────────────────────────────────────────────────────────────
+// The delivery animation, ported from the approved dev/map-check.html
+// (vertical layout only: the poster unfolds downward everywhere). Three
+// nested panels, each hinged on its parent's bottom edge; every face
+// holds the whole poster offset so only its third shows.
+
+export interface MapFoldOptions {
+  root: HTMLElement;            // empty element appended to the shadow root; map-fold styles it
+  framed: boolean;              // true → root absolute inset:0 in the host frame; false → fixed inset:0
+  face: () => HTMLElement;      // a fresh poster stage (called 3×); map-fold sizes + offsets it
+  slotRect: () => DOMRect;      // collapsed slot, client coords; read once per open and once per close
+  fitPct: number;
+  backBackground: string;       // background for panel backs (paper stock)
+  closeLabel: string;
+  rtl: boolean;                 // close pill on the right, dog-ear corner mirrored
+  reducedMotion: boolean;
+  onLift(t: number): void;      // 0 at slot → 1 lifted; banner fades the collapsed frame to 1 - t
+  onTap(): void;                // deliberate tap on the poster (isTap) → CTA
+  onOpened(topPanelFace: HTMLElement): void; // fully open; paired with onFoldStart
+  onFoldStart(): void;          // left fully-open (drag or close)
+  onClosed(): void;             // after fly-back; root emptied
+}
+export interface MapFoldHandle { close(): void; destroy(): void; relayout(): void; }
+
+const PANELS = MAP_MAX + 1;
+const FADE_MS = 200; // reduced motion: plain fade in and out
+const lerp = (a: number, b: number, t: number) => a + (b - a) * t;
+
+const MAP_CSS = `
+.map { position: absolute; left: 0; top: 0; transform-style: preserve-3d; transform-origin: 0 0; }
+.map-panel { position: absolute; left: 0; top: 0; transform-style: preserve-3d;
+  transform-origin: center top; will-change: transform; }
+.map-panel .map-panel { top: 100%; }
+/* box-shadow, not a drop-shadow filter: a filter would flatten preserve-3d */
+.map-face, .map-back { position: absolute; inset: 0; overflow: hidden;
+  backface-visibility: hidden; -webkit-backface-visibility: hidden;
+  box-shadow: 0 1px 2px rgba(0,0,0,0.30), 0 4px 12px rgba(0,0,0,0.22); }
+.map-face { container-type: size; }
+.map-back { transform: rotateX(180deg); }
+/* crease shade on the hinge edge, darkens as the fold closes */
+.map-crease { position: absolute; inset: 0; z-index: 6; pointer-events: none; opacity: 0;
+  background: linear-gradient(180deg, #0006, transparent 35%); }
+/* the crease stays in the paper once opened: a faint dark/lit line */
+.map-face.creased::before { content: ""; position: absolute; inset: 0 0 auto 0; height: 3px;
+  z-index: 6; pointer-events: none;
+  background: linear-gradient(180deg, rgba(0,0,0,.22), rgba(255,255,255,.16) 1px, transparent); }
+`;
+
+export function openMapFold(o: MapFoldOptions): MapFoldHandle {
+  const { root } = o;
+  Object.assign(root.style, {
+    position: o.framed ? "absolute" : "fixed",
+    inset: "0",
+    zIndex: "9999",
+    overflow: "hidden",
+    touchAction: "none",
+    userSelect: "none",
+    webkitUserSelect: "none",
+    backgroundColor: "rgba(11, 11, 16, 0)",
+  } as Partial<CSSStyleDeclaration>);
+
+  const style = document.createElement("style");
+  style.textContent = MAP_CSS;
+  const map = document.createElement("div");
+  map.className = "map";
+  const panels: HTMLElement[] = [];
+  const faces: HTMLElement[] = [];
+  const stages: HTMLElement[] = [];
+  const creases: HTMLElement[] = [];
+  let parent: HTMLElement = map;
+  for (let i = 0; i < PANELS; i++) {
+    const panel = document.createElement("div");
+    panel.className = "map-panel";
+    const face = document.createElement("div");
+    face.className = i > 0 ? "map-face creased" : "map-face";
+    const stage = o.face(); // carries its own grain (buildStage)
+    face.append(stage);
+    if (i > 0) {
+      const crease = document.createElement("div");
+      crease.className = "map-crease";
+      face.append(crease);
+      creases.push(crease);
+    }
+    const back = document.createElement("div");
+    back.className = "map-back";
+    back.style.background = o.backBackground;
+    back.style.backgroundBlendMode = PAPER_BACK_BLEND;
+    panel.append(face, back);
+    parent.append(panel);
+    parent = panel;
+    panels.push(panel);
+    faces.push(face);
+    stages.push(stage);
+  }
+
+  const pill = document.createElement("button");
+  pill.type = "button";
+  pill.className = "map-close";
+  pill.textContent = o.closeLabel;
+  pill.setAttribute("aria-label", o.closeLabel);
+  Object.assign(pill.style, {
+    position: "absolute",
+    top: o.framed ? "12px" : "max(12px, env(safe-area-inset-top, 0px))",
+    [o.rtl ? "right" : "left"]: "12px",
+    zIndex: "100",
+    height: "40px",
+    padding: "0 20px",
+    borderRadius: "20px",
+    border: "1px solid rgba(255,255,255,0.3)",
+    background: "rgba(0,0,0,0.7)",
+    color: "rgba(255,255,255,0.95)",
+    fontSize: "13px",
+    letterSpacing: "2px",
+    lineHeight: "1",
+    display: "flex",
+    alignItems: "center",
+    justifyContent: "center",
+    cursor: "pointer",
+    fontFamily: fontUI(),
+    boxShadow: "0 4px 14px rgba(0,0,0,0.4)",
+    backdropFilter: "blur(6px)",
+    webkitBackdropFilter: "blur(6px)",
+  } as Partial<CSSStyleDeclaration>);
+  pill.addEventListener("click", () => close());
+  root.append(style, map, pill);
+
+  // Geometry in root-local px. jsdom (and a not-yet-laid-out root) report
+  // a zero rect; fall back to the window so sizes stay finite.
+  let g = { vw: 0, vh: 0, w: 0, h: 0, ph: 0, cx: 0, cy: 0 };
+  let slot = { x: 0, y: 0, w: 0 };
+  const rootRect = () => root.getBoundingClientRect();
+  const measureSlot = () => {
+    const r = rootRect();
+    const s = o.slotRect();
+    slot = { x: s.left - r.left, y: s.top - r.top, w: s.width };
+  };
+  const layout = () => {
+    const r = rootRect();
+    const vw = r.width || window.innerWidth;
+    const vh = r.height || window.innerHeight;
+    const { w, h } = posterSize(vw, vh, o.fitPct);
+    g = { vw, vh, w, h, ph: h / PANELS, cx: (vw - w) / 2, cy: (vh - h) / 2 };
+    panels.forEach((p) => { p.style.width = `${w}px`; p.style.height = `${g.ph}px`; });
+    stages.forEach((st, i) => Object.assign(st.style, {
+      inset: "auto", left: "0", top: `${-i * g.ph}px`, width: `${w}px`, height: `${h}px`,
+    }));
+  };
+
+  let s = { p: 0, v: 0 };
+  let goal = MAP_MAX;
+  let raf = 0;
+  let timer = 0;
+  let isOpen = false;
+  let done = false;
+
+  const render = () => {
+    const { p } = s;
+    for (let k = 1; k < PANELS; k++) {
+      panels[k].style.transform = `rotateX(${hingeAngle(p, k - 1)}deg)`;
+      creases[k - 1].style.opacity = String((1 - hingeOpen(p, k - 1)) * 0.9);
+    }
+    // Fly from the slot to the centre over the first part of the unfold.
+    // perspective() rides the map with its vanishing point on the cover's
+    // centre: a viewport-centred one parallaxes the folded panels out from
+    // under the cover while the map sits off-centre in the slot.
+    const t = liftT(p);
+    const k = lerp(slot.w / g.w || 0, 1, t);
+    const ox = g.w / 2, oy = g.ph / 2;
+    map.style.transform =
+      `translate(${lerp(slot.x, g.cx, t) + ox}px, ${lerp(slot.y, g.cy, t) + oy}px) ` +
+      `scale(${k}) perspective(${MAP.perspective}px) translate(${-ox}px, ${-oy}px)`;
+    // backdrop fades via its background alpha, never opacity (that would fade the map too)
+    root.style.backgroundColor = `rgba(11, 11, 16, ${0.75 * t})`;
+    o.onLift(t);
+  };
+
+  const leaveOpen = () => {
+    if (!isOpen) return;
+    isOpen = false;
+    o.onFoldStart();
+  };
+  const arrive = () => {
+    if (goal === MAP_MAX) {
+      if (!isOpen) { isOpen = true; o.onOpened(faces[0]); }
+    } else finish();
+  };
+
+  // Critically damped spring on progress, seeded with the current velocity:
+  // a flick carries its speed into the settle, a grab mid-flight picks up
+  // exactly where the map is.
+  const springTo = (target: number) => {
+    cancelAnimationFrame(raf);
+    goal = target;
+    if (o.reducedMotion) {
+      if (target === 0) { fadeOut(); return; }
+      s = { p: target, v: 0 };
+      render();
+      arrive();
+      return;
+    }
+    let last = performance.now();
+    const step = (now: number) => {
+      s = springStep(s, target, Math.max(0, now - last) / 1000);
+      last = now;
+      if (springSettled(s, target)) {
+        s = { p: target, v: 0 };
+        render();
+        arrive();
+        return;
+      }
+      render();
+      raf = requestAnimationFrame(step);
+    };
+    raf = requestAnimationFrame(step);
+  };
+
+  const fadeOut = () => {
+    root.style.transition = `opacity ${FADE_MS}ms ease`;
+    root.style.opacity = "0";
+    window.clearTimeout(timer);
+    timer = window.setTimeout(() => { s = { p: 0, v: 0 }; render(); finish(); }, FADE_MS);
+  };
+
+  const close = () => {
+    if (done) return;
+    leaveOpen();
+    measureSlot(); // the page may have scrolled while open
+    springTo(0);
+  };
+
+  // ── pointer: drag folds/unfolds, a tap is a CTA (poster) or a close (backdrop)
+  let drag: { x0: number; y0: number; a: number; p: number; t: number; last: number; onMap: boolean; moved: boolean } | null = null;
+  const onDown = (e: PointerEvent) => {
+    const tgt = e.target as Element | null;
+    // the close pill and the dog-ear keep their own clicks (capture would steal them)
+    if (tgt?.closest?.(".dogear-corner, a, button")) return;
+    cancelAnimationFrame(raf);
+    window.clearTimeout(timer);
+    s = { p: s.p, v: 0 };
+    drag = { x0: e.clientX, y0: e.clientY, a: e.clientY, p: s.p, t: e.timeStamp, last: s.p, onMap: map.contains(tgt), moved: false };
+    try { root.setPointerCapture?.(e.pointerId); } catch { /* synthetic pointer */ }
+  };
+  const onMove = (e: PointerEvent) => {
+    if (!drag) return;
+    if (!drag.moved) {
+      if (isTap(e.clientX - drag.x0, e.clientY - drag.y0)) return;
+      drag.moved = true;
+      drag.a = e.clientY; // rebase at the slop edge: no jump when the drag engages
+      return;
+    }
+    // pulling down opens, pushing up folds
+    const p = Math.min(MAP_MAX, Math.max(0, drag.p + (e.clientY - drag.a) / g.ph));
+    if (p < MAP_MAX) leaveOpen();
+    // finger velocity in progress/s, smoothed so one noisy sample can't fling it
+    const dt = (e.timeStamp - drag.t) / 1000;
+    const v = dt > 0 ? lerp(s.v, (p - drag.last) / dt, 0.4) : s.v;
+    s = { p, v };
+    drag.t = e.timeStamp;
+    drag.last = p;
+    render();
+  };
+  const onUp = (e: PointerEvent) => {
+    if (!drag) return;
+    const d = drag;
+    drag = null;
+    if (!d.moved && isTap(e.clientX - d.x0, e.clientY - d.y0)) {
+      s = { p: s.p, v: 0 };
+      if (d.onMap) { o.onTap(); springTo(goal); } else close();
+      return;
+    }
+    if (releaseTarget(s.p, s.v, e.timeStamp - d.t) === "closed") close();
+    else springTo(MAP_MAX);
+  };
+  const onCancel = () => {
+    if (!drag) return;
+    drag = null;
+    springTo(goal);
+  };
+  root.addEventListener("pointerdown", onDown);
+  root.addEventListener("pointermove", onMove);
+  root.addEventListener("pointerup", onUp);
+  root.addEventListener("pointercancel", onCancel);
+
+  const relayout = () => { layout(); render(); };
+  window.addEventListener("resize", relayout);
+
+  const destroy = () => {
+    done = true;
+    cancelAnimationFrame(raf);
+    window.clearTimeout(timer);
+    window.removeEventListener("resize", relayout);
+    root.removeEventListener("pointerdown", onDown);
+    root.removeEventListener("pointermove", onMove);
+    root.removeEventListener("pointerup", onUp);
+    root.removeEventListener("pointercancel", onCancel);
+    root.replaceChildren();
+  };
+  function finish(): void {
+    if (done) return;
+    destroy();
+    o.onClosed();
+  }
+
+  measureSlot();
+  layout();
+  if (o.reducedMotion) {
+    s = { p: MAP_MAX, v: 0 };
+    render();
+    root.style.opacity = "0";
+    void root.offsetWidth; // commit opacity 0 so the transition runs
+    root.style.transition = `opacity ${FADE_MS}ms ease`;
+    root.style.opacity = "1";
+    timer = window.setTimeout(arrive, FADE_MS);
+  } else {
+    render();
+    springTo(MAP_MAX);
+  }
+
+  return { close, destroy, relayout };
 }

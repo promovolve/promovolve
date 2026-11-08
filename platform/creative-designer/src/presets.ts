@@ -20,7 +20,6 @@
 import type { LayoutItem, Page } from "./types";
 import { kitFont, type BrandKit } from "./brand-kit";
 import { pickContrast, resolveLayoutColors } from "./color-contrast";
-import { scrimGradient } from "./scrim";
 
 // Stamp generation metadata onto a layout that's about to be applied.
 //
@@ -264,8 +263,8 @@ function skyscraper(page: Page, kit: BrandKit | null): LayoutItem[] {
 // ── Fold-out poster (gatefold) ─────────────────────────────────────────────
 // One 9:16 page, three beats stacked in thirds; the banner folds it along
 // the two band lines. Text stays POSTER_CREASE_INSET clear of each fold.
-// Contrast comes from per-band scrims, not legibilizeItems: that measures
-// against page.bg, which the full-bleed image hides.
+// No scrims: the poster is the picture, unshaded. Legibility is the
+// author's call (the designer's Scrim tool adds one where needed).
 export const POSTER_BAND = 100 / 3;
 export const POSTER_CREASE_INSET = 4;
 const POSTER_HEADLINE_H = 13;
@@ -273,10 +272,6 @@ const POSTER_HEADLINE_H = 13;
 export function posterLayoutFor(beats: Page[], kit: BrandKit | null): LayoutItem[] {
   const font = headlineFontOf(beats[0], kit);
   const items: LayoutItem[] = [{ type: "image", field: "img", left: 0, top: 0, width: 100, height: 100 }];
-  for (let k = 0; k < 3; k++) {
-    const spec = { edge: "top", color: "#000000", strength: 0.55 } as const;
-    items.push({ type: "rect", left: 0, top: k * POSTER_BAND, width: 100, height: POSTER_BAND, fill: scrimGradient(spec), scrim: spec } as LayoutItem);
-  }
   const text = (o: Record<string, unknown>) =>
     ({ type: "text", left: 6, width: 88, color: "#ffffff", fontFamily: font, textAlign: "left", textFit: "shrink", ...o }) as LayoutItem;
   // Each band's copy area is its third minus the crease inset on both sides.

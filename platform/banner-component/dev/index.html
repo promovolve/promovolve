@@ -96,6 +96,8 @@
       // saved creatives carry — the engine must ignore it and deal anyway.
       const CONFIG = { layout: "auto", font: "sans", showTag: false, showSub: true, expandAnimation: "fade", paperWeight: "medium" };
       let legacy169 = false; // mount without portrait masters → 16:9 fallback
+      let foldoutMode = false; // first page only, config.format "foldout" (gatefold poster from its portrait master)
+      let fadeEntrance = false; // config.entrance "fade" (Magazine: instead of the deal; Fold-out: instead of the pixel dissolve)
 
       const SIZES = {
         "300×250": [300, 250],
@@ -113,11 +115,17 @@
         slot.style.height = h + "px";
         slot.replaceChildren(); // re-create so the one-shot teaser re-arms
         const el = document.createElement("expandable-magazine-banner");
-        const pages = legacy169
-          ? PAGES.map(({ banners, ...p }) => p) // strip portrait masters
-          : PAGES;
+        const pages = foldoutMode
+          ? PAGES.slice(0, 1)
+          : legacy169
+            ? PAGES.map(({ banners, ...p }) => p) // strip portrait masters
+            : PAGES;
         el.setAttribute("pages", JSON.stringify(pages));
-        el.setAttribute("config", JSON.stringify(CONFIG));
+        el.setAttribute("config", JSON.stringify({
+          ...CONFIG,
+          ...(foldoutMode ? { format: "foldout" } : {}),
+          ...(fadeEntrance ? { entrance: "fade" } : {}),
+        }));
         el.setAttribute("width", String(w));
         el.setAttribute("height", String(h));
         el.setAttribute("landing-url", "https://example.com/landing");
@@ -152,6 +160,28 @@
         mount();
       };
       document.querySelector(".bar").insertBefore(pBtn, document.querySelector(".bar .hint"));
+
+      // Fold-out (gatefold poster) delivery: tap unfolds the first page downward.
+      const foldoutBtn = document.createElement("button");
+      foldoutBtn.textContent = "Fold-out";
+      foldoutBtn.title = 'Mount the first page with config.format = "foldout"';
+      foldoutBtn.onclick = () => {
+        foldoutMode = !foldoutMode;
+        foldoutBtn.className = foldoutMode ? "active" : "";
+        mount();
+      };
+      document.querySelector(".bar").insertBefore(foldoutBtn, document.querySelector(".bar .hint"));
+
+      // Entrance: the advertiser's "Fade in / out" choice, for either format.
+      const fadeBtn = document.createElement("button");
+      fadeBtn.textContent = "fade";
+      fadeBtn.title = 'config.entrance = "fade" (off: Magazine deals, Fold-out pixel-dissolves)';
+      fadeBtn.onclick = () => {
+        fadeEntrance = !fadeEntrance;
+        fadeBtn.className = fadeEntrance ? "active" : "";
+        mount();
+      };
+      document.querySelector(".bar").insertBefore(fadeBtn, document.querySelector(".bar .hint"));
 
       // Paper weight — the peel hand-feel preset (pull gain, commit line,
       // flick throw, settle spring). Expand the reader and drag a page up

@@ -26,6 +26,7 @@ import { mountSelectionBar } from "./ui/selection-bar";
 import { mountLayers } from "./ui/layers";
 import { mountCanvasFoot } from "./ui/canvas-foot";
 import { installAutoLayoutGenerator, initialLayoutForPage } from "./auto-layout";
+import { composeFoldoutPages } from "./presets";
 import { autoCropOnBoot } from "./auto-crop";
 import { prewarmSaliency } from "./saliency";
 import { mountGuides } from "./interaction/guides";
@@ -168,19 +169,29 @@ function boot(ctx: DesignerContext): void {
     const l = (p as Page).layout;
     return Array.isArray(l) && l.length > 0 && looksLikePercentLayout(l as LayoutItem[]);
   });
-  const pages = normalizePages(ctx.pages, {
+  const hadPortrait = !!(rawPages[0] as Page | undefined)?.banners?.["mobile-expanded"]?.length;
+  let pages = normalizePages(ctx.pages, {
     fillDefaultLayout: true,
     // Same kit the expanded presets use, so a synthesized collapsed layout
     // gets the LP font (heading/body) instead of the hardcoded Georgia/sans.
     kit: loadBrandKit(window.__DESIGNER__?.campaignId),
   });
+  let savedBannerConfig: BannerConfig | undefined;
+  if (ctx.bannerConfigJson) {
+    try {
+      const parsed = JSON.parse(ctx.bannerConfigJson) as BannerConfig;
+      if (parsed && typeof parsed === "object") savedBannerConfig = parsed;
+    } catch { /* malformed blob → fresh defaults */ }
+  }
+  const isFoldout = savedBannerConfig?.format === "foldout";
+  if (isFoldout) pages = composeFoldoutPages(pages, hadPortrait, loadBrandKit(window.__DESIGNER__?.campaignId));
   // Honor the picked layout template on FIRST render. The editor's
   // generateCopy rewrites copy only — the layout is generated here — and
   // normalizePages' generic default ignores templateId, so without this a
   // picked template only appeared after a Regenerate ("picked template not
   // honored"). Re-lay-out only FRESH pages; saved creatives keep the layout
   // the author already edited.
-  if (window.__DESIGNER__?.templateId) {
+  if (!isFoldout && window.__DESIGNER__?.templateId) {
     pages.forEach((page, i) => {
       if (hadLayout[i]) return;
       const items = initialLayoutForPage(page);
@@ -198,13 +209,6 @@ function boot(ctx: DesignerContext): void {
   // paper stock, reading direction, entrance); seed the store with it
   // so Save/Publish round-trips the blob instead of resetting it to
   // defaults — the silent reset is what kept eating the brand logo.
-  let savedBannerConfig: BannerConfig | undefined;
-  if (ctx.bannerConfigJson) {
-    try {
-      const parsed = JSON.parse(ctx.bannerConfigJson) as BannerConfig;
-      if (parsed && typeof parsed === "object") savedBannerConfig = parsed;
-    } catch { /* malformed blob → fresh defaults */ }
-  }
   const store = new Store(initialState(colourReconciled, "mobile", savedBannerConfig));
   // A failed save re-renders the designer with the submitted state and an
   // explanation — surface it. Dismissible; auto-fades after 12s.

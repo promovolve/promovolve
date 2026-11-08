@@ -294,6 +294,13 @@ function renderOverlay(root: HTMLElement, state: DesignerState): void {
   bg.dataset.cdBg = "1";
   bg.style.cssText = "position:absolute;inset:0;pointer-events:auto";
   root.appendChild(bg);
+  for (const top of foldGuideTops(state)) {
+    const g = document.createElement("div");
+    g.dataset.cdFold = "1";
+    g.style.cssText = `position:absolute;left:0;right:0;top:${top}%;border-top:1px dashed ${tokens.ink300};pointer-events:none;font-size:9px;color:${tokens.ink300};line-height:1`;
+    g.textContent = "fold";
+    root.appendChild(g);
+  }
   const items = currentLayout(state);
   // Group-bbox handles render BEHIND items in z-order — append the
   // group overlay first so individual item outlines paint on top of
@@ -938,3 +945,8 @@ function handlePosition(dir: ResizeDir): string[] {
   }
 }
 
+
+/** Fold-out poster fold lines (percent from top), on the portrait master only. */
+export function foldGuideTops(state: DesignerState): number[] {
+  return state.bannerConfig.format === "foldout" && isMultiPage(state.mode) ? [100 / 3, 200 / 3] : [];
+}

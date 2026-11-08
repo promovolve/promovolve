@@ -16,6 +16,7 @@ import { trustedHTML } from "./trusted-html";
 import { collectExpandedImageUrls, parseJSON, pickCollapsedLayout, pickExpandedLayout, sheetFitPct, sheetSizeFor } from "./utils";
 import { resolveExpandedFonts } from "./font-catalog";
 import { createViewableGate, viewableThreshold, type ViewableGate } from "./viewability";
+import { isFoldout, openFoldOut, type FoldOutHandle } from "./fold-out";
 import { animatePageTurn, createInteractivePeel, buildGrainOverlay, dogEarPeelFrame, DOGEAR_PEEL_TRAVEL, PAPER_CSS, PAPER_BACK_BLEND, paperBackBackground, paperBackStock } from "./paper";
 
 // The reader deals its sheets in by default (the kawaraban lifecycle);
@@ -152,6 +153,9 @@ export class ExpandableMagazineBanner extends HTMLElement {
   // all pages so folding one page folds every page (the pin is on the
   // creative, not a specific page index).
   private _dogEars: DogEarHandle[] = [];
+  // Live Fold-out (gatefold) delivery: the fold handle and the banner-side
+  // teardown (onClosed). Non-null from open until the fly-back lands.
+  private _foldOut: { handle: FoldOutHandle; finish: () => void } | null = null;
   // Idempotency for the click beacon. A user that expands → closes →
   // expands again would re-fire the same signed click-url (same `rid`)
   // and get 409 from the server's duplicate check. Track per-mount so
@@ -328,6 +332,9 @@ export class ExpandableMagazineBanner extends HTMLElement {
   }
 
   disconnectedCallback(): void {
+    // SPA unmount mid-foldout: stop its rAF/resize/timers and drop the root.
+    // Silent — no collapse event for a teardown nobody performed.
+    this._teardownFoldOut();
     this._rootBgRestore?.();
     this.teardownVideoBg();
     window.removeEventListener("keydown", this.handleKeyDown);
@@ -661,6 +668,7 @@ export class ExpandableMagazineBanner extends HTMLElement {
   private onKeyDown(e: KeyboardEvent): void {
     if (!this._expanded) return;
     if (e.key === "Escape") this._collapse();
+    if (this._foldOut) return; // one poster: no page keys
     // RTL reading: the forward direction is to the LEFT, so the arrows
     // map the opposite way (← advances, → goes back).
     const rtl = resolveReadingRtl(this.configData, this.pagesData);
@@ -674,11 +682,31 @@ export class ExpandableMagazineBanner extends HTMLElement {
     }
   }
 
+  private _teardownFoldOut(): void {
+    if (!this._foldOut) return;
+    this._foldOut.handle.destroy();
+    this._foldOut = null;
+    this._expanded = false;
+    this._dogEars = [];
+    this.shadowRoot?.querySelector(".foldout-root")?.remove();
+    this.shadowRoot?.querySelector<HTMLElement>(".banner")?.style.removeProperty("opacity");
+  }
+
   private _expand(): void {
+    // A Fold-out fly-back still in flight from the last open: land it now,
+    // before _expanded flips (finish reads it to know who closed).
+    if (this._foldOut) {
+      this._foldOut.handle.destroy();
+      this._foldOut.finish();
+    }
     this._expanded = true;
     this.currentPage = 0;
     this._overlayTeasePlayed = false; // fresh open → one tease available
     window.addEventListener("keydown", this.handleKeyDown);
+    if (isFoldout(this.configData)) {
+      this.openFoldout();
+      return;
+    }
     // Defensive: nuke any lingering overlays from a prior expansion whose
     // close animation didn't finish (animationend can be flaky on iOS
     // Safari when the animation runs off-screen because the user scrolled
@@ -741,6 +769,137 @@ export class ExpandableMagazineBanner extends HTMLElement {
     this.dispatchPageChanged();
   }
 
+  /** Fold-out (gatefold) delivery: the poster lifts out of the slot and unfolds
+    * downward (fold-out.ts). Replaces renderOverlay for format "foldout": no
+    * reader overlay, no page events, no framed hide timer — the collapsed
+    * frame crossfades into the folded cover instead (onLift). */
+  private openFoldout(): void {
+    const sr = this.shadowRoot;
+    if (!sr) return;
+    const cfg = this.configData;
+    const pages = this.pagesData;
+    // The poster is the portrait master, resolved exactly as the reader does.
+    const page = expandedPage(pages[0]);
+    const framed = this.getAttribute("preview-frame") === "1";
+    const rtl = resolveReadingRtl(cfg, pages);
+    const reducedMotion = prefersReducedMotion();
+    const collapsed = (): HTMLElement | null => sr.querySelector<HTMLElement>(".banner");
+    const root = document.createElement("div");
+    root.className = "foldout-root";
+    // Same paper-back stock resolution as the reader (see renderOverlay).
+    const backStock = paperBackStock(cfg.paperBackColor, page?.bg);
+    if (backStock) root.style.setProperty("--paper-back-color", backStock);
+    sr.appendChild(root);
+    if (!framed) {
+      promoteToTopLayer(root);
+      this.closeOnRotateOut(root);
+    }
+    const dropDogEars = (): void => {
+      for (const de of this._dogEars) {
+        de.applyUnfolded(); // clear the face's punch clip with its flap
+        de.wrap.remove();
+      }
+      this._dogEars = [];
+    };
+    let played = false;
+    // One collapse signal on every close path (pill, backdrop, drag,
+    // Escape, rotate-out): delivery reports it the moment the close
+    // commits; framed previews once the fly-back has landed (finish).
+    let committed = false;
+    const commit = (): void => {
+      if (committed) return;
+      committed = true;
+      // _collapse's bookkeeping, for closes that start inside the fold-out
+      this._expanded = false;
+      window.removeEventListener("keydown", this.handleKeyDown);
+      if (!framed) this.dispatchEvent(new CustomEvent("magazine-collapse", { bubbles: true, composed: true }));
+    };
+    const finish = (): void => {
+      if (this._foldOut?.finish !== finish) return;
+      this._foldOut = null;
+      commit(); // instant close (destroy) never committed in the module
+      dropDogEars();
+      root.remove();
+      const c = collapsed();
+      if (c) c.style.opacity = "";
+      if (framed) this.dispatchEvent(new CustomEvent("magazine-collapse", { bubbles: true, composed: true }));
+    };
+    const handle = openFoldOut({
+      root,
+      framed,
+      face: () => this.buildStage(page, cfg, { video: false }),
+      fitPct: sheetFitPct(this.isMobileReader()),
+      // same lighting as the reader's flap, flattened to a soft sheen
+      backBackground: paperBackBackground(
+        "linear-gradient(315deg, rgba(0,0,0,0.10), rgba(255,255,255,0.18) 50%, rgba(0,0,0,0.06))",
+      ),
+      closeLabel: pickCloseLabel(pages),
+      rtl,
+      bottomClose: !this.isMobileReader(),
+      fade: cfg.entrance === "fade",
+      reducedMotion,
+      onLift: (t) => {
+        const c = collapsed();
+        if (c) c.style.opacity = String(1 - t);
+      },
+      onTap: () => this.fireCta(),
+      onOpened: (face) => {
+        if (this.canFold) {
+          const dogEarSize = framed ? "7cqmin" : "12cqmin";
+          const de = buildDogEar(
+            face, dogEarSize, this, 0, this.pinnedPageIdx >= 0, page?.bg, rtl, true, this.consumeOverlayTease,
+          );
+          face.appendChild(de.wrap);
+          this._dogEars.push(de);
+        }
+        // Entrances play once the unfold lands, across all three copies.
+        if (played) return;
+        played = true;
+        root.querySelectorAll<HTMLElement>("[data-animation-from],[data-animation-to]")
+          .forEach((item) => this.playItemAnimation(item));
+      },
+      onFoldStart: dropDogEars,
+      onCloseCommit: commit,
+      onClosed: finish,
+    });
+    this._foldOut = { handle, finish };
+    // Shrink-to-fit clamp, same contract as the reader overlay's post-render
+    // pass: without it the faces clip any copy taller than its box.
+    requestAnimationFrame(() => root.querySelectorAll<HTMLElement>('[data-autofit="1"]').forEach(autoFitText));
+    // Hold entrances at their start pose through the unfold, so the reveal
+    // never shows resting items that jump backwards when they play.
+    if (!reducedMotion) this.poseItemAnimationsAtStart(root);
+    if (typeof performance !== "undefined" && performance.mark) {
+      performance.mark("pv:overlay-open");
+    }
+    this.dispatchEvent(new CustomEvent("magazine-expand", {
+      bubbles:  true,
+      composed: true,
+      detail:   { ctaUrl: this.resolveCtaUrl(), pageIndex: 0, totalPages: 1, format: "foldout" },
+    }));
+  }
+
+  /** Close-on-rotate-out (delivery only) — see the comment at the reader's
+    * call site in renderOverlay. Watches until `el` leaves the DOM. */
+  private closeOnRotateOut(el: HTMLElement): void {
+    const phoneLandscapeMq = window.matchMedia(
+      "(orientation: landscape) and (max-height: 500px) and (pointer: coarse)",
+    );
+    const onRotateOut = (): void => {
+      if (!el.isConnected) {
+        // Closed — this listener is the only reference left;
+        // drop it so rotations after collapse touch nothing.
+        phoneLandscapeMq.removeEventListener("change", onRotateOut);
+        return;
+      }
+      if (phoneLandscapeMq.matches) {
+        phoneLandscapeMq.removeEventListener("change", onRotateOut);
+        this._collapse(true);
+      }
+    };
+    phoneLandscapeMq.addEventListener("change", onRotateOut);
+  }
+
   /** Returns the URL the CTA will open: the `landing-url` attribute (the
     * campaign's landing page). The bootstrap consumes this via the
     * `magazine-expand` event detail to inject prefetch hints whose href
@@ -774,8 +933,18 @@ export class ExpandableMagazineBanner extends HTMLElement {
       this._collapseHideTimer = null;
     }
     window.removeEventListener("keydown", this.handleKeyDown);
-    const overlay = this.shadowRoot?.querySelector<HTMLElement>(".overlay");
     const framed = this.getAttribute("preview-frame") === "1";
+    const foldOut = this._foldOut;
+    if (foldOut) {
+      if (instant) {
+        foldOut.handle.destroy();
+        foldOut.finish();
+      } else {
+        foldOut.handle.close(); // → onCloseCommit reports it
+      }
+      return;
+    }
+    const overlay = this.shadowRoot?.querySelector<HTMLElement>(".overlay");
     // keep-frame: the host wants close to return the creative to its
     // COLLAPSED state inside the frame (publisher approval iPad preview)
     // rather than drop the whole frame. We restore the collapsed render
@@ -1214,6 +1383,7 @@ export class ExpandableMagazineBanner extends HTMLElement {
   // ═══════════════════════════════════════════════════════════════
 
   private render(): void {
+    this._teardownFoldOut(); // a rebuild must not orphan an open fold-out
     // Chromium resolves container-query units (the layout items' cqmax
     // font sizes) at their VIEWPORT fallback for elements rendered inside
     // a display:none ancestor, and never re-resolves after reveal — a
@@ -2244,24 +2414,7 @@ export class ExpandableMagazineBanner extends HTMLElement {
     // genuine phone rotation matches. CHANGE-only on purpose: never
     // close at open time, and never for the geometry the reader was
     // deliberately opened into (framed previews are excluded anyway).
-    if (!framed) {
-      const phoneLandscapeMq = window.matchMedia(
-        "(orientation: landscape) and (max-height: 500px) and (pointer: coarse)",
-      );
-      const onRotateOut = (): void => {
-        if (!overlay.isConnected) {
-          // Reader closed — this listener is the only reference left;
-          // drop it so rotations after collapse touch nothing.
-          phoneLandscapeMq.removeEventListener("change", onRotateOut);
-          return;
-        }
-        if (phoneLandscapeMq.matches) {
-          phoneLandscapeMq.removeEventListener("change", onRotateOut);
-          this._collapse(true);
-        }
-      };
-      phoneLandscapeMq.addEventListener("change", onRotateOut);
-    }
+    if (!framed) this.closeOnRotateOut(overlay);
 
     pages.forEach((page, i) => {
       wrapper.appendChild(this.createPage(page, i, cfg));
@@ -2335,42 +2488,7 @@ export class ExpandableMagazineBanner extends HTMLElement {
     }
 
     this.shadowRoot.appendChild(overlay);
-    // TOP-LAYER promotion (delivery only): position:fixed is computed
-    // against the nearest transformed/filtered ANCESTOR, so a publisher
-    // wrapper with transform/will-change traps the reader inside the
-    // article column (observed: 51% viewport coverage in the hostile
-    // suite). The Popover API's top layer escapes ancestor transforms,
-    // overflow clipping, AND z-index stacking in one move. "manual" =
-    // no light-dismiss and no UA Escape handling (the reader owns its
-    // exits). Framed previews must stay INSIDE their frames, and
-    // engines without popover keep today's behavior — same code path,
-    // just not promoted.
-    if (!framed && typeof overlay.showPopover === "function") {
-      overlay.setAttribute("popover", "manual");
-      // The [popover] UA stylesheet imposes its own box (auto inset,
-      // fit-content sizing, border, padding, background: canvas) —
-      // neutralize it so the overlay keeps its designed fullscreen
-      // scrim geometry. Inline styles win over UA popover rules.
-      // Size by inset-STRETCH (auto width/height), never viewport
-      // units: 100vh is the LARGE viewport, so with the mobile URL
-      // bar visible the overlay overhangs the visible area and the
-      // centered sheet's bottom gets clipped — whether that happens
-      // depended on scroll position at tap time. Stretch tracks the
-      // real layout viewport exactly like the pre-popover
-      // fixed+inset:0 overlay did.
-      overlay.style.inset = "0";
-      overlay.style.width = "auto";
-      overlay.style.height = "auto";
-      overlay.style.margin = "0";
-      overlay.style.border = "none";
-      overlay.style.padding = "0";
-      try {
-        overlay.showPopover();
-      } catch {
-        // Already-showing / detached edge states — the overlay still
-        // renders in normal flow, which is the pre-popover behavior.
-      }
-    }
+    if (!framed) promoteToTopLayer(overlay);
     // Two-frame open choreography. Frame 1 does ALL the expensive work
     // invisibly (top-layer first layout, page setup, autofit reflows)
     // while the overlay is still transparent; frame 2 starts the fade.
@@ -2427,16 +2545,12 @@ export class ExpandableMagazineBanner extends HTMLElement {
     // navigate). See pickExpandedLayout for why the 16:9 desktop
     // master was retired from delivery; it remains the fallback for
     // creatives authored before the portrait unification.
-    const portraitLayout = pickExpandedLayout(page);
-    if (portraitLayout) {
-      const portraitPage: Page = { ...page, layout: portraitLayout, designAspect: "9/16" };
-      return this.createPageFromLayout(portraitPage, index, cfg);
-    }
     // The only supported expanded rendering is the authored layout. If it's
     // missing we surface a placeholder rather than falling back to a template
     // the advertiser didn't design.
-    if (page.layout && page.layout.length > 0) {
-      return this.createPageFromLayout(page, index, cfg);
+    const expanded = expandedPage(page);
+    if (expanded.layout && expanded.layout.length > 0) {
+      return this.createPageFromLayout(expanded, index, cfg);
     }
     const missing = document.createElement("div");
     missing.className = `magazine-page page-${index}`;
@@ -2459,8 +2573,60 @@ export class ExpandableMagazineBanner extends HTMLElement {
     return missing;
   }
 
-  private createPageFromLayout(page: Page, index: number, cfg: BannerConfig): HTMLElement {
+  private buildStage(page: Page, cfg: BannerConfig, opts: { video: boolean }): HTMLElement {
     const defaultFont = fontMain(cfg);
+    const surface = pageSurface(page);
+    const stage = document.createElement("div");
+    // .paper-stage: lookup hook for animatePageTurn — during a peel
+    // of a dog-eared page, the fold's punch clip moves from the
+    // static pageBox onto this element so the notch travels with the
+    // peeling sheet (nested clips = intersection with the peel clip).
+    stage.classList.add("paper-stage");
+    Object.assign(stage.style, {
+      position: "absolute",
+      inset: "0",
+      containerType: "size",
+      background: surface.stage,
+      overflow: "hidden",
+      // The expanded magazine reader is always interactive — a tap
+      // navigates to the LP and page-turns are draggable — so the sheet
+      // reads as clickable. Set the finger cursor directly on the stage
+      // (the element the reader actually hovers) rather than relying on
+      // it inheriting from pageBox's CTA-gated cursor, which leaves the
+      // sheet showing the default arrow when landing-url resolves late
+      // (e.g. in the publisher approval preview). Edit mode keeps the
+      // default cursor — the designer canvas isn't a click target.
+      cursor: this.editMode ? "default" : "pointer",
+    });
+
+    // Full-bleed video behind every layout item, in every expanded
+    // view. Inserted first so subsequent layoutItemToNode calls stack
+    // on top (DOM order decides z-stack; layout items don't set an
+    // explicit z-index).
+    const video = opts.video ? applyVideoBg(stage, page.videoBg) : null;
+    // "transparent" is pageSurface's posterless fallback — the one case
+    // where the page has nothing of its own to show until the clip
+    // paints. Borrow the frame the collapsed ad already has decoded.
+    if (video && page.videoBg && surface.stage === "transparent") {
+      this.underlayCollapsedFrame(stage, video, page.videoBg);
+    }
+    applyTextureBg(stage, page.textureBg, video);
+    applyLogo(stage, this.configData.logo);
+
+    (page.layout ?? []).forEach((item, i) => {
+      const node = layoutItemToNode(item, page, defaultFont, i);
+      if (node) stage.appendChild(node);
+    });
+
+    // Paper grain over the whole composition. Appended after the
+    // layout items so it sits on top (they never set z-index);
+    // pointer-events:none keeps CTA hit-testing intact. Inside the
+    // stage so the dog-ear's punch-out clip applies to it too.
+    stage.appendChild(buildGrainOverlay());
+    return stage;
+  }
+
+  private createPageFromLayout(page: Page, index: number, cfg: BannerConfig): HTMLElement {
     const aspectCss = page.designAspect ?? cfg.designAspect ?? "16/9";
     const surface = pageSurface(page);
 
@@ -2530,53 +2696,7 @@ export class ExpandableMagazineBanner extends HTMLElement {
     });
     sheet.classList.add("paper-sheet");
 
-    const stage = document.createElement("div");
-    // .paper-stage: lookup hook for animatePageTurn — during a peel
-    // of a dog-eared page, the fold's punch clip moves from the
-    // static pageBox onto this element so the notch travels with the
-    // peeling sheet (nested clips = intersection with the peel clip).
-    stage.classList.add("paper-stage");
-    Object.assign(stage.style, {
-      position: "absolute",
-      inset: "0",
-      containerType: "size",
-      background: surface.stage,
-      overflow: "hidden",
-      // The expanded magazine reader is always interactive — a tap
-      // navigates to the LP and page-turns are draggable — so the sheet
-      // reads as clickable. Set the finger cursor directly on the stage
-      // (the element the reader actually hovers) rather than relying on
-      // it inheriting from pageBox's CTA-gated cursor, which leaves the
-      // sheet showing the default arrow when landing-url resolves late
-      // (e.g. in the publisher approval preview). Edit mode keeps the
-      // default cursor — the designer canvas isn't a click target.
-      cursor: this.editMode ? "default" : "pointer",
-    });
-
-    // Full-bleed video behind every layout item, in every expanded
-    // view. Inserted first so subsequent layoutItemToNode calls stack
-    // on top (DOM order decides z-stack; layout items don't set an
-    // explicit z-index).
-    const video = applyVideoBg(stage, page.videoBg);
-    // "transparent" is pageSurface's posterless fallback — the one case
-    // where the page has nothing of its own to show until the clip
-    // paints. Borrow the frame the collapsed ad already has decoded.
-    if (video && page.videoBg && surface.stage === "transparent") {
-      this.underlayCollapsedFrame(stage, video, page.videoBg);
-    }
-    applyTextureBg(stage, page.textureBg, video);
-    applyLogo(stage, this.configData.logo);
-
-    (page.layout ?? []).forEach((item, i) => {
-      const node = layoutItemToNode(item, page, defaultFont, i);
-      if (node) stage.appendChild(node);
-    });
-
-    // Paper grain over the whole composition. Appended after the
-    // layout items so it sits on top (they never set z-index);
-    // pointer-events:none keeps CTA hit-testing intact. Inside the
-    // stage so the dog-ear's punch-out clip applies to it too.
-    stage.appendChild(buildGrainOverlay());
+    const stage = this.buildStage(page, cfg, { video: true });
 
     sheet.appendChild(stage);
     // Dog-ear: fold affordance at the top-right of each expanded
@@ -2649,9 +2769,7 @@ export class ExpandableMagazineBanner extends HTMLElement {
     //  - taps on interactive sub-elements (dog-ear corner, links,
     //    buttons) keep their own behavior,
     //  - mid page-turn clicks on desktop don't navigate.
-    const ctaHref = this.getAttribute("landing-url") ?? "";
-    if (ctaHref) {
-      const ctaTrackingUrl = this.getAttribute("cta-url") ?? "";
+    if (this.getAttribute("landing-url")) {
       pageBox.style.cursor = "pointer";
       let downAt: { x: number; y: number } | null = null;
       pageBox.addEventListener("pointerdown", (e) => {
@@ -2669,9 +2787,6 @@ export class ExpandableMagazineBanner extends HTMLElement {
         if (this._finishTurn) return; // desktop corner-peel in flight
         e.preventDefault();
         e.stopPropagation();
-        if (typeof performance !== "undefined" && performance.mark) {
-          performance.mark("pv:cta-tap");
-        }
         // Tap-feedback: a brief pressed state on the creative before the
         // new tab opens, so the reader gets confirmation their tap
         // registered. On the stage, NOT the pageBox — applyStackLayout
@@ -2688,15 +2803,28 @@ export class ExpandableMagazineBanner extends HTMLElement {
           stage.style.transform  = "";
           stage.style.opacity    = "";
         }, reduced ? 80 : 180);
-        this.dispatchEvent(new CustomEvent("cta-click", { bubbles: true, composed: true }));
-        if (ctaTrackingUrl) {
-          const pixel = new Image();
-          pixel.src = ctaTrackingUrl;
-        }
-        window.open(ctaHref, "_blank", "noopener,noreferrer");
+        this.fireCta();
       });
     }
     return el;
+  }
+
+  /** The CTA's non-visual work: perf mark, `cta-click`, the CTA pixel, and
+    * the landing page in a new tab. Shared by the reader sheet's tap and the
+    * Fold-out poster's tap. No landing-url → nothing to open. */
+  private fireCta(): void {
+    const ctaHref = this.getAttribute("landing-url") ?? "";
+    if (!ctaHref) return;
+    if (typeof performance !== "undefined" && performance.mark) {
+      performance.mark("pv:cta-tap");
+    }
+    this.dispatchEvent(new CustomEvent("cta-click", { bubbles: true, composed: true }));
+    const ctaTrackingUrl = this.getAttribute("cta-url") ?? "";
+    if (ctaTrackingUrl) {
+      const pixel = new Image();
+      pixel.src = ctaTrackingUrl;
+    }
+    window.open(ctaHref, "_blank", "noopener,noreferrer");
   }
 
   // Play a layout item node's motion when its page becomes active:
@@ -3091,6 +3219,52 @@ function hasJapanese(s: string): boolean {
   // Hiragana+Katakana (U+3040–30FF), CJK Unified (U+3400–9FFF),
   // half-width katakana (U+FF66–FF9F).
   return /[぀-ヿ㐀-鿿ｦ-ﾟ]/.test(s);
+}
+
+// TOP-LAYER promotion (delivery only): position:fixed is computed
+// against the nearest transformed/filtered ANCESTOR, so a publisher
+// wrapper with transform/will-change traps the reader inside the
+// article column (observed: 51% viewport coverage in the hostile
+// suite). The Popover API's top layer escapes ancestor transforms,
+// overflow clipping, AND z-index stacking in one move. "manual" =
+// no light-dismiss and no UA Escape handling (the reader owns its
+// exits). Framed previews must stay INSIDE their frames, and
+// engines without popover keep today's behavior — same code path,
+// just not promoted. Shared by the reader overlay and the Fold-out root.
+function promoteToTopLayer(el: HTMLElement): void {
+  if (typeof el.showPopover !== "function") return;
+  el.setAttribute("popover", "manual");
+  // The [popover] UA stylesheet imposes its own box (auto inset,
+  // fit-content sizing, border, padding, background: canvas) —
+  // neutralize it so the overlay keeps its designed fullscreen
+  // scrim geometry. Inline styles win over UA popover rules.
+  // Size by inset-STRETCH (auto width/height), never viewport
+  // units: 100vh is the LARGE viewport, so with the mobile URL
+  // bar visible the overlay overhangs the visible area and the
+  // centered sheet's bottom gets clipped — whether that happens
+  // depended on scroll position at tap time. Stretch tracks the
+  // real layout viewport exactly like the pre-popover
+  // fixed+inset:0 overlay did.
+  el.style.inset = "0";
+  el.style.width = "auto";
+  el.style.height = "auto";
+  el.style.margin = "0";
+  el.style.border = "none";
+  el.style.padding = "0";
+  try {
+    el.showPopover();
+  } catch {
+    // Already-showing / detached edge states — the element still
+    // renders in normal flow, which is the pre-popover behavior.
+  }
+}
+
+/** The page the expanded views render (reader sheets and the Fold-out poster):
+ *  the portrait master as a 9:16 page, or — for creatives authored before
+ *  it — the page itself with its 16:9 `layout`. See pickExpandedLayout. */
+function expandedPage(page: Page): Page {
+  const portrait = pickExpandedLayout(page);
+  return portrait ? { ...page, layout: portrait, designAspect: "9/16" } : page;
 }
 
 /** Picks the close-button label from the creative's content language.

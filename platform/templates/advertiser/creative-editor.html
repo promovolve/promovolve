@@ -12,6 +12,7 @@
          composition intent into the Gemini prompt. -->
     <input type="hidden" name="brandKitJson" :value="selectedBrandKitJson()">
     <input type="hidden" name="templateId"   :value="selectedTemplateId">
+    <input type="hidden" name="format"       :value="format === 'foldout' ? 'foldout' : ''">
     <!-- Present ONLY when the license opt-in above is ticked — downstream
          treats the field's presence as the advertiser's consent record. -->
     <input type="hidden" name="lpFontsJson"  :value="useOriginalFonts && originalFonts.length ? JSON.stringify(originalFonts) : ''">
@@ -34,7 +35,7 @@
     </div>
   </div>
 
-  <!-- Header. The page is a printed form: five numbered sections under
+  <!-- Header. The page is a printed form: six numbered sections under
        rules, one primary action at the end (Continue to Designer). -->
   <div class="mb-6">
     <h1 class="page-title">{{t "Creative Editor"}}</h1>
@@ -102,7 +103,7 @@
     </div>
   </section>
 
-  <!-- ============ 2–5. Compose — same page; reveals (animated) below the
+  <!-- ============ 2–6. Compose — same page; reveals (animated) below the
        URL once Analyze populates it. step flips to 'compose' on success or
        manual fallback. ============ -->
   <div x-show="step === 'compose'"
@@ -111,15 +112,53 @@
        x-transition:enter-start="opacity-0 translate-y-3"
        x-transition:enter-end="opacity-100 translate-y-0">
 
-    <!-- 2. Story: the persuasion arc + an optional brief, applied together
+    <!-- 2. Format: Magazine (3 pages) or Fold-out (one poster folded in thirds).
+         Picked once here; the designer has no format switch. -->
+    <section class="editor-section">
+      <h2 class="editor-heading"><span class="tabular">2</span> {{t "Format"}}</h2>
+      <div class="min-w-0">
+        <div class="grid gap-2 grid-cols-2 xl:grid-cols-4">
+          <button type="button" @click="format = 'magazine'" :disabled="generating"
+                  :aria-pressed="format === 'magazine'"
+                  class="border rounded-sm px-3 py-2 text-left transition-colors hover:border-gray-900 disabled:opacity-50 disabled:cursor-not-allowed flex items-start gap-3"
+                  :class="format === 'magazine' ? 'border-gray-900 bg-gray-100 shadow-[inset_0_0_0_1px_rgb(var(--c-gray-900))]' : 'border-gray-300'">
+            <svg class="shrink-0 mt-0.5 text-gray-900" width="22" height="28" viewBox="0 0 22 28" fill="none" stroke="currentColor" stroke-width="1.5" aria-hidden="true">
+              <rect x="6.75" y="0.75" width="14.5" height="19" fill="rgb(var(--c-gray-50))"/>
+              <rect x="3.75" y="4.25" width="14.5" height="19" fill="rgb(var(--c-gray-50))"/>
+              <rect x="0.75" y="7.75" width="14.5" height="19" fill="rgb(var(--c-gray-50))"/>
+            </svg>
+            <span class="min-w-0">
+              <span class="block text-sm text-gray-900" :class="format === 'magazine' && 'font-bold'">{{t "Magazine"}}</span>
+              <span class="block text-xs text-gray-500 mt-0.5 leading-snug">{{t "3 pages"}}</span>
+            </span>
+          </button>
+          <button type="button" @click="format = 'foldout'; activePageIdx = 0" :disabled="generating"
+                  :aria-pressed="format === 'foldout'"
+                  class="border rounded-sm px-3 py-2 text-left transition-colors hover:border-gray-900 disabled:opacity-50 disabled:cursor-not-allowed flex items-start gap-3"
+                  :class="format === 'foldout' ? 'border-gray-900 bg-gray-100 shadow-[inset_0_0_0_1px_rgb(var(--c-gray-900))]' : 'border-gray-300'">
+            <svg class="shrink-0 mt-0.5 text-gray-900" width="22" height="28" viewBox="0 0 22 28" fill="none" stroke="currentColor" stroke-width="1.5" aria-hidden="true">
+              <rect x="3.75" y="0.75" width="14.5" height="26.5" fill="rgb(var(--c-gray-50))"/>
+              <line x1="3.75" y1="9.6" x2="18.25" y2="9.6" stroke-width="1" stroke-dasharray="2 1.5"/>
+              <line x1="3.75" y1="18.4" x2="18.25" y2="18.4" stroke-width="1" stroke-dasharray="2 1.5"/>
+            </svg>
+            <span class="min-w-0">
+              <span class="block text-sm text-gray-900" :class="format === 'foldout' && 'font-bold'">{{t "Fold-out"}}</span>
+              <span class="block text-xs text-gray-500 mt-0.5 leading-snug">{{t "One poster, folds in thirds"}}</span>
+            </span>
+          </button>
+        </div>
+      </div>
+    </section>
+
+    <!-- 3. Story: the persuasion arc + an optional brief, applied together
          by ONE Regenerate action. On first generate the AI curates which
          arcs FIT the product (e.g. drops Problem→Solution for sweets) and
          we show only those + why; "show all" reveals the rest. -->
     <section class="editor-section">
-      <h2 class="editor-heading"><span class="tabular">2</span> {{t "Story arc"}}</h2>
+      <h2 class="editor-heading"><span class="tabular">3</span> {{t "Story arc"}}</h2>
       <div class="min-w-0">
         <div class="flex items-baseline justify-between gap-3 mb-2">
-          <p class="text-sm text-gray-500">{{t "— how the 3 pages persuade"}}</p>
+          <p class="text-sm text-gray-500" x-text="format === 'foldout' ? '{{t "— how the 3 panels persuade"}}' : '{{t "— how the 3 pages persuade"}}'">{{t "— how the 3 pages persuade"}}</p>
           <button type="button" x-show="fitArcIds.length > 0 && fitArcIds.length < arcs.length"
                   @click="showAllArcs = !showAllArcs"
                   class="text-xs text-gray-900 underline hover:no-underline shrink-0"
@@ -170,14 +209,45 @@
       </div>
     </section>
 
-    <!-- 3. Pages: the banner's three pages side by side, like its spread.
+    <!-- 4. Pages: the banner's three pages side by side, like its spread.
          Copy comes from synthesizedPages[idx]; the only per-page choice is
          which image to use. The selected page carries the ink rule on top;
          clicking an image below puts it on that page. Pages are locked at
-         3 and treated equally (delivery navigates on a tap anywhere). -->
+         3 and treated equally (delivery navigates on a tap anywhere).
+         Fold-out swaps this for "Poster": one 9:16 image (pageSlots[0]) beside
+         the three beats, one per fold. -->
     <section class="editor-section">
-      <h2 class="editor-heading"><span class="tabular">3</span> {{t "Pages"}}</h2>
+      <h2 class="editor-heading"><span class="tabular">4</span> <span x-text="format === 'foldout' ? '{{t "Poster"}}' : '{{t "Pages"}}'">{{t "Pages"}}</span></h2>
       <div class="min-w-0">
+        <template x-if="format === 'foldout'">
+          <div class="grid grid-cols-[8rem_minmax(0,1fr)] sm:grid-cols-[13rem_minmax(0,1fr)] gap-4 sm:gap-6 border-t-[3px] border-gray-900 pt-3">
+            <div class="aspect-[9/16] bg-gray-100 flex items-center justify-center overflow-hidden">
+              <template x-if="pageSlots[0].imageIdx !== null && allImages[pageSlots[0].imageIdx]">
+                <img :src="allImages[pageSlots[0].imageIdx].src" alt="" class="w-full h-full object-cover">
+              </template>
+              <template x-if="pageSlots[0].imageIdx === null">
+                <span class="text-xs text-gray-500 text-center px-2">{{t "Click an image below to put it on the poster"}}</span>
+              </template>
+            </div>
+            <div class="min-w-0 flex flex-col">
+              <template x-for="(label, idx) in ['{{t "Top fold"}}', '{{t "Middle"}}', '{{t "Bottom"}}']" :key="idx">
+                <div class="flex-1 pb-3" :class="idx > 0 && 'pt-3 border-t border-dashed border-gray-400'">
+                  <h3 class="text-sm font-bold text-gray-900 mb-1" x-text="label"></h3>
+                  <template x-if="synthesizedPages[idx]">
+                    <div>
+                      <p class="text-sm font-bold text-gray-900" x-text="synthesizedPages[idx].headline || '—'"></p>
+                      <p class="text-xs text-gray-700 mt-0.5" x-text="synthesizedPages[idx].sub || ''"></p>
+                    </div>
+                  </template>
+                  <template x-if="!synthesizedPages[idx]">
+                    <p class="text-xs text-gray-500" x-text="generating ? '{{t "Writing copy…"}}' : '{{t "Copy will appear here"}}'"></p>
+                  </template>
+                </div>
+              </template>
+            </div>
+          </div>
+        </template>
+        <template x-if="format !== 'foldout'">
         <div class="grid gap-6 md:grid-cols-3">
           <template x-for="(page, idx) in pageSlots" :key="idx">
             <div class="border-t-[3px] pt-3 cursor-pointer"
@@ -218,6 +288,7 @@
             </div>
           </template>
         </div>
+        </template>
 
         <!-- Image pool. Columns, not rows: each image keeps its own shape
              and the next one follows straight under it, so short images
@@ -231,7 +302,7 @@
           <div class="flex items-baseline justify-between gap-3 mb-2">
             <h3 class="text-sm font-bold text-gray-900">
               {{t "Images"}} <span class="font-normal text-gray-500" x-text="'(' + allImages.length + ')'"></span>
-              <span class="font-normal text-gray-500" x-show="allImages.length > 0"
+              <span class="font-normal text-gray-500" x-show="allImages.length > 0 && format !== 'foldout'"
                     x-text="'— ' + '{{t "click one to put it on page %d"}}'.replace('%d', activePageIdx + 1)"></span>
             </h3>
             <label class="text-xs text-gray-900 underline hover:no-underline cursor-pointer shrink-0"
@@ -252,7 +323,7 @@
                 <img :src="img.src" alt="" class="w-full h-auto block">
                 <span x-show="isImageUsed(imgIdx)"
                       class="absolute top-1 left-1 px-1.5 py-0.5 rounded-sm bg-gray-900 text-white text-xs font-bold"
-                      x-text="'P' + (imageUsedByPage(imgIdx) + 1)"></span>
+                      x-text="format === 'foldout' ? '{{t "Poster"}}' : 'P' + (imageUsedByPage(imgIdx) + 1)"></span>
                 {{/* Save-to-library star. stop keeps the click from also
                      assigning the image to the active page. Filled = in
                      the library (delete-able via toggle or the designer's
@@ -291,14 +362,16 @@
       </div>
     </section>
 
-    <!-- 4. Layout — picking ONE named template is REQUIRED (gates Continue
+    <!-- 5. Layout — picking ONE named template is REQUIRED (gates Continue
          via selectedTemplateId), so the creative is never silently
-         defaulted. The fonts opt-in sits here too: both set the look. -->
-    <section class="editor-section">
-      <h2 class="editor-heading"><span class="tabular">4</span> {{t "Layout"}}</h2>
+         defaulted. The fonts opt-in sits here too: both set the look.
+         Fold-out has no template (the designer composes the poster), so
+         the section shrinks to "Fonts" and vanishes when there are none. -->
+    <section class="editor-section" x-show="format !== 'foldout' || originalFonts.length > 0" x-cloak>
+      <h2 class="editor-heading"><span class="tabular">5</span> <span x-text="format === 'foldout' ? '{{t "Fonts"}}' : '{{t "Layout"}}'">{{t "Layout"}}</span></h2>
       <div class="min-w-0">
-        <p class="text-sm text-gray-500 mb-3">{{t "Pick a layout. Colours are set later in the designer."}}</p>
-        <div class="grid grid-cols-2 sm:grid-cols-4 gap-3">
+        <p x-show="format !== 'foldout'" class="text-sm text-gray-500 mb-3">{{t "Pick a layout. Colours are set later in the designer."}}</p>
+        <div x-show="format !== 'foldout'" class="grid grid-cols-2 sm:grid-cols-4 gap-3">
           <template x-for="t in templates" :key="t.id">
             <button type="button" @click="selectedTemplateId = t.id"
                     :aria-pressed="selectedTemplateId === t.id"
@@ -333,9 +406,9 @@
       </div>
     </section>
 
-    <!-- 5. Name, then the page's one primary action. -->
+    <!-- 6. Name, then the page's one primary action. -->
     <section class="editor-section">
-      <h2 class="editor-heading"><span class="tabular">5</span> {{t "Creative name"}}</h2>
+      <h2 class="editor-heading"><span class="tabular" x-text="format === 'foldout' && originalFonts.length === 0 ? 5 : 6">6</span> {{t "Creative name"}}</h2>
       <div class="min-w-0">
         <label for="creative-editor-creativename" class="sr-only">{{t "Creative name"}}</label>
         <input id="creative-editor-creativename" type="text" x-model="creativeName" required maxlength="120"
@@ -366,6 +439,7 @@
 function creativeEditor() {
   return {
     step: 'analyze',  // 'analyze', 'compose'
+    format: 'magazine', // 'magazine' | 'foldout' — Fold-out = one poster folded in thirds
     extractUrl: '{{.LandingURL}}',
     extractStrategy: 'auto',
     creativeName: '',
@@ -971,6 +1045,8 @@ function creativeEditor() {
     },
 
     assignImageToActive(imgIdx) {
+      // Fold-out has one image: the poster, always slot 0.
+      if (this.format === 'foldout') { this.pageSlots[0].imageIdx = imgIdx; return; }
       // If already used by another page, swap
       const other = this.pageSlots.findIndex(p => p.imageIdx === imgIdx);
       if (other !== -1 && other !== this.activePageIdx) {
@@ -980,6 +1056,7 @@ function creativeEditor() {
     },
 
     isImageUsed(imgIdx) {
+      if (this.format === 'foldout') return this.pageSlots[0].imageIdx === imgIdx;
       return this.pageSlots.some(p => p.imageIdx === imgIdx);
     },
 
@@ -994,7 +1071,7 @@ function creativeEditor() {
       // pages without one fall back to the synthesized imgEmoji / gradient.
       return this.synthesizedPages.length >= 3
         && this.creativeName.trim() !== ''
-        && this.selectedTemplateId !== '';
+        && (this.format === 'foldout' || this.selectedTemplateId !== '');  // the designer ignores the template for Fold-out
     },
 
     // Pre-fill the creative name from the LP hostname when entering the
@@ -1114,12 +1191,15 @@ function creativeEditor() {
     },
 
     pagesJsonStr() {
+      // Fold-out: all three beats carry the one poster image.
+      const poster = this.format === 'foldout' && this.allImages[this.pageSlots[0].imageIdx];
       return JSON.stringify(this.pages.map(p => {
         const page = {
           tag: p.tag, headline: p.headline, sub: p.sub, body: p.body,
           accent: p.accent, bg: p.bg, imgEmoji: p.imgEmoji, caption: p.caption
         };
-        if (p.img) page.img = p.img;
+        if (this.format === 'foldout') { if (poster) page.img = poster.src; }
+        else if (p.img) page.img = p.img;
         if (p.layout) page.layout = p.layout;
         if (p.banners) page.banners = p.banners;
         return page;

@@ -21,6 +21,7 @@
 import { regenerateCurrentMode } from "../auto-layout";
 import { isMultiPage } from "../modes";
 import type { Store } from "../store";
+import type { BannerConfig } from "@banner/types";
 import type { DesignerContext, DesignerState } from "../types";
 import { mountHistoryButtons } from "./history-buttons";
 import { mountPreviewButton } from "./preview-button";
@@ -136,12 +137,14 @@ export function mountMenuBar(
   return {
     update(state: DesignerState) {
       const modeName = state.mode.label.replace(/\s*\(.*\)$/, "");
-      const regenEnabled = isMultiPage(state.mode);
+      const regenEnabled = isMultiPage(state.mode) && regenAllowed(state.bannerConfig);
       regenBtn.disabled = !regenEnabled;
       regenBtn.style.opacity = regenEnabled ? "1" : "0.35";
       regenBtn.style.cursor = regenEnabled ? "pointer" : "default";
       regenBtn.title = regenEnabled
         ? `Regenerate ${modeName}`
+        : !regenAllowed(state.bannerConfig)
+        ? "Regenerate isn't available for Fold-out creatives"
         : "Regenerate works on the expanded pages — banner sizes follow them automatically";
     },
   };
@@ -230,4 +233,9 @@ function themeToggle(): HTMLElement {
     render();
   });
   return btn;
+}
+
+/** Regenerate runs applyLayout, which strips the Fold-out poster's literal-text beats. */
+export function regenAllowed(cfg: BannerConfig): boolean {
+  return cfg.format !== "foldout";
 }

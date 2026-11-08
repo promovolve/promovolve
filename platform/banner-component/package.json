@@ -14,7 +14,7 @@
     "test:watch": "vitest",
     "publish:r2": "node --env-file-if-exists=../../scripts/.env scripts/publish-to-r2.mjs",
     "release": "npm run typecheck && npm run lint && npm run build && npm run publish:r2",
-    "test:hostile": "npm run build && node tests/hostile/run.mjs"
+    "test:hostile": "npm run build && node tests/hostile/run.mjs && node tests/hostile/foldout-motion.mjs"
   },
   "devDependencies": {
     "@aws-sdk/client-s3": "^3.1156.0",

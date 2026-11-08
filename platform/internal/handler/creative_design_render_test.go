@@ -77,3 +77,61 @@ func TestCreativeDesignCarriesBannerConfig(t *testing.T) {
 		t.Error("saved banner config did not reach the designer boot context")
 	}
 }
+
+func TestFormatBannerConfig(t *testing.T) {
+	if got := formatBannerConfig("foldout"); got != `{"format":"foldout"}` {
+		t.Errorf("foldout: got %q", got)
+	}
+	for _, in := range []string{"", "magazine", "FOLDOUT", "foldout<script>"} {
+		if got := formatBannerConfig(in); got != "" {
+			t.Errorf("%q: got %q, want empty", in, got)
+		}
+	}
+}
+
+func TestCreativeDesignCarriesFoldoutFormat(t *testing.T) {
+	SetFS(platform.Templates, platform.Static)
+	render := func(cfg string) string {
+		data := creativeDesignData{
+			CampaignID:       "camp-1",
+			LandingURL:       "https://example.com",
+			CreativeName:     "Draft",
+			BannerSize:       "300x250",
+			PagesJSON:        `[]`,
+			CreativeID:       "01KXTEST",
+			BannerScriptURL:  "https://cdn.example/banner.js",
+			BannerConfigJSON: cfg,
+		}
+		var sb strings.Builder
+		if err := getPageStandalone(i18n.LangEN, "advertiser/creative-design.html").
+			ExecuteTemplate(&sb, "creative-design.html", data); err != nil {
+			t.Fatalf("render: %v", err)
+		}
+		return sb.String()
+	}
+	withFoldout, without := render(formatBannerConfig("foldout")), render("")
+	if withFoldout == without {
+		t.Fatal("foldout seed did not change the rendered page")
+	}
+	if got, want := strings.TrimSpace(grepLine(withFoldout, "bannerConfigJson:")), `bannerConfigJson: "{\"format\":\"foldout\"}",`; got != want {
+		t.Errorf("bannerConfigJson line = %s, want %s", got, want)
+	}
+}
+
+func grepLine(s, sub string) string {
+	for _, l := range strings.Split(s, "\n") {
+		if strings.Contains(l, sub) {
+			return l
+		}
+	}
+	return ""
+}
+
+func TestSeedBannerConfigFreshOnly(t *testing.T) {
+	if got := seedBannerConfig("foldout", ""); got != `{"format":"foldout"}` {
+		t.Errorf("fresh: got %q", got)
+	}
+	if got := seedBannerConfig("foldout", "01KX"); got != "" {
+		t.Errorf("existing creative must not be seeded, got %q", got)
+	}
+}

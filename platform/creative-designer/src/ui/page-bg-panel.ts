@@ -13,6 +13,7 @@ import { uploadImageDirect } from "../api/upload-asset";
 import { isSized } from "../modes";
 import { currentPage, setPageBg, setSyncPageBg, setTextureBg, setTextureSrc, setVideoBg } from "../state";
 import type { Store } from "../store";
+import type { BannerConfig } from "@banner/types";
 import type { DesignerState, TextureBg, VideoBg } from "../types";
 import { openAssetModal } from "./asset-modal";
 import { tokens } from "./tokens";
@@ -71,18 +72,21 @@ export function mountPageBgPanel(container: HTMLElement, store: Store): PageBgPa
       const page = currentPage(state);
       colorRow.update(page?.bg ?? "", state.pageIdx === 0, state.pages[0]?.syncBg !== false, isSized(state.mode));
       const videoBg = page?.videoBg;
-      const src = videoBg?.src ?? null;
+      const allowed = videoAllowed(state.bannerConfig);
+      const src = allowed ? (videoBg?.src ?? null) : `foldout|${videoBg?.src ?? ""}`;
       // Only rebuild when present/absent state flips — otherwise
       // patching existing inputs keeps focus and avoids jitter.
       if (renderedSrc !== src) {
         body.innerHTML = "";
-        if (videoBg) {
+        if (!allowed) {
+          renderFoldoutNote(body, !!videoBg);
+        } else if (videoBg) {
           renderWithVideo(body, videoBg, store);
         } else {
           renderEmpty(body, store);
         }
         renderedSrc = src;
-      } else if (videoBg) {
+      } else if (videoBg && allowed) {
         patchValues(body, videoBg);
       }
 
@@ -298,6 +302,24 @@ function mountColorRow(store: Store): ColorRowHandle {
       row.title = editable ? "" : "Color synced from page 1";
     },
   };
+}
+
+/** Fold-out is a still poster: a video background never plays there. */
+export function videoAllowed(cfg: BannerConfig): boolean {
+  return cfg.format !== "foldout";
+}
+
+function renderFoldoutNote(body: HTMLElement, hasVideo: boolean): void {
+  const note = document.createElement("p");
+  note.style.cssText = `color:${tokens.ink300};font-size:11px;margin:0 0 10px;line-height:1.5;`;
+  note.textContent = "Video backgrounds aren't available in Fold-out format";
+  body.appendChild(note);
+  if (hasVideo) {
+    const warn = document.createElement("p");
+    warn.style.cssText = `color:${tokens.ink100};font-size:11px;margin:0 0 10px;line-height:1.5;`;
+    warn.textContent = "This video won't play in Fold-out format — the page colour shows instead";
+    body.appendChild(warn);
+  }
 }
 
 // ─── Empty state ───────────────────────────────────────────────────

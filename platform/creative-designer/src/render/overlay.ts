@@ -517,7 +517,8 @@ function renderBadge(n: number, selected: boolean): HTMLElement {
     "align-items: center",
     "justify-content: center",
     `background: ${selected ? SELECTION_COLOR : tokens.ink800}`,
-    `color: ${tokens.ink100}`,
+    // selected = ink fill (focus is ink), so the number reverses to paper
+    `color: ${selected ? tokens.ink900 : tokens.ink100}`,
     `border: 1px solid ${selected ? SELECTION_COLOR : tokens.ink500}`,
     "border-radius: 2px",
     "font-size: 10px",

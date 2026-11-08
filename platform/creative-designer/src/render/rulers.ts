@@ -57,7 +57,7 @@ export function mountRulers(canvasWrap: HTMLElement): void {
   Object.assign(corner.style, {
     gridColumn: "1",
     gridRow: "1",
-    background: tokens.ink900,
+    background: tokens.ink800, // same stock as the strips, so it reads as their join
     borderRight: `1px solid ${tokens.ink500}`,
     borderBottom: `1px solid ${tokens.ink500}`,
     visibility: "hidden",

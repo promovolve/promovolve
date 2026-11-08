@@ -21,18 +21,13 @@ export function hingeOpen(progress: number, i: number, max = FOLDOUT_MAX, overla
   return smooth(clamp((progress - i * gap) / L, 0, 1));
 }
 
-// rotateX degrees: negative folds away from the viewer for a top-edge hinge.
-export function hingeAngle(progress: number, i: number): number {
-  const rest = i === 0 ? FOLDOUT.coverRest : FOLDOUT.innerRest;
-  const sign = i % 2 === 0 ? -1 : 1;
-  return sign * rest * (1 - hingeOpen(progress, i));
-}
 
 type Spring = { p: number; v: number };
 
-export function springStep(s: Spring, target: number, dt: number): Spring {
+// tempo > 1 slows every motion by that factor (the Designer's Tempo knob).
+export function springStep(s: Spring, target: number, dt: number, tempo = 1): Spring {
   const d = Math.min(dt, FOLDOUT.dtMax);
-  const w = FOLDOUT.omega;
+  const w = FOLDOUT.omega / tempo;
   const v = s.v + (w * w * (target - s.p) - 2 * w * s.v) * d;
   const p = s.p + v * d;
   if (p <= 0) return { p: 0, v: 0 };
@@ -47,6 +42,23 @@ export function springSettled(s: Spring, target: number): boolean {
 export function releaseTarget(p: number, v: number, msSinceLastMove: number): "open" | "closed" {
   const vv = msSinceLastMove > FOLDOUT.restMs ? 0 : v;
   return p + vv * FOLDOUT.flickS < FOLDOUT_MAX / 2 ? "closed" : "open";
+}
+
+// Opening is gravity, not a spring: each hinge is a damped pendulum (θ in
+// degrees from open, 0 = hanging flat). It starts slow when let go, speeds
+// up as it swings down, swings a few degrees past flat and settles — paper
+// falling open. A spring does the opposite (fast start, slow creep in).
+// An inner panel is released while the one above is still swinging and
+// inherits part of its speed (it hangs off a moving hinge), so the second
+// fall overlaps the first instead of starting from rest after it.
+export const FALL = { grav: 450, zeta: 0.6, nudge: 60, releaseAt: 140, inherit: 0.6, hMax: 1 / 240 } as const;
+const DEG = Math.PI / 180;
+// tempo T slows the fall by T: gravity / T², damping / T (same swing shape).
+export function fallStep(theta: number, omega: number, h: number, tempo = 1): [number, number] {
+  const grav = FALL.grav / (tempo * tempo);
+  const damp = 2 * FALL.zeta * Math.sqrt(grav);
+  const w = omega * DEG + (-grav * Math.sin(theta * DEG) - damp * omega * DEG) * h;
+  return [theta + (w * h) / DEG, w / DEG];
 }
 
 export function isTap(dx: number, dy: number): boolean {
@@ -95,7 +107,8 @@ export interface FoldOutOptions {
   closeLabel: string;
   rtl: boolean;                 // close pill on the right, dog-ear corner mirrored
   bottomClose: boolean;
-  fade: boolean;                // entrance "fade": the folded poster fades in/out instead of the pixel dissolve         // desktop: the reader's pill straddling the open poster's bottom edge; else the mobile top-left pill
+  fade: boolean;                // entrance "fade": the folded poster fades in/out instead of the pixel dissolve
+  tempo: number;                // dealTempo(cfg): 1 = stock speed, >1 slower (dissolve, fall, fold-up)         // desktop: the reader's pill straddling the open poster's bottom edge; else the mobile top-left pill
   reducedMotion: boolean;
   onLift(t: number): void;      // 0 hidden → 1 dissolved in; banner fades the collapsed frame to 1 - t
   onTap(): void;                // deliberate tap on the poster (isTap) → CTA
@@ -282,11 +295,26 @@ export function openFoldOut(o: FoldOutOptions): FoldOutHandle {
   let done = false;
   let committed = false; // a close is under way: nothing reopens it
 
+  // Hinge angles (degrees from open) are the rendered truth: the spring and
+  // the finger set them from progress; the gravity fall integrates them.
+  const restOf = (i: number) => (i === 0 ? FOLDOUT.coverRest : FOLDOUT.innerRest);
+  const angFromP = (p: number) => Array.from({ length: PANELS - 1 }, (_, i) => restOf(i) * (1 - hingeOpen(p, i)));
+  let ang = angFromP(0);
+  let angV = ang.map(() => 0);
+  const pFromAng = () => { // inverse of angFromP on the summed angle (monotone in p)
+    const want = ang.reduce((a, x) => a + Math.max(0, x), 0);
+    let lo = 0, hi = FOLDOUT_MAX;
+    for (let n = 0; n < 24; n++) {
+      const mid = (lo + hi) / 2;
+      if (angFromP(mid).reduce((a, x) => a + x, 0) > want) lo = mid; else hi = mid;
+    }
+    return (lo + hi) / 2;
+  };
   const render = () => {
-    const { p } = s;
     for (let k = 1; k < PANELS; k++) {
-      panels[k].style.transform = `rotateX(${hingeAngle(p, k - 1)}deg)`;
-      creases[k - 1].style.opacity = String((1 - hingeOpen(p, k - 1)) * 0.9);
+      const sign = (k - 1) % 2 === 0 ? -1 : 1;
+      panels[k].style.transform = `rotateX(${sign * ang[k - 1]}deg)`;
+      creases[k - 1].style.opacity = String(clamp(ang[k - 1] / restOf(k - 1), 0, 1) * 0.9);
     }
     // The poster sits centred; it pixel-dissolves in folded, then unfolds,
     // and folds up before it dissolves out. perspective() rides the foldout
@@ -330,7 +358,7 @@ export function openFoldOut(o: FoldOutOptions): FoldOutHandle {
     cancelAnimationFrame(draf);
     let last = performance.now();
     const step = (now: number) => {
-      const d = Math.max(0, now - last) / DISSOLVE_MS;
+      const d = Math.max(0, now - last) / (DISSOLVE_MS * o.tempo);
       last = now;
       vis = target > vis ? Math.min(target, vis + d) : Math.max(target, vis - d);
       render();
@@ -349,18 +377,60 @@ export function openFoldOut(o: FoldOutOptions): FoldOutHandle {
     if (o.reducedMotion) {
       if (target === 0) { fadeOut(); return; }
       s = { p: target, v: 0 };
+      ang = angFromP(target);
       render();
       arrive();
       return;
     }
+    if (target === FOLDOUT_MAX) { fallOpen(); return; }
+    s = { p: pFromAng(), v: s.v }; // may be mid-fall: continue from where the paper is
     let last = performance.now();
     const step = (now: number) => {
-      s = springStep(s, target, Math.max(0, now - last) / 1000);
+      s = springStep(s, target, Math.max(0, now - last) / 1000, o.tempo);
+      ang = angFromP(s.p);
       last = now;
       // Closing: dissolve as soon as the panels read as shut, not after the
       // spring's long settle tail (a visible pause before the dissolve).
       if (springSettled(s, target) || (target === 0 && s.p < 0.02)) {
         s = { p: target, v: 0 };
+        ang = angFromP(target);
+        render();
+        arrive();
+        return;
+      }
+      render();
+      raf = requestAnimationFrame(step);
+    };
+    raf = requestAnimationFrame(step);
+  };
+
+  // Gravity fall to open. Hinge i+1 hangs folded until hinge i has swung
+  // past FALL.releaseAt; a hinge let go from rest gets a small nudge. A
+  // release after a drag carries the finger's speed into the swing.
+  const fallOpen = () => {
+    if (s.v) {
+      const a1 = angFromP(Math.min(FOLDOUT_MAX, s.p + 0.01));
+      angV = ang.map((a, i) => ((a1[i] - a) / 0.01) * s.v);
+    }
+    let last = performance.now();
+    const step = (now: number) => {
+      let dt = Math.min(0.05, Math.max(0, (now - last) / 1000));
+      last = now;
+      while (dt > 1e-6) {
+        const h = Math.min(dt, FALL.hMax);
+        dt -= h;
+        for (let i = 0; i < ang.length; i++) {
+          const atRest = ang[i] >= restOf(i) - 0.5;
+          if (i > 0 && atRest && ang[i - 1] > FALL.releaseAt) continue; // still folded under
+          if (atRest && angV[i] >= 0) angV[i] = Math.min(-FALL.nudge / o.tempo, i > 0 ? FALL.inherit * angV[i - 1] : 0);
+          [ang[i], angV[i]] = fallStep(ang[i], angV[i], h, o.tempo);
+          ang[i] = Math.min(ang[i], restOf(i));
+        }
+      }
+      if (ang.every((a, i) => Math.abs(a) < 0.3 && Math.abs(angV[i]) < 3)) {
+        ang = ang.map(() => 0);
+        angV = ang.map(() => 0);
+        s = { p: FOLDOUT_MAX, v: 0 };
         render();
         arrive();
         return;
@@ -375,7 +445,7 @@ export function openFoldOut(o: FoldOutOptions): FoldOutHandle {
     root.style.transition = `opacity ${FADE_MS}ms ease`;
     root.style.opacity = "0";
     window.clearTimeout(timer);
-    timer = window.setTimeout(() => { s = { p: 0, v: 0 }; render(); finish(); }, FADE_MS);
+    timer = window.setTimeout(() => { s = { p: 0, v: 0 }; ang = angFromP(0); render(); finish(); }, FADE_MS);
   };
 
   const close = () => {
@@ -396,7 +466,8 @@ export function openFoldOut(o: FoldOutOptions): FoldOutHandle {
     if ((e.button ?? 0) !== 0 || e.isPrimary === false) return;
     cancelAnimationFrame(raf);
     window.clearTimeout(timer);
-    s = { p: s.p, v: 0 };
+    s = { p: pFromAng(), v: 0 }; // a grab mid-fall picks up where the paper is
+    angV = angV.map(() => 0);
     drag = { x0: e.clientX, y0: e.clientY, a: e.clientY, p: s.p, t: e.timeStamp, last: s.p, onFoldout: foldout.contains(tgt), moved: false };
     try { root.setPointerCapture?.(e.pointerId); } catch { /* synthetic pointer */ }
   };
@@ -415,6 +486,7 @@ export function openFoldOut(o: FoldOutOptions): FoldOutHandle {
     const dt = (e.timeStamp - drag.t) / 1000;
     const v = dt > 0 ? lerp(s.v, (p - drag.last) / dt, 0.4) : s.v;
     s = { p, v };
+    ang = angFromP(p);
     drag.t = e.timeStamp;
     drag.last = p;
     render();
@@ -468,6 +540,7 @@ export function openFoldOut(o: FoldOutOptions): FoldOutHandle {
   if (o.reducedMotion) {
     vis = 1;
     s = { p: FOLDOUT_MAX, v: 0 };
+    ang = angFromP(FOLDOUT_MAX);
     render();
     root.style.opacity = "0";
     void root.offsetWidth; // commit opacity 0 so the transition runs

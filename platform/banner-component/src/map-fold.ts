@@ -111,6 +111,8 @@ const MAP_CSS = `
   background: linear-gradient(180deg, rgba(0,0,0,.22), rgba(255,255,255,.16) 1px, transparent); }
 `;
 
+let mapSheet: CSSStyleSheet | undefined;
+
 export function openMapFold(o: MapFoldOptions): MapFoldHandle {
   const { root } = o;
   Object.assign(root.style, {
@@ -124,8 +126,18 @@ export function openMapFold(o: MapFoldOptions): MapFoldHandle {
     backgroundColor: "rgba(11, 11, 16, 0)",
   } as Partial<CSSStyleDeclaration>);
 
+  // Constructed stylesheet, adopted by the shadow root: unlike a <style>
+  // element it is not blocked by a strict `style-src 'self'` CSP (the
+  // hostile suite's map-csp-strict fixture). <style> stays as fallback.
   const style = document.createElement("style");
-  style.textContent = MAP_CSS;
+  const scope = root.getRootNode() as ShadowRoot;
+  try {
+    mapSheet ??= new CSSStyleSheet();
+    mapSheet.replaceSync(MAP_CSS);
+    if (!scope.adoptedStyleSheets.includes(mapSheet)) scope.adoptedStyleSheets = [...scope.adoptedStyleSheets, mapSheet];
+  } catch {
+    style.textContent = MAP_CSS;
+  }
   const map = document.createElement("div");
   map.className = "map";
   const panels: HTMLElement[] = [];

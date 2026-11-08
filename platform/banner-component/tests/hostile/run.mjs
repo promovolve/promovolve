@@ -63,21 +63,31 @@ async function probe(browser, name) {
     const el = document.querySelector("expandable-magazine-banner");
     return !!el?.shadowRoot?.querySelector(".design-box");
   });
-  let expanded = false, coverage = 0, closeVisible = false;
+  let expanded = false, coverage = 0, closeVisible = false, pathOk = false, transformStyle = "";
   if (mounted) {
     await page.locator("expandable-magazine-banner").first().scrollIntoViewIfNeeded();
     await page.waitForTimeout(400);
     await page.locator("expandable-magazine-banner").first().click();
     await page.waitForTimeout(1500); // deal-in settles
-    const st = await page.evaluate(() => {
+    const st = await page.evaluate((expectMap) => {
       const el = document.querySelector("expandable-magazine-banner");
-      const overlay = el?.shadowRoot?.querySelector(".overlay");
-      if (!overlay) return { expanded: false, coverage: 0, closeVisible: false };
-      const r = overlay.getBoundingClientRect();
+      const sr = el?.shadowRoot;
+      const overlay = sr?.querySelector(".overlay");
+      const mapRoot = sr?.querySelector(".map-root");
+      const panels = sr?.querySelectorAll(".map-panel").length ?? 0;
+      const coverEl = sr?.querySelector(".map-panel");
+      // Path pin: map fixtures open ONLY the map (3 panels, no reader);
+      // every other fixture opens ONLY the reader (no map root/panels).
+      const pathOk = expectMap
+        ? !!mapRoot && panels === 3 && !overlay
+        : !!overlay && !mapRoot && panels === 0;
+      const host = expectMap ? mapRoot : overlay;
+      if (!host) return { expanded: false, coverage: 0, closeVisible: false, pathOk, panels, transformStyle: "" };
+      const r = host.getBoundingClientRect();
       const vw = window.innerWidth, vh = window.innerHeight;
       const ix = Math.max(0, Math.min(r.right, vw) - Math.max(r.left, 0));
       const iy = Math.max(0, Math.min(r.bottom, vh) - Math.max(r.top, 0));
-      const closeBtn = [...(overlay.querySelectorAll("button") ?? [])]
+      const closeBtn = [...(host.querySelectorAll("button") ?? [])]
         .find((b) => /close|閉/i.test(b.textContent ?? ""));
       let closeOnTop = false;
       if (closeBtn) {
@@ -89,16 +99,20 @@ async function probe(browser, name) {
         expanded: true,
         coverage: (ix * iy) / (vw * vh),
         closeVisible: closeOnTop,
+        pathOk, panels,
+        transformStyle: coverEl ? getComputedStyle(coverEl).transformStyle : "",
       };
-    });
+    }, name.startsWith("map"));
+    pathOk = st.pathOk; transformStyle = st.transformStyle;
     ({ expanded, coverage, closeVisible } = st);
   }
   await page.close();
-  return { name, mounted, expanded, coverage: Math.round(coverage * 100), closeVisible, errors: errors.slice(0, 2) };
+  return { name, mounted, expanded, pathOk, transformStyle, coverage: Math.round(coverage * 100), closeVisible, errors: errors.slice(0, 2) };
 }
 
 const FIXTURES = ["quirks-mode", "css-bomb", "csp-strict", "trusted-types",
-  "transformed-ancestor", "spa-remount", "zindex-war", "vertical-writing"];
+  "transformed-ancestor", "spa-remount", "zindex-war", "vertical-writing",
+  "map", "map-csp-strict"];
 
 // Short-viewport delivery behaviors — probed with phone emulation, not
 // the shared 900×700 probe, so it gets its own function and verdict:
@@ -151,7 +165,57 @@ async function probeShortViewport(browser) {
   const restoredAfterClose = (await rootBg()) === "";
   await port.close();
 
-  return { directOk, openedPortrait, closedOnRotate, latchedWhileOpen, restoredAfterClose };
+  // 3. Map: open in portrait, rotate to landscape → no .map-panel remains.
+  const mapFixture = `http://127.0.0.1:${PORT}/tests/hostile/fixtures/map.html`;
+  const mapPanels = (page) => page.evaluate(() =>
+    document.querySelector("expandable-magazine-banner")?.shadowRoot?.querySelectorAll(".map-panel").length ?? 0);
+  const mp = await browser.newPage({ viewport: { width: 390, height: 844 }, hasTouch: true, isMobile: true });
+  await mp.goto(mapFixture, { waitUntil: "load" });
+  await mp.waitForTimeout(600);
+  await mp.locator("expandable-magazine-banner").click();
+  await mp.waitForTimeout(1500);
+  const mapOpened = (await mapPanels(mp)) === 3;
+  await mp.setViewportSize({ width: 844, height: 390 });
+  await mp.waitForTimeout(1800);
+  const mapClosedOnRotate = (await mapPanels(mp)) === 0;
+  await mp.close();
+
+  return { directOk, openedPortrait, closedOnRotate, latchedWhileOpen, restoredAfterClose, mapOpened, mapClosedOnRotate };
+}
+
+// Disconnect while a map is open: the app swaps its subtree under the live
+// map. The old element's disconnectedCallback must tear the map down — no
+// map root left anywhere (the old shadow root, any live banner, or the
+// top layer), a fresh banner mounted, no page errors.
+async function probeMapRemount(browser) {
+  const page = await browser.newPage({ viewport: { width: 900, height: 700 } });
+  const errors = [];
+  page.on("pageerror", (e) => errors.push(String(e).slice(0, 200)));
+  await page.goto(`http://127.0.0.1:${PORT}/tests/hostile/fixtures/map-spa-remount.html`, { waitUntil: "load" });
+  await page.waitForTimeout(1200);
+  await page.locator("expandable-magazine-banner").first().click();
+  await page.waitForTimeout(1500);
+  const openedBefore = await page.evaluate(() => {
+    const el = document.querySelector("expandable-magazine-banner");
+    window.__oldSr = el.shadowRoot;
+    return el.shadowRoot.querySelectorAll(".map-panel").length === 3;
+  });
+  await page.evaluate(() => window.__swap());
+  await page.waitForTimeout(1500);
+  const after = await page.evaluate(() => {
+    const els = [...document.querySelectorAll("expandable-magazine-banner")];
+    return {
+      oldGone: !window.__oldSr.host.isConnected,
+      oldMapLeft: window.__oldSr.querySelectorAll(".map-root,.map-panel").length,
+      liveMapLeft: els.reduce((n, e) => n + (e.shadowRoot?.querySelectorAll(".map-root,.map-panel").length ?? 0), 0),
+      topLayerLeft: document.querySelectorAll(":popover-open,dialog[open]").length,
+      freshMounted: els.length === 1 && !!els[0].shadowRoot?.querySelector(".design-box"),
+    };
+  });
+  await page.close();
+  const ok = openedBefore && after.oldGone && after.oldMapLeft === 0 && after.liveMapLeft === 0
+    && after.freshMounted && errors.length === 0;
+  return { ok, openedBefore, ...after, errors: errors.slice(0, 2) };
 }
 
 // A video background must never let the page's own colour reach the
@@ -235,6 +299,7 @@ const browser = await chromium.launch();
 const results = [];
 for (const f of FIXTURES) results.push(await probe(browser, f));
 const sv = await probeShortViewport(browser);
+const mr = await probeMapRemount(browser);
 const vids = [
   await probeVideoBg(browser, { poster: true }),
   await probeVideoBg(browser, { poster: false }),
@@ -244,7 +309,10 @@ server.close();
 
 let failed = 0;
 for (const r of results) {
-  const healthy = r.mounted && r.expanded && r.coverage >= 95 && r.closeVisible;
+  // map-csp-strict additionally needs the map's stylesheet to have survived
+  // the CSP: without it the cover loses preserve-3d and the fold flattens.
+  const styled = r.name !== "map-csp-strict" || r.transformStyle === "preserve-3d";
+  const healthy = r.mounted && r.expanded && r.pathOk && styled && r.coverage >= 95 && r.closeVisible;
   const known = KNOWN[r.name];
   let verdict;
   if (healthy) verdict = known ? "FIXED (remove from KNOWN)" : "ok";
@@ -252,19 +320,30 @@ for (const r of results) {
   else { verdict = "FAIL"; failed++; }
   console.log(
     `${verdict.padEnd(10)} ${r.name.padEnd(22)} mounted=${r.mounted} expanded=${r.expanded} ` +
-    `coverage=${r.coverage}% closeOnTop=${r.closeVisible}` +
+    `path=${r.pathOk} coverage=${r.coverage}% closeOnTop=${r.closeVisible}` +
+    (r.name === "map-csp-strict" ? ` transformStyle=${r.transformStyle}` : "") +
     (r.errors.length ? `  err: ${r.errors.join(" | ")}` : "")
   );
   if (verdict === "FIXED (remove from KNOWN)") failed++;
 }
 {
   const ok = sv.directOk && sv.openedPortrait && sv.closedOnRotate
-    && sv.latchedWhileOpen && sv.restoredAfterClose;
+    && sv.latchedWhileOpen && sv.restoredAfterClose && sv.mapOpened && sv.mapClosedOnRotate;
   if (!ok) failed++;
   console.log(
     `${(ok ? "ok" : "FAIL").padEnd(10)} ${"short-viewport".padEnd(22)} direct=${sv.directOk} ` +
     `openedPortrait=${sv.openedPortrait} closedOnRotate=${sv.closedOnRotate} ` +
-    `rootBgLatched=${sv.latchedWhileOpen} rootBgRestored=${sv.restoredAfterClose}`
+    `rootBgLatched=${sv.latchedWhileOpen} rootBgRestored=${sv.restoredAfterClose} ` +
+    `mapOpened=${sv.mapOpened} mapClosedOnRotate=${sv.mapClosedOnRotate}`
+  );
+}
+{
+  if (!mr.ok) failed++;
+  console.log(
+    `${(mr.ok ? "ok" : "FAIL").padEnd(10)} ${"map-spa-remount".padEnd(22)} openedBefore=${mr.openedBefore} ` +
+    `oldDetached=${mr.oldGone} oldMapLeft=${mr.oldMapLeft} liveMapLeft=${mr.liveMapLeft} ` +
+    `topLayerLeft=${mr.topLayerLeft} freshMounted=${mr.freshMounted}` +
+    (mr.errors.length ? `  err: ${mr.errors.join(" | ")}` : "")
   );
 }
 for (const v of vids) {

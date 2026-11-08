@@ -95,7 +95,8 @@
       // expandAnimation "fade" here is deliberate: it's the LEGACY value old
       // saved creatives carry — the engine must ignore it and deal anyway.
       const CONFIG = { layout: "auto", font: "sans", showTag: false, showSub: true, expandAnimation: "fade", paperWeight: "medium" };
-      let legacy169 = false; // mount without portrait masters → 16:9 fallback
+      let legacy169 = false;
+      let mapMode = false; // first page only, config.format "map" (gatefold poster) // mount without portrait masters → 16:9 fallback
 
       const SIZES = {
         "300×250": [300, 250],
@@ -113,11 +114,13 @@
         slot.style.height = h + "px";
         slot.replaceChildren(); // re-create so the one-shot teaser re-arms
         const el = document.createElement("expandable-magazine-banner");
-        const pages = legacy169
-          ? PAGES.map(({ banners, ...p }) => p) // strip portrait masters
-          : PAGES;
+        const pages = mapMode
+          ? PAGES.slice(0, 1)
+          : legacy169
+            ? PAGES.map(({ banners, ...p }) => p) // strip portrait masters
+            : PAGES;
         el.setAttribute("pages", JSON.stringify(pages));
-        el.setAttribute("config", JSON.stringify(CONFIG));
+        el.setAttribute("config", JSON.stringify(mapMode ? { ...CONFIG, format: "map" } : CONFIG));
         el.setAttribute("width", String(w));
         el.setAttribute("height", String(h));
         el.setAttribute("landing-url", "https://example.com/landing");
@@ -152,6 +155,17 @@
         mount();
       };
       document.querySelector(".bar").insertBefore(pBtn, document.querySelector(".bar .hint"));
+
+      // Map (gatefold poster) delivery: tap unfolds the first page downward.
+      const mapBtn = document.createElement("button");
+      mapBtn.textContent = "Map";
+      mapBtn.title = 'Mount the first page with config.format = "map"';
+      mapBtn.onclick = () => {
+        mapMode = !mapMode;
+        mapBtn.className = mapMode ? "active" : "";
+        mount();
+      };
+      document.querySelector(".bar").insertBefore(mapBtn, document.querySelector(".bar .hint"));
 
       // Paper weight — the peel hand-feel preset (pull gain, commit line,
       // flick throw, settle spring). Expand the reader and drag a page up

@@ -20,6 +20,7 @@
 import type { LayoutItem, Page } from "./types";
 import { kitFont, type BrandKit } from "./brand-kit";
 import { pickContrast, resolveLayoutColors } from "./color-contrast";
+import { scrimGradient } from "./scrim";
 
 export function presetLayoutFor(mode: string, page: Page, kit?: BrandKit | null): LayoutItem[] | null {
   const fn = PRESETS[mode];
@@ -235,4 +236,43 @@ function skyscraper(page: Page, kit: BrandKit | null): LayoutItem[] {
     fontWeight: "bold", textAlign: "center", height: 34, textFit: "shrink",
   });
   return items;
+}
+
+// ── Map poster (gatefold) ─────────────────────────────────────────────
+// One 9:16 page, three beats stacked in thirds; the banner folds it along
+// the two band lines. Text stays POSTER_CREASE_INSET clear of each fold.
+// Contrast comes from per-band scrims, not legibilizeItems: that measures
+// against page.bg, which the full-bleed image hides.
+export const POSTER_BAND = 100 / 3;
+export const POSTER_CREASE_INSET = 4;
+
+export function posterLayoutFor(beats: Page[], kit: BrandKit | null): LayoutItem[] {
+  const font = headlineFontOf(beats[0], kit);
+  const items: LayoutItem[] = [{ type: "image", field: "img", left: 0, top: 0, width: 100, height: 100 }];
+  for (let k = 0; k < 3; k++) {
+    const spec = { edge: k === 0 ? "top" : "bottom", color: "#000000", strength: 0.55 } as const;
+    items.push({ type: "rect", left: 0, top: k * POSTER_BAND, width: 100, height: POSTER_BAND, fill: scrimGradient(spec), scrim: spec } as LayoutItem);
+  }
+  const text = (o: Record<string, unknown>) =>
+    ({ type: "text", left: 6, width: 88, color: "#ffffff", fontFamily: font, textAlign: "left", textFit: "shrink", ...o }) as LayoutItem;
+  beats.slice(0, 3).forEach((b, k) => {
+    const y = k * POSTER_BAND + POSTER_CREASE_INSET;
+    const subField = b.sub ? "sub" : "body";
+    const subText = b.sub || b.body;
+    const bind = (field: string, literal: string | undefined) => (k === 0 ? { field } : { text: literal ?? "" });
+    items.push(text({ ...bind("headline", b.headline), top: y, height: 10, fontSize: 8, fontWeight: "bold" }));
+    if (subText) items.push(text({ ...bind(subField, subText), top: y + 11, height: 6, fontSize: 3.5 }));
+    if (k === 2 && b.ctaLabel) {
+      items.push(text({ text: b.ctaLabel, top: y + 19, height: 5, fontSize: 3.5, fontWeight: "bold" }));
+    }
+  });
+  return items;
+}
+
+/** First open of a Map design: fold the three hand-off beats into one
+  * poster page. A resumed creative (already has a layout) is left alone.
+  * Caller invokes this only when bannerConfig.format === "map". */
+export function composeMapPages(pages: Page[], hadLayout: boolean[], kit: BrandKit | null): Page[] {
+  if (hadLayout[0] || pages.length === 0) return pages.slice(0, 1);
+  return [{ ...pages[0], layout: posterLayoutFor(pages, kit) }];
 }

@@ -775,7 +775,8 @@ export class ExpandableMagazineBanner extends HTMLElement {
     if (!sr) return;
     const cfg = this.configData;
     const pages = this.pagesData;
-    const page = pages[0];
+    // The poster is the portrait master, resolved exactly as the reader does.
+    const page = expandedPage(pages[0]);
     const framed = this.getAttribute("preview-frame") === "1";
     const rtl = resolveReadingRtl(cfg, pages);
     const reducedMotion = prefersReducedMotion();
@@ -2536,16 +2537,12 @@ export class ExpandableMagazineBanner extends HTMLElement {
     // navigate). See pickExpandedLayout for why the 16:9 desktop
     // master was retired from delivery; it remains the fallback for
     // creatives authored before the portrait unification.
-    const portraitLayout = pickExpandedLayout(page);
-    if (portraitLayout) {
-      const portraitPage: Page = { ...page, layout: portraitLayout, designAspect: "9/16" };
-      return this.createPageFromLayout(portraitPage, index, cfg);
-    }
     // The only supported expanded rendering is the authored layout. If it's
     // missing we surface a placeholder rather than falling back to a template
     // the advertiser didn't design.
-    if (page.layout && page.layout.length > 0) {
-      return this.createPageFromLayout(page, index, cfg);
+    const expanded = expandedPage(page);
+    if (expanded.layout && expanded.layout.length > 0) {
+      return this.createPageFromLayout(expanded, index, cfg);
     }
     const missing = document.createElement("div");
     missing.className = `magazine-page page-${index}`;
@@ -3252,6 +3249,14 @@ function promoteToTopLayer(el: HTMLElement): void {
     // Already-showing / detached edge states — the element still
     // renders in normal flow, which is the pre-popover behavior.
   }
+}
+
+/** The page the expanded views render (reader sheets and the Map poster):
+ *  the portrait master as a 9:16 page, or — for creatives authored before
+ *  it — the page itself with its 16:9 `layout`. See pickExpandedLayout. */
+function expandedPage(page: Page): Page {
+  const portrait = pickExpandedLayout(page);
+  return portrait ? { ...page, layout: portrait, designAspect: "9/16" } : page;
 }
 
 /** Picks the close-button label from the creative's content language.

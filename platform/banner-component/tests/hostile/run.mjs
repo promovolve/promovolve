@@ -78,8 +78,12 @@ async function probe(browser, name) {
       const coverEl = sr?.querySelector(".map-panel");
       // Path pin: map fixtures open ONLY the map (3 panels, no reader);
       // every other fixture opens ONLY the reader (no map root/panels).
+      // Map poster = the portrait master (banners["mobile-expanded"]), never
+      // the 16:9 wide `layout` the seed plants beside it.
+      const mapText = mapRoot?.textContent ?? "";
       const pathOk = expectMap
         ? !!mapRoot && panels === 3 && !overlay
+          && mapText.includes("MAP MIDDLE") && !mapText.includes("WIDE MASTER ONLY")
         : !!overlay && !mapRoot && panels === 0;
       const host = expectMap ? mapRoot : overlay;
       if (!host) return { expanded: false, coverage: 0, closeVisible: false, pathOk, panels, transformStyle: "" };

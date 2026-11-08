@@ -1,6 +1,6 @@
 import { describe, it, expect } from "vitest";
 import {
-  isFoldout, hingeOpen, hingeAngle, springStep, springSettled,
+  isFoldout, hingeOpen, springStep, fallStep, springSettled,
   releaseTarget, isTap, posterSize, shuffledCells, dissolveClip,
 } from "../src/fold-out";
 
@@ -15,7 +15,6 @@ describe("fold-out maths", () => {
     expect(hingeOpen(0.5, 1)).toBe(0);
     expect(hingeOpen(1, 0)).toBeGreaterThan(hingeOpen(1, 1));
     expect(hingeOpen(1, 1)).toBeGreaterThan(0);
-    expect(hingeAngle(0, 0)).toBe(-178); expect(hingeAngle(0, 1)).toBe(180); expect(hingeAngle(2, 0)).toBeCloseTo(0);
   });
   it("spring", () => {
     let s = { p: 0, v: 0 }; let max = 0;
@@ -55,5 +54,25 @@ describe("pixel dissolve", () => {
     const d = dissolveClip([5, 0], 1, 4, 100, 200, 10); // cell 5 = col 1, row 1
     expect(d).toBe('path("M110.0 210.0h11v11h-11Z")');
     expect(dissolveClip(order, 7, 4, 0, 0, 10).match(/Z/g)).toHaveLength(7);
+  });
+});
+
+describe("gravity fall", () => {
+  // paper falling open: slow start, fastest at the bottom, a small swing past flat, then rest
+  it("falls open in ~0.3-0.45 s, swings a few degrees past flat, settles under 0.9 s", () => {
+    let th = 178, w = -60, t = 0, firstZero = 0, minTh = 0, settled = 0, peakAt = 0, peakW = 0;
+    const h = 1 / 240;
+    while (t < 2) {
+      [th, w] = fallStep(th, w, h);
+      t += h;
+      if (!firstZero && th <= 0) firstZero = t;
+      if (!firstZero && Math.abs(w) > peakW) { peakW = Math.abs(w); peakAt = th; }
+      if (firstZero) minTh = Math.min(minTh, th);
+      if (firstZero && !settled && Math.abs(th) < 0.3 && Math.abs(w) < 3) settled = t;
+    }
+    expect(firstZero).toBeGreaterThan(0.3); expect(firstZero).toBeLessThan(0.45);
+    expect(peakAt).toBeLessThan(90); // fastest in the lower half of the swing; a spring peaks at the start
+    expect(-minTh).toBeGreaterThan(2); expect(-minTh).toBeLessThan(12);
+    expect(settled).toBeLessThan(0.9);
   });
 });

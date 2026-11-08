@@ -1,6 +1,7 @@
 // Fold-out (gatefold poster) format: the fold maths (pure), then the DOM.
 import { PAPER_BACK_BLEND } from "./paper";
 import { fontUI } from "./fonts";
+import { buildCloseButton } from "./render-overlay";
 export const FOLDOUT_MAX = 2; // 3 panels -> progress 0..2
 export const FOLDOUT = {
   overlap: 0.45, omega: 8, coverRest: 178, innerRest: 180,
@@ -77,6 +78,7 @@ export interface FoldOutOptions {
   backBackground: string;       // background for panel backs (paper stock)
   closeLabel: string;
   rtl: boolean;                 // close pill on the right, dog-ear corner mirrored
+  bottomClose: boolean;         // desktop: the reader's pill straddling the open poster's bottom edge; else the mobile top-left pill
   reducedMotion: boolean;
   onLift(t: number): void;      // 0 at slot → 1 lifted; banner fades the collapsed frame to 1 - t
   onTap(): void;                // deliberate tap on the poster (isTap) → CTA
@@ -171,36 +173,58 @@ export function openFoldOut(o: FoldOutOptions): FoldOutHandle {
     stages.push(stage);
   }
 
-  const pill = document.createElement("button");
-  pill.type = "button";
-  pill.className = "foldout-close";
-  pill.textContent = o.closeLabel;
-  pill.setAttribute("aria-label", o.closeLabel);
-  Object.assign(pill.style, {
-    position: "absolute",
-    top: o.framed ? "12px" : "max(12px, env(safe-area-inset-top, 0px))",
-    [o.rtl ? "right" : "left"]: "12px",
-    zIndex: "100",
-    height: "40px",
-    padding: "0 20px",
-    borderRadius: "20px",
-    border: "1px solid rgba(255,255,255,0.3)",
-    background: "rgba(0,0,0,0.7)",
-    color: "rgba(255,255,255,0.95)",
-    fontSize: "13px",
-    letterSpacing: "2px",
-    lineHeight: "1",
-    display: "flex",
-    alignItems: "center",
-    justifyContent: "center",
-    cursor: "pointer",
-    fontFamily: fontUI(),
-    boxShadow: "0 4px 14px rgba(0,0,0,0.4)",
-    backdropFilter: "blur(6px)",
-    webkitBackdropFilter: "blur(6px)",
-  } as Partial<CSSStyleDeclaration>);
-  pill.addEventListener("click", () => close());
-  root.append(foldout, pill);
+  // Close control, same as the Magazine reader: desktop = its pill
+  // straddling the sheet's bottom edge (shown only while fully open);
+  // mobile = the top-left pill on the scrim.
+  const chrome = document.createElement("div");
+  if (o.bottomClose) {
+    Object.assign(chrome.style, {
+      position: "absolute", zIndex: "100", pointerEvents: "none",
+      opacity: "0", visibility: "hidden", transition: "opacity 0.3s ease, visibility 0.3s",
+    } as Partial<CSSStyleDeclaration>);
+    const pill = buildCloseButton({ ui: fontUI(), onClick: () => close(), label: o.closeLabel });
+    pill.classList.add("foldout-close");
+    pill.setAttribute("type", "button");
+    pill.setAttribute("aria-label", o.closeLabel);
+    chrome.append(pill);
+  } else {
+    const pill = document.createElement("button");
+    pill.type = "button";
+    pill.className = "foldout-close";
+    pill.textContent = o.closeLabel;
+    pill.setAttribute("aria-label", o.closeLabel);
+    Object.assign(pill.style, {
+      position: "absolute",
+      top: o.framed ? "12px" : "max(12px, env(safe-area-inset-top, 0px))",
+      [o.rtl ? "right" : "left"]: "12px",
+      zIndex: "100",
+      height: "40px",
+      padding: "0 20px",
+      borderRadius: "20px",
+      border: "1px solid rgba(255,255,255,0.3)",
+      background: "rgba(0,0,0,0.7)",
+      color: "rgba(255,255,255,0.95)",
+      fontSize: "13px",
+      letterSpacing: "2px",
+      lineHeight: "1",
+      display: "flex",
+      alignItems: "center",
+      justifyContent: "center",
+      cursor: "pointer",
+      fontFamily: fontUI(),
+      boxShadow: "0 4px 14px rgba(0,0,0,0.4)",
+      backdropFilter: "blur(6px)",
+      webkitBackdropFilter: "blur(6px)",
+    } as Partial<CSSStyleDeclaration>);
+    pill.addEventListener("click", () => close());
+    chrome.append(pill);
+  }
+  const showChrome = (v: boolean) => {
+    if (!o.bottomClose) return;
+    chrome.style.opacity = v ? "1" : "0";
+    chrome.style.visibility = v ? "visible" : "hidden"; // hidden = unclickable mid-fold
+  };
+  root.append(foldout, chrome);
 
   // Geometry in root-local px. jsdom (and a not-yet-laid-out root) report
   // a zero rect; fall back to the window so sizes stay finite.
@@ -222,6 +246,7 @@ export function openFoldOut(o: FoldOutOptions): FoldOutHandle {
     stages.forEach((st, i) => Object.assign(st.style, {
       inset: "auto", left: "0", top: `${-i * g.ph}px`, width: `${w}px`, height: `${h}px`,
     }));
+    if (o.bottomClose) Object.assign(chrome.style, { left: `${g.cx}px`, top: `${g.cy}px`, width: `${w}px`, height: `${h}px` });
   };
 
   let s = { p: 0, v: 0 };
@@ -256,11 +281,12 @@ export function openFoldOut(o: FoldOutOptions): FoldOutHandle {
   const leaveOpen = () => {
     if (!isOpen) return;
     isOpen = false;
+    showChrome(false);
     o.onFoldStart();
   };
   const arrive = () => {
     if (goal === FOLDOUT_MAX) {
-      if (!isOpen) { isOpen = true; o.onOpened(faces[0]); }
+      if (!isOpen) { isOpen = true; showChrome(true); o.onOpened(faces[0]); }
     } else finish();
   };
 

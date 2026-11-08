@@ -47,6 +47,7 @@ function setup(over: Partial<FoldOutOptions> = {}) {
     backBackground: "#eee",
     closeLabel: "Close",
     rtl: false,
+    bottomClose: false,
     reducedMotion: false,
     onLift: vi.fn(),
     onTap: vi.fn(),
@@ -67,6 +68,23 @@ const ptr = (el: Element, type: string, y: number, x = 50): void => {
 };
 
 describe("fold-out DOM", () => {
+  it("desktop close sits on the poster's bottom edge, shown only while fully open", () => {
+    const { o, root } = setup({ bottomClose: true });
+    const pill = root.querySelector<HTMLElement>(".foldout-close")!;
+    const chrome = pill.parentElement!;
+    expect(pill.style.bottom).toBe("-24px"); // the reader's straddling pill
+    expect(chrome.style.visibility).toBe("hidden");
+    settle(() => o.onOpened.mock.calls.length > 0);
+    expect(chrome.style.visibility).toBe("visible");
+  });
+
+  it("mobile close is the top-left pill", () => {
+    const { root } = setup({ framed: true }); // jsdom drops max(…env()) on the unframed path
+    const pill = root.querySelector<HTMLElement>(".foldout-close")!;
+    expect(pill.style.top).toBe("12px");
+    expect(pill.style.left).toBe("12px");
+  });
+
   it("builds 3 panels", () => {
     const { o, root } = setup();
     expect(root.querySelectorAll(".foldout-panel")).toHaveLength(3);

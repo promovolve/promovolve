@@ -836,6 +836,7 @@ export class ExpandableMagazineBanner extends HTMLElement {
       ),
       closeLabel: pickCloseLabel(pages),
       rtl,
+      bottomClose: !this.isMobileReader(),
       reducedMotion,
       onLift: (t) => {
         const c = collapsed();

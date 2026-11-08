@@ -4975,6 +4975,8 @@ func (h *Handler) CreativeDesign(w http.ResponseWriter, r *http.Request) {
 		BrandKitJSON:    brandKitJSON,
 		TemplateID:      templateID,
 		LPFontsJSON:     lpFontsJSON,
+		// Fresh design only: resume/save-error paths carry their saved config.
+		BannerConfigJSON: formatBannerConfig(r.FormValue("format")),
 	}
 
 	w.Header().Set("Content-Type", "text/html; charset=utf-8")
@@ -5369,4 +5371,13 @@ func freqCapWindowOr(w string) string {
 		return w
 	}
 	return "day"
+}
+
+// formatBannerConfig returns the initial banner config for a fresh design:
+// `{"format":"map"}` for format "map", "" for anything else.
+func formatBannerConfig(format string) string {
+	if format == "map" {
+		return `{"format":"map"}`
+	}
+	return ""
 }

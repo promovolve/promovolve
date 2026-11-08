@@ -77,3 +77,37 @@ func TestCreativeDesignCarriesBannerConfig(t *testing.T) {
 		t.Error("saved banner config did not reach the designer boot context")
 	}
 }
+
+func TestFormatBannerConfig(t *testing.T) {
+	if got := formatBannerConfig("map"); got != `{"format":"map"}` {
+		t.Errorf("map: got %q", got)
+	}
+	for _, in := range []string{"", "magazine", "MAP", "map<script>"} {
+		if got := formatBannerConfig(in); got != "" {
+			t.Errorf("%q: got %q, want empty", in, got)
+		}
+	}
+}
+
+func TestCreativeDesignCarriesMapFormat(t *testing.T) {
+	SetFS(platform.Templates, platform.Static)
+	data := creativeDesignData{
+		CampaignID:       "camp-1",
+		LandingURL:       "https://example.com",
+		CreativeName:     "Draft",
+		BannerSize:       "300x250",
+		PagesJSON:        `[]`,
+		CreativeID:       "01KXTEST",
+		BannerScriptURL:  "https://cdn.example/banner.js",
+		BannerConfigJSON: formatBannerConfig("map"),
+	}
+	var sb strings.Builder
+	if err := getPageStandalone(i18n.LangEN, "advertiser/creative-design.html").
+		ExecuteTemplate(&sb, "creative-design.html", data); err != nil {
+		t.Fatalf("render: %v", err)
+	}
+	out := sb.String()
+	if !strings.Contains(out, "format") || !strings.Contains(out, "map") {
+		t.Error("map format did not reach the designer boot context")
+	}
+}

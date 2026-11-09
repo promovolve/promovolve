@@ -1,5 +1,5 @@
-import type { BannerConfig, ExpandAnimation, LayoutItem, MotionTarget, Page, PaperFeel, TextureBg, VideoBg } from "./types";
-import { PAPER_FEEL, dealTempo } from "./types";
+import type { BannerConfig, DissolveSize, ExpandAnimation, LayoutItem, MotionTarget, Page, PaperFeel, TextureBg, VideoBg } from "./types";
+import { DISSOLVE_COLS, PAPER_FEEL, dealTempo } from "./types";
 import { fontMain, fontUI } from "./fonts";
 import { layoutItemToNode } from "./layout-item";
 import type { EntranceBase } from "./motion";
@@ -837,6 +837,7 @@ export class ExpandableMagazineBanner extends HTMLElement {
       rtl,
       bottomClose: !this.isMobileReader(),
       fade: cfg.entrance === "fade",
+      cols: DISSOLVE_COLS[cfg.dissolveSize as DissolveSize] ?? DISSOLVE_COLS.medium,
       tempo: dealTempo(cfg),
       reducedMotion,
       onLift: (t) => {

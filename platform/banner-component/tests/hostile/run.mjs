@@ -63,7 +63,7 @@ async function probe(browser, name) {
     const el = document.querySelector("expandable-magazine-banner");
     return !!el?.shadowRoot?.querySelector(".design-box");
   });
-  let expanded = false, coverage = 0, closeVisible = false, pathOk = false, transformStyle = "";
+  let expanded = false, coverage = 0, closeVisible = false, pathOk = false, panelPosition = "";
   if (mounted) {
     await page.locator("expandable-magazine-banner").first().scrollIntoViewIfNeeded();
     await page.waitForTimeout(400);
@@ -86,7 +86,7 @@ async function probe(browser, name) {
           && foldoutText.includes("FOLDOUT MIDDLE") && !foldoutText.includes("WIDE MASTER ONLY")
         : !!overlay && !foldoutRoot && panels === 0;
       const host = expectFoldout ? foldoutRoot : overlay;
-      if (!host) return { expanded: false, coverage: 0, closeVisible: false, pathOk, panels, transformStyle: "" };
+      if (!host) return { expanded: false, coverage: 0, closeVisible: false, pathOk, panels, panelPosition: "" };
       const r = host.getBoundingClientRect();
       const vw = window.innerWidth, vh = window.innerHeight;
       const ix = Math.max(0, Math.min(r.right, vw) - Math.max(r.left, 0));
@@ -104,14 +104,14 @@ async function probe(browser, name) {
         coverage: (ix * iy) / (vw * vh),
         closeVisible: closeOnTop,
         pathOk, panels,
-        transformStyle: coverEl ? getComputedStyle(coverEl).transformStyle : "",
+        panelPosition: coverEl ? getComputedStyle(coverEl).position : "",
       };
     }, name.startsWith("foldout"));
-    pathOk = st.pathOk; transformStyle = st.transformStyle;
+    pathOk = st.pathOk; panelPosition = st.panelPosition;
     ({ expanded, coverage, closeVisible } = st);
   }
   await page.close();
-  return { name, mounted, expanded, pathOk, transformStyle, coverage: Math.round(coverage * 100), closeVisible, errors: errors.slice(0, 2) };
+  return { name, mounted, expanded, pathOk, panelPosition, coverage: Math.round(coverage * 100), closeVisible, errors: errors.slice(0, 2) };
 }
 
 const FIXTURES = ["quirks-mode", "css-bomb", "csp-strict", "trusted-types",
@@ -314,8 +314,8 @@ server.close();
 let failed = 0;
 for (const r of results) {
   // foldout-csp-strict additionally needs the fold-out's stylesheet to have survived
-  // the CSP: without it the cover loses preserve-3d and the fold flattens.
-  const styled = r.name !== "foldout-csp-strict" || r.transformStyle === "preserve-3d";
+  // the CSP: without it the panels lose position:absolute and stack as blocks.
+  const styled = r.name !== "foldout-csp-strict" || r.panelPosition === "absolute";
   const healthy = r.mounted && r.expanded && r.pathOk && styled && r.coverage >= 95 && r.closeVisible;
   const known = KNOWN[r.name];
   let verdict;
@@ -325,7 +325,7 @@ for (const r of results) {
   console.log(
     `${verdict.padEnd(10)} ${r.name.padEnd(22)} mounted=${r.mounted} expanded=${r.expanded} ` +
     `path=${r.pathOk} coverage=${r.coverage}% closeOnTop=${r.closeVisible}` +
-    (r.name === "foldout-csp-strict" ? ` transformStyle=${r.transformStyle}` : "") +
+    (r.name === "foldout-csp-strict" ? ` panelPosition=${r.panelPosition}` : "") +
     (r.errors.length ? `  err: ${r.errors.join(" | ")}` : "")
   );
   if (verdict === "FIXED (remove from KNOWN)") failed++;

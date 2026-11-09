@@ -54,8 +54,9 @@ async function trace(vp) {
     const t0 = performance.now();
     // stamp with the rAF time — the same clock the fold-out's spring steps on
     const tick = (now) => {
+      // each panel's transform ends with its own hinge: the last rotateX
       const hs = [...sr.querySelectorAll(".foldout-panel")].slice(1)
-        .map((h) => parseFloat((h.style.transform.match(/-?[\d.]+/) || [0])[0]));
+        .map((h) => parseFloat(([...h.style.transform.matchAll(/rotateX\((-?[\d.]+)deg\)/g)].at(-1) || [0, 0])[1]));
       const m = sr.querySelector(".foldout");
       const ty = m ? parseFloat((m.style.transform.match(/translate\([^,]+,\s*(-?[\d.]+)/) || [0, 0])[1]) : 0;
       out.push({ t: now - t0, hs, ty });

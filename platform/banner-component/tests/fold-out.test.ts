@@ -1,6 +1,6 @@
 import { describe, it, expect } from "vitest";
 import {
-  isFoldout, hingeOpen, springStep, fallStep, springSettled,
+  isFoldout, foldAngles, springStep, fallStep, springSettled,
   releaseTarget, isTap, posterSize, shuffledCells, dissolveClip,
 } from "../src/fold-out";
 
@@ -11,10 +11,11 @@ describe("fold-out maths", () => {
     expect(isFoldout({ format: "Fold-out" })).toBe(false);
   });
   it("hinges", () => {
-    expect(hingeOpen(0, 0)).toBe(0); expect(hingeOpen(2, 1)).toBe(1);
-    expect(hingeOpen(0.5, 1)).toBe(0);
-    expect(hingeOpen(1, 0)).toBeGreaterThan(hingeOpen(1, 1));
-    expect(hingeOpen(1, 1)).toBeGreaterThan(0);
+    expect(foldAngles(0)).toEqual([178, 180]); expect(foldAngles(2)).toEqual([0, 0]);
+    for (let p = 0; p <= 2; p += 0.01) {
+      const [a1, a2] = foldAngles(p);
+      expect(a2 - a1).toBeLessThanOrEqual(90 + 1e-9); // third panel never shows its back
+    }
   });
   it("spring", () => {
     let s = { p: 0, v: 0 }; let max = 0;

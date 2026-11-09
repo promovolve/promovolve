@@ -122,6 +122,7 @@ export interface FoldOutHandle { close(): void; destroy(): void; relayout(): voi
 const PANELS = FOLDOUT_MAX + 1;
 const FADE_MS = 200; // reduced motion: plain fade in and out
 const DISSOLVE_MS = 300; // pixel dissolve in (before the unfold) and out (after the fold-up)
+const CREASE_CLEAR_MS = 1800; // once open, the creases slowly dissolve away: the poster lies flat
 const lerp = (a: number, b: number, t: number) => a + (b - a) * t;
 
 const FOLDOUT_CSS = `
@@ -141,7 +142,17 @@ const FOLDOUT_CSS = `
 /* the crease stays in the paper once opened: a faint dark/lit line */
 .foldout-face.creased::before { content: ""; position: absolute; inset: 0 0 auto 0; height: 3px;
   z-index: 6; pointer-events: none;
-  background: linear-gradient(180deg, rgba(0,0,0,.22), rgba(255,255,255,.16) 1px, transparent); }
+  background: linear-gradient(180deg, rgba(0,0,0,.22), rgba(255,255,255,.16) 1px, transparent);
+  transition: opacity 120ms; }
+/* fully open: the creases dissolve slowly (and snap back when it folds).
+   Each face's shadow falls up across the hinge onto the panel above, a dark
+   band once the crease line is gone; the one sheet's shadow takes over. */
+.foldout, .foldout-face { transition: box-shadow 120ms; }
+.foldout.flat { box-shadow: 0 1px 2px rgba(0,0,0,0.30), 0 4px 12px rgba(0,0,0,0.22); }
+.foldout.flat .foldout-face { box-shadow: none; }
+.foldout.flat, .foldout.flat .foldout-face { transition: box-shadow var(--crease-clear) ease-in-out; }
+.foldout.flat .foldout-face.creased::before { opacity: 0;
+  transition: opacity var(--crease-clear) ease-in-out; }
 `;
 
 let foldoutSheet: CSSStyleSheet | undefined;
@@ -174,6 +185,7 @@ export function openFoldOut(o: FoldOutOptions): FoldOutHandle {
   }
   const foldout = document.createElement("div");
   foldout.className = "foldout";
+  foldout.style.setProperty("--crease-clear", `${CREASE_CLEAR_MS * o.tempo}ms`);
   const panels: HTMLElement[] = [];
   const faces: HTMLElement[] = [];
   const stages: HTMLElement[] = [];
@@ -274,9 +286,16 @@ export function openFoldOut(o: FoldOutOptions): FoldOutHandle {
     const r = rootRect();
     const vw = r.width || window.innerWidth;
     const vh = r.height || window.innerHeight;
-    const { w, h } = posterSize(vw, vh, o.fitPct);
-    g = { vw, vh, w, h, ph: h / PANELS, cx: (vw - w) / 2, cy: (vh - h) / 2 };
+    // Panel edges on whole device pixels: a fractional seam is antialiased
+    // in each 3D layer and stays visible as a hairline after the creases clear.
+    const dpr = window.devicePixelRatio || 1;
+    const snap = (v: number) => Math.round(v * dpr) / dpr;
+    const { w, h: fit } = posterSize(vw, vh, o.fitPct);
+    const ph = snap(fit / PANELS);
+    const h = ph * PANELS;
+    g = { vw, vh, w, h, ph, cx: snap(r.left + (vw - w) / 2) - r.left, cy: snap(r.top + (vh - h) / 2) - r.top };
     panels.forEach((p) => { p.style.width = `${w}px`; p.style.height = `${g.ph}px`; });
+    Object.assign(foldout.style, { width: `${w}px`, height: `${h}px` }); // the flat sheet's shadow
     stages.forEach((st, i) => Object.assign(st.style, {
       inset: "auto", left: "0", top: `${-i * g.ph}px`, width: `${w}px`, height: `${h}px`,
     }));
@@ -341,12 +360,13 @@ export function openFoldOut(o: FoldOutOptions): FoldOutHandle {
   const leaveOpen = () => {
     if (!isOpen) return;
     isOpen = false;
+    foldout.classList.remove("flat");
     showChrome(false);
     o.onFoldStart();
   };
   const arrive = () => {
     if (goal === FOLDOUT_MAX) {
-      if (!isOpen) { isOpen = true; showChrome(true); o.onOpened(faces[0]); }
+      if (!isOpen) { isOpen = true; foldout.classList.add("flat"); showChrome(true); o.onOpened(faces[0]); }
     } else dissolveTo(0, finish);
   };
 

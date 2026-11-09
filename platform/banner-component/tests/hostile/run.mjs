@@ -63,7 +63,7 @@ async function probe(browser, name) {
     const el = document.querySelector("expandable-magazine-banner");
     return !!el?.shadowRoot?.querySelector(".design-box");
   });
-  let expanded = false, coverage = 0, closeVisible = false, pathOk = false, panelPosition = "";
+  let expanded = false, coverage = 0, closeVisible = false, pathOk = false, panelPosition = "", hostOutline = "";
   if (mounted) {
     await page.locator("expandable-magazine-banner").first().scrollIntoViewIfNeeded();
     await page.waitForTimeout(400);
@@ -99,24 +99,29 @@ async function probe(browser, name) {
         const hit = document.elementFromPoint(cb.x + cb.width / 2, cb.y + cb.height / 2);
         closeOnTop = hit === el || el.contains(hit);
       }
+      // A focused reader button makes the host match the page's :focus; a
+      // page focus rule (WordPress block themes) must not ring the slot.
+      closeBtn?.focus();
+      const hostOutline = getComputedStyle(el).outlineStyle;
       return {
         expanded: true,
         coverage: (ix * iy) / (vw * vh),
         closeVisible: closeOnTop,
         pathOk, panels,
         panelPosition: coverEl ? getComputedStyle(coverEl).position : "",
+        hostOutline,
       };
     }, name.startsWith("foldout"));
-    pathOk = st.pathOk; panelPosition = st.panelPosition;
+    pathOk = st.pathOk; panelPosition = st.panelPosition; hostOutline = st.hostOutline;
     ({ expanded, coverage, closeVisible } = st);
   }
   await page.close();
-  return { name, mounted, expanded, pathOk, panelPosition, coverage: Math.round(coverage * 100), closeVisible, errors: errors.slice(0, 2) };
+  return { name, mounted, expanded, pathOk, panelPosition, hostOutline, coverage: Math.round(coverage * 100), closeVisible, errors: errors.slice(0, 2) };
 }
 
 const FIXTURES = ["quirks-mode", "css-bomb", "csp-strict", "trusted-types",
   "transformed-ancestor", "spa-remount", "zindex-war", "vertical-writing",
-  "foldout", "foldout-csp-strict"];
+  "foldout", "foldout-csp-strict", "focus-ring"];
 
 // Short-viewport delivery behaviors — probed with phone emulation, not
 // the shared 900×700 probe, so it gets its own function and verdict:
@@ -316,7 +321,8 @@ for (const r of results) {
   // foldout-csp-strict additionally needs the fold-out's stylesheet to have survived
   // the CSP: without it the panels lose position:absolute and stack as blocks.
   const styled = r.name !== "foldout-csp-strict" || r.panelPosition === "absolute";
-  const healthy = r.mounted && r.expanded && r.pathOk && styled && r.coverage >= 95 && r.closeVisible;
+  const healthy = r.mounted && r.expanded && r.pathOk && styled && r.coverage >= 95 && r.closeVisible
+    && r.hostOutline === "none";
   const known = KNOWN[r.name];
   let verdict;
   if (healthy) verdict = known ? "FIXED (remove from KNOWN)" : "ok";
@@ -326,6 +332,7 @@ for (const r of results) {
     `${verdict.padEnd(10)} ${r.name.padEnd(22)} mounted=${r.mounted} expanded=${r.expanded} ` +
     `path=${r.pathOk} coverage=${r.coverage}% closeOnTop=${r.closeVisible}` +
     (r.name === "foldout-csp-strict" ? ` panelPosition=${r.panelPosition}` : "") +
+    (r.name === "focus-ring" ? ` hostOutline=${r.hostOutline}` : "") +
     (r.errors.length ? `  err: ${r.errors.join(" | ")}` : "")
   );
   if (verdict === "FIXED (remove from KNOWN)") failed++;

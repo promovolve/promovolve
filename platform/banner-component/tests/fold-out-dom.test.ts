@@ -47,6 +47,7 @@ function setup(over: Partial<FoldOutOptions> = {}) {
     rtl: false,
     bottomClose: false,
     fade: false,
+    cols: 12,
     tempo: 1,
     reducedMotion: false,
     onLift: vi.fn(),
@@ -130,8 +131,7 @@ describe("fold-out DOM", () => {
     vi.advanceTimersByTime(250);
     expect(o.onOpened).toHaveBeenCalledTimes(1);
     const hinges = [...root.querySelectorAll<HTMLElement>(".foldout-panel")]
-      .map((p) => p.style.transform)
-      .filter((t) => t);
+      .flatMap((p) => p.style.transform.match(/rotateX\([^)]*\)/g) ?? []);
     expect(hinges.length).toBeGreaterThan(0);
     for (const t of hinges) expect(t).toBe("rotateX(0deg)");
   });

@@ -5,7 +5,7 @@
 // theatre), reading direction, and the paper stock (weight + back
 // colour). Deal tempo derives from the paper weight.
 
-import { PAPER_FEEL, PAPER_WEIGHTS, TEMPO_MAX, TEMPO_MIN, type BannerConfig, type PaperWeight } from "@banner/types";
+import { DISSOLVE_COLS, PAPER_FEEL, PAPER_WEIGHTS, TEMPO_MAX, TEMPO_MIN, type BannerConfig, type DissolveSize, type PaperWeight } from "@banner/types";
 import type { Store } from "../store";
 import type { DesignerState } from "../types";
 import { tokens } from "./tokens";
@@ -13,6 +13,12 @@ import { tokens } from "./tokens";
 // Fallback for paperBackColor — keep in sync with PAPER_BASE in
 // @banner paper.ts (the peeled page's default warm stock).
 const DEFAULT_BACK_COLOR = "#f0e9d9";
+
+const SQUARE_LABELS: Record<DissolveSize, string> = {
+  small:  "Small",
+  medium: "Medium (default)",
+  large:  "Large",
+};
 
 const WEIGHT_LABELS: Record<PaperWeight, string> = {
   light:  "Light",
@@ -84,6 +90,31 @@ export function mountBannerConfigPanel(
   });
   entRow.appendChild(entSelect);
   panel.appendChild(entRow);
+
+  // Fold-out pixel dissolve: how big its squares are. Shown only while the
+  // Fold-out plays the dissolve; medium is the default, stored as absence.
+  const sqRow = document.createElement("div");
+  sqRow.style.cssText = "display:flex;align-items:center;gap:8px;margin-top:8px;";
+  const sqLabel = document.createElement("label");
+  sqLabel.textContent = "Squares";
+  sqLabel.style.cssText = `flex:0 0 auto;font-size:11px;color:${tokens.ink300};`;
+  sqRow.appendChild(sqLabel);
+  const sqSelect = document.createElement("select");
+  sqSelect.style.cssText = entSelect.style.cssText;
+  sqSelect.title = "Size of the squares the poster dissolves in and out with";
+  for (const v of Object.keys(DISSOLVE_COLS) as DissolveSize[]) {
+    const opt = document.createElement("option");
+    opt.value = v;
+    opt.textContent = SQUARE_LABELS[v];
+    sqSelect.appendChild(opt);
+  }
+  sqSelect.addEventListener("change", () => {
+    const v = sqSelect.value as DissolveSize;
+    const current = store.state.bannerConfig;
+    store.commit({ ...store.state, bannerConfig: { ...current, dissolveSize: v === "medium" ? undefined : v } });
+  });
+  sqRow.appendChild(sqSelect);
+  panel.appendChild(sqRow);
 
   // Reading direction: drives the page-turn peel corner, the dog-ear
   // corner, and the nav arrows. Auto resolves to RTL for Arabic /
@@ -246,6 +277,9 @@ export function mountBannerConfigPanel(
       setEntOptions(state.bannerConfig);
       const ent = effectiveEntrance(state.bannerConfig);
       if (entSelect.value !== ent) entSelect.value = ent;
+      sqRow.style.display = ent === "dissolve" ? "flex" : "none";
+      const sq = state.bannerConfig.dissolveSize ?? "medium";
+      if (sqSelect.value !== sq) sqSelect.value = sq;
       const dir = state.bannerConfig.readingDirection ?? "auto";
       if (dirSelect.value !== dir) dirSelect.value = dir;
       const weight = state.bannerConfig.paperWeight ?? "medium";

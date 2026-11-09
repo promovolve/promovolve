@@ -97,6 +97,7 @@
       const CONFIG = { layout: "auto", font: "sans", showTag: false, showSub: true, expandAnimation: "fade", paperWeight: "medium" };
       let legacy169 = false; // mount without portrait masters → 16:9 fallback
       let foldoutMode = false; // first page only, config.format "foldout" (gatefold poster from its portrait master)
+      let dissolveSize = "medium"; // config.dissolveSize (Fold-out pixel dissolve squares)
       let fadeEntrance = false; // config.entrance "fade" (Magazine: instead of the deal; Fold-out: instead of the pixel dissolve)
 
       const SIZES = {
@@ -125,6 +126,7 @@
           ...CONFIG,
           ...(foldoutMode ? { format: "foldout" } : {}),
           ...(fadeEntrance ? { entrance: "fade" } : {}),
+          ...(dissolveSize !== "medium" ? { dissolveSize } : {}),
         }));
         el.setAttribute("width", String(w));
         el.setAttribute("height", String(h));
@@ -182,6 +184,18 @@
         mount();
       };
       document.querySelector(".bar").insertBefore(fadeBtn, document.querySelector(".bar .hint"));
+
+      // Fold-out dissolve square size: cycles small → medium → large.
+      const sqBtn = document.createElement("button");
+      const SQ = ["small", "medium", "large"];
+      sqBtn.textContent = "squares: medium";
+      sqBtn.title = "config.dissolveSize (Fold-out pixel dissolve)";
+      sqBtn.onclick = () => {
+        dissolveSize = SQ[(SQ.indexOf(dissolveSize) + 1) % SQ.length];
+        sqBtn.textContent = `squares: ${dissolveSize}`;
+        mount();
+      };
+      document.querySelector(".bar").insertBefore(sqBtn, document.querySelector(".bar .hint"));
 
       // Paper weight — the peel hand-feel preset (pull gain, commit line,
       // flick throw, settle spring). Expand the reader and drag a page up

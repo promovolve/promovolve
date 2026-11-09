@@ -146,7 +146,20 @@ object CreativeArc {
       ))
   )
   val default: CreativeArc = all.head
-  def byId(id: String): CreativeArc = all.find(_.id == id).getOrElse(default)
+  // Fold-out: one poster, so one self-contained page instead of a 3-beat
+  // arc. Not in `all` — the arc picker and recommendArcs never offer it;
+  // the editor asks for it by id when the format is Fold-out.
+  val poster: CreativeArc = CreativeArc("poster", "Poster",
+    Vector(
+      ArcRole("POSTER",
+        "The whole ad on ONE poster the reader unfolds. The headline must stop " +
+        "the scroll on its own — it is printed on the cover, seen before the " +
+        "poster opens. The sub adds the one fact that makes it concrete. The " +
+        "body carries the substance — real products, named features, specifics " +
+        "from the source — and ends on a clear reason to visit the landing page. " +
+        "This single page both hooks and asks for the action.")
+    ))
+  def byId(id: String): CreativeArc = (all :+ poster).find(_.id == id).getOrElse(default)
 }
 
 /**
@@ -268,6 +281,7 @@ final class LPExtractor(
    */
   private def synthesizePrompt(arc: CreativeArc, brief: Option[String]): String = {
     val pageCount = arc.roles.size
+    val pagesWord = if (pageCount == 1) "page" else "pages"
     val structure = arc.roles.zipWithIndex
       .map { case (r, i) => s"- Page ${i + 1} — ${r.tag}: ${r.instruction}" }
       .mkString("\n")
@@ -297,7 +311,7 @@ final class LPExtractor(
        |lightly paraphrase the source. Every sentence must be ORIGINAL ad copy: if
        |a reader compared your output to the page, no sentence should match.
        |
-       |STRUCTURE — exactly $pageCount pages, each with a SPECIFIC role it MUST
+       |STRUCTURE — exactly $pageCount $pagesWord, each with a SPECIFIC role it MUST
        |fulfil. Write each page to do its job and nothing else:
        |$structure
        |A page that drifts from its role has failed — e.g. summarising the product
@@ -768,7 +782,12 @@ final class LPExtractor(
         throw new RuntimeException(
           s"Gemini callGemini failed: HTTP ${status.intValue()} after retries: ${body.take(500)}")
       }
-      parseGeminiResponse(body)
+      parseGeminiResponse(body).map(p =>
+        p.copy(
+          headline = LPExtractor.plainText(p.headline),
+          sub = LPExtractor.plainText(p.sub),
+          body = LPExtractor.plainText(p.body),
+          caption = LPExtractor.plainText(p.caption)))
     }
 
   /**
@@ -832,4 +851,11 @@ object LPExtractor {
   // budget for whole-booklet answers.
   private[promovolve] def config(temperature: Double): promovolve.llm.GeminiGateway.Config =
     promovolve.llm.GeminiGateway.Config(temperature = temperature, maxOutputTokens = 8000)
+
+  // The model sometimes HTML-escapes its own copy ("Hot Springs &amp; Fuji")
+  // though the page text is plain; copy renders as text, so the entity would
+  // print literally. &amp; last, so "&amp;lt;" stays "&lt;".
+  private[promovolve] def plainText(s: String): String =
+    s.replace("&lt;", "<").replace("&gt;", ">").replace("&quot;", "\"")
+      .replace("&#39;", "'").replace("&apos;", "'").replace("&amp;", "&")
 }

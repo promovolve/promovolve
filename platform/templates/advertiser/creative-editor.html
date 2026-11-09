@@ -118,7 +118,7 @@
       <h2 class="editor-heading"><span class="tabular">2</span> {{t "Format"}}</h2>
       <div class="min-w-0">
         <div class="grid gap-2 grid-cols-2 xl:grid-cols-4">
-          <button type="button" @click="format = 'magazine'" :disabled="generating"
+          <button type="button" @click="setFormat('magazine')" :disabled="generating"
                   :aria-pressed="format === 'magazine'"
                   class="border rounded-sm px-3 py-2 text-left transition-colors hover:border-gray-900 disabled:opacity-50 disabled:cursor-not-allowed flex items-start gap-3"
                   :class="format === 'magazine' ? 'border-gray-900 bg-gray-100 shadow-[inset_0_0_0_1px_rgb(var(--c-gray-900))]' : 'border-gray-300'">
@@ -132,7 +132,7 @@
               <span class="block text-xs text-gray-500 mt-0.5 leading-snug">{{t "3 pages"}}</span>
             </span>
           </button>
-          <button type="button" @click="format = 'foldout'; activePageIdx = 0" :disabled="generating"
+          <button type="button" @click="setFormat('foldout')" :disabled="generating"
                   :aria-pressed="format === 'foldout'"
                   class="border rounded-sm px-3 py-2 text-left transition-colors hover:border-gray-900 disabled:opacity-50 disabled:cursor-not-allowed flex items-start gap-3"
                   :class="format === 'foldout' ? 'border-gray-900 bg-gray-100 shadow-[inset_0_0_0_1px_rgb(var(--c-gray-900))]' : 'border-gray-300'">
@@ -153,12 +153,16 @@
     <!-- 3. Story: the persuasion arc + an optional brief, applied together
          by ONE Regenerate action. On first generate the AI curates which
          arcs FIT the product (e.g. drops Problem→Solution for sweets) and
-         we show only those + why; "show all" reveals the rest. -->
+         we show only those + why; "show all" reveals the rest.
+         Fold-out has no arc: one poster = one ad (the core's "poster" brief),
+         so only the brief + Generate show. -->
     <section class="editor-section">
-      <h2 class="editor-heading"><span class="tabular">3</span> {{t "Story arc"}}</h2>
+      <h2 class="editor-heading"><span class="tabular">3</span> <span x-text="format === 'foldout' ? '{{t "Ad copy"}}' : '{{t "Story arc"}}'">{{t "Story arc"}}</span></h2>
       <div class="min-w-0">
+        <p x-show="format === 'foldout'" x-cloak class="text-sm text-gray-500 mb-2">{{t "— one ad, written for the poster"}}</p>
+        <div x-show="format !== 'foldout'">
         <div class="flex items-baseline justify-between gap-3 mb-2">
-          <p class="text-sm text-gray-500" x-text="format === 'foldout' ? '{{t "— how the 3 panels persuade"}}' : '{{t "— how the 3 pages persuade"}}'">{{t "— how the 3 pages persuade"}}</p>
+          <p class="text-sm text-gray-500">{{t "— how the 3 pages persuade"}}</p>
           <button type="button" x-show="fitArcIds.length > 0 && fitArcIds.length < arcs.length"
                   @click="showAllArcs = !showAllArcs"
                   class="text-xs text-gray-900 underline hover:no-underline shrink-0"
@@ -176,8 +180,9 @@
             </button>
           </template>
         </div>
+        </div>
 
-        <label for="creative-editor-brief" class="form-label mt-5">{{t "Anything to emphasize?"}}
+        <label for="creative-editor-brief" class="form-label" :class="format !== 'foldout' && 'mt-5'">{{t "Anything to emphasize?"}}
           <span class="font-normal text-gray-500">{{t "(optional)"}}</span></label>
         <input id="creative-editor-brief" type="text" x-model="brief" maxlength="300"
                @keydown.enter.prevent
@@ -215,7 +220,7 @@
          clicking an image below puts it on that page. Pages are locked at
          3 and treated equally (delivery navigates on a tap anywhere).
          Fold-out swaps this for "Poster": one 9:16 image (pageSlots[0]) beside
-         the three beats, one per fold. -->
+         its one ad copy. -->
     <section class="editor-section">
       <h2 class="editor-heading"><span class="tabular">4</span> <span x-text="format === 'foldout' ? '{{t "Poster"}}' : '{{t "Pages"}}'">{{t "Pages"}}</span></h2>
       <div class="min-w-0">
@@ -229,20 +234,16 @@
                 <span class="text-xs text-gray-500 text-center px-2">{{t "Click an image below to put it on the poster"}}</span>
               </template>
             </div>
-            <div class="min-w-0 flex flex-col">
-              <template x-for="(label, idx) in ['{{t "Top fold"}}', '{{t "Middle"}}', '{{t "Bottom"}}']" :key="idx">
-                <div class="flex-1 pb-3" :class="idx > 0 && 'pt-3 border-t border-dashed border-gray-400'">
-                  <h3 class="text-sm font-bold text-gray-900 mb-1" x-text="label"></h3>
-                  <template x-if="synthesizedPages[idx]">
-                    <div>
-                      <p class="text-sm font-bold text-gray-900" x-text="synthesizedPages[idx].headline || '—'"></p>
-                      <p class="text-xs text-gray-700 mt-0.5" x-text="synthesizedPages[idx].sub || ''"></p>
-                    </div>
-                  </template>
-                  <template x-if="!synthesizedPages[idx]">
-                    <p class="text-xs text-gray-500" x-text="generating ? '{{t "Writing copy…"}}' : '{{t "Copy will appear here"}}'"></p>
-                  </template>
+            <div class="min-w-0">
+              <template x-if="synthesizedPages[0]">
+                <div>
+                  <p class="text-sm font-bold text-gray-900" x-text="synthesizedPages[0].headline || '—'"></p>
+                  <p class="text-xs text-gray-700 mt-0.5" x-text="synthesizedPages[0].sub || ''"></p>
+                  <p class="text-xs text-gray-500 mt-2" x-text="synthesizedPages[0].body || ''"></p>
                 </div>
+              </template>
+              <template x-if="!synthesizedPages[0]">
+                <p class="text-xs text-gray-500" x-text="generating ? '{{t "Writing copy…"}}' : '{{t "Copy will appear here"}}'"></p>
               </template>
             </div>
           </div>
@@ -424,7 +425,7 @@
           </button>
           <p x-show="!canGenerate() && !generating"
              class="text-sm text-gray-500"
-             x-text="synthesizedPages.length < 3 ? '{{t "Waiting for the copy to finish generating."}}' : (creativeName.trim() === '' ? '{{t "Name the creative to continue."}}' : '{{t "Pick a layout template to continue."}}')"></p>
+             x-text="synthesizedPages.length < copyPagesNeeded() ? '{{t "Waiting for the copy to finish generating."}}' : (creativeName.trim() === '' ? '{{t "Name the creative to continue."}}' : '{{t "Pick a layout template to continue."}}')"></p>
         </div>
         <p x-show="generateError" x-text="generateError" class="mt-2 text-sm text-gray-900 font-bold"></p>
       </div>
@@ -1064,12 +1065,24 @@ function creativeEditor() {
       return this.pageSlots.findIndex(p => p.imageIdx === imgIdx);
     },
 
+    copyPagesNeeded() { return this.format === 'foldout' ? 1 : 3; },
+
+    // Copy is written for one format: a 3-page arc doesn't fit a poster and
+    // vice versa, so switching formats drops it (Generate writes the new one).
+    setFormat(f) {
+      if (f === this.format) return;
+      this.format = f;
+      this.activePageIdx = 0;
+      this.synthesizedPages = [];
+    },
+
     canGenerate() {
       // Copy is auto-synthesized (no per-page text picking), so the gate is:
-      // all 3 pages of copy have arrived, a name is set (pre-seeded from the
-      // LP hostname), and a layout template is chosen. Images are optional —
-      // pages without one fall back to the synthesized imgEmoji / gradient.
-      return this.synthesizedPages.length >= 3
+      // the copy has arrived (3 pages; Fold-out's 1 poster), a name is set
+      // (pre-seeded from the LP hostname), and a layout template is chosen.
+      // Images are optional — pages without one fall back to the synthesized
+      // imgEmoji / gradient.
+      return this.synthesizedPages.length >= this.copyPagesNeeded()
         && this.creativeName.trim() !== ''
         && (this.format === 'foldout' || this.selectedTemplateId !== '');  // the designer ignores the template for Fold-out
     },
@@ -1128,6 +1141,9 @@ function creativeEditor() {
       const t = setTimeout(() => ctrl.abort(), 90000);
       try {
         const payload = { sections: this.allTexts, synthesize: true };
+        // Fold-out: one poster = one ad, never an arc.
+        const foldout = this.format === 'foldout';
+        if (foldout) arcId = 'poster';
         if (arcId) payload.arc = arcId;
         if (this.brief.trim()) payload.brief = this.brief.trim();
         const resp = await fetch('/advertiser/creatives/rewrite-sections', {
@@ -1139,8 +1155,8 @@ function creativeEditor() {
         if (!resp.ok) throw new Error('{{t "Copy generation failed (HTTP %d)"}}'.replace('%d', resp.status));
         const data = await resp.json();
         if (data.error) throw new Error(data.error);
-        this.synthesizedPages = (data.pages || []).slice(0, 3);
-        if (data.arc) this.selectedArcId = data.arc;
+        this.synthesizedPages = (data.pages || []).slice(0, this.copyPagesNeeded());
+        if (data.arc && !foldout) this.selectedArcId = data.arc;
         if (Array.isArray(data.arcOptions) && data.arcOptions.length) this.fitArcIds = data.arcOptions;
         if (data.arcReason !== undefined) this.arcReason = data.arcReason || '';
       } catch (e) {

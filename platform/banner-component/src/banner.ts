@@ -161,9 +161,7 @@ export class ExpandableMagazineBanner extends HTMLElement {
   // and get 409 from the server's duplicate check. Track per-mount so
   // the beacon only goes out for the first expansion of this serve.
   private _clickFired = false;
-  // Framed-preview only: timer that hides the collapsed render AFTER the
-  // expand animation, so the ad doesn't blank-out mid-fade (see _expand).
-  private _collapseHideTimer: number | null = null;
+  private _slotFadeTimer: number | undefined; // clears the slot ad's fade-in (fadeSlotAd)
   // Rotation-letterbox guard (delivery only). During an orientation
   // change the browser paints the not-yet-laid-out region with the
   // DOCUMENT's root background — the publisher's page color, usually
@@ -715,40 +713,11 @@ export class ExpandableMagazineBanner extends HTMLElement {
     // visual state — the "reopens above viewport" symptom.
     this.shadowRoot?.querySelectorAll(".overlay").forEach((el) => el.remove());
     this.renderOverlay();
-    // Framed preview (designer modal + publisher approval): the collapsed
-    // render (`.banner`) sits directly behind the expanded overlay, and
-    // its dog-ear folds in sync (`.banner.folded`). On mobile the expanded
-    // pages don't fully cover it, so the expanded fold's see-through punch
-    // looks straight through to the collapsed sheet's own folded flap —
-    // its dimmed cream reads as a warm "divided colour" inside the hole.
-    // Hide the collapsed render while expanded so the punch reveals a
-    // single clean backdrop. Restored on _collapse. Framed only — delivery
-    // expands over the publisher article, not this collapsed slot render.
-    //
-    // DEFER the hide until the expand animation has played. Hiding it
-    // immediately blanks the slot while the overlay is still fading in —
-    // invisible in delivery (the collapsed ad sits on the covered publisher
-    // page) but very visible in the EMBEDDED preview, where the ad sits in
-    // an article: you'd see the 300x250 vanish, THEN the reader appear.
-    // Keeping it through the fade gives a clean cross-fade (the collapsed ad
-    // dims out as the opaque reader fades in over it); we hide it only once
-    // the reader covers it, so the dog-ear punch still reads a single
-    // backdrop. Cancelled by _collapse if the reader closes first.
-    if (this.getAttribute("preview-frame") === "1") {
-      const cfg = this.configData;
-      const animMs = typeof cfg.expandDurationMs === "number" && cfg.expandDurationMs > 0
-        ? cfg.expandDurationMs
-        // stack: last sheet lands at (360 + 2·90)·tempo; +80 buffer.
-        : resolveExpandEffect(cfg) === "stack"
-          ? Math.round(540 * dealTempo(this.configData)) + 80 : 400;
-      if (this._collapseHideTimer) window.clearTimeout(this._collapseHideTimer);
-      this._collapseHideTimer = window.setTimeout(() => {
-        this._collapseHideTimer = null;
-        if (!this._expanded) return; // closed again before the timer fired
-        const collapsed = this.shadowRoot?.querySelector<HTMLElement>(".banner");
-        if (collapsed) collapsed.style.visibility = "hidden";
-      }, animMs + 60);
-    }
+    // The slot ad lifts out with the reader: it fades away over the open
+    // animation, as the Fold-out's cover does, so a slot wider than the
+    // sheet (970x250, 728x90) never shows through beside it — and in framed
+    // previews the dog-ear punch looks through to one clean backdrop.
+    this.fadeSlotAd(false);
     // Resolve the CTA URL (the `landing-url` attribute) so bootstrap-side
     // prefetch can warm the exact URL the eventual tap will navigate to.
     // Cache-hit on the prefetched HTML requires byte identity, so this must
@@ -928,12 +897,6 @@ export class ExpandableMagazineBanner extends HTMLElement {
     // The reader is exiting — hand the rotation letterbox back to the
     // publisher's own background before the site becomes visible.
     this._rootBgRestore?.();
-    // Cancel a pending deferred-hide (see _expand) so it can't blank the
-    // collapsed ad after keep-frame has just restored it.
-    if (this._collapseHideTimer) {
-      window.clearTimeout(this._collapseHideTimer);
-      this._collapseHideTimer = null;
-    }
     window.removeEventListener("keydown", this.handleKeyDown);
     const framed = this.getAttribute("preview-frame") === "1";
     const foldOut = this._foldOut;
@@ -947,23 +910,10 @@ export class ExpandableMagazineBanner extends HTMLElement {
       return;
     }
     const overlay = this.shadowRoot?.querySelector<HTMLElement>(".overlay");
-    // keep-frame: the host wants close to return the creative to its
-    // COLLAPSED state inside the frame (publisher approval iPad preview)
-    // rather than drop the whole frame. We restore the collapsed render
-    // (.banner) that _expand hid, so the close lands on the in-frame ad —
-    // clickable to re-expand, exactly like delivery. Default framed
-    // previews (the designer modal) still leave it hidden: there the host
-    // dismisses the whole preview on magazine-collapse, so showing the
-    // slot ad would only flash an "image left behind" before it closes.
     const keepFrame = framed && this.getAttribute("keep-frame") === "1";
-    // Reveal the collapsed ad NOW, at the start of the close — before the
-    // reader animates out — so as the reader fades it cross-fades back to
-    // the in-frame ad instead of fading out over a blank slot and popping
-    // the ad back at the end (the mirror of the deferred-hide on expand).
-    if (keepFrame) {
-      const collapsed = this.shadowRoot?.querySelector<HTMLElement>(".banner");
-      if (collapsed) collapsed.style.visibility = "";
-    }
+    // Bring the slot ad back NOW, at the start of the close, so the reader
+    // cross-fades back to it instead of leaving over an empty slot.
+    this.revealCollapsedForClose(instant);
     const restoreCollapsed = (): void => {
       if (!keepFrame) return;
       // Visibility is already restored above; this runs once the reader is
@@ -1106,22 +1056,36 @@ export class ExpandableMagazineBanner extends HTMLElement {
     }
   }
 
-  /** keep-frame hosts hide the collapsed 300x250 once the reader covers
-    * it (_expand's deferred hide). _collapse un-hides it — but the fly-
-    * away flights run BEFORE _collapse, so the sheets would peel back to
-    * an EMPTY slot and the ad would pop in at the end (the blink). Call
-    * this the moment a closing flight starts: the ad is already resting
-    * in the slot as the sheets leave, and the close reads as sheets
-    * flying off a page that was there all along. */
-  private revealCollapsedForClose(): void {
-    if (this.getAttribute("preview-frame") !== "1") return;
-    if (this.getAttribute("keep-frame") !== "1") return;
-    if (this._collapseHideTimer) {
-      window.clearTimeout(this._collapseHideTimer);
-      this._collapseHideTimer = null;
-    }
-    const collapsed = this.shadowRoot?.querySelector<HTMLElement>(".banner");
-    if (collapsed) collapsed.style.visibility = "";
+  /** The slot ad comes back the moment a close starts — the fly-away
+    * flights run BEFORE _collapse, so waiting would peel the sheets back to
+    * an empty slot and pop the ad in at the end. Default framed previews
+    * (the designer modal) leave it hidden: the host drops the whole frame
+    * on magazine-collapse, and the ad would flash as "left behind". keep-
+    * frame hosts (publisher approval) land on the in-frame ad, like delivery. */
+  private revealCollapsedForClose(instant = false): void {
+    if (this.getAttribute("preview-frame") === "1" && this.getAttribute("keep-frame") !== "1") return;
+    this.fadeSlotAd(true, instant);
+  }
+
+  /** Fade the collapsed slot ad (`.banner`) out as the reader opens, back
+    * in as it closes, over the open animation's length. Inline opacity, as
+    * the Fold-out's lift uses; cleared once shown so nothing lingers. */
+  private fadeSlotAd(show: boolean, instant = false): void {
+    const c = this.shadowRoot?.querySelector<HTMLElement>(".banner");
+    if (!c) return;
+    window.clearTimeout(this._slotFadeTimer);
+    const ms = instant || prefersReducedMotion() ? 0 : this.expandAnimMs();
+    c.style.transition = ms ? `opacity ${ms}ms ease` : "";
+    c.style.opacity = show ? "1" : "0";
+    if (show) this._slotFadeTimer = window.setTimeout(() => { c.style.opacity = ""; c.style.transition = ""; }, ms);
+  }
+
+  /** The reader's open animation length: authored, else the deal (the last
+    * sheet lands at (360 + 2·90)·tempo, +80), else the fade's 400ms. */
+  private expandAnimMs(): number {
+    const cfg = this.configData;
+    if (typeof cfg.expandDurationMs === "number" && cfg.expandDurationMs > 0) return cfg.expandDurationMs;
+    return resolveExpandEffect(cfg) === "stack" ? Math.round(540 * dealTempo(cfg)) + 80 : 400;
   }
 
   /** Close request from the CLOSE pill: the WHOLE remaining pile flies

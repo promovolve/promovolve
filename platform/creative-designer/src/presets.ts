@@ -261,48 +261,41 @@ function skyscraper(page: Page, kit: BrandKit | null): LayoutItem[] {
 }
 
 // ── Fold-out poster (gatefold) ─────────────────────────────────────────────
-// One 9:16 page, three beats stacked in thirds; the banner folds it along
-// the two band lines. Text stays POSTER_CREASE_INSET clear of each fold.
-// No scrims: the poster is the picture, unshaded. Legibility is the
-// author's call (the designer's Scrim tool adds one where needed).
+// One 9:16 page carrying ONE ad (the editor writes a single poster copy),
+// folded in thirds along the band lines: headline + sub on the top fold
+// (the cover, seen before it opens), body on the middle fold, the bottom
+// fold left to the picture (CTA there when there is one). Text stays
+// POSTER_CREASE_INSET clear of each fold. No scrims: the poster is the
+// picture, unshaded. Legibility is the author's call (the Scrim tool).
 export const POSTER_BAND = 100 / 3;
 export const POSTER_CREASE_INSET = 4;
 const POSTER_HEADLINE_H = 13;
-
-export function posterLayoutFor(beats: Page[], kit: BrandKit | null): LayoutItem[] {
-  const font = headlineFontOf(beats[0], kit);
+export function posterLayoutFor(page: Page, kit: BrandKit | null): LayoutItem[] {
+  const font = headlineFontOf(page, kit);
   const items: LayoutItem[] = [{ type: "image", field: "img", left: 0, top: 0, width: 100, height: 100 }];
   const text = (o: Record<string, unknown>) =>
     ({ type: "text", left: 6, width: 88, color: "#ffffff", fontFamily: font, textAlign: "left", textFit: "shrink", ...o }) as LayoutItem;
   // Each band's copy area is its third minus the crease inset on both sides.
   // The boxes are CAPS, not final geometry: everything is `_generated`, so
   // the mobile tab's self-heal (auto-layout packGeneratedOnTabOpen) walks a
-  // too-long beat's font down until it fits its cap, then hugs the box.
-  const usable = POSTER_BAND - 2 * POSTER_CREASE_INSET;
-  beats.slice(0, 3).forEach((b, k) => {
-    const y = k * POSTER_BAND + POSTER_CREASE_INSET;
-    const end = y + usable;
-    const subField = b.sub ? "sub" : "body";
-    const subText = b.sub || b.body;
-    const bind = (field: string, literal: string | undefined) => (k === 0 ? { field } : { text: literal ?? "" });
-    const ctaH = k === 2 && b.ctaLabel ? 3.8 : 0;
-    const subTop = y + POSTER_HEADLINE_H + 1;
-    items.push(text({ ...bind("headline", b.headline), top: y, height: POSTER_HEADLINE_H, fontSize: 8, fontWeight: "bold" }));
-    if (subText) {
-      items.push(text({ ...bind(subField, subText), top: subTop, height: end - subTop - (ctaH ? ctaH + 0.5 : 0), fontSize: 3.5 }));
-    }
-    if (ctaH) items.push(text({ text: b.ctaLabel, top: end - ctaH, height: ctaH, fontSize: 3.5, fontWeight: "bold" }));
-  });
+  // too-long field's font down until it fits its cap, then hugs the box.
+  const top = (k: number) => k * POSTER_BAND + POSTER_CREASE_INSET;
+  const end = (k: number) => (k + 1) * POSTER_BAND - POSTER_CREASE_INSET;
+  items.push(text({ field: "headline", top: top(0), height: POSTER_HEADLINE_H, fontSize: 8, fontWeight: "bold" }));
+  const subTop = top(0) + POSTER_HEADLINE_H + 1;
+  if (page.sub) items.push(text({ field: "sub", top: subTop, height: end(0) - subTop, fontSize: 3.5 }));
+  if (page.body) items.push(text({ field: "body", top: top(1), height: end(1) - top(1), fontSize: 3.5 }));
+  if (page.ctaLabel) items.push(text({ text: page.ctaLabel, top: end(2) - 3.8, height: 3.8, fontSize: 3.5, fontWeight: "bold" }));
   return markGenerated(items);
 }
 
-/** First open of a Fold-out design: fold the three hand-off beats into one
-  * poster page. The poster is the PORTRAIT master (banners["mobile-expanded"])
+/** First open of a Fold-out design: lay the hand-off copy out as the
+  * poster. The poster is the PORTRAIT master (banners["mobile-expanded"])
   * — what the 9:16 tab edits and delivery renders; `layout` stays the hidden
   * wide master. A resumed creative (portrait master already present) is left
   * alone. Caller invokes this only when bannerConfig.format === "foldout". */
 export function composeFoldoutPages(pages: Page[], hadPortrait: boolean, kit: BrandKit | null): Page[] {
   if (hadPortrait || pages.length === 0) return pages.slice(0, 1);
   const p0 = pages[0];
-  return [{ ...p0, banners: { ...p0.banners, "mobile-expanded": posterLayoutFor(pages, kit) } }];
+  return [{ ...p0, banners: { ...p0.banners, "mobile-expanded": posterLayoutFor(p0, kit) } }];
 }

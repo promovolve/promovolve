@@ -310,6 +310,14 @@ export class ExpandableMagazineBanner extends HTMLElement {
   }
 
   connectedCallback(): void {
+    // A clicked reader button (close, page arrows) holds focus inside our
+    // shadow root, so the host matches the page's :focus — and block themes
+    // ring it (WordPress: `:where(.wp-site-blocks :focus){outline-style:solid}`
+    // in the text colour), a black box around the slot while the ad fades.
+    // That ring frames the slot, not the focused button, which keeps its own
+    // focus ring. Inline !important (CSSOM, so strict-CSP safe) beats any
+    // page rule.
+    this.style.setProperty("outline", "none", "important");
     // Per-creative dog-ear sync — folding any one page should fold
     // every page of the same creative (the pin is for the creative,
     // not a specific page). The dog-ear click handlers only dispatch

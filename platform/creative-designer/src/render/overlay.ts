@@ -557,7 +557,9 @@ function startInlineTextEdit(
   const el = shadow.querySelector<HTMLElement>(`[data-layout-idx="${idx}"]`);
   if (!el || el.isContentEditable) return;
 
-  const originalText = item.text ?? "";
+  // What's on screen — field-bound items carry no item.text, so that
+  // fallback ("") would blank the text on cancel.
+  const originalText = el.textContent ?? "";
   const prevDisplay = root.style.display;
   const prevUserSelect = el.style.userSelect;
   const prevCursor = el.style.cursor;
@@ -679,8 +681,10 @@ function startInlineTextEdit(
   const onKey = (e: KeyboardEvent): void => {
     if (e.key === "Escape") {
       e.preventDefault();
-      el.blur();
+      // Cancel BEFORE blurring: blur fires onBlur → finish(true), which
+      // used to save the edit and turn the cancel into a no-op.
       finish(false);
+      el.blur();
     } else if (e.key === "Enter" && !e.shiftKey) {
       e.preventDefault();
       el.blur();

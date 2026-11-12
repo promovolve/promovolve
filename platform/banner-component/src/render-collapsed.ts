@@ -69,13 +69,17 @@ export function renderCollapsedItemHtml(
     const fitAttr = hasHeight && item.textFit !== "clip" ? ' data-autofit="1"' : "";
     const writingMode = item.writingMode && item.writingMode !== "horizontal-tb"
       ? `writing-mode:${item.writingMode};text-orientation:mixed;` : "";
+    // Balanced tategaki columns — mirrors layout-item.ts. Without it the
+    // designer canvas (collapsed path) breaks columns greedily while the
+    // preview/reader balances them, so the two never line up.
+    const balance = item.writingMode === "vertical-rl" ? "text-wrap:balance;" : "";
     const direction = item.direction === "rtl" ? `direction:rtl;` : "";
     const lh = item.lineHeight ?? 1.2;
     // font-synthesis:none — when a self-hosted family ships a single weight
     // (e.g. Montserrat Thin = 100), don't let the browser fake a heavier/
     // italic face if the item's font-weight differs; render the true face.
     // System families (sans-serif/Georgia) carry real bold, so unaffected.
-    return `<div ${idxAttr}${fitAttr} style="${baseStyle}width:${item.width ?? 30}%;${heightStyle}${vAlignStyle}font-size:${fs}cqmax;font-family:${ff};color:${color};font-weight:${fw};font-synthesis:none;text-align:${ta};line-height:${lh};white-space:pre-wrap;word-break:break-word;${writingMode}${direction}${border}${textShadowCss}">${text}</div>`;
+    return `<div ${idxAttr}${fitAttr} style="${baseStyle}width:${item.width ?? 30}%;${heightStyle}${vAlignStyle}font-size:${fs}cqmax;font-family:${ff};color:${color};font-weight:${fw};font-synthesis:none;text-align:${ta};line-height:${lh};white-space:pre-wrap;word-break:break-word;${writingMode}${balance}${direction}${border}${textShadowCss}">${text}</div>`;
   }
 
   if (item.type === "image") {

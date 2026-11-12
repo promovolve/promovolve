@@ -187,10 +187,11 @@ export function autoFitText(el: HTMLElement): void {
   // a perfectly-fitting line isn't shrunk needlessly.
   const fits = (): boolean => el.scrollHeight <= maxH && el.scrollWidth <= maxW + 0.5;
 
-  if (fits()) {
-    writeCqmax(current);
-    return;
-  }
+  // Already fits → keep the AUTHORED size. Re-deriving it from px rounds
+  // (2.8 → 2.801cqmax), and in a box sized exactly to its text that pushes
+  // a glyph to the next line/column and clips the last one — Preview then
+  // breaks differently from the designer canvas (GH #482).
+  if (fits()) return;
   let lo = 4;
   let hi = current;
   for (let i = 0; i < 12 && hi - lo > 0.5; i++) {

@@ -6,7 +6,7 @@
 // overflows (the min is the size that fit the tightest page).
 
 import { describe, expect, it } from "vitest";
-import { harmonizeAutofit } from "../src/motion";
+import { autoFitText, harmonizeAutofit } from "../src/motion";
 
 const el = (field: string, fontSize: string): HTMLElement => {
   const d = document.createElement("div");
@@ -53,5 +53,21 @@ describe("harmonizeAutofit", () => {
     harmonizeAutofit(root);
     expect(noField.style.fontSize).toBe("12cqmax");
     expect(noAuto.style.fontSize).toBe("5cqmax");
+  });
+});
+
+describe("autoFitText", () => {
+  it("leaves the authored size alone when the text already fits", () => {
+    const parent = document.createElement("div");
+    const d = document.createElement("div");
+    d.style.fontSize = "2.8cqmax";
+    parent.append(d);
+    document.body.append(parent);
+    const size = (o: HTMLElement, p: Record<string, number>) =>
+      Object.entries(p).forEach(([k, v]) => Object.defineProperty(o, k, { value: v, configurable: true }));
+    size(parent, { clientHeight: 960, clientWidth: 540 });
+    size(d, { clientHeight: 134, clientWidth: 71, scrollHeight: 134, scrollWidth: 71 });
+    autoFitText(d);
+    expect(d.style.fontSize).toBe("2.8cqmax");
   });
 });

@@ -567,8 +567,14 @@ function startInlineTextEdit(
   const prevWidth = el.style.width;
   const prevMaxWidth = el.style.maxWidth;
   const prevFontSize = el.style.fontSize;
+  const prevLeft = el.style.left;
+  const prevRight = el.style.right;
+  const vertical = item.writingMode === "vertical-rl";
+  const columnPx = el.offsetHeight; // before height:auto below unwraps it
 
-  el.contentEditable = "true";
+  // plaintext-only: Enter/Shift+Enter insert a real "\n" (rendered by the
+  // pre-wrap the renderers set) instead of a <div>, and paste stays plain.
+  el.contentEditable = "plaintext-only";
   el.style.userSelect = "text";
   el.style.cursor = "text";
   el.style.outline = `1px dashed ${tokens.focusMuted}`;
@@ -596,7 +602,20 @@ function startInlineTextEdit(
   // "no jump"; only a never-fitted element needs the authored fallback.
   if (!parseFloat(el.style.fontSize)) el.style.fontSize = `${item.fontSize ?? 5}cqmax`;
   el.style.width = "max-content";
-  el.style.maxWidth = `${100 - (item.left ?? 0)}%`;
+  if (vertical) {
+    // Tategaki is the transpose: the box HEIGHT is the column length and
+    // columns are added LEFTWARD from the right edge. Keep the column
+    // length (height:auto would unwrap everything into one long column)
+    // and pin the RIGHT edge so new columns grow left — left-anchored, the
+    // text already typed slid right as each column was added.
+    el.style.height = prevHeight || `${columnPx}px`;
+    const right = (item.left ?? 0) + (item.width ?? 30);
+    el.style.left = "auto";
+    el.style.right = `${100 - right}%`;
+    el.style.maxWidth = `${right}%`;
+  } else {
+    el.style.maxWidth = `${100 - (item.left ?? 0)}%`;
+  }
   // Hide the overlay completely — its hitboxes' pointer-events: auto
   // would otherwise override a parent pointer-events:none and steal
   // clicks from the editable element.
@@ -628,9 +647,12 @@ function startInlineTextEdit(
     el.style.width = prevWidth;
     el.style.maxWidth = prevMaxWidth;
     el.style.fontSize = prevFontSize;
+    el.style.left = prevLeft;
+    el.style.right = prevRight;
     root.style.display = prevDisplay;
     el.removeEventListener("blur", onBlur);
     el.removeEventListener("keydown", onKey);
+    window.removeEventListener("pointerdown", onOutside, true);
     unsub();
     if (commit) {
       if (text !== originalText) {
@@ -668,6 +690,13 @@ function startInlineTextEdit(
   };
   el.addEventListener("blur", onBlur);
   el.addEventListener("keydown", onKey);
+  // Click outside = commit. The empty-canvas marquee preventDefaults its
+  // pointerdown, which also stops focus leaving the text, so blur never
+  // fired and the edit stayed open. Commit on any outside pointerdown.
+  const onOutside = (ev: PointerEvent): void => {
+    if (!ev.composedPath().includes(el)) el.blur();
+  };
+  window.addEventListener("pointerdown", onOutside, true);
 }
 
 // Freeze the banner's pages attribute for the duration of the edit by

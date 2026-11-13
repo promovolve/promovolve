@@ -18,23 +18,6 @@
     <input type="hidden" name="lpFontsJson"  :value="useOriginalFonts && originalFonts.length ? JSON.stringify(originalFonts) : ''">
   </form>
 
-  <!-- Full-page blocking overlay shown while generating. Covers the
-       whole editor (including the sticky Generate button) so the user
-       can't change selections mid-flight and the spinner makes the
-       wait obvious. -->
-  <div x-show="generating" x-cloak
-       class="fixed inset-0 z-50 bg-white/70 backdrop-blur-sm flex items-center justify-center"
-       @click.stop @keydown.stop>
-    <div class="flex flex-col items-center gap-3 rounded-lg bg-white shadow-lg border px-6 py-5">
-      <svg class="animate-spin h-8 w-8 text-gray-900" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24">
-        <circle class="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" stroke-width="4"></circle>
-        <path class="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8v4a4 4 0 00-4 4H4z"></path>
-      </svg>
-      <p class="text-sm font-medium text-gray-700">{{t "Generating creative…"}}</p>
-      <p class="text-xs text-gray-500">{{t "This can take up to a minute."}}</p>
-    </div>
-  </div>
-
   <!-- Header. The page is a printed form: six numbered sections under
        rules, one primary action at the end (Continue to Designer). -->
   <div class="mb-6">
@@ -150,12 +133,12 @@
       </div>
     </section>
 
-    <!-- 3. Story: the persuasion arc + an optional brief, applied together
-         by ONE Regenerate action. On first generate the AI curates which
-         arcs FIT the product (e.g. drops Problem→Solution for sweets) and
-         we show only those + why; "show all" reveals the rest.
-         Fold-out has no arc: one poster = one ad (the core's "poster" brief),
-         so only the brief + Generate show. -->
+    <!-- 3. Story: the copy is written automatically once the LP is read,
+         with the arc the AI recommends (badged). The AI also curates which
+         arcs FIT the product (e.g. drops Problem→Solution for sweets); "show
+         all" reveals the rest. Picking another arc + Regenerate is an
+         optional override (GH #491).
+         Fold-out has no arc: one poster = one ad (the core's "poster" brief). -->
     <section class="editor-section">
       <h2 class="editor-heading"><span class="tabular">3</span> <span x-text="format === 'foldout' ? '{{t "Ad copy"}}' : '{{t "Story arc"}}'">{{t "Story arc"}}</span></h2>
       <div class="min-w-0">
@@ -168,32 +151,23 @@
                   class="text-xs text-gray-900 underline hover:no-underline shrink-0"
                   x-text="showAllArcs ? '{{t "show recommended only"}}' : '{{t "show all arcs"}}'"></button>
         </div>
-        <p x-show="arcReason" x-cloak class="text-sm text-gray-900 mb-3"><span class="font-bold">{{t "Recommended:"}}</span> <span x-text="arcReason"></span></p>
         <div class="grid gap-2 sm:grid-cols-2 xl:grid-cols-4">
           <template x-for="a in arcs.filter(a => showAllArcs || fitArcIds.length === 0 || fitArcIds.includes(a.id))" :key="a.id">
             <button type="button" @click="selectedArcId = a.id" :disabled="generating"
                     :aria-pressed="selectedArcId === a.id"
                     class="border rounded-sm px-3 py-2 text-left transition-colors hover:border-gray-900 disabled:opacity-50 disabled:cursor-not-allowed"
                     :class="selectedArcId === a.id ? 'border-gray-900 bg-gray-100 shadow-[inset_0_0_0_1px_rgb(var(--c-gray-900))]' : 'border-gray-300'">
-              <div class="text-sm text-gray-900" :class="selectedArcId === a.id && 'font-bold'" x-text="a.label"></div>
+              <div class="text-sm text-gray-900" :class="selectedArcId === a.id && 'font-bold'"><span x-text="a.label"></span>
+                <span x-show="recommendedArcId === a.id" class="ml-1 inline-block align-middle text-[0.65rem] leading-none font-normal border border-gray-900 rounded-sm px-1 py-0.5">{{t "Recommended"}}</span></div>
               <div class="text-xs text-gray-500 mt-0.5 leading-snug" x-text="a.desc"></div>
             </button>
           </template>
         </div>
         </div>
 
-        <label for="creative-editor-brief" class="form-label" :class="format !== 'foldout' && 'mt-5'">{{t "Anything to emphasize?"}}
-          <span class="font-normal text-gray-500">{{t "(optional)"}}</span></label>
-        <input id="creative-editor-brief" type="text" x-model="brief" maxlength="300"
-               @keydown.enter.prevent
-               placeholder="{{t "e.g. push the limited edition; warm, playful tone; mention free shipping"}}"
-               class="form-input">
-        <p class="form-hint">{{t "Steers the copy. Facts you add are trusted; the AI still won’t invent beyond your landing page + this note."}}</p>
-
-        <button type="button" @click="synthesize(selectedArcId)" :disabled="generating || recommending || allTexts.length === 0"
+        <button type="button" @click="synthesize(selectedArcId)" :disabled="generating || allTexts.length === 0"
                 class="btn btn-secondary mt-4">
-          <span x-show="!generating && !recommending" x-text="synthesizedPages.length ? '{{t "↻ Regenerate copy"}}' : '{{t "Generate copy"}}'"></span>
-          <span x-show="recommending && !generating">{{t "Waiting for AI recommendation…"}}</span>
+          <span x-show="!generating" x-text="synthesizedPages.length ? '{{t "↻ Regenerate copy"}}' : '{{t "Generate copy"}}'"></span>
           <span x-show="generating">{{t "Writing copy…"}}</span>
         </button>
 
@@ -425,7 +399,11 @@
           </button>
           <p x-show="!canGenerate() && !generating"
              class="text-sm text-gray-500"
-             x-text="synthesizedPages.length < copyPagesNeeded() ? '{{t "Waiting for the copy to finish generating."}}' : (creativeName.trim() === '' ? '{{t "Name the creative to continue."}}' : '{{t "Pick a layout template to continue."}}')"></p>
+             x-text="'{{t "To continue, still needed:"}} ' + [
+               synthesizedPages.length < copyPagesNeeded() && '{{t "the copy (step 3)"}}',
+               format !== 'foldout' && selectedTemplateId === '' && '{{t "a layout (step 5)"}}',
+               creativeName.trim() === '' && '{{t "a name"}}',
+             ].filter(Boolean).join('{{t ", "}}')"></p>
         </div>
         <p x-show="generateError" x-text="generateError" class="mt-2 text-sm text-gray-900 font-bold"></p>
       </div>
@@ -502,10 +480,8 @@ function creativeEditor() {
       { id: 'tease-reveal-invite',    label: '{{t "Tease → Reveal → Invite"}}',     desc: '{{t "Curiosity → the reveal → come see more"}}' },
     ],
     fitArcIds: [],      // AI-curated subset (ids that fit this product); empty = show all
-    arcReason: '',      // one line on why the recommended arc fits
-    recommending: false, // arc recommendation in flight — gates Generate copy
+    recommendedArcId: '', // the arc the AI picked — badged in the picker
     showAllArcs: false, // reveal the arcs the AI filtered out
-    brief: '',          // optional advertiser free-text woven into the copy prompt
     // LP's dominant background + text colours. Creative pages must
     // match the LP's colour scheme (product restriction), so these
     // get applied verbatim — bg to every page background, text to
@@ -922,9 +898,11 @@ function creativeEditor() {
         this.manualMode = this.allImages.length === 0 && this.allTexts.length === 0;
         this.seedCreativeName();
         this.step = 'compose';
-        // Auto-write the 3 pages of copy from the WHOLE LP text. Compose shows
-        // immediately; the page cards fill in when synthesis returns.
-        if (this.allTexts.length > 0) this.recommendArc();
+        // Auto-write the copy from the WHOLE LP text with the AI-recommended
+        // arc (one request). Compose shows immediately; the page cards fill
+        // in when synthesis returns. Most authors keep the recommendation, so
+        // picking an arc first was a wasted step (GH #491).
+        if (this.allTexts.length > 0) this.synthesize();
       } catch (e) {
         this.analyzeError = e.message;
       } finally {
@@ -1068,17 +1046,19 @@ function creativeEditor() {
     copyPagesNeeded() { return this.format === 'foldout' ? 1 : 3; },
 
     // Copy is written for one format: a 3-page arc doesn't fit a poster and
-    // vice versa, so switching formats drops it (Generate writes the new one).
+    // vice versa, so switching formats drops it and writes the new one —
+    // with the current arc once one has been recommended, else recommending.
     setFormat(f) {
       if (f === this.format) return;
       this.format = f;
       this.activePageIdx = 0;
       this.synthesizedPages = [];
+      this.synthesize(this.recommendedArcId ? this.selectedArcId : undefined);
     },
 
     canGenerate() {
-      // Copy is auto-synthesized (no per-page text picking), so the gate is:
-      // the copy has arrived (3 pages; Fold-out's 1 poster), a name is set
+      // Copy is written automatically on load (no per-page text picking), so
+      // the gate is: the copy has arrived (3 pages; Fold-out's 1 poster), a name is set
       // (pre-seeded from the LP hostname), and a layout template is chosen.
       // Images are optional — pages without one fall back to the synthesized
       // imgEmoji / gradient.
@@ -1097,40 +1077,13 @@ function creativeEditor() {
     },
 
     // === Compose → Advanced Designer: generate copy then hand off ===
-    // Auto-write the 3 pages of copy from the WHOLE LP corpus (synthesize
-    // backend path). Called on extract and by the Regenerate button. The model
-    // PRODUCES original copy from all the text, so nothing is picked per page
-    // and raw source text can never leak through.
-    // On load: curate the arc menu (which arcs fit this product) WITHOUT
-    // generating copy, so the user sets arc + emphasis first, then Generates
-    // once — no wasted first pass. Non-blocking: any failure leaves all arcs.
-    async recommendArc() {
-      if (this.allTexts.length === 0) return;
-      // Gate Generate copy while the recommendation is in flight —
-      // generating before it lands would use the default arc and then have
-      // the recommendation flip the picker after the fact. A failure or
-      // timeout unlocks the button (finally): recommendation is an
-      // enhancement, never a hard dependency.
-      this.recommending = true;
-      const ctrl = new AbortController();
-      const t = setTimeout(() => ctrl.abort(), 45000);
-      try {
-        const resp = await fetch('/advertiser/creatives/rewrite-sections', {
-          method: 'POST', headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({ sections: this.allTexts, recommend: true }),
-          signal: ctrl.signal
-        });
-        if (!resp.ok) return;
-        const data = await resp.json();
-        if (data.arc) this.selectedArcId = data.arc;
-        if (Array.isArray(data.arcOptions) && data.arcOptions.length) this.fitArcIds = data.arcOptions;
-        if (data.arcReason) this.arcReason = data.arcReason;
-      } catch (e) { /* non-blocking — keep all arcs available */ }
-      finally { clearTimeout(t); this.recommending = false; }
-    },
-
-    // arcId given (Generate / Regenerate) → synthesize with it + the brief.
-    // arcId omitted → backend recommends the best arc and generates with it.
+    // Write the pages of copy from the WHOLE LP corpus (synthesize backend
+    // path). Called automatically on extract and by the Regenerate button.
+    // The model PRODUCES original copy from all the text, so nothing is picked
+    // per page and raw source text can never leak through.
+    // arcId given (Regenerate) → synthesize with it.
+    // arcId omitted (on load) → backend recommends the best arc, curates the
+    // arcs that fit, and generates with the best — one request.
     async synthesize(arcId) {
       if (this.allTexts.length === 0) return;
       this.generating = true;
@@ -1145,7 +1098,6 @@ function creativeEditor() {
         const foldout = this.format === 'foldout';
         if (foldout) arcId = 'poster';
         if (arcId) payload.arc = arcId;
-        if (this.brief.trim()) payload.brief = this.brief.trim();
         const resp = await fetch('/advertiser/creatives/rewrite-sections', {
           method: 'POST',
           headers: { 'Content-Type': 'application/json' },
@@ -1157,8 +1109,12 @@ function creativeEditor() {
         if (data.error) throw new Error(data.error);
         this.synthesizedPages = (data.pages || []).slice(0, this.copyPagesNeeded());
         if (data.arc && !foldout) this.selectedArcId = data.arc;
-        if (Array.isArray(data.arcOptions) && data.arcOptions.length) this.fitArcIds = data.arcOptions;
-        if (data.arcReason !== undefined) this.arcReason = data.arcReason || '';
+        // arcOptions only come back on the recommend path, so data.arc there
+        // IS the recommendation (an explicit Regenerate echoes the pick).
+        if (Array.isArray(data.arcOptions) && data.arcOptions.length) {
+          this.fitArcIds = data.arcOptions;
+          if (data.arc) this.recommendedArcId = data.arc;
+        }
       } catch (e) {
         this.generateError = ctrl.signal.aborted
           ? '{{t "Copy generation timed out — click Regenerate to retry."}}'

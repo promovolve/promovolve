@@ -66,7 +66,7 @@ const composeEditor = (imgs) => {
   Object.assign(d, {
     analyzing: false, analyzeError: "", step: "compose", allTexts: [{ heading: "", text: "x" }],
     allImages: imgs.map((src) => ({ src })), fitArcIds: ["hook-proof-call", "feature-story-plan", "tease-reveal-invite"],
-    arcReason: "A seasonal sweet sells on craving, not on a problem.",
+    recommendedArcId: "tease-reveal-invite",
     synthesizedPages: [
       { tag: "HOOK", headline: "Autumn chestnut tart, baked this morning", sub: "Only at the Ginza shop", body: "Hand-peeled chestnuts folded into butter pastry." },
       { tag: "PROOF", headline: "12,000 sold last season", sub: "Rated 4.8 by 900 customers", body: "Every tart reaches the counter the day it is baked." },

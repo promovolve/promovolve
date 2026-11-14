@@ -19,6 +19,7 @@
 
 import type { LayoutItem } from "./types";
 import { scrimGradient, type ScrimSpec } from "./scrim";
+import { tk } from "./i18n";
 
 export type TemplateOrientation = "any" | "landscape" | "portrait" | "square";
 
@@ -90,8 +91,8 @@ export const TEMPLATES: LayoutTemplate[] = [
 
   {
     id: "promo",
-    name: "Promo / Sale",
-    description: "Hero image left, sale badge + headline + body right. Mobile: image top, badge floats over.",
+    name: tk("Promo / Sale"),
+    description: tk("Hero image left, sale badge + headline + body right. Mobile: image top, badge floats over."),
     orientation: "any",
     slots: [
       { role: "hero",     region: "left",         prominence: "primary"   },
@@ -117,8 +118,8 @@ export const TEMPLATES: LayoutTemplate[] = [
 
   {
     id: "mobile-hero-top",
-    name: "Mobile · Hero Top",
-    description: "Image fills the top half. Tag, headline, body stacked beneath. Editorial mobile layout.",
+    name: tk("Mobile · Hero Top"),
+    description: tk("Image fills the top half. Tag, headline, body stacked beneath. Editorial mobile layout."),
     orientation: "portrait",
     slots: [
       { role: "hero",        region: "top",    prominence: "primary"   },
@@ -142,8 +143,8 @@ export const TEMPLATES: LayoutTemplate[] = [
 
   {
     id: "mobile-fullbleed-overlay",
-    name: "Mobile · Full-Bleed Overlay",
-    description: "Image fills the page. Headline + body sit on a dark gradient scrim at the bottom. Cinematic.",
+    name: tk("Mobile · Full-Bleed Overlay"),
+    description: tk("Image fills the page. Headline + body sit on a dark gradient scrim at the bottom. Cinematic."),
     orientation: "portrait",
     slots: [
       { role: "hero",     region: "center", prominence: "primary"   },

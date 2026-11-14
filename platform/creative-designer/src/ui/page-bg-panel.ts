@@ -452,7 +452,7 @@ function renderWithVideo(body: HTMLElement, videoBg: VideoBg, store: Store): voi
   // cuts the window — VideoTranscoder.LoopSeconds, keep in sync). Clamp
   // Out to In+cap here so the draft preview never loops footage the
   // published ad won't contain.
-  trim.appendChild(trimInput(t("in"), videoBg.inSec,
+  trim.appendChild(trimInput("in", t("in"), videoBg.inSec,
     (v) => commit(store, (bg) => {
       const next = { ...bg, inSec: v };
       const start = v ?? 0;
@@ -466,7 +466,7 @@ function renderWithVideo(body: HTMLElement, videoBg: VideoBg, store: Store): voi
       return next;
     }),
   ));
-  trim.appendChild(trimInput(t("out"), videoBg.outSec,
+  trim.appendChild(trimInput("out", t("out"), videoBg.outSec,
     (v) => commit(store, (bg) => {
       const start = bg.inSec ?? 0;
       // Strictly start < end: a zero-length window is not a loop. The
@@ -531,9 +531,9 @@ function patchValues(body: HTMLElement, videoBg: VideoBg): void {
   // 60). Written unconditionally — number inputs only fire `change` on
   // Enter/blur, so this never fights live typing; on Enter the snap to
   // the clamped value IS the feedback.
-  const inInput = body.querySelector<HTMLInputElement>('[data-trim] input[placeholder="in"]');
+  const inInput = body.querySelector<HTMLInputElement>('[data-trim] input[data-trim-end="in"]');
   if (inInput) inInput.value = videoBg.inSec == null ? "" : String(videoBg.inSec);
-  const outInput = body.querySelector<HTMLInputElement>('[data-trim] input[placeholder="out"]');
+  const outInput = body.querySelector<HTMLInputElement>('[data-trim] input[data-trim-end="out"]');
   if (outInput) outInput.value = videoBg.outSec == null ? "" : String(videoBg.outSec);
 }
 
@@ -1041,8 +1041,9 @@ function opacitySlider(value: number, onChange: (v: number, commit: boolean) => 
 }
 
 
-function trimInput(placeholder: string, value: number | undefined, onChange: (v: number | undefined) => void): HTMLInputElement {
+function trimInput(end: "in" | "out", placeholder: string, value: number | undefined, onChange: (v: number | undefined) => void): HTMLInputElement {
   const input = document.createElement("input");
+  input.dataset.trimEnd = end;
   input.type = "number";
   input.min = "0";
   input.step = "0.1";

@@ -285,14 +285,14 @@ function build(panel: HTMLElement, idx: number, item: LayoutItem, store: Store):
     const typo = group(tk("Typography"));
     setters.fontFamily = selectField(typo, tk("font"), item.fontFamily ?? "sans-serif",
       fontOptions(item.fontFamily),
-      (v, c) => mutate(store, idx, (it) => ({ ...it, fontFamily: v }), c),
+      (v, c) => mutate(store, idx, (it) => ({ ...it, fontFamily: v }), c, true),
       true, // full-width: font stacks are too long for the inline layout
       undefined,
       fontLabels(fontOptions(item.fontFamily)),
     );
     setters.fontWeight = selectField(typo, tk("weight"), String(item.fontWeight ?? "normal"),
       ["normal", "bold", "100", "200", "300", "400", "500", "600", "700", "800", "900"],
-      (v, c) => mutate(store, idx, (it) => ({ ...it, fontWeight: v }), c),
+      (v, c) => mutate(store, idx, (it) => ({ ...it, fontWeight: v }), c, true),
       false, undefined, WEIGHT_LABELS,
     );
     // Capture the size at the START of an edit interaction so the commit-time
@@ -310,7 +310,7 @@ function build(panel: HTMLElement, idx: number, item: LayoutItem, store: Store):
     });
     setters.__fitNote = fitNote(typo, idx);
     setters.lineHeight = numberField(typo, tk("line height"), item.lineHeight ?? 1.2,
-      (v, c) => mutate(store, idx, (it) => ({ ...it, lineHeight: v }), c), 0.5, 3);
+      (v, c) => mutate(store, idx, (it) => ({ ...it, lineHeight: v }), c, true), 0.5, 3);
     setters.textAlign = selectField(typo, tk("align"), item.textAlign ?? "left",
       ["left", "center", "right", "justify"],
       (v, c) => mutate(store, idx, (it) => ({ ...it, textAlign: v as "left" | "center" | "right" | "justify" }), c),
@@ -892,7 +892,12 @@ function normalizeColorForPicker(v: string): string {
 // a `change` event (blur, Enter, picker close) and records one undo
 // step. Without this split, every keystroke pushes a history entry and
 // triggers a full re-render that can steal caret focus.
-function mutate(store: Store, idx: number, fn: (it: LayoutItem) => LayoutItem, commit = true): void {
+// `refit`: the edit changes how much room the text takes (font, weight, line
+// height), so on commit the box is fitted to the text again — the same as a
+// font-size edit (GH #513).
+function mutate(
+  store: Store, idx: number, fn: (it: LayoutItem) => LayoutItem, commit = true, refit = false,
+): void {
   const before = currentLayout(store.state)[idx];
   let next = updateItem(store.state, idx, fn);
   // Model-A typography sync: when a typography property changes on a
@@ -919,6 +924,23 @@ function mutate(store: Store, idx: number, fn: (it: LayoutItem) => LayoutItem, c
   }
   if (commit) store.commit(next);
   else store.replace(next);
+  if (commit && refit && after?.type === "text") refitAfterFontLoads(store, idx, after, field);
+}
+
+// Fit the box once the item's font has loaded: measuring a web font before it
+// arrives fits the box to the fallback face (the GH #511 trap). Synced copies
+// on the other pages and sizes are refitted too, as mutateFontSize does.
+function refitAfterFontLoads(store: Store, idx: number, item: LayoutItem, field: string | undefined): void {
+  const it = item as { fontFamily?: string; fontWeight?: string | number };
+  const spec = `${it.fontWeight ?? "normal"} 16px ${it.fontFamily ?? "sans-serif"}`;
+  const loaded = document.fonts?.load(spec).catch(() => []) ?? Promise.resolve([]);
+  void loaded.then(() => requestAnimationFrame(() => {
+    packTextItemHeight(store, idx, true);
+    if (field) {
+      packReaderFieldBoxes(store, field);
+      packSizedFieldBoxes(store, field);
+    }
+  }));
 }
 
 // Font-size edit. Size is NOT copied verbatim across formats (a value tuned

@@ -155,13 +155,13 @@ export function setWritingMode(
   });
 }
 
-/** "Fit box to text": shrink a text item's authored height down to its
+/** Fit box to text: shrink a text item's authored height down to its
   * content. measureTextHeights can't do this — scrollHeight floors at
   * clientHeight, so an oversized box always measures as exactly its
   * own height. Instead, measure a height-neutralized CLONE inside the
   * same stage (same container-query context, so cqh font sizing and
   * %-width wrap points resolve identically), then stamp the result.
-  * Invoked from the props panel's Fit button. */
+  * Run after text, font and writing-mode edits. */
 export function packTextItemHeight(store: Store, idx: number, fitWidth = false): void {
   const banner = document.querySelector<HTMLElement>("#canvas-host expandable-magazine-banner");
   const shadow = banner?.shadowRoot;
@@ -211,7 +211,10 @@ export function packTextItemHeight(store: Store, idx: number, fitWidth = false):
     } catch { /* fall back below */ }
     if (maxLineW <= 0) maxLineW = wc.scrollWidth;
     wc.remove();
-    const stageW = stage.clientWidth;
+    // Fractional width, like the line rects: clientWidth rounds (292.5 → 293),
+    // which makes the box a fraction of a pixel narrower than the line it
+    // was measured from, and the line wraps (GH #513).
+    const stageW = stage.getBoundingClientRect().width;
     if (stageW > 0 && maxLineW > 0) {
       const w = Math.ceil((maxLineW / stageW) * 100 * 10) / 10;
       widthPct = Math.min(w, avail); // hug widest line, never past the canvas
@@ -239,12 +242,14 @@ export function packTextItemHeight(store: Store, idx: number, fitWidth = false):
   const packed = Math.ceil(pct * 10) / 10;
   if (vertical) {
     const curW = item.width ?? 0;
-    if (Math.abs(curW - packed) < 0.1) return; // already hugs its columns
     // vertical-rl starts at the right, so the box is right-anchored: keep
-    // the right edge fixed and shrink leftward.
-    const newLeft = (item.left ?? 0) + (curW - packed);
+    // the right edge fixed and grow/shrink leftward — never past the canvas's
+    // left edge (horizontal text stops at the right edge the same way).
+    const rightEdge = (item.left ?? 0) + curW;
+    const w = Math.min(packed, rightEdge);
+    if (Math.abs(curW - w) < 0.1) return; // already hugs its columns
     store.commit(updateItem(store.state, idx, (it): LayoutItem =>
-      it.type === "text" ? { ...it, width: packed, left: newLeft } : it,
+      it.type === "text" ? { ...it, width: w, left: rightEdge - w } : it,
     ));
   } else {
     const widthChanged = item.width != null && widthPct != null && Math.abs(item.width - widthPct) >= 0.1;
@@ -419,7 +424,8 @@ export function packSizedFieldBoxes(
       if (maxLine <= 0) maxLine = vertical ? ic.scrollHeight : ic.scrollWidth;
       ic.remove();
       if (maxLine <= 0) return null;
-      const inlineExtent = vertical ? box.clientHeight : box.clientWidth;
+      const boxRect = box.getBoundingClientRect(); // fractional — see packTextItemHeight
+      const inlineExtent = vertical ? boxRect.height : boxRect.width;
       const inlinePct = Math.min(
         Math.ceil((maxLine / inlineExtent) * 100 * 10) / 10, availInline);
       const bc = mkClone(fontSize);

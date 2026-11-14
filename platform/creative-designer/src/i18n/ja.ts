@@ -75,7 +75,6 @@ export const JA: Record<string, string> = {
   "Crop": "切り抜き",
   "Remove background": "背景を削除",
   "Edit formula": "数式を編集",
-  "Fit box to text": "枠をテキストに合わせる",
   "Bring to front": "最前面へ",
   "Bring forward": "前面へ",
   "Send backward": "背面へ",

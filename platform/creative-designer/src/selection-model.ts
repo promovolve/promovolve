@@ -18,7 +18,6 @@ export type SelectionAction =
   | "alignLeft"
   | "alignCenter"
   | "alignRight"
-  | "fitToText"
   | "writeHorizontal"
   | "writeVertical"
   | "bringToFront"
@@ -47,7 +46,7 @@ export function selectionActions(state: DesignerState): SelectionAction[] {
   }
   const item = items[0]!;
   const own: SelectionAction[] =
-    item.type === "text" ? ["alignLeft", "alignCenter", "alignRight", "writeHorizontal", "writeVertical", "fitToText"]
+    item.type === "text" ? ["alignLeft", "alignCenter", "alignRight", "writeHorizontal", "writeVertical"]
     : isFormula(item) ? ["editFormula"]
     : item.type === "image" ? imageActions(state, item)
     : [];

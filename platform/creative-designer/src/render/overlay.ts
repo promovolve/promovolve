@@ -299,7 +299,7 @@ function renderOverlay(root: HTMLElement, state: DesignerState): void {
     const g = document.createElement("div");
     g.dataset.cdFold = "1";
     g.style.cssText = `position:absolute;left:0;right:0;top:${top}%;border-top:1px dashed ${tokens.ink300};pointer-events:none;font-size:9px;color:${tokens.ink300};line-height:1`;
-    g.textContent = "fold";
+    g.textContent = t("fold");
     root.appendChild(g);
   }
   const items = currentLayout(state);

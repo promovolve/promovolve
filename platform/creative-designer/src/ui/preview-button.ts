@@ -35,7 +35,7 @@ export function mountPreviewButton(
   storeRef = store;
   const btn = document.createElement("button");
   // Eye plus "Preview"; the word drops when the top bar runs short.
-  btn.innerHTML = `<svg viewBox="0 0 16 16" width="15" height="15" fill="none" stroke="currentColor" stroke-width="1.3" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M1.5 8s2.4-4.2 6.5-4.2S14.5 8 14.5 8s-2.4 4.2-6.5 4.2S1.5 8 1.5 8z"/><circle cx="8" cy="8" r="2"/></svg><span data-cd-compact="4">Preview</span>`;
+  btn.innerHTML = `<svg viewBox="0 0 16 16" width="15" height="15" fill="none" stroke="currentColor" stroke-width="1.3" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M1.5 8s2.4-4.2 6.5-4.2S14.5 8 14.5 8s-2.4 4.2-6.5 4.2S1.5 8 1.5 8z"/><circle cx="8" cy="8" r="2"/></svg><span data-cd-compact="4">${t("Preview")}</span>`;
   btn.title = t("Preview");
   btn.setAttribute("aria-label", t("Preview"));
   btn.style.cssText = [

@@ -364,7 +364,7 @@ export function mountSizeMatrix(host: HTMLElement, store: Store): SizeMatrixHand
     // canvas no longer renders a placeholder box in edit mode; this
     // chip line is where that state lives now).
     const missing = document.createElement("span");
-    missing.textContent = "missing";
+    missing.textContent = t("missing");
     missing.style.cssText = [
       `font-family: ${tokens.sans}`,
       "font-size: 9px",

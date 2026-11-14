@@ -66,7 +66,7 @@ export function mountPublishButton(container: HTMLElement, store: Store, ctx: De
   const publishBtn = document.createElement("button");
   publishBtn.type = "button";
   // The one ink-filled primary action in the top bar.
-  publishBtn.innerHTML = `<svg viewBox="0 0 16 16" width="15" height="15" fill="none" stroke="currentColor" stroke-width="1.3" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M14.5 1.5 1.5 7l4.6 1.9L8 13.5l2.2-3.7 4.3-8.3z"/><path d="M14.5 1.5 6.1 8.9"/></svg><span>Publish</span>`;
+  publishBtn.innerHTML = `<svg viewBox="0 0 16 16" width="15" height="15" fill="none" stroke="currentColor" stroke-width="1.3" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M14.5 1.5 1.5 7l4.6 1.9L8 13.5l2.2-3.7 4.3-8.3z"/><path d="M14.5 1.5 6.1 8.9"/></svg><span>${t("Publish")}</span>`;
   publishBtn.title = t("Publish — finalize the creative and make it eligible for delivery.");
   publishBtn.setAttribute("aria-label", t("Publish"));
   publishBtn.style.cssText = [

@@ -12,7 +12,7 @@
 // before the type's own actions); Delete always stays on the bar.
 
 import { t, tk } from "../i18n";
-import { packTextItemHeight, setWritingMode } from "../render/canvas";
+import { setWritingMode } from "../render/canvas";
 import { bringForward, bringToFront, groupSelection, sendBackward, sendToBack, updateItem } from "../state";
 import { selectedItems, selectionActions, selectionBarKey, scopeLabel, type SelectionAction } from "../selection-model";
 import type { Store } from "../store";
@@ -34,7 +34,6 @@ const LABEL: Record<SelectionAction, string> = {
   alignRight: tk("Align right"),
   writeHorizontal: tk("Horizontal"),
   writeVertical: tk("Vertical"),
-  fitToText: tk("Fit box to text"),
   bringToFront: tk("Bring to front"),
   bringForward: tk("Bring forward"),
   sendBackward: tk("Send backward"),
@@ -46,7 +45,7 @@ const LABEL: Record<SelectionAction, string> = {
 // The order actions leave the bar for More when space runs out.
 const OVERFLOW_ORDER: SelectionAction[] = [
   "sendToBack", "sendBackward", "bringForward", "bringToFront", "group",
-  "fitToText", "alignRight", "alignCenter", "alignLeft", "writeHorizontal", "writeVertical",
+  "alignRight", "alignCenter", "alignLeft", "writeHorizontal", "writeVertical",
   "removeBackground", "crop", "replace", "editFormula",
 ];
 
@@ -86,7 +85,6 @@ function run(store: Store, action: SelectionAction): void {
     case "crop": { const img = soleImage(store); if (img) openCropModal(store, img.idx, img.item); return; }
     case "removeBackground": { const img = soleImage(store); if (img) openRemoveBgModal(store, img.idx, img.item); return; }
     case "editFormula": { const img = soleImage(store); if (img) openFormulaModal(store, img); return; }
-    case "fitToText": packTextItemHeight(store, s.selectedItemIdxs[0]!, true); return;
     case "bringToFront": store.commit(bringToFront(s)); return;
     case "bringForward": store.commit(bringForward(s)); return;
     case "sendBackward": store.commit(sendBackward(s)); return;

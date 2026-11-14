@@ -52,7 +52,7 @@ describe("selectionActions", () => {
 
   it("offers alignment for one text item", () => {
     const s = setSelection(withItems(text), [0]);
-    expect(selectionActions(s)).toEqual(["alignLeft", "alignCenter", "alignRight", "writeHorizontal", "writeVertical", "fitToText", ...ARRANGE, "delete"]);
+    expect(selectionActions(s)).toEqual(["alignLeft", "alignCenter", "alignRight", "writeHorizontal", "writeVertical", ...ARRANGE, "delete"]);
   });
 
   it("offers only arrange and delete for a scrim or a circle", () => {

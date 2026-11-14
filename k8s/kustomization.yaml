@@ -110,7 +110,7 @@ configMapGenerator:
       # config. The API (envFrom) and platform (configMapKeyRef) both read it.
       # WRITTEN BY CI: deploy.yml's publish-banner job updates this line via
       # scripts/pin-banner-url.sh after each R2 publish — do not hand-edit.
-      - BANNER_SCRIPT_URL=https://pub-7ab486148c8740dbb2cc31c5072eb91c.r2.dev/js/expandable-magazine-banner.ad0fc0931e.js
+      - BANNER_SCRIPT_URL=https://pub-7ab486148c8740dbb2cc31c5072eb91c.r2.dev/js/expandable-magazine-banner.1509a4ec16.js
       # Gemini rate limiter (GeminiRateLimiter.scala reads these from env).
       # Defaults are sized for the AI Studio FREE tier (8 RPM / burst 5), which
       # makes a multi-page crawl queue past the 30s acquire deadline → pages
@@ -166,5 +166,5 @@ images:
     digest: sha256:b9ccb11c1c90e79a7bcac9c3105da689f76b7bbaa6a036ce5d2f140896d8e635
   - name: promovolve/platform
     newName: docker.io/hanishi/promovolve-platform
-    # build: b078858 2026-11-13T16:23Z (Deploy run 43461180128)
-    digest: sha256:dbf05923e94098d06cfdfa83af24c5a21b85421295d1232b2c87a43becd0f4fa
+    # build: dfe5bb8 2026-11-14T01:09Z (Deploy run 43538161426)
+    digest: sha256:9ed864f89edf842eada6f54e6af80e479ef7a18e76fed426d4cff77602819a2a

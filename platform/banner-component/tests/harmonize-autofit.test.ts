@@ -70,4 +70,33 @@ describe("autoFitText", () => {
     autoFitText(d);
     expect(d.style.fontSize).toBe("2.8cqmax");
   });
+
+  // GH #511: the web font lands AFTER the first fit and changes the text's
+  // metrics, so the banner fits again. Each fit starts from the AUTHORED
+  // size: text that fit in the fallback font but overflows in the web font
+  // shrinks, and a fit that shrank for the fallback grows back.
+  it("fits again from the authored size, not from the last fitted size", () => {
+    const parent = document.createElement("div");
+    const d = document.createElement("div");
+    d.style.fontSize = "10px";
+    parent.append(d);
+    document.body.append(parent);
+    Object.defineProperty(parent, "clientHeight", { value: 100, configurable: true });
+    Object.defineProperty(d, "clientHeight", { value: 100, configurable: true });
+    Object.defineProperty(d, "clientWidth", { value: 100, configurable: true });
+    Object.defineProperty(d, "scrollHeight", { value: 100, configurable: true });
+    // The text is `widthPerPx` px wide per px of font size.
+    let widthPerPx = 12; // fallback font: 10px → 120px, overflows → shrinks
+    Object.defineProperty(d, "scrollWidth", {
+      configurable: true,
+      get: () => parseFloat(getComputedStyle(d).fontSize) * widthPerPx,
+    });
+    autoFitText(d);
+    const shrunk = parseFloat(getComputedStyle(d).fontSize);
+    expect(shrunk).toBeLessThan(10);
+
+    widthPerPx = 9; // web font is narrower: 10px → 90px, the authored size fits
+    autoFitText(d);
+    expect(d.style.fontSize).toBe("10px");
+  });
 });

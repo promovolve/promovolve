@@ -173,6 +173,12 @@ export function autoFitText(el: HTMLElement): void {
     findSizeContainerMaxDim(el) ?? el.parentElement?.clientHeight ?? maxH;
   if (containerMax <= 0) return;
 
+  // Every fit starts from the AUTHORED size, so fitting again is safe: the
+  // banner re-fits once its web fonts land (GH #511), and text that shrank
+  // for the fallback font must grow back if the real face is narrower.
+  if (el.dataset.fitFrom === undefined) el.dataset.fitFrom = el.style.fontSize;
+  else el.style.fontSize = el.dataset.fitFrom;
+
   const current = parseFloat(getComputedStyle(el).fontSize);
   if (!Number.isFinite(current) || current <= 0) return;
 

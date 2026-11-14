@@ -459,23 +459,38 @@ export class ExpandableMagazineBanner extends HTMLElement {
   private preloadExpandedFonts(): void {
     if (typeof document === "undefined" || !document.fonts || typeof FontFace !== "function") return;
     const faces = resolveExpandedFonts(this.pagesData);
+    const loads: Promise<unknown>[] = [];
     for (const f of faces) {
       try {
         const weight = String(f.weight);
         // Skip if this family+weight is already registered (another banner
         // on the page, or a prior mount). Keyed on weight too, since we now
-        // self-host per-weight faces of the same family.
-        let already = false;
-        document.fonts.forEach((ff) => { if (ff.family === f.family && ff.weight === weight) already = true; });
-        if (already) continue;
+        // self-host per-weight faces of the same family. Still wait for it
+        // if it's mid-load: the refit below must see its metrics.
+        let already: FontFace | undefined;
+        document.fonts.forEach((ff) => { if (ff.family === f.family && ff.weight === weight) already = ff; });
+        if (already) {
+          if (already.status === "loading") loads.push(already.loaded.catch(() => {}));
+          continue;
+        }
         const face = new FontFace(f.family, `url(${f.url}) format("woff2")`, { display: "swap", weight });
         // load() returns a promise; add() on resolve. Failures (404 for a
         // family not yet provisioned, network error) are swallowed — the
         // system fallback in the CSS stack covers it.
-        void face.load().then((loaded) => { document.fonts.add(loaded); }).catch(() => {});
+        loads.push(face.load().then((loaded) => { document.fonts.add(loaded); }).catch(() => {}));
       } catch {
         // FontFace constructor can throw on a malformed family — ignore.
       }
+    }
+    // These faces also style the COLLAPSED ad (same family in its stack),
+    // which was fitted against the fallback font. Once they land, fit it
+    // again, or text that fit before the swap overflows and clips (GH #511).
+    // Only the collapsed .design-box: the reader fits (and harmonizes
+    // across pages) when it opens.
+    if (loads.length) {
+      void Promise.all(loads).then(() => {
+        this.shadowRoot?.querySelectorAll<HTMLElement>('.design-box [data-autofit="1"]').forEach(autoFitText);
+      });
     }
   }
 

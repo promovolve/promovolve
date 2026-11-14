@@ -25,6 +25,7 @@ import { loadBrandKit } from "../brand-kit";
 import { mountKitColorChips } from "./brand-kit-chips";
 import { DIRECTION_LABELS, FILL_MODE_LABELS, fontDisplayName, optionEntries, SCRIM_EDGE_LABELS, TEXT_ALIGN_LABELS, VALIGN_LABELS, WEIGHT_LABELS, WRITING_LABELS } from "../display-labels";
 import { isFormula } from "../formula";
+import { typeName } from "../selection-model";
 import { t, tk } from "../i18n";
 import { tokens } from "./tokens";
 
@@ -152,7 +153,7 @@ function build(panel: HTMLElement, idx: number, item: LayoutItem, store: Store):
 
   const header = document.createElement("div");
   header.style.cssText = `font-weight:700;font-size:11px;color:${tokens.ink100};margin-bottom:12px;`;
-  header.textContent = item.type === "rect" && item.scrim ? "scrim" : item.type;
+  header.textContent = typeName(item);
   panel.appendChild(header);
 
   // Two related sections: geometry (position/size/rotation/opacity)

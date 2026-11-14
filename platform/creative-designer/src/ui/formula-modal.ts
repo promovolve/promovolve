@@ -73,7 +73,7 @@ export function openFormulaModal(store: Store, edit?: { idx: number; item: Image
   const color = document.createElement("input");
   color.type = "color";
   color.value = edit?.item.latexColor ?? pickContrast(page?.bg).headline;
-  colorLabel.append("color", color);
+  colorLabel.append(t("color"), color);
 
   const status = document.createElement("span");
   status.setAttribute("role", "status");

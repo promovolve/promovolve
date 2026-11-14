@@ -11,6 +11,7 @@ export const JA: Record<string, string> = {
   "Campaigns": "キャンペーン",
   "Draft": "下書き",
   "Regenerate": "再生成",
+  " this size": "（このサイズ）",
   "Regenerate %s": "%sを再生成",
   "Regenerate isn't available for Fold-out creatives": "折り込みポスターでは再生成できません",
   "Regenerate works on the expanded pages — banner sizes follow them automatically": "再生成は展開ページに対して行います。バナーの各サイズは自動で追従します",

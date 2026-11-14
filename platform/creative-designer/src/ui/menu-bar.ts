@@ -108,7 +108,7 @@ export function mountMenuBar(
   const regenBtn = textBtn(t("Regenerate"), () => {
     void regenerateCurrentMode(store).catch((e) => console.error("[menu-bar] regenerate failed", e));
   });
-  regenBtn.append(compactSpan(" this size", 3));
+  regenBtn.append(compactSpan(t(" this size"), 3));
   actions.append(regenBtn, divider());
 
   mountPreviewButton(actions, store);

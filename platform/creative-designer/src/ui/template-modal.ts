@@ -127,10 +127,10 @@ function buildTemplateCard(
 function buildLabel(tpl: LayoutTemplate): HTMLElement {
   const wrap = document.createElement("div");
   const name = document.createElement("div");
-  name.textContent = tpl.name;
+  name.textContent = t(tpl.name);
   name.style.cssText = "font-size:12px;font-weight:700;margin-bottom:2px;";
   const desc = document.createElement("div");
-  desc.textContent = tpl.description;
+  desc.textContent = t(tpl.description);
   desc.style.cssText = `font-size:10px;color:${tokens.ink300};line-height:1.3;`;
   wrap.append(name, desc);
   return wrap;

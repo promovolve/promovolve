@@ -14,7 +14,7 @@ import promovolve.advertiser.CampaignEntity
 import promovolve.taxonomy.TieredCategory
 import promovolve.creative.BannerPage
 import promovolve.publisher.{ Creative, CreativeRepo, ImageAsset, ImageAssetRepo }
-import promovolve.publisher.assets.{ ImageStorage, WebpEncoder }
+import promovolve.publisher.assets.ImageStorage
 import spray.json.*
 import spray.json.DefaultJsonProtocol.*
 
@@ -138,7 +138,8 @@ object CreativeProcessor {
       // Budget topic (distributed pub/sub) for CreativeAssetReady — lets every
       // node's PendingEventHub nudge open approval inboxes once the preview
       // thumbnail actually exists in R2, regardless of which pod rendered it.
-      budgetEventTopic: Option[ActorRef[Topic.Command[BudgetEvent]]] = None
+      budgetEventTopic: Option[ActorRef[Topic.Command[BudgetEvent]]] = None,
+      bannerRenderer: Option[BannerRenderer.Render] = None
   )(using system: ActorSystem[?]): Behavior[Command] = Behaviors.setup { ctx =>
     given ExecutionContext = ctx.executionContext
 
@@ -421,8 +422,8 @@ object CreativeProcessor {
             width, height, skipVerify, lpFonts) =>
         ctx.log.info("CreativeProcessor: images done for {}, rendering banner...", creativeId)
 
-        lpAnalyzer match {
-          case Some(analyzer) =>
+        bannerRenderer.orElse(lpAnalyzer.map(BannerRenderer.local(_, imageStorage))) match {
+          case Some(renderBanner) =>
             // ctx.log is unsafe to touch from a Future callback (the
             // flatMap runs on the executor, not the actor's mailbox
             // thread). Use a static SLF4J logger inside the Future
@@ -482,32 +483,10 @@ object CreativeProcessor {
             // published render does).
             val provisionF: Future[Unit] = provisionFonts(updatedPagesJson)
             val renderF = activateF.zip(provisionF).flatMap(_ =>
-              analyzer.renderBanner(updatedPagesJson, width, height)
-            ).flatMap { case (pngBytes, brokenImages) =>
-              // Re-encode PNG → WebP. Playwright only outputs PNG/JPEG
-              // but WebP saves ~25–35% at visually-identical quality.
-              // Encode is fail-soft (returns None) so a broken cwebp
-              // doesn't break the creative pipeline — we fall through
-              // to the original PNG.
-              val (bytes, mime) = WebpEncoder.encode(pngBytes) match {
-                case Some(webp) =>
-                  asyncLog.info(
-                    "webp encode for {} {}x{} png={}B webp={}B ({}% saved)",
-                    creativeId, width: java.lang.Integer, height: java.lang.Integer,
-                    pngBytes.length: java.lang.Integer, webp.length: java.lang.Integer,
-                    ((1.0 - webp.length.toDouble / pngBytes.length) * 100).toInt: java.lang.Integer
-                  )
-                  (webp, "image/webp")
-                case None =>
-                  asyncLog.warn("webp encode failed for {}, storing PNG", creativeId)
-                  (pngBytes, "image/png")
-              }
-              val imgHash = MessageDigest.getInstance("SHA-256")
-                .digest(bytes).map("%02x".format(_)).mkString
-              for {
-                key <- imageStorage.store(imgHash, bytes, mime)
-                _ <- imageAssetRepo.put(ImageAsset(imgHash, key, mime, width, height, Instant.now()))
-              } yield (imgHash, key, bytes, mime, brokenImages)
+              renderBanner(updatedPagesJson, width, height)
+            ).flatMap { image =>
+              imageAssetRepo.put(ImageAsset(image.hash, image.key, image.mime, width, height, Instant.now()))
+                .map(_ => (image.hash, image.key, image.bytes, image.mime, image.brokenImages))
             }
 
             ctx.pipeToSelf(renderF) {

@@ -60,6 +60,15 @@ class LPWorkerSerializationSpec
   }
 
   "LPWorker cross-node messages" should {
+    "round-trip banner requests and storage metadata" in {
+      val reply = testKit.createTestProbe[BannerWorker.Result]()
+      val request = BannerWorker.Render("[{\"headline\":\"日本語\"}]", 300, 250, reply.ref)
+      roundTrip(request) shouldBe request
+      val result = BannerWorker.Result("hash", "assets/hash.webp", "image/webp", 2, None)
+      roundTrip(result) shouldBe result
+      val failure = result.copy(error = Some("render failed"))
+      roundTrip(failure) shouldBe failure
+    }
     "round-trip KeepAlive without becoming null" in {
       val back = roundTrip(LPWorker.KeepAlive)
       back should not be null

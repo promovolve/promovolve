@@ -120,12 +120,18 @@ yours**:
 | `ALLOWED_ORIGIN`, `RP_ID`, `RP_ORIGINS` | your dashboard domain (`RP_ID` is the bare host) |
 | `images:` `newName`/`digest` | your registry's `promovolve-api` / `promovolve-platform` images |
 
-Build and push the images, then apply:
+Build and push the images, then apply. The browser Deployment requires the
+node-local Chromium seccomp profile — install and wait for it before the
+workloads (or use `k8s/up.sh` / `k8s-gke/setup.sh`, which do this ordering).
+Existing clusters: follow the [staged browser rollout](../../k8s/browser-runtime.md).
 
 ```bash
 docker build -f Dockerfile.api -t <you>/promovolve-api:tag .
 docker build -f platform/Dockerfile -t <you>/promovolve-platform:tag platform/
 docker push <you>/promovolve-api:tag && docker push <you>/promovolve-platform:tag
+kubectl create namespace promovolve --dry-run=client -o yaml | kubectl apply -f -
+kubectl kustomize --load-restrictor LoadRestrictionsNone k8s/runtime-security | kubectl apply -f -
+kubectl -n promovolve rollout status daemonset/chromium-seccomp --timeout=180s
 kubectl kustomize --load-restrictor LoadRestrictionsNone k8s/ | kubectl apply -f -
 ```
 
@@ -141,10 +147,10 @@ can `kind load docker-image` instead and skip the registry.
 Topology notes:
 
 - `promovolve-api` is a 2-replica StatefulSet carrying the
-  `entity`,`api`,`crawler` roles; cluster formation uses the Kubernetes
+  `singleton`,`entity`,`api` roles; cluster formation uses the Kubernetes
   API (needs the ServiceAccount + RBAC in `k8s/api-rbac.yaml`) and waits
-  for 2 contact points. The `crawler` role must be carried by some pod —
-  without a carrier, landing-page creative generation breaks silently.
+  for 2 contact points. Chromium work runs on `promovolve-browser` (`browser`
+  role); without that pod, LP analysis and banner rendering time out.
 - `promovolve-platform` must stay at **1 replica** — WebAuthn ceremony
   state is in memory.
 - Config in the shared `api-config` configMap (e.g. a `BANNER_SCRIPT_URL`
@@ -292,16 +298,24 @@ secret, with correct restart ordering, and nothing else:
 
 ```bash
 $EDITOR k8s/secrets.env            # and/or k8s/platform-secrets.env
+kubectl kustomize --load-restrictor LoadRestrictionsNone k8s/runtime-security | kubectl apply -f -
+kubectl -n promovolve rollout status daemonset/chromium-seccomp --timeout=180s
 kubectl kustomize --load-restrictor LoadRestrictionsNone k8s/ | kubectl apply -f -
 kubectl rollout status statefulset/promovolve-api -n promovolve      # if core secrets changed
+kubectl rollout status deployment/promovolve-browser -n promovolve   # if core secrets changed
 kubectl rollout status deployment/promovolve-platform -n promovolve  # if platform secrets changed
 ```
+
+`promovolve-browser` references the shared `api-secret` (R2 keys only as env, but
+the Secret *name* hashes the whole file), so any core-secret edit rolls it too.
+It runs 1 replica with `Recreate`, so LP analysis and banner rendering pause
+until the new pod is Ready.
 
 Per-key notes:
 
 | Key | Rotation effect |
 |---|---|
-| LLM key, `R2_*` | api pods roll; no user-visible impact beyond the restart (expect the usual 1–2 min ad-fill warmup per pod) |
+| LLM key, `R2_*` | api and browser pods roll; expect the usual 1–2 min ad-fill warmup on api, plus a brief LP/banner outage while the single browser pod recreates |
 | `JWT_SECRET` | every dashboard session is invalidated — all users sign in again. That's the point; do it deliberately |
 | `INTERNAL_API_KEY` | change it in **both** env files in the same apply. A brief mismatch is harmless — the settlement job gets 403s, logs them, and retries next tick — but a lasting one silently stops settlement (watch the admin Billing page's settlement-health panel) |
 | `JDBC_PASSWORD` | two-step: change the database user's password first (`ALTER USER promovolve …` — and the db-secret if you manage Postgres in-cluster), then rotate this and apply |

@@ -1,0 +1,122 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: promovolve-browser
+  labels:
+    promovolve.dev/browser-bootstrap: "true"
+spec:
+  replicas: 1
+  strategy:
+    type: Recreate
+  selector:
+    matchLabels:
+      app: promovolve-api
+      tier: browser
+  template:
+    metadata:
+      labels:
+        app: promovolve-api
+        tier: browser
+    spec:
+      serviceAccountName: promovolve-api
+      imagePullSecrets:
+        - name: regcred
+      securityContext:
+        runAsNonRoot: true
+        runAsUser: 1000
+        runAsGroup: 1000
+        seccompProfile:
+          type: Localhost
+          localhostProfile: promovolve/chromium-v1.json
+      containers:
+        - name: browser
+          image: promovolve/api:dev
+          securityContext:
+            allowPrivilegeEscalation: false
+            capabilities:
+              drop: [ALL]
+          args: ["-Dconfig.file=/conf/application-browser.conf"]
+          env:
+            - name: HOME
+              value: /home/pwuser
+            - name: CHROMIUM_NO_SANDBOX
+              value: "false"
+            - name: PEKKO_CLUSTER_BOOTSTRAP
+              value: "on"
+            - name: POD_IP
+              valueFrom:
+                fieldRef:
+                  fieldPath: status.podIP
+            - name: PEKKO_HOST
+              value: "$(POD_IP)"
+            - name: PEKKO_MGMT_HOST
+              value: "$(POD_IP)"
+            - name: PEKKO_MGMT_BIND_HOST
+              value: 0.0.0.0
+            - name: KUBERNETES_NAMESPACE
+              valueFrom:
+                fieldRef:
+                  fieldPath: metadata.namespace
+            - name: PEKKO_BOOTSTRAP_REQUIRED_CONTACT_POINTS
+              value: "2"
+            - name: CDN_BASE_URL
+              valueFrom:
+                configMapKeyRef:
+                  name: api-config
+                  key: CDN_BASE_URL
+            - name: BANNER_SCRIPT_URL
+              valueFrom:
+                configMapKeyRef:
+                  name: api-config
+                  key: BANNER_SCRIPT_URL
+            - name: R2_ACCOUNT_ID
+              valueFrom:
+                secretKeyRef:
+                  name: api-secret
+                  key: R2_ACCOUNT_ID
+            - name: R2_ACCESS_KEY_ID
+              valueFrom:
+                secretKeyRef:
+                  name: api-secret
+                  key: R2_ACCESS_KEY_ID
+            - name: R2_SECRET_ACCESS_KEY
+              valueFrom:
+                secretKeyRef:
+                  name: api-secret
+                  key: R2_SECRET_ACCESS_KEY
+            - name: R2_BUCKET
+              valueFrom:
+                secretKeyRef:
+                  name: api-secret
+                  key: R2_BUCKET
+          ports:
+            - name: management
+              containerPort: 8558
+            - name: remoting
+              containerPort: 25520
+          readinessProbe:
+            httpGet:
+              path: /ready
+              port: management
+            initialDelaySeconds: 20
+            periodSeconds: 10
+          resources:
+            requests:
+              cpu: 100m
+              memory: 512Mi
+            limits:
+              memory: 2Gi
+          volumeMounts:
+            - name: conf
+              mountPath: /conf
+              readOnly: true
+            - name: shm
+              mountPath: /dev/shm
+      volumes:
+        - name: conf
+          configMap:
+            name: browser-conf
+        - name: shm
+          emptyDir:
+            medium: Memory
+            sizeLimit: 256Mi

@@ -36,6 +36,13 @@ images:
 
 patches:
   - target:
+      kind: Deployment
+      name: promovolve-browser
+    patch: |-
+      - op: add
+        path: /spec/template/spec/containers/0/imagePullPolicy
+        value: IfNotPresent
+  - target:
       kind: StatefulSet
       name: promovolve-api
     patch: |-

@@ -39,7 +39,10 @@ object Main {
   }
 
   object Guardian {
-    def apply(config: Config): Behavior[Nothing] = Behaviors.setup[Nothing] { context =>
+    def apply(
+        config: Config,
+        startBrowser: (ActorSystem[?], ClusterSharding) => Unit = BrowserRuntime.start
+    ): Behavior[Nothing] = Behaviors.setup[Nothing] { context =>
       given system: ActorSystem[Nothing] = context.system
       given ec: ExecutionContext = context.executionContext
 
@@ -59,122 +62,103 @@ object Main {
 
       val sharding = ClusterSharding(system)
 
-      // Initialize topics (all nodes need these for pub/sub)
-      val topics = ClusterBootstrap.Topics.init(context)
+      if (roles.contains("browser")) {
+        require(roles == Set("browser"), "Browser nodes must not host serving or entity roles")
+        startBrowser(system, sharding)
+        Behaviors.empty
+      } else {
+        // Initialize topics (all nodes need these for pub/sub)
+        val topics = ClusterBootstrap.Topics.init(context)
 
-      // Initialize repositories (PostgreSQL-backed for persistence)
-      val repositories = ClusterBootstrap.Repositories.init(config)
+        // Initialize repositories (PostgreSQL-backed for persistence)
+        val repositories = ClusterBootstrap.Repositories.init(config)
 
-      // Singletons: actual instances on singleton nodes, proxies on others
-      val (campaignDirectory, categoryRegistry, serveIndex, affinityRegistry, geminiRateLimiter, browserPool) =
-        if (roles.contains("singleton")) {
-          context.log.info("Initializing cluster singletons (this node hosts them)")
-          val singletons = ClusterBootstrap.Singletons.init(
+        // Singletons: actual instances on singleton nodes, proxies on others
+        val (campaignDirectory, categoryRegistry, serveIndex, affinityRegistry, geminiRateLimiter) =
+          if (roles.contains("singleton")) {
+            context.log.info("Initializing cluster singletons (this node hosts them)")
+            val singletons = ClusterBootstrap.Singletons.init(
+              system,
+              sharding,
+              topics
+            )
+            (singletons.campaignDirectory, singletons.categoryRegistry, singletons.serveIndex,
+              singletons.affinityRegistry, singletons.geminiRateLimiter)
+          } else {
+            context.log.info("Initializing singleton proxies")
+            val proxies = ClusterBootstrap.SingletonProxies.init(system, sharding, topics)
+            (proxies.campaignDirectory, proxies.categoryRegistry, proxies.serveIndex, proxies.affinityRegistry,
+              proxies.geminiRateLimiter)
+          }
+
+        // Fraud Layer-2 detector: singleton-role nodes WITHOUT the api role
+        // never run HttpBootstrap (where api nodes register this manager),
+        // so they must register it here — the manager has to exist on every
+        // singleton-role node or the singleton strands when such a node is
+        // oldest (bit the dedicated singleton tier 2026-07-23).
+        if (roles.contains("singleton") && !roles.contains("api"))
+          promovolve.api.fraud.FraudDetector.initFromConfig(system, config)
+
+        val workersEnabled = config.getBoolean("promovolve.browser.lp-workers.enabled")
+        // Legacy/local manifests remain usable while CI updates images before manual cutover.
+        val browserPool = if (roles.contains("api") && !workersEnabled)
+          promovolve.browser.BrowserSessionPool.init(system)
+        else system.ignoreRef[promovolve.browser.BrowserSessionPool.Command]
+        promovolve.browser.LPWorker.initSharding(system, sharding,
+          _ => scala.concurrent.Future.failed(new IllegalStateException("No browser worker on API node")),
+          promovolve.browser.LPWorker.settingsFromConfig(config))
+        promovolve.browser.BannerWorker.init(system, sharding,
+          _ => scala.concurrent.Future.failed(new IllegalStateException("No browser worker on API node")))
+
+        // Entity hosting: only on entity-role nodes
+        if (roles.contains("entity")) {
+          context.log.info("Initializing sharded entities (this node hosts them)")
+          ClusterBootstrap.Entities.initWithRefs(
             system,
             sharding,
-            topics
+            topics,
+            campaignDirectory,
+            categoryRegistry,
+            serveIndex,
+            affinityRegistry,
+            repositories,
+            geminiRateLimiter
           )
-          (singletons.campaignDirectory, singletons.categoryRegistry, singletons.serveIndex,
-            singletons.affinityRegistry, singletons.geminiRateLimiter, singletons.browserPool)
-        } else {
-          context.log.info("Initializing singleton proxies")
-          val proxies = ClusterBootstrap.SingletonProxies.init(system, sharding, topics)
-          (proxies.campaignDirectory, proxies.categoryRegistry, proxies.serveIndex, proxies.affinityRegistry,
-            proxies.geminiRateLimiter, proxies.browserPool)
-        }
 
-      // Fraud Layer-2 detector: singleton-role nodes WITHOUT the api role
-      // never run HttpBootstrap (where api nodes register this manager),
-      // so they must register it here — the manager has to exist on every
-      // singleton-role node or the singleton strands when such a node is
-      // oldest (bit the dedicated singleton tier 2026-07-23).
-      if (roles.contains("singleton") && !roles.contains("api"))
-        promovolve.api.fraud.FraudDetector.initFromConfig(system, config)
-
-      // Content crawling has been removed — pages are classified on-demand from
-      // real traffic (serve -> /v1/classify-page). The crawler-tier browser pool
-      // remains, used only by the LP analysis worker below.
-
-      // LP analysis worker — crawler-tier offload of landing-page Playwright
-      // analysis. The shard region is role-pinned to crawler, so initSharding
-      // runs on every node (proxy elsewhere) but the real RunAnalysis —
-      // Playwright + crawler-side R2 upload of captured bytes — is built ONLY
-      // on crawler nodes (where the browser pool + R2 creds live). image_asset
-      // dedup is skipped here (no DB on the crawler tier; R2 is
-      // content-addressed, so the upload stays idempotent).
-      val lpWorkerSettings = promovolve.browser.LPWorker.settingsFromConfig(config)
-      val lpRunAnalysis: promovolve.browser.LPWorker.RunAnalysis =
-        if (roles.contains("crawler")) {
-          val appCfg = config.getConfig("promovolve")
-          val cdnBase = appCfg.getString("cdn-base-url")
-          val bannerScriptUrl = appCfg.getString("banner-script-url")
-          val analyzer = new promovolve.browser.LPAnalyzer(bannerScriptUrl, browserPool)
-          promovolve.publisher.assets.ImageStorage.fromEnv()(using system) match {
-            case Some(storage) =>
-              context.log.info("LPWorker: analysis runner enabled on crawler node")
-              LPAnalysisRunner(analyzer, storage, None, cdnBase)(using system)
-            case None =>
-              context.log.warn("LPWorker: storage not configured on crawler node — set R2_LOCAL_URL or R2_*")
-              (_: promovolve.browser.LPWorker.AnalyzeLP) =>
-                scala.concurrent.Future.failed(new IllegalStateException("Storage not configured on crawler node"))
+          // Initialize dashboard projection on entity nodes
+          try {
+            val dbConfig = DatabaseConfig.forConfig[PostgresProfile]("dashboard-projection-db", config)
+            DashboardProjection.init(system, dbConfig)
+            context.log.info("Dashboard projection initialized")
+          } catch {
+            case ex: Exception =>
+              context.log.warn("Dashboard projection disabled: {}", ex.getMessage)
           }
-        } else
-          // Non-crawler node: the role-pinned entity factory never runs here, so
-          // this is never invoked — it only satisfies initSharding's signature.
-          (_: promovolve.browser.LPWorker.AnalyzeLP) =>
-            scala.concurrent.Future.failed(new IllegalStateException("LPWorker analysis runs only on crawler nodes"))
-      promovolve.browser.LPWorker.initSharding(system, sharding, lpRunAnalysis, lpWorkerSettings)
-      promovolve.browser.LPWorker.initKeepAlive(system, sharding, lpWorkerSettings)
-
-      // Entity hosting: only on entity-role nodes
-      if (roles.contains("entity")) {
-        context.log.info("Initializing sharded entities (this node hosts them)")
-        ClusterBootstrap.Entities.initWithRefs(
-          system,
-          sharding,
-          topics,
-          campaignDirectory,
-          categoryRegistry,
-          serveIndex,
-          affinityRegistry,
-          repositories,
-          geminiRateLimiter,
-          browserPool
-        )
-
-        // Initialize dashboard projection on entity nodes
-        try {
-          val dbConfig = DatabaseConfig.forConfig[PostgresProfile]("dashboard-projection-db", config)
-          DashboardProjection.init(system, dbConfig)
-          context.log.info("Dashboard projection initialized")
-        } catch {
-          case ex: Exception =>
-            context.log.warn("Dashboard projection disabled: {}", ex.getMessage)
         }
+
+        // HTTP server: only on api-role nodes
+        if (roles.contains("api")) {
+          context.log.info("Starting HTTP server")
+          val httpDeps = HttpBootstrap.HttpDependencies.init(
+            sharding,
+            campaignDirectory,
+            categoryRegistry,
+            serveIndex,
+            repositories.creative,
+            repositories.pendingSelectionStore,
+            topics.budgetEvent,
+            config,
+            affinityRegistry = Some(affinityRegistry),
+            geminiRateLimiter = geminiRateLimiter,
+            browserPool = browserPool
+          )
+          HttpBootstrap.HttpServer.start(config, httpDeps)
+        }
+
+        context.log.info("Node startup complete with roles: {}", roles.mkString(", "))
+
+        Behaviors.empty
       }
-
-      // HTTP server: only on api-role nodes
-      if (roles.contains("api")) {
-        context.log.info("Starting HTTP server")
-        val httpDeps = HttpBootstrap.HttpDependencies.init(
-          sharding,
-          campaignDirectory,
-          categoryRegistry,
-          serveIndex,
-          repositories.creative,
-          repositories.pendingSelectionStore,
-          topics.budgetEvent,
-          config,
-          affinityRegistry = Some(affinityRegistry),
-          geminiRateLimiter = geminiRateLimiter,
-          browserPool = browserPool
-        )
-        HttpBootstrap.HttpServer.start(config, httpDeps)
-      }
-
-      context.log.info("Node startup complete with roles: {}", roles.mkString(", "))
-
-      Behaviors.empty
     }
   }
 }

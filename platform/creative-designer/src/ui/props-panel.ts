@@ -25,6 +25,7 @@ import { loadBrandKit } from "../brand-kit";
 import { mountKitColorChips } from "./brand-kit-chips";
 import { DIRECTION_LABELS, FILL_MODE_LABELS, fontDisplayName, optionEntries, SCRIM_EDGE_LABELS, TEXT_ALIGN_LABELS, VALIGN_LABELS, WEIGHT_LABELS, WRITING_LABELS } from "../display-labels";
 import { isFormula } from "../formula";
+import { t, tk } from "../i18n";
 import { tokens } from "./tokens";
 
 export interface PropsPanelHandle {
@@ -173,24 +174,24 @@ function build(panel: HTMLElement, idx: number, item: LayoutItem, store: Store):
     // always present, so toggling needs no panel rebuild; x/y/color edits are
     // no-ops while it's off (blur 0 → shadow cleared).
     const sh = item.shadow;
-    setters.shadowBlur = numberField(target, "drop shadow", sh?.blur ?? 0,
+    setters.shadowBlur = numberField(target, tk("drop shadow"), sh?.blur ?? 0,
       (v, c) => mutate(store, idx, (it) => ({
         ...it,
         shadow: v > 0
           ? { x: it.shadow?.x ?? 0, y: it.shadow?.y ?? 0.4, blur: v, color: it.shadow?.color ?? "rgba(0,0,0,0.5)" }
           : undefined,
       }), c), 0, 20);
-    setters.shadowX = numberField(target, "shadow x", sh?.x ?? 0,
+    setters.shadowX = numberField(target, tk("shadow x"), sh?.x ?? 0,
       (v, c) => mutate(store, idx, (it) => (it.shadow ? { ...it, shadow: { ...it.shadow, x: v } } : it), c), -10, 10);
-    setters.shadowY = numberField(target, "shadow y", sh?.y ?? 0.4,
+    setters.shadowY = numberField(target, tk("shadow y"), sh?.y ?? 0.4,
       (v, c) => mutate(store, idx, (it) => (it.shadow ? { ...it, shadow: { ...it.shadow, y: v } } : it), c), -10, 10);
-    setters.shadowColor = colorField(target, "shadow color", normalizeShadowColor(sh?.color),
+    setters.shadowColor = colorField(target, tk("shadow color"), normalizeShadowColor(sh?.color),
       (v, c) => mutate(store, idx, (it) => (it.shadow ? { ...it, shadow: { ...it.shadow, color: v } } : it), c));
   };
 
-  const transform = group("Transform");
-  setters.left = numberField(transform, "left (%)", item.left ?? 0, (v, c) => mutate(store, idx, (it) => ({ ...it, left: v }), c));
-  setters.top  = numberField(transform, "top (%)",  item.top  ?? 0, (v, c) => mutate(store, idx, (it) => ({ ...it, top:  v }), c));
+  const transform = group(tk("Transform"));
+  setters.left = numberField(transform, tk("left (%)"), item.left ?? 0, (v, c) => mutate(store, idx, (it) => ({ ...it, left: v }), c));
+  setters.top  = numberField(transform, tk("top (%)"),  item.top  ?? 0, (v, c) => mutate(store, idx, (it) => ({ ...it, top:  v }), c));
   if (item.type !== "circle") {
     // For cropped images, a committed width/height edit re-fits the
     // crop window to the new box aspect — these fields used to be the
@@ -199,13 +200,13 @@ function build(panel: HTMLElement, idx: number, item: LayoutItem, store: Store):
     const refit = (c: boolean): void => {
       if (c && item.type === "image") void refitItemCropToBox(store, idx);
     };
-    setters.width  = numberField(transform, "width (%)",  item.width  ?? 30, (v, c) => { mutate(store, idx, (it) => ({ ...it, width:  v }), c); refit(c); });
-    setters.height = numberField(transform, "height (%)", item.height ?? 20, (v, c) => { mutate(store, idx, (it) => ({ ...it, height: v }), c); refit(c); });
+    setters.width  = numberField(transform, tk("width (%)"),  item.width  ?? 30, (v, c) => { mutate(store, idx, (it) => ({ ...it, width:  v }), c); refit(c); });
+    setters.height = numberField(transform, tk("height (%)"), item.height ?? 20, (v, c) => { mutate(store, idx, (it) => ({ ...it, height: v }), c); refit(c); });
   } else {
-    setters.radius = numberField(transform, "radius (%)", item.radius ?? 5, (v, c) => mutate(store, idx, (it) => ({ ...it, radius: v }), c));
+    setters.radius = numberField(transform, tk("radius (%)"), item.radius ?? 5, (v, c) => mutate(store, idx, (it) => ({ ...it, radius: v }), c));
   }
-  setters.rotation = numberField(transform, "rotation", item.rotation ?? 0, (v, c) => mutate(store, idx, (it) => ({ ...it, rotation: v }), c), -180, 180);
-  setters.opacity = numberField(transform, "opacity", item.opacity ?? 1, (v, c) => mutate(store, idx, (it) => ({ ...it, opacity: v }), c), 0, 1);
+  setters.rotation = numberField(transform, tk("rotation"), item.rotation ?? 0, (v, c) => mutate(store, idx, (it) => ({ ...it, rotation: v }), c), -180, 180);
+  setters.opacity = numberField(transform, tk("opacity"), item.opacity ?? 1, (v, c) => mutate(store, idx, (it) => ({ ...it, opacity: v }), c), 0, 1);
   // (The "CTA click target" checkbox is gone: delivery navigates on a
   // deliberate tap anywhere on the sheet, so there's nothing for the
   // author to wire. item.ctaTarget lives on only as a styling hint —
@@ -235,8 +236,8 @@ function build(panel: HTMLElement, idx: number, item: LayoutItem, store: Store):
     // Typography below stays in every mode — fitting the shared text to a
     // shape (size/weight/orientation) is exactly what sized tabs are for.
     if (isExpanded || !boundField) {
-      const textGroup = group("Text");
-      setters.text = textField(textGroup, "content", effectiveContent(store, item, "text"), (v, c) => mutateContent(store, idx, v, "text", c));
+      const textGroup = group(tk("Text"));
+      setters.text = textField(textGroup, tk("content"), effectiveContent(store, item, "text"), (v, c) => mutateContent(store, idx, v, "text", c));
       // Per-field colour page-sync (headline + body): while pages[0]'s
       // flag is on (absent = on), page 1 is the only place that field's
       // colour is edited — pages 2/3 show a hint instead of the picker.
@@ -247,10 +248,10 @@ function build(panel: HTMLElement, idx: number, item: LayoutItem, store: Store):
       if (colorLocked) {
         const lockHint = document.createElement("div");
         lockHint.style.cssText = `margin:0 0 10px;font-size:11px;color:${tokens.ink300};font-style:italic;`;
-        lockHint.textContent = "Color synced from page 1";
+        lockHint.textContent = t("Color synced from page 1");
         appendToGroup(textGroup, lockHint);
       } else {
-        setters.color = colorField(textGroup, "color", item.color ?? "#ffffff", (v, c) => mutate(store, idx, (it) => ({ ...it, color: v }), c));
+        setters.color = colorField(textGroup, tk("color"), item.color ?? "#ffffff", (v, c) => mutate(store, idx, (it) => ({ ...it, color: v }), c));
         mountKitColorChips(textGroup, {
           campaignId: window.__DESIGNER__?.campaignId ?? "",
           onPick: (color) => mutate(store, idx, (it) => ({ ...it, color }), true),
@@ -263,7 +264,7 @@ function build(panel: HTMLElement, idx: number, item: LayoutItem, store: Store):
         const firstPage = store.state.pageIdx === 0;
         const syncColorRow = document.createElement("label");
         syncColorRow.style.cssText = `display:flex;align-items:center;gap:8px;margin-bottom:10px;font-size:11px;color:${tokens.ink200};${firstPage ? "cursor:pointer;" : "opacity:0.45;cursor:not-allowed;"}`;
-        if (!firstPage) syncColorRow.title = "Set from page 1";
+        if (!firstPage) syncColorRow.title = t("Set from page 1");
         const cb = document.createElement("input");
         cb.type = "checkbox";
         cb.checked = fieldSynced;
@@ -272,7 +273,7 @@ function build(panel: HTMLElement, idx: number, item: LayoutItem, store: Store):
         cb.addEventListener("change", () => {
           store.commit(setSyncFieldColor(store.state, boundField, cb.checked));
         });
-        syncColorRow.append(cb, document.createTextNode("Sync color across all 3 pages"));
+        syncColorRow.append(cb, document.createTextNode(t("Sync color across all 3 pages")));
         appendToGroup(textGroup, syncColorRow);
       }
       setters.contrastWarning = contrastWarningRow(textGroup, store);
@@ -280,15 +281,15 @@ function build(panel: HTMLElement, idx: number, item: LayoutItem, store: Store):
       sections.push(textGroup);
     }
 
-    const typo = group("Typography");
-    setters.fontFamily = selectField(typo, "font", item.fontFamily ?? "sans-serif",
+    const typo = group(tk("Typography"));
+    setters.fontFamily = selectField(typo, tk("font"), item.fontFamily ?? "sans-serif",
       fontOptions(item.fontFamily),
       (v, c) => mutate(store, idx, (it) => ({ ...it, fontFamily: v }), c),
       true, // full-width: font stacks are too long for the inline layout
       undefined,
       fontLabels(fontOptions(item.fontFamily)),
     );
-    setters.fontWeight = selectField(typo, "weight", String(item.fontWeight ?? "normal"),
+    setters.fontWeight = selectField(typo, tk("weight"), String(item.fontWeight ?? "normal"),
       ["normal", "bold", "100", "200", "300", "400", "500", "600", "700", "800", "900"],
       (v, c) => mutate(store, idx, (it) => ({ ...it, fontWeight: v }), c),
       false, undefined, WEIGHT_LABELS,
@@ -298,7 +299,7 @@ function build(panel: HTMLElement, idx: number, item: LayoutItem, store: Store):
     // an incremental per-keystroke one). Resets on commit and on panel rebuild
     // (i.e. when a different item is selected).
     let fontSizeBaseline: number | null = null;
-    setters.fontSize = numberField(typo, "font size", item.fontSize ?? 5, (v, c) => {
+    setters.fontSize = numberField(typo, tk("font size"), item.fontSize ?? 5, (v, c) => {
       if (fontSizeBaseline == null) {
         const cur = currentLayout(store.state)[idx];
         fontSizeBaseline = cur && cur.type === "text" ? (cur.fontSize ?? 5) : v;
@@ -307,9 +308,9 @@ function build(panel: HTMLElement, idx: number, item: LayoutItem, store: Store):
       if (c) fontSizeBaseline = null;
     });
     setters.__fitNote = fitNote(typo, idx);
-    setters.lineHeight = numberField(typo, "line height", item.lineHeight ?? 1.2,
+    setters.lineHeight = numberField(typo, tk("line height"), item.lineHeight ?? 1.2,
       (v, c) => mutate(store, idx, (it) => ({ ...it, lineHeight: v }), c), 0.5, 3);
-    setters.textAlign = selectField(typo, "align", item.textAlign ?? "left",
+    setters.textAlign = selectField(typo, tk("align"), item.textAlign ?? "left",
       ["left", "center", "right", "justify"],
       (v, c) => mutate(store, idx, (it) => ({ ...it, textAlign: v as "left" | "center" | "right" | "justify" }), c),
       false, undefined, TEXT_ALIGN_LABELS,
@@ -320,7 +321,7 @@ function build(panel: HTMLElement, idx: number, item: LayoutItem, store: Store):
     panel.appendChild(typo);
     sections.push(typo);
 
-    const layoutGroup = group("Layout");
+    const layoutGroup = group(tk("Layout"));
     // No "fit" control: text with an explicit height shrinks-to-fit by
     // default now (the renderer treats anything but textFit:"clip" as
     // shrink), so it never clips unexpectedly and stays consistent across
@@ -329,17 +330,17 @@ function build(panel: HTMLElement, idx: number, item: LayoutItem, store: Store):
     // Where short copy sits inside a worst-case-sized box. Boxes are
     // regions (stable composition contract); this distributes the
     // headroom instead of pooling it all at the bottom.
-    setters.verticalAlign = selectField(layoutGroup, "v-align", item.verticalAlign ?? "top",
+    setters.verticalAlign = selectField(layoutGroup, tk("v-align"), item.verticalAlign ?? "top",
       ["top", "middle", "bottom"],
       (v, c) => mutate(store, idx, (it) => ({ ...it, verticalAlign: v as "top" | "middle" | "bottom" }), c),
       false, undefined, VALIGN_LABELS,
     );
-    setters.writingMode = selectField(layoutGroup, "writing", item.writingMode ?? "horizontal-tb",
+    setters.writingMode = selectField(layoutGroup, tk("writing"), item.writingMode ?? "horizontal-tb",
       ["horizontal-tb", "vertical-rl"],
       (v, c) => setWritingMode(store, idx, v as "horizontal-tb" | "vertical-rl", c),
       false, undefined, WRITING_LABELS,
     );
-    setters.direction = selectField(layoutGroup, "direction", item.direction ?? "ltr",
+    setters.direction = selectField(layoutGroup, tk("direction"), item.direction ?? "ltr",
       ["ltr", "rtl"],
       (v, c) => mutate(store, idx, (it) => ({ ...it, direction: v as "ltr" | "rtl" }), c),
       false, undefined, DIRECTION_LABELS,
@@ -351,7 +352,7 @@ function build(panel: HTMLElement, idx: number, item: LayoutItem, store: Store):
     // background / crop / fill mode / edge effects don't apply. Its
     // content is edited as LaTeX — "Edit formula" in the selection bar.
   } else if (item.type === "image") {
-    const content = group("Image");
+    const content = group(tk("Image"));
     // No pin/sync toggle here (removed 2026-07-13, user decision): THE
     // image is defined by page 1 of the expanded view — normalize.ts
     // reconciles page.img from it at load, and "Replace image…" fans it
@@ -360,12 +361,12 @@ function build(panel: HTMLElement, idx: number, item: LayoutItem, store: Store):
     // in a size you adjust placement + crop.
     // ("Replace" lives in the selection bar, expanded view only.)
     if (!isExpanded) {
-      contentHint(content, "Image set in the Expanded view");
+      contentHint(content, t("Image set in the Expanded view"));
     }
     // ("Remove background" lives in the selection bar.)
     // Fill = cover (may crop to the box, honours the crop window).
     // Fit  = contain (whole image at its natural proportion, letterboxed).
-    selectField(content, "fill mode", item.fillMode ?? "fill", ["fill", "fit"],
+    selectField(content, tk("fill mode"), item.fillMode ?? "fill", ["fill", "fit"],
       (v, c) => mutate(store, idx, (it) => {
         if (it.type !== "image") return it;
         return v === "fit"
@@ -389,7 +390,7 @@ function build(panel: HTMLElement, idx: number, item: LayoutItem, store: Store):
     // so it can be hidden in Fit mode (see fitEffectsVisible below).
     const radiusWrap = document.createElement("div");
     appendToGroup(content, radiusWrap);
-    setters.borderRadius = numberField(radiusWrap, "corner radius", item.borderRadius ?? 0,
+    setters.borderRadius = numberField(radiusWrap, tk("corner radius"), item.borderRadius ?? 0,
       (v, c) => mutate(store, idx, (it) => ({ ...it, borderRadius: v || undefined }), c), 0, 50);
     panel.appendChild(content);
     sections.push(content);
@@ -397,15 +398,15 @@ function build(panel: HTMLElement, idx: number, item: LayoutItem, store: Store):
     // Edge effects. Each numeric control treats 0 as "off" (stored as
     // undefined, mirroring borderRadius), so the controls are always
     // present and toggling one needs no panel rebuild.
-    const fx = group("Edge Effects");
-    setters.feather = numberField(fx, "feather", item.feather ?? 0,
+    const fx = group(tk("Edge Effects"));
+    setters.feather = numberField(fx, tk("feather"), item.feather ?? 0,
       (v, c) => mutate(store, idx, (it) => ({ ...it, feather: v || undefined }), c), 0, 30);
-    setters.vignette = numberField(fx, "vignette", item.vignette?.strength ?? 0,
+    setters.vignette = numberField(fx, tk("vignette"), item.vignette?.strength ?? 0,
       (v, c) => mutate(store, idx, (it) => {
         if (it.type !== "image") return it;
         return { ...it, vignette: v > 0 ? { strength: v, color: it.vignette?.color } : undefined };
       }, c), 0, 1);
-    setters.tornEdge = numberField(fx, "torn edge", item.tornEdge ?? 0,
+    setters.tornEdge = numberField(fx, tk("torn edge"), item.tornEdge ?? 0,
       (v, c) => mutate(store, idx, (it) => ({ ...it, tornEdge: v || undefined }), c), 0, 10);
     // A drop shadow is the same family of box/edge effect, so it lives here
     // under Edge Effects rather than a separate "Shadow" group. (rect/circle
@@ -428,14 +429,14 @@ function build(panel: HTMLElement, idx: number, item: LayoutItem, store: Store):
   } else if (item.type === "rect" && item.scrim) {
     buildScrimGroup(panel, sections, idx, item, store, setters);
   } else {
-    const content = group("Fill");
-    setters.fill = colorField(content, "color", item.fill ?? "#1f2937", (v, c) => mutate(store, idx, (it) => ({ ...it, fill: v }), c));
+    const content = group(tk("Fill"));
+    setters.fill = colorField(content, tk("color"), item.fill ?? "#1f2937", (v, c) => mutate(store, idx, (it) => ({ ...it, fill: v }), c));
     mountKitColorChips(content, {
       campaignId: window.__DESIGNER__?.campaignId ?? "",
       onPick: (color) => mutate(store, idx, (it) => ({ ...it, fill: color }), true),
     });
     if (item.type === "rect") {
-      setters.borderRadius = numberField(content, "corner radius", item.borderRadius ?? 0,
+      setters.borderRadius = numberField(content, tk("corner radius"), item.borderRadius ?? 0,
         (v, c) => mutate(store, idx, (it) => ({ ...it, borderRadius: v || undefined }), c), 0, 50);
     }
     panel.appendChild(content);
@@ -447,7 +448,7 @@ function build(panel: HTMLElement, idx: number, item: LayoutItem, store: Store):
   // Effects (above); text shadow lives in Typography (it's a text-shadow, a
   // typographic property).
   if (item.type !== "text" && item.type !== "image" && !(item.type === "rect" && item.scrim)) {
-    const shadowGroup = group("Shadow");
+    const shadowGroup = group(tk("Shadow"));
     addShadowFields(shadowGroup);
     panel.appendChild(shadowGroup);
     sections.push(shadowGroup);
@@ -470,7 +471,7 @@ function buildScrimGroup(
   panel: HTMLElement, sections: HTMLElement[], idx: number,
   item: RectItem, store: Store, setters: Record<string, (item: LayoutItem) => void>,
 ): void {
-  const g = group("Scrim");
+  const g = group(tk("Scrim"));
   const scrim = item.scrim!;
 
   const apply = (patch: Partial<ScrimSpec>, commit: boolean): void => {
@@ -483,11 +484,11 @@ function buildScrimGroup(
   const readScrim = (it: LayoutItem): ScrimSpec | undefined =>
     it.type === "rect" ? it.scrim : undefined;
 
-  setters.scrimEdge = selectField(g, "edge", scrim.edge, [...SCRIM_EDGES],
+  setters.scrimEdge = selectField(g, tk("edge"), scrim.edge, [...SCRIM_EDGES],
     (v) => apply({ edge: v as ScrimEdge }, true), false,
     (it) => readScrim(it)?.edge, SCRIM_EDGE_LABELS);
 
-  setters.scrimColor = colorField(g, "color", scrim.color,
+  setters.scrimColor = colorField(g, tk("color"), scrim.color,
     (v, c) => apply({ color: v }, c), (it) => readScrim(it)?.color);
   mountKitColorChips(g, {
     campaignId: window.__DESIGNER__?.campaignId ?? "",
@@ -503,7 +504,7 @@ function buildScrimGroup(
   cb.style.cssText = "margin:0;cursor:pointer;";
   const cbRow = document.createElement("label");
   cbRow.style.cssText = `display:flex;align-items:center;gap:8px;margin:8px 0 6px;font-size:11px;color:${tokens.ink200};cursor:pointer;`;
-  cbRow.append(cb, document.createTextNode("Two-colour gradient"));
+  cbRow.append(cb, document.createTextNode(t("Two-colour gradient")));
   appendToGroup(g, cbRow);
   cb.addEventListener("change", () => {
     const cur = currentItem(store.state);
@@ -514,7 +515,7 @@ function buildScrimGroup(
 
   const c2Wrap = document.createElement("div");
   appendToGroup(g, c2Wrap);
-  setters.scrimColor2 = colorField(c2Wrap, "color 2", scrim.color2 ?? scrim.color,
+  setters.scrimColor2 = colorField(c2Wrap, tk("color 2"), scrim.color2 ?? scrim.color,
     (v, c) => apply({ color2: v }, c),
     (it) => readScrim(it)?.color2 ?? readScrim(it)?.color);
   setters.scrimColor2Visible = (it) => {
@@ -522,10 +523,10 @@ function buildScrimGroup(
   };
   setters.scrimColor2Visible(item);
 
-  setters.scrimStrength = numberField(g, "strength", scrim.strength,
+  setters.scrimStrength = numberField(g, tk("strength"), scrim.strength,
     (v, c) => apply({ strength: v }, c), 0, 1, (it) => readScrim(it)?.strength);
 
-  setters.borderRadius = numberField(g, "corner radius", item.borderRadius ?? 0,
+  setters.borderRadius = numberField(g, tk("corner radius"), item.borderRadius ?? 0,
     (v, c) => mutate(store, idx, (it) => ({ ...it, borderRadius: v || undefined }), c), 0, 50);
 
   panel.appendChild(g);
@@ -558,14 +559,14 @@ function cropRow(parent: HTMLElement, idx: number, item: ImageItem, store: Store
 
   const label = document.createElement("span");
   label.style.cssText = `flex:0 0 80px;color:${tokens.ink300};font-size:11px;`;
-  label.textContent = "crop";
+  label.textContent = t("crop");
 
   const status = document.createElement("span");
   status.style.cssText = `flex:1;font-family:${tokens.sans};font-size:10px;color:${tokens.ink300};`;
   const c = item.crop;
   status.textContent = c
     ? `${c.w.toFixed(0)}×${c.h.toFixed(0)}% @ ${c.x.toFixed(0)},${c.y.toFixed(0)}`
-    : "none";
+    : t("none");
 
   wrap.append(label, status);
 
@@ -573,7 +574,7 @@ function cropRow(parent: HTMLElement, idx: number, item: ImageItem, store: Store
     const clearBtn = document.createElement("button");
     clearBtn.type = "button";
     clearBtn.textContent = "×";
-    clearBtn.title = "Clear crop";
+    clearBtn.title = t("Clear crop");
     clearBtn.style.cssText = [
       "width: 18px",
       "height: 18px",
@@ -615,7 +616,7 @@ function group(label: string): HTMLElement {
   header.className = "cd-group-header";
   header.style.cssText = `width:100%;display:flex;align-items:center;justify-content:space-between;gap:6px;background:none;border:none;color:${tokens.ink100};font:inherit;font-size:10px;padding:10px 0 8px;cursor:pointer;font-weight:700;`;
   const labelSpan = document.createElement("span");
-  labelSpan.textContent = label;
+  labelSpan.textContent = t(label);
   const caret = document.createElement("span");
   caret.textContent = "▾";
   caret.className = "cd-group-caret";
@@ -667,7 +668,7 @@ function row(parent: HTMLElement, label: string, input: HTMLElement): void {
   const row = document.createElement("label");
   row.style.cssText = "display:flex;align-items:center;gap:8px;margin-bottom:6px;";
   const lbl = document.createElement("span");
-  lbl.textContent = label;
+  lbl.textContent = t(label);
   lbl.style.cssText = `flex:0 0 80px;color:${tokens.ink300};font-size:11px;`;
   (input.style as CSSStyleDeclaration).cssText += ";flex:1;min-width:0;";
   row.append(lbl, input);
@@ -682,7 +683,7 @@ function rowStacked(parent: HTMLElement, label: string, input: HTMLElement): voi
   const wrap = document.createElement("label");
   wrap.style.cssText = "display:flex;flex-direction:column;align-items:stretch;gap:4px;margin-bottom:6px;";
   const lbl = document.createElement("span");
-  lbl.textContent = label;
+  lbl.textContent = t(label);
   lbl.style.cssText = `color:${tokens.ink300};font-size:11px;`;
   (input.style as CSSStyleDeclaration).cssText += ";width:100%;box-sizing:border-box;";
   wrap.append(lbl, input);
@@ -743,7 +744,7 @@ function fitNote(parent: HTMLElement, idx: number): (item: LayoutItem) => void {
       const authored = item.fontSize ?? 5;
       const clamped = Number.isFinite(drawn) && drawn > 0 && drawn < authored - 0.05;
       note.style.display = clamped ? "block" : "none";
-      if (clamped) note.textContent = `drawn at ≈${drawn.toFixed(1)} — the box is too small`;
+      if (clamped) note.textContent = t("drawn at ≈%s — the box is too small", drawn.toFixed(1));
     }));
   };
 }
@@ -865,7 +866,7 @@ function contrastWarningRow(parent: HTMLElement, store: Store): (item: LayoutIte
     const ratio = lowContrastRatio(item.color, page?.bg);
     if (ratio !== null) {
       wrap.style.display = "flex";
-      wrap.textContent = `⚠ Low contrast (${ratio.toFixed(1)}:1) — readers may not see this text`;
+      wrap.textContent = t("⚠ Low contrast (%s:1) — readers may not see this text", ratio.toFixed(1));
     } else {
       wrap.style.display = "none";
       wrap.textContent = "";
@@ -1011,8 +1012,8 @@ function effectiveContent(store: Store, item: LayoutItem, kind: "text" | "src"):
 // able to change it (content is edited in the Expanded view).
 function contentHint(parent: HTMLElement, value: string): void {
   const hint = document.createElement("div");
-  hint.textContent = value || "(empty)";
-  hint.title = "Edit content in the Expanded view";
+  hint.textContent = value || t("(empty)");
+  hint.title = t("Edit content in the Expanded view");
   hint.style.cssText = `color:${tokens.ink300};font-size:11px;background:${tokens.ink900};border:1px dashed ${tokens.ink500};border-radius:2px;padding:4px 6px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;`;
   parent.appendChild(hint);
 }

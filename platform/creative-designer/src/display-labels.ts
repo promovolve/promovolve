@@ -10,6 +10,21 @@ export function optionEntries(options: string[], labels?: Record<string, string>
   return options.map((value) => ({ value, label: labels?.[value] ? t(labels[value]!) : value }));
 }
 
+export const VIDEO_FIT_LABELS: Record<string, string> = {
+  cover: tk("Fill (crop)"),
+  contain: tk("Whole video"),
+};
+export const TEXTURE_MODE_LABELS: Record<string, string> = {
+  tile: tk("Tile"),
+  cover: tk("Single image"),
+};
+export const BLEND_LABELS: Record<string, string> = {
+  normal: tk("Normal"),
+  multiply: tk("Multiply"),
+  overlay: tk("Overlay"),
+  screen: tk("Screen"),
+  "soft-light": tk("Soft light"),
+};
 export const WRITING_LABELS: Record<string, string> = {
   "horizontal-tb": tk("Horizontal"),
   "vertical-rl": tk("Vertical"),

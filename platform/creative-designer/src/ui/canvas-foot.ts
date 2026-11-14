@@ -7,6 +7,7 @@
 //          from the menu bar because they're canvas-view concerns
 //          rather than identity chrome.
 
+import { t } from "../i18n";
 import { currentPage, setZoom, switchPage } from "../state";
 import { isMultiPage } from "../modes";
 import { fanoutStatus, type FanoutStatus } from "../state/fanout";
@@ -148,7 +149,7 @@ export function mountCanvasFoot(host: HTMLElement, store: Store): CanvasFootHand
     update(state) {
       const total = state.pages.length;
       pager.style.display = pagerVisible(state) ? "flex" : "none";
-      pageLabel.textContent = total > 0 ? `Page ${state.pageIdx + 1} / ${total}` : "—";
+      pageLabel.textContent = total > 0 ? t("Page %d / %d", state.pageIdx + 1, total) : "—";
       setEnabled(prev, state.pageIdx > 0);
       setEnabled(next, state.pageIdx < total - 1);
       const page = currentPage(state);

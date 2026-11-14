@@ -24,6 +24,12 @@ describe("i18n sweep", () => {
     expect(lines.filter(({ l }) => raw.test(l) && !/\bt\(/.test(l)).map((x) => x.at)).toEqual([]);
   });
 
+  it("no user-facing Error message in English", () => {
+    // math.ts throws only on a developer mistake (bad aspect literal).
+    const raw = /new Error\(\s*[`"'][A-Z][a-z]+[- ][a-z]/;
+    expect(lines.filter(({ at, l }) => raw.test(l) && !/\bt\(/.test(l) && !at.startsWith("math.ts")).map((x) => x.at)).toEqual([]);
+  });
+
   it("no selector matches on placeholder text (it gets translated)", () => {
     expect(lines.filter(({ l }) => /querySelector[^(]*\([^)]*placeholder=/.test(l)).map((x) => x.at)).toEqual([]);
   });

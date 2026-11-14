@@ -16,7 +16,7 @@ import type { Store } from "../store";
 import type { BannerConfig } from "@banner/types";
 import type { DesignerState, TextureBg, VideoBg } from "../types";
 import { openAssetModal } from "./asset-modal";
-import { BLEND_LABELS, optionEntries, TEXTURE_MODE_LABELS, VIDEO_FIT_LABELS } from "../display-labels";
+import { BLEND_LABELS, displayFileName, optionEntries, TEXTURE_MODE_LABELS, VIDEO_FIT_LABELS } from "../display-labels";
 import { t, tk } from "../i18n";
 import { tokens } from "./tokens";
 import { visualRect } from "./visual-rect";
@@ -417,7 +417,7 @@ function renderWithVideo(body: HTMLElement, videoBg: VideoBg, store: Store): voi
   head.style.cssText = "display:flex;align-items:center;gap:8px;margin-bottom:12px;";
   const filename = document.createElement("span");
   filename.style.cssText = `flex:1;min-width:0;font-size:11px;color:${tokens.ink200};overflow:hidden;text-overflow:ellipsis;white-space:nowrap;`;
-  filename.textContent = fileNameFromUrl(videoBg.src);
+  filename.textContent = displayFileName(videoBg.src) ?? t("Uploaded video");
   filename.title = videoBg.src;
   head.appendChild(filename);
   const replace = uploadButton(store, t("Replace"));
@@ -639,7 +639,7 @@ function renderWithTexture(body: HTMLElement, textureBg: TextureBg, store: Store
   head.style.cssText = "display:flex;align-items:center;gap:8px;margin-bottom:12px;";
   const filename = document.createElement("span");
   filename.style.cssText = `flex:1;min-width:0;font-size:11px;color:${tokens.ink200};overflow:hidden;text-overflow:ellipsis;white-space:nowrap;`;
-  filename.textContent = fileNameFromUrl(textureBg.src);
+  filename.textContent = displayFileName(textureBg.src) ?? t("Uploaded image");
   filename.title = textureBg.src;
   head.appendChild(filename);
   const library = textureLibraryButton(store, t("Library"));
@@ -1102,12 +1102,3 @@ function mutate(store: Store, fn: (bg: VideoBg) => VideoBg, commitNow: boolean):
 
 // ─── Utils ─────────────────────────────────────────────────────────
 
-function fileNameFromUrl(url: string): string {
-  try {
-    const u = new URL(url, window.location.origin);
-    const parts = u.pathname.split("/").filter(Boolean);
-    return parts[parts.length - 1] || url;
-  } catch {
-    return url;
-  }
-}

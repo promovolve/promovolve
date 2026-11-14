@@ -23,7 +23,7 @@ import { scrimGradient, SCRIM_EDGES, type ScrimEdge, type ScrimSpec } from "../s
 import { lowContrastRatio } from "../color-contrast";
 import { loadBrandKit } from "../brand-kit";
 import { mountKitColorChips } from "./brand-kit-chips";
-import { DIRECTION_LABELS, FILL_MODE_LABELS, fontDisplayName, optionEntries, SCRIM_EDGE_LABELS, TEXT_ALIGN_LABELS, VALIGN_LABELS, WEIGHT_LABELS, WRITING_LABELS } from "../display-labels";
+import { DIRECTION_LABELS, FILL_MODE_LABELS, fontDisplayName, optionEntries, uniqueFonts, SCRIM_EDGE_LABELS, TEXT_ALIGN_LABELS, VALIGN_LABELS, WEIGHT_LABELS, WRITING_LABELS } from "../display-labels";
 import { isFormula } from "../formula";
 import { typeName } from "../selection-model";
 import { t, tk } from "../i18n";
@@ -70,7 +70,7 @@ function fontOptions(current: string | undefined): string[] {
   brand.forEach(push); // the LP-extracted / brand-kit families (Google + opt-in)
   SYSTEM_FONTS.forEach(push);
   GOOGLE_FONT_STACKS.forEach(push);
-  return opts;
+  return uniqueFonts(opts);
 }
 
 interface RenderedState {

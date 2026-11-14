@@ -315,6 +315,11 @@ export const JA: Record<string, string> = {
   "Uploading cutout…": "切り抜きをアップロード中…",
   "Apply layout template": "レイアウトテンプレートを適用",
   "Replaces this size's layout — Cmd+Z to undo": "このサイズのレイアウトを置き換えます。Cmd+Z で元に戻せます",
+  "Video background": "背景動画",
+  "Uploaded video": "アップロードした動画",
+  "Uploaded image": "アップロードした画像",
+  "Couldn't load the formula renderer": "数式の描画機能を読み込めませんでした",
+  "Invalid formula": "数式が正しくありません",
   // Auto-crop pill
   "Loading the subject detector…": "被写体の検出機能を読み込み中…",
   "Auto-cropping (%d/%d)…": "自動で切り抜き中 (%d/%d)…",

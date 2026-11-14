@@ -63,6 +63,18 @@ export function paperBackStock(
   return `${configured ?? PAPER_BASE}${alpha}`;
 }
 
+/** The collapsed ad's lift off the publisher's page (GH #507): a soft
+  * drop-shadow filter, which follows what is painted (rounded corners,
+  * the punched dog-ear corner and its flap). Flat on the edit canvas,
+  * and flat for a see-through page (#RRGGBBAA below ff), which is meant
+  * to blend with the article: a shadow would show through and grey it. */
+export function collapsedLift(editMode: boolean, pageBg: string | undefined): string {
+  const translucent = !!pageBg && /^#[0-9a-fA-F]{8}$/.test(pageBg) && !/ff$/i.test(pageBg);
+  return editMode || translucent
+    ? "none"
+    : "drop-shadow(0 1px 2px rgba(0,0,0,.14)) drop-shadow(0 3px 8px rgba(0,0,0,.10))";
+}
+
 /** Background list for a paper-back surface: caller's lighting/sheen
   * gradient on top, then the two texture tiles, then the base tone. The
   * base is a CSS var so a creative can recolor the stock (banner.ts sets

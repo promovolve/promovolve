@@ -24,6 +24,7 @@ import type { Store } from "../store";
 import type { DesignerState, LayoutItem } from "../types";
 import { tokens } from "./tokens";
 import { itemName } from "../selection-model";
+import { displayFileName } from "../display-labels";
 import { visualRect } from "./visual-rect";
 
 export interface LayersHandle {
@@ -171,7 +172,8 @@ function buildVideoBgRow(store: Store): { el: HTMLElement; update: (state: Desig
       return;
     }
     el.style.display = "flex";
-    name.textContent = t("Video background · %s", fileNameFromUrl(bg.src));
+    const file = displayFileName(bg.src);
+    name.textContent = file ? t("Video background · %s", file) : t("Video background");
     const visible = (bg.opacity ?? 1) > 0;
     eye.innerHTML = visible ? ICON_EYE : ICON_EYE_OFF;
     eye.title = visible ? t("Hide background video") : t("Show background video");
@@ -181,14 +183,6 @@ function buildVideoBgRow(store: Store): { el: HTMLElement; update: (state: Desig
   return { el, update };
 }
 
-function fileNameFromUrl(url: string): string {
-  try {
-    const parts = new URL(url, window.location.origin).pathname.split("/").filter(Boolean);
-    return parts[parts.length - 1] || url;
-  } catch {
-    return url;
-  }
-}
 
 function renderRow(item: LayoutItem, idx: number, state: DesignerState, store: Store): HTMLElement {
   const selected = isSelected(state, idx);

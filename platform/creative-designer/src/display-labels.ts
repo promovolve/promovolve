@@ -91,3 +91,23 @@ export function fontDisplayName(stack: string): string {
 export function isHashName(name: string): boolean {
   return /^[0-9a-f]{12,}(\.[a-z0-9]+)?$/i.test(name.split("?")[0]!);
 }
+
+/** The last path segment of a URL without its query or fragment, or null
+ *  when there is none or it's a content hash (uploaded assets are stored as
+ *  assets/<hash>.<ext>) — callers show a plain word instead. */
+export function displayFileName(src: string): string | null {
+  const name = src.split(/[?#]/, 1)[0]!.split("/").filter(Boolean).pop() ?? "";
+  return !name || isHashName(name) ? null : name;
+}
+
+/** Drop font stacks whose display name is already listed (e.g. a brand
+ *  "Inter" and the built-in "Inter, sans-serif"), keeping the first. */
+export function uniqueFonts(stacks: string[]): string[] {
+  const seen = new Set<string>();
+  return stacks.filter((s) => {
+    const name = fontDisplayName(s);
+    if (seen.has(name)) return false;
+    seen.add(name);
+    return true;
+  });
+}

@@ -3,7 +3,7 @@
 // the selected item's values. Pure (no DOM) so it is unit-tested; the
 // selection bar, the sidebar and the Layers panel all read from here.
 
-import { FIELD_LABELS, isHashName } from "./display-labels";
+import { FIELD_LABELS, displayFileName } from "./display-labels";
 import { isFormula } from "./formula";
 import { t } from "./i18n";
 import { isMultiPage } from "./modes";
@@ -82,6 +82,7 @@ export function typeName(item: LayoutItem): string {
   if (item.type === "text") return t("Text");
   if (item.type === "image") return t("Image");
   if (item.type === "rect" && item.scrim) return t("Scrim");
+  if (item.type === "circle") return t("Circle");
   return t("Shape");
 }
 
@@ -96,11 +97,9 @@ export function itemName(item: LayoutItem): string {
     if (item.latex) return item.latex.length > 40 ? item.latex.slice(0, 40) + "…" : item.latex;
     const src = (item.src ?? "").trim();
     if (!src) return item.field ? t(FIELD_LABELS[item.field] ?? item.field) : t("Image");
-    const parts = src.split("/");
-    const name = parts[parts.length - 1] ?? "";
-    return !name || isHashName(name) ? t("Image") : name;
+    return displayFileName(src) ?? t("Image");
   }
-  if (item.type === "rect") return t("Scrim");
+  if (item.type === "rect") return item.scrim ? t("Scrim") : t("Shape");
   if (item.type === "circle") return t("Circle");
   return t("Item");
 }

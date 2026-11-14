@@ -13,6 +13,7 @@
 // The overlay is a child of the canvas wrap and shares its aspect
 // ratio, so percent coordinates map directly to its inner box.
 
+import { t, tk } from "../i18n";
 import { isMultiPage } from "../modes";
 import { startDrag } from "../interaction/drag";
 import { selectionBounds, startGroupResize } from "../interaction/group-resize-gesture";
@@ -298,7 +299,7 @@ function renderOverlay(root: HTMLElement, state: DesignerState): void {
     const g = document.createElement("div");
     g.dataset.cdFold = "1";
     g.style.cssText = `position:absolute;left:0;right:0;top:${top}%;border-top:1px dashed ${tokens.ink300};pointer-events:none;font-size:9px;color:${tokens.ink300};line-height:1`;
-    g.textContent = "fold";
+    g.textContent = t("fold");
     root.appendChild(g);
   }
   const items = currentLayout(state);
@@ -416,7 +417,7 @@ function renderMotionGhost(
   // read as a mystery box parked over unrelated content. Non-interactive
   // — clicks on it obey the ghost's click-through rule.
   const tag = document.createElement("div");
-  tag.textContent = "END POSE";
+  tag.textContent = t("END POSE");
   tag.style.cssText = [
     "position: absolute",
     "left: 0",
@@ -764,38 +765,38 @@ function buildMenu(store: Store): MenuEntry[] {
   );
   return [
     {
-      label: "Bring to Front",
+      label: tk("Bring to front"),
       shortcut: "}",
       disabled: !hasSel,
       onSelect: () => store.commit(bringToFront(store.state)),
     },
     {
-      label: "Bring Forward",
+      label: tk("Bring forward"),
       shortcut: "]",
       disabled: !hasSel,
       onSelect: () => store.commit(bringForward(store.state)),
     },
     {
-      label: "Send Backward",
+      label: tk("Send backward"),
       shortcut: "[",
       disabled: !hasSel,
       onSelect: () => store.commit(sendBackward(store.state)),
     },
     {
-      label: "Send to Back",
+      label: tk("Send to back"),
       shortcut: "{",
       disabled: !hasSel,
       onSelect: () => store.commit(sendToBack(store.state)),
     },
     "---",
     {
-      label: "Group",
+      label: tk("Group"),
       shortcut: `${modKey}G`,
       disabled: selCount < 2,
       onSelect: () => store.commit(groupSelection(store.state)),
     },
     {
-      label: "Ungroup",
+      label: tk("Ungroup"),
       shortcut: `${modKey}⇧G`,
       disabled: !anyGrouped,
       onSelect: () => store.commit(ungroupSelection(store.state)),
@@ -807,7 +808,7 @@ function buildMenu(store: Store): MenuEntry[] {
     ...(hasAnim
       ? ([
           {
-            label: "Remove End-Pose Tween",
+            label: tk("Remove end pose"),
             onSelect: () => {
               store.commit(updateItem(store.state, soloIdx, (it) => ({ ...it, animationTo: undefined })));
             },
@@ -816,26 +817,26 @@ function buildMenu(store: Store): MenuEntry[] {
         ] as MenuEntry[])
       : []),
     {
-      label: "Duplicate",
+      label: tk("Duplicate"),
       shortcut: `${modKey}D`,
       disabled: !hasSel,
       onSelect: () => duplicate(store),
     },
     {
-      label: "Copy",
+      label: tk("Copy"),
       shortcut: `${modKey}C`,
       disabled: !hasSel,
       onSelect: () => copy(store),
     },
     {
-      label: "Paste",
+      label: tk("Paste"),
       shortcut: `${modKey}V`,
       disabled: !hasClipboard(),
       onSelect: () => paste(store),
     },
     "---",
     {
-      label: "Delete",
+      label: tk("Delete"),
       shortcut: "⌫",
       disabled: !hasSel,
       onSelect: () => commitDeleteSelection(store),

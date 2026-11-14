@@ -27,6 +27,7 @@ import { ANIMATION_PRESETS, EASING_MENU, EXIT_PRESETS, easingIdFor, exitPresetBy
 import { currentItem, updateItem } from "../state";
 import type { Store } from "../store";
 import type { DesignerState, LayoutItem, MotionFrom } from "../types";
+import { t } from "../i18n";
 import { tokens } from "./tokens";
 
 export interface AnimationPanelHandle {
@@ -82,13 +83,13 @@ function build(panel: HTMLElement, idx: number, item: LayoutItem, store: Store, 
   panel.innerHTML = "";
   const setters: Array<(item: LayoutItem) => void> = [];
 
-  header(panel, "Entrance");
+  header(panel, t("Entrance"));
 
   // Preset picker. "None" clears the entrance (and its preset tag);
   // anything else materializes the preset's MotionFrom.
-  const presetSelect = select(panel, "Preset", [
-    { value: "", label: "None" },
-    ...ANIMATION_PRESETS.map((p) => ({ value: p.id, label: p.label })),
+  const presetSelect = select(panel, t("Preset"), [
+    { value: "", label: t("None") },
+    ...ANIMATION_PRESETS.map((p) => ({ value: p.id, label: t(p.label) })),
   ], item.animationPreset ?? "", (v) => {
     commit(store, idx, (it) => {
       if (v === "") return { ...it, animationFrom: undefined, animationPreset: undefined };
@@ -107,7 +108,7 @@ function build(panel: HTMLElement, idx: number, item: LayoutItem, store: Store, 
   if (from) {
     // Curated knobs — which ones show depends on the preset family.
     if (preset?.knob === "distance") {
-      const dist = numberField(panel, "Distance (%)", presetDistance(from), 0.5, (v) =>
+      const dist = numberField(panel, t("Distance (%)"), presetDistance(from), 0.5, (v) =>
         commit(store, idx, (it) => ({
           ...it,
           animationFrom: it.animationFrom ? withDistance(it.animationFrom, Math.max(0, v)) : it.animationFrom,
@@ -115,26 +116,26 @@ function build(panel: HTMLElement, idx: number, item: LayoutItem, store: Store, 
       setters.push((it) => dist(it.animationFrom ? presetDistance(it.animationFrom) : 0));
     }
     if (preset?.knob === "intensity") {
-      const inten = numberField(panel, "Start scale", from.scale ?? 1, 0.01, (v) =>
+      const inten = numberField(panel, t("Start scale"), from.scale ?? 1, 0.01, (v) =>
         commit(store, idx, (it) => ({
           ...it,
           animationFrom: { ...(it.animationFrom ?? {}), scale: v },
         })));
       setters.push((it) => inten(it.animationFrom?.scale ?? 1));
     }
-    const dur = numberField(panel, "Duration (s)", from.duration ?? 0.6, 0.05, (v) =>
+    const dur = numberField(panel, t("Duration (s)"), from.duration ?? 0.6, 0.05, (v) =>
       commit(store, idx, (it) => ({
         ...it,
         animationFrom: { ...(it.animationFrom ?? {}), duration: Math.max(0.05, v) },
       })));
     setters.push((it) => dur(it.animationFrom?.duration ?? 0.6));
-    const del = numberField(panel, "Delay (s)", from.delay ?? 0, 0.05, (v) =>
+    const del = numberField(panel, t("Delay (s)"), from.delay ?? 0, 0.05, (v) =>
       commit(store, idx, (it) => ({
         ...it,
         animationFrom: { ...(it.animationFrom ?? {}), delay: Math.max(0, v) || undefined },
       })));
     setters.push((it) => del(it.animationFrom?.delay ?? 0));
-    const ease = select(panel, "Easing", EASING_MENU.map((e) => ({ value: e.id, label: e.label })),
+    const ease = select(panel, t("Easing"), EASING_MENU.map((e) => ({ value: e.id, label: t(e.label) })),
       easingIdFor(from.easing), (v) =>
         commit(store, idx, (it) => ({
           ...it,
@@ -152,10 +153,10 @@ function build(panel: HTMLElement, idx: number, item: LayoutItem, store: Store, 
   const exitWrap = document.createElement("div");
   exitWrap.style.cssText = `margin-top:14px;padding-top:12px;border-top:1px solid ${tokens.ink500};`;
   panel.appendChild(exitWrap);
-  header(exitWrap, "Exit");
-  const exitSelect = select(exitWrap, "Preset", [
-    { value: "", label: "None" },
-    ...EXIT_PRESETS.map((p) => ({ value: p.id, label: p.label })),
+  header(exitWrap, t("Exit"));
+  const exitSelect = select(exitWrap, t("Preset"), [
+    { value: "", label: t("None") },
+    ...EXIT_PRESETS.map((p) => ({ value: p.id, label: t(p.label) })),
   ], item.animationExitPreset ?? "", (v) => {
     commit(store, idx, (it) => {
       if (v === "") return { ...it, animationTo: undefined, animationExitPreset: undefined };
@@ -169,19 +170,19 @@ function build(panel: HTMLElement, idx: number, item: LayoutItem, store: Store, 
     if (exitSelect.value !== v) exitSelect.value = v;
   });
   if (item.animationExitPreset && item.animationTo) {
-    const after = numberField(exitWrap, "Show for (s)", item.animationTo.delay ?? 0, 0.1, (v) =>
+    const after = numberField(exitWrap, t("Show for (s)"), item.animationTo.delay ?? 0, 0.1, (v) =>
       commit(store, idx, (it) => ({
         ...it,
         animationTo: { ...(it.animationTo ?? {}), delay: Math.max(0, v) },
       })));
     setters.push((it) => after(it.animationTo?.delay ?? 0));
-    const edur = numberField(exitWrap, "Duration (s)", item.animationTo.duration ?? 0.6, 0.05, (v) =>
+    const edur = numberField(exitWrap, t("Duration (s)"), item.animationTo.duration ?? 0.6, 0.05, (v) =>
       commit(store, idx, (it) => ({
         ...it,
         animationTo: { ...(it.animationTo ?? {}), duration: Math.max(0.05, v) },
       })));
     setters.push((it) => edur(it.animationTo?.duration ?? 0.6));
-    const eease = select(exitWrap, "Easing", EASING_MENU.map((e) => ({ value: e.id, label: e.label })),
+    const eease = select(exitWrap, t("Easing"), EASING_MENU.map((e) => ({ value: e.id, label: t(e.label) })),
       easingIdFor(item.animationTo.easing), (v) =>
         commit(store, idx, (it) => ({
           ...it,
@@ -207,9 +208,9 @@ function build(panel: HTMLElement, idx: number, item: LayoutItem, store: Store, 
     legacy.style.cssText = `margin-top:14px;padding-top:12px;border-top:1px solid ${tokens.ink500};`;
     const note = document.createElement("div");
     note.style.cssText = `color:${tokens.ink300};font-size:11px;line-height:1.4;margin-bottom:8px;`;
-    note.textContent = "This item has an end-pose tween (a legacy feature): after entering, it moves to a fixed position. ▶ Replay previews it.";
+    note.textContent = t("This item has an end pose (an older feature): after entering, it moves to a fixed position. ▶ Replay previews it.");
     legacy.appendChild(note);
-    legacy.appendChild(dangerButton("Remove end-pose tween", () => {
+    legacy.appendChild(dangerButton(t("Remove end pose"), () => {
       store.commit(updateItem(store.state, idx, (it) => ({ ...it, animationTo: undefined })));
     }));
     panel.appendChild(legacy);
@@ -224,25 +225,25 @@ function buildMulti(panel: HTMLElement, state: DesignerState, store: Store): Ren
   panel.innerHTML = "";
   const idxs = [...state.selectedItemIdxs];
 
-  header(panel, `Entrance — ${idxs.length} items`);
+  header(panel, t("Entrance — %d items", idxs.length));
 
   const hint = document.createElement("div");
   hint.style.cssText = `color:${tokens.ink300};font-size:11px;margin-bottom:10px;line-height:1.4;`;
-  hint.textContent = "Apply one entrance across the selection; each item starts a step later, in selection order.";
+  hint.textContent = t("Apply one entrance across the selection; each item starts a step later, in selection order.");
   panel.appendChild(hint);
 
   let presetId = ANIMATION_PRESETS[0]!.id;
-  const presetSelect = select(panel, "Preset", [
-    { value: "", label: "None (clear)" },
-    ...ANIMATION_PRESETS.map((p) => ({ value: p.id, label: p.label })),
+  const presetSelect = select(panel, t("Preset"), [
+    { value: "", label: t("None (clear)") },
+    ...ANIMATION_PRESETS.map((p) => ({ value: p.id, label: t(p.label) })),
   ], presetId, (v) => { presetId = v; });
 
   let stagger = 0.08;
-  numberField(panel, "Stagger (s)", stagger, 0.01, (v) => { stagger = Math.max(0, v); });
+  numberField(panel, t("Stagger (s)"), stagger, 0.01, (v) => { stagger = Math.max(0, v); });
 
   const applyWrap = document.createElement("div");
   applyWrap.style.cssText = "margin-top:10px;display:flex;gap:8px;align-items:center;";
-  applyWrap.appendChild(primaryButton("Apply to selection", () => {
+  applyWrap.appendChild(primaryButton(t("Apply to selection"), () => {
     const chosen = presetById(presetSelect.value);
     let s = store.state;
     idxs.forEach((idx, i) => {
@@ -271,8 +272,8 @@ function buildMulti(panel: HTMLElement, state: DesignerState, store: Store): Ren
 function replayButton(): HTMLButtonElement {
   const b = document.createElement("button");
   b.type = "button";
-  b.textContent = "▶ Replay";
-  b.title = "Play the entrances on the canvas";
+  b.textContent = t("▶ Replay");
+  b.title = t("Play the entrances on the canvas");
   b.style.cssText = [
     "margin-top: 10px",
     "padding: 5px 10px",

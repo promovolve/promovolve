@@ -8,6 +8,7 @@
 // Select is the only one with an active state and shows it
 // permanently. Icons are inline SVGs in currentColor.
 
+import { t, tk } from "../i18n";
 import { addItem, addItemBelowText, addLocalImage, currentItem, currentLayout, currentPage, selectItem } from "../state";
 import { openFormulaModal } from "./formula-modal";
 import type { Store } from "../store";
@@ -30,7 +31,7 @@ export function templatesAllowed(state: DesignerState): boolean {
 export function mountToolRail(host: HTMLElement, store: Store): void {
   const bar = document.createElement("div");
   bar.className = "cd-tool-rail";
-  bar.setAttribute("aria-label", "Tools");
+  bar.setAttribute("aria-label", t("Tools"));
   bar.style.cssText = [
     "width: 90px",
     "height: 100%",
@@ -70,28 +71,28 @@ export function mountToolRail(host: HTMLElement, store: Store): void {
     }));
   };
 
-  const tplBtn = toolBtn(ICON_TEMPLATE, "Layout templates", "", () => openTemplateModal(store));
+  const tplBtn = toolBtn(ICON_TEMPLATE, tk("Layout templates"), "", () => openTemplateModal(store));
   const syncTpl = (state: DesignerState): void => {
     const ok = templatesAllowed(state);
     tplBtn.disabled = !ok;
     tplBtn.style.opacity = ok ? "1" : "0.35";
     tplBtn.style.cursor = ok ? "pointer" : "default";
-    tplBtn.title = ok ? "Layout templates" : "Layout templates aren't available for Fold-out creatives";
+    tplBtn.title = ok ? t("Layout templates") : t("Layout templates aren't available for Fold-out creatives");
   };
   store.subscribe(syncTpl);
   syncTpl(store.state);
 
   bar.append(
-    groupHeading("Add"),
-    toolBtn(ICON_SELECT, "Select", "V", () => store.commit(selectItem(store.state, null)), { active: true }),
-    toolBtn(ICON_TEXT, "Text", "T", addText),
-    toolBtn(ICON_IMAGE, "Image", "I", () => openAssetModal(store, (asset) => store.commit(addLocalImage(store.state, asset.cdnUrl, asset.width && asset.height ? { w: asset.width, h: asset.height } : undefined)))),
-    toolBtn(ICON_FORMULA, "Formula", "", () => openFormulaModal(store)),
-    toolBtn(ICON_SCRIM, "Scrim", "", () => store.commit(addItemBelowText(store.state, defaultScrim()))),
+    groupHeading(t("Add")),
+    toolBtn(ICON_SELECT, tk("Select"), "V", () => store.commit(selectItem(store.state, null)), { active: true }),
+    toolBtn(ICON_TEXT, tk("Text"), "T", addText),
+    toolBtn(ICON_IMAGE, tk("Image"), "I", () => openAssetModal(store, (asset) => store.commit(addLocalImage(store.state, asset.cdnUrl, asset.width && asset.height ? { w: asset.width, h: asset.height } : undefined)))),
+    toolBtn(ICON_FORMULA, tk("Formula"), "", () => openFormulaModal(store)),
+    toolBtn(ICON_SCRIM, tk("Scrim"), "", () => store.commit(addItemBelowText(store.state, defaultScrim()))),
     divider(),
-    groupHeading("Start from"),
+    groupHeading(t("Start from")),
     tplBtn,
-    toolBtn(ICON_BRAND, "Brand kit", "", () => openBrandKitModal(window.__DESIGNER__?.campaignId ?? "")),
+    toolBtn(ICON_BRAND, tk("Brand kit"), "", () => openBrandKitModal(window.__DESIGNER__?.campaignId ?? "")),
   );
 
   host.appendChild(bar);
@@ -165,7 +166,8 @@ interface ToolBtnOpts {
 
 // Icon above its label, shortcut underneath in mono. The label is the
 // accessible name; the shortcut rides in the title.
-function toolBtn(iconSvg: string, label: string, shortcut: string, onClick: () => void, opts: ToolBtnOpts = {}): HTMLButtonElement {
+function toolBtn(iconSvg: string, key: string, shortcut: string, onClick: () => void, opts: ToolBtnOpts = {}): HTMLButtonElement {
+  const label = t(key);
   const b = document.createElement("button");
   b.type = "button";
   b.setAttribute("aria-label", label);
@@ -233,7 +235,7 @@ const ICON_SCRIM = `<svg viewBox="0 0 14 14" width="18" height="18" fill="none" 
 function defaultText(): TextItem {
   return {
     type: "text",
-    text: "New text",
+    text: t("New text"),
     left: 30, top: 30, width: 30,
     // Last-resort fontSize when no text has been selected in this
     // session and the layout has no text to infer from. 8cqh sits

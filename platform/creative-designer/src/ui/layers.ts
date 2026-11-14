@@ -18,6 +18,7 @@
 //     `locked` / `hidden` fields on LayoutItem and toggle them via
 //     `updateItem`. Functional in this PR.
 
+import { t } from "../i18n";
 import { currentLayout, currentPage, isSelected, reorderItem, selectItem, setVideoBg, toggleSelect, updateItem } from "../state";
 import type { Store } from "../store";
 import type { DesignerState, LayoutItem } from "../types";
@@ -43,7 +44,7 @@ export function mountLayers(host: HTMLElement, store: Store): LayersHandle {
   host.appendChild(list);
 
   const empty = document.createElement("div");
-  empty.textContent = "No layers on this page.";
+  empty.textContent = t("No layers on this page.");
   empty.style.cssText = [
     "padding: 16px 12px",
     "text-align: center",
@@ -170,10 +171,10 @@ function buildVideoBgRow(store: Store): { el: HTMLElement; update: (state: Desig
       return;
     }
     el.style.display = "flex";
-    name.textContent = `Video background · ${fileNameFromUrl(bg.src)}`;
+    name.textContent = t("Video background · %s", fileNameFromUrl(bg.src));
     const visible = (bg.opacity ?? 1) > 0;
     eye.innerHTML = visible ? ICON_EYE : ICON_EYE_OFF;
-    eye.title = visible ? "Hide background video" : "Show background video";
+    eye.title = visible ? t("Hide background video") : t("Show background video");
     if (visible && (bg.opacity ?? 1) > 0) lastOpacity = bg.opacity ?? 1;
   }
 
@@ -389,8 +390,8 @@ function iconBtn(
   const btn = document.createElement("button");
   btn.type = "button";
   btn.title = kind === "lock"
-    ? (active ? "Unlock" : "Lock")
-    : (active ? "Hide" : "Show");
+    ? (active ? t("Unlock") : t("Lock"))
+    : (active ? t("Hide") : t("Show"));
   btn.style.cssText = [
     "flex: 0 0 auto",
     "width: 18px",

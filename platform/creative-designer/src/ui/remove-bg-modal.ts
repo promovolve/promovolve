@@ -18,6 +18,7 @@ import { rewriteForSaliency } from "../saliency";
 import { currentPage, setMainImageSrc, updateItem } from "../state";
 import type { Store } from "../store";
 import type { ImageItem, LayoutItem } from "../types";
+import { t } from "../i18n";
 import { tokens } from "./tokens";
 
 // Coverage sanity band. Outside it the model almost certainly didn't
@@ -152,10 +153,10 @@ export function openRemoveBgModal(store: Store, idx: number, item: ImageItem): v
   const tools = document.createElement("div");
   tools.style.cssText = `display:flex;gap:8px;align-items:center;color:${tokens.ink200};font-size:12px;`;
   let tool: HintValue | null = null;
-  const restoreBtn = secondaryBtn("Restore", () => setTool(tool === HINT_KEEP ? null : HINT_KEEP));
-  const eraseBtn = secondaryBtn("Erase", () => setTool(tool === HINT_DROP ? null : HINT_DROP));
-  restoreBtn.title = "Paint over parts the cut wrongly removed (e.g. feet)";
-  eraseBtn.title = "Paint over parts the cut wrongly kept";
+  const restoreBtn = secondaryBtn(t("Restore"), () => setTool(tool === HINT_KEEP ? null : HINT_KEEP));
+  const eraseBtn = secondaryBtn(t("Erase"), () => setTool(tool === HINT_DROP ? null : HINT_DROP));
+  restoreBtn.title = t("Paint over parts the cut wrongly removed (e.g. feet)");
+  eraseBtn.title = t("Paint over parts the cut wrongly kept");
   const sizeLabel = document.createElement("label");
   sizeLabel.style.cssText = "display:flex;align-items:center;gap:6px;";
   const sizeInput = document.createElement("input");
@@ -164,9 +165,9 @@ export function openRemoveBgModal(store: Store, idx: number, item: ImageItem): v
   sizeInput.max = String(BRUSH_MAX);
   sizeInput.value = String(BRUSH_DEFAULT);
   sizeInput.style.cssText = "width:110px;";
-  sizeLabel.append(document.createTextNode("Size"), sizeInput);
-  const undoBtn = secondaryBtn("Undo stroke", () => undoStroke());
-  const resetBtn = secondaryBtn("Reset", () => resetHints());
+  sizeLabel.append(document.createTextNode(t("Size")), sizeInput);
+  const undoBtn = secondaryBtn(t("Undo stroke"), () => undoStroke());
+  const resetBtn = secondaryBtn(t("Reset"), () => resetHints());
   const toolHint = document.createElement("span");
   toolHint.style.cssText = `color:${tokens.ink300};font-size:11px;margin-left:auto;`;
   tools.append(restoreBtn, eraseBtn, sizeLabel, undoBtn, resetBtn, toolHint);
@@ -180,7 +181,7 @@ export function openRemoveBgModal(store: Store, idx: number, item: ImageItem): v
   const hint = document.createElement("span");
   hint.id = "cd-remove-bg-status";
   hint.style.cssText = `color:${tokens.ink300};font-size:11px;margin-right:auto;font-family:${tokens.sans};max-width:60vw;`;
-  hint.textContent = "Loading image…";
+  hint.textContent = t("Loading image…");
   // "Refine edges" — guided-filter pass against the full-res source
   // (matte-refine.ts). On by default; off shows the raw model matte so
   // the author can see what refinement is doing, or escape it when it
@@ -191,11 +192,11 @@ export function openRemoveBgModal(store: Store, idx: number, item: ImageItem): v
   refineBox.type = "checkbox";
   refineBox.checked = true;
   refineBox.disabled = true;
-  refineWrap.append(refineBox, document.createTextNode("Refine edges"));
-  const compareBtn = secondaryBtn("Hold to compare", () => undefined);
+  refineWrap.append(refineBox, document.createTextNode(t("Refine edges")));
+  const compareBtn = secondaryBtn(t("Hold to compare"), () => undefined);
   compareBtn.disabled = true;
-  const cancelBtn = secondaryBtn("Cancel", () => void close(false));
-  const applyBtn = primaryBtn("Apply", () => void close(true));
+  const cancelBtn = secondaryBtn(t("Cancel"), () => void close(false));
+  const applyBtn = primaryBtn(t("Apply"), () => void close(true));
   applyBtn.disabled = true;
   footer.append(hint, refineWrap, compareBtn, cancelBtn, applyBtn);
   root.append(footer);
@@ -211,22 +212,22 @@ export function openRemoveBgModal(store: Store, idx: number, item: ImageItem): v
   let painting = false;
   let last = { x: 0, y: 0 };
 
-  const setTool = (t: HintValue | null): void => {
-    tool = t;
+  const setTool = (next: HintValue | null): void => {
+    tool = next;
     const on = (b: HTMLButtonElement, active: boolean): void => {
       b.style.background = active ? tokens.ink100 : "transparent";
       b.style.color = active ? tokens.ink900 : tokens.ink200;
       b.style.borderColor = active ? tokens.ink100 : tokens.ink500;
       b.dataset.active = active ? "1" : "";
     };
-    on(restoreBtn, t === HINT_KEEP);
-    on(eraseBtn, t === HINT_DROP);
-    stage.style.cursor = t ? "none" : "";
+    on(restoreBtn, next === HINT_KEEP);
+    on(eraseBtn, next === HINT_DROP);
+    stage.style.cursor = next ? "none" : "";
     cursor.style.display = "none";
-    cursor.style.borderColor = t === HINT_DROP ? "#f66" : "#fff";
-    toolHint.textContent = t === HINT_KEEP
-      ? "Paint over what to keep — the edge snaps inside your stroke."
-      : t === HINT_DROP ? "Paint over what to remove." : "";
+    cursor.style.borderColor = next === HINT_DROP ? "#f66" : "#fff";
+    toolHint.textContent = next === HINT_KEEP
+      ? t("Paint over what to keep — the edge snaps inside your stroke.")
+      : next === HINT_DROP ? t("Paint over what to remove.") : "";
   };
   const updateUndo = (): void => {
     undoBtn.disabled = undoStack.length === 0;
@@ -410,11 +411,11 @@ export function openRemoveBgModal(store: Store, idx: number, item: ImageItem): v
     console.info("[remove-bg] composite refine=%s %dms", refineBox.checked, Math.round(performance.now() - t0));
     const pct = Math.round(next.coverage * 100);
     if (next.coverage < COVERAGE_MIN) {
-      hint.textContent = `Almost nothing detected as subject (${pct}% kept) — this image may not have a clear foreground.`;
+      hint.textContent = t("Almost nothing detected as subject (%s% kept) — this image may not have a clear foreground.", pct);
     } else if (next.coverage > COVERAGE_MAX) {
-      hint.textContent = `Nearly everything was kept (${pct}%) — no distinct background found.`;
+      hint.textContent = t("Nearly everything was kept (%s%) — no distinct background found.", pct);
     } else {
-      hint.textContent = `Subject detected (${pct}% of the image kept). Apply uploads the cutout as a new asset; the original stays in your library.`;
+      hint.textContent = t("Subject detected (%s% of the image kept). Apply uploads the cutout as a new asset; the original stays in your library.", pct);
     }
   };
   const safeRender = (): void => {
@@ -430,7 +431,7 @@ export function openRemoveBgModal(store: Store, idx: number, item: ImageItem): v
 
   img.addEventListener("load", () => {
     if (!pixelsReadable) {
-      hint.textContent = "Can't read this image's pixels (third-party host) — upload it to the asset library first.";
+      hint.textContent = t("Can't read this image's pixels (third-party host) — upload it to the asset library first.");
       return;
     }
     void run();
@@ -439,7 +440,7 @@ export function openRemoveBgModal(store: Store, idx: number, item: ImageItem): v
 
   async function run(): Promise<void> {
     busy = true;
-    hint.textContent = "Detecting subject… (first run downloads the ~5 MB model)";
+    hint.textContent = t("Detecting subject… (first run downloads the ~5 MB model)");
     try {
       matte = await computeMatte(img);
       hintDims = outputSize(img.naturalWidth, img.naturalHeight, PREVIEW_EDGE);
@@ -456,7 +457,7 @@ export function openRemoveBgModal(store: Store, idx: number, item: ImageItem): v
       updateUndo();
     } catch (err) {
       console.warn("[remove-bg] failed:", err);
-      hint.textContent = "Background removal failed — see the console. The image is unchanged.";
+      hint.textContent = t("Background removal failed — see the console. The image is unchanged.");
     } finally {
       busy = false;
     }
@@ -484,7 +485,7 @@ export function openRemoveBgModal(store: Store, idx: number, item: ImageItem): v
     busy = true;
     applyBtn.disabled = true;
     cancelBtn.disabled = true;
-    hint.textContent = "Rendering full resolution…";
+    hint.textContent = t("Rendering full resolution…");
     try {
       // The preview was composited at PREVIEW_EDGE; the asset gets the
       // real output size. Yield a frame first so the status line paints
@@ -496,7 +497,7 @@ export function openRemoveBgModal(store: Store, idx: number, item: ImageItem): v
         hints: hints ? { data: hints, w: hintDims.w, h: hintDims.h } : null,
       });
       console.info("[remove-bg] full-res composite %d×%d %dms", full.canvas.width, full.canvas.height, Math.round(performance.now() - t0));
-      hint.textContent = "Uploading cutout…";
+      hint.textContent = t("Uploading cutout…");
       const blob = await encodeCanvas(full.canvas);
       const file = new File([blob], cutoutFilename(src as string), { type: "image/webp" });
       const { src: newSrc } = await uploadImage(file);
@@ -504,7 +505,7 @@ export function openRemoveBgModal(store: Store, idx: number, item: ImageItem): v
       teardown();
     } catch (err) {
       console.error("[remove-bg] upload failed:", err);
-      hint.textContent = "Upload failed — try again.";
+      hint.textContent = t("Upload failed — try again.");
       applyBtn.disabled = false;
       cancelBtn.disabled = false;
     } finally {

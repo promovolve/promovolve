@@ -104,8 +104,10 @@ literal keys and asserts:
 
 - Unit: `t()` fallback, `ja`/`ja-JP` resolution, placeholder filling.
 - Drift test as above.
-- jsdom: selection bar, props panel (writing/direction labels) and tool rail
-  render Japanese when the language is `ja`, and option `value`s stay English.
+- Pure label tests (the Designer's vitest runs without a DOM, and adding
+  jsdom would be a new dependency): option entries keep English `value`s with
+  translated labels; font display names; layer names for hashes and field
+  names; fanout/weight wording.
 - Manual: the vite harness gets a `?lang=ja` switch that sets
   `document.documentElement.lang`; visual pass reviewed by the user before
   commit.

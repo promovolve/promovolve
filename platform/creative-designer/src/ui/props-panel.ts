@@ -14,9 +14,9 @@
 //     (one undo step per completed edit)
 
 import { refitItemCropToBox } from "../auto-crop";
-import { packReaderFieldBoxes, packSizedFieldBoxes, packTextItemHeight } from "../render/canvas";
+import { packReaderFieldBoxes, packSizedFieldBoxes, packTextItemHeight, setWritingMode } from "../render/canvas";
 import { isMultiPage } from "../modes";
-import { currentItem, currentLayout, currentPage, fieldColorSyncKey, hasLocalTextOverride, isFieldColorSynced, propagateTypography, setItemContent, setItemWritingMode, setReaderFieldFontSize, setSyncFieldColor, TYPO_SYNC_KEYS, updateItem } from "../state";
+import { currentItem, currentLayout, currentPage, fieldColorSyncKey, hasLocalTextOverride, isFieldColorSynced, propagateTypography, setItemContent, setReaderFieldFontSize, setSyncFieldColor, TYPO_SYNC_KEYS, updateItem } from "../state";
 import type { Store } from "../store";
 import type { DesignerState, ImageItem, LayoutItem, RectItem } from "../types";
 import { scrimGradient, SCRIM_EDGES, type ScrimEdge, type ScrimSpec } from "../scrim";
@@ -323,39 +323,7 @@ function build(panel: HTMLElement, idx: number, item: LayoutItem, store: Store):
     );
     setters.writingMode = selectField(layoutGroup, "writing", item.writingMode ?? "horizontal-tb",
       ["horizontal-tb", "vertical-rl"],
-      (v, c) => {
-        // NOT via mutate/updateItem: orientation is a per-dimension CHOICE
-        // (writingMode is deliberately unsynced), so it must not strip
-        // `_generated` — that disarmed the machine font-fit, and flipping
-        // a still-bloated bucket headline to vertical locked the giant
-        // glyphs in with a canvas-wide "hug". See setItemWritingMode.
-        const next = setItemWritingMode(store.state, idx, v as "horizontal-tb" | "vertical-rl");
-        if (c) store.commit(next);
-        else store.replace(next);
-        // Re-pack the box for its NEW axis. The toggle changes which way
-        // the text grows (horizontal wraps down; vertical-rl adds columns
-        // leftward), so the old extent is always shaped for the wrong
-        // axis — dropping vertical copy into a wide/short box forces a
-        // huge autofit shrink, and the author then packs by hand ("this
-        // is when I see 'don't pack'", 2026-08-18). The box's extent was
-        // fit to the OLD axis, never an authored choice about the new
-        // one; the start corner and the text itself are untouched. Same
-        // rAF-then-measure pattern as the content/font-size edit paths.
-        // Field-bound items in a SIZED bucket use the field packer — it
-        // fits BOTH axes (packTextItemHeight hugs only the pack axis, so
-        // a toggle to vertical kept the horizontal-era height and wrapped
-        // the copy into stubby columns), and on a still-machine item it
-        // also walks a bloated font down to fit the new axis. Readers and
-        // free text keep the single-item pack.
-        if (c) requestAnimationFrame(() => {
-          const it = currentLayout(store.state)[idx];
-          const field = it && it.type === "text" ? (it as { field?: string }).field : undefined;
-          const sizeKey = store.state.mode.sizeKey;
-          const isBucket = !isMultiPage(store.state.mode) && sizeKey != null;
-          if (field && isBucket) packSizedFieldBoxes(store, field, sizeKey);
-          else packTextItemHeight(store, idx, true);
-        });
-      },
+      (v, c) => setWritingMode(store, idx, v as "horizontal-tb" | "vertical-rl", c),
     );
     setters.direction = selectField(layoutGroup, "direction", item.direction ?? "ltr",
       ["ltr", "rtl"],

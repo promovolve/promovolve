@@ -17,6 +17,8 @@ export type SelectionAction =
   | "alignCenter"
   | "alignRight"
   | "fitToText"
+  | "writeHorizontal"
+  | "writeVertical"
   | "bringToFront"
   | "bringForward"
   | "sendBackward"
@@ -43,7 +45,7 @@ export function selectionActions(state: DesignerState): SelectionAction[] {
   }
   const item = items[0]!;
   const own: SelectionAction[] =
-    item.type === "text" ? ["alignLeft", "alignCenter", "alignRight", "fitToText"]
+    item.type === "text" ? ["alignLeft", "alignCenter", "alignRight", "writeHorizontal", "writeVertical", "fitToText"]
     : isFormula(item) ? ["editFormula"]
     : item.type === "image" ? imageActions(state, item)
     : [];
@@ -106,5 +108,6 @@ export function itemName(item: LayoutItem): string {
 export function selectionBarKey(state: DesignerState): string {
   const [item] = selectedItems(state);
   const align = item?.type === "text" ? (item.textAlign ?? "left") : "";
-  return JSON.stringify([selectionActions(state), scopeLabel(state), align]);
+  const writing = item?.type === "text" ? (item.writingMode ?? "horizontal-tb") : "";
+  return JSON.stringify([selectionActions(state), scopeLabel(state), align, writing]);
 }

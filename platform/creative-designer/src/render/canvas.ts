@@ -16,7 +16,7 @@
 // the drawn size separately when the two differ.
 
 import type { DesignerState, LayoutItem, Page } from "../types";
-import { currentLayout, fitReaderFieldBoxes, fitSizedFieldBoxes, currentPage, updateItem, MOBILE_EXPANDED_KEY } from "../state";
+import { currentLayout, fitReaderFieldBoxes, fitSizedFieldBoxes, currentPage, setItemWritingMode, updateItem, MOBILE_EXPANDED_KEY } from "../state";
 import { MODES, isSized, isMultiPage, type Mode } from "../modes";
 import type { Store } from "../store";
 import { tokens } from "../ui/tokens";
@@ -110,6 +110,49 @@ function textRemeasureIndices(prev: DesignerState, next: DesignerState): number[
     }
   }
   return out;
+}
+
+/** Flip a text item horizontal ↔ vertical and re-pack its box for the new
+  * axis. Shared by the Properties "writing" field and the selection bar's
+  * Horizontal / Vertical buttons (GH #494), so both take the same path.
+  * `commit` false = live preview (no undo entry, no re-pack).
+  *
+  * NOT via updateItem: orientation is a per-dimension CHOICE (writingMode
+  * is deliberately unsynced), so it must not strip `_generated` — that
+  * disarmed the machine font-fit, and flipping a still-bloated bucket
+  * headline to vertical locked the giant glyphs in with a canvas-wide
+  * "hug". See setItemWritingMode.
+  *
+  * Re-pack the box for its NEW axis. The toggle changes which way the
+  * text grows (horizontal wraps down; vertical-rl adds columns leftward),
+  * so the old extent is always shaped for the wrong axis — dropping
+  * vertical copy into a wide/short box forces a huge autofit shrink, and
+  * the author then packs by hand ("this is when I see 'don't pack'",
+  * 2026-08-18). The start corner and the text itself are untouched. Same
+  * rAF-then-measure pattern as the content/font-size edit paths.
+  * Field-bound items in a SIZED bucket use the field packer — it fits
+  * BOTH axes (packTextItemHeight hugs only the pack axis, so a toggle to
+  * vertical kept the horizontal-era height and wrapped the copy into
+  * stubby columns), and on a still-machine item it also walks a bloated
+  * font down to fit the new axis. Readers and free text keep the
+  * single-item pack. */
+export function setWritingMode(
+  store: Store,
+  idx: number,
+  mode: "horizontal-tb" | "vertical-rl",
+  commit = true,
+): void {
+  const next = setItemWritingMode(store.state, idx, mode);
+  if (!commit) { store.replace(next); return; }
+  store.commit(next);
+  requestAnimationFrame(() => {
+    const it = currentLayout(store.state)[idx];
+    const field = it && it.type === "text" ? (it as { field?: string }).field : undefined;
+    const sizeKey = store.state.mode.sizeKey;
+    const isBucket = !isMultiPage(store.state.mode) && sizeKey != null;
+    if (field && isBucket) packSizedFieldBoxes(store, field, sizeKey);
+    else packTextItemHeight(store, idx, true);
+  });
 }
 
 /** "Fit box to text": shrink a text item's authored height down to its

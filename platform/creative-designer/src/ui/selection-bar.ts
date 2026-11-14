@@ -11,7 +11,7 @@
 // that don't fit move into a More menu, least-used first (arrange
 // before the type's own actions); Delete always stays on the bar.
 
-import { packTextItemHeight } from "../render/canvas";
+import { packTextItemHeight, setWritingMode } from "../render/canvas";
 import { bringForward, bringToFront, groupSelection, sendBackward, sendToBack, updateItem } from "../state";
 import { selectedItems, selectionActions, selectionBarKey, scopeLabel, type SelectionAction } from "../selection-model";
 import type { Store } from "../store";
@@ -31,6 +31,8 @@ const LABEL: Record<SelectionAction, string> = {
   alignLeft: "Align left",
   alignCenter: "Align centre",
   alignRight: "Align right",
+  writeHorizontal: "Horizontal",
+  writeVertical: "Vertical",
   fitToText: "Fit box to text",
   bringToFront: "Bring to front",
   bringForward: "Bring forward",
@@ -43,7 +45,7 @@ const LABEL: Record<SelectionAction, string> = {
 // The order actions leave the bar for More when space runs out.
 const OVERFLOW_ORDER: SelectionAction[] = [
   "sendToBack", "sendBackward", "bringForward", "bringToFront", "group",
-  "fitToText", "alignRight", "alignCenter", "alignLeft",
+  "fitToText", "alignRight", "alignCenter", "alignLeft", "writeHorizontal", "writeVertical",
   "removeBackground", "crop", "replace", "editFormula",
 ];
 
@@ -51,6 +53,12 @@ const ALIGN: Partial<Record<SelectionAction, "left" | "center" | "right">> = {
   alignLeft: "left",
   alignCenter: "center",
   alignRight: "right",
+};
+
+// One click to tategaki (GH #494) — the same path as Properties → writing.
+const WRITING: Partial<Record<SelectionAction, "horizontal-tb" | "vertical-rl">> = {
+  writeHorizontal: "horizontal-tb",
+  writeVertical: "vertical-rl",
 };
 
 // The actions that open an editor for one image need its index and item.
@@ -65,6 +73,11 @@ function run(store: Store, action: SelectionAction): void {
   const align = ALIGN[action];
   if (align) {
     store.commit(updateItem(s, s.selectedItemIdxs[0]!, (it) => ({ ...it, textAlign: align })));
+    return;
+  }
+  const writing = WRITING[action];
+  if (writing) {
+    setWritingMode(store, s.selectedItemIdxs[0]!, writing);
     return;
   }
   switch (action) {
@@ -128,7 +141,16 @@ export function mountSelectionBar(host: HTMLElement, store: Store): { update(sta
     const idleBorder = arrange ? "transparent" : tokens.ink100;
     const b = plain(LABEL[action], active ? tokens.focus : idleBorder, active ? tokens.focus : tokens.ink100);
     b.dataset.action = action;
-    if (active) b.setAttribute("aria-pressed", "true");
+    if (active) {
+      b.setAttribute("aria-pressed", "true");
+      // focus == ink100 in this monochrome palette, so the colour alone
+      // never showed which Align / Horizontal / Vertical is current. A
+      // filled, bold button does; this listener runs after plain()'s
+      // hover-out reset and restores the fill.
+      b.style.background = tokens.focusBg;
+      b.style.fontWeight = "700";
+      b.addEventListener("mouseleave", () => { b.style.background = tokens.focusBg; });
+    }
     b.addEventListener("click", () => run(store, action));
     return b;
   };
@@ -257,6 +279,7 @@ export function mountSelectionBar(host: HTMLElement, store: Store): { update(sta
 
       const [item] = selectedItems(state);
       const currentAlign = item?.type === "text" ? (item.textAlign ?? "left") : null;
+      const currentWriting = item?.type === "text" ? (item.writingMode ?? "horizontal-tb") : null;
       let prevArrange: boolean | null = null;
       for (const a of actions) {
         if (a === "delete") {
@@ -271,7 +294,8 @@ export function mountSelectionBar(host: HTMLElement, store: Store): { update(sta
           bar.appendChild(divider);
         }
         prevArrange = arrange;
-        const el = btn(a, ALIGN[a] !== undefined && ALIGN[a] === currentAlign);
+        const el = btn(a, (ALIGN[a] !== undefined && ALIGN[a] === currentAlign)
+          || (WRITING[a] !== undefined && WRITING[a] === currentWriting));
         shown.push({ action: a, el });
         bar.appendChild(el);
       }

@@ -8,7 +8,7 @@
 // Select is the only one with an active state and shows it
 // permanently. Icons are inline SVGs in currentColor.
 
-import { addItem, addLocalImage, currentItem, currentLayout, currentPage, selectItem } from "../state";
+import { addItem, addItemBelowText, addLocalImage, currentItem, currentLayout, currentPage, selectItem } from "../state";
 import { openFormulaModal } from "./formula-modal";
 import type { Store } from "../store";
 import type { DesignerState, LayoutItem, RectItem, TextItem } from "../types";
@@ -87,7 +87,7 @@ export function mountToolRail(host: HTMLElement, store: Store): void {
     toolBtn(ICON_TEXT, "Text", "T", addText),
     toolBtn(ICON_IMAGE, "Image", "I", () => openAssetModal(store, (asset) => store.commit(addLocalImage(store.state, asset.cdnUrl, asset.width && asset.height ? { w: asset.width, h: asset.height } : undefined)))),
     toolBtn(ICON_FORMULA, "Formula", "", () => openFormulaModal(store)),
-    toolBtn(ICON_SCRIM, "Scrim", "", () => store.commit(addItem(store.state, defaultScrim()))),
+    toolBtn(ICON_SCRIM, "Scrim", "", () => store.commit(addItemBelowText(store.state, defaultScrim()))),
     divider(),
     groupHeading("Start from"),
     tplBtn,

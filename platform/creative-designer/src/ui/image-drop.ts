@@ -11,6 +11,7 @@
 import { imageDimensions, uploadImage } from "../api/upload-asset";
 import { addLocalImage, setTextureSrc } from "../state";
 import type { Store } from "../store";
+import { t } from "../i18n";
 import { tokens } from "./tokens";
 
 export function mountImageDrop(target: HTMLElement, store: Store): void {
@@ -33,7 +34,7 @@ export function mountImageDrop(target: HTMLElement, store: Store): void {
     `font-family: ${tokens.sans}`,
     "font-size: 13px",
   ].join(";");
-  overlay.textContent = "Drop image — choose Background texture or Image element";
+  overlay.textContent = t("Drop image — choose Background texture or Image element");
   document.body.appendChild(overlay);
 
   const showOverlay = (): void => {
@@ -133,7 +134,7 @@ function openChooser(file: File, x: number, y: number, store: Store): void {
   card.appendChild(thumb);
 
   const label = document.createElement("div");
-  label.textContent = "Use this image as:";
+  label.textContent = t("Use this image as:");
   label.style.cssText = `font-size:11px;color:${tokens.ink300};margin-bottom:8px;`;
   card.appendChild(label);
 
@@ -156,7 +157,7 @@ function openChooser(file: File, x: number, y: number, store: Store): void {
     settled = true;
     texBtn.disabled = true;
     elBtn.disabled = true;
-    status.textContent = "Uploading…";
+    status.textContent = t("Uploading…");
     try {
       // Natural dims measured from the dropped file so the placed box
       // keeps the image's aspect (best-effort — a square fallback if
@@ -173,15 +174,15 @@ function openChooser(file: File, x: number, y: number, store: Store): void {
       cleanup();
     } catch (err) {
       console.error("[image-drop] upload failed:", err);
-      status.textContent = "Upload failed — try again.";
+      status.textContent = t("Upload failed — try again.");
       settled = false;
       texBtn.disabled = false;
       elBtn.disabled = false;
     }
   };
 
-  const texBtn = chooserButton("Background texture", () => void choose("texture"));
-  const elBtn = chooserButton("Image element", () => void choose("element"));
+  const texBtn = chooserButton(t("Background texture"), () => void choose("texture"));
+  const elBtn = chooserButton(t("Image element"), () => void choose("element"));
   const btns = document.createElement("div");
   btns.style.cssText = "display:flex;flex-direction:column;gap:6px;";
   btns.append(texBtn, elBtn);

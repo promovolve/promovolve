@@ -3,7 +3,9 @@
 // the selected item's values. Pure (no DOM) so it is unit-tested; the
 // selection bar, the sidebar and the Layers panel all read from here.
 
+import { FIELD_LABELS, isHashName } from "./display-labels";
 import { isFormula } from "./formula";
+import { t } from "./i18n";
 import { isMultiPage } from "./modes";
 import { currentLayout } from "./state";
 import type { DesignerState, LayoutItem } from "./types";
@@ -17,6 +19,8 @@ export type SelectionAction =
   | "alignCenter"
   | "alignRight"
   | "fitToText"
+  | "writeHorizontal"
+  | "writeVertical"
   | "bringToFront"
   | "bringForward"
   | "sendBackward"
@@ -43,7 +47,7 @@ export function selectionActions(state: DesignerState): SelectionAction[] {
   }
   const item = items[0]!;
   const own: SelectionAction[] =
-    item.type === "text" ? ["alignLeft", "alignCenter", "alignRight", "fitToText"]
+    item.type === "text" ? ["alignLeft", "alignCenter", "alignRight", "writeHorizontal", "writeVertical", "fitToText"]
     : isFormula(item) ? ["editFormula"]
     : item.type === "image" ? imageActions(state, item)
     : [];
@@ -68,36 +72,37 @@ export function panelScope(state: DesignerState): "banner" | "item" {
 
 export function scopeLabel(state: DesignerState): string {
   const items = selectedItems(state);
-  if (items.length === 0) return `Banner and page ${state.pageIdx + 1}`;
-  if (items.length > 1) return `${items.length} items`;
+  if (items.length === 0) return t("Banner and page %d", state.pageIdx + 1);
+  if (items.length > 1) return t("%d items", items.length);
   return `${typeName(items[0]!)} · ${itemName(items[0]!)}`;
 }
 
 export function typeName(item: LayoutItem): string {
-  if (isFormula(item)) return "Formula";
-  if (item.type === "text") return "Text";
-  if (item.type === "image") return "Image";
-  if (item.type === "rect" && item.scrim) return "Scrim";
-  return "Shape";
+  if (isFormula(item)) return t("Formula");
+  if (item.type === "text") return t("Text");
+  if (item.type === "image") return t("Image");
+  if (item.type === "rect" && item.scrim) return t("Scrim");
+  return t("Shape");
 }
 
 export function itemName(item: LayoutItem): string {
   if (item.type === "text") {
-    const t = (item.text ?? item.field ?? "").trim();
-    if (!t) return "Text";
-    const first = t.split(/\r?\n/, 1)[0]!;
+    const text = (item.text ?? "").trim();
+    if (!text) return item.field ? t(FIELD_LABELS[item.field] ?? item.field) : t("Text");
+    const first = text.split(/\r?\n/, 1)[0]!;
     return first.length > 40 ? first.slice(0, 40) + "…" : first;
   }
   if (item.type === "image") {
     if (item.latex) return item.latex.length > 40 ? item.latex.slice(0, 40) + "…" : item.latex;
-    const src = (item.src ?? item.field ?? "").trim();
-    if (!src) return "Image";
+    const src = (item.src ?? "").trim();
+    if (!src) return item.field ? t(FIELD_LABELS[item.field] ?? item.field) : t("Image");
     const parts = src.split("/");
-    return parts[parts.length - 1] || "Image";
+    const name = parts[parts.length - 1] ?? "";
+    return !name || isHashName(name) ? t("Image") : name;
   }
-  if (item.type === "rect") return "Scrim";
-  if (item.type === "circle") return "Circle";
-  return "Item";
+  if (item.type === "rect") return t("Scrim");
+  if (item.type === "circle") return t("Circle");
+  return t("Item");
 }
 
 /** Everything the selection bar draws: its actions, its label and the
@@ -106,5 +111,6 @@ export function itemName(item: LayoutItem): string {
 export function selectionBarKey(state: DesignerState): string {
   const [item] = selectedItems(state);
   const align = item?.type === "text" ? (item.textAlign ?? "left") : "";
-  return JSON.stringify([selectionActions(state), scopeLabel(state), align]);
+  const writing = item?.type === "text" ? (item.writingMode ?? "horizontal-tb") : "";
+  return JSON.stringify([selectionActions(state), scopeLabel(state), align, writing]);
 }

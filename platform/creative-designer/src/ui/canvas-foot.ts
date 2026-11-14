@@ -7,6 +7,7 @@
 //          from the menu bar because they're canvas-view concerns
 //          rather than identity chrome.
 
+import { t, tk } from "../i18n";
 import { currentPage, setZoom, switchPage } from "../state";
 import { isMultiPage } from "../modes";
 import { fanoutStatus, type FanoutStatus } from "../state/fanout";
@@ -41,10 +42,10 @@ export function mountCanvasFoot(host: HTMLElement, store: Store): CanvasFootHand
   // frame), then which size is on the canvas and its fanout status.
   const pager = document.createElement("div");
   pager.style.cssText = "display:flex;align-items:center;gap:4px;flex:0 0 auto;";
-  const prev = pagerBtn("‹", "Previous page");
+  const prev = pagerBtn("‹", t("Previous page"));
   const pageLabel = document.createElement("span");
   pageLabel.style.cssText = `color:${tokens.ink200};min-width:52px;text-align:center;`;
-  const next = pagerBtn("›", "Next page");
+  const next = pagerBtn("›", t("Next page"));
   prev.addEventListener("click", () => {
     if (store.state.pageIdx > 0) store.replace(switchPage(store.state, store.state.pageIdx - 1));
   });
@@ -82,8 +83,8 @@ export function mountCanvasFoot(host: HTMLElement, store: Store): CanvasFootHand
 
   const rulersBtn = document.createElement("button");
   rulersBtn.type = "button";
-  rulersBtn.title = "Toggle rulers";
-  rulersBtn.setAttribute("aria-label", "Toggle rulers");
+  rulersBtn.title = t("Toggle rulers");
+  rulersBtn.setAttribute("aria-label", t("Toggle rulers"));
   rulersBtn.textContent = "\u2195\u2194";
   rulersBtn.style.cssText = [
     "width: 22px",
@@ -115,7 +116,7 @@ export function mountCanvasFoot(host: HTMLElement, store: Store): CanvasFootHand
   zoomInput.min = "0.25";
   zoomInput.max = "3";
   zoomInput.step = "0.05";
-  zoomInput.title = "Canvas zoom";
+  zoomInput.title = t("Canvas zoom");
   zoomInput.style.cssText = `width: 110px; accent-color: ${tokens.ink100}; cursor: pointer;`;
   zoomInput.addEventListener("input", () => {
     const z = Number(zoomInput.value);
@@ -125,8 +126,8 @@ export function mountCanvasFoot(host: HTMLElement, store: Store): CanvasFootHand
 
   const zoomReadout = document.createElement("button");
   zoomReadout.type = "button";
-  zoomReadout.title = "Reset to 1×";
-  zoomReadout.setAttribute("aria-label", "Reset zoom to 1×");
+  zoomReadout.title = t("Reset to 1×");
+  zoomReadout.setAttribute("aria-label", t("Reset zoom to 1×"));
   zoomReadout.style.cssText = [
     "min-width: 42px",
     "text-align: right",
@@ -148,12 +149,12 @@ export function mountCanvasFoot(host: HTMLElement, store: Store): CanvasFootHand
     update(state) {
       const total = state.pages.length;
       pager.style.display = pagerVisible(state) ? "flex" : "none";
-      pageLabel.textContent = total > 0 ? `Page ${state.pageIdx + 1} / ${total}` : "—";
+      pageLabel.textContent = total > 0 ? t("Page %d / %d", state.pageIdx + 1, total) : "—";
       setEnabled(prev, state.pageIdx > 0);
       setEnabled(next, state.pageIdx < total - 1);
       const page = currentPage(state);
-      const status = page ? STATUS_WORD[fanoutStatus(page, state.mode)] : "";
-      sizeLine.textContent = [`${state.mode.w}×${state.mode.h}`, state.mode.label, status].filter(Boolean).join(" · ");
+      const status = page ? statusWord(fanoutStatus(page, state.mode)) : "";
+      sizeLine.textContent = [`${state.mode.w}×${state.mode.h}`, t(state.mode.label), status].filter(Boolean).join(" · ");
 
       const metrics = specMetrics(state);
 
@@ -169,7 +170,7 @@ export function mountCanvasFoot(host: HTMLElement, store: Store): CanvasFootHand
       if (metrics.videoBytes > 0) {
         sepVideo.style.display = "";
         video.el.style.display = "";
-        video.setValue(`Video ${formatBytes(metrics.videoBytes)}`, tokens.ink200);
+        video.setValue(t("Video %s", formatBytes(metrics.videoBytes)), tokens.ink200);
       } else {
         sepVideo.style.display = "none";
         video.el.style.display = "none";
@@ -197,10 +198,15 @@ function metric(): { el: HTMLElement; setValue: (text: string, color: string, ad
 }
 
 const STATUS_WORD: Record<FanoutStatus, string> = {
-  authored: "Authored",
-  generated: "Generated",
-  empty: "Empty",
+  authored: tk("Edited"),
+  generated: tk("Auto"),
+  empty: tk("Empty"),
 };
+
+/** A size's fanout status in plain words (footer + size-strip legend). */
+export function statusWord(status: FanoutStatus): string {
+  return t(STATUS_WORD[status]);
+}
 
 function pagerBtn(label: string, title: string): HTMLButtonElement {
   const b = document.createElement("button");
@@ -241,8 +247,8 @@ function separator(): HTMLElement {
 
 // ok, warn and err are all ink text: warn carries the grey advisory
 // marker (see metric()) and err says "over budget" (weightText).
-export function weightText(kb: number, t: "ok" | "warn" | "err"): string {
-  return `Weight ${kb} KB / ${WEIGHT_MAX} KB${t === "err" ? " · over budget" : ""}`;
+export function weightText(kb: number, level: "ok" | "warn" | "err"): string {
+  return t("File size %s KB / %s KB", kb, WEIGHT_MAX) + (level === "err" ? t(" · over the limit") : "");
 }
 
 function thresholdColor(t: "ok" | "warn" | "err"): string {

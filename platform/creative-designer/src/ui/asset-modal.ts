@@ -9,6 +9,7 @@
 import { imageDimensions, prepareForUpload, sha256Hex, uploadImageDirect } from "../api/upload-asset";
 import { setMainImage } from "../state";
 import type { Store } from "../store";
+import { t } from "../i18n";
 import { tokens } from "./tokens";
 
 interface Asset {
@@ -95,7 +96,7 @@ function buildModal(): Modal {
   header.style.cssText = `display:flex;align-items:center;gap:8px;padding:12px 16px;border-bottom:1px solid ${tokens.ink500};`;
   const title = document.createElement("h2");
   title.className = "cd-title";
-  title.textContent = "Images";
+  title.textContent = t("Images");
   title.style.cssText = `margin:0;font-size:15px;color:${tokens.ink100};font-weight:700;`;
   const count = document.createElement("span");
   count.style.cssText = `color:${tokens.ink300};font-size:12px;`;
@@ -103,7 +104,7 @@ function buildModal(): Modal {
   spacer.style.flex = "1";
   const uploadLabel = document.createElement("label");
   uploadLabel.htmlFor = "cd-asset-upload";
-  uploadLabel.textContent = "⬆ Upload";
+  uploadLabel.textContent = t("⬆ Upload");
   uploadLabel.style.cssText = `padding:4px 10px;background:${tokens.ink700};color:${tokens.ink100};border:1px solid ${tokens.ink500};border-radius:2px;cursor:pointer;font-size:12px;`;
   const fileInput = document.createElement("input");
   fileInput.id = "cd-asset-upload";
@@ -113,7 +114,7 @@ function buildModal(): Modal {
   fileInput.style.display = "none";
   const closeBtn = document.createElement("button");
   closeBtn.type = "button";
-  closeBtn.textContent = "Close";
+  closeBtn.textContent = t("Close");
   closeBtn.style.cssText = `padding:4px 10px;background:${tokens.ink700};color:${tokens.ink100};border:1px solid ${tokens.ink500};border-radius:2px;cursor:pointer;font-size:12px;`;
   header.append(title, count, spacer, uploadLabel, fileInput, closeBtn);
 
@@ -122,7 +123,7 @@ function buildModal(): Modal {
   body.style.cssText = "padding:16px;overflow:auto;";
   const zone = document.createElement("div");
   zone.style.cssText = `border:2px dashed ${tokens.ink500};border-radius:2px;padding:18px;text-align:center;color:${tokens.ink300};font-size:13px;cursor:pointer;margin-bottom:16px;`;
-  zone.textContent = "Drop images here, or click Upload above";
+  zone.textContent = t("Drop images here, or click Upload above");
   const grid = document.createElement("div");
   // Responsive grid: thumbnails keep their natural aspect ratio (no square
   // crop) and flow left-to-right, wrapping into new rows that grow downward
@@ -157,7 +158,7 @@ function buildModal(): Modal {
   const showEmpty = (): void => {
     grid.innerHTML = "";
     const empty = document.createElement("div");
-    empty.textContent = "No images yet — drop or upload some above.";
+    empty.textContent = t("No images yet — drop or upload some above.");
     empty.style.cssText = `grid-column:1/-1; text-align:center; color:${tokens.ink300}; padding:32px;`;
     grid.appendChild(empty);
   };
@@ -202,11 +203,11 @@ function buildModal(): Modal {
     // Natural aspect ratio — fill the column width, height follows the image.
     img.style.cssText = `width:100%;height:auto;display:block;aspect-ratio:${ratio};object-fit:cover;background:${tokens.ink900};`;
     const fn = document.createElement("div");
-    fn.textContent = asset.filename ?? "(unnamed)";
+    fn.textContent = asset.filename ?? t("(unnamed)");
     fn.style.cssText = `position:absolute;left:0;right:0;bottom:0;background:rgba(0,0,0,0.7);color:${tokens.ink100};padding:4px 8px;font-size:11px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;`;
     const del = document.createElement("div");
     del.textContent = "×";
-    del.title = "Remove from library";
+    del.title = t("Remove from library");
     del.style.cssText = `position:absolute;top:4px;right:4px;width:20px;height:20px;display:none;align-items:center;justify-content:center;background:rgba(0,0,0,0.7);color:${tokens.ink100};border-radius:50%;font-size:14px;cursor:pointer;`;
     del.addEventListener("click", async (e) => {
       e.stopPropagation();

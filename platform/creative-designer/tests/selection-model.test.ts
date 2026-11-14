@@ -52,7 +52,7 @@ describe("selectionActions", () => {
 
   it("offers alignment for one text item", () => {
     const s = setSelection(withItems(text), [0]);
-    expect(selectionActions(s)).toEqual(["alignLeft", "alignCenter", "alignRight", "fitToText", ...ARRANGE, "delete"]);
+    expect(selectionActions(s)).toEqual(["alignLeft", "alignCenter", "alignRight", "writeHorizontal", "writeVertical", "fitToText", ...ARRANGE, "delete"]);
   });
 
   it("offers only arrange and delete for a scrim or a circle", () => {
@@ -114,5 +114,10 @@ describe("selectionBarKey", () => {
     expect(selectionBarKey(setSelection(s, [1]))).not.toBe(selectionBarKey(s));
     expect(selectionBarKey(updateItem(s, 0, (it) => ({ ...it, text: "Spring" })))).not.toBe(selectionBarKey(s));
     expect(selectionBarKey(updateItem(s, 0, (it) => ({ ...it, textAlign: "right" })))).not.toBe(selectionBarKey(s));
+  });
+
+  it("changes with the writing mode, so Horizontal / Vertical re-highlight", () => {
+    const s = setSelection(withItems(text), [0]);
+    expect(selectionBarKey(updateItem(s, 0, (it) => ({ ...it, writingMode: "vertical-rl" })))).not.toBe(selectionBarKey(s));
   });
 });

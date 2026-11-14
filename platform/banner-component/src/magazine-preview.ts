@@ -18,6 +18,8 @@
 // no dependency on the host page's CSS (Tailwind on the publisher side,
 // the designer's token sheet on the advertiser side).
 
+import { previewLabels } from "./preview-labels";
+
 type Mode = "pc" | "mobile";
 
 // One stop of the slot-size tour (slot-tour="1"): a standard ad dimension
@@ -145,7 +147,7 @@ function buildNewspaperInto(
   const label = document.createElement("div");
   label.className = "ad-label";
   label.setAttribute("aria-hidden", "true");
-  label.textContent = "Advertisement";
+  label.textContent = previewLabels(document.documentElement.lang).ad;
   label.style.cssText = [
     "text-align: center",
     `font-size: ${mobile ? "2.6cqw" : "0.95cqw"}`,
@@ -434,8 +436,9 @@ export class MagazinePreview extends HTMLElement {
     // PC / Mobile toggle.
     const toggles = document.createElement("div");
     toggles.style.cssText = "display:grid;grid-template-columns:1fr 1fr;gap:6px;";
-    this.pcBtn = this.mkToggle("PC", () => this.show("pc"));
-    this.mbBtn = this.mkToggle("Mobile", () => this.show("mobile"));
+    const labels = previewLabels(document.documentElement.lang);
+    this.pcBtn = this.mkToggle(labels.pc, () => this.show("pc"));
+    this.mbBtn = this.mkToggle(labels.mobile, () => this.show("mobile"));
     toggles.append(this.pcBtn, this.mbBtn);
 
     // PC: a desktop BROWSER-WINDOW frame (3:2); preview-frame keeps the

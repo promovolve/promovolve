@@ -14,6 +14,7 @@
 // tuned defaults beat a keyframe timeline that invites abuse.
 
 import type { MotionFrom, MotionTarget } from "./types";
+import { tk } from "./i18n";
 
 export interface AnimationPreset {
   id: string;
@@ -26,22 +27,22 @@ export interface AnimationPreset {
 }
 
 export const ANIMATION_PRESETS: AnimationPreset[] = [
-  { id: "fade-in",    label: "Fade in",
+  { id: "fade-in",    label: tk("Fade in"),
     from: { opacity: 0, duration: 0.6 }, knob: "none" },
-  { id: "fade-up",    label: "Fade up",
+  { id: "fade-up",    label: tk("Fade up"),
     from: { opacity: 0, dy: 5, duration: 0.6 }, knob: "distance" },
-  { id: "fade-down",  label: "Fade down",
+  { id: "fade-down",  label: tk("Fade down"),
     from: { opacity: 0, dy: -5, duration: 0.6 }, knob: "distance" },
-  { id: "fade-left",  label: "From the left",
+  { id: "fade-left",  label: tk("From the left"),
     from: { opacity: 0, dx: -5, duration: 0.6 }, knob: "distance" },
-  { id: "fade-right", label: "From the right",
+  { id: "fade-right", label: tk("From the right"),
     from: { opacity: 0, dx: 5, duration: 0.6 }, knob: "distance" },
-  { id: "rise",       label: "Rise",
+  { id: "rise",       label: tk("Rise"),
     from: { opacity: 0, dy: 3, scale: 0.96, duration: 0.7 }, knob: "distance" },
-  { id: "pop",        label: "Pop",
+  { id: "pop",        label: tk("Pop"),
     from: { opacity: 0, scale: 0.85, duration: 0.45, easing: "cubic-bezier(0.34,1.56,0.64,1)" },
     knob: "intensity" },
-  { id: "stamp",      label: "Stamp",
+  { id: "stamp",      label: tk("Stamp"),
     // A hanko press: arrives larger, settles onto the page, fast.
     from: { opacity: 0, scale: 1.18, duration: 0.35, easing: "cubic-bezier(0.5,0,0.2,1)" },
     knob: "intensity" },
@@ -70,13 +71,13 @@ export interface ExitPreset {
 }
 
 export const EXIT_PRESETS: ExitPreset[] = [
-  { id: "fade-out",    label: "Fade out",
+  { id: "fade-out",    label: tk("Fade out"),
     to: { opacity: 0, delay: 2, duration: 0.6, afterEntrance: true } },
-  { id: "shrink-away", label: "Shrink away",
+  { id: "shrink-away", label: tk("Shrink away"),
     to: { opacity: 0, scale: 0.85, delay: 2, duration: 0.45, afterEntrance: true } },
   // Rise's counterpart: drifts UP and fades, gently shrinking — the
   // reverse of arriving from below.
-  { id: "float-away", label: "Float away",
+  { id: "float-away", label: tk("Float away"),
     to: { opacity: 0, dy: -3, scale: 0.96, delay: 2, duration: 0.7, afterEntrance: true } },
 ];
 
@@ -88,10 +89,10 @@ export function exitPresetById(id: string | undefined): ExitPreset | undefined {
 // the engine default (omitted from the stored JSON so configs stay
 // minimal and can follow the engine default).
 export const EASING_MENU: Array<{ id: string; label: string; css: string | undefined }> = [
-  { id: "smooth",    label: "Smooth",    css: undefined },
-  { id: "snappy",    label: "Snappy",    css: "cubic-bezier(0.5,0,0.2,1)" },
-  { id: "overshoot", label: "Overshoot", css: "cubic-bezier(0.34,1.56,0.64,1)" },
-  { id: "linear",    label: "Linear",    css: "linear" },
+  { id: "smooth",    label: tk("Smooth"),    css: undefined },
+  { id: "snappy",    label: tk("Snappy"),    css: "cubic-bezier(0.5,0,0.2,1)" },
+  { id: "overshoot", label: tk("Overshoot"), css: "cubic-bezier(0.34,1.56,0.64,1)" },
+  { id: "linear",    label: tk("Linear"),    css: "linear" },
 ];
 
 export function easingIdFor(css: string | undefined): string {

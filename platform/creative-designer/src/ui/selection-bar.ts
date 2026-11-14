@@ -11,7 +11,8 @@
 // that don't fit move into a More menu, least-used first (arrange
 // before the type's own actions); Delete always stays on the bar.
 
-import { packTextItemHeight } from "../render/canvas";
+import { t, tk } from "../i18n";
+import { packTextItemHeight, setWritingMode } from "../render/canvas";
 import { bringForward, bringToFront, groupSelection, sendBackward, sendToBack, updateItem } from "../state";
 import { selectedItems, selectionActions, selectionBarKey, scopeLabel, type SelectionAction } from "../selection-model";
 import type { Store } from "../store";
@@ -24,26 +25,28 @@ import { openRemoveBgModal } from "./remove-bg-modal";
 import { tokens } from "./tokens";
 
 const LABEL: Record<SelectionAction, string> = {
-  replace: "Replace",
-  crop: "Crop",
-  removeBackground: "Remove background",
-  editFormula: "Edit formula",
-  alignLeft: "Align left",
-  alignCenter: "Align centre",
-  alignRight: "Align right",
-  fitToText: "Fit box to text",
-  bringToFront: "Bring to front",
-  bringForward: "Bring forward",
-  sendBackward: "Send backward",
-  sendToBack: "Send to back",
-  group: "Group",
-  delete: "Delete",
+  replace: tk("Replace"),
+  crop: tk("Crop"),
+  removeBackground: tk("Remove background"),
+  editFormula: tk("Edit formula"),
+  alignLeft: tk("Align left"),
+  alignCenter: tk("Align centre"),
+  alignRight: tk("Align right"),
+  writeHorizontal: tk("Horizontal"),
+  writeVertical: tk("Vertical"),
+  fitToText: tk("Fit box to text"),
+  bringToFront: tk("Bring to front"),
+  bringForward: tk("Bring forward"),
+  sendBackward: tk("Send backward"),
+  sendToBack: tk("Send to back"),
+  group: tk("Group"),
+  delete: tk("Delete"),
 };
 
 // The order actions leave the bar for More when space runs out.
 const OVERFLOW_ORDER: SelectionAction[] = [
   "sendToBack", "sendBackward", "bringForward", "bringToFront", "group",
-  "fitToText", "alignRight", "alignCenter", "alignLeft",
+  "fitToText", "alignRight", "alignCenter", "alignLeft", "writeHorizontal", "writeVertical",
   "removeBackground", "crop", "replace", "editFormula",
 ];
 
@@ -51,6 +54,12 @@ const ALIGN: Partial<Record<SelectionAction, "left" | "center" | "right">> = {
   alignLeft: "left",
   alignCenter: "center",
   alignRight: "right",
+};
+
+// One click to tategaki (GH #494) — the same path as Properties → writing.
+const WRITING: Partial<Record<SelectionAction, "horizontal-tb" | "vertical-rl">> = {
+  writeHorizontal: "horizontal-tb",
+  writeVertical: "vertical-rl",
 };
 
 // The actions that open an editor for one image need its index and item.
@@ -65,6 +74,11 @@ function run(store: Store, action: SelectionAction): void {
   const align = ALIGN[action];
   if (align) {
     store.commit(updateItem(s, s.selectedItemIdxs[0]!, (it) => ({ ...it, textAlign: align })));
+    return;
+  }
+  const writing = WRITING[action];
+  if (writing) {
+    setWritingMode(store, s.selectedItemIdxs[0]!, writing);
     return;
   }
   switch (action) {
@@ -86,7 +100,7 @@ export function mountSelectionBar(host: HTMLElement, store: Store): { update(sta
   const bar = document.createElement("div");
   bar.className = "cd-selection-bar";
   bar.setAttribute("role", "toolbar");
-  bar.setAttribute("aria-label", "Selection");
+  bar.setAttribute("aria-label", t("Selection"));
   bar.style.cssText = [
     "height: 40px", // border-box: includes the 1px rule, 40 on the pre-zoom grid
     "box-sizing: border-box",
@@ -126,9 +140,18 @@ export function mountSelectionBar(host: HTMLElement, store: Store): { update(sta
   const btn = (action: SelectionAction, active: boolean): HTMLButtonElement => {
     const arrange = action.startsWith("bring") || action.startsWith("send") || action === "group";
     const idleBorder = arrange ? "transparent" : tokens.ink100;
-    const b = plain(LABEL[action], active ? tokens.focus : idleBorder, active ? tokens.focus : tokens.ink100);
+    const b = plain(t(LABEL[action]), active ? tokens.focus : idleBorder, active ? tokens.focus : tokens.ink100);
     b.dataset.action = action;
-    if (active) b.setAttribute("aria-pressed", "true");
+    if (active) {
+      b.setAttribute("aria-pressed", "true");
+      // focus == ink100 in this monochrome palette, so the colour alone
+      // never showed which Align / Horizontal / Vertical is current. A
+      // filled, bold button does; this listener runs after plain()'s
+      // hover-out reset and restores the fill.
+      b.style.background = tokens.focusBg;
+      b.style.fontWeight = "700";
+      b.addEventListener("mouseleave", () => { b.style.background = tokens.focusBg; });
+    }
     b.addEventListener("click", () => run(store, action));
     return b;
   };
@@ -142,7 +165,7 @@ export function mountSelectionBar(host: HTMLElement, store: Store): { update(sta
   // More: a button plus a menu that drops below it. Rebuilt by fit().
   const moreWrap = document.createElement("span");
   moreWrap.style.cssText = "position: relative; flex-shrink: 0;";
-  const more = plain("More ▾", "transparent", tokens.ink100);
+  const more = plain(`${t("More")} ▾`, "transparent", tokens.ink100);
   more.setAttribute("aria-haspopup", "menu");
   const menu = document.createElement("div");
   menu.setAttribute("role", "menu");
@@ -203,7 +226,7 @@ export function mountSelectionBar(host: HTMLElement, store: Store): { update(sta
       const item = document.createElement("button");
       item.type = "button";
       item.setAttribute("role", "menuitem");
-      item.textContent = LABEL[action];
+      item.textContent = t(LABEL[action]);
       item.style.cssText = [
         "padding: 5px 12px",
         "text-align: left",
@@ -234,7 +257,7 @@ export function mountSelectionBar(host: HTMLElement, store: Store): { update(sta
       const actions = selectionActions(state);
       if (actions.length === 0) {
         const empty = document.createElement("span");
-        empty.textContent = "Nothing selected. Click an item on the banner, or add one from the left.";
+        empty.textContent = t("Nothing selected. Click an item on the banner, or add one from the left.");
         empty.style.cssText = `color: ${tokens.ink300}; white-space: nowrap; overflow: hidden; text-overflow: ellipsis;`;
         bar.appendChild(empty);
         return;
@@ -257,6 +280,7 @@ export function mountSelectionBar(host: HTMLElement, store: Store): { update(sta
 
       const [item] = selectedItems(state);
       const currentAlign = item?.type === "text" ? (item.textAlign ?? "left") : null;
+      const currentWriting = item?.type === "text" ? (item.writingMode ?? "horizontal-tb") : null;
       let prevArrange: boolean | null = null;
       for (const a of actions) {
         if (a === "delete") {
@@ -271,7 +295,8 @@ export function mountSelectionBar(host: HTMLElement, store: Store): { update(sta
           bar.appendChild(divider);
         }
         prevArrange = arrange;
-        const el = btn(a, ALIGN[a] !== undefined && ALIGN[a] === currentAlign);
+        const el = btn(a, (ALIGN[a] !== undefined && ALIGN[a] === currentAlign)
+          || (WRITING[a] !== undefined && WRITING[a] === currentWriting));
         shown.push({ action: a, el });
         bar.appendChild(el);
       }

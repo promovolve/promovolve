@@ -766,6 +766,17 @@ export function addItem(state: DesignerState, item: LayoutItem): DesignerState {
   return { ...next, selectedItemIdxs: [currentLayout(next).length - 1] };
 }
 
+// Adds an item just BELOW the lowest text item (above images and other
+// backdrops) and selects it; on top when the view has no text. For scrims:
+// a legibility wash belongs under the copy — added on top it darkened the
+// headline and swallowed clicks meant for it (GH #494).
+export function addItemBelowText(state: DesignerState, item: LayoutItem): DesignerState {
+  const at = currentLayout(state).findIndex((it) => it.type === "text");
+  if (at < 0) return addItem(state, item);
+  const next = updateCurrentLayout(state, (items) => [...items.slice(0, at), item, ...items.slice(at)]);
+  return { ...next, selectedItemIdxs: [at] };
+}
+
 // Add an image as a LOCAL (unsynced) item to the current view — centered, a
 // modest size, carrying its own baked src. It stays in this view only; THE
 // shared image is changed via setMainImage from the expanded view. Selected

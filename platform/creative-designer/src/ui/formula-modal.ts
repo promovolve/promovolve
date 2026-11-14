@@ -11,6 +11,7 @@ import { loadMathJax, texToSvg, type FormulaSvg } from "../formula";
 import { addLocalImage, currentLayout, currentPage, updateItem } from "../state";
 import type { Store } from "../store";
 import type { ImageItem } from "../types";
+import { t } from "../i18n";
 import { tokens } from "./tokens";
 
 export function openFormulaModal(store: Store, edit?: { idx: number; item: ImageItem }): void {
@@ -34,7 +35,7 @@ export function openFormulaModal(store: Store, edit?: { idx: number; item: Image
   const title = document.createElement("div");
 
   title.className = "cd-title";
-  title.textContent = edit ? "Edit formula" : "Insert formula";
+  title.textContent = edit ? t("Edit formula") : t("Insert formula");
   title.style.cssText = "font-weight: 700; font-size: 13px;";
 
   const input = document.createElement("textarea");
@@ -63,7 +64,7 @@ export function openFormulaModal(store: Store, edit?: { idx: number; item: Image
   ].join(";");
 
   const previewImg = document.createElement("img");
-  previewImg.alt = "Formula preview";
+  previewImg.alt = t("Formula preview");
   previewImg.style.cssText = "display:block;max-width:100%;";
   preview.appendChild(previewImg);
 
@@ -72,12 +73,12 @@ export function openFormulaModal(store: Store, edit?: { idx: number; item: Image
   const color = document.createElement("input");
   color.type = "color";
   color.value = edit?.item.latexColor ?? pickContrast(page?.bg).headline;
-  colorLabel.append("color", color);
+  colorLabel.append(t("color"), color);
 
   const status = document.createElement("span");
   status.setAttribute("role", "status");
   status.style.cssText = `flex:1;font-size:11px;color:${tokens.ink300};`;
-  status.textContent = "Loading formula renderer…";
+  status.textContent = t("Loading formula renderer…");
 
   // `closed` lets an in-flight upload notice the modal was cancelled;
   // `busy` keeps Insert locked until that upload settles.
@@ -89,8 +90,8 @@ export function openFormulaModal(store: Store, edit?: { idx: number; item: Image
     window.removeEventListener("keydown", onKey, true);
   };
 
-  const cancelBtn = button("Cancel", false, close);
-  const doneBtn = button(edit ? "Update" : "Insert", true, () => void commit());
+  const cancelBtn = button(t("Cancel"), false, close);
+  const doneBtn = button(edit ? t("Update") : t("Insert"), true, () => void commit());
   const setDone = (on: boolean): void => {
     doneBtn.disabled = !on;
     doneBtn.style.opacity = on ? "1" : "0.4";
@@ -139,7 +140,7 @@ export function openFormulaModal(store: Store, edit?: { idx: number; item: Image
     setBusy(true);
     setDone(false);
     status.style.color = tokens.ink300;
-    status.textContent = "Uploading…";
+    status.textContent = t("Uploading…");
     try {
       const file = new File([svg], "formula.svg", { type: "image/svg+xml" });
       const { src } = await uploadImage(file);
@@ -149,7 +150,7 @@ export function openFormulaModal(store: Store, edit?: { idx: number; item: Image
         // write only if the slot still holds the formula we opened.
         const cur = currentLayout(store.state)[edit.idx];
         if (cur?.type !== "image" || cur.src !== edit.item.src || cur.latex !== edit.item.latex) {
-          throw new Error("the formula changed while uploading — close and reopen it");
+          throw new Error(t("the formula changed while uploading — close and reopen it"));
         }
         // Keep the box's width and position; re-derive height so the new
         // formula keeps its aspect, with addLocalImage's 80% cap and a
@@ -176,7 +177,7 @@ export function openFormulaModal(store: Store, edit?: { idx: number; item: Image
       if (closed) return;
       setBusy(false);
       status.style.color = tokens.err;
-      status.textContent = `Couldn't save: ${(e as Error).message}`;
+      status.textContent = t("Couldn't save: %s", (e as Error).message);
       setDone(true);
     }
   };

@@ -35,9 +35,50 @@
     </p>
   </div>
 
-  <!-- ============ 1. Landing page — pinned at the top ============ -->
+  <!-- ============ 1. Format — picked FIRST (GH #510) ============
+       Magazine (3 pages) or Fold-out (one poster folded in thirds). Nothing
+       is preselected: copy is written for one format, so it waits for this
+       pick (the LP read below starts on load regardless — it's format-free
+       and the slow part). The designer has no format switch. -->
   <section class="editor-section">
-    <h2 class="editor-heading"><span class="tabular">1</span> {{t "Landing page"}}</h2>
+    <h2 class="editor-heading"><span class="tabular">1</span> {{t "Format"}}</h2>
+    <div class="min-w-0">
+      <div class="grid gap-2 grid-cols-2 xl:grid-cols-4">
+        <button type="button" @click="setFormat('magazine')" :disabled="generating"
+                :aria-pressed="format === 'magazine'"
+                class="border rounded-sm px-3 py-2 text-left transition-colors hover:border-gray-900 disabled:opacity-50 disabled:cursor-not-allowed flex items-start gap-3"
+                :class="format === 'magazine' ? 'border-gray-900 bg-gray-100 shadow-[inset_0_0_0_1px_rgb(var(--c-gray-900))]' : 'border-gray-300'">
+          <svg class="shrink-0 mt-0.5 text-gray-900" width="22" height="28" viewBox="0 0 22 28" fill="none" stroke="currentColor" stroke-width="1.5" aria-hidden="true">
+            <rect x="6.75" y="0.75" width="14.5" height="19" fill="rgb(var(--c-gray-50))"/>
+            <rect x="3.75" y="4.25" width="14.5" height="19" fill="rgb(var(--c-gray-50))"/>
+            <rect x="0.75" y="7.75" width="14.5" height="19" fill="rgb(var(--c-gray-50))"/>
+          </svg>
+          <span class="min-w-0">
+            <span class="block text-sm text-gray-900" :class="format === 'magazine' && 'font-bold'">{{t "Magazine"}}</span>
+            <span class="block text-xs text-gray-500 mt-0.5 leading-snug">{{t "3 pages"}}</span>
+          </span>
+        </button>
+        <button type="button" @click="setFormat('foldout')" :disabled="generating"
+                :aria-pressed="format === 'foldout'"
+                class="border rounded-sm px-3 py-2 text-left transition-colors hover:border-gray-900 disabled:opacity-50 disabled:cursor-not-allowed flex items-start gap-3"
+                :class="format === 'foldout' ? 'border-gray-900 bg-gray-100 shadow-[inset_0_0_0_1px_rgb(var(--c-gray-900))]' : 'border-gray-300'">
+          <svg class="shrink-0 mt-0.5 text-gray-900" width="22" height="28" viewBox="0 0 22 28" fill="none" stroke="currentColor" stroke-width="1.5" aria-hidden="true">
+            <rect x="3.75" y="0.75" width="14.5" height="26.5" fill="rgb(var(--c-gray-50))"/>
+            <line x1="3.75" y1="9.6" x2="18.25" y2="9.6" stroke-width="1" stroke-dasharray="2 1.5"/>
+            <line x1="3.75" y1="18.4" x2="18.25" y2="18.4" stroke-width="1" stroke-dasharray="2 1.5"/>
+          </svg>
+          <span class="min-w-0">
+            <span class="block text-sm text-gray-900" :class="format === 'foldout' && 'font-bold'">{{t "Fold-out"}}</span>
+            <span class="block text-xs text-gray-500 mt-0.5 leading-snug">{{t "One poster, folds in thirds"}}</span>
+          </span>
+        </button>
+      </div>
+    </div>
+  </section>
+
+  <!-- ============ 2. Landing page ============ -->
+  <section class="editor-section">
+    <h2 class="editor-heading"><span class="tabular">2</span> {{t "Landing page"}}</h2>
     <div class="min-w-0">
       <div class="flex gap-3">
         <input type="text" x-model="extractUrl" placeholder="{{t "Enter landing page URL"}}"
@@ -83,55 +124,19 @@
           <p class="text-xs" :class="lpScreenshotUrl ? 'text-white/75' : 'text-gray-500'">{{t "Extracting text, images and brand colours"}}</p>
         </div>
       </div>
+      <!-- Read, but no format yet: the copy (and everything below) waits. -->
+      <p x-show="step === 'compose' && !format" x-cloak class="mt-4 text-sm text-gray-900 font-bold">{{t "Choose a format above and we'll write the ad copy."}}</p>
     </div>
   </section>
 
-  <!-- ============ 2–6. Compose — same page; reveals (animated) below the
-       URL once Analyze populates it. step flips to 'compose' on success or
-       manual fallback. ============ -->
-  <div x-show="step === 'compose'"
+  <!-- ============ 3–6. Compose — same page; reveals (animated) below the
+       URL once Analyze populates it AND a format is picked. step flips to
+       'compose' on success or manual fallback. ============ -->
+  <div x-show="step === 'compose' && format"
        x-cloak
        x-transition:enter="transition ease-out duration-300"
        x-transition:enter-start="opacity-0 translate-y-3"
        x-transition:enter-end="opacity-100 translate-y-0">
-
-    <!-- 2. Format: Magazine (3 pages) or Fold-out (one poster folded in thirds).
-         Picked once here; the designer has no format switch. -->
-    <section class="editor-section">
-      <h2 class="editor-heading"><span class="tabular">2</span> {{t "Format"}}</h2>
-      <div class="min-w-0">
-        <div class="grid gap-2 grid-cols-2 xl:grid-cols-4">
-          <button type="button" @click="setFormat('magazine')" :disabled="generating"
-                  :aria-pressed="format === 'magazine'"
-                  class="border rounded-sm px-3 py-2 text-left transition-colors hover:border-gray-900 disabled:opacity-50 disabled:cursor-not-allowed flex items-start gap-3"
-                  :class="format === 'magazine' ? 'border-gray-900 bg-gray-100 shadow-[inset_0_0_0_1px_rgb(var(--c-gray-900))]' : 'border-gray-300'">
-            <svg class="shrink-0 mt-0.5 text-gray-900" width="22" height="28" viewBox="0 0 22 28" fill="none" stroke="currentColor" stroke-width="1.5" aria-hidden="true">
-              <rect x="6.75" y="0.75" width="14.5" height="19" fill="rgb(var(--c-gray-50))"/>
-              <rect x="3.75" y="4.25" width="14.5" height="19" fill="rgb(var(--c-gray-50))"/>
-              <rect x="0.75" y="7.75" width="14.5" height="19" fill="rgb(var(--c-gray-50))"/>
-            </svg>
-            <span class="min-w-0">
-              <span class="block text-sm text-gray-900" :class="format === 'magazine' && 'font-bold'">{{t "Magazine"}}</span>
-              <span class="block text-xs text-gray-500 mt-0.5 leading-snug">{{t "3 pages"}}</span>
-            </span>
-          </button>
-          <button type="button" @click="setFormat('foldout')" :disabled="generating"
-                  :aria-pressed="format === 'foldout'"
-                  class="border rounded-sm px-3 py-2 text-left transition-colors hover:border-gray-900 disabled:opacity-50 disabled:cursor-not-allowed flex items-start gap-3"
-                  :class="format === 'foldout' ? 'border-gray-900 bg-gray-100 shadow-[inset_0_0_0_1px_rgb(var(--c-gray-900))]' : 'border-gray-300'">
-            <svg class="shrink-0 mt-0.5 text-gray-900" width="22" height="28" viewBox="0 0 22 28" fill="none" stroke="currentColor" stroke-width="1.5" aria-hidden="true">
-              <rect x="3.75" y="0.75" width="14.5" height="26.5" fill="rgb(var(--c-gray-50))"/>
-              <line x1="3.75" y1="9.6" x2="18.25" y2="9.6" stroke-width="1" stroke-dasharray="2 1.5"/>
-              <line x1="3.75" y1="18.4" x2="18.25" y2="18.4" stroke-width="1" stroke-dasharray="2 1.5"/>
-            </svg>
-            <span class="min-w-0">
-              <span class="block text-sm text-gray-900" :class="format === 'foldout' && 'font-bold'">{{t "Fold-out"}}</span>
-              <span class="block text-xs text-gray-500 mt-0.5 leading-snug">{{t "One poster, folds in thirds"}}</span>
-            </span>
-          </button>
-        </div>
-      </div>
-    </section>
 
     <!-- 3. Story: the copy is written automatically once the LP is read,
          with the arc the AI recommends (badged). The AI also curates which
@@ -392,12 +397,11 @@
                class="form-input">
         <p class="form-hint">{{t "Shown on your creatives list and in reports."}}</p>
         <div class="mt-5 flex flex-wrap items-center gap-x-4 gap-y-2">
-          <button @click="generateCopy()" :disabled="generating || !canGenerate()"
+          <button @click="generateCopy()" :disabled="generating || handingOff || !canGenerate()"
                   class="btn btn-primary">
-            <span x-show="!generating">{{t "Continue to Designer"}}</span>
-            <span x-show="generating">{{t "Writing copy…"}}</span>
+            <span x-text="handingOff ? '{{t "Opening the Designer…"}}' : generating ? '{{t "Writing copy…"}}' : '{{t "Continue to Designer"}}'">{{t "Continue to Designer"}}</span>
           </button>
-          <p x-show="!canGenerate() && !generating"
+          <p x-show="!canGenerate() && !generating && !handingOff"
              class="text-sm text-gray-500"
              x-text="'{{t "To continue, still needed:"}} ' + [
                synthesizedPages.length < copyPagesNeeded() && '{{t "the copy (step 3)"}}',
@@ -418,7 +422,7 @@
 function creativeEditor() {
   return {
     step: 'analyze',  // 'analyze', 'compose'
-    format: 'magazine', // 'magazine' | 'foldout' — Fold-out = one poster folded in thirds
+    format: null, // 'magazine' | 'foldout' — Fold-out = one poster folded in thirds; null until the advertiser picks (step 1)
     extractUrl: '{{.LandingURL}}',
     extractStrategy: 'auto',
     creativeName: '',
@@ -506,7 +510,8 @@ function creativeEditor() {
     // poll flips screenshotReady) and shown as the loading backdrop so the
     // space below the URL field isn't blank white while extraction runs.
     lpScreenshotUrl: '',
-    generating: false,
+    generating: false,   // writing copy (synthesize)
+    handingOff: false,   // Continue → submitting to the Designer; NOT copy writing
     generateError: '',
     // Fallback mode (scrape returned empty — user supplies content manually)
     manualMode: false,
@@ -532,6 +537,7 @@ function creativeEditor() {
       window.addEventListener('pageshow', (e) => {
         if (e.persisted) {
           this.generating = false;
+          this.handingOff = false;
           this.analyzing = false;
         }
       });
@@ -1048,6 +1054,8 @@ function creativeEditor() {
     // Copy is written for one format: a 3-page arc doesn't fit a poster and
     // vice versa, so switching formats drops it and writes the new one —
     // with the current arc once one has been recommended, else recommending.
+    // Also the FIRST pick: copy waits for it (GH #510), so this writes it
+    // when the LP was read first; synthesize() no-ops until texts arrive.
     setFormat(f) {
       if (f === this.format) return;
       this.format = f;
@@ -1085,7 +1093,8 @@ function creativeEditor() {
     // arcId omitted (on load) → backend recommends the best arc, curates the
     // arcs that fit, and generates with the best — one request.
     async synthesize(arcId) {
-      if (this.allTexts.length === 0) return;
+      // No format yet: the pick (setFormat) writes the copy (GH #510).
+      if (this.allTexts.length === 0 || !this.format) return;
       this.generating = true;
       this.generateError = '';
       // Hard client-side cap so the "Writing copy…" state can't hang forever
@@ -1130,7 +1139,9 @@ function creativeEditor() {
     // here — the copy was already written by synthesize().
     generateCopy() {
       if (!this.canGenerate()) return;
-      this.generating = true;
+      // Its own flag: reusing `generating` lit every "Writing copy…" label
+      // on the page during the handoff, though no copy is being written.
+      this.handingOff = true;
       this.generateError = '';
       const pages = this.synthesizedPages.map((page, i) => {
         const slot = this.pageSlots[i];
@@ -1157,8 +1168,8 @@ function creativeEditor() {
         });
       }
       this.pages = pages;
-      // Keep generating=true through the form submit → navigation so the editor
-      // UI doesn't flash between assemble and nav-start.
+      // Keep handingOff=true through the form submit → navigation so the
+      // button doesn't flash back between assemble and nav-start.
       this.$nextTick(() => document.getElementById('designer-handoff').submit());
     },
 

@@ -10,7 +10,6 @@ import {
   buildExpandWrapper,
   buildNavButton,
   buildOverlay,
-  buildPageCounter,
 } from "./render-overlay";
 import { trustedHTML } from "./trusted-html";
 import { collectExpandedImageUrls, parseJSON, pickCollapsedLayout, pickExpandedLayout, sheetFitPct, sheetSizeFor } from "./utils";
@@ -1666,14 +1665,6 @@ export class ExpandableMagazineBanner extends HTMLElement {
           clip-path: ${pageClip};
           -webkit-clip-path: ${pageClip};
         }
-        /* The ad frame border is on .banner (not clipped), so when the
-           corner is punched it would trace a contour line across the
-           see-through hole. Drop it while folded — the corner reads as a
-           clean window to the publisher. border-color keeps the 1px box
-           so nothing shifts. */
-        .banner.folded {
-          border-color: transparent;
-        }
         .collapsed-dogear-flap {
           position: absolute;
           top: 0;
@@ -1703,7 +1694,6 @@ export class ExpandableMagazineBanner extends HTMLElement {
         display:flex;align-items:center;justify-content:center;
         position:relative;overflow:hidden;
         background:transparent;
-        border:${editMode ? "none" : "1px solid rgba(196,163,90,0.25)"};
         border-radius:${editMode ? "0" : "6px"};
         opacity:${editMode ? "1" : "0"};transition:opacity .18s ease-out;
       ">
@@ -2037,18 +2027,13 @@ export class ExpandableMagazineBanner extends HTMLElement {
     // bg) so only the margin/punch shows the scrim; the close/nav glass
     // frosts the dimmed article through it.
     const overlayBg = framed ? "rgba(0,0,0,0.4)" : "rgba(0,0,0,0.55)";
-    // The page counter is drawn INSIDE the sheet (top-left, over the
-    // opaque page), so it follows the cover's luminance — dark ink on a
-    // light creative, light ink on a dark one.
-    const readerOnLight = isLightSurface(pages[0]?.bg);
     // The close button + nav arrows hang into the MARGIN (straddling the sheet
     // edge), which sits on a DARK surface in EVERY context — the scrim
     // (rgba(0,0,0,0.55)) in delivery, and the dim modal / dark #44464c screen
     // behind the framed preview. So keep them light-on-dark (and the close
     // pill's frosted glass) everywhere, regardless of cover luminance: that's
     // the "close button I can't see on dark" fix, and it makes the PREVIEW
-    // match the delivered ad. (The page counter sits INSIDE the sheet, so it
-    // still follows the cover via readerOnLight above.)
+    // match the delivered ad.
     const marginOnLight = false;
     // Close-button label follows the creative's content language
     // (Japanese content → 「閉じる」, otherwise "Close"). JA/EN for now.
@@ -2359,7 +2344,6 @@ export class ExpandableMagazineBanner extends HTMLElement {
       deferredChrome.push(desktopClose);
       chromeParent.appendChild(desktopClose);
     }
-    chromeParent.appendChild(buildPageCounter({ ui, onLight: readerOnLight, rtl: readingRtl }));
 
     // Close-on-rotate-out (delivery only). The reader is a portrait
     // sheet by design (the 16:9 expanded layout is retired — see
@@ -2421,8 +2405,8 @@ export class ExpandableMagazineBanner extends HTMLElement {
     // Nav arrows — desktop only, straddling the sheet edges. Mobile
     // keeps the original reader's chrome: swipe + the corner peel are
     // the gestures, and at the 97% mobile fit there's no margin for a
-    // straddling arrow anyway. No bottom dots/swipe-hint — the
-    // top-left counter carries page position. RTL reading flips each
+    // straddling arrow anyway. No page counter or dots: nothing is drawn
+    // over the creative (GH #495). RTL reading flips each
     // arrow's side + glyph so "next" sits on the left.
     if (!isMobile) {
       for (const direction of ["prev", "next"] as const) {
@@ -2992,10 +2976,6 @@ export class ExpandableMagazineBanner extends HTMLElement {
         });
       }
     }
-
-    const counter = overlay.querySelector<HTMLElement>(".page-counter");
-    if (counter)
-      counter.textContent = `${String(current + 1).padStart(2, "0")} / ${String(pages.length).padStart(2, "0")}`;
 
     const prevBtn = overlay.querySelector<HTMLElement>(".nav-prev");
     const nextBtn = overlay.querySelector<HTMLElement>(".nav-next");

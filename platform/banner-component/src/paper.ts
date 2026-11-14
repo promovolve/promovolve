@@ -162,8 +162,7 @@ export const PAPER_CSS = `
   .overlay.last-flight .mobile-close-x,
   .overlay.last-flight .swipe-hint,
   .overlay.last-flight .nav-prev,
-  .overlay.last-flight .nav-next,
-  .overlay.last-flight .page-counter {
+  .overlay.last-flight .nav-next {
     opacity: 0 !important;
     pointer-events: none !important;
     /* !important so the mobile pill's inline 0.3s hide/show transition

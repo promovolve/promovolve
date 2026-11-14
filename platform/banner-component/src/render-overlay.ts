@@ -248,28 +248,6 @@ export function buildCloseButton(opts: {
 // fixed ✕ at the viewport's top-left + tap-the-scrim-to-dismiss,
 // both built in banner.ts's mobile branch.)
 
-// Tiny "01 / 03"-style indicator pinned top-left. The actual text
-// content is updated by updatePages() (in banner.ts) so it doesn't
-// need to know the current page at construction time.
-export function buildPageCounter(opts: { ui: string; onLight?: boolean; rtl?: boolean }): HTMLElement {
-  const counter = document.createElement("div");
-  counter.className = "page-counter";
-  const ink = opts.onLight ? "0,0,0" : "255,255,255";
-  Object.assign(counter.style, {
-    position: "absolute",
-    top: "22px",
-    // Opposite the dog-ear: flap is top-right (LTR) / top-left (RTL), so
-    // the counter takes the other top corner.
-    [opts.rtl ? "right" : "left"]: "24px",
-    zIndex: "100",
-    fontSize: "10px",
-    letterSpacing: "3px",
-    color: `rgba(${ink},${opts.onLight ? "0.45" : "0.55"})`,
-    fontFamily: opts.ui,
-  });
-  return counter;
-}
-
 // Prev / next nav arrow. Single shared style — the only difference
 // is the side and glyph.
 export function buildNavButton(opts: {

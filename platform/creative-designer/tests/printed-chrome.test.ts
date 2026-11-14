@@ -36,8 +36,8 @@ describe("printed-page designer chrome", () => {
 
   // ok and err are both ink, so over budget says so in words.
   it("over-budget weight says so", () => {
-    expect(weightText(260, "err")).toBe("Weight 260 KB / 200 KB · over budget");
-    expect(weightText(120, "ok")).toBe("Weight 120 KB / 200 KB");
+    expect(weightText(260, "err")).toBe("File size 260 KB / 200 KB · over the limit");
+    expect(weightText(120, "ok")).toBe("File size 120 KB / 200 KB");
   });
 
   // The Two Face Rule (DESIGN.md): Mincho for the creative's name, the

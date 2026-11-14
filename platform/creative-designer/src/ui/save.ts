@@ -9,6 +9,7 @@
 //   - Publish    — current behavior: flips status to Active, kicks off
 //     CreativeProcessor (render + verify), makes it deliverable.
 
+import { t } from "../i18n";
 import { parseAspect } from "../math";
 import { MODES } from "../modes";
 import { fanoutStatus } from "../state/fanout";
@@ -27,9 +28,9 @@ import { tokens } from "./tokens";
 export function mountDraftButton(container: HTMLElement, store: Store, ctx: DesignerContext): HTMLButtonElement {
   const draftBtn = document.createElement("button");
   draftBtn.type = "button";
-  draftBtn.textContent = "Save draft";
-  draftBtn.title = "Save a draft you can come back to. Not delivered.";
-  draftBtn.setAttribute("aria-label", "Save draft");
+  draftBtn.textContent = t("Save draft");
+  draftBtn.title = t("Save a draft you can come back to. Not delivered.");
+  draftBtn.setAttribute("aria-label", t("Save draft"));
   draftBtn.style.cssText = [
     "display: inline-flex",
     "align-items: center",
@@ -66,8 +67,8 @@ export function mountPublishButton(container: HTMLElement, store: Store, ctx: De
   publishBtn.type = "button";
   // The one ink-filled primary action in the top bar.
   publishBtn.innerHTML = `<svg viewBox="0 0 16 16" width="15" height="15" fill="none" stroke="currentColor" stroke-width="1.3" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M14.5 1.5 1.5 7l4.6 1.9L8 13.5l2.2-3.7 4.3-8.3z"/><path d="M14.5 1.5 6.1 8.9"/></svg><span>Publish</span>`;
-  publishBtn.title = "Publish — finalize the creative and make it eligible for delivery.";
-  publishBtn.setAttribute("aria-label", "Publish");
+  publishBtn.title = t("Publish — finalize the creative and make it eligible for delivery.");
+  publishBtn.setAttribute("aria-label", t("Publish"));
   publishBtn.style.cssText = [
     "display: inline-flex",
     "align-items: center",
@@ -153,7 +154,7 @@ function showEmptyBlock(anchor: HTMLElement, empties: EmptySize[]): void {
 
   const title = document.createElement("div");
   title.className = "cd-title";
-  title.textContent = "Can’t publish — fill these sizes first";
+  title.textContent = t("Can’t publish — fill these sizes first");
   title.style.cssText = `font-weight:700;margin-bottom:6px;color:${tokens.err};`;
   pop.appendChild(title);
 
@@ -165,13 +166,13 @@ function showEmptyBlock(anchor: HTMLElement, empties: EmptySize[]): void {
   for (const e of shown) {
     const li = document.createElement("li");
     li.style.cssText = "padding:1px 0;color:" + tokens.ink200 + ";";
-    li.textContent = multiPage ? `${e.label} · page ${e.page}` : e.label;
+    li.textContent = multiPage ? t("%s · page %d", t(e.label), e.page) : t(e.label);
     list.appendChild(li);
   }
   if (empties.length > shown.length) {
     const more = document.createElement("li");
     more.style.cssText = `padding:3px 0 0;color:${tokens.ink300};`;
-    more.textContent = `+${empties.length - shown.length} more`;
+    more.textContent = t("+%d more", empties.length - shown.length);
     list.appendChild(more);
   }
   pop.appendChild(list);

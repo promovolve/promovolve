@@ -10,6 +10,7 @@
 // underneath: no state is lost, and the gate lifts the instant the
 // window grows past the minimum.
 
+import { t } from "../i18n";
 import { tokens } from "./tokens";
 
 export const MIN_W = 850;
@@ -35,7 +36,7 @@ export function mountSizeGate(): void {
   const inner = document.createElement("div");
   const title = document.createElement("p");
   title.className = "cd-title";
-  title.textContent = "This window is too small for the designer";
+  title.textContent = t("This window is too small for the designer");
   title.style.cssText = "font-size: 16px; font-weight: 700; margin: 0 0 8px;";
   const detail = document.createElement("p");
   detail.style.cssText = `font-size: 12px; color: ${tokens.ink300}; margin: 0;`;
@@ -50,8 +51,7 @@ export function mountSizeGate(): void {
     gate.style.display = tooSmall ? "flex" : "none";
     if (tooSmall) {
       detail.textContent =
-        `Needs at least ${MIN_W}×${MIN_H} — currently ${w}×${h}. ` +
-        `Enlarge the window (or reduce browser zoom) to continue editing; nothing is lost.`;
+        t("Needs at least %s×%s — currently %s×%s. Enlarge the window (or reduce browser zoom) to continue editing; nothing is lost.", MIN_W, MIN_H, w, h);
     }
   };
   update();

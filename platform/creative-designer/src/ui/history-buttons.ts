@@ -8,7 +8,7 @@ import { tokens } from "./tokens";
 
 export function mountHistoryButtons(container: HTMLElement, store: Store): void {
   const undo = makeBtn("↶", t("Undo"), `${t("Undo")} (⌘Z)`, () => store.undo());
-  const redo = makeBtn("↷", "Redo", "Redo (⌘⇧Z)", () => store.redo());
+  const redo = makeBtn("↷", t("Redo"), `${t("Redo")} (⌘⇧Z)`, () => store.redo());
 
   const sync = (): void => {
     setEnabled(undo, store.canUndo());

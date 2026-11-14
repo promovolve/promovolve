@@ -72,17 +72,17 @@ export function panelScope(state: DesignerState): "banner" | "item" {
 
 export function scopeLabel(state: DesignerState): string {
   const items = selectedItems(state);
-  if (items.length === 0) return `Banner and page ${state.pageIdx + 1}`;
-  if (items.length > 1) return `${items.length} items`;
+  if (items.length === 0) return t("Banner and page %d", state.pageIdx + 1);
+  if (items.length > 1) return t("%d items", items.length);
   return `${typeName(items[0]!)} · ${itemName(items[0]!)}`;
 }
 
 export function typeName(item: LayoutItem): string {
-  if (isFormula(item)) return "Formula";
-  if (item.type === "text") return "Text";
-  if (item.type === "image") return "Image";
-  if (item.type === "rect" && item.scrim) return "Scrim";
-  return "Shape";
+  if (isFormula(item)) return t("Formula");
+  if (item.type === "text") return t("Text");
+  if (item.type === "image") return t("Image");
+  if (item.type === "rect" && item.scrim) return t("Scrim");
+  return t("Shape");
 }
 
 export function itemName(item: LayoutItem): string {
@@ -102,7 +102,7 @@ export function itemName(item: LayoutItem): string {
   }
   if (item.type === "rect") return t("Scrim");
   if (item.type === "circle") return t("Circle");
-  return "Item";
+  return t("Item");
 }
 
 /** Everything the selection bar draws: its actions, its label and the

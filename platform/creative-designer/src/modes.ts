@@ -1,3 +1,4 @@
+import { tk } from "./i18n";
 // The edit modes the designer supports: the 9:16 expanded reader
 // (every device renders it — full-bleed on mobile, floating portrait
 // sheet on PC) and four ASPECT BUCKETS for collapsed banners. The
@@ -82,7 +83,7 @@ export interface Mode {
   * `page.layout` so wide collapsed slots and legacy readers get a
   * template/preset-quality layout, and auto-crop sizes its items
   * against this canvas. */
-export const WIDE_MASTER: Mode = { key: "expanded", label: "Wide (16:9)", aspect: "16/9", w: 1600, h: 900 };
+export const WIDE_MASTER: Mode = { key: "expanded", label: tk("Wide (16:9)"), aspect: "16/9", w: 1600, h: 900 };
 
 // Order matters twice: it's the TAB order (size-matrix renders MODES
 // as-is, portrait-first = the surface that actually ships opens first)
@@ -91,12 +92,12 @@ export const WIDE_MASTER: Mode = { key: "expanded", label: "Wide (16:9)", aspect
 // page.layout holds its resolved fonts before the bucket presets
 // inherit them — see presets.ts expandedFont).
 export const MODES: readonly Mode[] = [
-  { key: "mobile",   label: "Expanded (9:16)", aspect: "9/16",    w: 540,  h: 960, sizeKey: "mobile-expanded",
-    dims: "full screen" },
+  { key: "mobile",   label: tk("Expanded (9:16)"), aspect: "9/16",    w: 540,  h: 960, sizeKey: "mobile-expanded",
+    dims: tk("full screen") },
   // Aspect buckets; the pixel size is the canonical design canvas.
-  { key: "300x250",  label: "Rectangle (6:5)", aspect: "300/250", w: 300,  h: 250, sizeKey: "300x250" },
-  { key: "970x250",  label: "Billboard (4:1)", aspect: "970/250", w: 970,  h: 250, sizeKey: "970x250" },
-  { key: "728x90",   label: "Strip (8:1)",     aspect: "728/90",  w: 728,  h: 90,  sizeKey: "728x90" },
+  { key: "300x250",  label: tk("Rectangle (6:5)"), aspect: "300/250", w: 300,  h: 250, sizeKey: "300x250" },
+  { key: "970x250",  label: tk("Billboard (4:1)"), aspect: "970/250", w: 970,  h: 250, sizeKey: "970x250" },
+  { key: "728x90",   label: tk("Strip (8:1)"),     aspect: "728/90",  w: 728,  h: 90,  sizeKey: "728x90" },
   // Mobile banner strip — the highest-volume family on mobile-first
   // traffic. 3.2:1 sits between Billboard (3.88:1) and Strip (8:1); an
   // authored master keeps 320x50/320x100-ish slots from squeezing either
@@ -104,15 +105,15 @@ export const MODES: readonly Mode[] = [
   // needs no change — pickCollapsedLayout matches any WxH bucket by
   // nearest aspect, and creatives published before this bucket keep
   // resolving to their nearest existing one.
-  { key: "320x100",  label: "Mobile (16:5)",   aspect: "320/100", w: 320,  h: 100, sizeKey: "320x100" },
+  { key: "320x100",  label: tk("Mobile (16:5)"),   aspect: "320/100", w: 320,  h: 100, sizeKey: "320x100" },
   // The plugin's "Mobile banner". 6.4:1 previously fell to the 8:1
   // strip — near enough not to look broken, far enough that the
   // headline column and CTA both landed narrower than authored.
-  { key: "320x50",   label: "Mobile banner (32:5)", aspect: "320/50", w: 320, h: 50, sizeKey: "320x50" },
-  { key: "300x600",  label: "Tall (1:2)",      aspect: "300/600", w: 300,  h: 600, sizeKey: "300x600" },
+  { key: "320x50",   label: tk("Mobile banner (32:5)"), aspect: "320/50", w: 320, h: 50, sizeKey: "320x50" },
+  { key: "300x600",  label: tk("Tall (1:2)"),      aspect: "300/600", w: 300,  h: 600, sizeKey: "300x600" },
   // The plugin's "Wide skyscraper". 1:3.75 vs the half-page's 1:2 is a
   // 1.9× aspect error — the widest gap any declarable size had.
-  { key: "160x600",  label: "Skyscraper (1:3.75)", aspect: "160/600", w: 160, h: 600, sizeKey: "160x600" },
+  { key: "160x600",  label: tk("Skyscraper (1:3.75)"), aspect: "160/600", w: 160, h: 600, sizeKey: "160x600" },
 ];
 
 export function findMode(key: string): Mode {

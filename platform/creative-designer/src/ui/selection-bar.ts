@@ -11,6 +11,7 @@
 // that don't fit move into a More menu, least-used first (arrange
 // before the type's own actions); Delete always stays on the bar.
 
+import { t, tk } from "../i18n";
 import { packTextItemHeight, setWritingMode } from "../render/canvas";
 import { bringForward, bringToFront, groupSelection, sendBackward, sendToBack, updateItem } from "../state";
 import { selectedItems, selectionActions, selectionBarKey, scopeLabel, type SelectionAction } from "../selection-model";
@@ -24,22 +25,22 @@ import { openRemoveBgModal } from "./remove-bg-modal";
 import { tokens } from "./tokens";
 
 const LABEL: Record<SelectionAction, string> = {
-  replace: "Replace",
-  crop: "Crop",
-  removeBackground: "Remove background",
-  editFormula: "Edit formula",
-  alignLeft: "Align left",
-  alignCenter: "Align centre",
-  alignRight: "Align right",
-  writeHorizontal: "Horizontal",
-  writeVertical: "Vertical",
-  fitToText: "Fit box to text",
-  bringToFront: "Bring to front",
-  bringForward: "Bring forward",
-  sendBackward: "Send backward",
-  sendToBack: "Send to back",
-  group: "Group",
-  delete: "Delete",
+  replace: tk("Replace"),
+  crop: tk("Crop"),
+  removeBackground: tk("Remove background"),
+  editFormula: tk("Edit formula"),
+  alignLeft: tk("Align left"),
+  alignCenter: tk("Align centre"),
+  alignRight: tk("Align right"),
+  writeHorizontal: tk("Horizontal"),
+  writeVertical: tk("Vertical"),
+  fitToText: tk("Fit box to text"),
+  bringToFront: tk("Bring to front"),
+  bringForward: tk("Bring forward"),
+  sendBackward: tk("Send backward"),
+  sendToBack: tk("Send to back"),
+  group: tk("Group"),
+  delete: tk("Delete"),
 };
 
 // The order actions leave the bar for More when space runs out.
@@ -99,7 +100,7 @@ export function mountSelectionBar(host: HTMLElement, store: Store): { update(sta
   const bar = document.createElement("div");
   bar.className = "cd-selection-bar";
   bar.setAttribute("role", "toolbar");
-  bar.setAttribute("aria-label", "Selection");
+  bar.setAttribute("aria-label", t("Selection"));
   bar.style.cssText = [
     "height: 40px", // border-box: includes the 1px rule, 40 on the pre-zoom grid
     "box-sizing: border-box",
@@ -139,7 +140,7 @@ export function mountSelectionBar(host: HTMLElement, store: Store): { update(sta
   const btn = (action: SelectionAction, active: boolean): HTMLButtonElement => {
     const arrange = action.startsWith("bring") || action.startsWith("send") || action === "group";
     const idleBorder = arrange ? "transparent" : tokens.ink100;
-    const b = plain(LABEL[action], active ? tokens.focus : idleBorder, active ? tokens.focus : tokens.ink100);
+    const b = plain(t(LABEL[action]), active ? tokens.focus : idleBorder, active ? tokens.focus : tokens.ink100);
     b.dataset.action = action;
     if (active) {
       b.setAttribute("aria-pressed", "true");
@@ -164,7 +165,7 @@ export function mountSelectionBar(host: HTMLElement, store: Store): { update(sta
   // More: a button plus a menu that drops below it. Rebuilt by fit().
   const moreWrap = document.createElement("span");
   moreWrap.style.cssText = "position: relative; flex-shrink: 0;";
-  const more = plain("More ▾", "transparent", tokens.ink100);
+  const more = plain(`${t("More")} ▾`, "transparent", tokens.ink100);
   more.setAttribute("aria-haspopup", "menu");
   const menu = document.createElement("div");
   menu.setAttribute("role", "menu");
@@ -225,7 +226,7 @@ export function mountSelectionBar(host: HTMLElement, store: Store): { update(sta
       const item = document.createElement("button");
       item.type = "button";
       item.setAttribute("role", "menuitem");
-      item.textContent = LABEL[action];
+      item.textContent = t(LABEL[action]);
       item.style.cssText = [
         "padding: 5px 12px",
         "text-align: left",
@@ -256,7 +257,7 @@ export function mountSelectionBar(host: HTMLElement, store: Store): { update(sta
       const actions = selectionActions(state);
       if (actions.length === 0) {
         const empty = document.createElement("span");
-        empty.textContent = "Nothing selected. Click an item on the banner, or add one from the left.";
+        empty.textContent = t("Nothing selected. Click an item on the banner, or add one from the left.");
         empty.style.cssText = `color: ${tokens.ink300}; white-space: nowrap; overflow: hidden; text-overflow: ellipsis;`;
         bar.appendChild(empty);
         return;

@@ -8,6 +8,8 @@
 // there was just wrong (user caught it 2026-07-13). Collapsed-size
 // deletions are per-view and always commit silently.
 
+import { FIELD_LABELS } from "../display-labels";
+import { t } from "../i18n";
 import { isMultiPage } from "../modes";
 import { currentLayout, currentPage, deleteSelection, hasSelection, MOBILE_EXPANDED_KEY } from "../state";
 import type { DesignerState, LayoutItem } from "../types";
@@ -41,10 +43,11 @@ export function commitDeleteSelection(store: Store): void {
     )];
     const parts = fields.flatMap((f) => {
       const n = sizesContainingField(s, f);
-      return n > 0 ? [`the ${f} from ${n} size${n === 1 ? "" : "s"}`] : [];
+      const name = t(FIELD_LABELS[f] ?? f);
+      return n > 0 ? [n === 1 ? t("the %s from %d size", name, n) : t("the %s from %d sizes", name, n)] : [];
     });
     if (parts.length > 0) {
-      if (!window.confirm(`Deleting here also removes ${parts.join(" and ")}. Continue?`)) return;
+      if (!window.confirm(t("Deleting here also removes %s. Continue?", parts.join(t(" and "))))) return;
     }
   }
   store.commit(deleteSelection(s));

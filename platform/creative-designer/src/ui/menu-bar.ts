@@ -18,6 +18,7 @@
 // until the breadcrumb has room again. Save draft and Publish keep
 // their words.
 
+import { t, tk } from "../i18n";
 import { regenerateCurrentMode } from "../auto-layout";
 import { isMultiPage } from "../modes";
 import type { Store } from "../store";
@@ -54,7 +55,7 @@ export function mountMenuBar(
   // Breadcrumb. min-width:0 + flex:1 lets the names shrink first, so
   // the actions on the right never get pushed off the bar.
   const crumb = document.createElement("nav");
-  crumb.setAttribute("aria-label", "Breadcrumb");
+  crumb.setAttribute("aria-label", t("Breadcrumb"));
   crumb.style.cssText = [
     "display: flex",
     "align-items: center",
@@ -68,7 +69,7 @@ export function mountMenuBar(
   ].join(";");
   const campaigns = document.createElement("a");
   campaigns.href = "/advertiser/campaigns";
-  campaigns.textContent = "Campaigns";
+  campaigns.textContent = t("Campaigns");
   campaigns.style.cssText = `color: ${tokens.ink300}; text-decoration: none; flex: 0 0 auto;`;
   crumb.appendChild(campaigns);
   if (ctx.campaignName) crumb.append(slash(), crumbName(ctx.campaignName, tokens.ink300, "0 1 auto"));
@@ -78,7 +79,7 @@ export function mountMenuBar(
   crumb.append(slash(), creative);
   if (!ctx.creativeId) {
     const tag = document.createElement("span");
-    tag.textContent = "Draft";
+    tag.textContent = t("Draft");
     tag.setAttribute("role", "status");
     tag.style.cssText = [
       "flex: 0 0 auto",
@@ -104,7 +105,7 @@ export function mountMenuBar(
   // deterministic preset — a reset in regenerate's clothing that wiped
   // any author layout in the bucket — so it's disabled on sized tabs
   // (user decision 2026-08-18).
-  const regenBtn = textBtn("Regenerate", () => {
+  const regenBtn = textBtn(t("Regenerate"), () => {
     void regenerateCurrentMode(store).catch((e) => console.error("[menu-bar] regenerate failed", e));
   });
   regenBtn.append(compactSpan(" this size", 3));
@@ -136,16 +137,16 @@ export function mountMenuBar(
 
   return {
     update(state: DesignerState) {
-      const modeName = state.mode.label.replace(/\s*\(.*\)$/, "");
+      const modeName = t(state.mode.label).replace(/\s*\(.*\)$/, "");
       const regenEnabled = isMultiPage(state.mode) && regenAllowed(state.bannerConfig);
       regenBtn.disabled = !regenEnabled;
       regenBtn.style.opacity = regenEnabled ? "1" : "0.35";
       regenBtn.style.cursor = regenEnabled ? "pointer" : "default";
       regenBtn.title = regenEnabled
-        ? `Regenerate ${modeName}`
+        ? t("Regenerate %s", modeName)
         : !regenAllowed(state.bannerConfig)
-        ? "Regenerate isn't available for Fold-out creatives"
-        : "Regenerate works on the expanded pages — banner sizes follow them automatically";
+        ? t("Regenerate isn't available for Fold-out creatives")
+        : t("Regenerate works on the expanded pages — banner sizes follow them automatically");
     },
   };
 }
@@ -205,7 +206,7 @@ function textBtn(label: string, onClick: () => void): HTMLButtonElement {
 // dashboard. Labelled like the dashboard's account-menu item; cycling
 // flips the data-cd-theme attribute, re-resolving every --cd-* variable
 // instantly (no re-mount).
-const MODE_LABEL: Record<ThemeMode, string> = { auto: "Auto", light: "Light", dark: "Dark" };
+const MODE_LABEL: Record<ThemeMode, string> = { auto: tk("Auto"), light: tk("Light"), dark: tk("Dark") };
 function themeToggle(): HTMLElement {
   const btn = document.createElement("button");
   btn.type = "button";
@@ -223,9 +224,9 @@ function themeToggle(): HTMLElement {
   ].join(";");
   const render = (): void => {
     const m = getMode();
-    btn.replaceChildren(compactSpan("Theme: ", 1), MODE_LABEL[m]);
-    btn.setAttribute("aria-label", `Theme: ${MODE_LABEL[m]}`);
-    btn.title = m === "auto" ? "Follows your system setting — click to change" : "Click to change";
+    btn.replaceChildren(compactSpan(t("Theme: "), 1), t(MODE_LABEL[m]));
+    btn.setAttribute("aria-label", t("Theme: ") + t(MODE_LABEL[m]));
+    btn.title = m === "auto" ? t("Follows your system setting — click to change") : t("Click to change");
   };
   render();
   btn.addEventListener("click", () => {

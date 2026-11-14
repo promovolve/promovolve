@@ -16,7 +16,7 @@ import { collectExpandedImageUrls, parseJSON, pickCollapsedLayout, pickExpandedL
 import { resolveExpandedFonts } from "./font-catalog";
 import { createViewableGate, viewableThreshold, type ViewableGate } from "./viewability";
 import { isFoldout, openFoldOut, type FoldOutHandle } from "./fold-out";
-import { animatePageTurn, createInteractivePeel, buildGrainOverlay, dogEarPeelFrame, DOGEAR_PEEL_TRAVEL, PAPER_CSS, PAPER_BACK_BLEND, paperBackBackground, paperBackStock } from "./paper";
+import { animatePageTurn, collapsedLift, createInteractivePeel, buildGrainOverlay, dogEarPeelFrame, DOGEAR_PEEL_TRAVEL, PAPER_CSS, PAPER_BACK_BLEND, paperBackBackground, paperBackStock } from "./paper";
 
 // The reader deals its sheets in by default (the kawaraban lifecycle);
 // an advertiser can opt out via cfg.entrance = "fade" for a plain fade
@@ -1695,6 +1695,7 @@ export class ExpandableMagazineBanner extends HTMLElement {
         position:relative;overflow:hidden;
         background:transparent;
         border-radius:${editMode ? "0" : "6px"};
+        filter:${collapsedLift(editMode, page.bg)};
         opacity:${editMode ? "1" : "0"};transition:opacity .18s ease-out;
       ">
         <div class="design-box">${html}</div>

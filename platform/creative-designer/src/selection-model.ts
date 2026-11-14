@@ -3,7 +3,9 @@
 // the selected item's values. Pure (no DOM) so it is unit-tested; the
 // selection bar, the sidebar and the Layers panel all read from here.
 
+import { FIELD_LABELS, isHashName } from "./display-labels";
 import { isFormula } from "./formula";
+import { t } from "./i18n";
 import { isMultiPage } from "./modes";
 import { currentLayout } from "./state";
 import type { DesignerState, LayoutItem } from "./types";
@@ -85,20 +87,21 @@ export function typeName(item: LayoutItem): string {
 
 export function itemName(item: LayoutItem): string {
   if (item.type === "text") {
-    const t = (item.text ?? item.field ?? "").trim();
-    if (!t) return "Text";
-    const first = t.split(/\r?\n/, 1)[0]!;
+    const text = (item.text ?? "").trim();
+    if (!text) return item.field ? t(FIELD_LABELS[item.field] ?? item.field) : t("Text");
+    const first = text.split(/\r?\n/, 1)[0]!;
     return first.length > 40 ? first.slice(0, 40) + "…" : first;
   }
   if (item.type === "image") {
     if (item.latex) return item.latex.length > 40 ? item.latex.slice(0, 40) + "…" : item.latex;
-    const src = (item.src ?? item.field ?? "").trim();
-    if (!src) return "Image";
+    const src = (item.src ?? "").trim();
+    if (!src) return item.field ? t(FIELD_LABELS[item.field] ?? item.field) : t("Image");
     const parts = src.split("/");
-    return parts[parts.length - 1] || "Image";
+    const name = parts[parts.length - 1] ?? "";
+    return !name || isHashName(name) ? t("Image") : name;
   }
-  if (item.type === "rect") return "Scrim";
-  if (item.type === "circle") return "Circle";
+  if (item.type === "rect") return t("Scrim");
+  if (item.type === "circle") return t("Circle");
   return "Item";
 }
 

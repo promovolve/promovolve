@@ -23,6 +23,7 @@ import { scrimGradient, SCRIM_EDGES, type ScrimEdge, type ScrimSpec } from "../s
 import { lowContrastRatio } from "../color-contrast";
 import { loadBrandKit } from "../brand-kit";
 import { mountKitColorChips } from "./brand-kit-chips";
+import { DIRECTION_LABELS, FILL_MODE_LABELS, fontDisplayName, optionEntries, SCRIM_EDGE_LABELS, TEXT_ALIGN_LABELS, VALIGN_LABELS, WEIGHT_LABELS, WRITING_LABELS } from "../display-labels";
 import { isFormula } from "../formula";
 import { tokens } from "./tokens";
 
@@ -44,6 +45,13 @@ const GOOGLE_FONT_STACKS: string[] = ([
   ["Inter", "sans-serif"], ["Lato", "sans-serif"], ["Oswald", "sans-serif"], ["Bebas Neue", "sans-serif"],
   ["Playfair Display", "serif"], ["Merriweather", "serif"], ["Lora", "serif"], ["Roboto Slab", "serif"],
 ] as Array<[string, string]>).map(([fam, bucket]) => `${fam}, ${bucket}`);
+
+/** Font dropdown labels: each stack shown by its readable name. */
+function fontLabels(stacks: string[]): Record<string, string> {
+  const out: Record<string, string> = {};
+  for (const s of stacks) out[s] = fontDisplayName(s);
+  return out;
+}
 
 /** Font dropdown options. Order: the applied font (always kept/visible), then
   * the advertiser's own brand/LP fonts, then system buckets, then the small
@@ -277,10 +285,13 @@ function build(panel: HTMLElement, idx: number, item: LayoutItem, store: Store):
       fontOptions(item.fontFamily),
       (v, c) => mutate(store, idx, (it) => ({ ...it, fontFamily: v }), c),
       true, // full-width: font stacks are too long for the inline layout
+      undefined,
+      fontLabels(fontOptions(item.fontFamily)),
     );
     setters.fontWeight = selectField(typo, "weight", String(item.fontWeight ?? "normal"),
       ["normal", "bold", "100", "200", "300", "400", "500", "600", "700", "800", "900"],
       (v, c) => mutate(store, idx, (it) => ({ ...it, fontWeight: v }), c),
+      false, undefined, WEIGHT_LABELS,
     );
     // Capture the size at the START of an edit interaction so the commit-time
     // proportional fan-out scales the other formats by the true ratio (not
@@ -301,6 +312,7 @@ function build(panel: HTMLElement, idx: number, item: LayoutItem, store: Store):
     setters.textAlign = selectField(typo, "align", item.textAlign ?? "left",
       ["left", "center", "right", "justify"],
       (v, c) => mutate(store, idx, (it) => ({ ...it, textAlign: v as "left" | "center" | "right" | "justify" }), c),
+      false, undefined, TEXT_ALIGN_LABELS,
     );
     // Drop shadow is a typographic property for text (renders as
     // text-shadow), so it lives here rather than in a separate group.
@@ -320,14 +332,17 @@ function build(panel: HTMLElement, idx: number, item: LayoutItem, store: Store):
     setters.verticalAlign = selectField(layoutGroup, "v-align", item.verticalAlign ?? "top",
       ["top", "middle", "bottom"],
       (v, c) => mutate(store, idx, (it) => ({ ...it, verticalAlign: v as "top" | "middle" | "bottom" }), c),
+      false, undefined, VALIGN_LABELS,
     );
     setters.writingMode = selectField(layoutGroup, "writing", item.writingMode ?? "horizontal-tb",
       ["horizontal-tb", "vertical-rl"],
       (v, c) => setWritingMode(store, idx, v as "horizontal-tb" | "vertical-rl", c),
+      false, undefined, WRITING_LABELS,
     );
     setters.direction = selectField(layoutGroup, "direction", item.direction ?? "ltr",
       ["ltr", "rtl"],
       (v, c) => mutate(store, idx, (it) => ({ ...it, direction: v as "ltr" | "rtl" }), c),
+      false, undefined, DIRECTION_LABELS,
     );
     panel.appendChild(layoutGroup);
     sections.push(layoutGroup);
@@ -357,6 +372,7 @@ function build(panel: HTMLElement, idx: number, item: LayoutItem, store: Store):
           ? { ...it, fillMode: "fit" as const, crop: undefined }
           : { ...it, fillMode: "fill" as const };
       }, c),
+      false, undefined, FILL_MODE_LABELS,
     );
     // Crop only applies in Fill mode. The panel does NOT rebuild on a
     // fillMode toggle (it updates fields via setters), so build the crop
@@ -469,7 +485,7 @@ function buildScrimGroup(
 
   setters.scrimEdge = selectField(g, "edge", scrim.edge, [...SCRIM_EDGES],
     (v) => apply({ edge: v as ScrimEdge }, true), false,
-    (it) => readScrim(it)?.edge);
+    (it) => readScrim(it)?.edge, SCRIM_EDGE_LABELS);
 
   setters.scrimColor = colorField(g, "color", scrim.color,
     (v, c) => apply({ color: v }, c), (it) => readScrim(it)?.color);
@@ -775,14 +791,16 @@ function selectField(
   onChange: (v: string, commit: boolean) => void,
   wide = false,
   read?: (item: LayoutItem) => unknown,
+  // value → English display label (translated here); values stay English.
+  labels?: Record<string, string>,
 ): (item: LayoutItem) => void {
   const input = document.createElement("select");
   input.style.cssText = INPUT_STYLE;
-  for (const o of options) {
+  for (const o of optionEntries(options, labels)) {
     const opt = document.createElement("option");
-    opt.value = o;
-    opt.textContent = o;
-    if (o === value) opt.selected = true;
+    opt.value = o.value;
+    opt.textContent = o.label;
+    if (o.value === value) opt.selected = true;
     input.appendChild(opt);
   }
   input.addEventListener("change", () => onChange(input.value, true));

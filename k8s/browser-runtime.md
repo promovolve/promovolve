@@ -8,6 +8,8 @@ serving actors, HTTP routes or durable DData. It has no PVC. Only the four R2
 keys are selected from the existing Secret; JDBC, Gemini and API keys are not
 injected. Prefer bucket-scoped R2 credentials. This is workload separation,
 not a separate trust domain: it still joins Pekko and can access the network.
+Kubernetes discovery also uses the existing ServiceAccount token with Pod read
+access.
 
 The API/singleton image stays root-compatible and existing DData ownership is
 unchanged. CI only swaps images (including the browser if already installed).
@@ -39,6 +41,17 @@ needed. Profile installation and manifest changes remain operator actions.
    real LP analysis, progress/screenshot output, and one banner publish/draft
    render, including R2 objects and resulting DB asset records. Confirm API
    pods do not launch Chromium. Keep #177 open until live checks are recorded.
+
+After full cutover and completed image rollouts, run:
+
+```sh
+python3 scripts/verify-browser-runtime-k8s.py YOUR_GKE_CONTEXT
+```
+
+This read-only check validates browser settings, installer coverage and API/
+browser image alignment. It supplements the live smoke checks above; it does
+not execute an LP analysis, render a banner or write to storage. See the
+[verifier access requirements](../k8s-gke/README.md#browser-runtime-isolation-verification).
 
 The new LP shard type is `browser-lp-worker`; it deliberately does not reuse
 the old `lp-worker` type while old and new images coexist. Keep the browser
@@ -79,6 +92,7 @@ disabled-renderer-seccomp negative smoke tests.
 ```sh
 python3 -m pip install 'PyYAML>=6,<7'
 python3 scripts/test-browser-runtime.py
+python3 scripts/test-browser-runtime-k8s.py
 sbt scalafmtCheckAll "api/compile" \
   "core/testOnly promovolve.browser.BannerWorkerSpec promovolve.browser.LPWorkerSpec promovolve.browser.LPWorkerSerializationSpec" \
   "api/testOnly promovolve.api.BrowserRuntimeSpec"

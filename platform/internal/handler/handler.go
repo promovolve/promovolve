@@ -868,33 +868,6 @@ func (h *Handler) renderStatus(w http.ResponseWriter, r *http.Request, status in
 	}
 }
 
-// ImageProxy proxies external images to bypass CORS when drawing onto the editor canvas.
-func (h *Handler) ImageProxy(w http.ResponseWriter, r *http.Request) {
-	imgURL := r.URL.Query().Get("url")
-	if imgURL == "" {
-		http.Error(w, "url required", http.StatusBadRequest)
-		return
-	}
-	req, err := http.NewRequest("GET", imgURL, nil)
-	if err != nil {
-		http.Error(w, "invalid url", http.StatusBadRequest)
-		return
-	}
-	req.Header.Set("User-Agent", "Mozilla/5.0 (compatible; Promovolve/1.0)")
-	resp, err := http.DefaultClient.Do(req)
-	if err != nil {
-		http.Error(w, "fetch failed", http.StatusBadGateway)
-		return
-	}
-	defer resp.Body.Close()
-	if ct := resp.Header.Get("Content-Type"); ct != "" {
-		w.Header().Set("Content-Type", ct)
-	}
-	w.Header().Set("Cache-Control", "public, max-age=3600")
-	w.Header().Set("Access-Control-Allow-Origin", "*")
-	io.Copy(w, resp.Body)
-}
-
 // coreGet fetches JSON from the core API
 func (h *Handler) coreGet(path string, claims *model.Claims) ([]byte, error) {
 	url := h.coreAPIURL + rewriteMePath(path, claims)

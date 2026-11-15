@@ -434,7 +434,6 @@ func main() {
 	mux.HandleFunc("GET /api/bid-check", h.BidCheck)
 	mux.HandleFunc("GET /api/delivery-check", h.DeliveryCheck)
 	mux.HandleFunc("GET /api/advertiser-domains", h.SearchAdvertiserDomains)
-	mux.HandleFunc("GET /api/image-proxy", h.ImageProxy)
 
 	// Health check
 	mux.HandleFunc("GET /health", func(w http.ResponseWriter, r *http.Request) {

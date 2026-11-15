@@ -219,6 +219,14 @@ fi
 
 kcg cluster-info >/dev/null 2>&1 || die "cluster not reachable via context $CTX (run without --deploy-only first?)"
 
+# Live-image restoration covers digests, but a pending pin-back PR can leave
+# api-config's banner URL stale. Refuse before changing namespace, secrets or
+# environment overrides; otherwise a rejected deployment can still roll pods.
+if [ "${ALLOW_OPEN_PINS:-0}" -ne 1 ] && command -v gh >/dev/null 2>&1; then
+  open_pins=$(gh pr list --head ci/pins --state open --json url --jq '.[0].url // empty' 2>/dev/null || true)
+  [ -z "$open_pins" ] || die "a CI pin-back PR is still open ($open_pins) — the repo's pins lag the cluster. Merge it (or wait for auto-merge), then re-run; --allow-open-pins overrides."
+fi
+
 # --- 4. deploy ----------------------------------------------------------------
 echo "==> namespace '$NS'"
 kcg create namespace "$NS" --dry-run=client -o yaml | kcg apply -f - >/dev/null
@@ -299,19 +307,6 @@ if [ "$BROWSER_ONLY" -ne 1 ] && kc get deployment promovolve-platform >/dev/null
 fi
 if kc get deployment promovolve-browser >/dev/null 2>&1; then
   kc set env deployment/promovolve-browser BANNER_SCRIPT_URL- >/dev/null
-fi
-
-# CI writes the live digests and banner URL back to k8s/kustomization.yaml
-# THROUGH A PULL REQUEST (deploy.yml -> scripts/pin-back-pr.sh, branch
-# ci/pins, auto-merged once CI is green) because the main Ruleset forbids
-# direct pushes. While that PR is open the pins here are stale: the image
-# restore above covers the digests, but the api-config render carries the
-# OLD BANNER_SCRIPT_URL and the override-drop above makes it authoritative,
-# so an apply now would point visitors back at the previous bundle. Refuse
-# unless told otherwise; the check is advisory-only where gh is absent.
-if [ "${ALLOW_OPEN_PINS:-0}" -ne 1 ] && command -v gh >/dev/null 2>&1; then
-  open_pins=$(gh pr list --head ci/pins --state open --json url --jq '.[0].url // empty' 2>/dev/null || true)
-  [ -z "$open_pins" ] || die "a CI pin-back PR is still open ($open_pins) — the repo's pins lag the cluster. Merge it (or wait for auto-merge), then re-run; --allow-open-pins overrides."
 fi
 
 echo "==> installing Chromium seccomp profiles"

@@ -91,17 +91,45 @@ class LPWorkerSpec extends AnyWordSpec with Matchers {
       r2.expectMessageType[AnalyzeLPDone].url shouldBe "b"
     }
 
-    "treat a duplicate AnalyzeLP for an in-flight url as a no-op" in withKit { kit =>
+    "reject a duplicate caller promptly while completing the original analysis" in withKit { kit =>
       val starts = kit.createTestProbe[String]()
       val stub = new StubRuns(starts.ref)
       val w = kit.spawn(LPWorker(0, stub.run, Settings(maxConcurrentPerWorker = 2)))
       val r = kit.createTestProbe[AnalyzeLPDone]()
+      val duplicate = kit.createTestProbe[AnalyzeLPDone]()
       val prog = kit.createTestProbe[AnalyzeLPProgress]()
 
       w ! AnalyzeLP("dup", "heading", r.ref, prog.ref)
-      w ! AnalyzeLP("dup", "heading", r.ref, prog.ref)
+      w ! AnalyzeLP("dup", "heading", duplicate.ref, prog.ref)
+      duplicate.expectMessageType[AnalyzeLPDone].error shouldBe
+      Some("Analysis is already running or queued for this URL; retry later")
       starts.expectMessage("dup")
       starts.expectNoMessage(200.millis) // only one analysis spawned
+      stub.finish("dup")
+      r.expectMessage(doneFor("dup"))
+    }
+
+    "retain a queued caller when another request arrives for the same URL" in withKit { kit =>
+      val starts = kit.createTestProbe[String]()
+      val stub = new StubRuns(starts.ref)
+      val w = kit.spawn(LPWorker(0, stub.run, Settings(maxConcurrentPerWorker = 1)))
+      val running = kit.createTestProbe[AnalyzeLPDone]()
+      val queued = kit.createTestProbe[AnalyzeLPDone]()
+      val duplicate = kit.createTestProbe[AnalyzeLPDone]()
+      val prog = kit.createTestProbe[AnalyzeLPProgress]()
+
+      w ! AnalyzeLP("running", "heading", running.ref, prog.ref)
+      starts.expectMessage("running")
+      w ! AnalyzeLP("queued", "heading", queued.ref, prog.ref)
+      w ! AnalyzeLP("queued", "other-strategy", duplicate.ref, prog.ref)
+      duplicate.expectMessageType[AnalyzeLPDone].error shouldBe
+      Some("Analysis is already running or queued for this URL; retry later")
+      stub.finish("running")
+      running.expectMessage(doneFor("running"))
+      starts.expectMessage("queued")
+      stub.finish("queued")
+      queued.expectMessage(doneFor("queued"))
+      starts.expectNoMessage(200.millis)
     }
   }
 }

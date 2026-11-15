@@ -43,7 +43,7 @@ object LPWorker {
    * An api route asks its owning worker to analyze a landing page. `replyTo`
    * gets the finished result (section srcs already rewritten to CDN URLs by
    * the worker); `progressTo` gets the early hero screenshot URL. A duplicate
-   * `AnalyzeLP` for a URL already in flight on this worker is a no-op.
+   * `AnalyzeLP` for a URL already running or queued gets an immediate error.
    */
   final case class AnalyzeLP(
       url: String,
@@ -196,18 +196,15 @@ object LPWorker {
 
       Behaviors.receiveMessage {
         case req: AnalyzeLP =>
-          if (running.contains(req.url)) {
+          if (running.contains(req.url) || queuedUrls.contains(req.url)) {
             // Do NOT refresh startedAt here: a duplicate request restarting
             // the staleness clock meant a HUNG analysis whose URL kept being
             // re-requested (the editor auto-analyzes on open) was never
             // evicted by SweepStale — with one slot per worker, the worker
             // wedged permanently and the queue grew without bound. The
             // original start time is the truth SweepStale needs.
-            log.debug("LPWorker {} ignoring duplicate AnalyzeLP for in-flight {}", workerIndex, req.url)
-          } else if (queuedUrls.contains(req.url)) {
-            val pos = queue.indexWhere(_.url == req.url)
-            if (pos >= 0) queue.update(pos, req) // freshest replyTo wins
-            log.debug("LPWorker {} updated queued AnalyzeLP for {}", workerIndex, req.url)
+            req.replyTo ! AnalyzeLPDone(req.url, LPAnalysisResult(req.url, Vector.empty), None,
+              Some("Analysis is already running or queued for this URL; retry later"))
           } else if (canGrant) {
             grant(req)
           } else {

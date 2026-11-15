@@ -46,6 +46,28 @@ describe("fitSizedFieldBoxes", () => {
     expect(r.pages[0].banners!["mobile-expanded"]).toBe(st.pages[0].banners!["mobile-expanded"]);
   });
 
+  it("packs mobile-expanded only when the caller targets it (the Fold-out poster)", () => {
+    const st = initialState(mk({ "300x250": [text()] }), "mobile");
+    const r = fitSizedFieldBoxes(st, "headline", () => ({ width: 30, height: 12 }), "mobile-expanded");
+    expect(bucketItem(r, "mobile-expanded").height).toBe(12);
+    expect(r.pages[0].banners!["300x250"]).toBe(st.pages[0].banners!["300x250"]);
+  });
+
+  it("field null fits UNBOUND literal text only, and stamps fontSize only on _generated items", () => {
+    const lit = (over: Record<string, unknown>) =>
+      ({ type: "text", left: 6, top: 40, width: 88, height: 13, fontSize: 8, ...over } as LayoutItem);
+    const st = initialState([{ headline: "COPY", layout: [text()], banners: {
+      "mobile-expanded": [text({ _generated: true }), lit({ text: "MACHINE", _generated: true }), lit({ text: "AUTHORED" })],
+    } } as Page], "mobile");
+    const seen: string[] = [];
+    const r = fitSizedFieldBoxes(st, null, (t) => { seen.push(t); return { width: 70, height: 9, fontSize: 4.9 }; }, "mobile-expanded");
+    expect(seen).toEqual(["MACHINE", "AUTHORED"]); // the field-bound headline is not unbound text
+    const [bound, machine, authored] = r.pages[0].banners!["mobile-expanded"] as unknown as Record<string, unknown>[];
+    expect(bound).toBe(st.pages[0].banners!["mobile-expanded"][0]);
+    expect(machine).toMatchObject({ width: 70, height: 9, fontSize: 4.9 });
+    expect(authored).toMatchObject({ width: 70, height: 9, fontSize: 8 }); // author's number untouched
+  });
+
   it("measures a detached override against its OWN text", () => {
     const st = initialState(mk({ "300x250": [text({ text: "LOCAL" })] }), "mobile");
     const seen: string[] = [];

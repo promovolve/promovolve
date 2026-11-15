@@ -5,19 +5,26 @@
 // theatre), reading direction, and the paper stock (weight + back
 // colour). Deal tempo derives from the paper weight.
 
-import { PAPER_FEEL, PAPER_WEIGHTS, TEMPO_MAX, TEMPO_MIN, type PaperWeight } from "@banner/types";
+import { DISSOLVE_COLS, PAPER_FEEL, PAPER_WEIGHTS, TEMPO_MAX, TEMPO_MIN, type BannerConfig, type DissolveSize, type PaperWeight } from "@banner/types";
 import type { Store } from "../store";
 import type { DesignerState } from "../types";
+import { t, tk } from "../i18n";
 import { tokens } from "./tokens";
 
 // Fallback for paperBackColor — keep in sync with PAPER_BASE in
 // @banner paper.ts (the peeled page's default warm stock).
 const DEFAULT_BACK_COLOR = "#f0e9d9";
 
+const SQUARE_LABELS: Record<DissolveSize, string> = {
+  small:  tk("Small"),
+  medium: tk("Medium (default)"),
+  large:  tk("Large"),
+};
+
 const WEIGHT_LABELS: Record<PaperWeight, string> = {
-  light:  "Light",
-  medium: "Medium (default)",
-  heavy:  "Heavy",
+  light:  tk("Thin"),
+  medium: tk("Medium (default)"),
+  heavy:  tk("Thick"),
 };
 
 export interface BannerConfigPanelHandle {
@@ -42,7 +49,7 @@ export function mountBannerConfigPanel(
   const entRow = document.createElement("div");
   entRow.style.cssText = "display:flex;align-items:center;gap:8px;";
   const entLabel = document.createElement("label");
-  entLabel.textContent = "Entrance";
+  entLabel.textContent = t("Entrance");
   entLabel.style.cssText = `flex:0 0 auto;font-size:11px;color:${tokens.ink300};`;
   entRow.appendChild(entLabel);
   const entSelect = document.createElement("select");
@@ -57,28 +64,58 @@ export function mountBannerConfigPanel(
     "font: inherit",
     "font-size: 11px",
   ].join(";");
-  const ENT_LABELS: Record<string, string> = {
-    deal: "Sheets fly in / out (default)",
-    fade: "Fade in / out",
+  // Options depend on the format (Fold-out: dissolve | fade); rebuilt in
+  // update() when the set changes.
+  let entKeys = "";
+  const setEntOptions = (cfg: BannerConfig) => {
+    const opts = entranceOptions(cfg);
+    const keys = opts.map((o) => o.value).join();
+    if (keys === entKeys) return;
+    entKeys = keys;
+    entSelect.replaceChildren(...opts.map((o) => {
+      const opt = document.createElement("option");
+      opt.value = o.value;
+      opt.textContent = t(o.label);
+      return opt;
+    }));
   };
-  for (const v of ["deal", "fade"]) {
-    const opt = document.createElement("option");
-    opt.value = v;
-    opt.textContent = ENT_LABELS[v];
-    entSelect.appendChild(opt);
-  }
   entSelect.addEventListener("change", () => {
-    const v = entSelect.value as "deal" | "fade";
+    const v = entSelect.value as NonNullable<BannerConfig["entrance"]>;
     const current = store.state.bannerConfig;
     store.commit({
       ...store.state,
-      // "deal" is the engine default — store it as absence so configs
-      // stay minimal and the default can evolve without stale pins.
-      bannerConfig: { ...current, entrance: v === "deal" ? undefined : v },
+      // The format's default is stored as absence so configs stay minimal
+      // and the default can evolve without stale pins.
+      bannerConfig: { ...current, entrance: v === entranceOptions(current)[0].value ? undefined : v },
     });
   });
   entRow.appendChild(entSelect);
   panel.appendChild(entRow);
+
+  // Fold-out pixel dissolve: how big its squares are. Shown only while the
+  // Fold-out plays the dissolve; medium is the default, stored as absence.
+  const sqRow = document.createElement("div");
+  sqRow.style.cssText = "display:flex;align-items:center;gap:8px;margin-top:8px;";
+  const sqLabel = document.createElement("label");
+  sqLabel.textContent = t("Squares");
+  sqLabel.style.cssText = `flex:0 0 auto;font-size:11px;color:${tokens.ink300};`;
+  sqRow.appendChild(sqLabel);
+  const sqSelect = document.createElement("select");
+  sqSelect.style.cssText = entSelect.style.cssText;
+  sqSelect.title = t("Size of the squares the poster dissolves in and out with");
+  for (const v of Object.keys(DISSOLVE_COLS) as DissolveSize[]) {
+    const opt = document.createElement("option");
+    opt.value = v;
+    opt.textContent = t(SQUARE_LABELS[v]);
+    sqSelect.appendChild(opt);
+  }
+  sqSelect.addEventListener("change", () => {
+    const v = sqSelect.value as DissolveSize;
+    const current = store.state.bannerConfig;
+    store.commit({ ...store.state, bannerConfig: { ...current, dissolveSize: v === "medium" ? undefined : v } });
+  });
+  sqRow.appendChild(sqSelect);
+  panel.appendChild(sqRow);
 
   // Reading direction: drives the page-turn peel corner, the dog-ear
   // corner, and the nav arrows. Auto resolves to RTL for Arabic /
@@ -87,7 +124,7 @@ export function mountBannerConfigPanel(
   dirRow.style.cssText = "display:flex;align-items:center;gap:8px;margin-top:8px;";
 
   const dirLabel = document.createElement("label");
-  dirLabel.textContent = "Reading";
+  dirLabel.textContent = t("Reading");
   dirLabel.style.cssText = `flex:0 0 auto;font-size:11px;color:${tokens.ink300};`;
   dirRow.appendChild(dirLabel);
 
@@ -104,14 +141,14 @@ export function mountBannerConfigPanel(
     "font-size: 11px",
   ].join(";");
   const DIR_LABELS: Record<string, string> = {
-    auto: "Auto",
-    ltr: "Left → Right",
-    rtl: "Right → Left",
+    auto: tk("Auto"),
+    ltr: tk("Left → Right"),
+    rtl: tk("Right → Left"),
   };
   for (const v of ["auto", "ltr", "rtl"]) {
     const opt = document.createElement("option");
     opt.value = v;
-    opt.textContent = DIR_LABELS[v];
+    opt.textContent = t(DIR_LABELS[v]);
     dirSelect.appendChild(opt);
   }
   dirSelect.addEventListener("change", () => {
@@ -144,7 +181,7 @@ export function mountBannerConfigPanel(
   const weightRow = document.createElement("div");
   weightRow.style.cssText = "display:flex;align-items:center;gap:8px;margin-top:8px;";
   const weightLabel = document.createElement("label");
-  weightLabel.textContent = "Paper";
+  weightLabel.textContent = t("Paper");
   weightLabel.style.cssText = `flex:0 0 auto;font-size:11px;color:${tokens.ink300};`;
   weightRow.appendChild(weightLabel);
   const weightSelect = document.createElement("select");
@@ -152,7 +189,7 @@ export function mountBannerConfigPanel(
   for (const w of PAPER_WEIGHTS) {
     const opt = document.createElement("option");
     opt.value = w;
-    opt.textContent = WEIGHT_LABELS[w];
+    opt.textContent = t(WEIGHT_LABELS[w]);
     weightSelect.appendChild(opt);
   }
   weightSelect.addEventListener("change", () => {
@@ -164,13 +201,13 @@ export function mountBannerConfigPanel(
   panel.appendChild(weightRow);
 
   // Deal/fly tempo: how fast the reader's sheets deal in on open and fly
-  // away on turns/close. Unset ("auto") follows the paper stock's preset
+  // away on turns/close (Fold-out: the dissolve, the fall open, the fold-up). Unset ("auto") follows the paper stock's preset
   // (light snaps, heavy is stately); the slider overrides it per
   // creative. The indicator always shows the EFFECTIVE multiplier.
   const tempoRow = document.createElement("div");
   tempoRow.style.cssText = "display:flex;align-items:center;gap:8px;margin-top:8px;";
   const tempoLabel = document.createElement("label");
-  tempoLabel.textContent = "Tempo";
+  tempoLabel.textContent = t("Tempo");
   tempoLabel.style.cssText = `flex:0 0 auto;font-size:11px;color:${tokens.ink300};`;
   tempoRow.appendChild(tempoLabel);
   const tempoSlider = document.createElement("input");
@@ -178,7 +215,7 @@ export function mountBannerConfigPanel(
   tempoSlider.min = String(TEMPO_MIN);
   tempoSlider.max = String(TEMPO_MAX);
   tempoSlider.step = "0.05";
-  tempoSlider.title = "Deal-in / fly-away pace — 1.0 is natural, higher is slower, statelier";
+  tempoSlider.title = t("Deal-in / fly-away pace — 1.0 is natural, higher is slower, statelier");
   tempoSlider.style.cssText = "flex:1 1 auto;min-width:0;";
   tempoRow.appendChild(tempoSlider);
   const tempoOut = document.createElement("output");
@@ -186,8 +223,8 @@ export function mountBannerConfigPanel(
   tempoRow.appendChild(tempoOut);
   const tempoReset = document.createElement("button");
   tempoReset.type = "button";
-  tempoReset.textContent = "Auto";
-  tempoReset.title = "Follow the paper stock's own tempo";
+  tempoReset.textContent = t("Auto");
+  tempoReset.title = t("Follow the paper stock's own tempo");
   tempoReset.style.cssText = `flex:0 0 auto;font-size:11px;color:${tokens.ink300};background:${tokens.ink900};border:1px solid ${tokens.ink500};border-radius:2px;padding:4px 6px;cursor:pointer;`;
   tempoRow.appendChild(tempoReset);
   const presetTempo = (): number =>
@@ -211,12 +248,12 @@ export function mountBannerConfigPanel(
   const backRow = document.createElement("div");
   backRow.style.cssText = "display:flex;align-items:center;gap:8px;margin-top:8px;";
   const backLabel = document.createElement("label");
-  backLabel.textContent = "Back";
+  backLabel.textContent = t("Back");
   backLabel.style.cssText = `flex:0 0 auto;font-size:11px;color:${tokens.ink300};`;
   backRow.appendChild(backLabel);
   const backColor = document.createElement("input");
   backColor.type = "color";
-  backColor.title = "Back of the peeled page";
+  backColor.title = t("Back of the peeled page");
   backColor.style.cssText = `flex:1 1 auto;min-width:0;height:26px;padding:0;background:${tokens.ink900};border:1px solid ${tokens.ink500};border-radius:2px;cursor:pointer;`;
   backColor.addEventListener("input", () => {
     const current = store.state.bannerConfig;
@@ -225,8 +262,8 @@ export function mountBannerConfigPanel(
   backRow.appendChild(backColor);
   const backReset = document.createElement("button");
   backReset.type = "button";
-  backReset.textContent = "Reset";
-  backReset.title = "Back to the default warm paper stock";
+  backReset.textContent = t("Reset");
+  backReset.title = t("Back to the default warm paper stock");
   backReset.style.cssText = `flex:0 0 auto;font-size:11px;color:${tokens.ink300};background:${tokens.ink900};border:1px solid ${tokens.ink500};border-radius:2px;padding:4px 6px;cursor:pointer;`;
   backReset.addEventListener("click", () => {
     const current = store.state.bannerConfig;
@@ -238,8 +275,12 @@ export function mountBannerConfigPanel(
 
   return {
     update(state) {
-      const ent = state.bannerConfig.entrance ?? "deal";
+      setEntOptions(state.bannerConfig);
+      const ent = effectiveEntrance(state.bannerConfig);
       if (entSelect.value !== ent) entSelect.value = ent;
+      sqRow.style.display = ent === "dissolve" ? "flex" : "none";
+      const sq = state.bannerConfig.dissolveSize ?? "medium";
+      if (sqSelect.value !== sq) sqSelect.value = sq;
       const dir = state.bannerConfig.readingDirection ?? "auto";
       if (dirSelect.value !== dir) dirSelect.value = dir;
       const weight = state.bannerConfig.paperWeight ?? "medium";
@@ -251,6 +292,9 @@ export function mountBannerConfigPanel(
       const slider = String(effTempo);
       if (tempoSlider.value !== slider) tempoSlider.value = slider;
       tempoOut.textContent = `${effTempo.toFixed(2)}×`;
+      tempoSlider.title = state.bannerConfig.format === "foldout"
+        ? t("Unfold pace — 1.0 is natural, higher is slower, heavier paper")
+        : t("Deal-in / fly-away pace — 1.0 is natural, higher is slower, statelier");
       tempoOut.style.color = overridden ? tokens.ink100 : tokens.ink300;
       tempoReset.style.opacity = overridden ? "1" : "0.5";
       // Unset back colour → show the default warm tone in the picker (it
@@ -259,4 +303,15 @@ export function mountBannerConfigPanel(
       if (backColor.value !== back) backColor.value = back;
     },
   };
+}
+
+/** Entrance choices per format; the first is the default (stored as absence). */
+export function entranceOptions(cfg: BannerConfig): { value: "deal" | "fade" | "dissolve"; label: string }[] {
+  return cfg.format === "foldout"
+    ? [{ value: "dissolve", label: tk("Pixel dissolve (default)") }, { value: "fade", label: tk("Fade in / out") }]
+    : [{ value: "deal", label: tk("Sheets fly in / out (default)") }, { value: "fade", label: tk("Fade in / out") }];
+}
+/** The entrance the format will play: "fade", else the format's default. */
+export function effectiveEntrance(cfg: BannerConfig): "deal" | "fade" | "dissolve" {
+  return cfg.entrance === "fade" ? "fade" : entranceOptions(cfg)[0].value;
 }

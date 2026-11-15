@@ -5,6 +5,7 @@
 // openContextMenu and we render + dispatch. Separators are represented
 // by a literal `"---"` string in the item list.
 
+import { t } from "../i18n";
 import { tokens } from "./tokens";
 
 export interface MenuItem {
@@ -85,7 +86,7 @@ function renderItem(item: MenuItem): HTMLElement {
     `color: ${item.disabled ? tokens.ink400 : tokens.ink100}`,
   ].join(";");
   const label = document.createElement("span");
-  label.textContent = item.label;
+  label.textContent = t(item.label);
   label.style.flex = "1";
   row.appendChild(label);
   if (item.shortcut) {

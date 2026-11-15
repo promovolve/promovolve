@@ -88,6 +88,11 @@ class SvgSanitizerSpec extends AnyWordSpec with Matchers {
 }
 
 class SvgRegisterUploadSpec extends AnyWordSpec with Matchers with org.scalatest.concurrent.ScalaFutures {
+
+  // registerUpload parses the SVG on the global pool; ScalaFutures' default
+  // 150ms patience flaked on a loaded CI runner.
+  override given patienceConfig: PatienceConfig =
+    PatienceConfig(timeout = org.scalatest.time.Span(5, org.scalatest.time.Seconds))
   import promovolve.publisher.{ ImageAsset, ImageAssetRepo }
   import promovolve.publisher.assets.ImageStorage
   import scala.concurrent.{ ExecutionContext, Future }

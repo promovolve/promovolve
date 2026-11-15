@@ -52,6 +52,12 @@ export function layoutItemToNode(
       fontFamily: item.fontFamily ?? defaultFontFamily,
       color: item.color ?? "#ffffff",
       fontWeight: String(item.fontWeight ?? "normal"),
+      // Same text rules as render-collapsed.ts (= the designer canvas):
+      // without pre-wrap an authored newline collapsed to a space here,
+      // so Preview/reader re-flowed text the designer showed broken.
+      whiteSpace: "pre-wrap",
+      wordBreak: "break-word",
+      fontSynthesis: "none",
       textAlign: item.textAlign ?? "left",
       lineHeight: String(item.lineHeight ?? 1.2),
       writingMode: item.writingMode && item.writingMode !== "horizontal-tb" ? item.writingMode : "",

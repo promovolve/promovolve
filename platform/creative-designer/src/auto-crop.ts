@@ -24,6 +24,7 @@ import { currentLayout, currentPage, updateItem } from "./state";
 import type { Store } from "./store";
 import type { DesignerState } from "./types";
 import { isFormula } from "./formula";
+import { t } from "./i18n";
 
 type CropBox = { x: number; y: number; w: number; h: number };
 
@@ -374,7 +375,7 @@ export async function autoCropOnBoot(store: Store): Promise<void> {
   // starting them together shaves a round-trip off the cold path.
   // Hold the loading pill for MIN_PHASE_MS even on a cache hit so
   // the user can read it before it changes.
-  showPill("Loading saliency model…");
+  showPill(t("Loading the subject detector…"));
   const loadStart = performance.now();
   await prewarmSaliency();
   const loadElapsed = performance.now() - loadStart;
@@ -382,7 +383,7 @@ export async function autoCropOnBoot(store: Store): Promise<void> {
 
   const total = refs.length;
   let done = 0;
-  setPill(`Auto-cropping (0/${total})…`);
+  setPill(t("Auto-cropping (%d/%d)…", 0, total));
   const inferStart = performance.now();
 
   // The boot pass only touches the expanded master layout, so the
@@ -393,7 +394,7 @@ export async function autoCropOnBoot(store: Store): Promise<void> {
     const itemAspect = (ref.width * canvas.w) / (ref.height * canvas.h);
     const r = await suggestFor(ref, itemAspect);
     done++;
-    setPill(`Auto-cropping (${done}/${total})…`);
+    setPill(t("Auto-cropping (%d/%d)…", done, total));
     return r;
   });
 
@@ -428,20 +429,24 @@ export async function autoCropOnBoot(store: Store): Promise<void> {
   let summary: string;
   let lingerMs: number;
   if (ok.length === total) {
-    summary = `Auto-crop done (${ok.length}/${total})`;
+    summary = t("Auto-crop done (%d/%d)", ok.length, total);
     lingerMs = 1500;
   } else if (ok.length === 0 && cors === total) {
-    summary = `Auto-crop blocked: ${cors} image${cors === 1 ? "" : "s"} not CORS-readable`;
+    summary = cors === 1
+      ? t("Auto-crop blocked: %d image can't be read from its host", cors)
+      : t("Auto-crop blocked: %d images can't be read from their host", cors);
     lingerMs = 6000;
   } else if (ok.length === 0) {
-    summary = `Auto-crop: no usable subject in ${total} image${total === 1 ? "" : "s"}`;
+    summary = total === 1
+      ? t("Auto-crop: no clear subject in %d image", total)
+      : t("Auto-crop: no clear subject in %d images", total);
     lingerMs = 5000;
   } else {
-    const parts: string[] = [`${ok.length}/${total} cropped`];
-    if (cors > 0) parts.push(`${cors} CORS-blocked`);
-    if (noSubject > 0) parts.push(`${noSubject} no subject`);
-    if (errored > 0) parts.push(`${errored} errored`);
-    summary = `Auto-crop: ${parts.join(", ")}`;
+    const parts: string[] = [t("%d/%d cropped", ok.length, total)];
+    if (cors > 0) parts.push(t("%d unreadable", cors));
+    if (noSubject > 0) parts.push(t("%d without a clear subject", noSubject));
+    if (errored > 0) parts.push(t("%d failed", errored));
+    summary = t("Auto-crop: %s", parts.join(t(", ")));
     lingerMs = 5000;
   }
   setPill(summary);

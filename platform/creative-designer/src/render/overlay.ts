@@ -13,6 +13,7 @@
 // The overlay is a child of the canvas wrap and shares its aspect
 // ratio, so percent coordinates map directly to its inner box.
 
+import { t, tk } from "../i18n";
 import { isMultiPage } from "../modes";
 import { startDrag } from "../interaction/drag";
 import { selectionBounds, startGroupResize } from "../interaction/group-resize-gesture";
@@ -294,6 +295,13 @@ function renderOverlay(root: HTMLElement, state: DesignerState): void {
   bg.dataset.cdBg = "1";
   bg.style.cssText = "position:absolute;inset:0;pointer-events:auto";
   root.appendChild(bg);
+  for (const top of foldGuideTops(state)) {
+    const g = document.createElement("div");
+    g.dataset.cdFold = "1";
+    g.style.cssText = `position:absolute;left:0;right:0;top:${top}%;border-top:1px dashed ${tokens.ink300};pointer-events:none;font-size:9px;color:${tokens.ink300};line-height:1`;
+    g.textContent = t("fold");
+    root.appendChild(g);
+  }
   const items = currentLayout(state);
   // Group-bbox handles render BEHIND items in z-order — append the
   // group overlay first so individual item outlines paint on top of
@@ -409,7 +417,7 @@ function renderMotionGhost(
   // read as a mystery box parked over unrelated content. Non-interactive
   // — clicks on it obey the ghost's click-through rule.
   const tag = document.createElement("div");
-  tag.textContent = "END POSE";
+  tag.textContent = t("END POSE");
   tag.style.cssText = [
     "position: absolute",
     "left: 0",
@@ -510,7 +518,8 @@ function renderBadge(n: number, selected: boolean): HTMLElement {
     "align-items: center",
     "justify-content: center",
     `background: ${selected ? SELECTION_COLOR : tokens.ink800}`,
-    `color: ${tokens.ink100}`,
+    // selected = ink fill (focus is ink), so the number reverses to paper
+    `color: ${selected ? tokens.ink900 : tokens.ink100}`,
     `border: 1px solid ${selected ? SELECTION_COLOR : tokens.ink500}`,
     "border-radius: 2px",
     "font-size: 10px",
@@ -549,7 +558,9 @@ function startInlineTextEdit(
   const el = shadow.querySelector<HTMLElement>(`[data-layout-idx="${idx}"]`);
   if (!el || el.isContentEditable) return;
 
-  const originalText = item.text ?? "";
+  // What's on screen — field-bound items carry no item.text, so that
+  // fallback ("") would blank the text on cancel.
+  const originalText = el.textContent ?? "";
   const prevDisplay = root.style.display;
   const prevUserSelect = el.style.userSelect;
   const prevCursor = el.style.cursor;
@@ -559,8 +570,14 @@ function startInlineTextEdit(
   const prevWidth = el.style.width;
   const prevMaxWidth = el.style.maxWidth;
   const prevFontSize = el.style.fontSize;
+  const prevLeft = el.style.left;
+  const prevRight = el.style.right;
+  const vertical = item.writingMode === "vertical-rl";
+  const columnPx = el.offsetHeight; // before height:auto below unwraps it
 
-  el.contentEditable = "true";
+  // plaintext-only: Enter/Shift+Enter insert a real "\n" (rendered by the
+  // pre-wrap the renderers set) instead of a <div>, and paste stays plain.
+  el.contentEditable = "plaintext-only";
   el.style.userSelect = "text";
   el.style.cursor = "text";
   el.style.outline = `1px dashed ${tokens.focusMuted}`;
@@ -588,7 +605,20 @@ function startInlineTextEdit(
   // "no jump"; only a never-fitted element needs the authored fallback.
   if (!parseFloat(el.style.fontSize)) el.style.fontSize = `${item.fontSize ?? 5}cqmax`;
   el.style.width = "max-content";
-  el.style.maxWidth = `${100 - (item.left ?? 0)}%`;
+  if (vertical) {
+    // Tategaki is the transpose: the box HEIGHT is the column length and
+    // columns are added LEFTWARD from the right edge. Keep the column
+    // length (height:auto would unwrap everything into one long column)
+    // and pin the RIGHT edge so new columns grow left — left-anchored, the
+    // text already typed slid right as each column was added.
+    el.style.height = prevHeight || `${columnPx}px`;
+    const right = (item.left ?? 0) + (item.width ?? 30);
+    el.style.left = "auto";
+    el.style.right = `${100 - right}%`;
+    el.style.maxWidth = `${right}%`;
+  } else {
+    el.style.maxWidth = `${100 - (item.left ?? 0)}%`;
+  }
   // Hide the overlay completely — its hitboxes' pointer-events: auto
   // would otherwise override a parent pointer-events:none and steal
   // clicks from the editable element.
@@ -620,9 +650,12 @@ function startInlineTextEdit(
     el.style.width = prevWidth;
     el.style.maxWidth = prevMaxWidth;
     el.style.fontSize = prevFontSize;
+    el.style.left = prevLeft;
+    el.style.right = prevRight;
     root.style.display = prevDisplay;
     el.removeEventListener("blur", onBlur);
     el.removeEventListener("keydown", onKey);
+    window.removeEventListener("pointerdown", onOutside, true);
     unsub();
     if (commit) {
       if (text !== originalText) {
@@ -649,8 +682,10 @@ function startInlineTextEdit(
   const onKey = (e: KeyboardEvent): void => {
     if (e.key === "Escape") {
       e.preventDefault();
-      el.blur();
+      // Cancel BEFORE blurring: blur fires onBlur → finish(true), which
+      // used to save the edit and turn the cancel into a no-op.
       finish(false);
+      el.blur();
     } else if (e.key === "Enter" && !e.shiftKey) {
       e.preventDefault();
       el.blur();
@@ -660,6 +695,13 @@ function startInlineTextEdit(
   };
   el.addEventListener("blur", onBlur);
   el.addEventListener("keydown", onKey);
+  // Click outside = commit. The empty-canvas marquee preventDefaults its
+  // pointerdown, which also stops focus leaving the text, so blur never
+  // fired and the edit stayed open. Commit on any outside pointerdown.
+  const onOutside = (ev: PointerEvent): void => {
+    if (!ev.composedPath().includes(el)) el.blur();
+  };
+  window.addEventListener("pointerdown", onOutside, true);
 }
 
 // Freeze the banner's pages attribute for the duration of the edit by
@@ -723,38 +765,38 @@ function buildMenu(store: Store): MenuEntry[] {
   );
   return [
     {
-      label: "Bring to Front",
+      label: tk("Bring to front"),
       shortcut: "}",
       disabled: !hasSel,
       onSelect: () => store.commit(bringToFront(store.state)),
     },
     {
-      label: "Bring Forward",
+      label: tk("Bring forward"),
       shortcut: "]",
       disabled: !hasSel,
       onSelect: () => store.commit(bringForward(store.state)),
     },
     {
-      label: "Send Backward",
+      label: tk("Send backward"),
       shortcut: "[",
       disabled: !hasSel,
       onSelect: () => store.commit(sendBackward(store.state)),
     },
     {
-      label: "Send to Back",
+      label: tk("Send to back"),
       shortcut: "{",
       disabled: !hasSel,
       onSelect: () => store.commit(sendToBack(store.state)),
     },
     "---",
     {
-      label: "Group",
+      label: tk("Group"),
       shortcut: `${modKey}G`,
       disabled: selCount < 2,
       onSelect: () => store.commit(groupSelection(store.state)),
     },
     {
-      label: "Ungroup",
+      label: tk("Ungroup"),
       shortcut: `${modKey}⇧G`,
       disabled: !anyGrouped,
       onSelect: () => store.commit(ungroupSelection(store.state)),
@@ -766,7 +808,7 @@ function buildMenu(store: Store): MenuEntry[] {
     ...(hasAnim
       ? ([
           {
-            label: "Remove End-Pose Tween",
+            label: tk("Remove end pose"),
             onSelect: () => {
               store.commit(updateItem(store.state, soloIdx, (it) => ({ ...it, animationTo: undefined })));
             },
@@ -775,26 +817,26 @@ function buildMenu(store: Store): MenuEntry[] {
         ] as MenuEntry[])
       : []),
     {
-      label: "Duplicate",
+      label: tk("Duplicate"),
       shortcut: `${modKey}D`,
       disabled: !hasSel,
       onSelect: () => duplicate(store),
     },
     {
-      label: "Copy",
+      label: tk("Copy"),
       shortcut: `${modKey}C`,
       disabled: !hasSel,
       onSelect: () => copy(store),
     },
     {
-      label: "Paste",
+      label: tk("Paste"),
       shortcut: `${modKey}V`,
       disabled: !hasClipboard(),
       onSelect: () => paste(store),
     },
     "---",
     {
-      label: "Delete",
+      label: tk("Delete"),
       shortcut: "⌫",
       disabled: !hasSel,
       onSelect: () => commitDeleteSelection(store),
@@ -938,3 +980,8 @@ function handlePosition(dir: ResizeDir): string[] {
   }
 }
 
+
+/** Fold-out poster fold lines (percent from top), on the portrait master only. */
+export function foldGuideTops(state: DesignerState): number[] {
+  return state.bannerConfig.format === "foldout" && isMultiPage(state.mode) ? [100 / 3, 200 / 3] : [];
+}

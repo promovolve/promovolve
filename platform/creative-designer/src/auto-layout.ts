@@ -15,7 +15,7 @@ import { loadBrandKit } from "./brand-kit";
 import { currentLayout, masterColor } from "./state";
 import { enforceContrast } from "./color-contrast";
 import { TEMPLATES } from "./layout-templates";
-import { presetLayoutFor } from "./presets";
+import { markGenerated, presetLayoutFor } from "./presets";
 import { packSizedFieldBoxes } from "./render/canvas";
 import type { Store } from "./store";
 import { applyTemplate as applyTemplateItems } from "./template-apply";
@@ -145,7 +145,12 @@ export function installAutoLayoutGenerator(
     const key = `${state.pageIdx}|${state.mode.key}`;
     if (key === lastTabKey) return;
     lastTabKey = key;
-    if (state.mode.key === "expanded" || state.mode.key === "mobile") return;
+    if (state.mode.key === "expanded") return;
+    // The reader keeps its template geometry — except the Fold-out poster, whose
+    // 9:16 master is machine-composed (posterLayoutFor) and packs here like
+    // any bucket, band-capped (packSizedFieldBoxes).
+    const poster = state.mode.key === "mobile" && state.bannerConfig.format === "foldout";
+    if (state.mode.key === "mobile" && !poster) return;
     const sizeKey = state.mode.sizeKey;
     if (!sizeKey) return;
     whenStageReady(() => {
@@ -158,12 +163,13 @@ export function installAutoLayoutGenerator(
       // vertical-rl, and it walks a machine-bloated font down to fit
       // (see packSizedFieldBoxes). onlyGenerated + this sizeKey keeps
       // the blast radius at exactly the machine boxes of this tab.
-      const fields = new Set<string>();
+      const fields = new Set<string | null>();
       currentLayout(store.state).forEach((it) => {
         if (it.type !== "text") return;
         if (!(it as { _generated?: boolean })._generated) return;
         const f = (it as { field?: string }).field;
         if (f) fields.add(f);
+        else if (poster) fields.add(null); // literal beats 2-3
       });
       fields.forEach((f) => packSizedFieldBoxes(store, f, sizeKey, true));
     });
@@ -311,29 +317,9 @@ function applyPage(store: Store, pageIdx: number, nextPage: Page): void {
   });
 }
 
-// Stamp generation metadata onto a layout that's about to be applied.
-//
-// 1. `_generated: true` on every item, so the size-matrix fanout status
-//    pill can tell "author designed this" from "Gemini / preset filled
-//    this in". The flag is stripped by state.ts's updateItem the moment
-//    the author touches a field.
-// 2. `textFit: "shrink"` on every TEXT item. Generated copy is
-//    unpredictably long (especially Gemini-returned layouts, whose
-//    textFit is dropped on the Scala wire), so it must scale DOWN into
-//    its slot rather than overflow/clip. applyLayout is the one funnel
-//    every source (preset / template / Gemini) passes through, so this
-//    covers them all. Inert on heightless items — the renderer gates
-//    autofit on an explicit height — so free-growing fallback text and
-//    hand-drawn boxes are untouched.
-//
-// Exported for unit testing; callers use it via applyLayout.
-export function markGenerated(items: Page["layout"]): LayoutItem[] {
-  return (items ?? []).map((it) =>
-    it.type === "text"
-      ? { ...it, _generated: true, textFit: "shrink" as const }
-      : { ...it, _generated: true },
-  );
-}
+// markGenerated lives in presets.ts (the Fold-out poster uses it too); re-exported
+// here for callers and tests that know it as part of applyLayout.
+export { markGenerated };
 
 // Writes items into the correct slot on the identified page. Unlike
 // the old version this doesn't require the user to still be on the

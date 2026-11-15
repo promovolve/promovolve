@@ -12,35 +12,21 @@
          composition intent into the Gemini prompt. -->
     <input type="hidden" name="brandKitJson" :value="selectedBrandKitJson()">
     <input type="hidden" name="templateId"   :value="selectedTemplateId">
+    <input type="hidden" name="format"       :value="format === 'foldout' ? 'foldout' : ''">
     <!-- Present ONLY when the license opt-in above is ticked — downstream
          treats the field's presence as the advertiser's consent record. -->
     <input type="hidden" name="lpFontsJson"  :value="useOriginalFonts && originalFonts.length ? JSON.stringify(originalFonts) : ''">
   </form>
 
-  <!-- Full-page blocking overlay shown while generating. Covers the
-       whole editor (including the sticky Generate button) so the user
-       can't change selections mid-flight and the spinner makes the
-       wait obvious. -->
-  <div x-show="generating" x-cloak
-       class="fixed inset-0 z-50 bg-white/70 backdrop-blur-sm flex items-center justify-center"
-       @click.stop @keydown.stop>
-    <div class="flex flex-col items-center gap-3 rounded-lg bg-white shadow-lg border px-6 py-5">
-      <svg class="animate-spin h-8 w-8 text-gray-900" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24">
-        <circle class="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" stroke-width="4"></circle>
-        <path class="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8v4a4 4 0 00-4 4H4z"></path>
-      </svg>
-      <p class="text-sm font-medium text-gray-700">{{t "Generating creative…"}}</p>
-      <p class="text-xs text-gray-500">{{t "This can take up to a minute."}}</p>
-    </div>
-  </div>
-
-  <!-- Header. The page is a printed form: five numbered sections under
+  <!-- Header. The page is a printed form: six numbered sections under
        rules, one primary action at the end (Continue to Designer). -->
   <div class="mb-6">
     <h1 class="page-title">{{t "Creative Editor"}}</h1>
     <p class="page-sub">
+      {{/* No creatives yet: the Creatives list would only send the
+           advertiser back here, so the way out is the campaign list. */}}
       {{if .NoCreatives}}
-      <span class="text-gray-500">{{template "i-back"}} {{t "Creatives"}}</span>
+      <a href="/advertiser/campaigns" class="text-brand-ink">{{template "i-back"}} {{t "Campaigns"}}</a>
       {{else}}
       <a href="/advertiser/creatives?campaignId={{.CampaignID}}" class="text-brand-ink">{{template "i-back"}} {{t "Creatives"}}</a>
       {{end}}
@@ -49,9 +35,50 @@
     </p>
   </div>
 
-  <!-- ============ 1. Landing page — pinned at the top ============ -->
+  <!-- ============ 1. Format — picked FIRST (GH #510) ============
+       Magazine (3 pages) or Fold-out (one poster folded in thirds). Nothing
+       is preselected: copy is written for one format, so it waits for this
+       pick (the LP read below starts on load regardless — it's format-free
+       and the slow part). The designer has no format switch. -->
   <section class="editor-section">
-    <h2 class="editor-heading"><span class="tabular">1</span> {{t "Landing page"}}</h2>
+    <h2 class="editor-heading"><span class="tabular">1</span> {{t "Format"}}</h2>
+    <div class="min-w-0">
+      <div class="grid gap-2 grid-cols-2 xl:grid-cols-4">
+        <button type="button" @click="setFormat('magazine')" :disabled="generating"
+                :aria-pressed="format === 'magazine'"
+                class="border rounded-sm px-3 py-2 text-left transition-colors hover:border-gray-900 disabled:opacity-50 disabled:cursor-not-allowed flex items-start gap-3"
+                :class="format === 'magazine' ? 'border-gray-900 bg-gray-100 shadow-[inset_0_0_0_1px_rgb(var(--c-gray-900))]' : 'border-gray-300'">
+          <svg class="shrink-0 mt-0.5 text-gray-900" width="22" height="28" viewBox="0 0 22 28" fill="none" stroke="currentColor" stroke-width="1.5" aria-hidden="true">
+            <rect x="6.75" y="0.75" width="14.5" height="19" fill="rgb(var(--c-gray-50))"/>
+            <rect x="3.75" y="4.25" width="14.5" height="19" fill="rgb(var(--c-gray-50))"/>
+            <rect x="0.75" y="7.75" width="14.5" height="19" fill="rgb(var(--c-gray-50))"/>
+          </svg>
+          <span class="min-w-0">
+            <span class="block text-sm text-gray-900" :class="format === 'magazine' && 'font-bold'">{{t "Magazine"}}</span>
+            <span class="block text-xs text-gray-500 mt-0.5 leading-snug">{{t "3 pages"}}</span>
+          </span>
+        </button>
+        <button type="button" @click="setFormat('foldout')" :disabled="generating"
+                :aria-pressed="format === 'foldout'"
+                class="border rounded-sm px-3 py-2 text-left transition-colors hover:border-gray-900 disabled:opacity-50 disabled:cursor-not-allowed flex items-start gap-3"
+                :class="format === 'foldout' ? 'border-gray-900 bg-gray-100 shadow-[inset_0_0_0_1px_rgb(var(--c-gray-900))]' : 'border-gray-300'">
+          <svg class="shrink-0 mt-0.5 text-gray-900" width="22" height="28" viewBox="0 0 22 28" fill="none" stroke="currentColor" stroke-width="1.5" aria-hidden="true">
+            <rect x="3.75" y="0.75" width="14.5" height="26.5" fill="rgb(var(--c-gray-50))"/>
+            <line x1="3.75" y1="9.6" x2="18.25" y2="9.6" stroke-width="1" stroke-dasharray="2 1.5"/>
+            <line x1="3.75" y1="18.4" x2="18.25" y2="18.4" stroke-width="1" stroke-dasharray="2 1.5"/>
+          </svg>
+          <span class="min-w-0">
+            <span class="block text-sm text-gray-900" :class="format === 'foldout' && 'font-bold'">{{t "Fold-out"}}</span>
+            <span class="block text-xs text-gray-500 mt-0.5 leading-snug">{{t "One poster, folds in thirds"}}</span>
+          </span>
+        </button>
+      </div>
+    </div>
+  </section>
+
+  <!-- ============ 2. Landing page ============ -->
+  <section class="editor-section">
+    <h2 class="editor-heading"><span class="tabular">2</span> {{t "Landing page"}}</h2>
     <div class="min-w-0">
       <div class="flex gap-3">
         <input type="text" x-model="extractUrl" placeholder="{{t "Enter landing page URL"}}"
@@ -97,25 +124,31 @@
           <p class="text-xs" :class="lpScreenshotUrl ? 'text-white/75' : 'text-gray-500'">{{t "Extracting text, images and brand colours"}}</p>
         </div>
       </div>
+      <!-- Read, but no format yet: the copy (and everything below) waits. -->
+      <p x-show="step === 'compose' && !format" x-cloak class="mt-4 text-sm text-gray-900 font-bold">{{t "Choose a format above and we'll write the ad copy."}}</p>
     </div>
   </section>
 
-  <!-- ============ 2–5. Compose — same page; reveals (animated) below the
-       URL once Analyze populates it. step flips to 'compose' on success or
-       manual fallback. ============ -->
-  <div x-show="step === 'compose'"
+  <!-- ============ 3–6. Compose — same page; reveals (animated) below the
+       URL once Analyze populates it AND a format is picked. step flips to
+       'compose' on success or manual fallback. ============ -->
+  <div x-show="step === 'compose' && format"
        x-cloak
        x-transition:enter="transition ease-out duration-300"
        x-transition:enter-start="opacity-0 translate-y-3"
        x-transition:enter-end="opacity-100 translate-y-0">
 
-    <!-- 2. Story: the persuasion arc + an optional brief, applied together
-         by ONE Regenerate action. On first generate the AI curates which
-         arcs FIT the product (e.g. drops Problem→Solution for sweets) and
-         we show only those + why; "show all" reveals the rest. -->
+    <!-- 3. Story: the copy is written automatically once the LP is read,
+         with the arc the AI recommends (badged). The AI also curates which
+         arcs FIT the product (e.g. drops Problem→Solution for sweets); "show
+         all" reveals the rest. Picking another arc + Regenerate is an
+         optional override (GH #491).
+         Fold-out has no arc: one poster = one ad (the core's "poster" brief). -->
     <section class="editor-section">
-      <h2 class="editor-heading"><span class="tabular">2</span> {{t "Story arc"}}</h2>
+      <h2 class="editor-heading"><span class="tabular">3</span> <span x-text="format === 'foldout' ? '{{t "Ad copy"}}' : '{{t "Story arc"}}'">{{t "Story arc"}}</span></h2>
       <div class="min-w-0">
+        <p x-show="format === 'foldout'" x-cloak class="text-sm text-gray-500 mb-2">{{t "— one ad, written for the poster"}}</p>
+        <div x-show="format !== 'foldout'">
         <div class="flex items-baseline justify-between gap-3 mb-2">
           <p class="text-sm text-gray-500">{{t "— how the 3 pages persuade"}}</p>
           <button type="button" x-show="fitArcIds.length > 0 && fitArcIds.length < arcs.length"
@@ -123,31 +156,23 @@
                   class="text-xs text-gray-900 underline hover:no-underline shrink-0"
                   x-text="showAllArcs ? '{{t "show recommended only"}}' : '{{t "show all arcs"}}'"></button>
         </div>
-        <p x-show="arcReason" x-cloak class="text-sm text-gray-900 mb-3"><span class="font-bold">{{t "Recommended:"}}</span> <span x-text="arcReason"></span></p>
         <div class="grid gap-2 sm:grid-cols-2 xl:grid-cols-4">
           <template x-for="a in arcs.filter(a => showAllArcs || fitArcIds.length === 0 || fitArcIds.includes(a.id))" :key="a.id">
             <button type="button" @click="selectedArcId = a.id" :disabled="generating"
                     :aria-pressed="selectedArcId === a.id"
                     class="border rounded-sm px-3 py-2 text-left transition-colors hover:border-gray-900 disabled:opacity-50 disabled:cursor-not-allowed"
                     :class="selectedArcId === a.id ? 'border-gray-900 bg-gray-100 shadow-[inset_0_0_0_1px_rgb(var(--c-gray-900))]' : 'border-gray-300'">
-              <div class="text-sm text-gray-900" :class="selectedArcId === a.id && 'font-bold'" x-text="a.label"></div>
+              <div class="text-sm text-gray-900" :class="selectedArcId === a.id && 'font-bold'"><span x-text="a.label"></span>
+                <span x-show="recommendedArcId === a.id" class="ml-1 inline-block align-middle text-[0.65rem] leading-none font-normal border border-gray-900 rounded-sm px-1 py-0.5">{{t "Recommended"}}</span></div>
               <div class="text-xs text-gray-500 mt-0.5 leading-snug" x-text="a.desc"></div>
             </button>
           </template>
         </div>
+        </div>
 
-        <label for="creative-editor-brief" class="form-label mt-5">{{t "Anything to emphasize?"}}
-          <span class="font-normal text-gray-500">{{t "(optional)"}}</span></label>
-        <input id="creative-editor-brief" type="text" x-model="brief" maxlength="300"
-               @keydown.enter.prevent
-               placeholder="{{t "e.g. push the limited edition; warm, playful tone; mention free shipping"}}"
-               class="form-input">
-        <p class="form-hint">{{t "Steers the copy. Facts you add are trusted; the AI still won’t invent beyond your landing page + this note."}}</p>
-
-        <button type="button" @click="synthesize(selectedArcId)" :disabled="generating || recommending || allTexts.length === 0"
+        <button type="button" @click="synthesize(selectedArcId)" :disabled="generating || allTexts.length === 0"
                 class="btn btn-secondary mt-4">
-          <span x-show="!generating && !recommending" x-text="synthesizedPages.length ? '{{t "↻ Regenerate copy"}}' : '{{t "Generate copy"}}'"></span>
-          <span x-show="recommending && !generating">{{t "Waiting for AI recommendation…"}}</span>
+          <span x-show="!generating" x-text="synthesizedPages.length ? '{{t "↻ Regenerate copy"}}' : '{{t "Generate copy"}}'"></span>
           <span x-show="generating">{{t "Writing copy…"}}</span>
         </button>
 
@@ -168,14 +193,41 @@
       </div>
     </section>
 
-    <!-- 3. Pages: the banner's three pages side by side, like its spread.
+    <!-- 4. Pages: the banner's three pages side by side, like its spread.
          Copy comes from synthesizedPages[idx]; the only per-page choice is
          which image to use. The selected page carries the ink rule on top;
          clicking an image below puts it on that page. Pages are locked at
-         3 and treated equally (delivery navigates on a tap anywhere). -->
+         3 and treated equally (delivery navigates on a tap anywhere).
+         Fold-out swaps this for "Poster": one 9:16 image (pageSlots[0]) beside
+         its one ad copy. -->
     <section class="editor-section">
-      <h2 class="editor-heading"><span class="tabular">3</span> {{t "Pages"}}</h2>
+      <h2 class="editor-heading"><span class="tabular">4</span> <span x-text="format === 'foldout' ? '{{t "Poster"}}' : '{{t "Pages"}}'">{{t "Pages"}}</span></h2>
       <div class="min-w-0">
+        <template x-if="format === 'foldout'">
+          <div class="grid grid-cols-[8rem_minmax(0,1fr)] sm:grid-cols-[13rem_minmax(0,1fr)] gap-4 sm:gap-6 border-t-[3px] border-gray-900 pt-3">
+            <div class="aspect-[9/16] bg-gray-100 flex items-center justify-center overflow-hidden">
+              <template x-if="pageSlots[0].imageIdx !== null && allImages[pageSlots[0].imageIdx]">
+                <img :src="allImages[pageSlots[0].imageIdx].src" alt="" class="w-full h-full object-cover">
+              </template>
+              <template x-if="pageSlots[0].imageIdx === null">
+                <span class="text-xs text-gray-500 text-center px-2">{{t "Click an image below to put it on the poster"}}</span>
+              </template>
+            </div>
+            <div class="min-w-0">
+              <template x-if="synthesizedPages[0]">
+                <div>
+                  <p class="text-sm font-bold text-gray-900" x-text="synthesizedPages[0].headline || '—'"></p>
+                  <p class="text-xs text-gray-700 mt-0.5" x-text="synthesizedPages[0].sub || ''"></p>
+                  <p class="text-xs text-gray-500 mt-2" x-text="synthesizedPages[0].body || ''"></p>
+                </div>
+              </template>
+              <template x-if="!synthesizedPages[0]">
+                <p class="text-xs text-gray-500" x-text="generating ? '{{t "Writing copy…"}}' : '{{t "Copy will appear here"}}'"></p>
+              </template>
+            </div>
+          </div>
+        </template>
+        <template x-if="format !== 'foldout'">
         <div class="grid gap-6 md:grid-cols-3">
           <template x-for="(page, idx) in pageSlots" :key="idx">
             <div class="border-t-[3px] pt-3 cursor-pointer"
@@ -216,6 +268,7 @@
             </div>
           </template>
         </div>
+        </template>
 
         <!-- Image pool. Columns, not rows: each image keeps its own shape
              and the next one follows straight under it, so short images
@@ -229,7 +282,7 @@
           <div class="flex items-baseline justify-between gap-3 mb-2">
             <h3 class="text-sm font-bold text-gray-900">
               {{t "Images"}} <span class="font-normal text-gray-500" x-text="'(' + allImages.length + ')'"></span>
-              <span class="font-normal text-gray-500" x-show="allImages.length > 0"
+              <span class="font-normal text-gray-500" x-show="allImages.length > 0 && format !== 'foldout'"
                     x-text="'— ' + '{{t "click one to put it on page %d"}}'.replace('%d', activePageIdx + 1)"></span>
             </h3>
             <label class="text-xs text-gray-900 underline hover:no-underline cursor-pointer shrink-0"
@@ -250,7 +303,7 @@
                 <img :src="img.src" alt="" class="w-full h-auto block">
                 <span x-show="isImageUsed(imgIdx)"
                       class="absolute top-1 left-1 px-1.5 py-0.5 rounded-sm bg-gray-900 text-white text-xs font-bold"
-                      x-text="'P' + (imageUsedByPage(imgIdx) + 1)"></span>
+                      x-text="format === 'foldout' ? '{{t "Poster"}}' : 'P' + (imageUsedByPage(imgIdx) + 1)"></span>
                 {{/* Save-to-library star. stop keeps the click from also
                      assigning the image to the active page. Filled = in
                      the library (delete-able via toggle or the designer's
@@ -289,14 +342,16 @@
       </div>
     </section>
 
-    <!-- 4. Layout — picking ONE named template is REQUIRED (gates Continue
+    <!-- 5. Layout — picking ONE named template is REQUIRED (gates Continue
          via selectedTemplateId), so the creative is never silently
-         defaulted. The fonts opt-in sits here too: both set the look. -->
-    <section class="editor-section">
-      <h2 class="editor-heading"><span class="tabular">4</span> {{t "Layout"}}</h2>
+         defaulted. The fonts opt-in sits here too: both set the look.
+         Fold-out has no template (the designer composes the poster), so
+         the section shrinks to "Fonts" and vanishes when there are none. -->
+    <section class="editor-section" x-show="format !== 'foldout' || originalFonts.length > 0" x-cloak>
+      <h2 class="editor-heading"><span class="tabular">5</span> <span x-text="format === 'foldout' ? '{{t "Fonts"}}' : '{{t "Layout"}}'">{{t "Layout"}}</span></h2>
       <div class="min-w-0">
-        <p class="text-sm text-gray-500 mb-3">{{t "Pick a layout. Colours are set later in the designer."}}</p>
-        <div class="grid grid-cols-2 sm:grid-cols-4 gap-3">
+        <p x-show="format !== 'foldout'" class="text-sm text-gray-500 mb-3">{{t "Pick a layout. Colours are set later in the designer."}}</p>
+        <div x-show="format !== 'foldout'" class="grid grid-cols-2 sm:grid-cols-4 gap-3">
           <template x-for="t in templates" :key="t.id">
             <button type="button" @click="selectedTemplateId = t.id"
                     :aria-pressed="selectedTemplateId === t.id"
@@ -331,9 +386,9 @@
       </div>
     </section>
 
-    <!-- 5. Name, then the page's one primary action. -->
+    <!-- 6. Name, then the page's one primary action. -->
     <section class="editor-section">
-      <h2 class="editor-heading"><span class="tabular">5</span> {{t "Creative name"}}</h2>
+      <h2 class="editor-heading"><span class="tabular" x-text="format === 'foldout' && originalFonts.length === 0 ? 5 : 6">6</span> {{t "Creative name"}}</h2>
       <div class="min-w-0">
         <label for="creative-editor-creativename" class="sr-only">{{t "Creative name"}}</label>
         <input id="creative-editor-creativename" type="text" x-model="creativeName" required maxlength="120"
@@ -342,14 +397,17 @@
                class="form-input">
         <p class="form-hint">{{t "Shown on your creatives list and in reports."}}</p>
         <div class="mt-5 flex flex-wrap items-center gap-x-4 gap-y-2">
-          <button @click="generateCopy()" :disabled="generating || !canGenerate()"
+          <button @click="generateCopy()" :disabled="generating || handingOff || !canGenerate()"
                   class="btn btn-primary">
-            <span x-show="!generating">{{t "Continue to Designer"}}</span>
-            <span x-show="generating">{{t "Writing copy…"}}</span>
+            <span x-text="handingOff ? '{{t "Opening the Designer…"}}' : generating ? '{{t "Writing copy…"}}' : '{{t "Continue to Designer"}}'">{{t "Continue to Designer"}}</span>
           </button>
-          <p x-show="!canGenerate() && !generating"
+          <p x-show="!canGenerate() && !generating && !handingOff"
              class="text-sm text-gray-500"
-             x-text="synthesizedPages.length < 3 ? '{{t "Waiting for the copy to finish generating."}}' : (creativeName.trim() === '' ? '{{t "Name the creative to continue."}}' : '{{t "Pick a layout template to continue."}}')"></p>
+             x-text="'{{t "To continue, still needed:"}} ' + [
+               synthesizedPages.length < copyPagesNeeded() && '{{t "the copy (step 3)"}}',
+               format !== 'foldout' && selectedTemplateId === '' && '{{t "a layout (step 5)"}}',
+               creativeName.trim() === '' && '{{t "a name"}}',
+             ].filter(Boolean).join('{{t ", "}}')"></p>
         </div>
         <p x-show="generateError" x-text="generateError" class="mt-2 text-sm text-gray-900 font-bold"></p>
       </div>
@@ -364,6 +422,7 @@
 function creativeEditor() {
   return {
     step: 'analyze',  // 'analyze', 'compose'
+    format: null, // 'magazine' | 'foldout' — Fold-out = one poster folded in thirds; null until the advertiser picks (step 1)
     extractUrl: '{{.LandingURL}}',
     extractStrategy: 'auto',
     creativeName: '',
@@ -425,10 +484,8 @@ function creativeEditor() {
       { id: 'tease-reveal-invite',    label: '{{t "Tease → Reveal → Invite"}}',     desc: '{{t "Curiosity → the reveal → come see more"}}' },
     ],
     fitArcIds: [],      // AI-curated subset (ids that fit this product); empty = show all
-    arcReason: '',      // one line on why the recommended arc fits
-    recommending: false, // arc recommendation in flight — gates Generate copy
+    recommendedArcId: '', // the arc the AI picked — badged in the picker
     showAllArcs: false, // reveal the arcs the AI filtered out
-    brief: '',          // optional advertiser free-text woven into the copy prompt
     // LP's dominant background + text colours. Creative pages must
     // match the LP's colour scheme (product restriction), so these
     // get applied verbatim — bg to every page background, text to
@@ -453,7 +510,8 @@ function creativeEditor() {
     // poll flips screenshotReady) and shown as the loading backdrop so the
     // space below the URL field isn't blank white while extraction runs.
     lpScreenshotUrl: '',
-    generating: false,
+    generating: false,   // writing copy (synthesize)
+    handingOff: false,   // Continue → submitting to the Designer; NOT copy writing
     generateError: '',
     // Fallback mode (scrape returned empty — user supplies content manually)
     manualMode: false,
@@ -479,6 +537,7 @@ function creativeEditor() {
       window.addEventListener('pageshow', (e) => {
         if (e.persisted) {
           this.generating = false;
+          this.handingOff = false;
           this.analyzing = false;
         }
       });
@@ -845,9 +904,11 @@ function creativeEditor() {
         this.manualMode = this.allImages.length === 0 && this.allTexts.length === 0;
         this.seedCreativeName();
         this.step = 'compose';
-        // Auto-write the 3 pages of copy from the WHOLE LP text. Compose shows
-        // immediately; the page cards fill in when synthesis returns.
-        if (this.allTexts.length > 0) this.recommendArc();
+        // Auto-write the copy from the WHOLE LP text with the AI-recommended
+        // arc (one request). Compose shows immediately; the page cards fill
+        // in when synthesis returns. Most authors keep the recommendation, so
+        // picking an arc first was a wasted step (GH #491).
+        if (this.allTexts.length > 0) this.synthesize();
       } catch (e) {
         this.analyzeError = e.message;
       } finally {
@@ -969,6 +1030,8 @@ function creativeEditor() {
     },
 
     assignImageToActive(imgIdx) {
+      // Fold-out has one image: the poster, always slot 0.
+      if (this.format === 'foldout') { this.pageSlots[0].imageIdx = imgIdx; return; }
       // If already used by another page, swap
       const other = this.pageSlots.findIndex(p => p.imageIdx === imgIdx);
       if (other !== -1 && other !== this.activePageIdx) {
@@ -978,6 +1041,7 @@ function creativeEditor() {
     },
 
     isImageUsed(imgIdx) {
+      if (this.format === 'foldout') return this.pageSlots[0].imageIdx === imgIdx;
       return this.pageSlots.some(p => p.imageIdx === imgIdx);
     },
 
@@ -985,14 +1049,30 @@ function creativeEditor() {
       return this.pageSlots.findIndex(p => p.imageIdx === imgIdx);
     },
 
+    copyPagesNeeded() { return this.format === 'foldout' ? 1 : 3; },
+
+    // Copy is written for one format: a 3-page arc doesn't fit a poster and
+    // vice versa, so switching formats drops it and writes the new one —
+    // with the current arc once one has been recommended, else recommending.
+    // Also the FIRST pick: copy waits for it (GH #510), so this writes it
+    // when the LP was read first; synthesize() no-ops until texts arrive.
+    setFormat(f) {
+      if (f === this.format) return;
+      this.format = f;
+      this.activePageIdx = 0;
+      this.synthesizedPages = [];
+      this.synthesize(this.recommendedArcId ? this.selectedArcId : undefined);
+    },
+
     canGenerate() {
-      // Copy is auto-synthesized (no per-page text picking), so the gate is:
-      // all 3 pages of copy have arrived, a name is set (pre-seeded from the
-      // LP hostname), and a layout template is chosen. Images are optional —
-      // pages without one fall back to the synthesized imgEmoji / gradient.
-      return this.synthesizedPages.length >= 3
+      // Copy is written automatically on load (no per-page text picking), so
+      // the gate is: the copy has arrived (3 pages; Fold-out's 1 poster), a name is set
+      // (pre-seeded from the LP hostname), and a layout template is chosen.
+      // Images are optional — pages without one fall back to the synthesized
+      // imgEmoji / gradient.
+      return this.synthesizedPages.length >= this.copyPagesNeeded()
         && this.creativeName.trim() !== ''
-        && this.selectedTemplateId !== '';
+        && (this.format === 'foldout' || this.selectedTemplateId !== '');  // the designer ignores the template for Fold-out
     },
 
     // Pre-fill the creative name from the LP hostname when entering the
@@ -1005,42 +1085,16 @@ function creativeEditor() {
     },
 
     // === Compose → Advanced Designer: generate copy then hand off ===
-    // Auto-write the 3 pages of copy from the WHOLE LP corpus (synthesize
-    // backend path). Called on extract and by the Regenerate button. The model
-    // PRODUCES original copy from all the text, so nothing is picked per page
-    // and raw source text can never leak through.
-    // On load: curate the arc menu (which arcs fit this product) WITHOUT
-    // generating copy, so the user sets arc + emphasis first, then Generates
-    // once — no wasted first pass. Non-blocking: any failure leaves all arcs.
-    async recommendArc() {
-      if (this.allTexts.length === 0) return;
-      // Gate Generate copy while the recommendation is in flight —
-      // generating before it lands would use the default arc and then have
-      // the recommendation flip the picker after the fact. A failure or
-      // timeout unlocks the button (finally): recommendation is an
-      // enhancement, never a hard dependency.
-      this.recommending = true;
-      const ctrl = new AbortController();
-      const t = setTimeout(() => ctrl.abort(), 45000);
-      try {
-        const resp = await fetch('/advertiser/creatives/rewrite-sections', {
-          method: 'POST', headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({ sections: this.allTexts, recommend: true }),
-          signal: ctrl.signal
-        });
-        if (!resp.ok) return;
-        const data = await resp.json();
-        if (data.arc) this.selectedArcId = data.arc;
-        if (Array.isArray(data.arcOptions) && data.arcOptions.length) this.fitArcIds = data.arcOptions;
-        if (data.arcReason) this.arcReason = data.arcReason;
-      } catch (e) { /* non-blocking — keep all arcs available */ }
-      finally { clearTimeout(t); this.recommending = false; }
-    },
-
-    // arcId given (Generate / Regenerate) → synthesize with it + the brief.
-    // arcId omitted → backend recommends the best arc and generates with it.
+    // Write the pages of copy from the WHOLE LP corpus (synthesize backend
+    // path). Called automatically on extract and by the Regenerate button.
+    // The model PRODUCES original copy from all the text, so nothing is picked
+    // per page and raw source text can never leak through.
+    // arcId given (Regenerate) → synthesize with it.
+    // arcId omitted (on load) → backend recommends the best arc, curates the
+    // arcs that fit, and generates with the best — one request.
     async synthesize(arcId) {
-      if (this.allTexts.length === 0) return;
+      // No format yet: the pick (setFormat) writes the copy (GH #510).
+      if (this.allTexts.length === 0 || !this.format) return;
       this.generating = true;
       this.generateError = '';
       // Hard client-side cap so the "Writing copy…" state can't hang forever
@@ -1049,8 +1103,10 @@ function creativeEditor() {
       const t = setTimeout(() => ctrl.abort(), 90000);
       try {
         const payload = { sections: this.allTexts, synthesize: true };
+        // Fold-out: one poster = one ad, never an arc.
+        const foldout = this.format === 'foldout';
+        if (foldout) arcId = 'poster';
         if (arcId) payload.arc = arcId;
-        if (this.brief.trim()) payload.brief = this.brief.trim();
         const resp = await fetch('/advertiser/creatives/rewrite-sections', {
           method: 'POST',
           headers: { 'Content-Type': 'application/json' },
@@ -1060,10 +1116,14 @@ function creativeEditor() {
         if (!resp.ok) throw new Error('{{t "Copy generation failed (HTTP %d)"}}'.replace('%d', resp.status));
         const data = await resp.json();
         if (data.error) throw new Error(data.error);
-        this.synthesizedPages = (data.pages || []).slice(0, 3);
-        if (data.arc) this.selectedArcId = data.arc;
-        if (Array.isArray(data.arcOptions) && data.arcOptions.length) this.fitArcIds = data.arcOptions;
-        if (data.arcReason !== undefined) this.arcReason = data.arcReason || '';
+        this.synthesizedPages = (data.pages || []).slice(0, this.copyPagesNeeded());
+        if (data.arc && !foldout) this.selectedArcId = data.arc;
+        // arcOptions only come back on the recommend path, so data.arc there
+        // IS the recommendation (an explicit Regenerate echoes the pick).
+        if (Array.isArray(data.arcOptions) && data.arcOptions.length) {
+          this.fitArcIds = data.arcOptions;
+          if (data.arc) this.recommendedArcId = data.arc;
+        }
       } catch (e) {
         this.generateError = ctrl.signal.aborted
           ? '{{t "Copy generation timed out — click Regenerate to retry."}}'
@@ -1079,7 +1139,9 @@ function creativeEditor() {
     // here — the copy was already written by synthesize().
     generateCopy() {
       if (!this.canGenerate()) return;
-      this.generating = true;
+      // Its own flag: reusing `generating` lit every "Writing copy…" label
+      // on the page during the handoff, though no copy is being written.
+      this.handingOff = true;
       this.generateError = '';
       const pages = this.synthesizedPages.map((page, i) => {
         const slot = this.pageSlots[i];
@@ -1106,18 +1168,21 @@ function creativeEditor() {
         });
       }
       this.pages = pages;
-      // Keep generating=true through the form submit → navigation so the editor
-      // UI doesn't flash between assemble and nav-start.
+      // Keep handingOff=true through the form submit → navigation so the
+      // button doesn't flash back between assemble and nav-start.
       this.$nextTick(() => document.getElementById('designer-handoff').submit());
     },
 
     pagesJsonStr() {
+      // Fold-out: all three beats carry the one poster image.
+      const poster = this.format === 'foldout' && this.allImages[this.pageSlots[0].imageIdx];
       return JSON.stringify(this.pages.map(p => {
         const page = {
           tag: p.tag, headline: p.headline, sub: p.sub, body: p.body,
           accent: p.accent, bg: p.bg, imgEmoji: p.imgEmoji, caption: p.caption
         };
-        if (p.img) page.img = p.img;
+        if (this.format === 'foldout') { if (poster) page.img = poster.src; }
+        else if (p.img) page.img = p.img;
         if (p.layout) page.layout = p.layout;
         if (p.banners) page.banners = p.banners;
         return page;

@@ -1,0 +1,66 @@
+name: Refresh crawler list
+
+# BotUaMatcher marks bot traffic from a vendored copy of
+# monperrus/crawler-user-agents (GH #449). This keeps it current through a
+# pull request, never a runtime download: one over-broad upstream pattern
+# would mark every reader a bot and silently stop billing, so a person reads
+# the added patterns before they ship. CI's BotUaMatcherSpec is the gate
+# (every upstream example matches, real browsers and webviews do not). The
+# PR does NOT auto-merge. GH #452.
+on:
+  schedule:
+    - cron: "17 0 * * 1" # Mondays 00:17 UTC
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  refresh:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          ref: main
+          fetch-depth: 0             # pin-back-pr.sh merges main into the branch
+          ssh-key: ${{ secrets.PIN_DEPLOY_KEY }}   # SSH pushes trigger PR updates for CI
+          persist-credentials: true
+
+      - name: Download the upstream list
+        id: list
+        run: |
+          set -euo pipefail
+          curl -fsSL --retry 3 -o "$RUNNER_TEMP/crawler-user-agents.json" \
+            https://raw.githubusercontent.com/monperrus/crawler-user-agents/master/crawler-user-agents.json
+          scripts/crawler-list-diff.sh "$RUNNER_TEMP/crawler-user-agents.json" > "$RUNNER_TEMP/summary.txt"
+          cat "$RUNNER_TEMP/summary.txt"
+          sha=$(git ls-remote https://github.com/monperrus/crawler-user-agents HEAD | cut -c1-7)
+          echo "sha=$sha" >> "$GITHUB_OUTPUT"
+
+      - name: Create App token
+        id: app-token
+        uses: actions/create-github-app-token@bcd2ba49218906704ab6c1aa796996da409d3eb1 # v3.2.0
+        with:
+          client-id: ${{ vars.PIN_BACK_APP_CLIENT_ID }}
+          private-key: ${{ secrets.PIN_BACK_APP_PRIVATE_KEY }}
+          owner: ${{ github.repository_owner }}
+          repositories: promovolve
+          permission-pull-requests: write
+
+      - name: Open or update the pull request
+        env:
+          GH_TOKEN: ${{ steps.app-token.outputs.token }}
+          PIN_BRANCH: ci/crawler-list
+          PIN_FILE: modules/core/src/main/resources/fraud/crawler-user-agents.json
+          PIN_PR_TITLE: "chore(core): refresh the crawler-user-agents bot list"
+          UPSTREAM_SHA: ${{ steps.list.outputs.sha }}
+        run: |
+          set -euo pipefail
+          export PIN_PR_BODY="$(printf '%s\n\n%s\n\n%s\n' \
+            "Weekly refresh of the vendored monperrus/crawler-user-agents list (crawler-list-refresh.yml, #452). Every user agent that matches a pattern below is marked as a bot and stops being billed." \
+            "Read the added patterns before merging. Anything that could appear in a real browser or in-app webview (a device or build name, an app people read in) belongs in BotUaMatcher.Excluded. This PR does not auto-merge." \
+            "$(cat "$RUNNER_TEMP/summary.txt")")"
+          scripts/pin-back-pr.sh \
+            "chore(core): refresh crawler-user-agents to upstream ${UPSTREAM_SHA}" \
+            "$(cat "$RUNNER_TEMP/summary.txt")" \
+            cp "$RUNNER_TEMP/crawler-user-agents.json" "$PIN_FILE"

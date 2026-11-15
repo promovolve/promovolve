@@ -1,5 +1,10 @@
 package promovolve.fraud
 
+import spray.json.*
+
+import scala.io.Source
+import scala.util.Using
+
 /**
  * User-agent hygiene (docs/design/FRAUD_PREVENTION.md, Layer 0).
  *
@@ -9,8 +14,45 @@ package promovolve.fraud
  * here silently poisons an honest publisher's stats. Adversaries who
  * fake a clean UA graduate to the ASN check and the economics layer;
  * this tier only needs to catch the ones that don't bother lying.
+ *
+ * Two sources, either one marks: the maintained crawler list
+ * (resources/fraud/crawler-user-agents.json, vendored verbatim from
+ * github.com/monperrus/crawler-user-agents, MIT — refresh by replacing the
+ * file; its own example UAs are the regression test) and the hand-written
+ * terms below, which keep the generic words and HTTP libraries the list
+ * doesn't carry.
  */
 object BotUaMatcher {
+
+  /**
+   * Upstream entries that also match real readers, so they are not used:
+   * an Android build id (labelled 80legs, but every phone on that build
+   * sends it), Viber's in-app browser (a reader, like LINE — its link
+   * fetcher sends a bare "Viber", which the degenerate-UA rule catches)
+   * and the VS Code editor.
+   */
+  private[fraud] val Excluded = Set("AP3A\\.240617\\.008", "Viber", "Code\\/1\\.")
+
+  private[fraud] val MaintainedPatterns: Vector[String] = {
+    val json =
+      Using.resource(Source.fromResource("fraud/crawler-user-agents.json", getClass.getClassLoader))(_.mkString)
+    json.parseJson
+      .asInstanceOf[JsArray]
+      .elements
+      .flatMap(_.asJsObject.fields.get("pattern"))
+      .collect { case JsString(p) if !Excluded(p) => p }
+  }
+
+  // Most entries are plain strings. Checking those with `contains` and
+  // only the ~150 real regexes as one alternation takes a 240-char UA from
+  // ~1ms to ~0.1ms. Matching stays case-sensitive, as the list's authors
+  // wrote it.
+  private val EscapedPunct = """\\([^A-Za-z0-9])""".r
+  private val (literals, regexes) =
+    MaintainedPatterns.partition(p => !EscapedPunct.replaceAllIn(p, "").exists("[](){}.*+?|^$\\".contains(_)))
+  private val MaintainedLiterals =
+    literals.map(p => EscapedPunct.replaceAllIn(p, m => scala.util.matching.Regex.quoteReplacement(m.group(1))))
+  private val MaintainedRegex = regexes.mkString("|").r
 
   private val Pattern =
     ("(?i)(bot\\b|crawler|spider|scrape|headless|phantomjs|slimerjs|selenium|puppeteer|playwright" +
@@ -28,6 +70,7 @@ object BotUaMatcher {
     userAgent match {
       case None                           => true
       case Some(ua) if ua.trim.length < 8 => true
-      case Some(ua)                       => Pattern.findFirstIn(ua).isDefined
+      case Some(ua)                       => Pattern.findFirstIn(ua).isDefined || MaintainedLiterals.exists(ua.contains) ||
+        MaintainedRegex.findFirstIn(ua).isDefined
     }
 }

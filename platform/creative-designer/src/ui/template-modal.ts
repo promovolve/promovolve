@@ -6,6 +6,7 @@
 import { TEMPLATES, orientationScore, type LayoutTemplate } from "../layout-templates";
 import { applyTemplate } from "../state";
 import type { Store } from "../store";
+import { t } from "../i18n";
 import { tokens } from "./tokens";
 
 const MODAL_ID = "cd-template-modal";
@@ -48,10 +49,10 @@ export function openTemplateModal(store: Store): void {
   header.style.cssText = "display:flex;align-items:center;justify-content:space-between;";
   const title = document.createElement("h3");
   title.className = "cd-title";
-  title.textContent = "Apply layout template";
+  title.textContent = t("Apply layout template");
   title.style.cssText = "margin:0;font-size:14px;font-weight:700;";
   const note = document.createElement("span");
-  note.textContent = "Replaces this size's layout — Cmd+Z to undo";
+  note.textContent = t("Replaces this size's layout — Cmd+Z to undo");
   note.style.cssText = `font-size:11px;color:${tokens.ink300};`;
   const close = document.createElement("button");
   close.textContent = "×";
@@ -126,10 +127,10 @@ function buildTemplateCard(
 function buildLabel(tpl: LayoutTemplate): HTMLElement {
   const wrap = document.createElement("div");
   const name = document.createElement("div");
-  name.textContent = tpl.name;
+  name.textContent = t(tpl.name);
   name.style.cssText = "font-size:12px;font-weight:700;margin-bottom:2px;";
   const desc = document.createElement("div");
-  desc.textContent = tpl.description;
+  desc.textContent = t(tpl.description);
   desc.style.cssText = `font-size:10px;color:${tokens.ink300};line-height:1.3;`;
   wrap.append(name, desc);
   return wrap;

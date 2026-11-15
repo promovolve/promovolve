@@ -2,6 +2,7 @@ import { describe, expect, it } from "vitest";
 import type { LayoutItem, Page, TextItem } from "../src/types";
 import {
   addItem,
+  addItemBelowText,
   currentItem,
   currentLayout,
   currentPage,
@@ -116,6 +117,23 @@ describe("addItem", () => {
     const before = initialState([pageWith()]);
     addItem(before, txt("x"));
     expect(before.pages[0]!.layout).toEqual([]);
+  });
+});
+
+describe("addItemBelowText", () => {
+  const img = { type: "image", src: "a.jpg", left: 0, top: 0 } as LayoutItem;
+  const scrim = { type: "rect", left: 0, top: 50, scrim: { edge: "bottom" } } as unknown as LayoutItem;
+
+  it("puts the item under the lowest text item, above the image, and selects it", () => {
+    const s = addItemBelowText(initialState([pageWith([img, txt("headline"), txt("body")])]), scrim);
+    expect(currentLayout(s)).toEqual([img, scrim, txt("headline"), txt("body")]);
+    expect(s.selectedItemIdxs).toEqual([1]);
+  });
+
+  it("goes on top when the view has no text", () => {
+    const s = addItemBelowText(initialState([pageWith([img])]), scrim);
+    expect(currentLayout(s)).toEqual([img, scrim]);
+    expect(s.selectedItemIdxs).toEqual([1]);
   });
 });
 

@@ -2,12 +2,13 @@
 // both work; these just make the capability visible. Disabled state
 // (low opacity + no-events cursor) reflects store.canUndo / canRedo.
 
+import { t } from "../i18n";
 import type { Store } from "../store";
 import { tokens } from "./tokens";
 
 export function mountHistoryButtons(container: HTMLElement, store: Store): void {
-  const undo = makeBtn("↶", "Undo", "Undo (⌘Z)", () => store.undo());
-  const redo = makeBtn("↷", "Redo", "Redo (⌘⇧Z)", () => store.redo());
+  const undo = makeBtn("↶", t("Undo"), `${t("Undo")} (⌘Z)`, () => store.undo());
+  const redo = makeBtn("↷", t("Redo"), `${t("Redo")} (⌘⇧Z)`, () => store.redo());
 
   const sync = (): void => {
     setEnabled(undo, store.canUndo());

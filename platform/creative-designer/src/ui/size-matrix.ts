@@ -20,10 +20,12 @@
 // Clicking a chip switches mode. The active chip auto-scrolls into
 // view on mode change.
 
+import { t } from "../i18n";
 import { currentPage, switchMode } from "../state";
 import type { Store } from "../store";
 import { MODES, isSized, type Mode } from "../modes";
 import type { DesignerState } from "../types";
+import { statusWord } from "./canvas-foot";
 import { fanoutCounts, fanoutStatus, type FanoutStatus } from "../state/fanout";
 import { renderThumbnail } from "./thumbnail";
 import { tokens } from "./tokens";
@@ -106,9 +108,9 @@ export function mountSizeMatrix(host: HTMLElement, store: Store): SizeMatrixHand
     `color: ${tokens.ink300}`,
     `font-family: ${tokens.sans}`,
   ].join(";");
-  const legAuth  = legendItem(tokens.ok,    "Authored");
-  const legGen   = legendItem(tokens.ink400, "Generated");
-  const legEmpty = legendItem("",           "Empty");
+  const legAuth  = legendItem(tokens.ok,    statusWord("authored"));
+  const legGen   = legendItem(tokens.ink400, statusWord("generated"));
+  const legEmpty = legendItem("",           statusWord("empty"));
   legend.append(legAuth.el, legGen.el, legEmpty.el);
   summary.appendChild(legend);
 
@@ -169,7 +171,7 @@ export function mountSizeMatrix(host: HTMLElement, store: Store): SizeMatrixHand
     const b = document.createElement("button");
     b.type = "button";
     b.textContent = label;
-    b.title = side === "left" ? "Scroll sizes left" : "Scroll sizes right";
+    b.title = side === "left" ? t("Scroll sizes left") : t("Scroll sizes right");
     b.setAttribute("aria-label", b.title);
     b.style.cssText = [
       "position: absolute",
@@ -250,7 +252,7 @@ export function mountSizeMatrix(host: HTMLElement, store: Store): SizeMatrixHand
     update(state) {
       const page = currentPage(state);
       const counts = fanoutCounts(page ?? ({ layout: [], banners: {} } as never));
-      headerLabel.textContent = `Fanout · ${counts.authored}/${counts.total}`;
+      headerLabel.textContent = t("Sizes · %d/%d", counts.authored, counts.total);
       const pct = (n: number): string => `${(n / counts.total) * 100}%`;
       progAuth.style.flexBasis  = pct(counts.authored);
       progGen.style.flexBasis   = pct(counts.generated);
@@ -332,7 +334,7 @@ export function mountSizeMatrix(host: HTMLElement, store: Store): SizeMatrixHand
     // the thumbnail's aspect plus the px dims identify the size, the
     // active mode's NAME shows next to Regenerate in the canvas header,
     // and the tooltip carries the full label for hover.)
-    btn.title = `${mode.label} — ${mode.dims ?? `${mode.w}×${mode.h}`}`;
+    btn.title = `${t(mode.label)} — ${mode.dims ? t(mode.dims) : `${mode.w}×${mode.h}`}`;
     const labelRow = document.createElement("div");
     labelRow.style.cssText = [
       "display: inline-flex",
@@ -347,7 +349,7 @@ export function mountSizeMatrix(host: HTMLElement, store: Store): SizeMatrixHand
       `color: ${tokens.ink200}`,
       "white-space: nowrap",
     ].join(";");
-    dims.textContent = mode.dims ?? `${mode.w}×${mode.h}`;
+    dims.textContent = mode.dims ? t(mode.dims) : `${mode.w}×${mode.h}`;
     const dot = document.createElement("span");
     dot.style.cssText = [
       "width: 5px",
@@ -362,7 +364,7 @@ export function mountSizeMatrix(host: HTMLElement, store: Store): SizeMatrixHand
     // canvas no longer renders a placeholder box in edit mode; this
     // chip line is where that state lives now).
     const missing = document.createElement("span");
-    missing.textContent = "missing";
+    missing.textContent = t("missing");
     missing.style.cssText = [
       `font-family: ${tokens.sans}`,
       "font-size: 9px",

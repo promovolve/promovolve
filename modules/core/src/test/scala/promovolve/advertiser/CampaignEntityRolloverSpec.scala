@@ -349,6 +349,12 @@ class CampaignEntityRolloverSpec extends AnyWordSpec with Matchers with BeforeAn
 
     "self-heal the account timezone from AdvertiserEntity on recovery" in {
       advertiserZones.put("adv-self-heal", JST)
+      // Start the stub advertiser first. The recovery ask has 300ms, and a
+      // cold sharded entity can take longer on a loaded CI runner — the
+      // ask then fails and the retry is the 5-minute roll tick.
+      val warm = testKit.createTestProbe[AdvertiserEntity.AdvertiserTimezone]()
+      sharding.entityRefFor(AdvertiserEntity.TypeKey, "adv-self-heal") ! AdvertiserEntity.GetTimezone(warm.ref)
+      warm.receiveMessage(5.seconds)
       val c = spawnCampaign("camp-self-heal", "adv-self-heal")
       val probe = testKit.createTestProbe[CampaignEntity.SpendInfo]()
       probe.awaitAssert(

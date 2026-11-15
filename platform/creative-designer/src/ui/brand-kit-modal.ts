@@ -14,6 +14,7 @@ import {
   type BrandKit,
   type BrandKitColor,
 } from "../brand-kit";
+import { t } from "../i18n";
 import { tokens } from "./tokens";
 import { openAssetModal } from "./asset-modal";
 
@@ -59,7 +60,7 @@ export function openBrandKitModal(campaignId: string): void {
   header.style.cssText = "display:flex;align-items:center;justify-content:space-between;";
   const title = document.createElement("h3");
   title.className = "cd-title";
-  title.textContent = "Brand kit";
+  title.textContent = t("Brand kit");
   title.style.cssText = "margin:0;font-size:14px;font-weight:700;";
   const close = document.createElement("button");
   close.textContent = "×";
@@ -79,22 +80,22 @@ export function openBrandKitModal(campaignId: string): void {
 
   const renderLogo = (): void => {
     logoSection.innerHTML = "";
-    logoSection.appendChild(sectionLabel("Logo"));
+    logoSection.appendChild(sectionLabel(t("Logo")));
     if (working.logoUrl) {
       const img = document.createElement("img");
       img.src = working.logoUrl;
-      img.alt = "Brand logo";
+      img.alt = t("Brand logo");
       img.style.cssText = `max-width:140px;max-height:64px;object-fit:contain;background:${tokens.ink900};border:1px solid ${tokens.ink500};border-radius:2px;padding:6px;display:block;margin-bottom:6px;`;
       logoSection.appendChild(img);
       const rowEl = document.createElement("div");
       rowEl.style.cssText = "display:flex;gap:8px;";
       rowEl.append(
-        ghostButton("Change…", pickLogo),
-        ghostButton("Remove", () => { working.logoUrl = undefined; renderLogo(); }),
+        ghostButton(t("Change…"), pickLogo),
+        ghostButton(t("Remove"), () => { working.logoUrl = undefined; renderLogo(); }),
       );
       logoSection.appendChild(rowEl);
     } else {
-      logoSection.appendChild(ghostButton("Select logo", pickLogo));
+      logoSection.appendChild(ghostButton(t("Select logo"), pickLogo));
     }
   };
   function pickLogo(): void {
@@ -106,11 +107,11 @@ export function openBrandKitModal(campaignId: string): void {
 
   const renderColors = (): void => {
     colorsSection.innerHTML = "";
-    colorsSection.appendChild(sectionLabel("Colors"));
+    colorsSection.appendChild(sectionLabel(t("Colors")));
     for (let i = 0; i < working.colors.length; i++) {
       colorsSection.appendChild(buildColorRow(working, i, renderColors));
     }
-    const add = ghostButton("+ add color", () => {
+    const add = ghostButton(t("+ add color"), () => {
       working.colors.push({ name: "New", value: "#000000" });
       renderColors();
     });
@@ -119,11 +120,11 @@ export function openBrandKitModal(campaignId: string): void {
 
   const renderFonts = (): void => {
     fontsSection.innerHTML = "";
-    fontsSection.appendChild(sectionLabel("Fonts"));
+    fontsSection.appendChild(sectionLabel(t("Fonts")));
     for (let i = 0; i < working.fonts.length; i++) {
       fontsSection.appendChild(buildFontRow(working, i, renderFonts));
     }
-    const add = ghostButton("+ add font", () => {
+    const add = ghostButton(t("+ add font"), () => {
       working.fonts.push("Helvetica");
       renderFonts();
     });
@@ -136,7 +137,7 @@ export function openBrandKitModal(campaignId: string): void {
   const footer = document.createElement("div");
   footer.style.cssText = "display:flex;justify-content:flex-end;gap:8px;padding-top:6px;border-top:1px solid " + tokens.ink600 + ";";
   const save = document.createElement("button");
-  save.textContent = "Save kit";
+  save.textContent = t("Save kit");
   save.type = "button";
   save.style.cssText = `background:${tokens.ink100};color:${tokens.ink900};border:none;border-radius:2px;padding:6px 14px;font:inherit;font-weight:700;cursor:pointer;`;
   save.addEventListener("click", () => {
@@ -175,7 +176,7 @@ function buildColorRow(kit: BrandKit, idx: number, rerender: () => void): HTMLEl
   const nameInput = document.createElement("input");
   nameInput.type = "text";
   nameInput.value = c.name;
-  nameInput.placeholder = "Color name";
+  nameInput.placeholder = t("Color name");
   nameInput.style.cssText = `flex:1;background:${tokens.ink900};color:${tokens.ink100};border:1px solid ${tokens.ink500};border-radius:2px;padding:4px 6px;font:inherit;`;
   nameInput.addEventListener("input", () => { kit.colors[idx]!.name = nameInput.value; });
 
@@ -205,7 +206,7 @@ function removeButton(onClick: () => void): HTMLButtonElement {
   const b = document.createElement("button");
   b.type = "button";
   b.textContent = "×";
-  b.title = "Remove";
+  b.title = t("Remove");
   b.style.cssText = `background:transparent;color:${tokens.ink300};border:1px solid ${tokens.ink500};border-radius:2px;width:26px;height:26px;cursor:pointer;font-size:14px;line-height:1;`;
   b.addEventListener("click", onClick);
   return b;

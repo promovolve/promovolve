@@ -45,3 +45,14 @@ describe("animation presets", () => {
     expect(easingIdFor("steps(4)")).toBe("smooth");
   });
 });
+
+describe("preset labels are translated", () => {
+  it("every entrance, exit and easing label has a Japanese entry", async () => {
+    const { JA } = await import("../src/i18n/ja");
+    const { EASING_MENU } = await import("../src/animation-presets");
+    const labels = [...ANIMATION_PRESETS, ...EXIT_PRESETS, ...EASING_MENU].map((p) => p.label);
+    expect(labels.filter((l) => !(l in JA))).toEqual([]);
+    expect(JA["Fade in"]).toBe("フェードイン");
+    expect(JA["From the left"]).toBe("左から");
+  });
+});

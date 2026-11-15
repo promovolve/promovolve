@@ -24,7 +24,6 @@ class EndpointRoutes(
     sharding: ClusterSharding,
     serveIndex: ActorRef[promovolve.publisher.delivery.ServeIndexDData.Cmd],
     categoryVerificationClient: Option[promovolve.publisher.assessment.CategoryVerificationClient] = None,
-    creativeAssessor: Option[ActorRef[promovolve.publisher.assessment.CreativeAssessor.Command]] = None,
     imageAssetRepo: Option[promovolve.publisher.ImageAssetRepo] = None,
     creativeRepo: Option[promovolve.publisher.CreativeRepo] = None,
     imageStorage: Option[promovolve.publisher.assets.ImageStorage] = None,

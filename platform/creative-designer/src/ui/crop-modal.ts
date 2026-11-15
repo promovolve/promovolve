@@ -15,6 +15,7 @@ import { findSalientBox, rewriteForSaliency } from "../saliency";
 import { currentPage, updateItem } from "../state";
 import type { Store } from "../store";
 import type { ImageItem, LayoutItem } from "../types";
+import { t } from "../i18n";
 import { tokens } from "./tokens";
 
 interface CropRect {
@@ -142,13 +143,13 @@ export function openCropModal(store: Store, idx: number, item: ImageItem): void 
   footer.style.cssText = "display: flex; gap: 8px; align-items: center;";
   const hint = document.createElement("span");
   hint.style.cssText = `color:${tokens.ink300};font-size:11px;margin-right:auto;font-family:${tokens.sans};`;
-  hint.textContent = "Loading image…";
-  const resetBtn = secondaryBtn("Reset", () => {
+  hint.textContent = t("Loading image…");
+  const resetBtn = secondaryBtn(t("Reset"), () => {
     autoSuggested = false; // explicit reset → drop the "auto-detected" hint
     setCrop({ x: 0, y: 0, w: 100, h: 100 });
   });
-  const cancelBtn = secondaryBtn("Cancel", () => close(false));
-  const doneBtn = primaryBtn("Done", () => close(true));
+  const cancelBtn = secondaryBtn(t("Cancel"), () => close(false));
+  const doneBtn = primaryBtn(t("Done"), () => close(true));
   footer.append(hint, resetBtn, cancelBtn, doneBtn);
   root.append(stage, footer);
 
@@ -198,10 +199,10 @@ export function openCropModal(store: Store, idx: number, item: ImageItem): void 
     place("sw", "0%",   "100%"); place("s",  "50%",  "100%"); place("se", "100%", "100%");
 
     if (!natural.w || !natural.h) {
-      hint.textContent = "Loading image…";
+      hint.textContent = t("Loading image…");
     } else {
-      const dim = `${crop.w.toFixed(0)}% × ${crop.h.toFixed(0)}% · origin ${crop.x.toFixed(0)}% ${crop.y.toFixed(0)}% · source ${natural.w}×${natural.h}`;
-      hint.textContent = autoSuggested ? `${dim} · auto-detected subject` : dim;
+      const dim = t("%s% × %s% · origin %s% %s% · source %s×%s", crop.w.toFixed(0), crop.h.toFixed(0), crop.x.toFixed(0), crop.y.toFixed(0), natural.w, natural.h);
+      hint.textContent = autoSuggested ? dim + t(" · auto-detected subject") : dim;
     }
   };
 

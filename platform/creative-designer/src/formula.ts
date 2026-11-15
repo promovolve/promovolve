@@ -7,6 +7,7 @@
 // loaded on first use — the designer bundle itself doesn't grow.
 
 import type { LayoutItem } from "./types";
+import { t } from "./i18n";
 
 // Natural pixel size of 1em in the exported SVG. Vector output, so this
 // only sets the intrinsic size/aspect the image item starts from.
@@ -49,7 +50,7 @@ export function loadMathJax(): Promise<MathJaxApi> {
       const mj = w.MathJax as MathJaxApi;
       mj.startup.promise.then(() => resolve(mj), reject);
     };
-    s.onerror = () => reject(new Error("Couldn't load the formula renderer"));
+    s.onerror = () => reject(new Error(t("Couldn't load the formula renderer")));
     document.head.appendChild(s);
   }).catch((e: unknown) => {
     loading = null; // any failure: let the next open retry
@@ -69,9 +70,9 @@ export interface FormulaSvg {
 export function texToSvg(mj: MathJaxApi, latex: string, color: string): FormulaSvg {
   const node = mj.tex2svg(latex, { display: true });
   const err = node.querySelector("[data-mjx-error]");
-  if (err) throw new Error(err.getAttribute("data-mjx-error") ?? "Invalid formula");
+  if (err) throw new Error(err.getAttribute("data-mjx-error") ?? t("Invalid formula"));
   const svg = node.querySelector("svg");
-  if (!svg) throw new Error("Invalid formula");
+  if (!svg) throw new Error(t("Invalid formula"));
   return finishSvg(new XMLSerializer().serializeToString(svg), color);
 }
 
@@ -83,7 +84,7 @@ export function texToSvg(mj: MathJaxApi, latex: string, color: string): FormulaS
 // from the CDN as-is.
 export function finishSvg(raw: string, color: string): FormulaSvg {
   const vb = /viewBox="([-\d.]+) ([-\d.]+) ([\d.]+) ([\d.]+)"/.exec(raw);
-  if (!vb) throw new Error("Invalid formula");
+  if (!vb) throw new Error(t("Invalid formula"));
   const width = Math.max(1, Math.round((Number(vb[3]) / 1000) * EM_PX));
   const height = Math.max(1, Math.round((Number(vb[4]) / 1000) * EM_PX));
   const svg = raw

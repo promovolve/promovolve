@@ -313,8 +313,12 @@ object HttpBootstrap {
       val geminiEnabled = Try(config.getBoolean("promovolve.gemini.enabled")).getOrElse(false)
       val categoryVerificationClient = if (geminiEnabled) {
         sys.env.get("GEMINI_API_KEY").filter(_.nonEmpty).map { apiKey =>
-          system.log.info("CategoryVerificationClient enabled (Gemini)")
-          new promovolve.publisher.assessment.CategoryVerificationClient(apiKey)(using system, system.executionContext)
+          val model = promovolve.publisher.assessment.CategoryVerificationClient.modelFromEnv()
+          system.log.info("CategoryVerificationClient enabled (Gemini {}), rate-limited={}", model,
+            geminiRateLimiter.isDefined)
+          // Shares the Gemini RPM budget with page classification and LP extraction.
+          new promovolve.publisher.assessment.CategoryVerificationClient(apiKey, model = model,
+            rateLimiter = geminiRateLimiter)(using system, system.executionContext)
         }
       } else {
         system.log.info("CategoryVerificationClient disabled (promovolve.gemini.enabled=false)")
@@ -347,9 +351,6 @@ object HttpBootstrap {
           system.log.warn("LPAnalyzer not available: {}", ex.getMessage)
           None
       }
-
-      // Creative assessor: disabled (using CategoryVerificationClient instead)
-      val creativeAssessor: Option[ActorRef[promovolve.publisher.assessment.CreativeAssessor.Command]] = None
 
       // Creative processor: orchestrates image download, banner render, verification
       val creativeProcessor: Option[ActorRef[CreativeProcessor.Command]] = {
@@ -419,7 +420,6 @@ object HttpBootstrap {
         sharding,
         serveIndex,
         categoryVerificationClient,
-        creativeAssessor,
         Some(imageAssetRepo),
         Some(creativeRepo),
         Some(imageStorage),

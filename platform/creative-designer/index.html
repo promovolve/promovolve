@@ -13,6 +13,8 @@
   </head>
   <body>
     <script>
+      // ?lang=ja previews the Japanese Designer (prod sets <html lang> server-side).
+      document.documentElement.lang = new URLSearchParams(location.search).get("lang") || "en";
       // Fixture context for the designer-only dev loop. The Go shell
       // injects the same shape via window.__DESIGNER__ in production —
       // we just hand-roll a minimal one here so the UI can boot without

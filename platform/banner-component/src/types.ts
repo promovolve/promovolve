@@ -345,6 +345,10 @@ export type ExpandAnimation = typeof EXPAND_EFFECTS[number];
 // flick throws it) and how the released page settles (spring stiffness /
 // damping). Listed as a const tuple so the designer can enumerate the
 // choices with no drift from what the engine accepts.
+// Fold-out pixel dissolve: square size, as squares across the poster.
+export const DISSOLVE_COLS = { small: 18, medium: 12, large: 7 } as const;
+export type DissolveSize = keyof typeof DISSOLVE_COLS;
+
 export const PAPER_WEIGHTS = ["light", "medium", "heavy"] as const;
 export type PaperWeight = typeof PAPER_WEIGHTS[number];
 
@@ -408,7 +412,13 @@ export interface BannerConfig {
   // lifecycle: sheets deal in on open, fly away on finish, scatter on
   // close. "fade" = a plain fade in and out for advertisers who don't
   // want the theatre; page turns inside the reader are unaffected.
-  entrance?: "deal" | "fade";
+  // Fold-out: "dissolve" (its default) = the folded poster pixel-dissolves
+  // in before it unfolds and out after it folds up; "fade" = a plain fade.
+  // Each format treats the other's default as its own.
+  entrance?: "deal" | "fade" | "dissolve";
+  // Fold-out pixel dissolve: the size of its squares (DISSOLVE_COLS).
+  // Unset = "medium".
+  dissolveSize?: DissolveSize;
   // Paper stock for the interactive page-peel (see PAPER_FEEL). Defaults
   // to "medium" when unset. Purely a hand-feel preset — no visual change.
   paperWeight?: PaperWeight;
@@ -444,4 +454,7 @@ export interface BannerConfig {
   // page selector so the cover can be a later page if that frame is
   // the strongest hook.
   coverPageIdx?: number;
+  // Delivery format. "foldout" = gatefold poster that unfolds in the slot
+  // (see docs/superpowers/specs, Map (gatefold poster) format design).
+  format?: "foldout";
 }

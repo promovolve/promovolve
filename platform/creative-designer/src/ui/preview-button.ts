@@ -14,6 +14,7 @@
 // (while hidden, debounced) whenever the creative changes, so Preview is
 // always a flash-free fade-in of the latest creative.
 
+import { t } from "../i18n";
 import type { Store } from "../store";
 import { tokens } from "./tokens";
 
@@ -34,9 +35,9 @@ export function mountPreviewButton(
   storeRef = store;
   const btn = document.createElement("button");
   // Eye plus "Preview"; the word drops when the top bar runs short.
-  btn.innerHTML = `<svg viewBox="0 0 16 16" width="15" height="15" fill="none" stroke="currentColor" stroke-width="1.3" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M1.5 8s2.4-4.2 6.5-4.2S14.5 8 14.5 8s-2.4 4.2-6.5 4.2S1.5 8 1.5 8z"/><circle cx="8" cy="8" r="2"/></svg><span data-cd-compact="4">Preview</span>`;
-  btn.title = "Preview";
-  btn.setAttribute("aria-label", "Preview");
+  btn.innerHTML = `<svg viewBox="0 0 16 16" width="15" height="15" fill="none" stroke="currentColor" stroke-width="1.3" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M1.5 8s2.4-4.2 6.5-4.2S14.5 8 14.5 8s-2.4 4.2-6.5 4.2S1.5 8 1.5 8z"/><circle cx="8" cy="8" r="2"/></svg><span data-cd-compact="4">${t("Preview")}</span>`;
+  btn.title = t("Preview");
+  btn.setAttribute("aria-label", t("Preview"));
   btn.style.cssText = [
     "display: inline-flex",
     "align-items: center",
@@ -139,12 +140,12 @@ function buildPersistentPreview(store: Store): void {
   header.style.cssText = "display:flex;align-items:center;gap:8px;";
   const title = document.createElement("div");
   title.className = "cd-title";
-  title.textContent = "Preview";
+  title.textContent = t("Preview");
   title.style.cssText = "flex:1;font-weight:700;font-size:13px;";
   const closeBtn = document.createElement("button");
   closeBtn.type = "button";
-  closeBtn.textContent = "Close";
-  closeBtn.setAttribute("aria-label", "Close preview");
+  closeBtn.textContent = t("Close");
+  closeBtn.setAttribute("aria-label", t("Close preview"));
   closeBtn.style.cssText = [
     "padding: 5px 12px",
     "border-radius: 2px",

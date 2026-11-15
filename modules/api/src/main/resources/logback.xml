@@ -29,6 +29,8 @@
     <logger name="promovolve.api.GoogleFontProvisioner" level="INFO"/>
     <logger name="promovolve.publisher.assessment" level="INFO"/>
     <logger name="promovolve.creative" level="INFO"/>
+    <!-- One line per Gemini call: prompt/cached/output tokens (#437) -->
+    <logger name="promovolve.llm" level="INFO"/>
 
     <!-- Pacing decisions (BATCH PACING throttle/spendRatio, PI resets, day
          rollovers) at INFO: one line per batch serve, not per slot — the

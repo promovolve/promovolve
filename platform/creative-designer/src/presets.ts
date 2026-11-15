@@ -21,6 +21,29 @@ import type { LayoutItem, Page } from "./types";
 import { kitFont, type BrandKit } from "./brand-kit";
 import { pickContrast, resolveLayoutColors } from "./color-contrast";
 
+// Stamp generation metadata onto a layout that's about to be applied.
+//
+// 1. `_generated: true` on every item, so the size-matrix fanout status
+//    pill can tell "author designed this" from "Gemini / preset filled
+//    this in". The flag is stripped by state.ts's updateItem the moment
+//    the author touches a field.
+// 2. `textFit: "shrink"` on every TEXT item. Generated copy is
+//    unpredictably long (especially Gemini-returned layouts, whose
+//    textFit is dropped on the Scala wire), so it must scale DOWN into
+//    its slot rather than overflow/clip. applyLayout is the one funnel
+//    every source (preset / template / Gemini) passes through, so this
+//    covers them all — plus the Fold-out poster, which skips applyLayout's
+//    copy strip (posterLayoutFor). Inert on heightless items — the
+//    renderer gates autofit on an explicit height — so free-growing
+//    fallback text and hand-drawn boxes are untouched.
+export function markGenerated(items: Page["layout"]): LayoutItem[] {
+  return (items ?? []).map((it) =>
+    it.type === "text"
+      ? { ...it, _generated: true, textFit: "shrink" as const }
+      : { ...it, _generated: true },
+  );
+}
+
 export function presetLayoutFor(mode: string, page: Page, kit?: BrandKit | null): LayoutItem[] | null {
   const fn = PRESETS[mode];
   return fn ? fn(page, kit ?? null) : null;
@@ -235,4 +258,44 @@ function skyscraper(page: Page, kit: BrandKit | null): LayoutItem[] {
     fontWeight: "bold", textAlign: "center", height: 34, textFit: "shrink",
   });
   return items;
+}
+
+// ── Fold-out poster (gatefold) ─────────────────────────────────────────────
+// One 9:16 page carrying ONE ad (the editor writes a single poster copy),
+// folded in thirds along the band lines: headline + sub on the top fold
+// (the cover, seen before it opens), body on the middle fold, the bottom
+// fold left to the picture (CTA there when there is one). Text stays
+// POSTER_CREASE_INSET clear of each fold. No scrims: the poster is the
+// picture, unshaded. Legibility is the author's call (the Scrim tool).
+export const POSTER_BAND = 100 / 3;
+export const POSTER_CREASE_INSET = 4;
+const POSTER_HEADLINE_H = 13;
+export function posterLayoutFor(page: Page, kit: BrandKit | null): LayoutItem[] {
+  const font = headlineFontOf(page, kit);
+  const items: LayoutItem[] = [{ type: "image", field: "img", left: 0, top: 0, width: 100, height: 100 }];
+  const text = (o: Record<string, unknown>) =>
+    ({ type: "text", left: 6, width: 88, color: "#ffffff", fontFamily: font, textAlign: "left", textFit: "shrink", ...o }) as LayoutItem;
+  // Each band's copy area is its third minus the crease inset on both sides.
+  // The boxes are CAPS, not final geometry: everything is `_generated`, so
+  // the mobile tab's self-heal (auto-layout packGeneratedOnTabOpen) walks a
+  // too-long field's font down until it fits its cap, then hugs the box.
+  const top = (k: number) => k * POSTER_BAND + POSTER_CREASE_INSET;
+  const end = (k: number) => (k + 1) * POSTER_BAND - POSTER_CREASE_INSET;
+  items.push(text({ field: "headline", top: top(0), height: POSTER_HEADLINE_H, fontSize: 8, fontWeight: "bold" }));
+  const subTop = top(0) + POSTER_HEADLINE_H + 1;
+  if (page.sub) items.push(text({ field: "sub", top: subTop, height: end(0) - subTop, fontSize: 3.5 }));
+  if (page.body) items.push(text({ field: "body", top: top(1), height: end(1) - top(1), fontSize: 3.5 }));
+  if (page.ctaLabel) items.push(text({ text: page.ctaLabel, top: end(2) - 3.8, height: 3.8, fontSize: 3.5, fontWeight: "bold" }));
+  return markGenerated(items);
+}
+
+/** First open of a Fold-out design: lay the hand-off copy out as the
+  * poster. The poster is the PORTRAIT master (banners["mobile-expanded"])
+  * — what the 9:16 tab edits and delivery renders; `layout` stays the hidden
+  * wide master. A resumed creative (portrait master already present) is left
+  * alone. Caller invokes this only when bannerConfig.format === "foldout". */
+export function composeFoldoutPages(pages: Page[], hadPortrait: boolean, kit: BrandKit | null): Page[] {
+  if (hadPortrait || pages.length === 0) return pages.slice(0, 1);
+  const p0 = pages[0];
+  return [{ ...p0, banners: { ...p0.banners, "mobile-expanded": posterLayoutFor(p0, kit) } }];
 }

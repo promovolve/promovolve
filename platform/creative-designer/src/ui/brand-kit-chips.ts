@@ -4,6 +4,7 @@
 // modal updates the chip rows immediately.
 
 import { loadBrandKit, subscribeBrandKit, type BrandKit } from "../brand-kit";
+import { t } from "../i18n";
 import { tokens } from "./tokens";
 
 interface ChipsParams {
@@ -24,7 +25,7 @@ export function mountKitColorChips(parent: HTMLElement, { campaignId, onPick }: 
     wrap.innerHTML = "";
     if (kit.colors.length === 0) return;
     const label = document.createElement("span");
-    label.textContent = "kit";
+    label.textContent = t("kit");
     label.style.cssText = `font-weight:700;font-size:9px;color:${tokens.ink100};margin-right:2px;`;
     wrap.appendChild(label);
     for (const c of kit.colors) {

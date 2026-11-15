@@ -105,7 +105,7 @@ class IABTaxonomySpec extends AnyWordSpec with Matchers with OptionValues {
       val provider = Provider.OpenAI("sk-test-key")
 
       provider.name shouldBe "OpenAI"
-      provider.model shouldBe "gpt-4o-mini"
+      provider.model shouldBe "gpt-6-luna"
     }
 
     "create OpenAI provider with custom model" in {
@@ -118,7 +118,7 @@ class IABTaxonomySpec extends AnyWordSpec with Matchers with OptionValues {
       val provider = Provider.Anthropic("sk-ant-key")
 
       provider.name shouldBe "Anthropic"
-      provider.model shouldBe "claude-3-haiku-20240307"
+      provider.model shouldBe "claude-haiku-5-5"
     }
 
     "create Gemini provider with defaults" in {
@@ -130,6 +130,28 @@ class IABTaxonomySpec extends AnyWordSpec with Matchers with OptionValues {
       // is exactly the lag the shared constant exists to prevent.
       provider.model shouldBe Provider.DefaultGeminiModel
       Provider.DefaultGeminiModel shouldBe "gemini-3.5-flash-lite"
+    }
+
+    "select the provider LLM_PROVIDER names, even when Gemini's key is set" in {
+      val settings = Map("llm-provider" -> "Anthropic", "gemini.api-key" -> "g", "anthropic.api-key" -> "a")
+      Provider.select(settings.get) shouldBe Provider.Anthropic("a", "claude-haiku-5-5")
+    }
+
+    "select the first key set when LLM_PROVIDER is unset" in {
+      Provider.select(Map("openai.api-key" -> "o", "anthropic.api-key" -> "a").get) shouldBe
+      Provider.OpenAI("o", "gpt-6-luna")
+      Provider.select(Map("gemini.api-key" -> "g", "openai.api-key" -> "o").get) shouldBe a[Provider.Gemini]
+    }
+
+    "select take the model from settings" in {
+      Provider.select(Map("openai.api-key" -> "o", "openai.model" -> "gpt-6-sol").get).model shouldBe "gpt-6-sol"
+    }
+
+    "select fail when LLM_PROVIDER names a provider without a key, or an unknown one" in {
+      an[IllegalStateException] should be thrownBy
+      Provider.select(Map("llm-provider" -> "openai", "gemini.api-key" -> "g").get)
+      an[IllegalStateException] should be thrownBy
+      Provider.select(Map("llm-provider" -> "mistral", "gemini.api-key" -> "g").get)
     }
 
     "fromEnv should throw when no API keys are set" in {

@@ -8,7 +8,7 @@
 // finish-now) must restore, or a page ends up invisible/unclickable
 // after navigation.
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
-import { PAPER_CSS, animatePageTurn, buildGrainOverlay, cornerAt, foldFrame } from "../src/paper";
+import { PAPER_CSS, animatePageTurn, buildGrainOverlay, collapsedLift, cornerAt, foldFrame } from "../src/paper";
 
 describe("PAPER_CSS", () => {
   it("defines the stack, sheet, flap, and grain", () => {
@@ -204,5 +204,19 @@ describe("animatePageTurn", () => {
     await new Promise(r => setTimeout(r, 30 + 200 + 80));
     expect(onDone).toHaveBeenCalledTimes(1);
     bare.remove();
+  });
+});
+
+describe("collapsedLift (GH #507)", () => {
+  it("lifts an opaque ad with a drop-shadow filter", () => {
+    expect(collapsedLift(false, "#f6f3ec")).toMatch(/^drop-shadow\(/);
+    expect(collapsedLift(false, undefined)).toMatch(/^drop-shadow\(/);
+    expect(collapsedLift(false, "#f6f3ecff")).toMatch(/^drop-shadow\(/);
+  });
+  it("leaves a see-through page background flat, so the article shows through clean", () => {
+    expect(collapsedLift(false, "#f6f3ec80")).toBe("none");
+  });
+  it("is flat on the Designer's edit canvas", () => {
+    expect(collapsedLift(true, "#f6f3ec")).toBe("none");
   });
 });

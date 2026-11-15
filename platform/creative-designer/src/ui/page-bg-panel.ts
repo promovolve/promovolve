@@ -13,8 +13,11 @@ import { uploadImageDirect } from "../api/upload-asset";
 import { isSized } from "../modes";
 import { currentPage, setPageBg, setSyncPageBg, setTextureBg, setTextureSrc, setVideoBg } from "../state";
 import type { Store } from "../store";
+import type { BannerConfig } from "@banner/types";
 import type { DesignerState, TextureBg, VideoBg } from "../types";
 import { openAssetModal } from "./asset-modal";
+import { BLEND_LABELS, displayFileName, optionEntries, TEXTURE_MODE_LABELS, VIDEO_FIT_LABELS } from "../display-labels";
+import { t, tk } from "../i18n";
 import { tokens } from "./tokens";
 import { visualRect } from "./visual-rect";
 
@@ -44,7 +47,7 @@ export function mountPageBgPanel(container: HTMLElement, store: Store): PageBgPa
   // distinct ("Color" vs "Video").
   const videoHeader = document.createElement("div");
   videoHeader.style.cssText = `font-weight:700;font-size:11px;color:${tokens.ink100};margin:18px 0 10px;`;
-  videoHeader.textContent = "Video";
+  videoHeader.textContent = t("Video");
   panel.appendChild(videoHeader);
 
   // Body — structure differs based on whether a video is set.
@@ -55,7 +58,7 @@ export function mountPageBgPanel(container: HTMLElement, store: Store): PageBgPa
   // image that fills the page behind the layout — tiled or covering.
   const textureHeader = document.createElement("div");
   textureHeader.style.cssText = `font-weight:700;font-size:11px;color:${tokens.ink100};margin:18px 0 10px;`;
-  textureHeader.textContent = "Texture";
+  textureHeader.textContent = t("Texture");
   panel.appendChild(textureHeader);
 
   const textureBody = document.createElement("div");
@@ -71,18 +74,21 @@ export function mountPageBgPanel(container: HTMLElement, store: Store): PageBgPa
       const page = currentPage(state);
       colorRow.update(page?.bg ?? "", state.pageIdx === 0, state.pages[0]?.syncBg !== false, isSized(state.mode));
       const videoBg = page?.videoBg;
-      const src = videoBg?.src ?? null;
+      const allowed = videoAllowed(state.bannerConfig);
+      const src = allowed ? (videoBg?.src ?? null) : `foldout|${videoBg?.src ?? ""}`;
       // Only rebuild when present/absent state flips — otherwise
       // patching existing inputs keeps focus and avoids jitter.
       if (renderedSrc !== src) {
         body.innerHTML = "";
-        if (videoBg) {
+        if (!allowed) {
+          renderFoldoutNote(body, !!videoBg);
+        } else if (videoBg) {
           renderWithVideo(body, videoBg, store);
         } else {
           renderEmpty(body, store);
         }
         renderedSrc = src;
-      } else if (videoBg) {
+      } else if (videoBg && allowed) {
         patchValues(body, videoBg);
       }
 
@@ -118,7 +124,7 @@ function mountColorRow(store: Store): ColorRowHandle {
 
   const label = document.createElement("label");
   label.style.cssText = `flex:0 0 80px;color:${tokens.ink300};font-size:11px;`;
-  label.textContent = "Color";
+  label.textContent = t("Color");
 
   const swatch = document.createElement("input");
   swatch.type = "color";
@@ -126,7 +132,7 @@ function mountColorRow(store: Store): ColorRowHandle {
 
   const text = document.createElement("input");
   text.type = "text";
-  text.placeholder = "#1a1a1a or transparent";
+  text.placeholder = t("#1a1a1a or transparent");
   text.style.cssText = [
     "flex:1",
     "min-width:0",
@@ -149,7 +155,7 @@ function mountColorRow(store: Store): ColorRowHandle {
   alphaRow.style.cssText = "display:flex;align-items:center;gap:8px;margin-top:6px;";
   const alphaLabel = document.createElement("label");
   alphaLabel.style.cssText = `flex:0 0 80px;color:${tokens.ink300};font-size:11px;`;
-  alphaLabel.textContent = "Opacity";
+  alphaLabel.textContent = t("Opacity");
   const alpha = document.createElement("input");
   alpha.type = "range";
   alpha.min = "0";
@@ -183,7 +189,7 @@ function mountColorRow(store: Store): ColorRowHandle {
 
   const clear = document.createElement("button");
   clear.type = "button";
-  clear.textContent = "Reset";
+  clear.textContent = t("Reset");
   clear.style.cssText = [
     "background:transparent",
     `color:${tokens.ink300}`,
@@ -248,7 +254,7 @@ function mountColorRow(store: Store): ColorRowHandle {
   // naturally; on a sized tab (300×250, 728×90, …) that structure is
   // invisible and "which 3 pages?" is the first question — there the
   // label says what the tick means from that vantage point instead.
-  const syncLabel = document.createTextNode("Sync color across all 3 pages");
+  const syncLabel = document.createTextNode(t("Sync color across all 3 pages"));
   syncRow.append(syncCb, syncLabel);
   wrap.appendChild(syncRow);
 
@@ -262,8 +268,8 @@ function mountColorRow(store: Store): ColorRowHandle {
     el: wrap,
     update(currentBg, firstPage, synced, sized) {
       syncLabel.data = sized
-        ? "Use one color for the whole creative"
-        : "Sync color across all 3 pages";
+        ? t("Use one color for the whole creative")
+        : t("Sync color across all 3 pages");
       // Only repopulate when the value differs from the input — avoids
       // clobbering user input mid-edit and keeps focus/caret intact.
       if (text.value !== currentBg) {
@@ -288,16 +294,34 @@ function mountColorRow(store: Store): ColorRowHandle {
       setRowEnabled(syncCb, firstPage);
       syncRow.style.opacity = firstPage ? "" : "0.45";
       syncRow.style.cursor = firstPage ? "pointer" : "not-allowed";
-      syncRow.title = firstPage ? "" : "Set from page 1";
+      syncRow.title = firstPage ? "" : t("Set from page 1");
       // While synced, pages 2/3 show the colour but can't edit it —
       // page 1 is the single edit surface.
       const editable = firstPage || !synced;
       setRowEnabled(swatch, editable);
       setRowEnabled(text, editable);
       setRowEnabled(clear, editable);
-      row.title = editable ? "" : "Color synced from page 1";
+      row.title = editable ? "" : t("Color synced from page 1");
     },
   };
+}
+
+/** Fold-out is a still poster: a video background never plays there. */
+export function videoAllowed(cfg: BannerConfig): boolean {
+  return cfg.format !== "foldout";
+}
+
+function renderFoldoutNote(body: HTMLElement, hasVideo: boolean): void {
+  const note = document.createElement("p");
+  note.style.cssText = `color:${tokens.ink300};font-size:11px;margin:0 0 10px;line-height:1.5;`;
+  note.textContent = t("Video backgrounds aren't available in Fold-out format");
+  body.appendChild(note);
+  if (hasVideo) {
+    const warn = document.createElement("p");
+    warn.style.cssText = `color:${tokens.ink100};font-size:11px;margin:0 0 10px;line-height:1.5;`;
+    warn.textContent = t("This video won't play in Fold-out format — the page colour shows instead");
+    body.appendChild(warn);
+  }
 }
 
 // ─── Empty state ───────────────────────────────────────────────────
@@ -305,10 +329,10 @@ function mountColorRow(store: Store): ColorRowHandle {
 function renderEmpty(body: HTMLElement, store: Store): void {
   const hint = document.createElement("p");
   hint.style.cssText = `color:${tokens.ink300};font-size:11px;margin:0 0 10px;line-height:1.5;`;
-  hint.textContent = "Full-bleed video plays behind every size. MP4 or WebM.";
+  hint.textContent = t("Full-bleed video plays behind every size. MP4 or WebM.");
   body.appendChild(hint);
 
-  const btn = uploadButton(store, "Upload video…");
+  const btn = uploadButton(store, t("Upload video…"));
   body.appendChild(btn);
 }
 
@@ -377,8 +401,7 @@ function renderWithVideo(body: HTMLElement, videoBg: VideoBg, store: Store): voi
   // H.264, which plays everywhere.
   const codecNotice = document.createElement("p");
   codecNotice.style.cssText = `color:${tokens.ink300};font-size:10px;margin:-6px 0 10px;line-height:1.5;display:none;border-left:2px solid ${tokens.ink500};padding-left:8px;`;
-  codecNotice.textContent = "Your upload is fine — this browser just can't decode this video codec, so the preview is blank. "
-    + "Publishing converts it to H.264, which plays in every browser. To see a live preview now, open this creative in Chrome.";
+  codecNotice.textContent = t("Your upload is fine — this browser just can't decode this video codec, so the preview is blank. Publishing converts it to H.264, which plays in every browser. To see a live preview now, open this creative in Chrome.");
   body.appendChild(codecNotice);
   const showCodecNotice = (): void => { codecNotice.style.display = "block"; };
   preview.addEventListener("error", showCodecNotice);
@@ -394,21 +417,21 @@ function renderWithVideo(body: HTMLElement, videoBg: VideoBg, store: Store): voi
   head.style.cssText = "display:flex;align-items:center;gap:8px;margin-bottom:12px;";
   const filename = document.createElement("span");
   filename.style.cssText = `flex:1;min-width:0;font-size:11px;color:${tokens.ink200};overflow:hidden;text-overflow:ellipsis;white-space:nowrap;`;
-  filename.textContent = fileNameFromUrl(videoBg.src);
+  filename.textContent = displayFileName(videoBg.src) ?? t("Uploaded video");
   filename.title = videoBg.src;
   head.appendChild(filename);
-  const replace = uploadButton(store, "Replace");
+  const replace = uploadButton(store, t("Replace"));
   (replace.style as CSSStyleDeclaration).cssText += ";flex:0 0 auto;";
   head.appendChild(replace);
   body.appendChild(head);
 
   // Fit — cover | contain.
-  row(body, "Fit", segmented(["cover", "contain"], videoBg.fit ?? "cover",
-    (v) => commit(store, (bg) => ({ ...bg, fit: v as "cover" | "contain" })),
+  row(body, t("Fit"), segmented(["cover", "contain"], videoBg.fit ?? "cover",
+    (v) => commit(store, (bg) => ({ ...bg, fit: v as "cover" | "contain" })), VIDEO_FIT_LABELS,
   ), "data-fit");
 
   // Opacity — 0..100% slider.
-  row(body, "Opacity", opacitySlider(videoBg.opacity ?? 1,
+  row(body, t("Opacity"), opacitySlider(videoBg.opacity ?? 1,
     (v, commitNow) => mutate(store, (bg) => ({ ...bg, opacity: v }), commitNow),
   ), "data-opacity");
 
@@ -422,14 +445,14 @@ function renderWithVideo(body: HTMLElement, videoBg: VideoBg, store: Store): voi
   const trim = document.createElement("div");
   trim.style.cssText = "display:flex;align-items:center;gap:8px;margin-bottom:6px;";
   const trimLabel = document.createElement("span");
-  trimLabel.textContent = "Trim";
+  trimLabel.textContent = t("Trim");
   trimLabel.style.cssText = `flex:0 0 80px;color:${tokens.ink300};font-size:11px;`;
   trim.appendChild(trimLabel);
   // The delivered loop is capped at MAX_LOOP_SEC (the publish transcode
   // cuts the window — VideoTranscoder.LoopSeconds, keep in sync). Clamp
   // Out to In+cap here so the draft preview never loops footage the
   // published ad won't contain.
-  trim.appendChild(trimInput("in", videoBg.inSec,
+  trim.appendChild(trimInput("in", t("in"), videoBg.inSec,
     (v) => commit(store, (bg) => {
       const next = { ...bg, inSec: v };
       const start = v ?? 0;
@@ -443,7 +466,7 @@ function renderWithVideo(body: HTMLElement, videoBg: VideoBg, store: Store): voi
       return next;
     }),
   ));
-  trim.appendChild(trimInput("out", videoBg.outSec,
+  trim.appendChild(trimInput("out", t("out"), videoBg.outSec,
     (v) => commit(store, (bg) => {
       const start = bg.inSec ?? 0;
       // Strictly start < end: a zero-length window is not a loop. The
@@ -458,13 +481,13 @@ function renderWithVideo(body: HTMLElement, videoBg: VideoBg, store: Store): voi
   // The cap, said out loud — the clamp enforces it, this explains it.
   const trimHint = document.createElement("p");
   trimHint.style.cssText = `color:${tokens.ink300};font-size:10px;margin:4px 0 0;line-height:1.4;`;
-  trimHint.textContent = `Max ${MAX_LOOP_SEC}s from In — the published loop plays exactly this span.`;
+  trimHint.textContent = t("Max %ss from In — the published loop plays exactly this span.", MAX_LOOP_SEC);
   body.appendChild(trimHint);
 
   // Remove — destructive, bottom.
   const remove = document.createElement("button");
   remove.type = "button";
-  remove.textContent = "Remove";
+  remove.textContent = t("Remove");
   remove.style.cssText = [
     "margin-top: 14px",
     "width: 100%",
@@ -508,9 +531,9 @@ function patchValues(body: HTMLElement, videoBg: VideoBg): void {
   // 60). Written unconditionally — number inputs only fire `change` on
   // Enter/blur, so this never fights live typing; on Enter the snap to
   // the clamped value IS the feedback.
-  const inInput = body.querySelector<HTMLInputElement>('[data-trim] input[placeholder="in"]');
+  const inInput = body.querySelector<HTMLInputElement>('[data-trim] input[data-trim-end="in"]');
   if (inInput) inInput.value = videoBg.inSec == null ? "" : String(videoBg.inSec);
-  const outInput = body.querySelector<HTMLInputElement>('[data-trim] input[placeholder="out"]');
+  const outInput = body.querySelector<HTMLInputElement>('[data-trim] input[data-trim-end="out"]');
   if (outInput) outInput.value = videoBg.outSec == null ? "" : String(videoBg.outSec);
 }
 
@@ -523,11 +546,12 @@ function renderEmptyTexture(body: HTMLElement, store: Store): void {
   // live, and the library modal has its own upload.
   const hint = document.createElement("p");
   hint.style.cssText = `color:${tokens.ink300};font-size:11px;margin:0 0 10px;line-height:1.5;`;
-  hint.innerHTML = "Full-bleed image behind every size — tiled pattern or single cover image.<br><br>"
-    + `<span style="color:${tokens.ink300}">Drag an image onto the canvas and choose <b>Background texture</b>, or:</span>`;
+  // Catalog text only (no user input), so innerHTML is safe here.
+  hint.innerHTML = t("Full-bleed image behind every size — tiled pattern or single cover image.") + "<br><br>"
+    + `<span style="color:${tokens.ink300}">${t("Drag an image onto the canvas and choose <b>Background texture</b>, or:")}</span>`;
   body.appendChild(hint);
 
-  body.appendChild(textureLibraryButton(store, "Choose from library…"));
+  body.appendChild(textureLibraryButton(store, t("Choose from library…")));
 }
 
 /** Open the Images library (uploads + landing-page images, with its own
@@ -556,7 +580,7 @@ function textureLibraryButton(store: Store, label: string): HTMLButtonElement {
 
 // ─── Texture: with-texture state ───────────────────────────────────
 
-const FILLS = "fills (no crop)";
+const FILLS = tk("fills (no crop)");
 // How a cover image of `imageAspect` is cropped by a slot of `slotAspect`,
 // which tells the author which focal axis actually moves it there:
 //   image wider than the slot  → overflows horizontally → left/right pans
@@ -565,8 +589,8 @@ const FILLS = "fills (no crop)";
 // The ±2% band keeps a near-match from reading as a meaningful pan.
 function focalCropLabel(imageAspect: number, slotAspect: number): string {
   const r = imageAspect / slotAspect;
-  if (r > 1.02) return "left/right";
-  if (r < 0.98) return "up/down";
+  if (r > 1.02) return tk("left/right");
+  if (r < 0.98) return tk("up/down");
   return FILLS;
 }
 
@@ -580,7 +604,7 @@ function renderWithTexture(body: HTMLElement, textureBg: TextureBg, store: Store
   if (mode === "cover") {
     const tip = document.createElement("p");
     tip.style.cssText = `color:${tokens.ink300};font-size:10px;margin:-4px 0 10px;`;
-    tip.textContent = "Drag on the preview to set the focal point.";
+    tip.textContent = t("Drag on the preview to set the focal point.");
     body.appendChild(tip);
     // A cover focal point only pans on the axis the crop OVERFLOWS, and PC
     // (16:9) and Mobile (9:16) have opposite aspects — so the same image
@@ -598,11 +622,11 @@ function renderWithTexture(body: HTMLElement, textureBg: TextureBg, store: Store
         if (pc === FILLS && mb === FILLS) {
           // Image matches both slots' aspects (rare — they differ): no axis
           // to pan anywhere, so the focal is a genuine no-op. Dim the marker.
-          tip.textContent = "This image fills every slot — the focal point has no effect here.";
+          tip.textContent = t("This image fills every slot — the focal point has no effect here.");
           const marker = body.querySelector<HTMLElement>("[data-tex-focus]");
           if (marker) marker.style.opacity = "0.35";
         } else {
-          tip.textContent = `Drag to set the focal point · PC: ${pc} · Mobile: ${mb}`;
+          tip.textContent = t("Drag to set the focal point · PC: %s · Mobile: %s", t(pc), t(mb));
         }
       };
       probe.src = textureBg.src;
@@ -615,42 +639,42 @@ function renderWithTexture(body: HTMLElement, textureBg: TextureBg, store: Store
   head.style.cssText = "display:flex;align-items:center;gap:8px;margin-bottom:12px;";
   const filename = document.createElement("span");
   filename.style.cssText = `flex:1;min-width:0;font-size:11px;color:${tokens.ink200};overflow:hidden;text-overflow:ellipsis;white-space:nowrap;`;
-  filename.textContent = fileNameFromUrl(textureBg.src);
+  filename.textContent = displayFileName(textureBg.src) ?? t("Uploaded image");
   filename.title = textureBg.src;
   head.appendChild(filename);
-  const library = textureLibraryButton(store, "Library");
+  const library = textureLibraryButton(store, t("Library"));
   (library.style as CSSStyleDeclaration).cssText += ";flex:0 0 auto;";
   head.appendChild(library);
   body.appendChild(head);
 
   // Mode — tile | cover.
-  row(body, "Mode", segmented(["tile", "cover"], mode,
-    (v) => commitTex(store, (bg) => ({ ...bg, mode: v as "tile" | "cover" })),
+  row(body, t("Mode"), segmented(["tile", "cover"], mode,
+    (v) => commitTex(store, (bg) => ({ ...bg, mode: v as "tile" | "cover" })), TEXTURE_MODE_LABELS,
   ), "data-tex-mode");
 
   // Tile size — px, tile mode only. Empty = natural pixel size.
   if (mode === "tile") {
-    row(body, "Tile px", scaleInput(textureBg.scale,
+    row(body, t("Tile px"), scaleInput(textureBg.scale,
       (v) => commitTex(store, (bg) => ({ ...bg, scale: v })),
     ), "data-tex-scale");
   }
 
   // Opacity — 0..100% slider.
-  row(body, "Opacity", opacitySlider(textureBg.opacity ?? 1,
+  row(body, t("Opacity"), opacitySlider(textureBg.opacity ?? 1,
     (v, commitNow) => mutateTex(store, (bg) => ({ ...bg, opacity: v }), commitNow),
   ), "data-tex-opacity");
 
   // Blend — how the texture mixes over the page color / video.
-  row(body, "Blend", select(
+  row(body, t("Blend"), select(
     ["normal", "multiply", "overlay", "screen", "soft-light"],
     textureBg.blend ?? "normal",
-    (v) => commitTex(store, (bg) => ({ ...bg, blend: v as TextureBg["blend"] })),
+    (v) => commitTex(store, (bg) => ({ ...bg, blend: v as TextureBg["blend"] })), BLEND_LABELS,
   ), "data-tex-blend");
 
   // Remove — destructive, bottom.
   const remove = document.createElement("button");
   remove.type = "button";
-  remove.textContent = "Remove";
+  remove.textContent = t("Remove");
   remove.style.cssText = [
     "margin-top: 14px",
     "width: 100%",
@@ -796,7 +820,7 @@ function scaleInput(value: number | undefined, onChange: (v: number | undefined)
   input.type = "number";
   input.min = "1";
   input.step = "1";
-  input.placeholder = "natural";
+  input.placeholder = t("natural");
   input.value = value == null ? "" : String(value);
   input.style.cssText = [
     "flex: 1",
@@ -820,7 +844,7 @@ function scaleInput(value: number | undefined, onChange: (v: number | undefined)
   return input;
 }
 
-function select(options: string[], selected: string, onChange: (v: string) => void): HTMLSelectElement {
+function select(options: string[], selected: string, onChange: (v: string) => void, labels?: Record<string, string>): HTMLSelectElement {
   const sel = document.createElement("select");
   sel.style.cssText = [
     "flex: 1",
@@ -834,10 +858,10 @@ function select(options: string[], selected: string, onChange: (v: string) => vo
     "font-size: 11px",
     "cursor: pointer",
   ].join(";");
-  for (const opt of options) {
+  for (const { value: opt, label } of optionEntries(options, labels)) {
     const o = document.createElement("option");
     o.value = opt;
-    o.textContent = opt;
+    o.textContent = label;
     if (opt === selected) o.selected = true;
     sel.appendChild(o);
   }
@@ -888,7 +912,7 @@ function uploadButton(store: Store, label: string): HTMLElement {
     if (!file) return;
     btn.disabled = true;
     const orig = btn.textContent;
-    btn.textContent = "Uploading…";
+    btn.textContent = t("Uploading…");
     try {
       const url = await uploadVideo(file);
       if (url) {
@@ -912,7 +936,7 @@ function uploadButton(store: Store, label: string): HTMLElement {
       console.error("[page-bg] upload failed:", e);
       // Silent failure reads as a dead button — say it, in place. A 401
       // here usually means the dashboard session expired (re-login).
-      errLine.textContent = `Upload failed: ${e instanceof Error ? e.message : String(e)} — if this is HTTP 401, your session expired; sign in again.`;
+      errLine.textContent = t("Upload failed: %s — if this is HTTP 401, your session expired; sign in again.", e instanceof Error ? e.message : String(e));
       errLine.style.display = "block";
     } finally {
       btn.disabled = false;
@@ -959,7 +983,7 @@ async function uploadVideo(file: File): Promise<string | null> {
   }
 }
 
-function segmented(options: string[], selected: string, onChange: (v: string) => void): HTMLElement {
+function segmented(options: string[], selected: string, onChange: (v: string) => void, labels?: Record<string, string>): HTMLElement {
   const wrap = document.createElement("div");
   wrap.style.cssText = [
     "display:flex",
@@ -968,10 +992,10 @@ function segmented(options: string[], selected: string, onChange: (v: string) =>
     "overflow: hidden",
     "flex: 1",
   ].join(";");
-  for (const opt of options) {
+  for (const { value: opt, label } of optionEntries(options, labels)) {
     const btn = document.createElement("button");
     btn.type = "button";
-    btn.textContent = opt;
+    btn.textContent = label;
     const isSel = opt === selected;
     btn.style.cssText = [
       "flex: 1",
@@ -1017,8 +1041,9 @@ function opacitySlider(value: number, onChange: (v: number, commit: boolean) => 
 }
 
 
-function trimInput(placeholder: string, value: number | undefined, onChange: (v: number | undefined) => void): HTMLInputElement {
+function trimInput(end: "in" | "out", placeholder: string, value: number | undefined, onChange: (v: number | undefined) => void): HTMLInputElement {
   const input = document.createElement("input");
+  input.dataset.trimEnd = end;
   input.type = "number";
   input.min = "0";
   input.step = "0.1";
@@ -1077,12 +1102,3 @@ function mutate(store: Store, fn: (bg: VideoBg) => VideoBg, commitNow: boolean):
 
 // ─── Utils ─────────────────────────────────────────────────────────
 
-function fileNameFromUrl(url: string): string {
-  try {
-    const u = new URL(url, window.location.origin);
-    const parts = u.pathname.split("/").filter(Boolean);
-    return parts[parts.length - 1] || url;
-  } catch {
-    return url;
-  }
-}

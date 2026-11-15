@@ -16,7 +16,7 @@
 // the drawn size separately when the two differ.
 
 import type { DesignerState, LayoutItem, Page } from "../types";
-import { currentLayout, fitReaderFieldBoxes, fitSizedFieldBoxes, currentPage, updateItem } from "../state";
+import { currentLayout, fitReaderFieldBoxes, fitSizedFieldBoxes, currentPage, setItemWritingMode, updateItem, MOBILE_EXPANDED_KEY } from "../state";
 import { MODES, isSized, isMultiPage, type Mode } from "../modes";
 import type { Store } from "../store";
 import { tokens } from "../ui/tokens";
@@ -112,13 +112,56 @@ function textRemeasureIndices(prev: DesignerState, next: DesignerState): number[
   return out;
 }
 
-/** "Fit box to text": shrink a text item's authored height down to its
+/** Flip a text item horizontal ↔ vertical and re-pack its box for the new
+  * axis. Shared by the Properties "writing" field and the selection bar's
+  * Horizontal / Vertical buttons (GH #494), so both take the same path.
+  * `commit` false = live preview (no undo entry, no re-pack).
+  *
+  * NOT via updateItem: orientation is a per-dimension CHOICE (writingMode
+  * is deliberately unsynced), so it must not strip `_generated` — that
+  * disarmed the machine font-fit, and flipping a still-bloated bucket
+  * headline to vertical locked the giant glyphs in with a canvas-wide
+  * "hug". See setItemWritingMode.
+  *
+  * Re-pack the box for its NEW axis. The toggle changes which way the
+  * text grows (horizontal wraps down; vertical-rl adds columns leftward),
+  * so the old extent is always shaped for the wrong axis — dropping
+  * vertical copy into a wide/short box forces a huge autofit shrink, and
+  * the author then packs by hand ("this is when I see 'don't pack'",
+  * 2026-08-18). The start corner and the text itself are untouched. Same
+  * rAF-then-measure pattern as the content/font-size edit paths.
+  * Field-bound items in a SIZED bucket use the field packer — it fits
+  * BOTH axes (packTextItemHeight hugs only the pack axis, so a toggle to
+  * vertical kept the horizontal-era height and wrapped the copy into
+  * stubby columns), and on a still-machine item it also walks a bloated
+  * font down to fit the new axis. Readers and free text keep the
+  * single-item pack. */
+export function setWritingMode(
+  store: Store,
+  idx: number,
+  mode: "horizontal-tb" | "vertical-rl",
+  commit = true,
+): void {
+  const next = setItemWritingMode(store.state, idx, mode);
+  if (!commit) { store.replace(next); return; }
+  store.commit(next);
+  requestAnimationFrame(() => {
+    const it = currentLayout(store.state)[idx];
+    const field = it && it.type === "text" ? (it as { field?: string }).field : undefined;
+    const sizeKey = store.state.mode.sizeKey;
+    const isBucket = !isMultiPage(store.state.mode) && sizeKey != null;
+    if (field && isBucket) packSizedFieldBoxes(store, field, sizeKey);
+    else packTextItemHeight(store, idx, true);
+  });
+}
+
+/** Fit box to text: shrink a text item's authored height down to its
   * content. measureTextHeights can't do this — scrollHeight floors at
   * clientHeight, so an oversized box always measures as exactly its
   * own height. Instead, measure a height-neutralized CLONE inside the
   * same stage (same container-query context, so cqh font sizing and
   * %-width wrap points resolve identically), then stamp the result.
-  * Invoked from the props panel's Fit button. */
+  * Run after text, font and writing-mode edits. */
 export function packTextItemHeight(store: Store, idx: number, fitWidth = false): void {
   const banner = document.querySelector<HTMLElement>("#canvas-host expandable-magazine-banner");
   const shadow = banner?.shadowRoot;
@@ -168,7 +211,10 @@ export function packTextItemHeight(store: Store, idx: number, fitWidth = false):
     } catch { /* fall back below */ }
     if (maxLineW <= 0) maxLineW = wc.scrollWidth;
     wc.remove();
-    const stageW = stage.clientWidth;
+    // Fractional width, like the line rects: clientWidth rounds (292.5 → 293),
+    // which makes the box a fraction of a pixel narrower than the line it
+    // was measured from, and the line wraps (GH #513).
+    const stageW = stage.getBoundingClientRect().width;
     if (stageW > 0 && maxLineW > 0) {
       const w = Math.ceil((maxLineW / stageW) * 100 * 10) / 10;
       widthPct = Math.min(w, avail); // hug widest line, never past the canvas
@@ -196,12 +242,14 @@ export function packTextItemHeight(store: Store, idx: number, fitWidth = false):
   const packed = Math.ceil(pct * 10) / 10;
   if (vertical) {
     const curW = item.width ?? 0;
-    if (Math.abs(curW - packed) < 0.1) return; // already hugs its columns
     // vertical-rl starts at the right, so the box is right-anchored: keep
-    // the right edge fixed and shrink leftward.
-    const newLeft = (item.left ?? 0) + (curW - packed);
+    // the right edge fixed and grow/shrink leftward — never past the canvas's
+    // left edge (horizontal text stops at the right edge the same way).
+    const rightEdge = (item.left ?? 0) + curW;
+    const w = Math.min(packed, rightEdge);
+    if (Math.abs(curW - w) < 0.1) return; // already hugs its columns
     store.commit(updateItem(store.state, idx, (it): LayoutItem =>
-      it.type === "text" ? { ...it, width: packed, left: newLeft } : it,
+      it.type === "text" ? { ...it, width: w, left: rightEdge - w } : it,
     ));
   } else {
     const widthChanged = item.width != null && widthPct != null && Math.abs(item.width - widthPct) >= 0.1;
@@ -276,18 +324,24 @@ export function packReaderFieldBoxes(store: Store, field: string): void {
  * identity per role); per-bucket properties that legitimately differ
  * (fontSize, writingMode, geometry) are overridden per item. */
 export function packSizedFieldBoxes(
-  store: Store, field: string, onlySizeKey?: string, onlyGenerated?: boolean,
+  store: Store, field: string | null, onlySizeKey?: string, onlyGenerated?: boolean,
 ): void {
-  if (!field) return;
+  if (field === "") return;
   const banner = document.querySelector<HTMLElement>("#canvas-host expandable-magazine-banner");
   const shadow = banner?.shadowRoot;
   const stage = shadow?.querySelector<HTMLElement>(".design-box");
   if (!shadow || !stage) return;
-  const idx = currentLayout(store.state).findIndex(
+  const live = currentLayout(store.state);
+  const elAt = (i: number): HTMLElement | null =>
+    i >= 0 ? shadow.querySelector<HTMLElement>(`[data-layout-idx="${i}"]`) : null;
+  const fieldEl = field == null ? null : elAt(live.findIndex(
     (it) => it.type === "text" && (it as { field?: string }).field === field,
-  );
-  const el = idx >= 0 ? shadow.querySelector<HTMLElement>(`[data-layout-idx="${idx}"]`) : null;
-  if (!el) return;
+  ));
+  if (field != null && !fieldEl) return;
+  // Unbound (literal) text has no shared role identity to borrow, so its
+  // style template is its OWN element — measurable only when its bucket is
+  // the tab on screen (fitSizedFieldBoxes hands us the very item object).
+  const templateFor = (item: LayoutItem): HTMLElement | null => fieldEl ?? elAt(live.indexOf(item));
 
   // One measuring container per bucket, created on first use. Parented in
   // the stage so the clones inherit the same font/inheritance context.
@@ -309,6 +363,8 @@ export function packSizedFieldBoxes(
   const next = fitSizedFieldBoxes(store.state, field, (text, item, sizeKey) => {
     const box = containerFor(sizeKey);
     if (!box || box.clientWidth <= 0 || box.clientHeight <= 0) return null;
+    const el = templateFor(item);
+    if (!el) return null;
     const t = item as unknown as {
       fontSize?: number; lineHeight?: number; left?: number; top?: number;
       width?: number; height?: number; writingMode?: string; direction?: string;
@@ -340,12 +396,18 @@ export function packSizedFieldBoxes(
     // block-start anchor — then the block extent at that inline size.
     // Mirrors packTextItemHeight's fitWidth+height sequence with the
     // axes swapped for vertical-rl.
-    const availInline = Math.max(1, 100 - ((vertical ? t.top : t.left) ?? 0));
+    // The Fold-out poster (the only caller that packs mobile-expanded) composes
+    // each box as its CAP — the band minus the crease insets — so its copy
+    // wraps inside the gutter and walks down to fit the band, not the canvas.
+    const cap = (pct: number | undefined): number =>
+      sizeKey === MOBILE_EXPANDED_KEY && pct != null ? pct : 100;
+    const availInline = Math.max(1, Math.min(
+      100 - ((vertical ? t.top : t.left) ?? 0), cap(vertical ? t.height : t.width)));
     // Available BLOCK space: horizontal text stacks lines below `top`;
     // vertical-rl adds columns leftward from the box's fixed RIGHT edge.
-    const availBlock = vertical
+    const availBlock = Math.min(cap(vertical ? t.width : t.height), vertical
       ? Math.max(1, Math.min(100, (t.left ?? 0) + (t.width ?? 0)))
-      : Math.max(1, 100 - (t.top ?? 0));
+      : Math.max(1, 100 - (t.top ?? 0)));
     const measureAt = (fontSize: number): { inlinePct: number; blockPct: number } | null => {
       const ic = mkClone(fontSize);
       if (vertical) { ic.style.height = `${availInline}%`; ic.style.width = "auto"; }
@@ -362,7 +424,8 @@ export function packSizedFieldBoxes(
       if (maxLine <= 0) maxLine = vertical ? ic.scrollHeight : ic.scrollWidth;
       ic.remove();
       if (maxLine <= 0) return null;
-      const inlineExtent = vertical ? box.clientHeight : box.clientWidth;
+      const boxRect = box.getBoundingClientRect(); // fractional — see packTextItemHeight
+      const inlineExtent = vertical ? boxRect.height : boxRect.width;
       const inlinePct = Math.min(
         Math.ceil((maxLine / inlineExtent) * 100 * 10) / 10, availInline);
       const bc = mkClone(fontSize);

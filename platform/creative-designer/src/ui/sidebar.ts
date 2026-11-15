@@ -15,13 +15,14 @@
 // Callers mount their content into the returned `propsSection`,
 // `animationSection`, and `layersSection` elements.
 
+import { t, tk } from "../i18n";
 import { panelScope, scopeLabel } from "../selection-model";
 import type { DesignerState } from "../types";
 import { tokens } from "./tokens";
 
 const TABS = [
-  { key: "properties", label: "Properties" },
-  { key: "animation",  label: "Animation" },
+  { key: "properties", label: tk("Properties") },
+  { key: "animation",  label: tk("Animation") },
 ] as const;
 type TabKey = typeof TABS[number]["key"];
 
@@ -73,7 +74,7 @@ export function mountSidebar(host: HTMLElement): SidebarHandle {
     const btn = document.createElement("button");
     btn.type = "button";
     btn.setAttribute("role", "tab");
-    btn.textContent = tab.label;
+    btn.textContent = t(tab.label);
     btn.dataset.tab = tab.key;
     btn.style.cssText = [
       "flex: 1",
@@ -106,7 +107,7 @@ export function mountSidebar(host: HTMLElement): SidebarHandle {
   ].join(";");
   const scopeText = document.createElement("b");
   scopeText.style.color = tokens.ink100;
-  scope.append("Showing: ", scopeText);
+  scope.append(t("Showing: "), scopeText);
   panel.appendChild(scope);
 
   // Tab body — only one tab's contents are visible at a time. Scrolls
@@ -175,10 +176,10 @@ export function mountSidebar(host: HTMLElement): SidebarHandle {
     return { group, body };
   };
 
-  const bannerG = makeSection("Banner");
-  const pageBgG = makeSection("Page background");
-  const propsG  = makeSection("Properties");
-  const layersG = makeSection("Layers", true);   // count badge in header
+  const bannerG = makeSection(t("Banner"));
+  const pageBgG = makeSection(t("Page background"));
+  const propsG  = makeSection(t("Properties"));
+  const layersG = makeSection(t("Layers"), true);   // count badge in header
   const propTabGroups = [bannerG, pageBgG, propsG, layersG];
 
   const bannerConfigSection = bannerG.body;

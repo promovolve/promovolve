@@ -124,6 +124,36 @@ script always passes `--context` explicitly, so it can't land in
 - **DNS must stay grey-cloud** (DNS-only) at Cloudflare: managed-cert
   issuance/renewal needs the hostnames to resolve straight to the LB.
 
+## Browser runtime isolation verification
+
+After the full [staged browser cutover](../k8s/browser-runtime.md), run the
+read-only verifier using an explicit GKE context:
+
+```sh
+python3 scripts/verify-browser-runtime-k8s.py YOUR_GKE_CONTEXT
+```
+
+The verifier identity needs get/list access to DaemonSets, Deployments,
+ReplicaSets, StatefulSets and Pods, plus create access to `pods/exec` for
+non-mutating checks. It does not read Secret values or write to PVCs.
+
+It checks installer source/installed profile hashes on all ready installer
+nodes, browser-node coverage, a complete single-replica browser rollout,
+UID/GID 1000, seccomp and privilege restrictions, the mounted browser role
+config, selected R2 Secret references and absence of persistent/host/Secret
+volumes. Browser and API images must be pinned and match, and the serving API
+rollout must be complete. API/singleton non-root settings and DData ownership
+are no longer part of this contract.
+
+Use the same checkout as the deployed config/profile. The browser Deployment
+and Pod need the `promovolve.dev/seccomp-sha256` annotation written by the
+setup helpers. A raw manifest apply does not create that annotation.
+
+Run this after full cutover, not during `--browser-only` preparation or a CI
+image rollout. Passing does not prove Chromium's renderer filter, Pekko worker
+dispatch, R2 writes or resulting DB assets. Record the browser smoke and real
+LP/banner checks described in the rollout guide; keep #177 open until then.
+
 ## Spot caveats
 
 - A preemption (30s notice) looks like a full cluster restart: both api

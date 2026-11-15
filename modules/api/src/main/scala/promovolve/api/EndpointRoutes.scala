@@ -440,6 +440,8 @@ class EndpointRoutes(
         case Some(e) => throw new RuntimeException(e)
         case None    => toAnalyzeLPResponse(done.result)
       }
+    }.andThen { case _ =>
+      system.toClassic.stop(sink.toClassic)
     }
   }
 
@@ -564,11 +566,11 @@ class EndpointRoutes(
         post {
           entity(as[AnalyzeLPRequest]) { req =>
             lpAnalyzer match {
-              case Some(analyzer) =>
+              case analyzer if lpWorkerEnabled || analyzer.nonEmpty =>
                 val strat = req.strategy.getOrElse("heading")
                 val f =
                   if (lpWorkerEnabled) runViaWorker(req.url, strat, java.util.UUID.randomUUID().toString)
-                  else analyzer.analyze(req.url, strat)
+                  else analyzer.get.analyze(req.url, strat)
                     .flatMap { case (result, captured) =>
                       persistCapturedImages(result, captured.images).flatMap { r =>
                         // Quarantine the LP's own fonts on the in-process path too
@@ -583,7 +585,7 @@ class EndpointRoutes(
                     complete(org.apache.pekko.http.scaladsl.model.StatusCodes.InternalServerError,
                       ErrorResponse("analysis_failed", ex.getMessage))
                 }
-              case None =>
+              case _ =>
                 complete(org.apache.pekko.http.scaladsl.model.StatusCodes.ServiceUnavailable,
                   ErrorResponse("not_configured", "LP analysis requires Playwright (crawler module)"))
             }
@@ -596,7 +598,7 @@ class EndpointRoutes(
         post {
           entity(as[AnalyzeLPRequest]) { req =>
             lpAnalyzer match {
-              case Some(analyzer) =>
+              case analyzer if lpWorkerEnabled || analyzer.nonEmpty =>
                 val now = System.currentTimeMillis()
                 analyzeJobs.filterInPlace { case (_, (_, ts)) => ts >= now - AnalyzeJobTtlMs }
                 analyzeScreenshots.filterInPlace { case (_, (_, ts)) => ts >= now - AnalyzeJobTtlMs }
@@ -632,7 +634,7 @@ class EndpointRoutes(
                       analyzeInFlight.getOrElseUpdate(key, {
                           val f =
                             if (lpWorkerEnabled) runViaWorker(req.url, strat, jobId)
-                            else analyzer.analyze(req.url, strat,
+                            else analyzer.get.analyze(req.url, strat,
                               onScreenshot = bytes =>
                                 analyzeScreenshots.update(jobId, (bytes, System.currentTimeMillis())))
                               .flatMap { case (result, captured) =>
@@ -667,7 +669,7 @@ class EndpointRoutes(
                     }
                 }
                 complete(AnalyzeLPJob(jobId))
-              case None =>
+              case _ =>
                 complete(org.apache.pekko.http.scaladsl.model.StatusCodes.ServiceUnavailable,
                   ErrorResponse("not_configured", "LP analysis requires Playwright (crawler module)"))
             }

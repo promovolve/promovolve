@@ -787,7 +787,10 @@ export class ExpandableMagazineBanner extends HTMLElement {
       promoteToTopLayer(root);
       this.closeOnRotateOut(root);
     }
+    let teaseOff: AbortController | null = null;
     const dropDogEars = (): void => {
+      teaseOff?.abort();
+      teaseOff = null;
       for (const de of this._dogEars) {
         de.applyUnfolded(); // clear the face's punch clip with its flap
         de.wrap.remove();
@@ -855,6 +858,20 @@ export class ExpandableMagazineBanner extends HTMLElement {
           );
           face.appendChild(de.wrap);
           this._dogEars.push(de);
+          // The reader's two teaser triggers, for the whole poster (GH #536):
+          // a pointer plays it on entering ANY panel, not only the top one
+          // that holds the corner; touch plays it 350ms after the poster
+          // opens, as applyStackLayout does for the reader's top page.
+          if (!reducedMotion && this.pinnedPageIdx < 0) {
+            teaseOff = new AbortController();
+            const signal = teaseOff.signal;
+            if (window.matchMedia("(hover: hover)").matches) {
+              face.closest(".foldout")?.addEventListener("pointerenter", de.peelTease, { signal });
+            } else {
+              const t = window.setTimeout(() => de.peelTease(), 350);
+              signal.addEventListener("abort", () => window.clearTimeout(t));
+            }
+          }
         }
         // Entrances play once the unfold lands, across all three copies.
         if (played) return;

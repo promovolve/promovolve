@@ -16,7 +16,7 @@ import { collectExpandedImageUrls, parseJSON, pickCollapsedLayout, pickExpandedL
 import { resolveExpandedFonts } from "./font-catalog";
 import { createViewableGate, viewableThreshold, type ViewableGate } from "./viewability";
 import { isFoldout, openFoldOut, type FoldOutHandle } from "./fold-out";
-import { animatePageTurn, collapsedLift, createInteractivePeel, buildGrainOverlay, dogEarPeelFrame, DOGEAR_PEEL_TRAVEL, PAPER_CSS, PAPER_BACK_BLEND, paperBackBackground, paperBackStock } from "./paper";
+import { animatePageTurn, collapsedEdge, createInteractivePeel, buildGrainOverlay, dogEarPeelFrame, DOGEAR_PEEL_TRAVEL, PAPER_CSS, PAPER_BACK_BLEND, paperBackBackground, paperBackStock } from "./paper";
 
 // The reader deals its sheets in by default (the kawaraban lifecycle);
 // an advertiser can opt out via cfg.entrance = "fade" for a plain fade
@@ -634,7 +634,9 @@ export class ExpandableMagazineBanner extends HTMLElement {
     const flap = document.createElement("div");
     flap.className = "paper-flap";
     flap.appendChild(buildGrainOverlay());
-    banner.appendChild(flap);
+    // Beside the box in its frame, so the flap's inset:0 is the creative,
+    // not the slot (GH #526).
+    (box.parentElement ?? banner).appendChild(flap);
 
     let raf = 0;
     const render = (t: number): void => {
@@ -1665,16 +1667,26 @@ export class ExpandableMagazineBanner extends HTMLElement {
       <style>
         * { box-sizing: border-box; margin: 0; padding: 0; }
         ${SOLID_SHEET_CSS}
-        .design-box {
-          container-type: size;
+        /* The creative's own frame: sized to the creative's aspect inside
+           the slot. The fold flaps sit in it, beside the design box, so
+           they land on the creative's corner even when the creative is
+           smaller than the slot (GH #526). No container-type here: the
+           ear size (cqmin) must keep resolving as it always has. */
+        .sheet-frame {
           aspect-ratio: ${aspectCss};
           width: 100%;
           max-width: 100%;
           max-height: 100%;
           position: relative;
+        }
+        .design-box {
+          container-type: size;
+          position: absolute;
+          inset: 0;
           overflow: hidden;
           background: ${page.bg ?? "linear-gradient(135deg,#1a1a1a,#2d2518)"};
           border-radius: ${editMode ? "0" : "4px"};
+          box-shadow: ${collapsedEdge(editMode, page.bg)};
         }
         .banner.folded .design-box {
           clip-path: ${pageClip};
@@ -1710,11 +1722,12 @@ export class ExpandableMagazineBanner extends HTMLElement {
         position:relative;overflow:hidden;
         background:transparent;
         border-radius:${editMode ? "0" : "6px"};
-        filter:${collapsedLift(editMode, page.bg)};
         opacity:${editMode ? "1" : "0"};transition:opacity .18s ease-out;
       ">
-        <div class="design-box">${html}</div>
-        <div class="collapsed-dogear-flap"></div>
+        <div class="sheet-frame">
+          <div class="design-box">${html}</div>
+          <div class="collapsed-dogear-flap"></div>
+        </div>
       </div>`);
 
     // Per-page full-bleed video background. Runs in every mode —

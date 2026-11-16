@@ -63,16 +63,16 @@ export function paperBackStock(
   return `${configured ?? PAPER_BASE}${alpha}`;
 }
 
-/** The collapsed ad's lift off the publisher's page (GH #507): a soft
-  * drop-shadow filter, which follows what is painted (rounded corners,
-  * the punched dog-ear corner and its flap). Flat on the edit canvas,
-  * and flat for a see-through page (#RRGGBBAA below ff), which is meant
-  * to blend with the article: a shadow would show through and grey it. */
-export function collapsedLift(editMode: boolean, pageBg: string | undefined): string {
+/** The collapsed ad's edge on the publisher's page (GH #526): a faint
+  * neutral hairline drawn INSIDE the creative, under its content, so a
+  * white ad on a white page still has a boundary. Invisible on dark
+  * creatives; a full-bleed image covers it. Flat on the edit canvas, and
+  * none for a see-through page (#RRGGBBAA below ff), which is meant to
+  * blend with the article. (A drop-shadow lift, #508, was tried and
+  * removed: iOS Safari clips it to the slot box and paints a grey sheet.) */
+export function collapsedEdge(editMode: boolean, pageBg: string | undefined): string {
   const translucent = !!pageBg && /^#[0-9a-fA-F]{8}$/.test(pageBg) && !/ff$/i.test(pageBg);
-  return editMode || translucent
-    ? "none"
-    : "drop-shadow(0 1px 2px rgba(0,0,0,.14)) drop-shadow(0 3px 8px rgba(0,0,0,.10))";
+  return editMode || translucent ? "none" : "inset 0 0 0 1px rgba(0,0,0,.12)";
 }
 
 /** Background list for a paper-back surface: caller's lighting/sheen

@@ -10,7 +10,7 @@ val logbackVersion              = "1.6.3"
 val pekkoQuartzSchedulerVersion = "1.3.0-pekko-1.1.x"
 val tapirVersion = "1.13.3"
 // Pinned with the image it starts (see PostgresTestContainer).
-val testcontainersVersion       = "1.21.3"
+val testcontainersVersion       = "1.21.4"
 
 ThisBuild / scalacOptions :=
   Seq(

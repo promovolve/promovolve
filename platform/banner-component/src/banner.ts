@@ -816,6 +816,15 @@ export class ExpandableMagazineBanner extends HTMLElement {
       const c = collapsed();
       if (c) c.style.opacity = "";
       if (framed) this.dispatchEvent(new CustomEvent("magazine-collapse", { bubbles: true, composed: true }));
+      // Same as the reader's close (restoreCollapsed in _collapse): a
+      // keep-frame preview replays the corner teaser on the ad it returned
+      // to (GH #533). Skipped if a re-open landed us here (_expand).
+      if (framed && this.getAttribute("keep-frame") === "1") {
+        this._teaserPlayed = false;
+        requestAnimationFrame(() => {
+          if (!this._expanded) this.playTeaserPeel();
+        });
+      }
     };
     const handle = openFoldOut({
       root,

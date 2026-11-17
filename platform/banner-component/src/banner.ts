@@ -853,24 +853,23 @@ export class ExpandableMagazineBanner extends HTMLElement {
       onOpened: (face) => {
         if (this.canFold) {
           const dogEarSize = framed ? "7cqmin" : "12cqmin";
+          // The fold punches the WHOLE poster, as the reader punches its
+          // whole page box: the poster's outline and shadow belong to the
+          // sheet, so a hole cut in the top face alone left them drawing the
+          // missing corner (GH #540). Pointer hover then also covers the
+          // whole poster, not just the top panel (GH #536).
+          const sheetBox = face.closest<HTMLElement>(".foldout") ?? face;
           const de = buildDogEar(
-            face, dogEarSize, this, 0, this.pinnedPageIdx >= 0, page?.bg, rtl, true, this.consumeOverlayTease,
+            sheetBox, dogEarSize, this, 0, this.pinnedPageIdx >= 0, page?.bg, rtl, true, this.consumeOverlayTease,
           );
           face.appendChild(de.wrap);
           this._dogEars.push(de);
-          // The reader's two teaser triggers, for the whole poster (GH #536):
-          // a pointer plays it on entering ANY panel, not only the top one
-          // that holds the corner; touch plays it 350ms after the poster
+          // Touch has no hover: play the teaser 350ms after the poster
           // opens, as applyStackLayout does for the reader's top page.
-          if (!reducedMotion && this.pinnedPageIdx < 0) {
+          if (!reducedMotion && this.pinnedPageIdx < 0 && !window.matchMedia("(hover: hover)").matches) {
             teaseOff = new AbortController();
-            const signal = teaseOff.signal;
-            if (window.matchMedia("(hover: hover)").matches) {
-              face.closest(".foldout")?.addEventListener("pointerenter", de.peelTease, { signal });
-            } else {
-              const t = window.setTimeout(() => de.peelTease(), 350);
-              signal.addEventListener("abort", () => window.clearTimeout(t));
-            }
+            const t = window.setTimeout(() => de.peelTease(), 350);
+            teaseOff.signal.addEventListener("abort", () => window.clearTimeout(t));
           }
         }
         // Entrances play once the unfold lands, across all three copies.
@@ -3717,6 +3716,10 @@ function buildDogEar(
 
   if (initiallyFolded) applyFolded();
 
+  // A mouse press must not focus the corner: a focused button rings blue
+  // on the next keypress (even a screenshot shortcut). Tab still focuses
+  // it, with its ring, for keyboard users (GH #539).
+  wrap.addEventListener("mousedown", (e) => e.preventDefault());
   wrap.addEventListener("click", (e) => {
     e.stopPropagation();
     const folded = wrap.dataset.folded === "1";

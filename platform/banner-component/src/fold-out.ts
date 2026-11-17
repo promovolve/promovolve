@@ -560,7 +560,12 @@ export function openFoldOut(o: FoldOutOptions): FoldOutHandle {
     angV = angV.map(() => 0);
     fadeBase = { p: s.p, vis };
     setPill(false);
-    drag = { x0: e.clientX, y0: e.clientY, a: e.clientY, p: s.p, t: e.timeStamp, last: s.p, onFoldout: foldout.contains(tgt), moved: false };
+    // Open, the whole sheet's outline is the poster: the dog-ear teaser
+    // briefly clips the corner away, and a press there must not fall
+    // through to the backdrop and close it (GH #543).
+    const r = foldout.getBoundingClientRect();
+    const inSheet = isOpen && e.clientX >= r.left && e.clientX <= r.right && e.clientY >= r.top && e.clientY <= r.bottom;
+    drag = { x0: e.clientX, y0: e.clientY, a: e.clientY, p: s.p, t: e.timeStamp, last: s.p, onFoldout: foldout.contains(tgt) || inSheet, moved: false };
     try { root.setPointerCapture?.(e.pointerId); } catch { /* synthetic pointer */ }
   };
   const onMove = (e: PointerEvent) => {

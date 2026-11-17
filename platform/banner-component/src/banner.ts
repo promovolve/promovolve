@@ -857,12 +857,14 @@ export class ExpandableMagazineBanner extends HTMLElement {
           // whole page box: the poster's outline and shadow belong to the
           // sheet, so a hole cut in the top face alone left them drawing the
           // missing corner (GH #540). Pointer hover then also covers the
-          // whole poster, not just the top panel (GH #536).
+          // whole poster, not just the top panel (GH #536). The corner sits
+          // on the poster too, so its size and the teaser's are measured from
+          // the whole sheet, as the reader's are, not the top third (GH #543).
           const sheetBox = face.closest<HTMLElement>(".foldout") ?? face;
           const de = buildDogEar(
             sheetBox, dogEarSize, this, 0, this.pinnedPageIdx >= 0, page?.bg, rtl, true, this.consumeOverlayTease,
           );
-          face.appendChild(de.wrap);
+          sheetBox.appendChild(de.wrap);
           this._dogEars.push(de);
           // Touch has no hover: play the teaser 350ms after the poster
           // opens, as applyStackLayout does for the reader's top page.

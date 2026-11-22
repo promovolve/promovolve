@@ -75,6 +75,10 @@ updates:
         patterns: ["*"]
         group-by: "dependency-name"
         update-types: ["minor", "patch"]
+      npm-same-dependency-security:
+        applies-to: "security-updates"
+        patterns: ["*"]
+        group-by: "dependency-name"
 
   - package-ecosystem: "gomod"
     directory: "/platform"

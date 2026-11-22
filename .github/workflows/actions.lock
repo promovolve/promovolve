@@ -9,7 +9,7 @@ workflows:
         - 'actions/setup-go@v7.0.0'
         - 'actions/setup-java@v6.0.1'
         - 'actions/setup-node@v7.0.0'
-        - 'docker/build-push-action@v7.3.0'
+        - 'docker/build-push-action@v7.4.0'
         - 'docker/setup-buildx-action@v4.4.1'
         - 'dorny/paths-filter@v4.0.3'
         - 'sbt/setup-sbt@v1.5.11'
@@ -106,11 +106,6 @@ dependencies:
         repo_id: 941189561
         uses:
             - 'carabiner-dev/actions@2fec8bd8e1dcfdea26080648070b4827f1fa0584'
-    'docker/build-push-action@v7.3.0':
-        ref: 'v7.3.0'
-        commit: 'sha1-53b7df96c91f9c12dcc8a07bcb9ccacbed38856a'
-        owner_id: 5429470
-        repo_id: 241092383
     'docker/build-push-action@v7.4.0':
         ref: 'v7.4.0'
         commit: 'sha1-c3c9e263c25d99ce0380d002d59b67737d91b0dc'

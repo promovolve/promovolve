@@ -2,6 +2,20 @@ version: 2
 
 # Keep Dependabot's default `dependencies` label.
 # Version-type filters restrict routine updates without excluding security fixes.
+#
+# playwright-java: the API image's playwright/java tag and the Maven
+# `com.microsoft.playwright` pin must stay on the same major.minor.patch.
+# Multi-ecosystem grouping puts both bumps in one PR when either side moves.
+# (Dependabot does not force equal versions; review the PR if only one side updates.)
+multi-ecosystem-groups:
+  playwright-java:
+    schedule:
+      interval: "daily"
+      time: "02:00"
+      timezone: "Asia/Tokyo"
+    labels:
+      - dependencies
+
 updates:
   - package-ecosystem: "sbt"
     directory: "/"
@@ -19,11 +33,13 @@ updates:
           - "version-update:semver-patch"
     # Slick uses PVP: 3.5 -> 3.6 can break Pekko JDBC/Projection binaries.
     # Revisit with a compatible Pekko stack; type-only ignores leave security updates eligible.
+    # Playwright is owned by the playwright-java multi-ecosystem group below.
     ignore:
       - dependency-name: "com.typesafe.slick:slick_*"
         update-types: ["version-update:semver-minor"]
       - dependency-name: "com.typesafe.slick:slick-hikaricp_*"
         update-types: ["version-update:semver-minor"]
+      - dependency-name: "com.microsoft.playwright:playwright"
     labels:
       - dependencies
     # Slick modules share a release; unrelated dependencies need separate reviews.
@@ -127,11 +143,8 @@ updates:
       # Wildcard allow and explicit ignore rules both trigger parsing of unsupported
       # sbtscala/scala-sbt composite tags. Maintain that image manually for now.
       # Add new Dockerfile images here, using repository names without registry hosts.
+      # playwright/java is owned by the playwright-java multi-ecosystem group below.
       - dependency-name: "eclipse-temurin"
-        update-types:
-          - "version-update:semver-minor"
-          - "version-update:semver-patch"
-      - dependency-name: "playwright/java"
         update-types:
           - "version-update:semver-minor"
           - "version-update:semver-patch"
@@ -149,6 +162,31 @@ updates:
           - "version-update:semver-patch"
     labels:
       - dependencies
+
+  # Keep Dockerfile.api's playwright/java tag and build.sbt's Maven pin together.
+  - package-ecosystem: "docker"
+    directory: "/"
+    cooldown:
+      default-days: 7
+    patterns: ["playwright/java"]
+    allow:
+      - dependency-name: "playwright/java"
+        update-types:
+          - "version-update:semver-minor"
+          - "version-update:semver-patch"
+    multi-ecosystem-group: "playwright-java"
+
+  - package-ecosystem: "sbt"
+    directory: "/"
+    cooldown:
+      default-days: 7
+    patterns: ["com.microsoft.playwright:playwright"]
+    allow:
+      - dependency-name: "com.microsoft.playwright:playwright"
+        update-types:
+          - "version-update:semver-minor"
+          - "version-update:semver-patch"
+    multi-ecosystem-group: "playwright-java"
 
   - package-ecosystem: "docker-compose"
     directories:

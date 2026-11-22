@@ -110,7 +110,7 @@ object TestExtractSlotsApp {
 
       browser.close()
     } catch {
-      case e: Throwable =>
+      case e: Exception =>
         println(s"FAILED: ${e.getClass.getSimpleName}: ${e.getMessage}")
         e.printStackTrace()
     } finally {

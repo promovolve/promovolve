@@ -51,7 +51,7 @@ object SvgSanitizer {
       out = OnHandlerAttr.replaceAllIn(out, "")
       out = JsHrefAttr.replaceAllIn(out, "")
       out.getBytes(java.nio.charset.StandardCharsets.UTF_8)
-    } catch { case _: Throwable => bytes }
+    } catch { case _: Exception => bytes }
 
   /**
    * Best-effort dimension extraction from an SVG document. Reads
@@ -78,7 +78,7 @@ object SvgSanitizer {
               }
           }
       }
-    } catch { case _: Throwable => (0, 0) }
+    } catch { case _: Exception => (0, 0) }
 
   /**
    * Register-time step for a presigned SVG upload. The PUT landed at

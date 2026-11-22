@@ -6,6 +6,7 @@ import java.awt.RenderingHints
 import java.awt.image.BufferedImage
 import java.io.{ ByteArrayInputStream, ByteArrayOutputStream }
 import javax.imageio.{ IIOImage, ImageIO, ImageWriteParam }
+import scala.util.control.NonFatal
 
 /**
  * Server-side image compression for asset ingest. Runs in `storeIfNew`
@@ -127,7 +128,7 @@ object ImageCompression {
           }
         }
       } catch {
-        case t: Throwable =>
+        case NonFatal(t) =>
           log.warn("image-compress failed mime={} bytes={} err={}", mime, bytes.length, t.getMessage)
           fallback(bytes, mime)
       }
@@ -196,7 +197,7 @@ object ImageCompression {
       try {
         val img = ImageIO.read(new ByteArrayInputStream(bytes))
         if (img != null) (img.getWidth, img.getHeight) else (0, 0)
-      } catch { case _: Throwable => (0, 0) }
+      } catch { case _: Exception => (0, 0) }
     }
   }
 

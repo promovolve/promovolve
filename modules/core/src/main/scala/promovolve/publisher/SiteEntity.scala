@@ -348,7 +348,7 @@ object SiteEntity {
                   category = category
                 )
               catch {
-                case ex: Throwable =>
+                case scala.util.control.NonFatal(ex) =>
                   ctx.log.warn("SiteEntity {} floor-decision journal write failed: {}", siteId.value, ex.getMessage)
               }
             }

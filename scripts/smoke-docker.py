@@ -135,14 +135,30 @@ def smoke(kind, image):
                 run(["javac", "--release", "21", "-cp", str(temp / "lib" / "*"),
                      "-d", str(temp), str(ROOT / "scripts/docker-smoke/BrowserSmoke.java")])
                 # Use the final image's jars, JRE and browser; never download a browser at runtime.
-                containers.append(browser)
-                docker("create", "--name", browser, "--network", "none", "--init",
-                       "--entrypoint", "java", image, "-cp", "/app/lib/*:/tmp", "BrowserSmoke")
-                docker("cp", str(temp / "BrowserSmoke.class"), f"{browser}:/tmp/BrowserSmoke.class")
-                result = docker("start", "-a", browser)
-                if docker("inspect", "--format", "{{.State.ExitCode}}", browser) != "0":
-                    raise AssertionError("Packaged browser smoke test failed")
-                print(result, flush=True)
+                for name, arguments, expected_error in (
+                    (browser, [], None),
+                    (f"{browser}-negative", ["--disable-seccomp-filter-sandbox"],
+                     "java.lang.AssertionError: Chromium renderer seccomp filter is missing"),
+                ):
+                    containers.append(name)
+                    docker("create", "--name", name, "--network", "none", "--init",
+                           "--user", "1000:1000", "-e", "HOME=/home/pwuser",
+                           "--cap-drop", "ALL", "--security-opt", "no-new-privileges",
+                           "--security-opt", f"seccomp={ROOT / 'docker/chromium-seccomp.json'}",
+                           "--entrypoint", "java", image, "-cp", "/app/lib/*:/tmp", "BrowserSmoke", *arguments)
+                    docker("cp", str(temp / "BrowserSmoke.class"), f"{name}:/tmp/BrowserSmoke.class")
+                    result = subprocess.run(["docker", "start", "-a", name],
+                                            capture_output=True, text=True, timeout=180)
+                    code = docker("inspect", "--format", "{{.State.ExitCode}}", name)
+                    output = result.stdout + result.stderr
+                    if expected_error:
+                        if code == "0" or expected_error not in output:
+                            raise AssertionError(f"Disabled renderer seccomp was not detected: {output}")
+                        print("PASS negative: disabled Chromium seccomp filter rejected", flush=True)
+                    else:
+                        if result.returncode != 0 or code != "0":
+                            raise AssertionError(f"Packaged browser smoke test failed: {output}")
+                        print(output.strip(), flush=True)
                 print(docker("exec", app, "ffmpeg", "-version").splitlines()[0], flush=True)
 
             docker("stop", "--time", "30", app)

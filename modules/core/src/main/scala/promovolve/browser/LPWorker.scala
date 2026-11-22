@@ -22,20 +22,20 @@ import scala.util.{ Failure, Success }
  * bid/serve hot path.
  *
  * One `LPWorker` exists per index `0 .. numWorkers-1`, keyed by that index
- * and **pinned to the `crawler` role**, so Chromium runs on a crawler pod
+ * and **pinned to the `browser` role**, so Chromium runs on a browser pod
  * next to a warm browser pool. An api node addresses its owning worker via
  * `entityRefFor(TypeKey, workerIndexFor(url).toString) ! AnalyzeLP(...)`; the
- * ShardRegion buffers the message if no crawler node has joined yet.
+ * ShardRegion buffers the message if no browser node has joined yet.
  *
  * The actual analysis + CDN upload is the injected [[RunAnalysis]] seam (so
- * captured bytes are uploaded crawler-side and only URLs cross the wire, and
+ * captured bytes are uploaded browser-side and only URLs cross the wire, and
  * so the worker stays hermetic for tests). The worker itself only bounds
  * concurrency (`running`/`queue`/SweepStale) — which also caps what was an
  * unbounded session-mailbox queue on the api tier.
  */
 object LPWorker {
 
-  // -- Protocol (cross-node: api-node route → crawler-node worker) --
+  // -- Protocol (cross-node: api-node route → browser-node worker) --
 
   sealed trait Command extends promovolve.CborSerializable
 
@@ -43,7 +43,7 @@ object LPWorker {
    * An api route asks its owning worker to analyze a landing page. `replyTo`
    * gets the finished result (section srcs already rewritten to CDN URLs by
    * the worker); `progressTo` gets the early hero screenshot URL. A duplicate
-   * `AnalyzeLP` for a URL already in flight on this worker is a no-op.
+   * `AnalyzeLP` for a URL already running or queued gets an immediate error.
    */
   final case class AnalyzeLP(
       url: String,
@@ -87,7 +87,7 @@ object LPWorker {
    */
   private case object SweepStale extends Command
 
-  val TypeKey: EntityTypeKey[Command] = EntityTypeKey[Command]("lp-worker")
+  val TypeKey: EntityTypeKey[Command] = EntityTypeKey[Command]("browser-lp-worker")
 
   // -- Settings --
 
@@ -196,18 +196,15 @@ object LPWorker {
 
       Behaviors.receiveMessage {
         case req: AnalyzeLP =>
-          if (running.contains(req.url)) {
+          if (running.contains(req.url) || queuedUrls.contains(req.url)) {
             // Do NOT refresh startedAt here: a duplicate request restarting
             // the staleness clock meant a HUNG analysis whose URL kept being
             // re-requested (the editor auto-analyzes on open) was never
             // evicted by SweepStale — with one slot per worker, the worker
             // wedged permanently and the queue grew without bound. The
             // original start time is the truth SweepStale needs.
-            log.debug("LPWorker {} ignoring duplicate AnalyzeLP for in-flight {}", workerIndex, req.url)
-          } else if (queuedUrls.contains(req.url)) {
-            val pos = queue.indexWhere(_.url == req.url)
-            if (pos >= 0) queue.update(pos, req) // freshest replyTo wins
-            log.debug("LPWorker {} updated queued AnalyzeLP for {}", workerIndex, req.url)
+            req.replyTo ! AnalyzeLPDone(req.url, LPAnalysisResult(req.url, Vector.empty), None,
+              Some("Analysis is already running or queued for this URL; retry later"))
           } else if (canGrant) {
             grant(req)
           } else {
@@ -248,7 +245,7 @@ object LPWorker {
   // -- Sharding + keep-alive init --
 
   /**
-   * Initialise the LPWorker shard region. MUST be called on `crawler`-role
+   * Initialise the LPWorker shard region. MUST be called on `browser`-role
    * nodes (where the local browser pool + R2 creds live) — pinned to that
    * role, overriding the global `sharding.role = "entity"`. `remember-entities`
    * off (pure compute; keep-alive is the liveness mechanism).
@@ -264,17 +261,17 @@ object LPWorker {
         LPWorker(ctx.entityId.toInt, runAnalysis, settings)
       }.withSettings(
         ClusterShardingSettings(system)
-          .withRole("crawler")
+          .withRole("browser")
           .withRememberEntities(false)
-      ).withEntityProps(DispatcherSelector.fromConfig("crawler-dispatcher"))
+      ).withEntityProps(DispatcherSelector.fromConfig("browser-dispatcher"))
     )
     LoggerFactory.getLogger("promovolve.LPWorker")
-      .info("LPWorker shard region initialised (role=crawler, numWorkers={})", settings.numWorkers)
+      .info("LPWorker shard region initialised (role=browser, numWorkers={})", settings.numWorkers)
   }
 
   /**
    * Keep every worker index warm so it never passivates between analyses.
-   * A ShardedDaemonProcess of N tickers pinned to the `crawler` role.
+   * A ShardedDaemonProcess of N tickers pinned to the `browser` role.
    */
   def initKeepAlive(
       system: ActorSystem[?],
@@ -285,7 +282,7 @@ object LPWorker {
       name = "LPWorkerKeepAlive",
       numberOfInstances = settings.numWorkers,
       behaviorFactory = idx => keepAliveBehavior(sharding, idx, settings.keepAliveInterval),
-      settings = ShardedDaemonProcessSettings(system).withRole("crawler"),
+      settings = ShardedDaemonProcessSettings(system).withRole("browser"),
       stopMessage = None
     )
     LoggerFactory.getLogger("promovolve.LPWorker")

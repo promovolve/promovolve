@@ -5,6 +5,8 @@ namespace: promovolve
 
 resources:
   - namespace.yaml
+  - runtime-security
+  - browser-deployment.yaml
   - db-statefulset.yaml
   - db-service.yaml
   - api-rbac.yaml
@@ -16,15 +18,18 @@ resources:
   - platform-service.yaml
 
 configMapGenerator:
+  - name: browser-conf
+    files:
+      - application-browser.conf
+    options:
+      labels:
+        promovolve.dev/browser-bootstrap: "true"
   # init-db.sql straight from the repo — single source of truth, no copy.
   - name: db-initdb
     files:
       - init.sql=../docker/init-db.sql
 
-  # App-tier overlay (roles=[entity,api,crawler] — the dedicated crawler tier
-  # was REMOVED 2026-07-02: site crawling is gone, and the LP-worker it hosted
-  # is sporadic, so it runs on the api pods now; singletons stay on the
-  # dedicated promovolve-singleton pod). Replaces application-k8s.conf here.
+  # Serving roles exclude Chromium; the dedicated browser uses browser-conf.
   - name: app-conf
     files:
       - application-app.conf
@@ -43,6 +48,9 @@ configMapGenerator:
       - logback-debug.xml
 
   - name: api-config
+    options:
+      labels:
+        promovolve.dev/browser-bootstrap: "true"
     literals:
       # Public R2 origin creative asset srcs are built from (NOT a secret) —
       # tracked here so deploys are reproducible from committed config. The API
@@ -62,18 +70,16 @@ configMapGenerator:
       - HTTP_HOST=0.0.0.0
       - HTTP_PORT=8080
       - ENABLE_TEST_ROUTES=false
+      # Used only by legacy/local API browser execution during rollback; the browser Pod overrides it.
+      - CHROMIUM_NO_SANDBOX=true
       # Cluster Bootstrap quorum — minimum management contact points that must
       # be discovered before a NEW cluster forms. The cluster is now just the
       # 2 all-roles api pods; requiring both means a lone pod can never form
       # a standalone cluster, so exactly one cluster ever exists.
       # If you change the member count, set this to the new majority ⌊total/2⌋+1.
       - PEKKO_BOOTSTRAP_REQUIRED_CONTACT_POINTS=2
-      # Lets headless Chromium start as root in a container (see BrowserSession.scala).
-      - CHROMIUM_NO_SANDBOX=true
-      # LP-worker ShardedDaemonProcess sizing (hash(siteId)%N addressing). The
-      # N worker shards are role-pinned to "crawler", which the api pods now
-      # carry (the dedicated crawler tier was deleted 2026-07-02).
-      - CRAWLER_NUM_WORKERS=4
+      # API routing and browser LP shard counts must agree.
+      - LP_NUM_WORKERS=4
       # Demo responsiveness tweaks. NOTE: we deliberately do NOT set
       # SIM_DAY_DURATION_SECONDS — pacing uses a real 24h day (sim.day=86400).
       # A short sim-day looks helpful ("compress the budget day so low-traffic
@@ -147,6 +153,9 @@ secretGenerator:
   # JDBC_PASSWORD + GEMINI_API_KEY + R2_* (all required) + CDN/banner URLs live here.
   # Copy k8s/secrets.env.example -> k8s/secrets.env and fill it in.
   - name: api-secret
+    options:
+      labels:
+        promovolve.dev/browser-bootstrap: "true"
     envs:
       - secrets.env
 

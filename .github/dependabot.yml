@@ -60,6 +60,11 @@ updates:
         patterns: ["*"]
         group-by: "dependency-name"
         update-types: ["minor", "patch"]
+      # Security updates skip the group above; keep cross-directory PRs.
+      npm-same-dependency-security:
+        applies-to: "security-updates"
+        patterns: ["*"]
+        group-by: "dependency-name"
 
   - package-ecosystem: "gomod"
     directory: "/platform"

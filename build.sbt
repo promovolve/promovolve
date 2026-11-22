@@ -1,7 +1,7 @@
 import scala.collection.Seq
 
 ThisBuild / organization := "promovolve"
-ThisBuild / scalaVersion := "3.9.0"
+ThisBuild / scalaVersion := "3.10.1"
 val pekkoVersion                = "1.4.0"
 val pekkoHttpVersion            = "1.2.0"
 val pekkoProjectionVersion      = "1.1.0"

@@ -1,16 +1,29 @@
 import scala.collection.Seq
 
 ThisBuild / organization := "promovolve"
-ThisBuild / scalaVersion := "3.9.0"
+ThisBuild / scalaVersion := "3.10.1"
 val pekkoVersion                = "1.4.0"
-val pekkoHttpVersion            = "1.2.0"
+val pekkoHttpVersion            = "1.4.0"
 val pekkoProjectionVersion      = "1.1.0"
 val pekkoManagementVersion      = "1.2.1"
 val logbackVersion              = "1.6.3"
 val pekkoQuartzSchedulerVersion = "1.3.0-pekko-1.1.x"
-val tapirVersion = "1.13.3"
+val tapirVersion = "1.13.33"
 // Pinned with the image it starts (see PostgresTestContainer).
-val testcontainersVersion       = "1.21.3"
+val testcontainersVersion       = "1.21.4"
+
+// Keep Pekko on pekkoVersion when tapir pulls a newer stream/slf4j.
+ThisBuild / dependencyOverrides ++= Seq(
+  "org.apache.pekko" %% "pekko-actor"            % pekkoVersion,
+  "org.apache.pekko" %% "pekko-stream"           % pekkoVersion,
+  "org.apache.pekko" %% "pekko-slf4j"            % pekkoVersion,
+  "org.apache.pekko" %% "pekko-protobuf-v3"      % pekkoVersion,
+  "org.apache.pekko" %% "pekko-http"             % pekkoHttpVersion,
+  "org.apache.pekko" %% "pekko-http-core"        % pekkoHttpVersion,
+  "org.apache.pekko" %% "pekko-http-spray-json"  % pekkoHttpVersion,
+  "org.apache.pekko" %% "pekko-http-xml"         % pekkoHttpVersion,
+  "org.apache.pekko" %% "pekko-parsing"          % pekkoHttpVersion,
+)
 
 ThisBuild / scalacOptions :=
   Seq(
@@ -165,7 +178,7 @@ lazy val commonSettings = Seq(
     "io.github.samueleresca" %% "pekko-quartz-scheduler"       % pekkoQuartzSchedulerVersion,
     "ch.qos.logback"          % "logback-classic"              % logbackVersion,
     "com.github.jkugiya"     %% "ulid-scala"                   % "1.0.6",
-    "com.microsoft.playwright" % "playwright"                  % "1.63.0",
+    "com.microsoft.playwright" % "playwright"                  % "1.65.1",
     "org.apache.commons"      % "commons-math3"                % "3.6.1",  // Beta distribution for Thompson Sampling
     "com.github.blemale"     %% "scaffeine"                    % "5.3.0",  // Scala wrapper for Caffeine cache
     "com.google.guava"        % "guava"                        % "33.4.8-jre",  // InternetDomainName (public-suffix eTLD+1 for auto-approve trust)
@@ -176,7 +189,7 @@ lazy val commonSettings = Seq(
     "com.softwaremill.sttp.tapir" %% "tapir-openapi-docs"      % tapirVersion,
     "com.softwaremill.sttp.tapir" %% "tapir-swagger-ui-bundle" % tapirVersion,
     // Test
-    "org.scalatest"          %% "scalatest"                    % "3.2.19"     % Test,
+    "org.scalatest"          %% "scalatest"                    % "3.2.20"     % Test,
     "org.scalatestplus"      %% "scalacheck-1-17"              % "3.2.18.0"   % Test,
     "org.apache.pekko"       %% "pekko-actor-testkit-typed"    % pekkoVersion % Test,
     "org.apache.pekko"       %% "pekko-testkit"                % pekkoVersion % Test,

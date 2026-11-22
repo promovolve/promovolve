@@ -137,7 +137,7 @@ class ServeIndexDDataSpec extends AnyWordSpec with Matchers with BeforeAndAfterA
     var last: Throwable = null
     while (System.nanoTime() < deadline) {
       try return assertion
-      catch { case t: Throwable => last = t; Thread.sleep(50) }
+      catch { case scala.util.control.NonFatal(t) => last = t; Thread.sleep(50) }
     }
     if (last != null) throw last else assertion
   }

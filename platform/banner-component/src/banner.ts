@@ -16,7 +16,7 @@ import { collectExpandedImageUrls, parseJSON, pickCollapsedLayout, pickExpandedL
 import { resolveExpandedFonts } from "./font-catalog";
 import { createViewableGate, viewableThreshold, type ViewableGate } from "./viewability";
 import { isFoldout, openFoldOut, type FoldOutHandle } from "./fold-out";
-import { animatePageTurn, collapsedLift, createInteractivePeel, buildGrainOverlay, dogEarPeelFrame, DOGEAR_PEEL_TRAVEL, PAPER_CSS, PAPER_BACK_BLEND, paperBackBackground, paperBackStock } from "./paper";
+import { animatePageTurn, collapsedEdge, createInteractivePeel, buildGrainOverlay, dogEarPeelFrame, DOGEAR_PEEL_TRAVEL, PAPER_CSS, PAPER_BACK_BLEND, paperBackBackground, paperBackStock } from "./paper";
 
 // The reader deals its sheets in by default (the kawaraban lifecycle);
 // an advertiser can opt out via cfg.entrance = "fade" for a plain fade
@@ -634,7 +634,9 @@ export class ExpandableMagazineBanner extends HTMLElement {
     const flap = document.createElement("div");
     flap.className = "paper-flap";
     flap.appendChild(buildGrainOverlay());
-    banner.appendChild(flap);
+    // Beside the box in its frame, so the flap's inset:0 is the creative,
+    // not the slot (GH #526).
+    (box.parentElement ?? banner).appendChild(flap);
 
     let raf = 0;
     const render = (t: number): void => {
@@ -785,7 +787,10 @@ export class ExpandableMagazineBanner extends HTMLElement {
       promoteToTopLayer(root);
       this.closeOnRotateOut(root);
     }
+    let teaseOff: AbortController | null = null;
     const dropDogEars = (): void => {
+      teaseOff?.abort();
+      teaseOff = null;
       for (const de of this._dogEars) {
         de.applyUnfolded(); // clear the face's punch clip with its flap
         de.wrap.remove();
@@ -814,6 +819,15 @@ export class ExpandableMagazineBanner extends HTMLElement {
       const c = collapsed();
       if (c) c.style.opacity = "";
       if (framed) this.dispatchEvent(new CustomEvent("magazine-collapse", { bubbles: true, composed: true }));
+      // Same as the reader's close (restoreCollapsed in _collapse): a
+      // keep-frame preview replays the corner teaser on the ad it returned
+      // to (GH #533). Skipped if a re-open landed us here (_expand).
+      if (framed && this.getAttribute("keep-frame") === "1") {
+        this._teaserPlayed = false;
+        requestAnimationFrame(() => {
+          if (!this._expanded) this.playTeaserPeel();
+        });
+      }
     };
     const handle = openFoldOut({
       root,
@@ -839,11 +853,26 @@ export class ExpandableMagazineBanner extends HTMLElement {
       onOpened: (face) => {
         if (this.canFold) {
           const dogEarSize = framed ? "7cqmin" : "12cqmin";
+          // The fold punches the WHOLE poster, as the reader punches its
+          // whole page box: the poster's outline and shadow belong to the
+          // sheet, so a hole cut in the top face alone left them drawing the
+          // missing corner (GH #540). Pointer hover then also covers the
+          // whole poster, not just the top panel (GH #536). The corner sits
+          // on the poster too, so its size and the teaser's are measured from
+          // the whole sheet, as the reader's are, not the top third (GH #543).
+          const sheetBox = face.closest<HTMLElement>(".foldout") ?? face;
           const de = buildDogEar(
-            face, dogEarSize, this, 0, this.pinnedPageIdx >= 0, page?.bg, rtl, true, this.consumeOverlayTease,
+            sheetBox, dogEarSize, this, 0, this.pinnedPageIdx >= 0, page?.bg, rtl, true, this.consumeOverlayTease,
           );
-          face.appendChild(de.wrap);
+          sheetBox.appendChild(de.wrap);
           this._dogEars.push(de);
+          // Touch has no hover: play the teaser 350ms after the poster
+          // opens, as applyStackLayout does for the reader's top page.
+          if (!reducedMotion && this.pinnedPageIdx < 0 && !window.matchMedia("(hover: hover)").matches) {
+            teaseOff = new AbortController();
+            const t = window.setTimeout(() => de.peelTease(), 350);
+            teaseOff.signal.addEventListener("abort", () => window.clearTimeout(t));
+          }
         }
         // Entrances play once the unfold lands, across all three copies.
         if (played) return;
@@ -1665,16 +1694,26 @@ export class ExpandableMagazineBanner extends HTMLElement {
       <style>
         * { box-sizing: border-box; margin: 0; padding: 0; }
         ${SOLID_SHEET_CSS}
-        .design-box {
-          container-type: size;
+        /* The creative's own frame: sized to the creative's aspect inside
+           the slot. The fold flaps sit in it, beside the design box, so
+           they land on the creative's corner even when the creative is
+           smaller than the slot (GH #526). No container-type here: the
+           ear size (cqmin) must keep resolving as it always has. */
+        .sheet-frame {
           aspect-ratio: ${aspectCss};
           width: 100%;
           max-width: 100%;
           max-height: 100%;
           position: relative;
+        }
+        .design-box {
+          container-type: size;
+          position: absolute;
+          inset: 0;
           overflow: hidden;
           background: ${page.bg ?? "linear-gradient(135deg,#1a1a1a,#2d2518)"};
           border-radius: ${editMode ? "0" : "4px"};
+          box-shadow: ${collapsedEdge(editMode, page.bg)};
         }
         .banner.folded .design-box {
           clip-path: ${pageClip};
@@ -1710,11 +1749,12 @@ export class ExpandableMagazineBanner extends HTMLElement {
         position:relative;overflow:hidden;
         background:transparent;
         border-radius:${editMode ? "0" : "6px"};
-        filter:${collapsedLift(editMode, page.bg)};
         opacity:${editMode ? "1" : "0"};transition:opacity .18s ease-out;
       ">
-        <div class="design-box">${html}</div>
-        <div class="collapsed-dogear-flap"></div>
+        <div class="sheet-frame">
+          <div class="design-box">${html}</div>
+          <div class="collapsed-dogear-flap"></div>
+        </div>
       </div>`);
 
     // Per-page full-bleed video background. Runs in every mode —
@@ -3678,6 +3718,10 @@ function buildDogEar(
 
   if (initiallyFolded) applyFolded();
 
+  // A mouse press must not focus the corner: a focused button rings blue
+  // on the next keypress (even a screenshot shortcut). Tab still focuses
+  // it, with its ring, for keyboard users (GH #539).
+  wrap.addEventListener("mousedown", (e) => e.preventDefault());
   wrap.addEventListener("click", (e) => {
     e.stopPropagation();
     const folded = wrap.dataset.folded === "1";

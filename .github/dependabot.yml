@@ -2,6 +2,16 @@ version: 2
 
 # Keep Dependabot's default `dependencies` label.
 # Version-type filters restrict routine updates without excluding security fixes.
+# playwright-java groups the Docker image and Maven pin into one PR.
+multi-ecosystem-groups:
+  playwright-java:
+    schedule:
+      interval: "daily"
+      time: "02:00"
+      timezone: "Asia/Tokyo"
+    labels:
+      - dependencies
+
 updates:
   - package-ecosystem: "sbt"
     directory: "/"
@@ -24,6 +34,11 @@ updates:
         update-types: ["version-update:semver-minor"]
       - dependency-name: "com.typesafe.slick:slick-hikaricp_*"
         update-types: ["version-update:semver-minor"]
+      - dependency-name: "com.microsoft.playwright:playwright"
+        update-types:
+          - "version-update:semver-major"
+          - "version-update:semver-minor"
+          - "version-update:semver-patch"
     labels:
       - dependencies
     # Slick modules share a release; unrelated dependencies need separate reviews.
@@ -60,6 +75,10 @@ updates:
         patterns: ["*"]
         group-by: "dependency-name"
         update-types: ["minor", "patch"]
+      npm-same-dependency-security:
+        applies-to: "security-updates"
+        patterns: ["*"]
+        group-by: "dependency-name"
 
   - package-ecosystem: "gomod"
     directory: "/platform"
@@ -131,10 +150,6 @@ updates:
         update-types:
           - "version-update:semver-minor"
           - "version-update:semver-patch"
-      - dependency-name: "playwright/java"
-        update-types:
-          - "version-update:semver-minor"
-          - "version-update:semver-patch"
       - dependency-name: "node"
         update-types:
           - "version-update:semver-minor"
@@ -149,6 +164,30 @@ updates:
           - "version-update:semver-patch"
     labels:
       - dependencies
+
+  - package-ecosystem: "docker"
+    directory: "/"
+    cooldown:
+      default-days: 7
+    patterns: ["playwright/java"]
+    allow:
+      - dependency-name: "playwright/java"
+        update-types:
+          - "version-update:semver-minor"
+          - "version-update:semver-patch"
+    multi-ecosystem-group: "playwright-java"
+
+  - package-ecosystem: "sbt"
+    directory: "/"
+    cooldown:
+      default-days: 7
+    patterns: ["com.microsoft.playwright:playwright"]
+    allow:
+      - dependency-name: "com.microsoft.playwright:playwright"
+        update-types:
+          - "version-update:semver-minor"
+          - "version-update:semver-patch"
+    multi-ecosystem-group: "playwright-java"
 
   - package-ecosystem: "docker-compose"
     directories:

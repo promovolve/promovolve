@@ -67,9 +67,9 @@ nodes when possible but co-locate on a single node without changes (see
   which only exist with the `timescaledb` extension. Plain Postgres aborts at
   the first one.
 - **Playwright** runs on the browser Deployment (same API image, `browser`
-  role only). The image is built on
-  `mcr.microsoft.com/playwright/java:v1.63.0-jammy` (browser build matched to
-  the pinned `playwright` dep) with Chromium sandboxing and the Localhost
+  role only). The image is built on the `playwright/java` base image in
+  `Dockerfile.api` (must match the `playwright` pin in `build.sbt`),
+  with Chromium sandboxing and the Localhost
   seccomp profile; see [browser-runtime.md](browser-runtime.md).
 
 ## Prerequisites

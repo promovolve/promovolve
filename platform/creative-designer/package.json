@@ -19,7 +19,7 @@
     "test:anim-viewability": "node tests/ratchet/anim-viewability.mjs"
   },
   "devDependencies": {
-    "@eslint/js": "^9.17.0",
+    "@eslint/js": "^9.39.5",
     "@types/node": "24",
     "eslint": "^9.17.0",
     "playwright": "^1.62.1",

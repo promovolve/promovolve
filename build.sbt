@@ -3,14 +3,27 @@ import scala.collection.Seq
 ThisBuild / organization := "promovolve"
 ThisBuild / scalaVersion := "3.10.1"
 val pekkoVersion                = "1.4.0"
-val pekkoHttpVersion            = "1.2.0"
+val pekkoHttpVersion            = "1.4.0"
 val pekkoProjectionVersion      = "1.1.0"
 val pekkoManagementVersion      = "1.2.1"
 val logbackVersion              = "1.6.3"
 val pekkoQuartzSchedulerVersion = "1.3.0-pekko-1.1.x"
-val tapirVersion = "1.13.3"
+val tapirVersion = "1.13.33"
 // Pinned with the image it starts (see PostgresTestContainer).
 val testcontainersVersion       = "1.21.4"
+
+// Keep Pekko on pekkoVersion when tapir pulls a newer stream/slf4j.
+ThisBuild / dependencyOverrides ++= Seq(
+  "org.apache.pekko" %% "pekko-actor"            % pekkoVersion,
+  "org.apache.pekko" %% "pekko-stream"           % pekkoVersion,
+  "org.apache.pekko" %% "pekko-slf4j"            % pekkoVersion,
+  "org.apache.pekko" %% "pekko-protobuf-v3"      % pekkoVersion,
+  "org.apache.pekko" %% "pekko-http"             % pekkoHttpVersion,
+  "org.apache.pekko" %% "pekko-http-core"        % pekkoHttpVersion,
+  "org.apache.pekko" %% "pekko-http-spray-json"  % pekkoHttpVersion,
+  "org.apache.pekko" %% "pekko-http-xml"         % pekkoHttpVersion,
+  "org.apache.pekko" %% "pekko-parsing"          % pekkoHttpVersion,
+)
 
 ThisBuild / scalacOptions :=
   Seq(

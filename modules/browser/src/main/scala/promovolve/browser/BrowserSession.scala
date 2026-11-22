@@ -12,6 +12,7 @@ import scala.concurrent.Promise
 import scala.concurrent.duration.*
 import scala.jdk.CollectionConverters.*
 import scala.util.{ Failure, Random, Success, Try }
+import scala.util.control.NonFatal
 
 /**
  * Single Playwright + Chromium instance pinned to one thread.
@@ -348,7 +349,7 @@ object BrowserSession {
             val result = work(browser)
             promise.success(result)
           } catch {
-            case t: Throwable =>
+            case NonFatal(t) =>
               log.warn("Submit work failed: {}", t.getMessage)
               promise.failure(t)
           }
@@ -359,7 +360,7 @@ object BrowserSession {
           // the session on a warmup failure — fall back to lazy init.
           try ensureBrowser()
           catch {
-            case t: Throwable =>
+            case NonFatal(t) =>
               log.warn("BrowserSession {} warmup failed ({}); will init lazily on first use",
                 sessionId, t.getMessage)
           }

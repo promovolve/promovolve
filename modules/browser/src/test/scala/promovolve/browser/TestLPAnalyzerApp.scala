@@ -40,7 +40,7 @@ object TestLPAnalyzerApp {
           s"      imgs: ${s.images.size} (${s.images.take(3).map(i => s"${i.width}x${i.height}").mkString(", ")})")
       }
     } catch {
-      case e: Throwable =>
+      case e: Exception =>
         println(s"FAILED: ${e.getClass.getSimpleName}: ${e.getMessage}")
         e.printStackTrace()
     } finally {

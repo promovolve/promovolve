@@ -2,11 +2,7 @@ version: 2
 
 # Keep Dependabot's default `dependencies` label.
 # Version-type filters restrict routine updates without excluding security fixes.
-#
-# playwright-java: the API image's playwright/java tag and the Maven
-# `com.microsoft.playwright` pin must stay on the same major.minor.patch.
-# Multi-ecosystem grouping puts both bumps in one PR when either side moves.
-# (Dependabot does not force equal versions; review the PR if only one side updates.)
+# playwright-java groups the Docker image and Maven pin into one PR.
 multi-ecosystem-groups:
   playwright-java:
     schedule:
@@ -33,7 +29,6 @@ updates:
           - "version-update:semver-patch"
     # Slick uses PVP: 3.5 -> 3.6 can break Pekko JDBC/Projection binaries.
     # Revisit with a compatible Pekko stack; type-only ignores leave security updates eligible.
-    # Playwright is owned by the playwright-java multi-ecosystem group below.
     ignore:
       - dependency-name: "com.typesafe.slick:slick_*"
         update-types: ["version-update:semver-minor"]
@@ -143,7 +138,6 @@ updates:
       # Wildcard allow and explicit ignore rules both trigger parsing of unsupported
       # sbtscala/scala-sbt composite tags. Maintain that image manually for now.
       # Add new Dockerfile images here, using repository names without registry hosts.
-      # playwright/java is owned by the playwright-java multi-ecosystem group below.
       - dependency-name: "eclipse-temurin"
         update-types:
           - "version-update:semver-minor"
@@ -163,7 +157,6 @@ updates:
     labels:
       - dependencies
 
-  # Keep Dockerfile.api's playwright/java tag and build.sbt's Maven pin together.
   - package-ecosystem: "docker"
     directory: "/"
     cooldown:

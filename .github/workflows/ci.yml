@@ -277,6 +277,7 @@ jobs:
       - run: python3 scripts/test-docker-config.py
       - run: python3 -m pip install 'PyYAML>=6,<7'
       - run: python3 scripts/test-browser-runtime.py
+      - run: python3 scripts/test-browser-runtime-k8s.py
 
   docker-changes:
     name: Select Docker image checks

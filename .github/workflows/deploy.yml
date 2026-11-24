@@ -364,7 +364,7 @@ jobs:
           persist-credentials: true   # the pin-back step pushes
       - uses: actions/setup-node@v7.0.0
         with:
-          node-version: 24
+          node-version: 26
           package-manager-cache: false
       - name: Build + publish banner bundle to R2
         id: publish
@@ -516,7 +516,7 @@ jobs:
           persist-credentials: false
       - uses: actions/setup-node@v7.0.0
         with:
-          node-version: 24
+          node-version: 26
           package-manager-cache: false
       - name: Build + publish bootstrap to R2
         working-directory: platform/banner-bootstrap

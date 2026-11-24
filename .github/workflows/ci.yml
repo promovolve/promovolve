@@ -322,6 +322,8 @@ jobs:
               - 'platform/help/**'
               - 'platform/tailwind.config.js'
               - 'platform/tailwind.input.css'
+              - 'platform/tailwind/package.json'
+              - 'platform/tailwind/package-lock.json'
               - 'docker/init-db.sql'
               - 'scripts/smoke-docker.py'
 

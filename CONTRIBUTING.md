@@ -33,7 +33,7 @@ See the [README](README.md#repository-layout) for the map. The two build targets
 - **JDK 25 and sbt** (Scala 3.9)
 - **Go 1.27+**
 - **GNU Make** (Go platform tasks)
-- **Node.js 24** (to build the Tailwind CSS and the JS ad bundles)
+- **Node.js 26** (to build the Tailwind CSS and the JS ad bundles)
 - **Docker** (local Postgres/TimescaleDB)
 - To run the full system end-to-end you also need an S3-compatible bucket
   (Cloudflare R2) and one LLM API key (Gemini, OpenAI, or Anthropic) — the core

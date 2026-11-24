@@ -13,6 +13,7 @@
 
 # ---- css stage ----
 FROM node:24-alpine AS css
+ARG BUILDKIT_SBOM_SCAN_STAGE=true
 WORKDIR /css
 COPY tailwind/package.json tailwind/package-lock.json ./tailwind/
 RUN npm --prefix tailwind ci --include=dev --ignore-scripts

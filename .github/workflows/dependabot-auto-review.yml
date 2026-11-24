@@ -1,0 +1,107 @@
+name: Dependabot auto-review
+
+on:
+  pull_request_target:
+    branches: [main]
+    types: [opened, reopened, synchronize, ready_for_review]
+
+permissions:
+  contents: read
+  pull-requests: read
+
+concurrency:
+  group: dependabot-auto-review-${{ github.event.pull_request.number }}-${{ github.event.pull_request.head.sha }}
+  cancel-in-progress: true
+
+jobs:
+  review:
+    if: >-
+      github.repository == 'promovolve/promovolve' &&
+      github.event.pull_request.user.login == 'dependabot[bot]' &&
+      github.event.pull_request.head.repo.full_name == github.repository &&
+      !github.event.pull_request.draft
+    runs-on: ubuntu-latest
+    env:
+      PR: ${{ github.event.pull_request.number }}
+      HEAD_SHA: ${{ github.event.pull_request.head.sha }}
+    steps:
+      # Only the base revision is trusted with the App private key.
+      - uses: actions/checkout@v7.0.1
+        with:
+          ref: ${{ github.event.pull_request.base.sha }}
+          persist-credentials: false
+
+      - name: Verify Dependabot commit and changed files
+        id: verify
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          commits=$(gh api --paginate --slurp "repos/$GITHUB_REPOSITORY/pulls/$PR/commits")
+          # fetch-metadata reads the first commit. Require that commit to be the reviewed head.
+          if ! jq -e --arg sha "$HEAD_SHA" '
+            [.[][]] | length == 1 and
+            .[0].sha == $sha and .[0].author.login == "dependabot[bot]" and
+            .[0].commit.verification.verified
+          ' <<<"$commits" >/dev/null; then
+            echo "Expected one verified Dependabot commit matching the event head"
+            exit 0
+          fi
+
+          files=$(gh api --paginate --slurp "repos/$GITHUB_REPOSITORY/pulls/$PR/files")
+          jq -ce '[.[][] | {filename, status}]' <<<"$files" >"$RUNNER_TEMP/dependabot-files.json"
+          echo "eligible=true" >>"$GITHUB_OUTPUT"
+
+      - name: Read Dependabot metadata
+        if: steps.verify.outputs.eligible == 'true'
+        id: metadata
+        uses: dependabot/fetch-metadata@v3.1.0
+
+      - name: Evaluate update
+        if: steps.verify.outputs.eligible == 'true'
+        id: policy
+        env:
+          DEPENDABOT_UPDATES: ${{ steps.metadata.outputs.updated-dependencies-json }}
+        run: python3 scripts/dependabot-auto-review.py
+
+      - name: Create Promovolve App token
+        if: steps.policy.outputs.eligible == 'true'
+        id: app-token
+        uses: actions/create-github-app-token@v3.3.0
+        with:
+          client-id: ${{ vars.PIN_BACK_APP_CLIENT_ID }}
+          private-key: ${{ secrets.PIN_BACK_APP_PRIVATE_KEY }}
+          owner: ${{ github.repository_owner }}
+          repositories: promovolve
+          permission-pull-requests: write
+          permission-contents: write
+
+      - name: Approve and enable squash auto-merge
+        if: steps.policy.outputs.eligible == 'true'
+        env:
+          GH_TOKEN: ${{ steps.app-token.outputs.token }}
+        run: |
+          rules=$(gh api "repos/$GITHUB_REPOSITORY/rules/branches/main")
+          # Auto-merge can outlive this run, so new commits must invalidate this approval.
+          if ! jq -e '
+            ["Scala core (sbt)", "Scala persistence (timescaledb)",
+             "Banner (unit + hostile environments)", "Creative designer (unit + animation viewability)",
+             "Dashboard date-picker (browser)", "Bootstrap (publisher ad tag)",
+             "Platform (go)", "Platform billing (postgres)", "Docker image checks"] as $required |
+            [.[] | select(.type == "required_status_checks") | .parameters.required_status_checks[] | select(.integration_id == 15368) | .context] as $checks |
+            [.[] | select(.type == "pull_request" and .parameters.required_approving_review_count > 0)] as $reviews |
+            (($required - $checks) | length == 0) and
+            ($reviews | length > 0) and all($reviews[]; .parameters.dismiss_stale_reviews_on_push)
+          ' <<<"$rules" >/dev/null; then
+            echo "Expected required GitHub Actions checks or stale-review dismissal are missing"
+            exit 0
+          fi
+
+          pr=$(gh api "repos/$GITHUB_REPOSITORY/pulls/$PR")
+          jq -e --arg sha "$HEAD_SHA" '
+            .state == "open" and .draft == false and .base.ref == "main" and .head.sha == $sha
+          ' <<<"$pr" >/dev/null
+
+          gh api --method POST "repos/$GITHUB_REPOSITORY/pulls/$PR/reviews" \
+            -f event=APPROVE -f commit_id="$HEAD_SHA" \
+            -f body='Auto-approved as a Dependabot SemVer patch in CI-covered manifests.' >/dev/null
+          gh pr merge "$PR" --repo "$GITHUB_REPOSITORY" --auto --squash --match-head-commit "$HEAD_SHA"

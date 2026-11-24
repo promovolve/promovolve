@@ -220,6 +220,7 @@ jobs:
           platforms: linux/arm64
           push: true
           tags: ${{ env.PLATFORM_IMAGE }}:main-${{ github.sha }}
+          sbom: true
           cache-from: type=gha,scope=platform
           cache-to: type=gha,mode=max,scope=platform
 

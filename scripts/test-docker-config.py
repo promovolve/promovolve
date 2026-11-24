@@ -93,6 +93,7 @@ if __name__ == "__main__":
                         "modules/core/src/main/scala/promovolve/package.scala"])
     check_context("platform", ["go.mod", "go.sum", "cmd/server/main.go",
                                "templates/layout.html", "static/passkey.js",
+                               "tailwind/package.json", "tailwind/package-lock.json",
                                "help/advertiser.md"])
     check_compose("docker-compose.yml", {
         "postgres": {(5432, 5432)},

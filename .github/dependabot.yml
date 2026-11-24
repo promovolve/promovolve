@@ -54,6 +54,7 @@ updates:
       - "/platform/banner-component"
       - "/platform/creative-designer"
       - "/platform/dashboard-tests"
+      - "/platform/tailwind"
     schedule:
       interval: "daily"
       time: "02:00"

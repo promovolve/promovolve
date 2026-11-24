@@ -12,15 +12,15 @@
 #   docker build -f platform/Dockerfile -t promovolve/platform:dev platform
 
 # ---- css stage ----
-# Pin the same tailwindcss version as scripts/build-tailwind.sh so local
-# and in-image output can't drift.
 FROM node:24-alpine AS css
+ARG BUILDKIT_SBOM_SCAN_STAGE=true
 WORKDIR /css
-RUN npm install tailwindcss@3.4.17
+COPY tailwind/package.json tailwind/package-lock.json ./tailwind/
+RUN npm --prefix tailwind ci --include=dev --ignore-scripts
 COPY tailwind.config.js tailwind.input.css ./
 COPY templates ./templates
 COPY static/passkey.js ./static/passkey.js
-RUN npx tailwindcss -c tailwind.config.js -i tailwind.input.css -o tailwind.css --minify
+RUN ./tailwind/node_modules/.bin/tailwindcss -c tailwind.config.js -i tailwind.input.css -o tailwind.css --minify
 
 # ---- build stage ----
 FROM golang:1.27 AS build
@@ -33,7 +33,7 @@ COPY . .
 # Freshly compiled CSS replaces the committed copy BEFORE go:embed runs.
 COPY --from=css /css/tailwind.css static/tailwind.css
 # Static binary so it runs on a distroless base.
-RUN CGO_ENABLED=0 GOOS=linux go build -o /out/server ./cmd/server
+RUN CGO_ENABLED=0 GOOS=linux go build -ldflags=-s -o /out/server ./cmd/server
 
 # ---- runtime stage ----
 FROM gcr.io/distroless/static-debian12:nonroot

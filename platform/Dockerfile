@@ -32,7 +32,7 @@ COPY . .
 # Freshly compiled CSS replaces the committed copy BEFORE go:embed runs.
 COPY --from=css /css/tailwind.css static/tailwind.css
 # Static binary so it runs on a distroless base.
-RUN CGO_ENABLED=0 GOOS=linux go build -o /out/server ./cmd/server
+RUN CGO_ENABLED=0 GOOS=linux go build -ldflags=-s -o /out/server ./cmd/server
 
 # ---- runtime stage ----
 FROM gcr.io/distroless/static-debian12:nonroot

@@ -16,6 +16,10 @@ workflows:
     '.github/workflows/crawler-list-refresh.yml':
         - 'actions/checkout@v7.0.1'
         - 'actions/create-github-app-token@v3.3.0'
+    '.github/workflows/dependabot-auto-review.yml':
+        - 'actions/checkout@v7.0.1'
+        - 'actions/create-github-app-token@v3.3.0'
+        - 'dependabot/fetch-metadata@v3.1.0'
     '.github/workflows/deploy.yml':
         - 'actions/checkout@v7.0.1'
         - 'actions/create-github-app-token@v3.3.0'
@@ -106,6 +110,11 @@ dependencies:
         repo_id: 941189561
         uses:
             - 'carabiner-dev/actions@2fec8bd8e1dcfdea26080648070b4827f1fa0584'
+    'dependabot/fetch-metadata@v3.1.0':
+        ref: 'v3.1.0'
+        commit: 'sha1-25dd0e34f4fe68f24cc83900b1fe3fe149efef98'
+        owner_id: 27347476
+        repo_id: 371068214
     'docker/build-push-action@v7.4.0':
         ref: 'v7.4.0'
         commit: 'sha1-c3c9e263c25d99ce0380d002d59b67737d91b0dc'

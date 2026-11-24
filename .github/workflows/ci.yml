@@ -333,6 +333,9 @@ jobs:
     timeout-minutes: 25
     permissions:
       contents: read
+    outputs:
+      api: ${{ steps.verified.outputs.api }}
+      platform: ${{ steps.verified.outputs.platform }}
     strategy:
       fail-fast: false
       matrix:
@@ -361,3 +364,42 @@ jobs:
           java-version: '21'
       - name: Smoke test packaged runtime
         run: python3 scripts/smoke-docker.py ${{ matrix.image }} promovolve-${{ matrix.image }}:ci
+      - name: Record verified image
+        id: verified
+        env:
+          IMAGE: ${{ matrix.image }}
+        run: printf '%s=success\n' "$IMAGE" >>"$GITHUB_OUTPUT"
+
+  docker-required:
+    # A required matrix check may never be created when its image is out of scope.
+    name: Docker image checks
+    if: ${{ always() }}
+    needs: [docker-changes, docker]
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    permissions: {}
+    env:
+      SELECTION_RESULT: ${{ needs.docker-changes.result }}
+      IMAGES: ${{ needs.docker-changes.outputs.images }}
+      BUILD_RESULT: ${{ needs.docker.result }}
+      API_RESULT: ${{ needs.docker.outputs.api }}
+      PLATFORM_RESULT: ${{ needs.docker.outputs.platform }}
+    steps:
+      - name: Require selected image builds and smoke tests
+        run: |
+          if [[ "$SELECTION_RESULT" == success && "$IMAGES" == '[]' && "$BUILD_RESULT" == skipped ]]; then
+            exit 0
+          fi
+
+          # The matrix can report success even when a selected job never ran.
+          if [[ "$SELECTION_RESULT" == success && "$BUILD_RESULT" == success ]] &&
+            jq -en --argjson images "$IMAGES" --arg api "$API_RESULT" --arg platform "$PLATFORM_RESULT" '
+              {api: $api, platform: $platform} as $verified |
+              ($images | type == "array" and length > 0) and
+              all($images[]; $verified[.] == "success")
+            ' >/dev/null; then
+            exit 0
+          fi
+
+          echo "Docker selection: $SELECTION_RESULT ($IMAGES); matrix: $BUILD_RESULT; api: $API_RESULT; platform: $PLATFORM_RESULT" >&2
+          exit 1

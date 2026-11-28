@@ -36,7 +36,7 @@ class BotUaMatcherSpec extends AnyWordSpec with Matchers {
             }
         } finally source.close()
       examples.size should be > 2000
-      BotUaMatcher.MaintainedPatterns.size shouldBe 1503
+      BotUaMatcher.MaintainedPatterns.size shouldBe 1505
       examples.filterNot(ua => BotUaMatcher.isBot(Some(ua))) shouldBe empty
     }
 
